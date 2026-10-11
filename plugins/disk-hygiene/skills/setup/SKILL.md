@@ -47,7 +47,8 @@ guard launches, and that is a WARN (see step 2), not a failure to downgrade.
 Launching the version probe proves only that something executes, not that it can run
 the guard's own source: Python 3.6, for example, rejects the guard's
 `from __future__ import annotations` and exits without a deny, the same silent fail-open through a
-different door (the step 1 record covers how a failing hook is treated). Unproven guard execution
+different door ([Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes), as of
+2026-10-11; recheck when that section changes what a `PreToolUse` exit other than 0 or 2 does). Unproven guard execution
 fails closed like every other guard-relevant unknown in this plugin.
 
 1. **Node exec-form launcher registration**. All three registrations (both wired hooks in

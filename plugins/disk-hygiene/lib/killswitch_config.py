@@ -54,8 +54,8 @@ def managed_settings_path() -> Path | None:
     The guard reads managed settings so an organization can enforce audit-only
     mode there. The file lives at a fixed system path per platform, never one a
     repo's files or environment can redirect. Whether a process running as the
-    user can write that path differs by platform (pointer below), so on some
-    platforms, WSL among them, the file is not an admin-only channel. The paths
+    user can write that path differs by platform (pointer below), so the file
+    is not an admin-only channel everywhere. The paths
     below are the ones the guard reads:
 
     - macOS:      ``/Library/Application Support/ClaudeCode/managed-settings.json``

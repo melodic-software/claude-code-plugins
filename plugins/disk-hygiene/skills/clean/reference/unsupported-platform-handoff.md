@@ -190,8 +190,16 @@ The PowerShell guard lane turns deletion spellings into a hook-issued `ask` (the
 bar as the engine apply prompt). Confirm that prompt only when the command matches the exact
 approved list. Add an explicit `permissions.ask` rule for those spellings if the handoff must
 not depend on hook-`ask` surfacing, and leave `dontAsk` first when the operator needs the
-confirm prompt. The skill's Gotchas carry the pointer record for how each permission mode
-treats either kind of `ask`. Engine invocations from PowerShell stay hard-denied.
+confirm prompt.
+
+- **Pointer**: when checking how a hook `ask` or a `permissions.ask` rule behaves in each mode,
+  fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
+  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode) and
+  [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
+  live. **As of**: 2026-10-11. **Recheck trigger**: a section changes whether either kind of `ask`
+  prompts in a mode.
+
+Engine invocations from PowerShell stay hard-denied.
 
 A deletion word inside a quoted literal (a commit message, a search term, an issue body) does
 not prompt when every command in the line is on a short list of commands that never run their

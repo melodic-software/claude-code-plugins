@@ -1282,8 +1282,9 @@ def resolve_disk_hygiene_enabled() -> bool:
     out of the ``settings.json`` files (``lib/killswitch_config.py``, the single
     reader it shares with the report-only probe) — never the process environment.
     The key is read only from the scopes a project or local ``settings.json``
-    cannot write (``killswitch_config`` owns that scope record and its
-    pointers), so a hostile repo cannot flip the switch. Managed settings are the highest-precedence, non-overridable scope, so
+    cannot write (https://code.claude.com/docs/en/settings-reference#pluginconfigs,
+    as of 2026-10-11; recheck when that section changes which scopes the key is
+    read from), so a hostile repo cannot flip the switch. Managed settings are the highest-precedence, non-overridable scope, so
     a value configured there wins over the user file — that is how an organization
     enforces audit-only mode. The ``--settings`` file is a session CLI flag a hook
     cannot observe, the one honored source not read here (see
@@ -2522,8 +2523,9 @@ def _write_diagnostic(message: str) -> None:
     an already-closed stream) from inside the very handler that is about to
     deny — the exception escapes, ``return 2`` / ``os._exit(2)`` never runs, and
     the process exits with something PreToolUse treats as non-blocking
-    (https://code.claude.com/docs/en/hooks#exit-code-output), running the destructive command
-    ungated. Losing the message is acceptable; losing the deny is not.
+    (https://code.claude.com/docs/en/hooks#exit-code-output, as of 2026-10-11;
+    recheck when that section states that a PreToolUse exit other than 0 or 2
+    blocks the action), running the destructive command ungated. Losing the message is acceptable; losing the deny is not.
 
     On failure fd 2 is pointed at the null device, because a write failure can
     leave data buffered and the interpreter's own shutdown flush of ``sys.stderr``

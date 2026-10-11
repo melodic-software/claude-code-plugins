@@ -5,7 +5,7 @@ bump: patch
 ### Fixed
 
 - The README no longer says a `PreToolUse` hook that exits 0 with nothing to say approves the call, and it states that no registration in this plugin sets a hook failure option; the outcome of a failed launch is read from the hooks page.
-- The kill-switch reader's docstring no longer calls every platform's managed-settings path admin-only: on some platforms, WSL among them, a process running as the user can write it.
+- The kill-switch reader's docstring no longer calls every platform's managed-settings path admin-only; whether a process running as the user can write it is read from the managed-settings page.
 
 ### Changed
 

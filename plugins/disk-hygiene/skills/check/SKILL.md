@@ -22,7 +22,9 @@ This skill is the model-invocable check while `setup` stays manual, because invo
 
 Read `${CLAUDE_PLUGIN_ROOT}/skills/setup/SKILL.md` and follow only its `check` section, running each probe it names with the Bash tool. Report the PASS/FAIL/INFO table. Stop.
 
-The interpreter probes (alias classification, version floor, kill switch) are not pre-granted; they run under the session's normal permissions. `/disk-hygiene:clean`'s Gotchas hold the record for why a wildcarded interpreter rule is not used.
+The interpreter probes (alias classification, version floor, kill switch) are not pre-granted; they run under the session's normal permissions, not a wildcarded interpreter allow rule.
+
+- **Pointer**: when checking which allow rules auto mode drops, fetch [How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions) live. **As of**: 2026-10-11. **Recheck trigger**: that section changes which allow rules it drops.
 
 ## Next
 

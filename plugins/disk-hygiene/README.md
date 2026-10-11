@@ -66,8 +66,9 @@ at preview. Backups remain the recovery boundary for user data.
 
 ## Requirements and platform support
 
-- Node.js on `PATH`, a prerequisite separate from Claude Code itself (`/disk-hygiene:setup` holds
-  the record). Every guard and detector registration runs `node hooks/exec-bash.mjs`, so without
+- Node.js on `PATH`, a prerequisite separate from Claude Code itself
+  ([Install with npm](https://code.claude.com/docs/en/setup#install-with-npm), as of 2026-10-11;
+  recheck when that section lists Node as bundled or required at runtime). Every guard and detector registration runs `node hooks/exec-bash.mjs`, so without
   `node` no hook launches and no guard is enforced. A `SessionStart` row in shell form
   (no `shell` field and no `args`) runs `lib/prerequisites.sh node-notice`, or
   `lib/prerequisites.ps1` where there is no `sh`, and needs no node itself. When node is
@@ -121,8 +122,10 @@ with `"command": "node"`. `args` is `hooks/exec-bash.mjs`, then
 launcher finds bash (Git Bash or `PATH` on Windows, `PATH` first elsewhere) and never
 `System32\bash.exe`. Bare `bash` or `python3` as `command`
 is the launch that fails open on Windows: the WSL relay and the WindowsApps alias stub fail to
-launch, and with no failure option set (the record under the failure table below) the guard would
-silently enforce nothing. The launcher resolves Python itself instead (#1504, #3686).
+launch, and with no failure option set
+([Block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails),
+as of 2026-10-11; recheck when that section changes the default outcome of a hook that fails to
+start) the guard would silently enforce nothing. The launcher resolves Python itself instead (#1504, #3686).
 
 The guard registers on two surfaces: a plugin-level **engine gate** (`hooks/hooks.json`) that acts
 only on commands referencing the engine, deferring everything else instantly, and enforces the kill
@@ -130,19 +133,24 @@ switch and data-root authority; and the skill-scoped **belt** inside the `clean`
 which adds the deny-by-default Bash and deletion-spelling PowerShell discipline during active
 cleanup work. Both surfaces resolve the kill switch by reading `disk_hygiene_enabled` from
 user-scope `pluginConfigs` in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, read only
-from the scopes a repo cannot forge; `lib/killswitch_config.py` owns that scope record), register
+from the scopes a repo cannot forge:
+[`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs), as of
+2026-10-11; recheck when that section changes which scopes the key is read from), register
 unconditionally, and fail closed to enabled.
 
 Hook lifetime: the belt keeps denying after a clean run ends, for the rest of the session. Start a
 new session to clear it. The plugin-level engine gate fires inside subagents. The
 skill-frontmatter belt does not, and a fanned-out worker's Bash lane is not belt-guarded, so
-"evidence only" is an instruction to the worker, not an enforced denial. `skills/clean/SKILL.md`
-holds the probe and the pointer record for subagents; for the session lifetime:
+"evidence only" is an instruction to the worker, not an enforced denial. Our probe recorded in
+[#5565](https://github.com/melodic-software/claude-code-plugins/pull/5565) observed the subagent
+gap.
 
-- **Pointer**: when checking how long a skill's frontmatter hooks stay registered, fetch
+- **Pointer**: when checking how long a skill's frontmatter hooks stay registered, or which hooks
+  apply inside subagents, fetch
   [Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)
-  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes how long a skill's hooks
-  stay registered.
+  and [Define hooks for subagents](https://code.claude.com/docs/en/sub-agents#define-hooks-for-subagents)
+  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes how long a skill's hooks
+  stay registered or documents subagent inheritance of skill-frontmatter hooks.
 
 **A silent engine-gate launch or runtime failure is surfaced.** A `Stop`-event detector
 (`skills/clean/scripts/guard_launch_monitor.py`, a separate hook entry in `hooks/hooks.json`,
@@ -207,8 +215,9 @@ Of the no-Python rows, the plugin-level gate row is the only fail-open. Those ar
 have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a
 missing interpreter is not, and an `ask` on every `PowerShell(*& $*)` call of every session would
 stop work, and fail the call outright in a run with no one to answer a prompt
-([Available modes](https://code.claude.com/docs/en/permission-modes#available-modes), as of
-2026-10-11; recheck when that section changes how a non-interactive run handles a prompt), on a
+([Turn off permission prompts in unattended runs](https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs),
+as of 2026-10-11; recheck when that section changes what a `-p` run with no permission host does
+with a request that would prompt), on a
 host whose only fault is having no Python. The
 residual is an engine reached without its file name appearing in the payload, the identity class the
 guard itself documents. For the no-Python rows the Stop detector stays as the end-of-turn backstop
@@ -441,8 +450,11 @@ measurements below carry the conditions they were taken under.
 - **Code execution:** the plugin runs bundled, standard-library Python. The skill-scoped PreToolUse
   guard denies every unknown Bash command, permits only canonical bundled scan/preview calls, and
   returns a hook-issued `ask` for the canonical engine `apply` and `handoff-apply` calls (same
-  `permissionDecision: "ask"` as the PowerShell deletion lane; how each permission mode treats it is
-  in the `/disk-hygiene:clean` Gotchas pointer record). The guard rejects shell expansion and operator syntax instead of validating only the
+  `permissionDecision: "ask"` as the PowerShell deletion lane; how each permission mode treats it:
+  [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
+  and [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode),
+  as of 2026-10-11; recheck when either section changes whether a hook `ask` prompts in a mode).
+  The guard rejects shell expansion and operator syntax instead of validating only the
   post-split argument vector; script identity follows the host path rules and remains
   case-sensitive on POSIX. No `eval`, dynamic shell construction, or downloads are used. Paths cross
   the process boundary as JSON or individually quoted CLI arguments.
@@ -454,8 +466,9 @@ measurements below carry the conditions they were taken under.
   engine invocations outright on the always-on engine gate (whether or not the clean skill is active);
   PowerShell deletion spellings are denied outright by the skill-scoped belt while `/disk-hygiene:clean`
   is active (the always-on gate defers on non-engine commands). The read honors only the scopes a
-  project or local repo `settings.json` cannot flip (`lib/killswitch_config.py` owns that scope
-  record and its pointers); the user file is located from `${CLAUDE_PLUGIN_ROOT}`, not from
+  project or local repo `settings.json` cannot flip
+  ([`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs), as of
+  2026-10-11; recheck when that section changes which scopes the key is read from); the user file is located from `${CLAUDE_PLUGIN_ROOT}`, not from
   repo-redirectable environment, and the managed (enterprise) file at its fixed system path, with its
   drop-in directory, is read too so an org can enforce audit-only. An absent
   or unreadable value fails closed to enabled. The one residual a hook cannot read is a value supplied only
@@ -596,7 +609,8 @@ behavior or the hooks page changes the `PreToolUse` decision output:
   local `--plugin-dir` testing.
 - [Skills frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). The
   `clean` skill is manual-only because it has side effects; supporting files, arguments, and
-  skill-scoped hooks.
+  skill-scoped hooks. As of 2026-10-11; recheck when that section renames or drops
+  `disable-model-invocation` or the frontmatter `hooks` field.
 - [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control).
   `PreToolUse` decision output.
 - [Marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference#relative-path-plugin-source). Relative plugin sources.
