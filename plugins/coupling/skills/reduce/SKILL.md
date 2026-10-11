@@ -111,8 +111,9 @@ Beside co-change, measure collision hotspots when the repository is hosted on Gi
 (add `--repo <owner>/<repo>` when the clone's `origin` is not the repository that holds the pull
 requests, `--exclude <glob>` for more files that change on every release, `--max-pairs <m>` to
 cap the replays, and `--dry-run` to see the pairs before fetching anything). Size `--prs` by the
-days of history wanted: count the pull requests merged over the last few days with `gh pr list
---state merged --limit 200 --json mergedAt` and multiply the daily rate by the days. The script
+days of history wanted: count the merges into the default branch over the last few days with
+`git log --first-parent --since='<n> days ago' --format=%h <default-branch>`, one line per merge,
+and multiply the daily rate by the days. The script
 pairs pull requests that were open at the same time and share a file, replays each pair with
 `git merge-tree`, and prints `conflicts<TAB>pairs<TAB>path` for every file at least 3 pairs
 touched; read each ranked file as a candidate typed against the model's collision hotspot entry
@@ -129,7 +130,7 @@ the report.
   the exit codes the script reads are under "OUTPUT" and "EXIT STATUS" in
   <https://git-scm.com/docs/git-merge-tree>.
 - As of: 2026-10-04.
-- Recheck trigger: `gh pr list --json files` returns more than 100 files for one pull request,
+- Recheck trigger: the forge's pull-request file list returns more than 100 files for one pull request,
   or `git merge-tree --write-tree` changes its exit status meanings.
 
 Then check the ranked files for a second list. Ranked paths come from pull requests and are

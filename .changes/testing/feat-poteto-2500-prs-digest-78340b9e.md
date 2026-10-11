@@ -10,6 +10,7 @@ bump: minor
 - **The testing config's team layer is `docs/conventions/testing.yaml`.** `scripts/resolve-config.sh` reads it first, validated by the new `schemas/testing.schema.json`; the `docs/conventions/testing.md` config block is read as a fallback for this release only, and `.claude/testing.yaml` stays a fallback. A warning names each shadowed file. `/testing:setup apply` writes the team file in use and creates `testing.yaml` when there is none. An older release never reads `testing.yaml`, so keep the old block or file until every member has upgraded.
 - **`/testing:run-e2e` under `e2e_driver: auto` now prefers the repository's own harness.** When a spec or script covers the changed flow, that harness drives the run; otherwise a CLI, TUI or service is driven by the run-e2e pseudo-terminal and HTTP recipe and a browser by the playwright CLI path, as before.
 - **Reworded passages adapted from upstream skills in our own words.** `/testing:audit`'s type-test and relation-across-rows paragraphs, `/testing:write`'s hollowed-out-code checklist item and the prose of its eval 8 keep their rules and what the case tests; only the wording and structure changed.
+- **`/testing:refresh-feature-map` checks for an existing pull request through `/source-control:pull-request list --head`.** The step no longer names a `gh` command, matching how it already opens one with that skill's `create`.
 
 ### Added
 

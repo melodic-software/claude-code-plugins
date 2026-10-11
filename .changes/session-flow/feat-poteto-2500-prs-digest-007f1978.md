@@ -12,6 +12,7 @@ bump: minor
 - **Shared `parse-concern-value.sh` synced, with its parser `yaml-subset.awk` beside it in `skills/retro/scripts/`.** The reader takes dotted keys, `--list`, stdin (`-`), a validated `--ref` and `--strict`; every existing root-key read resolves as before, and a file the parser rejects now yields the fallback with one stderr line.
 - **`/session-flow:handoff` and the save-point engine word the purpose argument and the link-don't-copy rule in their own terms.** Both no longer share phrasing with the upstream handoff skill. Behavior is unchanged.
 - **Reworded keep-going, recall and retro text in our own words.** The keep-going retry and trail-verdict rules, recall's condensing and report steps, retro's review lenses, durable-finding test and placement-first rule, the README summary and their eval cases now share no phrasing or structure with the upstream skills. Behavior is unchanged.
+- **`/session-flow:recall` finds unmerged closed pull requests through `/source-control:pull-request list`.** It runs one closed-state search per word and keeps rows with no merge commit; when that skill is not available or the read fails, the report says the source was skipped.
 
 ### Added
 

@@ -173,12 +173,14 @@ Then the outcome:
   3. Commit only the map files, staged by path: the corrected files and, for an untracked map,
      every file under the map directory, the untracked ones included, in the same commit as the
      corrections. Done when `git status --porcelain -- "<map directory>"` prints nothing.
-  4. Look for an open pull request from that branch (`gh pr list --head <branch> --state open`).
-     When one exists, push the branch: that updates it, and no second pull request is opened. When
-     none exists and the source-control plugin is enabled, open one through
-     `/source-control:pull-request create`, in the open state that skill resolves. With the plugin
-     not enabled, leave the commit on the branch and report that a pull request still needs
-     opening. Done when the report holds the pull request URL or the reason there is none.
+  4. With the source-control plugin enabled, look for an open pull request from that branch with
+     `/source-control:pull-request list --head "<branch>"`, which lists open ones by default. When
+     one exists, push the branch: that updates it, and no second pull request is opened. When
+     none exists, open one through `/source-control:pull-request create`, in the open state that
+     skill resolves. With the plugin not enabled, or when the list call fails, leave the commit on
+     the branch and report that a pull request still needs checking or opening, with the error
+     if there was one. Done when the report holds the pull request URL or the reason there is
+     none.
 
 ## Report
 

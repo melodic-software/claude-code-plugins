@@ -8,6 +8,7 @@
 - Amends: the expression criterion of
   [ADR 0018](0018-express-team-shared-conventions-as-consumer-convention-docs.md) Decision 1, so a
   structured surface and a policy floor are expressed as the YAML file below.
+- Related: [ADR 0061](0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md), the five-layer config cascade; the two layout shapes coexist until [#6594](https://github.com/melodic-software/claude-code-plugins/issues/6594) decides, and contradictions between them are tracked in [#7104](https://github.com/melodic-software/claude-code-plugins/issues/7104).
 
 ## Context
 

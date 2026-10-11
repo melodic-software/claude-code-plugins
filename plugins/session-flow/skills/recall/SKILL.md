@@ -109,9 +109,10 @@ Run each source that is available, and name any that is not:
   --grep='<term>' --format='%h %ad %s' --date=short`, one run per term, then
   `git log --all --grep='This reverts commit' --format='%h %ad %s%n%b' --date=short` and keep the
   reverts whose subject or reverted commit matches the topic.
-- **Closed pull requests that never merged.** `gh pr list --state closed --search '<term>
-  is:unmerged' --json number,title,closedAt,url --limit 20`. Without `gh` or its authentication,
-  say so and skip it.
+- **Closed pull requests that never merged.** When `/source-control:pull-request` is among the
+  available skills, run `/source-control:pull-request list --state closed --search '<word>'` once
+  per word of the search terms (a search value takes only letters, digits and `._/#-`) and keep the rows whose
+  `mergeCommit` is null. Otherwise, or when the read exits non-zero, say so and skip it.
 - **Open tracker items.** When `/work-items:track` is among the available skills, search it for
   the topic and list open bugs and tasks. Otherwise say the tracker was not searched.
 
