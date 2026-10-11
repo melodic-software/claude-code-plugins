@@ -251,8 +251,9 @@ jobs:
 
       # Opt-in because the job log of this public repository is public. Prints,
       # per run, at most 20 Bash calls whose tool_result has is_error true: the
-      # command and the result text, each cut to 300 characters and JSON-quoted
-      # onto one line. Nothing else from the trace is printed. Trace text is
+      # command cut to 300 characters, and the result text cut to its first 120
+      # and last 480 characters when longer than 600 (the end holds the daemon
+      # log), each JSON-quoted onto one line. Nothing else from the trace is printed. Trace text is
       # tool output, so workflow commands are off while it prints.
       - name: Print Bash error excerpts
         if: always() && inputs.debug-errors
@@ -276,6 +277,7 @@ jobs:
                 continue
               fi
               jq -nrR '
+                def tail_cut: if length > 600 then .[:120] + " … " + .[-480:] else . end;
                 [inputs | fromjson? | objects] as $m
                 | ([$m[] | select(.type == "assistant") | .message.content[]? | objects
                     | select(.type == "tool_use" and .name == "Bash" and (.id | type) == "string")
@@ -287,7 +289,7 @@ jobs:
                     | {cmd: $bash[$id],
                        out: (.content | if type == "array" then map(objects | select(.type == "text") | .text | tostring) | join("\n") else tostring end)}]
                 | "   \(length) Bash error(s), showing up to 20",
-                  (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out[:300] | tojson)")
+                  (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out | tail_cut | tojson)")
               ' "$trace" || echo "   could not read the trace"
             done || echo "could not read results.json"
           echo "::$token::"
