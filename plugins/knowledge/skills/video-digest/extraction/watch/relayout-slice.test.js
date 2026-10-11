@@ -810,6 +810,50 @@ describe("relayoutSlice", () => {
     );
   });
 
+  it("reads \\![x](dest) as a plain link and keeps the \\! when retiring it", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "key-frames/visual-frames.md":
+          "Bang: \\![state](../run-state/watch.json) and \\![t](../source/transcript.txt).\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      "Bang: \\!state (run-state/watch.json, not retained in this copy) and \\![t](../transcript/transcript.txt).\n",
+    );
+  });
+
+  it("catches, through the link check, a dangling path in a fence inside a block quote or list", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "recommendations/questions.md": [
+          "> ```",
+          "> [gone](../research/gone.md)",
+          "> ```",
+          "",
+          "- item",
+          "",
+          "  ```",
+          "  [also gone](../research/also-gone.md)",
+          "  ```",
+          "",
+        ].join("\n"),
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([
+      { file: "analysis/recommendations/questions.md", ref: "../research/gone.md" },
+      { file: "analysis/recommendations/questions.md", ref: "../research/also-gone.md" },
+    ]);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
   it("does not read an escaped \\[label](...) as a link", async () => {
     const body = "Literal: \\[watch](../run-state/watch.json) and \\[x\\](../research/gone.md).\n";
     const { sliceDir, targetDir } = makeFixture({

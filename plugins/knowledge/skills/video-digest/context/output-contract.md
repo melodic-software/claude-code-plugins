@@ -133,8 +133,9 @@ using it.
 ### Known limits of the re-layout
 
 The reference scanner is not a full CommonMark parser. It does not model indented code blocks,
-HTML blocks, link labels nested more than one level, or link reference definitions inside
-containers (lists, block quotes). References in those constructs are left unrewritten, and the
+fenced code blocks that are indented or inside block quotes or list items, HTML blocks, link
+labels nested more than one level, or link reference definitions inside containers (lists, block
+quotes). References in those constructs may be left unrewritten or read as ordinary text, and the
 link check is the backstop: it refuses a dangling slice-internal path it can see.
 
 ## Agent-written artifacts share the same root

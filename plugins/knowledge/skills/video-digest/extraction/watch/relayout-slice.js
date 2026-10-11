@@ -175,6 +175,15 @@ export function codeSpans(text) {
       at = open + 1;
       continue;
     }
+    // Three or more backticks opening a line (after any block-quote or list
+    // markers) are a fence, not a code span. Fences inside containers are not
+    // masked (a known limit), so what they hold stays visible to the check.
+    const lineStart = text.lastIndexOf("\n", open - 1) + 1;
+    const lead = text.slice(lineStart, open);
+    if (ticks.length >= 3 && /^[ \t]*(?:>[ \t]*)*(?:(?:[-*+]|\d+[.)])[ \t]+)?[ \t]*$/.test(lead)) {
+      at = runEnd;
+      continue;
+    }
     let close = -1;
     let scan = runEnd;
     while (scan < text.length) {
@@ -586,7 +595,10 @@ export function inlineLinks(text) {
     }
     if (labelStart === -1) continue;
     const label = labelStart === -1 ? "" : text.slice(labelStart + 1, open);
-    const linkStart = labelStart > 0 && text[labelStart - 1] === "!" ? labelStart - 1 : labelStart;
+    // A `!` right before the label marks an image, unless it is escaped (`\![x](dest)`).
+    const image =
+      labelStart > 0 && text[labelStart - 1] === "!" && !isEscaped(text, labelStart - 1);
+    const linkStart = image ? labelStart - 1 : labelStart;
     links.push({
       dest: raw.replace(/\\([()])/g, "$1"),
       destStart,
@@ -719,10 +731,12 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
 
 /**
  * Copies of `text` with code masked by spaces (line endings kept, so every
- * offset still matches the original): `fenceMasked` blanks fenced code blocks
- * (``` or ~~~, per CommonMark; an unclosed fence runs to the end), and
- * `linkMasked` also blanks inline code spans. Indented code blocks are not
- * masked: telling them from indented list content needs a full parser.
+ * offset still matches the original): `fenceMasked` blanks top-level fenced
+ * code blocks (``` or ~~~ opening at column 0; an unclosed fence runs to the
+ * end), and `linkMasked` also blanks inline code spans. Fences that are
+ * indented or inside a block quote or list item, and indented code blocks,
+ * are not masked: telling them apart needs container parsing. What they hold
+ * is read as ordinary text, so the link check still sees a dangling path.
  *
  * @param {string} text
  * @returns {{ fenceMasked: string, linkMasked: string }}
@@ -743,7 +757,7 @@ export function maskCode(text) {
   for (const line of text.split(/(?<=\n)/)) {
     const body = line.replace(/\r?\n$/, "");
     if (open === null) {
-      const opening = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(body);
+      const opening = /^(`{3,}|~{3,})(.*)$/.exec(body);
       if (opening && !(opening[1][0] === "`" && opening[2].includes("`"))) {
         open = { char: opening[1][0], length: opening[1].length, start: offset };
       }
