@@ -39,6 +39,27 @@ function ch() { return substr(FS_S, FP, 1) }
 
 function skipws() { while (FP <= length(FS_S) && ch() ~ /[ \t]/) FP++ }
 
+# rtrim and uncomment are sub(/[ \t]+$/, "", s) and sub(/[ \t]+#.*$/, "", s)
+# as one pass each: the regexes rescan a long run of blanks from every start.
+function rtrim(s,   n, c) {
+  for (n = length(s); n > 0; n--) {
+    c = substr(s, n, 1)
+    if (c != " " && c != "\t") break
+  }
+  return substr(s, 1, n)
+}
+
+function uncomment(s,   i, n, c, run) {
+  n = length(s); run = 0
+  for (i = 1; i <= n; i++) {
+    c = substr(s, i, 1)
+    if (c == " " || c == "\t") { if (!run) run = i }
+    else if (c == "#" && run) return substr(s, 1, run - 1)
+    else run = 0
+  }
+  return s
+}
+
 # Scan the quoted scalar opening at s[start]. On success sets QV to its value
 # and QEND to the index after the closing quote, and returns 1; returns 0 when
 # the quote is unclosed. `''` inside single quotes is one quote; inside double
@@ -109,7 +130,7 @@ function flow(path,   c, start, end) {
     FP++
   }
   c = substr(FS_S, start, FP - start)
-  sub(/[ \t]+$/, "", c)
+  c = rtrim(c)
   if (c == "") fail("an empty flow item")
   emit(path, c)
 }
@@ -146,7 +167,7 @@ function fmap(path,   k, c, start) {
       start = FP
       while (FP <= length(FS_S) && ch() !~ /[:,}]/) FP++
       k = substr(FS_S, start, FP - start)
-      sub(/[ \t]+$/, "", k)
+      k = rtrim(k)
       if (k !~ /^[A-Za-z0-9_-]+$/) fail("expected `key: value` in a flow mapping")
     }
     if (ch() != ":") fail("expected `key: value` in a flow mapping")
@@ -181,8 +202,7 @@ function value(path, s, ind, opener,   c, end, rest) {
     rest = substr(s, QEND)
   } else {
     unsupported(c)
-    sub(/[ \t]+#.*$/, "", s)
-    sub(/[ \t]+$/, "", s)
+    s = rtrim(uncomment(s))
     if (s ~ /:[ \t]/) fail("a plain value may not hold `: `; quote it")
     emit(path, s)
     return
