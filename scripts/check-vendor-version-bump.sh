@@ -196,14 +196,14 @@ for plugin in "${changed_plugins[@]}"; do
       fi
     fi
     if [[ "$dependabot" == yes ]]; then
-      echo "Dependabot-only change to plugins/$plugin/vendor/: scripts/dependabot-fragments.sh writes its fragment after the merge."
+      echo "Dependabot-only change to a vendor/ tree of plugins/$plugin/: scripts/dependabot-fragments.sh writes its fragment after the merge."
       continue
     fi
-    echo "STALE VERSION: plugins/$plugin/vendor/ changed vs $base but $plugin, in fragment mode, has no fragment for it" >&2
+    echo "STALE VERSION: a vendor/ tree of plugins/$plugin/ changed vs $base but $plugin, in fragment mode, has no fragment for it" >&2
     echo "  Run scripts/new-changelog-fragment.sh $plugin patch and describe the vendored change." >&2
     stale_fragment=1
   elif ((rc == 1)); then
-    echo "STALE VERSION: plugins/$plugin/vendor/ changed vs $base but $manifest is still ${head_version:-absent}" >&2
+    echo "STALE VERSION: a vendor/ tree of plugins/$plugin/ changed vs $base but $manifest is still ${head_version:-absent}" >&2
     stale=1
   elif ((rc != 0)); then
     exit 2
