@@ -1,0 +1,10 @@
+{
+  "values": {
+    "css": {
+      "rules": {
+        "disable": ["hover", "logical", "outline", "ease-in", "color", "transition-all", "motion", "duration"]
+      }
+    }
+  },
+  "provenance": { "css.rules.disable": "project-team" }
+}
