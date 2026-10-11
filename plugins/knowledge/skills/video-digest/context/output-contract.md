@@ -74,7 +74,8 @@ itself and refuses when they fail). It refuses any slice whose temp media is gon
 `--no-media` is passed, which takes nothing from the temp session (no media, frames, caption
 tracks or info JSON) even when it still exists; after a normal close that is the only way it runs.
 Without `--no-media` it also refuses a partly removed temp session, naming the missing video,
-frames or caption tracks. It refuses a target that is the slice, contains it, or sits inside it,
+info JSON, frames or caption tracks, and a temp session holding several videos (an X post with
+more than one), naming them, since the watch does not record which one is primary. It refuses a target that is the slice, contains it, or sits inside it,
 and an existing target unless `--replace` is passed, which replaces the target and keeps its
 `README.md`. The replaced target is moved to `<target>.relayout-backup` and deleted only once the
 new layout is in place. If a run is interrupted mid-swap, the next run restores the target from

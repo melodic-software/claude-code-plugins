@@ -37,7 +37,7 @@ import path from "node:path";
 import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
-import { listWorkDirFiles, resolveMediaArtifacts } from "../acquisition/acquire.js";
+import { listWorkDirFiles } from "../acquisition/acquire.js";
 import { runCheckWatchOutcomes } from "../evals/check-watch-outcomes.js";
 import { LANES } from "../lib/slice-lanes.js";
 import { resolveTempSession } from "../lib/temp-session-paths.js";
@@ -82,6 +82,7 @@ const SOURCE_METADATA = new Set([
 ]);
 const TRANSCRIPT_TEXT = /^transcript(?:-\d+)?\.txt$/;
 
+const VIDEO_FILE = /\.(?:mp4|mkv|webm)$/;
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const PLACEHOLDER = /[<>{}*$\s]/;
 const LINE_SUFFIX = /:\d+(?:[-,]\d+)*$/;
@@ -509,13 +510,32 @@ export async function relayoutSlice({
   // `--no-media` takes nothing from the temp session, even when it still exists.
   const temp = resolveTempSession(noMedia ? {} : (state.tempSession ?? {}));
   const workFiles = temp.workDir ? await listWorkDirFiles(temp.workDir) : [];
-  const media = resolveMediaArtifacts(workFiles, state.videoId);
+  // The watch does not record which work file is the primary entry's, so only
+  // a work dir holding exactly one video is unambiguous (an X post with
+  // several videos is not). That video's id, the `%(id)s` of yt-dlp's output
+  // template, picks its info JSON and caption tracks.
+  const videos = workFiles.filter((file) => VIDEO_FILE.test(file));
+  if (!noMedia && videos.length > 1) {
+    return refuse(
+      `the temp session holds several videos (${videos.map((file) => path.basename(file)).join(", ")}) ` +
+        "and the watch did not record which is primary; pass --no-media",
+    );
+  }
+  const mediaId = videos.length === 1 ? path.basename(videos[0], path.extname(videos[0])) : null;
+  const ofMedia = (/** @type {string} */ file) =>
+    mediaId !== null && path.basename(file).startsWith(`${mediaId}.`);
+  const media = {
+    videoPath: videos[0] ?? "",
+    captionPaths: workFiles.filter((file) => ofMedia(file) && file.endsWith(".vtt")),
+    metadataPath: workFiles.find((file) => ofMedia(file) && file.endsWith(".info.json")) ?? "",
+  };
   if (!noMedia) {
     // A partly removed temp session would yield a layout silently missing a part.
     const frameNames = temp.framesDir ? listFiles(temp.framesDir) : [];
     const captioned = Boolean(state.phases?.acquire?.metrics?.captionRung);
     const missing = [
       ...(media.videoPath ? [] : [`the video (${temp.workDir ?? "no tempSession.workDir"})`]),
+      ...(media.videoPath && !media.metadataPath ? [`the info JSON (${mediaId}.info.json)`] : []),
       ...(frameNames.length > 0
         ? []
         : [`the frames (${temp.framesDir ?? "no tempSession.framesDir"})`]),
@@ -542,7 +562,7 @@ export async function relayoutSlice({
     if (to) plan.push({ from: path.join(slice, file), to, sourceFile: file });
   }
   for (const caption of media.captionPaths) {
-    const name = path.basename(caption).replace(`${state.videoId}.`, "");
+    const name = path.basename(caption).replace(`${mediaId}.`, "");
     plan.push({ from: caption, to: `transcript/${name}` });
   }
   /** @type {Map<string, string>} */

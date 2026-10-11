@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { checkLayoutLinks, relayoutSlice } from "./relayout-slice.js";
 
@@ -369,6 +369,36 @@ describe("relayoutSlice", () => {
   it("refuses a temp session whose frames are gone though the video survives", async () => {
     const { sliceDir, targetDir, framesDir } = makeFixture();
     fs.rmSync(framesDir, { recursive: true, force: true });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it("refuses a temp session holding several videos, since the primary is not recorded", async () => {
+    const { sliceDir, targetDir, workDir } = makeFixture();
+    // An X post with two videos: yt-dlp writes each as `<media id>.<ext>`.
+    writeTree(workDir, {
+      "1800000000000000002.mp4": "video-2",
+      "1800000000000000002.info.json": "{}",
+      "1800000000000000002.en.vtt": "WEBVTT\n",
+    });
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+    const message = stderr.mock.calls.map(([chunk]) => String(chunk)).join("");
+    stderr.mockRestore();
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+    expect(message).toContain("1800000000000000002.mp4");
+    expect(message).toContain(`${VIDEO_ID}.mp4`);
+  });
+
+  it("refuses a temp session whose info JSON is gone though the video survives", async () => {
+    const { sliceDir, targetDir, workDir } = makeFixture();
+    fs.rmSync(path.join(workDir, `${VIDEO_ID}.info.json`));
 
     const result = await relayoutSlice({ sliceDir, targetDir });
 
