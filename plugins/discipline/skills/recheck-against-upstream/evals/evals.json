@@ -56,6 +56,7 @@
       "expected_output": "Takes the fan-out tier. Enumerates every upstream-dependent surface in the subsystem rather than spot-checking one, dispatches fresh-context (blind) subagents to fetch the CURRENT official upstream docs for each surface and classify its divergence per the gap/deliberate/undocumented taxonomy, then merges the returns into an inline divergence ledger keyed by surface with the resolving source.",
       "files": [],
       "expectations": [
+        "Takes /discipline:recheck-against-upstream's own fan-out tier on the `fan-out` argument (reading its reference/fan-out-tier.md), with no hand-off to a separate skill",
         "Enumerates all upstream-dependent surfaces rather than checking one",
         "Fans out fresh-context subagents that fetch current upstream docs per surface, not recall",
         "Reports an inline divergence ledger keyed by surface, category, and resolving source"
@@ -68,6 +69,7 @@
       "expected_output": "Takes the fan-out tier. Throttles the dispatch into bounded waves with a concurrency cap rather than firing one agent per surface at once, notes the burst-overload (529) risk, retries only a failed surface once (marking a second failure unverifiable), and checkpoints the partial ledger to a durable topic-memory slice mid-run when one exists — proceeding without it when the session has no durable store rather than asserting a persistence surface.",
       "files": [],
       "expectations": [
+        "Routes the whole-framework request to /discipline:recheck-against-upstream's own fan-out tier with no argument, rather than the inline single-surface recheck",
         "Throttles into bounded waves with a concurrency cap and notes the 529 burst-overload risk",
         "Retries only the failed subset once and marks a second failure unverifiable rather than blind-re-running",
         "Checkpoints the partial ledger mid-run only when a durable slice exists, degrading gracefully when absent"
@@ -80,6 +82,7 @@
       "expected_output": "After the fan-out, OFFERS to route category-1 (gap) and category-3 (undocumented) findings into tracked work items when a work-item capability is installed, degrading to a prose offer (a listed set of would-be items) when none is present. Category-2 (deliberate, still-valid) findings are report-only and are not routed unless the current docs have obsoleted them.",
       "files": [],
       "expectations": [
+        "Takes /discipline:recheck-against-upstream's own fan-out tier on the `fan-out` argument before offering any routing",
         "Offers to route gap and undocumented findings to a work-item capability when installed",
         "Degrades to a prose offer when no work-item capability is present rather than assuming a tracker",
         "Keeps still-valid deliberate divergences report-only rather than routing them"
@@ -94,7 +97,8 @@
       "expectations": [
         "Recognizes a single surface does not justify the fan-out's subagent cost",
         "Runs the inline recheck rather than the fan-out tier",
-        "Does not manufacture a broad fan-out where an inline recheck suffices"
+        "Does not manufacture a broad fan-out where an inline recheck suffices",
+        "Dispatches no subagent: the transcript shows no Agent call"
       ]
     },
     {
