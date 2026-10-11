@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# Offline stand-in for the GitHub CLI in pull-request eval runs. It serves one pull request from the
+# state install.sh wrote and never reaches a network or the real gh: any command it does not serve
+# exits 1 naming itself, so a run cannot touch GitHub through it.
+# shellcheck disable=SC2154 # PR_* come from the state file sourced below
+set -uo pipefail
+
+forge="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+state="$forge/state"
+origin="$forge/eval-fixture/app.git"
+# shellcheck source=/dev/null
+source "$state"
+
+refuse() {
+  echo "gh (eval fixture forge): '$*' is not served offline" >&2
+  exit 1
+}
+
+# Split argv into positionals plus the --json, --jq and --name-only options gh accepts.
+json="" jq_expr="" name_only=0 args=()
+parse() {
+  while (($#)); do
+    case "$1" in
+      --json)
+        json="$2"
+        shift
+        ;;
+      --json=*) json="${1#--json=}" ;;
+      -q | --jq)
+        jq_expr="$2"
+        shift
+        ;;
+      --jq=*) jq_expr="${1#--jq=}" ;;
+      --name-only) name_only=1 ;;
+      -R | --repo) shift ;;
+      -*) ;;
+      *) args+=("$1") ;;
+    esac
+    shift
+  done
+}
+
+# Print a JSON document cut to the --json fields, then through --jq when given.
+emit() {
+  local doc="$1"
+  if [[ -n "$json" ]]; then
+    doc=$(jq -c --arg f "$json" '. as $d | reduce ($f | split(",")[]) as $k ({}; .[$k] = $d[$k])' <<<"$doc")
+  fi
+  if [[ -n "$jq_expr" ]]; then jq -r "$jq_expr" <<<"$doc"; else jq . <<<"$doc"; fi
+}
+
+# The pull request a positional names: its number, #number, URL, or head branch; none means the
+# current branch.
+pr_matches() {
+  local sel="${1:-$(git branch --show-current 2>/dev/null)}"
+  sel="${sel#\#}"
+  sel="${sel##*/pull/}"
+  [[ "$sel" == "$PR_NUMBER" || "$sel" == "$PR_HEAD" ]]
+}
+
+pr_doc() {
+  local head_oid base_oid behind=CLEAN
+  head_oid=$(git --git-dir="$origin" rev-parse "refs/heads/$PR_HEAD")
+  base_oid=$(git --git-dir="$origin" rev-parse "refs/heads/$PR_BASE")
+  git --git-dir="$origin" merge-base --is-ancestor "$base_oid" "$head_oid" || behind=BEHIND
+  jq -n --arg n "$PR_NUMBER" --arg head "$PR_HEAD" --arg base "$PR_BASE" --arg oid "$head_oid" \
+    --arg title "$PR_TITLE" --argjson draft "$(cat "$forge/draft")" --arg mss "$behind" '{
+      number: ($n | tonumber), title: $title, body: "", state: "OPEN", isDraft: $draft,
+      headRefName: $head, headRefOid: $oid, baseRefName: $base,
+      url: ("https://github.com/eval-fixture/app/pull/" + $n),
+      author: {login: "eval-fixture"}, isCrossRepository: false,
+      headRepository: {name: "app"}, headRepositoryOwner: {login: "eval-fixture"},
+      mergeable: "MERGEABLE", mergeStateStatus: $mss, reviewDecision: "",
+      statusCheckRollup: [], reviews: [], comments: [], labels: [], files: []
+    }'
+}
+
+cmd="${1:-}" sub="${2:-}"
+case "$cmd $sub" in
+  "pr view")
+    shift 2
+    parse "$@"
+    pr_matches "${args[0]:-}" || {
+      echo "no pull requests found for branch \"${args[0]:-$(git branch --show-current)}\"" >&2
+      exit 1
+    }
+    if [[ -z "$json" && -z "$jq_expr" ]]; then
+      pr_doc | jq -r '"\(.title) #\(.number)\n\(if .isDraft then "Draft" else "Open" end) • \(.headRefName) into \(.baseRefName)\n\(.url)"'
+    else
+      emit "$(pr_doc)"
+    fi
+    ;;
+  "pr list")
+    shift 2
+    head=""
+    for ((i = 1; i <= $#; i++)); do [[ "${!i}" == --head ]] && {
+      j=$((i + 1))
+      head="${!j}"
+    }; done
+    parse "$@"
+    if [[ -z "$head" || "$head" == "$PR_HEAD" ]]; then doc="[$(pr_doc)]"; else doc="[]"; fi
+    if [[ -n "$json" ]]; then
+      json_list="$json"
+      json=""
+      doc=$(jq -c --arg f "$json_list" 'map(. as $d | reduce ($f | split(",")[]) as $k ({}; .[$k] = $d[$k]))' <<<"$doc")
+    fi
+    emit "$doc"
+    ;;
+  "pr diff")
+    shift 2
+    parse "$@"
+    pr_matches "${args[0]:-}" || refuse pr diff "$@"
+    if ((name_only)); then
+      git --git-dir="$origin" diff --name-only "refs/heads/$PR_BASE...refs/heads/$PR_HEAD"
+    else
+      git --git-dir="$origin" diff "refs/heads/$PR_BASE...refs/heads/$PR_HEAD"
+    fi
+    ;;
+  "pr ready")
+    shift 2
+    parse "$@"
+    pr_matches "${args[0]:-}" || refuse pr ready "$@"
+    if [[ "$(cat "$forge/draft")" == true ]]; then
+      echo false >"$forge/draft"
+      echo "✓ Pull request eval-fixture/app#$PR_NUMBER is marked as \"ready for review\""
+    else
+      echo "! Pull request eval-fixture/app#$PR_NUMBER is already \"ready for review\""
+    fi
+    ;;
+  "pr checks")
+    echo "no checks reported on the '$PR_HEAD' branch" >&2
+    exit 1
+    ;;
+  "repo view")
+    shift 2
+    parse "$@"
+    emit '{"name":"app","nameWithOwner":"eval-fixture/app","owner":{"login":"eval-fixture"},"defaultBranchRef":{"name":"main"},"visibility":"PRIVATE","url":"https://github.com/eval-fixture/app"}'
+    ;;
+  "auth status")
+    echo "github.com"
+    echo "  ✓ Logged in to github.com account eval-fixture (eval fixture forge)"
+    ;;
+  "--version "*) echo "gh version 0.0.0-eval-fixture" ;;
+  *) refuse "$@" ;;
+esac
