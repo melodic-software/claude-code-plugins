@@ -56,7 +56,8 @@ key, and adds `id-token: write` to the calling job's permissions.
 | `timeout-minutes` | `30` | The run job's timeout; the report job's is fixed at 10 |
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
-files) is the only one. Variables: `CLAUDE_LANES_DISABLED` (the kill switch),
+files) is the only one. Variables: `CLAUDE_LANES_DISABLED` and `CLAUDE_LANES_REPO_DISABLED` (the org
+and repository kill switches),
 `AUTOMATION_LANES_APP_SENDER_ID`, the App bot's numeric user id, the one place it is written, and,
 for the write file, `LANES_BROKER_URL` and `LANES_BROKER_AUDIENCE`
 ([below](#the-lane-token-broker)). The run job's first step fails red when
@@ -428,7 +429,7 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 403 | `untrusted-actor`, `untrusted-author`, `bot-actor` | The actor, the PR author or a re-runner is not on the tip's trusted-actor list, or is the lanes bot |
 | 403 | `pr-not-eligible` | The PR is not open, not from a branch of this repository, or does not target `main` |
 | 403 | `default-branch-not-main` | The repository's default branch is not `main` |
-| 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, or a repository variable of that name is set to anything else |
+| 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, a repository variable of that name exists (it would shadow the org value), or the repository's `CLAUDE_LANES_REPO_DISABLED` is set and not exactly `false` |
 | 403 | `already-minted` | This job already received its mint |
 | 503 | `key-unavailable`, `github-unavailable`, `store-unavailable` | The broker could not sign, read GitHub, or record the mint; nothing was minted |
 
