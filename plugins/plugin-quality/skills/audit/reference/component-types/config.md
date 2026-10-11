@@ -35,14 +35,14 @@ convention/config files the plugin reads.
   (only `claude --debug` says why); a server that fails to start surfaces in the `/plugin` Errors
   tab. The server binary is a user-machine prerequisite, so check it is documented for installers.
 - **Monitor noise & portability (`monitors/monitors.json`)**: inspect each monitor's `when`
-  trigger before assessing runtime volume: the default `"always"` starts it at session start and on
-  plugin reload, while `"on-skill-invoke:<skill-name>"` keeps it dormant until that skill is first
-  dispatched. Every stdout line from `command` reaches Claude as a notification; check volume for
-  the trigger's actual lifetime and that the command runs on the consumer's platform. (All three
-  surfaces per <https://code.claude.com/docs/en/plugins/components#monitors> and
-  <https://code.claude.com/docs/en/plugins/manifest-reference#monitors>, fetched 2026-10-07. Recheck when
-  either page stops describing the monitor trigger values or the stdout-to-notification path, or
-  when a release note names the monitors component.)
+  trigger before assessing runtime volume, since the trigger decides when the monitor starts and
+  so how long it runs. Every stdout line from `command` reaches Claude as a notification; check
+  volume for the trigger's actual lifetime and that the command runs on the consumer's platform.
+  - **Pointer**: when reading a monitor's trigger values, its default, and when each starts it,
+    fetch [Monitors](https://code.claude.com/docs/en/plugins/manifest-reference#monitors) live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes the trigger values, the default, or the
+    stdout-to-notification path, or a release note names the monitors component.
 
 ## Categories
 
