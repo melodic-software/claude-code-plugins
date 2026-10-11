@@ -1,18 +1,18 @@
 {
   "pass": [
     {
-      "answer": "{\"type\":\"tool_result\",\"content\":\"### Page\\n- Page URL: file:///x/peek/canary.html\\n- Page Title: browser-canary-4b9d02\"}",
-      "why": "browser opened the canary page"
-    }
-  ],
-  "fail": [
-    {
       "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: page.goto: net::ERR_FILE_NOT_FOUND at file:///x/peek/canary.html\",\"is_error\":true}",
       "why": "sandbox hides the file"
     },
     {
       "answer": "{\"type\":\"tool_use\",\"input\":{\"command\":\"playwright-cli -s=pinned goto file:///x/peek/canary.html\"}}",
       "why": "the call alone, no result"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Page\\n- Page URL: file:///x/peek/canary.html\\n- Page Title: browser-canary-4b9d02\"}",
+      "why": "browser opened the canary page"
     }
   ]
 }
