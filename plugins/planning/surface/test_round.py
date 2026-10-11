@@ -1,4 +1,5 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
+# test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
 """Tests for round.py V1: schema validation, refusals and warnings, --affects, apply, archive,
 status --latency, the sidecar lock and the rebuild check.
 

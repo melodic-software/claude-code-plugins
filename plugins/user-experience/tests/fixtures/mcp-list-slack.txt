@@ -1,0 +1,3 @@
+Checking MCP server health…
+
+slack: https://mcp.slack.example/sse (HTTP) - ✔ Connected

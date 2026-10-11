@@ -1,0 +1,122 @@
+{
+  "pass": [
+    {
+      "answer": "FINDING [contrast]: The body text is light gray on white and too faint to read comfortably.\nVERDICT: NEEDS WORK",
+      "why": "true positive"
+    },
+    {
+      "answer": "- FINDING [contrast]: The product descriptions in every card are pale gray on white, well under 4.5:1.\n\nVERDICT: NEEDS WORK",
+      "why": "bullet prefix"
+    },
+    {
+      "answer": "**FINDING [contrast]:** The product headings (Trail backpack, Camp stove, Water filter) are light gray on white and hard to read.\nVERDICT: NEEDS WORK",
+      "why": "bold label; card titles inherit the gray"
+    },
+    {
+      "answer": "FINDING [contrast]: The page text does not meet WCAG AA contrast; it is light gray on a white background.\nVERDICT: NEEDS WORK",
+      "why": "negation that asserts the defect"
+    },
+    {
+      "answer": "FINDING [contrast]: The results list and specs table text is not dark enough to read against the white page.\nVERDICT: NEEDS WORK",
+      "why": "negation that asserts the defect"
+    },
+    {
+      "answer": "FINDING [contrast]: \"Showing 5 results\" and the card descriptions are faint gray on white.\nVERDICT: NEEDS WORK",
+      "why": "count line and descriptions"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FINDING [contrast]: nothing\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: Not applicable\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: absent\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: Clean.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: OK\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: fine\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: nil\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: The body text is dark enough to read at both widths.\nVERDICT: NEEDS WORK",
+      "why": "denial"
+    },
+    {
+      "answer": "FINDING [contrast]: I see no low-contrast text anywhere on the page.\nVERDICT: NEEDS WORK",
+      "why": "denial"
+    },
+    {
+      "answer": "FINDING [contrast]: The body text might be a little light; hard to say from a screenshot.\nVERDICT: NEEDS WORK",
+      "why": "hedge"
+    },
+    {
+      "answer": "FINDING [contrast]: The \"Trail gear\" page heading is too light against the white background.\nVERDICT: NEEDS WORK",
+      "why": "names only the heading, which keeps its own color"
+    },
+    {
+      "answer": "FINDING [contrast]: The Add to cart and Save buttons have low contrast.\nVERDICT: NEEDS WORK",
+      "why": "names only the buttons, which keep their own color"
+    },
+    {
+      "answer": "FINDING [contrast]: Contrast is too low.\nVERDICT: NEEDS WORK",
+      "why": "no location"
+    },
+    {
+      "answer": "FINDING [overlap]: At 375 px the badge covers the product title.\nVERDICT: NEEDS WORK",
+      "why": "only a different defect"
+    },
+    {
+      "answer": "FINDING [contrast]: The body text is light gray on white and hard to read.\nVERDICT: CONFIRMED",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "FINDING [contrast]: none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: None.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: N/A\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: na\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: - none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: (none)\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: \"none\"\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    },
+    {
+      "answer": "FINDING [contrast]: n/a.\nVERDICT: NEEDS WORK",
+      "why": "denial anywhere in the body"
+    }
+  ]
+}

@@ -140,9 +140,8 @@ is reserved for the person, so this skill never runs it.
 
 ## Next
 
-/session-flow:retro codify
-
-Turns a finding the person chose to act on into a rule or memory entry.
+- A finding the person chose to codify as a rule or memory entry: /session-flow:retro codify.
+- A `permission` lens finding: /session-flow:audit-friction.
 
 ## Gotchas
 

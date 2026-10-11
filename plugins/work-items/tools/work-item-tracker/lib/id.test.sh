@@ -29,4 +29,25 @@ for bad in "#123" "123" "github:#123" "github:owner#123" "github:owner/repo" \
     wit_parse_id "$bad"
 done
 
+# --- change-link helpers ---
+
+wit_parse_id "github:acme/webapp#42"
+assert_eq "hash ref short in the item's repo" "#42" "$(wit_hash_ref acme/webapp)"
+assert_eq "hash ref qualified from another repo" "acme/webapp#42" "$(wit_hash_ref acme/other)"
+assert_eq "hash ref qualified without a repo" "acme/webapp#42" "$(wit_hash_ref "")"
+
+out="$(wit_emit_change_link "jira:s/SW2#1" "" "Refs: SW2-1" "SW2-1")"
+assert_eq "empty closes is null" "null" "$(jq -r '.closes' <<<"$out")"
+assert_eq "refs carried" "Refs: SW2-1" "$(jq -r '.refs' <<<"$out")"
+assert_eq "schema_version carried" "1.0" "$(jq -r '.schema_version' <<<"$out")"
+
+wit_usage_error() { exit 2; }
+cl_rc() { (wit_change_link_args "$@" >/dev/null 2>&1 && echo 0) || echo 2; }
+assert_eq "id alone parses" "0" "$(cl_rc "github:o/r#1")"
+assert_eq "branch ref with repo parses" "0" "$(cl_rc --branch-ref 1 --repo o/r)"
+assert_eq "no input is a usage error" "2" "$(cl_rc --repo o/r)"
+assert_eq "id and branch ref together is a usage error" "2" "$(cl_rc "github:o/r#1" --branch-ref 1)"
+assert_eq "malformed repo is a usage error" "2" "$(cl_rc "github:o/r#1" --repo 'o/r;x')"
+assert_eq "unknown flag is a usage error" "2" "$(cl_rc --nope)"
+
 [[ $FAILED -eq 0 ]] || exit 1

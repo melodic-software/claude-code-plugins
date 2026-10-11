@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Run /user-experience:setup check to repair the file.",
+      "why": "slash form"
+    },
+    {
+      "answer": "A setup check will show the line that fails.",
+      "why": "prose form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Fix the YAML by hand and try again.",
+      "why": "no setup step"
+    }
+  ]
+}

@@ -7,7 +7,7 @@ import { posix } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parseDocument } from "yaml";
 
-import { applies, factsFor } from "./predicate.mjs";
+import { MissingFact, applies, factsFor } from "./predicate.mjs";
 import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 
 const CONFIG_BASENAME = "pr-pipeline.yaml";
@@ -243,14 +243,86 @@ export function neededFacts(files, { lane, activity, configPath }) {
   const entries = laneSlots(doc, lane);
   const selected = selectedIndex(entries, lane, activity);
   const needed = new Set();
-  entries.forEach(({ predicate, enabled }, index) => {
+  entries.forEach(({ activity: definition, predicate, enabled }, index) => {
     if (enabled && decides(index, selected)) {
       for (const fact of factsFor(predicate)) {
         needed.add(fact);
       }
+      if ((definition.inputs ?? []).includes("changed-paths")) {
+        needed.add("changedPaths");
+      }
     }
   });
   return [...needed];
+}
+
+// Files Claude Code or a plugin loads as instructions. Target selection, not a
+// control: a write activity is not asked to fix them, though its token and
+// tools can change any file and the PR reviews what it did.
+const INSTRUCTION_SURFACES = [
+  "**/claude.md",
+  "**/claude.local.md",
+  "**/agents.md",
+  "**/.claude/**",
+  "**/.claude-plugin/**",
+  "**/skill.md",
+  "**/skills/**",
+  "**/agents/**",
+  "**/commands/**",
+  "**/hooks/**",
+  "**/output-styles/**",
+  "**/prompts/**",
+];
+// A name that is safe as a prompt word: no space, quote, comma, glob or shell
+// character, no `.`/`..` segment, no segment that starts with `-`, so it
+// cannot read as an option, and no leading `@`, so it cannot read as a file
+// mention.
+const SAFE_PATH = /^(?![-@])[A-Za-z0-9_@+.-]+(?:\/(?!-)[A-Za-z0-9_@+.-]+)*$/;
+const isSafePath = (path) =>
+  SAFE_PATH.test(path) &&
+  !path.split("/").some((segment) => segment === "." || segment === "..");
+
+// Every path pattern in CODEOWNERS, owned or not, as globs: a leading `/`
+// anchors at the root, any other pattern matches at any depth, and a pattern
+// also covers everything under it.
+function codeownersGlobs(text) {
+  return (text ?? "").split("\n").flatMap((line) => {
+    const pattern = line.replace(/#.*/, "").trim().split(/\s+/)[0];
+    if (!pattern) {
+      return [];
+    }
+    const body = pattern.startsWith("/") ? pattern.slice(1) : `**/${pattern}`;
+    const trimmed = body.replace(/\/+$/, "");
+    return trimmed ? [trimmed, `${trimmed}/**`] : [];
+  });
+}
+
+// The changed-paths input: the PR's changed files that still exist, that match
+// the slot's `paths` predicate when it has one, and that have a safe name. For
+// any effect but `read`, instruction surfaces and every path CODEOWNERS lists
+// are left out of what the activity is asked to fix. Sorted, without
+// duplicates.
+export function changedPathTargets({
+  paths,
+  predicatePaths,
+  effect,
+  codeowners,
+}) {
+  const owned = codeownersGlobs(codeowners);
+  const notTargeted = (path) =>
+    effect !== "read" &&
+    (INSTRUCTION_SURFACES.some((glob) =>
+      posix.matchesGlob(path.toLowerCase(), glob),
+    ) ||
+      owned.some((glob) => posix.matchesGlob(path, glob)));
+  const kept = paths.filter(
+    (path) =>
+      isSafePath(path) &&
+      (predicatePaths === undefined ||
+        predicatePaths.some((glob) => posix.matchesGlob(path, glob))) &&
+      !notTargeted(path),
+  );
+  return [...new Set(kept)].sort();
 }
 
 const GRANT_SCOPES = ["contents", "issues", "pull-requests"];
@@ -281,7 +353,7 @@ function grantFor(effectGrants, effect) {
 
 function resolveSlot(
   { slot, activity, predicate, enabled },
-  effectGrants,
+  { effectGrants, codeowners },
   facts,
   decided,
 ) {
@@ -291,6 +363,21 @@ function resolveSlot(
     outcome = { applies: false, skipReason: "disabled-by-config" };
   } else if (decided) {
     outcome = applies(predicate, facts);
+  }
+  let targets;
+  if (outcome.applies && (activity.inputs ?? []).includes("changed-paths")) {
+    if (facts.changedTargets === undefined) {
+      throw new MissingFact("changedTargets");
+    }
+    targets = changedPathTargets({
+      paths: facts.changedTargets,
+      predicatePaths: predicate?.paths,
+      effect: activity.effect,
+      codeowners,
+    });
+    if (targets.length === 0) {
+      outcome = { applies: false, skipReason: "not-applicable-paths" };
+    }
   }
   const kind = activity.skill === undefined ? "script" : "skill";
   return {
@@ -311,6 +398,7 @@ function resolveSlot(
     grant,
     applies: outcome.applies,
     "skip-reason": outcome.skipReason,
+    ...(outcome.applies && targets ? { "changed-paths": targets } : {}),
   };
 }
 
@@ -364,7 +452,7 @@ export function resolve(
   const entries = laneSlots(doc, lane);
   const index = selectedIndex(entries, lane, activity);
   const slots = entries.map((entry, i) =>
-    resolveSlot(entry, files.effectGrants, facts, decides(i, index)),
+    resolveSlot(entry, files, facts, decides(i, index)),
   );
   return {
     version: 1,

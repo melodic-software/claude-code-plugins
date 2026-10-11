@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: fires-plan-user-research
+description: "A single research-instrument request (a screener) reaches /user-experience:plan-user-research"
+tags: [fires]
+runs: 3
+expected_outcome: "A Skill call reaches user-experience:plan-user-research, and the screener hides which answers qualify"
+execution:
+  prompt: "Write a screener for a study with people who renew their car insurance online each year. This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600

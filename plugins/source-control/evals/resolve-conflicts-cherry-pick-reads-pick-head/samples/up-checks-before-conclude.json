@@ -1,0 +1,83 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git cherry-pick --continue"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "GIT_EDITOR=true git cherry-pick --continue"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git cherry-pick --continue"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest"
+          }
+        }
+      ],
+      "why": "checks after the commit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git cherry-pick --continue"
+          }
+        }
+      ],
+      "why": "no checks"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest"
+          }
+        }
+      ],
+      "why": "never concluded"
+    }
+  ]
+}

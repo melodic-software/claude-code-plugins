@@ -1,0 +1,76 @@
+{
+  "skill_name": "audit-friction",
+  "evals": [
+    {
+      "id": 1,
+      "name": "default-run-collects-then-mines-by-script",
+      "prompt": "I keep getting permission prompts and auto mode denials. Audit my friction for the last week.",
+      "expected_output": "The skill runs the audit-sessions collector, then friction.py mine over the last 7 days with --save-baseline and an --out file under the plugin data directory, and presents the markdown table. It does not spawn agents to count transcript events.",
+      "files": [],
+      "expectations": [
+        "Runs collect.py collect before friction.py mine",
+        "Runs friction.py mine with --save-baseline and --out",
+        "Does not use an agent to count denials, prompts or hook blocks",
+        "Writes nothing into the current repository"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "verification-mode-asked-with-counts",
+      "prompt": "Run the friction audit on my sessions. I'm here, go ahead.",
+      "expected_output": "Before verifying, the skill runs friction.py estimate on the claim inventory and asks once which mode to use (consequential, full, probes), showing each mode's agent and wave counts, pointing at the costs docs instead of stating a price, and defaulting to consequential.",
+      "files": [],
+      "expectations": [
+        "Runs friction.py estimate before asking",
+        "Offers consequential, full and probes, with consequential as the default",
+        "States no price or per-run cost figure"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "unattended-defaults-to-consequential",
+      "prompt": "Run /session-flow:audit-friction unattended; nobody will answer questions.",
+      "expected_output": "The run uses --verify=consequential without asking, says so in its output, and still ends in a decision brief rather than applying any fix.",
+      "files": [],
+      "expectations": [
+        "Uses consequential verification without asking",
+        "States that consequential verification was chosen because the run is unattended",
+        "Does not edit settings, autoMode entries or instruction files"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "classifier-blocked-edits-become-user-run-scripts",
+      "prompt": "The audit found that my settings.json needs two allow rules and the autoMode block needs one entry. Apply them.",
+      "expected_output": "The skill writes a reviewed user-run script for the permission and autoMode edits, shows it, and asks the person to run it with `! bash <path>`, instead of attempting the edits itself first.",
+      "files": [],
+      "expectations": [
+        "Does not attempt to edit settings.json or the autoMode block directly",
+        "Produces one script per repository for the person to run",
+        "Shows the script content before asking the person to run it"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "remeasure-diffs-against-baseline",
+      "prompt": "We applied the permission fixes last week. Did the friction go down?",
+      "expected_output": "The skill runs the remeasure path: collect, friction.py mine over a window after the fixes, then friction.py diff against the newest saved baseline, and reports keys that are new or more frequent first.",
+      "files": [],
+      "expectations": [
+        "Runs friction.py diff with --data-dir or --baseline",
+        "Mines a window that starts after the fixes",
+        "Reports new or more frequent keys before the improvements"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "skip-route-to-audit-sessions",
+      "prompt": "Which of my sessions burned the most tokens this month?",
+      "expected_output": "This is a token and time audit, not permission friction; /session-flow:audit-sessions answers it and audit-friction is not invoked.",
+      "files": [],
+      "expectations": [
+        "Routes to /session-flow:audit-sessions rather than running audit-friction"
+      ]
+    }
+  ]
+}

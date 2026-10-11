@@ -526,7 +526,7 @@ installed, because the sweep never runs there; a version directory under it that
 
 This skill reads a marketplace's `autoUpdate` as off when the key is absent from
 `known_marketplaces.json` (not only when it is `false`), and treats auto-update as a background
-refresh of already-installed plugins after session start, never as a substitute for `sync`. This
+refresh of already-installed plugins, never as a substitute for `sync`. This
 skill never mutates the setting. It only reports the marketplace's current `autoUpdate` state and
 suggests enabling it when off, since it never overlaps with what this skill covers (new-plugin
 install, `enabledPlugins` completeness, divergence detection/convergence, deterministic on-demand

@@ -1,0 +1,9 @@
+{
+  "name": "ui-defects-harness",
+  "private": true,
+  "type": "module",
+  "description": "Measures which check layer catches each planted defect; no model calls.",
+  "dependencies": {
+    "@axe-core/playwright": "4.13.0"
+  }
+}

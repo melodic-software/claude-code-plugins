@@ -3,6 +3,12 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.4] - 2026-10-10
+
+### Changed
+
+- **The update skill's sync-state file is now `skills/update/upstream.md`**, renamed from `UPSTREAM.md` so every markdown file in the repository is lower-kebab-case (ADR 0059). `scripts/update.sh`, the skill body, its flow reference, and its evals read and write the new name.
+
 ## [0.6.3] - 2026-10-04
 
 ### Changed

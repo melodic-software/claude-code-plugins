@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trail gear</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; padding: 16px; font: 16px/1.5 Arial, Helvetica, sans-serif; color: #222222; background: #ffffff; }
+h1 { margin: 0 0 8px; font-size: 28px; color: #1a1a1a; }
+.count { margin: 0 0 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.card { border: 1px solid #cccccc; border-radius: 8px; padding: 16px; background: #ffffff; }
+.card img { display: block; width: 100%; height: 120px; object-fit: cover; }
+.head { position: relative; margin-top: 12px; }
+.title { margin: 0; font-size: 20px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; background: #0b5394; color: #ffffff; font-size: 14px; }
+.desc { margin: 8px 0; }
+.actions { display: flex; gap: 8px; align-items: flex-start; }
+.actions button { padding: 8px 12px; font: inherit; font-size: 14px; border: 1px solid #0b5394; border-radius: 4px; background: #ffffff; color: #0b5394; }
+.results { margin: 24px 0 0; padding-left: 20px; }
+.specs { border-collapse: collapse; margin-top: 24px; width: 100%; }
+.specs th, .specs td { border: 1px solid #cccccc; padding: 4px 8px; text-align: left; }
+.toast { position: fixed; left: 16px; bottom: 16px; padding: 12px 16px; border-radius: 4px; background: #1a1a1a; color: #ffffff; }
+.toast[hidden] { display: none; }
+</style>
+</head>
+<body>
+<h1>Trail gear</h1>
+<p class="count">Showing 5 results</p>
+<div class="grid">
+  <article class="card">
+    <img src="img/card.png" alt="Trail backpack">
+    <div class="head">
+      <h2 class="title">Trail backpack</h2>
+      <span class="badge">New</span>
+    </div>
+    <p class="desc">A 28 liter pack with a rain cover.</p>
+    <div class="actions">
+      <button type="button" class="add">Add to cart</button>
+      <button type="button" class="save">Save</button>
+    </div>
+  </article>
+  <article class="card">
+    <img src="img/card.png" alt="Camp stove">
+    <div class="head">
+      <h2 class="title">Camp stove</h2>
+      <span class="badge">Sale</span>
+    </div>
+    <p class="desc">Folds flat and boils a liter in four minutes.</p>
+    <div class="actions">
+      <button type="button" class="add">Add to cart</button>
+      <button type="button" class="save">Save</button>
+    </div>
+  </article>
+  <article class="card">
+    <img src="img/card.png" alt="Water filter">
+    <div class="head">
+      <h2 class="title">Water filter</h2>
+      <span class="badge">Popular</span>
+    </div>
+    <p class="desc">Filters a thousand liters per cartridge.</p>
+    <div class="actions">
+      <button type="button" class="add">Add to cart</button>
+      <button type="button" class="save">Save</button>
+    </div>
+  </article>
+  <article class="card">
+    <img src="img/card.png" alt="Headlamp">
+    <div class="head">
+      <h2 class="title">Headlamp</h2>
+      <span class="badge">New</span>
+    </div>
+    <p class="desc">Runs for forty hours on three batteries.</p>
+    <div class="actions">
+      <button type="button" class="add">Add to cart</button>
+      <button type="button" class="save">Save</button>
+    </div>
+  </article>
+  <article class="card">
+    <img src="img/card.png" alt="Sleeping pad">
+    <div class="head">
+      <h2 class="title">Sleeping pad</h2>
+      <span class="badge">Sale</span>
+    </div>
+    <p class="desc">Inflates in ten breaths and packs to the size of a bottle.</p>
+    <div class="actions">
+      <button type="button" class="add">Add to cart</button>
+      <button type="button" class="save">Save</button>
+    </div>
+  </article>
+</div>
+<ul class="results">
+  <li>Trail backpack</li>
+  <li>Camp stove</li>
+  <li>Water filter</li>
+  <li>Headlamp</li>
+  <li>Sleeping pad</li>
+</ul>
+<table class="specs">
+  <tr><th>Item</th><th>Weight</th></tr>
+  <tr><td>Trail backpack</td><td>1.2 kg</td></tr>
+  <tr><td>Camp stove</td><td>0.4 kg</td></tr>
+</table>
+<div id="toast" class="toast" role="status" hidden></div>
+<script>
+var toast = document.getElementById("toast");
+document.querySelectorAll("button.add").forEach(function (button) {
+  button.addEventListener("click", function () {
+    toast.textContent = "Added to cart";
+    toast.hidden = false;
+  });
+});
+</script>
+</body>
+</html>

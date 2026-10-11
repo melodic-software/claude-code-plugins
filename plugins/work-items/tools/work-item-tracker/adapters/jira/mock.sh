@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# shellcheck disable=SC2034  # JIRA_FIX/OUT/RC are read by the sourcing test files, not within this helper
+# shellcheck disable=SC2034  # JIRA_FIX/OUT/ERR/RC are read by the sourcing test files, not within this helper
 # Offline fixture harness shared by this adapter's verb tests. Sourced, never run.
 #
 # Every verb path is exercised against a MOCK curl injected through WIT_JIRA_CURL, so no
@@ -31,24 +31,27 @@ MOCK
   chmod +x "$JIRA_FIX/curl"
 }
 
-# jira_write_binding <project-keys-json>: a valid jira binding declaring those keys as
-# the read scope.
+# jira_write_binding <project-keys-json> [<extra-jira-config-json>]: a valid jira
+# binding declaring those keys as the read scope, with any extra config.jira keys merged.
 jira_write_binding() {
-  jq -cn --argjson pk "$1" \
+  local extra="${2:-}"
+  [[ -n "$extra" ]] || extra='{}'
+  jq -cn --argjson pk "$1" --argjson extra "$extra" \
     '{schema_version:"1.0", provider:"jira",
       config:{lease_ttl_hours:24,
-        jira:{site:"test.atlassian.net", project_keys:$pk,
-          auth_email:"ci@test.example", auth_env:"JIRA_TEST_TOKEN"}}}' \
+        jira:({site:"test.atlassian.net", project_keys:$pk,
+          auth_email:"ci@test.example", auth_env:"JIRA_TEST_TOKEN"} + $extra)}}' \
     >"$JIRA_FIX/binding.json"
 }
 
 # jira_run <script> <args…>: run a verb against the fixture from a cleared call
-# counter, setting OUT to its stdout and RC to its exit code.
+# counter, setting OUT to its stdout, ERR to its stderr and RC to its exit code.
 jira_run() {
   local script="$1"
   shift
   rm -f "$JIRA_FIX/.counter"
   OUT="$(WORK_ITEM_TRACKER_BINDING="$JIRA_FIX/binding.json" WIT_JIRA_CURL="$JIRA_FIX/curl" \
-    JIRA_TEST_TOKEN="dummy-token" bash "$script" "$@" 2>/dev/null)"
+    JIRA_TEST_TOKEN="dummy-token" bash "$script" "$@" 2>"$JIRA_FIX/stderr")"
   RC=$?
+  ERR="$(cat "$JIRA_FIX/stderr")"
 }

@@ -88,6 +88,8 @@ fall back to a simple, honest default (a labeled bar/line as inline SVG on a
 page, or a Unicode bar/sparkline in the terminal) and say the craft capability was
 unavailable.
 
+When the form hand-authors CSS or SVG styling outside the page chrome (Step 3) and `/user-interface:write-css` is installed, use it to write that CSS, since it applies the project's design system and conventions first; without it, write the CSS here. The page chrome stays governed by the bundled chrome reference either way.
+
 When the form is a hand-tweakable visual layout, render this skill's rich page
 (or the local file or terminal form Step 3's medium pins) and offer the person the
 design canvas. The canvas is the bundled `design` skill, which is reserved for the

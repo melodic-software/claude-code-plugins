@@ -22,7 +22,7 @@
 # rule, and the same two placement rules
 # (`skills/research/context/artifact-shape.md`).
 # The part that differs between them is the sidecar YAML header — tiers and
-# publishing pools for research, `verified: read | grep | inferred` for
+# publishing pools for research, `verified: read | ran | grep | inferred` for
 # exploration — and this gate never reads a header. `--index-name` is therefore
 # the whole difference, and it is REQUIRED rather than defaulted: a gate that
 # fails closed everywhere else must not silently grade the wrong artifact

@@ -398,15 +398,18 @@ compare_set() {
   '
   old_keys="$(printf '%s\n' "$3" | awk -v e="$keyexpr" "$SPLIT_AWK$keyprog" | sort)"
   new_keys="$(printf '%s\n' "$4" | awk -v e="$keyexpr" "$SPLIT_AWK$keyprog" | sort)"
+  # A here-string, not `printf | grep -q`: grep -q exits at its first match,
+  # a printf still writing then fails with EPIPE, and under pipefail the
+  # pipeline reports that failure, so a present key reads as removed.
   local line
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
-    printf '%s\n' "$new_keys" | grep -qxF "$line" ||
+    grep -qxF -e "$line" <<<"$new_keys" ||
       say "  removed $label: ${line//$'\t'/ }"
   done <<<"$old_keys"
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
-    printf '%s\n' "$old_keys" | grep -qxF "$line" ||
+    grep -qxF -e "$line" <<<"$old_keys" ||
       say "  added $label: ${line//$'\t'/ }"
   done <<<"$new_keys"
 }

@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: uc6-checkout-drop-off
+description: "Use case 6 (live, consumer): why users drop off at checkout, as ranked hypotheses from funnel numbers, a way to test them, and a fair-choice check"
+tags: [use-case, uc6]
+runs: 3
+expected_outcome: "The answer locates the largest loss between shipping and payment, ranks hypotheses with a way to test them, and flags the pre-ticked add-on and the forced account as fair-choice problems without a legal verdict"
+execution:
+  prompt: "Users drop off at checkout in our online plant shop; why? Last 30 days: 12,400 carts, 7,900 reached the shipping step, 3,100 reached the payment step, 2,600 orders placed. Between shipping and payment, shoppers must create an account, and a paid 'Protect my plant' add-on is pre-ticked on the payment step. What is going on and what should we do? This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900

@@ -514,7 +514,7 @@ dc_map_file() {
 dc_rename_dir() {
   if [[ -z "${DC_MV_T:-}" ]]; then
     DC_MV_T=0
-    mv --version 2>/dev/null | grep -q GNU && DC_MV_T=1
+    grep -q GNU <<<"$(mv --version 2>/dev/null)" && DC_MV_T=1
   fi
   if [[ $DC_MV_T -eq 1 ]]; then
     mv -T "$1" "$2" 2>/dev/null

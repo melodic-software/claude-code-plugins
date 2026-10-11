@@ -3,6 +3,48 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.12.0] - 2026-10-11
+
+### Added
+
+- **The `/harness-ops:plugins` stale-project-records section names where to act.** When the report lists project records whose paths are not present on this machine, and at least one of them is project-scope, its last rows give that count and point the ones left by worktrees removed under the source-control worktree root at `/source-control:worktree audit (if installed)`, which classifies them and gives the gated reap; the rows say local-scope records and other paths are not that audit's to reap, and are omitted when every record is local-scope. The digest's `stale_project_records` gains a `project` count for this. The section still reaps nothing, counts nothing as a divergence and calls no path dead; the rows only name the command that owns the remedy. The stale-records golden covers the row (#6184).
+
+- behavior-probes: a `subagent` area of live cases that test subagent effort precedence (session `effortLevel`, an agent definition's `effort:` pin, the Agent tool's per-spawn `effort` parameter, and `CLAUDE_CODE_EFFORT_LEVEL`), read from each PreToolUse hook payload's `effort.level`, plus a case recording that `${CLAUDE_EFFORT}` in a skill preloaded into a subagent expands to the session effort, not the subagent's.
+
+### Fixed
+
+- **The `/harness-ops:plugins` sync self-update note names the right plugin.** When a run updated `harness-ops` itself along with other plugins, the note took the first moved row and could name another plugin, such as "this run updated architecture". The digest now carries a `self_update` row (`id`, `scope`, `old`, `new`) for this plugin's own moved record, and the note reads its name and versions from that row. A golden covers a run where this plugin's row is not the first update.
+
+- audit-skill-visibility, behavior-probes: re-stamp the listing-scorer bytes-per-token rule against Claude Code 2.1.296, and move the two subagent-cap probes from `haiku` to `sonnet`.
+
+## [3.11.4] - 2026-10-10
+
+### Fixed
+
+- **The observability setup produces telemetry again on current Claude Code.** The setup put the keys that turn Claude Code's telemetry on, pick the exporters and endpoint, and capture content in the committed `.claude/settings.json` and in `.claude/settings.local.json`, which Claude Code no longer honors for those keys, so nothing was exported. The setup now puts them in each developer's user settings or shell, keeps only structure-only keys in the committed project settings, uses the ignored-variables report at startup and in `/status` as the health check, and links the settings reference for the current list.
+- **The repository columns in the OTEL store fill.** The setup now sets `OTEL_METRICS_INCLUDE_REPOSITORY=true`, so the `vcs_repository_*`, `vcs_owner_name` and `vcs_provider_name` columns stop coming back empty, and it notes that the `vcs_ref_head_*` commit columns also need `OTEL_LOG_TOOL_DETAILS=1` in user scope.
+- **Purge advice names the current command.** `/harness-ops:audit-install-state`, `/harness-ops:audit-performance`, `/harness-ops:audit-skill-visibility` and the install-state report now route project-state removal to `claude purge` instead of the deprecated `claude project purge`.
+
+- `/harness-ops:behavior-probes`: on Windows the runner starts case scaffolds with Git for Windows bash by full path and a POSIX script path, instead of a bare `bash` that can resolve to WSL and exit 127 before any model call; it reports an error when Git's bash is missing. `records.md` gains a Windows rerun at Claude Code 2.1.296.
+
+## [3.11.3] - 2026-10-10
+
+### Fixed
+
+- `/harness-ops:plugins` no longer says marketplace auto-update runs at session start: the report line for a marketplace with `autoUpdate` off now says the catalog refreshes automatically when enabled, and the concurrency gotcha points at the upstream page for when the sweep fires.
+
+## [3.11.2] - 2026-10-10
+
+### Fixed
+
+- The shared docs cache detects GNU `mv` from a here-string instead of `mv --version | grep -q GNU`. Under `pipefail` an early `grep -q` exit can break the pipe and fail the check, so a GNU `mv` was taken for a non-GNU one and directory renames took the check-and-undo fallback.
+
+## [3.11.1] - 2026-10-10
+
+### Fixed
+
+- **`/harness-ops:plugins` sync no longer says `install_new: all` reinstalls a plugin on every sync.** An installed plugin is not reinstalled; one you uninstall is, because `claude plugin uninstall` removes its install record and its `enabledPlugins` key together. The `Installed:` row now says so and tells the user to disable a plugin with `claude plugin disable <id> -s user` instead of uninstalling it, and audit's `Would install:` row gives the same warning and remedy in the future tense. When every plugin the run installed is already not enabled, the row drops the disable instruction and says leaving them installed keeps them off unless a project or local setting enables them. The install-enable spoke's caveat gives the same remedy in place of "uninstall AND disable" (#6183).
+
 ## [3.11.0] - 2026-10-09
 
 ### Added

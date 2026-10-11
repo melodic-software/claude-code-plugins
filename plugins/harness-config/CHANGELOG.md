@@ -5,6 +5,47 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.14.3] - 2026-10-11
+
+### Fixed
+
+- Repoint documentation links whose upstream anchor or target moved, so each one lands on the section it cites again.
+
+## [1.14.2] - 2026-10-11
+
+### Changed
+
+- `audit-instructions` criteria cover Claude Haiku 5.5: I17 (pairing arm, plus thinking disabled with a per-message effort change), I17-c and I25 widen to it, I17-b's remediation no longer offers a per-message effort change with thinking disabled on a model whose docs refuse that pairing, and the other model-scoped rows the Sonnet 5.5 rollout decided record a dated decline or re-read with a pointer into the Haiku 5.5 prompting guide.
+
+## [1.14.1] - 2026-10-11
+
+### Fixed
+
+- **The instruction audit reads each model's default effort from the docs instead of a copied list.** The `high`-pin exemption listed the models whose default is not `high` and had fallen behind: Haiku 5.5 now defaults to `medium` too. The row now points at the per-model defaults in model-config, so the audit judges a `high` pin against the default the docs state for the resolved model.
+
+## [1.14.0] - 2026-10-10
+
+### Added
+
+- **The settings audit flags model policy that is not in force.** Category H now reads `deniedModels` and `availableModelsMatch` and reports either one found in a user, project or local settings file as a warning, since we treat both as managed-only, and points at the settings reference for each key. The `availableModels` wildcard-mix row now says it assumes no managed `availableModelsMatch` or `deniedModels` applies, since this skill does not read managed settings.
+- **The permission merge reports `!` carve-outs on their own.** A deny or ask `Read` or `Edit` rule whose pattern starts with `!` is now a `carveout` record naming the one settings file it came from, instead of being merged across scopes as if it reached every source. A carve-out whose pattern is a bare `!` is tagged `bare`, and its effect is reported as a known gap.
+
+### Changed
+
+- **The effort-pin baseline is refreshed against the current model-config page.** The page changed since the last baseline, but the effort levels it lists did not, so every pin still names a listed level.
+
+### Fixed
+
+- **The sandbox escape-surface table accounts for an admin-required sandbox.** The `excludedCommands` row and the strict-mode paragraph now tell the auditor to review loosening settings only in the scopes an admin-required sandbox still reads, and point at the sandboxing docs for which settings it ignores.
+- **The automation-gaps audit no longer describes an old `/hooks` screen.** Its boundary note and its gotchas record now state our decision to leave hook enumeration to the native `/hooks` menu and point at the hooks docs for what the menu shows.
+- **The C6-colonStar lint message describes what the rule matches.** A mid-pattern `:*` such as `Bash(git:* push)` matches commands with that literal colon (`git:<anything> push`), not nothing. The lint still fires on the same rules; only its message and criteria text changed.
+
+## [1.13.6] - 2026-10-10
+
+### Fixed
+
+- The shared docs cache detects GNU `mv` from a here-string instead of `mv --version | grep -q GNU`. Under `pipefail` an early `grep -q` exit can break the pipe and fail the check, so a GNU `mv` was taken for a non-GNU one and directory renames took the check-and-undo fallback.
+
 ## [1.13.5] - 2026-10-08
 
 ### Changed

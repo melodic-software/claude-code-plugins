@@ -17,6 +17,7 @@
 # suite skips; the pwsh-absent and module-absent GRACEFUL-DEGRADE paths are
 # exercised separately by simulating their absence, so they run even where a real
 # pwsh + module is present.
+# test-scope: plugins/powershell-format/.claude-plugin/plugin.json plugins/powershell-format/hooks/hooks.json plugins/powershell-format/prerequisites.json
 
 set -uo pipefail
 

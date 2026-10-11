@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Result\\n- [Screenshot of viewport](/tmp/w/pinned-shot.png)\\n### Ran Playwright code\"}",
+      "why": "absolute path"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"- [Screenshot of viewport](./default-shot.png)\"}",
+      "why": "relative path from the default session"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: ENOENT: no such file or directory, open '/tmp/w/pinned-shot.png'\",\"is_error\":true}",
+      "why": "write refused"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: The browser 'pinned' is not open, please run open first\",\"is_error\":true}",
+      "why": "no browser to shoot"
+    }
+  ]
+}

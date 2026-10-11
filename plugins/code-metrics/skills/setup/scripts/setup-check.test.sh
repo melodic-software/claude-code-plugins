@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regression tests for setup-check.sh: the layer rows, the tracked-file guard,
 # the resolved references, and one row per collector adapter.
-# test-scope: plugins/code-metrics/scripts/collectors/*.py
+# test-scope: plugins/code-metrics/scripts/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

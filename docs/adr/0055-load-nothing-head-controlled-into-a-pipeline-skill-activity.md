@@ -159,3 +159,37 @@ default-branch workflow at each commit named.
 - Re-derive this record when the claude-code-action pin moves past `ed670b4` and its setting-source
   default, marketplace parsing, credential handling, scrub defaults or restore list changes, or
   when the Claude Code docs change what the subprocess scrub keeps.
+
+## Addendum (2026-10-10): code-owner review is off; the PR is the review step
+
+The residual above that names "a ruleset or CODEOWNERS protection on `.github/workflows/**`" as
+required before the first live caller no longer holds as written. The owner turned code-owner
+review off on the `trust-root` ruleset (github-iac#665; github-iac ADR 0007, amendment
+2026-10-09); github-iac#669 kept it on azure-iac only. Live rulesets 17988999 (`base`) and 24475076
+(`trust-root`) require no code-owner review and no approvals, and require review-thread
+resolution. The first live write caller, `pr-refine`, relies instead on the controls listed in the
+convention's [Trust-root paths](../conventions/pr-pipeline/README.md#trust-root-paths): base-SHA
+config, the trusted-actor filter, the broker's workflow-path rule and an App token without
+`workflows`, the merge queue and `ci-status`, thread resolution, the kill switch and broker
+scoping. Accepted residual: a change to `.github/workflows/` or any other trust-root path merges
+with no human approval.
+
+Decision 7's "holds a contents-write App token in its process and in the git config" stands with
+no tool bound on it, by owner decision (2026-10-10): lanes may follow skill instructions, change
+files, commit, push, and create, update and comment on PRs, and a lane's scope comes from how
+granular it is, not from tool restrictions. A skill whose effect is not `read` gets `Edit`,
+`Write`, `Agent` and `mcp__github_file_ops__commit_files`, its own `allowed-tools` Bash, git
+included, and no `WebFetch` or `WebSearch`; with its token it can change and commit any file in
+the repository. The PR is the review step: the review lanes, `ci-status`, review-thread resolution
+and the merge gate. `changed-paths` selects what the skill is asked to fix and is not a control.
+The `mutate-branch` grant narrows to `contents: write`. Security comes from hardening only: the
+broker's scoped, hour-long token revoked when the job ends, base-SHA config and runner, the
+trusted-actor filter, the kill switch, `--setting-sources user`, an explicit `--permission-mode`
+and never `bypassPermissions`. Residuals: the model can read the token text (`GH_TOKEN`,
+`GITHUB_TOKEN`, `.git/config`) until it is revoked; a skill's own `Bash` grant can exceed its job
+(`ai-slop:audit` allows `Bash(git:*)`), so with the token in the origin URL a run can push to any
+branch no ruleset protects, run any shell command through `git -c core.hooksPath` or a `!` alias,
+and push unsigned commits that bypass the signed-commit tool, as the convention's
+[Trust-root paths](../conventions/pr-pipeline/README.md#trust-root-paths) lists; and a lane commit
+can change instruction files the PR author's local session later loads. The contract is
+[`pr-run-activity.md`](../conventions/pr-pipeline/pr-run-activity.md#skill-activities).

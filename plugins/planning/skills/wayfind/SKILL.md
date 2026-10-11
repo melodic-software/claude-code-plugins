@@ -1,13 +1,8 @@
 ---
-description: "Chart a too-big, still-foggy effort as a decision map on the work-item tracker and work its frontier one decision at a time until it graduates to a Brief, PRD, or PLAN. Use when: 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'chart this program', 'plan-the-plan'. Already sharp tickets: /planning:interview or /work-items."
+description: "Chart a too-big, still-foggy effort as a decision map on the work-item tracker and work its frontier one decision at a time until it graduates to a Brief, PRD, or PLAN. Use when an interview outgrew one session: 'turn this into a map', 'this is a huge foggy effort', 'I don't even know the questions yet', 'map this out', 'plan-the-plan'. Not the first step: a new effort starts at /planning:interview. Already sharp tickets: /work-items."
 argument-hint: "[chart|work] [topic]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools:
-  - "Bash(gh issue list*)"
-  - "Bash(gh issue view*)"
-  - "Bash(gh api user*)"
-  - "Bash(gh label list*)"
 shell: bash
 metadata:
   workflow-stage: contract
@@ -18,8 +13,9 @@ metadata:
 
 ## Pre-computed context
 
-Current user: !`gh api user --jq '.login' 2>/dev/null || echo "unknown"`
-Open maps (an ERROR line here means `config.container_label` is not a string; fix `.work-item-tracker.json` before continuing): !`l=$(jq -r 'if .config.container_label == null then "work-map" elif (.config.container_label | type) == "string" then .config.container_label else "ERROR: config.container_label must be a string (got \(.config.container_label | type))" end' .work-item-tracker.json 2>/dev/null || echo "work-map"); if [ "${l#ERROR:}" != "$l" ]; then echo "$l"; else gh issue list --label "$l" --state open --json number,title --jq '.[] | "#\(.number) \(.title)"' 2>/dev/null || echo "none"; fi`
+Container label (an ERROR line here means `config.container_label` is not a string; fix `.work-item-tracker.json` before continuing): !`jq -r 'if .config.container_label == null then "work-map" elif (.config.container_label | type) == "string" then .config.container_label else "ERROR: config.container_label must be a string (got \(.config.container_label | type))" end' .work-item-tracker.json 2>/dev/null || echo "work-map"`
+
+Open maps: list them at the start of every action with `/work-items:track list --label '<container label>' --state open`, invoked via the Skill tool ([`context/tracker-mechanics.md`](context/tracker-mechanics.md)). Without the `work-items` plugin, wayfind cannot reach the tracker: say so and stop.
 
 ## Variables
 
@@ -30,9 +26,11 @@ Arguments: `$ARGUMENTS`
 Some efforts are **too big to hold at once AND too foggy to ticket**. You can't yet
 phrase half the questions, let alone answer them. `/planning:interview` needs a coherent task;
 `/planning:plan` needs a coherent plan; both presuppose you already know what you're deciding.
-`/planning:wayfind` sits **upstream of all of them**: it turns a too-big-foggy effort into a shared
-**decision map** on the work-item tracker, then works that map's frontier one decision at a
-time until the fog burns off and a real destination (Brief / PRD / PLAN) can be handed onward.
+`/planning:wayfind` is the **escalation from an interview that outgrew one session**: it turns a
+too-big-foggy effort into a shared **decision map** on the work-item tracker, then works that
+map's frontier one decision at a time until the fog burns off and a real destination (Brief /
+PRD / PLAN) can be handed onward. It is never the first step: a brand-new effort starts with
+`/planning:interview`, which names this skill when the effort outgrows it.
 
 **Plan, don't do.** A map holds *decisions*, not build work. Each decision item, once
 resolved, either sharpens the map or graduates to the destination. The moment the destination
@@ -64,7 +62,7 @@ unblocked-but-unphrasable worry is fog.
 
 In everything the human reads (chart report, work frontier, map-body index lines), name
 each item by **title**, number as a link or suffix. Never a wall of bare `#42, #43, #44`.
-Pre-computed context already prints `"#<number> <title>"`; keep both halves.
+The map listing already prints each item with its title; keep both halves.
 
 ## Action Router
 
@@ -85,14 +83,23 @@ applies: when the invocation says the run is unattended (a loop, a spawned worke
 session. Do not fabricate a map.
 
 1. **Survey + fog test.** Ground in the effort (read any existing `<memory_dir>/<slug>/`, recent
-   commits, the topic). Sort every uncertainty through the fog test: sharp → candidate
-   decision item; foggy → *Not-yet-specified* prose. **No-fog bail-out:** if the survey
+   commits, the topic). **Seed from the interview:** when the slice holds an interview ledger
+   (`interview-checklist.md`), its settled answers go into one seed decision item whose
+   resolution comment lists them; it is closed at once with one *Decisions-so-far* pointer (the
+   work-mode step 5 sequence). Its open, deferred and blocked questions become candidate
+   decision items, and its self-answered facts are distilled into *Notes* as text, never as a
+   path. Sort every remaining uncertainty through the fog test: sharp → candidate decision
+   item; foggy → *Not-yet-specified* prose. **No-fog bail-out:** if the survey
    leaves *both* halves of the trigger unmet. Every uncertainty is already sharp, or the
    whole effort fits one session. This effort does not need a map. STOP and route out
    instead of fabricating one: a single contract to lock → invoke `/planning:interview` via the
    Skill tool; a set of
    sharp tickets → `/work-items:decompose` (or `/work-items:track add` for one ticket); small enough to just do → say so. (The trigger is too-big
-   AND foggy. Both, never either alone.)
+   AND foggy. Both, never either alone.) Seeded rows are sharp by construction, so the fog must
+   come from the survey; a seeded interview with no fog goes back to its own handoff and resume.
+   **New-effort gate**, checked after the bail-out: when neither the slice nor this conversation
+   holds an interview of the effort, STOP and recommend `/planning:interview` first; chart only
+   if the user still asks for a map after hearing that.
 2. **Create or extend the map issue.** On first use in a repo, resolve the container label
    (the seam's `config.container_label` key, default `work-map`. Snippet in
    `context/tracker-mechanics.md`), then **verify** the wayfind label
@@ -107,7 +114,7 @@ session. Do not fabricate a map.
    **Decisions-so-far** (a *pointer index* of resolved-in-scope decisions. Each home is its own item's
    resolution comment, never recopied here; wrongly scoped closures do not get a pointer) /
    **Not-yet-specified** (fog, prose. Fog never graduates into Out-of-scope) /
-   **Out-of-scope** (scope exclusions, not unphraseable fog). Template + exact `gh` calls: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
+   **Out-of-scope** (scope exclusions, not unphraseable fog). Template and the tracker actions: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
 3. **Create typed decision items** as sub-issues of the map, one per sharp question. Type
    label sets the routing target and the default mode (the type table in Work mode step 4). Wire `blocked-by` edges where
    one decision genuinely gates another. Never invent edges to impose false order.
@@ -134,8 +141,8 @@ session. Do not fabricate a map.
    non-interactive session, further filter OUT `needs-human` items; if that empties the
    frontier, STOP with a truthful "all remaining decisions need a human". Never resolve a
    HITL item by standing in for the human.
-3. **Pick one and claim it** (sibling claim model. `@me` assignee + claim-comment lease with
-   comment-order collision check, no claim label; see [`context/tracker-mechanics.md`](context/tracker-mechanics.md)).
+3. **Pick one and claim it** (sibling claim model through `/work-items:track start`: assignee + lease with a
+   race-safe back-off, no claim label; see [`context/tracker-mechanics.md`](context/tracker-mechanics.md)).
    One item per session, with one exception: **`research`-typed items may be burned down in
    parallel.** They are autonomous-capable by construction, so when the frontier holds
    several, claim each one individually (same protocol, one claim per item) and dispatch
@@ -181,7 +188,7 @@ session. Do not fabricate a map.
 
 `/planning:wayfind`'s description carries the proactive trigger. The sibling skills carry **pull-back
 lines**: when `/planning:interview`, `/planning:plan`, or `/implementation:implement` hits a task that is clearly
-too-big-AND-foggy for their stage, they name `/planning:wayfind` as the better entry.
+too-big-AND-foggy for their stage, they name `/planning:wayfind` as the escalation.
 **guiding the user, never auto-switching**. Wording lives in each of those skills; this skill
 owns the trigger's meaning (too-big + fog, both, not either alone).
 
@@ -198,8 +205,9 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 | The plan itself | `/planning:plan` | Graduation target when the destination is a PLAN |
 
 For pre-implementation efforts, the routed items above compose into a known order (blindspot →
-brainstorm/prototype → PRD → interview → reference port → design → plan → decompose); the workflow section of
-`docs/finding-your-unknowns.md` in the marketplace repository states it with rationale.
+brainstorm/prototype → PRD → interview, escalating here when it outgrows one session → reference
+port → design → plan → decompose); the workflow section of `docs/finding-your-unknowns.md` in
+the marketplace repository states it with rationale.
 
 ## What this skill does NOT do
 
@@ -218,9 +226,16 @@ brainstorm/prototype → PRD → interview → reference port → design → pla
 - **Does not invent a second claim/mode mechanism.** Claims use the sibling `work-items`
   plugin's claim model (`/work-items:track start`); mode is the `needs-human` label. No parallel taxonomy.
 
+## Next
+
+- A brand-new effort with no interview behind it: /planning:interview.
+- The map is charted: /planning:wayfind work.
+- The map closed and its destination is a PLAN: /planning:plan.
+- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
+
 ## Reference
 
-- [`context/tracker-mechanics.md`](context/tracker-mechanics.md). The `gh` commands for map
+- [`context/tracker-mechanics.md`](context/tracker-mechanics.md). The `/work-items:track` actions for map
   creation, typed-item creation, edges, frontier query, and the claim protocol
 - [`context/map-anatomy.md`](context/map-anatomy.md). The map body template, the five
   sections, and the graduation/closure invariants

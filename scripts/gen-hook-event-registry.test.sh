@@ -3,6 +3,7 @@
 # (a plugins/harness-ops/hooks with a copy of the real hooks.json and the real
 # session-log-lib.sh) and runs the generator against a saved copy of the
 # Hooks reference lifecycle table, so nothing here touches the network.
+# test-scope: plugins/harness-ops/hooks/hooks.json
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"

@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_use\",\"name\":\"Grep\",\"input\":{\"pattern\":\"format_user\",\"output_mode\":\"content\"}}"
+    },
+    {
+      "answer": "{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"git grep -n \\\"format_user\\\"\"}}"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"git merge --continue\"}}"
+    },
+    {
+      "answer": "{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -i s/format_user/render_user/ reports.py\"}}",
+      "why": "a fix, not a sweep"
+    }
+  ]
+}

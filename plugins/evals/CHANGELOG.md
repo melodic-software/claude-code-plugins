@@ -1,5 +1,31 @@
 # Changelog: evals
 
+## [0.7.4] - 2026-10-11
+
+### Changed
+
+- plugin-eval: decision runs pass `--judge-model opus`. A 2026-10-11 pass at Claude Code 2.1.296 averaged more than the 0.1 USD fresh-suite headroom, so the headroom is re-derived to 0.2 USD per run; the `price-before-running` case now expects about 4.8 USD for four cases. The haiku-judge anchor says it was measured with a Haiku 4.5 judge, and the ci-pin-models samples no longer pin `claude-haiku-4-5`.
+
+## [0.7.3] - 2026-10-10
+
+### Fixed
+
+- **`plugin-eval` preflight no longer blocks Macs over Docker Desktop's own links.** On macOS with Claude Code 2.1.293 or later, links under `~/.docker/bin` no longer set `sandbox_backend: not-ready`, following the 2.1.293 changelog entry. Links in a `$DOCKER_CONFIG` store elsewhere, and other links, such as the ones Docker Desktop's WSL integration creates, still block a `Bash`-granting suite. The Docker fact row no longer quotes the old refusal text; it points at the changelog entry and records that the plugin-evals and sandboxing pages do not mention this check.
+- **`plugin-eval` preflight checks git before any spend.** Preflight now reads `git --version` and reports it beside `floor_met`; a git older than the CLI's git floor sets `floor_met: false`, so a too-old git is caught before any spend. The floor is read from the plugin-evals requirements section rather than stated in the skill.
+- **`/evals:validate` no longer treats `TaskOutput` as a no-grant tool, and accepts `AskUserQuestion`.** Claude Code removed `TaskOutput` in 2.1.277, and the plugin-evals page lists `AskUserQuestion` among the tools a case may use without a grant. The validator's read-only set, and the lists in the `plugin-eval` skill and its case-authoring reference, now match that page.
+
+## [0.7.2] - 2026-10-10
+
+### Changed
+
+- `plugin-eval`: `## Run` now calibrates judges before the full-suite run, and on a miss fixes the rubric or moves the run to a stronger `--judge-model`. The rule covers every LLM-judge grader the calibration harness can reproduce (labeled samples, judging text), treats the default judge as uncalibrated until it passes, and reports graders it cannot reproduce as uncalibrated. Observed twice in #6669's eval gate: the default Haiku judge marked uc3 below baseline in a full run, then agreed with its labels on only 66.7% of calibration runs; a Sonnet judge calibrated at 100% and the next full run passed.
+
+## [0.7.1] - 2026-10-09
+
+### Fixed
+
+- **`/evals:validate` fails every case field `claude plugin eval` marks required.** A case with a `case.yaml` but no `name` (or `schema_version`) in it or in `prompt.md` frontmatter, a case with no prompt, a grader missing an option its type requires (regex `pattern`, tool_used `tool`, tool_order `before`/`after`, file_exists `path`, llm `criteria`, baseline `baseline_file`/`criteria`), and a `schema_version` that is unquoted or has no leading major now FAIL instead of passing at exit 0. The required set is re-derived from the Claude Code 2.1.296 case schema and each rejection was reproduced with the CLI (#6673).
+
 ## [0.7.0] - 2026-10-08
 
 ### Added

@@ -42,6 +42,7 @@ assert_eq "list-items exit 0" "0" "$RC"
 assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$OUT")"
 assert_eq "paginated across 2 pages → 2 items" "2" "$(jq -r '.items | length' <<<"$OUT")"
 assert_eq "mock curl called twice" "2" "$(cat "$JIRA_FIX/.counter")"
+assert_eq "a walk that reached the last page carries truncated:false" "false" "$(jq -c '.truncated' <<<"$OUT")"
 assert_eq "page-1 item id" "jira:test.atlassian.net/SW2#1" "$(jq -r '.items[0].id' <<<"$OUT")"
 assert_eq "page-2 item id" "jira:test.atlassian.net/ABC#42" "$(jq -r '.items[1].id' <<<"$OUT")"
 assert_eq "page-2 item blocked_by_count" "1" "$(jq -r '.items[1].blocked_by_count' <<<"$OUT")"
@@ -162,6 +163,60 @@ printf '200' >"$JIRA_FIX/1.status"
 rc_for_jira "valid blocked_by_link_type accepted" "0" \
   '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", blocked_by_link_type:"Blocked By"}'
 
+# Won't-do blockers: one resolution lookup per page (call 2) covers every done blocker on
+# it. ABC-7 was resolved won't-do (id 10001) and keeps blocking SW2-2; SW2-4 was resolved
+# completed (id 10000).
+jira_write_binding '["SW2","ABC"]' '{"resolutions":{"completed":["10000"],"wont_do":["10001"]}}'
+cat >"$JIRA_FIX/1.body" <<'JSON'
+{"issues":[{"key":"SW2-2","fields":{"summary":"Dependent","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[{"type":{"name":"Blocks"},"inwardIssue":{"key":"ABC-7","fields":{"status":{"statusCategory":{"key":"done"}}}}}]}},{"key":"SW2-3","fields":{"summary":"Unblocked","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[{"type":{"name":"Blocks"},"inwardIssue":{"key":"SW2-4","fields":{"status":{"statusCategory":{"key":"done"}}}}}]}}],"nextPageToken":null,"isLast":true}
+JSON
+printf '200' >"$JIRA_FIX/1.status"
+printf '{"issues":[{"key":"ABC-7","fields":{"resolution":{"id":"10001","name":"Will Not Do"}}},{"key":"SW2-4","fields":{"resolution":{"id":"10000","name":"Done"}}}]}' >"$JIRA_FIX/2.body"
+printf '200' >"$JIRA_FIX/2.status"
+jira_run "$S" --state open
+assert_eq "won't-do page exit 0" "0" "$RC"
+assert_eq "one search plus one resolution lookup" "2" "$(cat "$JIRA_FIX/.counter")"
+assert_eq "lookup names both done blockers" 'key in ("ABC-7","SW2-4")' "$(sent_jql 2)"
+assert_eq "wont_do blocker keeps its dependent blocked" "1/1" "$(jq -r '.items[0] | "\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
+assert_eq "completed blocker resolves its dependent" "0/0" "$(jq -r '.items[1] | "\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
+
+# A failed lookup keeps every done blocker on the page blocking, counts none as
+# won't-do, warns on stderr, and still emits the page.
+printf '500' >"$JIRA_FIX/2.status"
+jira_run "$S" --state open
+assert_eq "failed lookup → exit 0" "0" "$RC"
+assert_eq "failed lookup → both dependents stay blocked, none won't-do" "1/0 1/0" \
+  "$(jq -r '[.items[] | "\(.blocked_by_count)/\(.blocked_by_wont_do_count)"] | join(" ")' <<<"$OUT")"
+assert_contains "failed lookup → stderr warning" "$ERR" "resolution query failed"
+rm -f "$JIRA_FIX/2.body" "$JIRA_FIX/2.status"
+
+# More than 100 done blockers split into lookups of at most 100 keys each. SW2-1000 is
+# blocked by SW2-1..SW2-101, all done; every lookup answer resolves them as completed.
+jq -cn '{issues: [{key: "SW2-1000", fields: {summary: "Many", status: {statusCategory: {key: "new"}},
+  assignee: null, labels: [], issuetype: {name: "Task"}, parent: null,
+  issuelinks: [range(1; 102) | {type: {name: "Blocks"},
+    inwardIssue: {key: "SW2-\(.)", fields: {status: {statusCategory: {key: "done"}}}}}]}}],
+  nextPageToken: null, isLast: true}' >"$JIRA_FIX/1.body"
+printf '200' >"$JIRA_FIX/1.status"
+jq -cn '{issues: [range(1; 102) | {key: "SW2-\(.)", fields: {resolution: {id: "10000", name: "Done"}}}]}' >"$JIRA_FIX/2.body"
+cp "$JIRA_FIX/2.body" "$JIRA_FIX/3.body"
+printf '200' >"$JIRA_FIX/2.status"
+printf '200' >"$JIRA_FIX/3.status"
+jira_run "$S" --state open
+assert_eq "101 done blockers → one search plus two lookups" "3" "$(cat "$JIRA_FIX/.counter")"
+assert_eq "first lookup carries 100 keys" "100" "$(sent_jql 2 | grep -o '"SW2-' | wc -l | tr -d ' ')"
+assert_eq "second lookup carries the 101st key" "1" "$(sent_jql 3 | grep -o '"SW2-' | wc -l | tr -d ' ')"
+assert_eq "all completed → resolved" "0/0" "$(jq -r '.items[0] | "\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
+# A 400 on one chunk (Jira rejects the whole `key in (...)` query for one bad key) fails
+# every key in that chunk closed, and only that chunk.
+printf '400' >"$JIRA_FIX/3.status"
+printf '{"errorMessages":["An issue with key SW2-99 does not exist"]}' >"$JIRA_FIX/3.body"
+jira_run "$S" --state open
+assert_eq "a 400 on the second chunk → exit 0" "0" "$RC"
+assert_eq "a 400 on the second chunk keeps only its key blocking" "1/0" "$(jq -r '.items[0] | "\(.blocked_by_count)/\(.blocked_by_wont_do_count)"' <<<"$OUT")"
+rm -f "$JIRA_FIX/2.body" "$JIRA_FIX/2.status" "$JIRA_FIX/3.body" "$JIRA_FIX/3.status"
+jira_write_binding '["SW2","ABC"]'
+
 # A single empty page (no token) terminates cleanly with an empty envelope.
 printf '{"issues":[],"nextPageToken":null,"isLast":true}' >"$JIRA_FIX/1.body"
 printf '200' >"$JIRA_FIX/1.status"
@@ -188,5 +243,21 @@ printf '200' >"$JIRA_FIX/1.status"
 printf '{"issues":[{"key":"NOT A JIRA KEY","fields":{"summary":"x","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[]}}],"nextPageToken":null,"isLast":true}' >"$JIRA_FIX/1.body"
 jira_run "$S" --state open
 assert_eq "un-normalizable issue in a page → unavailable (8)" "8" "$RC"
+assert_eq "and emits no envelope a caller could read as an empty listing" "" "$OUT"
+
+# --- the declared ceiling ends the walk and the envelope says so ---
+# A fixture copy of the adapter declares a ceiling of 1. Page 1 fills it while Jira
+# still offers a continuation token, so the walk stops short of the last page.
+FIX_ROOT="$JIRA_FIX/fixture"
+mkdir -p "$FIX_ROOT/adapters"
+cp -R "$(dirname "$S")" "$FIX_ROOT/adapters/jira"
+cp -R "$(dirname "$S")/../../lib" "$FIX_ROOT/lib"
+jq '.limits.list_items_max = 1' "$(dirname "$S")/capabilities.json" >"$FIX_ROOT/adapters/jira/capabilities.json"
+printf '200' >"$JIRA_FIX/1.status"
+printf '{"issues":[{"key":"SW2-1","fields":{"summary":"First","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[]}}],"nextPageToken":"tok-2","isLast":false}' >"$JIRA_FIX/1.body"
+jira_run "$FIX_ROOT/adapters/jira/list-items.sh" --state open
+assert_eq "a walk stopped at the ceiling → exit 0 (documented truncation)" "0" "$RC"
+assert_eq "the ceiling's worth of items" "1" "$(jq '.items | length' <<<"$OUT")"
+assert_eq "and the envelope carries truncated:true" "true" "$(jq -c '.truncated' <<<"$OUT")"
 
 [[ $FAILED -eq 0 ]] || exit 1

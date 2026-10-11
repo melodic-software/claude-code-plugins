@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Tests for the core dispatcher: usage, binding resolution, capability gating, and
 # list-frontier derivation — all against a fake adapter (no network, no gh).
-# test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/* plugins/work-items/tools/work-item-tracker/adapters/*/capabilities.json
+# test-scope: plugins/work-items/tools/work-item-tracker/lib/id.sh plugins/work-items/tools/work-item-tracker/lib/lease.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -234,14 +235,56 @@ mkdir -p "$PROJECT/deep"
 OUT="$(cd "$PROJECT/deep" && env -u CLAUDE_PROJECT_DIR WORK_ITEM_TRACKER_BINDING="$ACME_BINDING" bash "$DISPATCHER" capabilities 2>/dev/null)"
 assert_eq "bare shell resolves consumer-local via git toplevel" "acme-local" "$(jq -r '.provider' <<<"$OUT")"
 
+# --- change-link (CONTRACT.md "Change links") ---
+# The fake manifest predates the verb: it is gated off (exit 6), so callers keep their default.
+run_dispatcher change-link "fake:o/r#1" >/dev/null 2>&1
+assert_eq "change-link absent from verbs → exit 6" "6" "$?"
+
+# --branch is core-side: the manifest's pattern picks the ref, the adapter gets --branch-ref.
+make_skew_adapter "linkfake" "\"schema_version\":\"1.0\","
+jq '.verbs["change-link"] = true | .change_link = {branch_pattern: "^[a-z]+/(routine-issue-)?([0-9]+)-"}' \
+  "$TEST_TMPDIR/adapters/linkfake/capabilities.json" >"$TEST_TMPDIR/linkfake.json"
+cp "$TEST_TMPDIR/linkfake.json" "$TEST_TMPDIR/adapters/linkfake/capabilities.json"
+cat >"$TEST_TMPDIR/adapters/linkfake/change-link.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*"
+EOF
+assert_eq "--branch hands the last capture to --branch-ref" "--repo o/r --branch-ref 42" \
+  "$(run_skew linkfake change-link --branch feat/42-slug --repo o/r)"
+assert_eq "--branch reads the routine form" "--branch-ref 7" \
+  "$(run_skew linkfake change-link --branch chore/routine-issue-7-x)"
+assert_eq "an id passes through untouched" "fake:o/r#1" "$(run_skew linkfake change-link "fake:o/r#1")"
+run_skew linkfake change-link --branch main >/dev/null 2>&1
+assert_eq "a branch with no item reference → exit 5" "5" "$?"
+run_skew linkfake change-link --branch >/dev/null 2>&1
+assert_eq "--branch without a value → exit 2" "2" "$?"
+
+# Every bundled branch grammar needs a delimiter after the ref, so `ENG-12oops` never
+# names ENG-12, and its last capture group is the ref.
+for m in "$SCRIPT_DIR"/adapters/*/capabilities.json; do
+  p="$(jq -r '.change_link.branch_pattern' "$m")"
+  a="$(basename "$(dirname "$m")")"
+  case "$a" in jira | linear) ref="ENG-12" ;; *) ref="12" ;; esac
+  if [[ "feat/${ref}-slug" =~ $p ]]; then
+    assert_eq "$a grammar captures the ref last" "$ref" "${BASH_REMATCH[${#BASH_REMATCH[@]} - 1]}"
+  else
+    fail "$a grammar matches feat/${ref}-slug" "match" "no match"
+  fi
+  if [[ "feat/${ref}oops" =~ $p ]]; then
+    fail "$a grammar needs a delimiter after the ref" "no match" "matched"
+  else
+    pass "$a grammar needs a delimiter after the ref"
+  fi
+done
+
 # --- gh version gate is scoped to the native sub-issue/dependency surface ---
 # Provider "github" applies the gate while WIT_ADAPTERS_DIR points at stub verbs:
 # the gate keys on the bound provider, so this stays offline.
 GH_ADAPTERS="$TEST_TMPDIR/gh-adapters"
 mkdir -p "$GH_ADAPTERS/github"
-printf '%s\n' '{"schema_version":"1.0","provider":"github","verbs":{"create-item":true,"get-item":true,"claim":true,"renew-lease":true,"release":true,"reclaim":true,"link-blocks":true,"add-sub-item":true,"list-items":true,"list-sub-items":true,"capabilities":true}}' \
+printf '%s\n' '{"schema_version":"1.0","provider":"github","verbs":{"create-item":true,"get-item":true,"claim":true,"renew-lease":true,"release":true,"reclaim":true,"link-blocks":true,"add-sub-item":true,"list-items":true,"list-sub-items":true,"change-link":true,"capabilities":true}}' \
   >"$GH_ADAPTERS/github/capabilities.json"
-for v in capabilities claim renew-lease release reclaim get-item list-items list-sub-items link-blocks add-sub-item create-item; do
+for v in capabilities claim renew-lease release reclaim get-item list-items list-sub-items link-blocks add-sub-item create-item change-link; do
   cat >"$GH_ADAPTERS/github/$v.sh" <<'EOF'
 #!/usr/bin/env bash
 printf '{"schema_version":"1.0","items":[]}\n'
@@ -363,6 +406,7 @@ for v in claim renew-lease release reclaim get-item add-sub-item; do
   assert_eq "no gh: $v → exit 3" "3" "$(run_gh_verb_no_gh "$v" "github:o/r#1")"
 done
 assert_eq "no gh: capabilities still answers" "0" "$(run_gh_verb_no_gh capabilities)"
+assert_eq "no gh: change-link still answers (offline)" "0" "$(run_gh_verb_no_gh change-link "github:o/r#1")"
 
 ERR="$(PATH="$NOGH_BIN" WORK_ITEM_TRACKER_BINDING="$GH_BINDING" \
   WIT_ADAPTERS_DIR="$GH_ADAPTERS" bash "$DISPATCHER" claim "github:o/r#1" 2>&1 >/dev/null)"

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Rescheduling a single lesson (T-105, T-108, S1, S6): 4 sources.",
+      "why": "ids only"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply copies nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Dana Whitfield could not change her son's level (T-101).",
+      "why": "copies a name"
+    },
+    {
+      "answer": "Follow up with m.oyelaran@example.com about the waitlist.",
+      "why": "copies an email"
+    }
+  ]
+}

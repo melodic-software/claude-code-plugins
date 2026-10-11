@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/work/screens/1280-load.png"
+          }
+        }
+      ],
+      "why": "wide load frame"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/work/screens/375-load.png"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/work/screens/1280-after-1s.png"
+          }
+        }
+      ],
+      "why": "wide later frame"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "nothing read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/work/screens/375-load.png"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/work/screens/375-after-1s.png"
+          }
+        }
+      ],
+      "why": "narrow only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "screens/1280*.png"
+          }
+        }
+      ],
+      "why": "listed, never read"
+    }
+  ]
+}

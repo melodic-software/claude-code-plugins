@@ -454,7 +454,9 @@ Producers on a type: `/visualization:present` (Slides).
   rule, credentials, and machine paths and hostnames before any network call. The host's upload
   route checks credentials, and machine paths and hostnames on the public host, on every upload and
   is the layer that binds, because its upload token can be used without `pages-publish`.
-- **Repository visibility is checked only by the plugin gate.** The page bytes carry no
+- **Repository visibility is checked only by the plugin gate.** The publish script looks it up
+  itself through the REST API (`gh api repos/<owner>/<repo>`), never from a caller's argument, and
+  a failed or unexpected lookup counts as not public. The page bytes carry no
   repository identity, so `pages-publish` and the host cannot refuse a public upload of a page made
   from a private repository when a caller skips the gate.
 - **The page id lives in the plugin's data directory**, in

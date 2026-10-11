@@ -22,7 +22,7 @@ Empty: stop and report. There is nothing to flip and no head a reviewer can reac
 one here.
 
 Already out of draft (`gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'` prints `false`): the
-flip is done, so run 2.5.2 and 2.5.3 and skip 2.5.4.
+flip is done, so run 2.5.2 and 2.5.3 and skip 2.5.4 and 2.5.5.
 
 ## 2.5.2 Refresh the base with a merge
 
@@ -85,10 +85,12 @@ clean on `git rev-parse HEAD`.
 When 2.5.3 committed anything, push it all in one push and flip right after it, so the ready run
 replaces that push's draft run within seconds instead of after it ran to the end. Push through
 `push-branch.sh`, as [create.md](create.md) does: it pushes to the remote `resolve-remote.sh
---push` resolves, so a fork or triangular checkout never pushes to the wrong remote.
+--push` resolves, so a fork or triangular checkout never pushes to the wrong remote. `--pr` pushes
+the pull request's head branch even when the session runs in another worktree, and exits non-zero
+when that branch has no local ref or its push remote is not the PR's head repository.
 
 ```bash
-bash "<skill-dir>/scripts/push-branch.sh" || exit 1   # only when 2.5.3 committed anything
+bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything
 gh pr ready "$PR_NUMBER"
 ```
 
@@ -103,9 +105,23 @@ Or the GitHub MCP `update_pull_request` call with `draft: false`.
 
 Completion criterion: `gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'` prints `false`.
 
-## 2.5.5 Report
+## 2.5.5 Hand the pull request to the change digest
+
+After the flip, so the digest reads the head the push just published: when `/review:explain-change`
+resolves in this session, invoke it on the pull request with `--event ready`, naming the blast
+radius when a plan or `/review:quality-gate downstream` assessed one. Pass neither `--requested`
+nor `--policy`: the flip is not a request for the digest, so the resolved `digest_policy` decides,
+per the
+[review-digest convention](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/review-digest.md):
+`off` does nothing, `offer` offers the digest when a trigger fires, and `always` builds it.
+
+The digest gates nothing: no step of this phase or of [readiness.md](readiness.md) reads it. A
+skip, an offer nobody has answered yet, or a skill that does not resolve all go on to 2.5.6, and a
+reader who accepts the offer later gets the digest then.
+
+## 2.5.6 Report
 
 Report, in this order: the base merge, both reviews' findings and how each was
 dispositioned (or the fallback that stood in for a review), the verify gate's result with the head it
-ran on, and the flip. Then choose who watches the PR from here, per
+ran on, the flip, and the digest outcome (skipped, offered, built, or not available). Then choose who watches the PR from here, per
 [watch-handoff.md](watch-handoff.md).

@@ -53,7 +53,7 @@ SHEBANG='#!/usr/bin/env bash'
 # minus list-frontier (core-derived), plus list-items.
 readonly ADAPTER_VERBS=(
   create-item get-item claim renew-lease release reclaim link-blocks
-  add-sub-item list-items list-sub-items capabilities
+  add-sub-item list-items list-sub-items change-link capabilities
 )
 readonly FEATURE_KEYS=(cross_repo_edges sub_items leases labels)
 readonly LIMIT_KEYS=(sub_items_per_parent sub_item_depth dependencies_per_type list_items_max)
@@ -500,6 +500,7 @@ usage_args_for() {
   add-sub-item) printf -- '<id> --parent <id>' ;;
   list-items) printf -- '[--state open|closed|all] [--repo <o>/<r>]' ;;
   list-sub-items) printf -- '<parent-id> [--state open|closed|all]' ;;
+  change-link) printf -- '(<id> | --branch-ref <ref>) [--repo <o>/<r>]' ;;
   *) printf -- '' ;;
   esac
 }
@@ -516,6 +517,7 @@ mapping_note_for() {
   add-sub-item) printf 'Link the item as a child of --parent. Depth and per-parent ceilings are exit 7 with the ceiling named.' ;;
   list-items) printf 'Return RAW candidates in the {items:[…]} envelope. Pagination is explicit: fetch up to limits.list_items_max from capabilities.json, NEVER a client default — a silent truncation at some library default makes the frontier lie about what is available.' ;;
   list-sub-items) printf 'Return the RAW children of <parent-id> in the {items:[…]} envelope, each parent_id set to the container. Keep CLOSED children — the closed-children invariant check needs them. A parent with no children is an empty array, never an error.' ;;
+  change-link) printf 'Offline, never call the provider: emit the change-link object (CONTRACT.md "Change links") with wit_emit_change_link: closes (empty for null when a merge closes nothing on this provider), refs, branch_ref. With --branch-ref, qualify the branch token into an id, exit 2 when it cannot. Declare change_link.branch_pattern in the spec so the manifest carries the branch grammar.' ;;
   *) printf 'Emit this verb'"'"'s contract result shape.' ;;
   esac
 }
@@ -648,6 +650,12 @@ open | closed | all) ;;
 esac
 EOF
     ;;
+  change-link)
+    cat <<EOF
+wit_change_link_args "\$@"
+[[ -z "\$WIT_CL_ID" ]] || wit_require_${PROVIDER_FUNC}_id "\$WIT_CL_ID" || wit_usage_error "not a @@PROVIDER@@ item id: \$WIT_CL_ID"
+EOF
+    ;;
   *)
     printf '%s\n' "[[ \$# -eq 0 ]] || wit_usage_error \"unexpected argument: \$1\""
     ;;
@@ -775,7 +783,7 @@ emit() {
 
 # capabilities.json — stamped with the SEAM's contract version, not the spec's.
 MANIFEST="$(jq -S --arg sv "$SCHEMA_VERSION" --arg p "$PROVIDER" \
-  '{schema_version: $sv, provider: $p, verbs: .verbs, features: .features, limits: .limits}' \
+  '{schema_version: $sv, provider: $p, verbs: .verbs, features: .features, limits: .limits} + (if .change_link then {change_link: .change_link} else {} end)' \
   <<<"$SPEC_JSON")"
 emit "$ADAPTER_DIR/capabilities.json" "$MANIFEST"
 

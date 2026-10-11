@@ -13,7 +13,7 @@ activities:
     args: fix
     effect: mutate-branch
     gating: advisory
-    reads-untrusted: false
+    reads-untrusted: true
     inputs: [changed-paths]
     applies-when:
       paths: ["**/*.md"]

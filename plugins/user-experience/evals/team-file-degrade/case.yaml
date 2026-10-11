@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: team-file-degrade
+description: "Team-file degradation, graded on shape's degraded path (the read-only suite cannot run detect, and the scaffolded team file is malformed): the answer names the file it could not apply and points at setup"
+tags: [degrade, team-file]
+runs: 3
+expected_outcome: "The answer names docs/conventions/user-experience.yaml as not applied, says built-in routes were used with team overrides and the deny list not applied, suggests /user-experience:setup to repair it, and still states the app context and the next UX work for onboarding"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Start UX work on this app's onboarding, following the team's UX conventions in this repository: who are the users and what do they need? This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900

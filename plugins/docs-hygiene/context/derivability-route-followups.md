@@ -87,7 +87,7 @@ Re-open only if two checklists are byte-identical and meant to stay that way
 - `plugins/**/templates/checklist.md` (planning, interview, session-flow,
   debugging, codebase-health, code-tidying, harness-config, source-control,
   work-items, …)
-- `plugins/machine-health/skills/audit/scripts/{linux,macos}/NOT_IMPLEMENTED.md`
+- `plugins/machine-health/skills/audit/scripts/{linux,macos}/not-implemented.md`
   (near-dup scaffolding; OS-specific on purpose)
 - `plugins/harness-config/skills/audit/templates/checklist.md` and siblings
 

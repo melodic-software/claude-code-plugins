@@ -2,6 +2,7 @@
 # Contract test for test-judge-bg.sh, the task-end judge's PostToolUse job
 # (async): it judges the test blocks a write created or changed and writes
 # their verdicts to the ledger. The judge is the stub behind TEST_JUDGE_CMD.
+# test-scope: plugins/testing/skills/audit/adapters/*.yaml
 # shellcheck disable=SC2016,SC2034  # check() evals its single-quoted condition, which reads these
 
 # shellcheck source=judge-test-helpers.sh

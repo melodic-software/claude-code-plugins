@@ -23,7 +23,7 @@ Inspect and disable Claude Code **auto memory**, the store Claude writes for its
 directory per repo (`~/.claude/projects/<project>/memory/`, relocatable via
 `autoMemoryDirectory`). Governs auto-memory only. Not in scope: CLAUDE.md / CLAUDE.local.md /
 `.claude/rules/` (use `/harness-memory:audit`), transcripts, history, or shell snapshots. For the
-official full per-project wipe, use `claude project purge`.
+official full per-project wipe, use `claude purge`.
 [reference/official-guidance.md](reference/official-guidance.md), "Out of scope for this skill",
 records how this skill treats that command's scope; read the deletion plan and flags at
 [Clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data).
@@ -41,7 +41,7 @@ section before acting on a load-bearing fact.
 | `CLAUDE_CODE_DISABLE_AUTO_MEMORY` | OS env or settings `env` block | Yes. Reads and writes |
 | CLAUDE.md / `.claude/rules/` | repo + user | No. Use `/harness-memory:audit` |
 | CLAUDE.local.md | repo only, no user-scope equivalent | No. Use `/harness-memory:audit` |
-| Transcripts | `~/.claude/projects/<project>/` | No. How we treat its age sweep and `claude project purge`: official-guidance.md, "Out of scope for this skill" |
+| Transcripts | `~/.claude/projects/<project>/` | No. How we treat its age sweep and `claude purge`: official-guidance.md, "Out of scope for this skill" |
 | Prompt history | `~/.claude/history.jsonl` | No. Same record |
 | Session files | `~/.claude/sessions/` | No. Same record |
 | Shell snapshots / backups | `~/.claude/shell-snapshots/`, `~/.claude/backups/` | No. Same record |

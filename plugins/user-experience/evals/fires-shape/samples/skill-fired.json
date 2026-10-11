@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:shape"
+          }
+        }
+      ],
+      "why": "the shape front door fired"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "adhd:shape"
+          }
+        }
+      ],
+      "why": "the same leaf name from another plugin"
+    }
+  ]
+}

@@ -40,9 +40,11 @@ finding about the suite as a whole carries the eval dir in place of `<case>/<fil
 **FAIL is what the binary itself rejects**: an unknown `prompt.md` frontmatter key, a grader with no
 usable `type`, an unknown option for the declared grader type, a case with no grader at all, two
 graders sharing a name, a non-positive `weight`, `runs` / `max_turns` / `timeout_seconds` outside
-their bounds, an `env` key that does not match `EVAL_[A-Z0-9_]*`, a `case.yaml` with no companion
-`prompt.md` and no `schema_version` or `name`, and a `schema_version` whose major is newer than the
-binary supports. The sets the script checks, complete, so a question about a key or a type is
+their bounds, an `env` key that does not match `EVAL_[A-Z0-9_]*`, a case that has a `case.yaml` but
+no `schema_version` or `name` in it or in `prompt.md` frontmatter (without a `case.yaml` the binary
+supplies both), a case with no prompt (`prompt.md` body or `execution.prompt`), a grader missing an
+option its type requires, and a `schema_version` that is not a quoted version string or whose
+major is newer than the binary supports. The sets the script checks, complete, so a question about a key or a type is
 answered here without opening the script:
 
 - `prompt.md` frontmatter keys: `schema_version`, `name`, `description`, `tags`, `plugins`,
@@ -56,6 +58,9 @@ answered here without opening the script:
   `pattern`, `flags`, `match`, `target`; `tool_used` `tool`, `input_match`, `min`, `max`;
   `tool_order` `before`, `after`; `file_exists` `path`, `exists`; `llm` `criteria`, `focus`;
   `baseline` `baseline_file`, `criteria`.
+- Required options per type: `regex` `pattern`; `tool_used` `tool`; `tool_order` `before`,
+  `after`; `file_exists` `path`; `llm` `criteria`; `baseline` `baseline_file`, `criteria`. A
+  `graders/*.md` body stands in for `pattern` (regex) or `criteria` (llm, baseline).
 - Bounds: `runs` 1 to 50, `max_turns` 1 to 200, `timeout_seconds` 1 to 3600.
 
 The script's constants are the one place to correct when the schema moves, under the drift record
@@ -130,7 +135,9 @@ which carries the full parser.
 
 **Claim:** the load-time FAIL findings match what the binary rejects when it loads a case, so a
 suite at exit 0 loads. **Basis:** the case schema recovered from the shipped Claude Code binary, read against the
-eval-suite reference at <https://code.claude.com/docs/en/plugin-evals>. **As of:** 2026-09-12.
+eval-suite reference at <https://code.claude.com/docs/en/plugin-evals>; the required fields were
+re-derived from Claude Code 2.1.296 and each rejection reproduced with `claude plugin eval --case`.
+**As of:** 2026-10-09.
 **Recheck trigger:** the next Claude Code release, which can add a frontmatter key, add a grader
 type, or move a bound. On a firing, re-derive both lists from the schema rather than patching one
 value.

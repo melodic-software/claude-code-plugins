@@ -50,18 +50,51 @@
 # Push resolution must be determinate (it names the destination), so a failed
 # --push resolution aborts; a failed fetch resolution does not.
 #
-# Usage: push-branch.sh [branch-name]   (defaults to the current branch)
+# `--pr <number>` pushes that pull request's head branch, read from
+# `gh pr view`, whatever worktree the caller runs in. Branch refs are shared
+# across worktrees, so the push carries the commits made in the PR's worktree.
+# A head branch with no local ref, a name starting with '-', or a push remote
+# that is not the PR's head repository exits non-zero rather than pushing.
+#
+# Usage: push-branch.sh [branch-name | --pr <number>]   (defaults to the current branch)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="${SCRIPT_DIR}/resolve-remote.sh"
 
 BRANCH="${1:-}"
-if [[ -z "$BRANCH" ]]; then
+if [[ "$BRANCH" == "--pr" ]]; then
+  PR="${2:-}"
+  if [[ ! "$PR" =~ ^[0-9]+$ ]]; then
+    echo "push-branch.sh: --pr needs a pull request number, got '$PR'; not pushing" >&2
+    exit 1
+  fi
+  read -r BRANCH HEAD_REPO < <(gh pr view "$PR" --json headRefName,headRepository,headRepositoryOwner \
+    -q '.headRefName + " " + .headRepositoryOwner.login + "/" + .headRepository.name' 2>/dev/null | tr -d '\r')
+  if [[ "${BRANCH:-}" == -* ]]; then
+    echo "push-branch.sh: PR '$PR' head branch '$BRANCH' starts with '-'; not pushing" >&2
+    exit 1
+  fi
+  if [[ -z "${BRANCH:-}" ]] || ! git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+    echo "push-branch.sh: no local branch for the head of PR '$PR' ('${BRANCH:-}'); not pushing" >&2
+    exit 1
+  fi
+elif [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
 fi
 
 PUSH_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
+# A same-named local branch is not the PR's head unless its push remote is
+# the PR's head repository (a fork PR's head lives on the fork).
+if [[ -n "${HEAD_REPO:-}" ]]; then
+  URL=$(git remote get-url "$PUSH_REMOTE" 2>/dev/null)
+  URL="${URL%/}"
+  URL="${URL%.git}"
+  if [[ "${URL,,}" != *[:/]"${HEAD_REPO,,}" ]]; then
+    echo "push-branch.sh: '$BRANCH' pushes to '$PUSH_REMOTE' ($URL), not PR '$PR' head repository '$HEAD_REPO'; not pushing" >&2
+    exit 1
+  fi
+fi
 FETCH_REMOTE=$(bash "$RESOLVER" "$BRANCH" 2>/dev/null)
 EXISTING_REMOTE=$(git config "branch.${BRANCH}.remote" 2>/dev/null)
 EXISTING_MERGE=$(git config "branch.${BRANCH}.merge" 2>/dev/null)

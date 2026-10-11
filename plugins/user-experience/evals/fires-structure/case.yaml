@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: fires-structure
+description: "A single information-architecture request (a tree-test plan) reaches /user-experience:structure"
+tags: [fires]
+runs: 3
+expected_outcome: "A Skill call reaches user-experience:structure, and the plan's tasks are scenarios with a correct destination each"
+execution:
+  prompt: "Plan a tree test for our help center's navigation. Top level: Getting started, Billing, Your account, Troubleshooting, Integrations. Billing holds Invoices, Payment methods and Refunds; Your account holds Profile, Security and Delete account; Troubleshooting holds Login problems, Sync errors and Slow performance. This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600

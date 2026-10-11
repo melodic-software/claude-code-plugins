@@ -3,6 +3,72 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.72.3] - 2026-10-11
+
+### Changed
+
+- `/planning:interview` words each question so a bare "yes" accepts the recommendation: a negative recommendation is asked as "Should X stay out of this change?", not "Should we do X?" answered "No". The `interview-negative-recommendation-yes-accepts` eval case failed on all three with-plugin runs before this rule.
+
+## [0.72.2] - 2026-10-11
+
+### Added
+
+- **An interview eval case for a question whose natural recommendation is negative.** `interview-negative-recommendation-yes-accepts` floats a side idea (rewriting the admin page in React) that the interview should recommend against, and checks that round 1 asks about it and words the question so that answering "yes" accepts the recommendation. The skill body is unchanged: a with-and-without run of this case decides whether a wording rule is added.
+
+### Changed
+
+- Shared `standards-contract.md` synced to standards contract 1.0.3: the `.claude/rules` seam now says a path-scoped rule fires when Claude works with a matching file, not only when it reads one, and points at the memory docs for what loads a rule; no change to this plugin's behavior.
+
+- plan, plan-reviewer: Step 3 passes no spawn `effort` to the plan reviewer, because the Agent tool's per-spawn `effort` would replace its `effort: medium` pin; the reviewer's verification record now says so.
+
+- Interview session-config context: advisor pairing now says to price the stronger model alone at low effort first and to check that the advisor engages on the user's workload, with a pointer; evals 9 and 10 require both.
+
+- Skill bodies that routed to the retired `/discovery:research-deep` now name `/discovery:research` and its `deep` tier.
+
+- The `/planning:plan` template's note on why opening a pull request needs no duplicate check names `/source-control:pull-request create` instead of `gh pr create`.
+
+- `/planning:wayfind` reads and writes its decision map through `/work-items:track` actions instead of `gh`, and no longer needs `gh` or its `gh` permission grants; the map listing moved from pre-computed context to the start of each action. The `/planning:plan` template's search-before-create phase uses `/work-items:track search`, `edit --comment-file` and `add`.
+
+## [0.72.1] - 2026-10-10
+
+### Fixed
+
+- **The plan reviewer's effort record is current again.** The `plan-reviewer` agent justified its effort pin by saying the Agent tool takes no per-call effort, which stopped being true in Claude Code 2.1.292. The agent now records our decision instead: its definition pins the reviewer's effort and `/planning:plan` passes no `effort` on the dispatch, with a pointer to the subagents docs section on effort for which level wins. `/planning:plan` step 3 says the same.
+
+## [0.72.0] - 2026-10-10
+
+### Changed
+
+- `/planning:interview` no longer gates a change whose diff is quick to review and cheap to retry; behavior change alone does not force it, and its description triggers before work whose diff fails either test. A new effort starts at the interview however big, and the user can run `/planning:wayfind` in the same session when it outgrows one.
+- `/planning:wayfind` is an escalation from an interview, never the first step: its description says so, and chart mode, after the no-fog bail-out, sends an effort with no interview behind it to `/planning:interview` first. Charting seeds the map from an interview ledger: settled answers go into one seed decision item with one Decisions-so-far pointer, and open questions become decision items. It gains a `## Next` section.
+- `/planning:plan` sends a too-big, foggy effort to `/planning:wayfind` only after an interview outgrew one session, else to `/planning:interview` first.
+
+- `/planning:interview`, `/planning:brainstorm` and `/planning:prd` `## Next` sections lead toward the interview and name `/session-flow:workflow` for a session unsure where it stands, one successor per bullet; brainstorm drops `/user-experience:shape`, and `/planning:prd` gains the section.
+
+## [0.71.1] - 2026-10-10
+
+### Changed
+
+- **The interview page's deferred-work list is now `surface/deferred.md`**, renamed from `DEFERRED.md` so every markdown file in the repository is lower-kebab-case (ADR 0059).
+
+## [0.71.0] - 2026-10-10
+
+### Added
+
+- `/planning:draft-goal-condition` Step 0 adds a metric hill-climb row, routed to the `/performance:*` chain or, through `/evals:methodology`, the bundled `claude-api` hillclimb, and two preconditions for a lever that repeats build-and-check rounds: the task repeats, and the agent can run what it builds.
+
+## [0.70.2] - 2026-10-10
+
+### Fixed
+
+- The shared docs cache detects GNU `mv` from a here-string instead of `mv --version | grep -q GNU`. Under `pipefail` an early `grep -q` exit can break the pipe and fail the check, so a GNU `mv` was taken for a non-GNU one and directory renames took the check-and-undo fallback.
+
+## [0.70.1] - 2026-10-09
+
+### Changed
+
+- `/planning:design` points UI/UX work at `/user-experience:shape` and `/user-interface:design` (when enabled), and `/planning:brainstorm` names `/user-experience:shape` under Next for who the users are and what they need.
+
 ## [0.70.0] - 2026-10-08
 
 ### Changed

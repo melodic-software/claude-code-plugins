@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: scripts/lib/*
 # Regression tests for convert-bump-to-fragment.sh against throwaway git
 # fixtures: a plugin at 1.2.0 listed in scripts/fragment-plugins.txt, a `pr`
 # branch that bumps it by hand, and a stub scripts/new-changelog-fragment.sh

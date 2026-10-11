@@ -6,7 +6,7 @@
 # is registered, every event is one hooks.json declares, every family and
 # pattern is one the harness-config audit baseline actually lists, and every
 # lever is a documented option.
-# test-scope: plugins/guardrails/README.md
+# test-scope: plugins/guardrails/README.md plugins/guardrails/hooks/hooks.json
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

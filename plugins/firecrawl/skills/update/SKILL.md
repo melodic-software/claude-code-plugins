@@ -3,13 +3,13 @@ description: "Maintainer-facing drift-check and upstream sync for the firecrawl 
 argument-hint: "[--check]"
 user-invocable: true
 disable-model-invocation: true
-allowed-tools: Bash(grep -m1 *UPSTREAM.md*)
+allowed-tools: Bash(grep -m1 *upstream.md*)
 shell: bash
 ---
 
 ## Pre-computed context
 
-Last upstream sync: !`grep -m1 '^- Last sync:' "${CLAUDE_SKILL_DIR}/UPSTREAM.md" >/dev/null 2>&1 && grep -m1 -o 'Last sync:.*' "${CLAUDE_SKILL_DIR}/UPSTREAM.md" 2>/dev/null || echo "never — run this skill with --check"`
+Last upstream sync: !`grep -m1 '^- Last sync:' "${CLAUDE_SKILL_DIR}/upstream.md" >/dev/null 2>&1 && grep -m1 -o 'Last sync:.*' "${CLAUDE_SKILL_DIR}/upstream.md" 2>/dev/null || echo "never — run this skill with --check"`
 
 ## Purpose
 
@@ -20,8 +20,8 @@ Keep the `/firecrawl:firecrawl` wrapper skill in sync with its two upstream depe
 
 Maintainer-facing: run this in a working-tree checkout of this plugin (the marketplace clone, or a
 directory loaded via `--plugin-dir`), never against an installed marketplace copy, the apply path
-rewrites `UPSTREAM.md` inside this skill directory, and consumers receive updates through
-`/plugin marketplace update`. Drift detection uses the sidecar `UPSTREAM.md` (SHA tracking): upstream
+rewrites `upstream.md` inside this skill directory, and consumers receive updates through
+`/plugin marketplace update`. Drift detection uses the sidecar `upstream.md` (SHA tracking): upstream
 `SKILL.md` is fetched fresh on `--check` and hashed; the sidecar records the prior hash for diff. No
 vendored snapshot is kept. The action is advisory, the two approval gates in Safety below keep every
 mutation behind an explicit yes.
@@ -30,7 +30,7 @@ mutation behind an explicit yes.
 
 | Invocation | Effect |
 |---|---|
-| `/firecrawl:update --check` | Read-only drift report. Fetches upstream + npm metadata, compares against `UPSTREAM.md`. **No mutations.** |
+| `/firecrawl:update --check` | Read-only drift report. Fetches upstream + npm metadata, compares against `upstream.md`. **No mutations.** |
 | `/firecrawl:update` | Full update pipeline with two approval gates |
 
 **When to invoke, the modes, and the full update pipeline:** read `context/update-flow.md`. The
@@ -66,7 +66,7 @@ Nothing destructive happens without explicit approval. Four guarantees:
 2. **Atomic fetching.** `update.sh --check` completes all network I/O (npm metadata + upstream
    fetch) before printing anything. A mid-run 404 or DNS failure leaves state untouched. No partial
    write.
-3. **Rollback path.** `UPSTREAM.md` records the *previous* CLI version before each upgrade. If a new
+3. **Rollback path.** `upstream.md` records the *previous* CLI version before each upgrade. If a new
    version breaks something, the rollback is one line: `npm install -g firecrawl-cli@<previous-version>`.
    Revert the plugin PR for skill-content changes.
 4. **Post-install verification.** After `npm install -g`, the flow re-runs `firecrawl --status` and
@@ -84,16 +84,16 @@ Safe to schedule or re-run.
 ## What this skill does NOT do
 
 - **Does not run against an installed marketplace copy**. Maintainer-facing; the apply path writes
-  `UPSTREAM.md` in this skill directory. Consumers update via `/plugin marketplace update`.
+  `upstream.md` in this skill directory. Consumers update via `/plugin marketplace update`.
 - **Does not auto-rewrite the wrapper SKILL.md**. `update.sh` owns only the deterministic record
-  (`UPSTREAM.md`); skill-content integration is Claude's step behind Gate 2, governed by the
+  (`upstream.md`); skill-content integration is Claude's step behind Gate 2, governed by the
   Preservation rules above.
 - **Does not run `firecrawl init` or `firecrawl login`**. Those install a parallel shadow copy /
   second auth source of truth. This plugin IS the maintained integration.
 
 ## Related
 
-- `UPSTREAM.md` (this skill root). Sync-state anchor (last sync date, upstream SHA, previous CLI
+- `upstream.md` (this skill root). Sync-state anchor (last sync date, upstream SHA, previous CLI
   version for rollback). Updated only by the update action.
 - `scripts/update.sh`. Deterministic helper invoked by the update flow (npm version lookup, upstream
   fetch + SHA, help diff). Regression tests: `scripts/update.test.sh`.

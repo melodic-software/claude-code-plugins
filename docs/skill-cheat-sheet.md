@@ -53,7 +53,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/context7:lookup`](../plugins/context7/skills/lookup/SKILL.md) | `context7` | Look up current library docs, API references, and examples via Context7 |
 | [`/discovery:read-docs`](../plugins/discovery/skills/read-docs/SKILL.md) | `discovery` | Read an upstream docs page through the shared lookup and cache |
 | [`/discovery:research`](../plugins/discovery/skills/research/SKILL.md) | `discovery` | Multi-source external research with source tiers and a coverage ledger |
-| [`/discovery:research-deep`](../plugins/discovery/skills/research-deep/SKILL.md) | `discovery` | Dispatch deep multi-topic research to the heaviest isolated tier |
 | [`/dometrain:grounding`](../plugins/dometrain/skills/grounding/SKILL.md) | `dometrain` | Ground an approach in how a Dometrain course teaches it, with lesson links |
 | [`/firecrawl:firecrawl`](../plugins/firecrawl/skills/firecrawl/SKILL.md) | `firecrawl` | Scrape, search, crawl, or parse web pages when WebFetch is blocked |
 
@@ -128,6 +127,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/retro-audio:sfx`](../plugins/retro-audio/skills/sfx/SKILL.md) | `retro-audio` | Render one retro sound effect to a WAV file |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 | [`/speech:narrate`](../plugins/speech/skills/narrate/SKILL.md) | `speech` | Script in, narration.wav and words.json out (kokoro local; elevenlabs optional, third-party) |
+| [`/user-interface:write-css`](../plugins/user-interface/skills/write-css/SKILL.md) | `user-interface` | Write or review CSS after discovering the project's stack, tokens, targets and conventions |
 
 ## 9. Test
 
@@ -174,6 +174,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/performance:protect`](../plugins/performance/skills/protect/SKILL.md) | `performance` | Hold a verified counter win with a CI ceiling a human merges |
 | [`/performance:snapshot`](../plugins/performance/skills/snapshot/SKILL.md) | `performance` | Capture a snapshot only from a host proven measurable |
 | [`/performance:verify`](../plugins/performance/skills/verify/SKILL.md) | `performance` | Re-derive the result in fresh context and report it honestly |
+| [`/playwright:demo-video`](../plugins/playwright/skills/demo-video/SKILL.md) | `playwright` | Replay a web flow, render a produced demo video, QC it from frames, post it to the PR |
 | [`/toolchain:check`](../plugins/toolchain/skills/check/SKILL.md) | `toolchain` | Build, test, and lint changed files across detected ecosystems |
 | [`/toolchain:lint`](../plugins/toolchain/skills/lint/SKILL.md) | `toolchain` | Polyglot lint and format checks without a full build |
 | [`/verification:confirm`](../plugins/verification/skills/confirm/SKILL.md) | `verification` | Prove the change achieved its intended outcome with evidence |
@@ -183,6 +184,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/session-flow:audit-friction`](../plugins/session-flow/skills/audit-friction/SKILL.md) | `session-flow` | Mine sessions for permission and autonomy friction and end in one decision brief |
 | [`/session-flow:audit-sessions`](../plugins/session-flow/skills/audit-sessions/SKILL.md) | `session-flow` | Cross-session audit of transcripts with routed, never-applied findings |
 | [`/session-flow:retro`](../plugins/session-flow/skills/retro/SKILL.md) | `session-flow` | Structured session retrospective with codified learnings |
 | [`/session-flow:running-retro`](../plugins/session-flow/skills/running-retro/SKILL.md) | `session-flow` | In-flight retro checkpoint appended to a running ledger |
@@ -226,7 +228,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/desktop-notification:check`](../plugins/desktop-notification/skills/check/SKILL.md) | `desktop-notification` | Report whether node and jq resolve for the desktop-notification hooks. Never installs. |
 | [`/developer-experience:audit-tools`](../plugins/developer-experience/skills/audit-tools/SKILL.md) | `developer-experience` | Inventory a repository's developer tooling and report findings, read-only by default |
 | [`/discipline:do-your-research`](../plugins/discipline/skills/do-your-research/SKILL.md) | `discipline` | Re-anchor research discipline, then audit and correct the current work |
-| [`/discipline:do-your-research-deep`](../plugins/discipline/skills/do-your-research-deep/SKILL.md) | `discipline` | Verify every session claim against primary sources in a heavy fan-out |
 | [`/discipline:follow-our-standards`](../plugins/discipline/skills/follow-our-standards/SKILL.md) | `discipline` | Re-anchor to org engineering standards and audit the work in flight |
 | [`/discipline:hold-my-hand`](../plugins/discipline/skills/hold-my-hand/SKILL.md) | `discipline` | Standing posture. Phase the work, present one phase at a time, wait for the advancing reply |
 | [`/discipline:mind-your-maxims`](../plugins/discipline/skills/mind-your-maxims/SKILL.md) | `discipline` | Re-anchor cooperative communication and audit recent responses for clarity |
@@ -234,7 +235,6 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/discipline:point-dont-copy`](../plugins/discipline/skills/point-dont-copy/SKILL.md) | `discipline` | Audit for copied content and correct by pointing at the living source |
 | [`/discipline:reason-dont-recite`](../plugins/discipline/skills/reason-dont-recite/SKILL.md) | `discipline` | Challenge decisions coasting on precedent, re-derive from first principles |
 | [`/discipline:recheck-against-upstream`](../plugins/discipline/skills/recheck-against-upstream/SKILL.md) | `discipline` | Audit the surface in flight against current official upstream docs |
-| [`/discipline:recheck-against-upstream-deep`](../plugins/discipline/skills/recheck-against-upstream-deep/SKILL.md) | `discipline` | Fan out doc-by-doc upstream conformance checks across a whole subsystem |
 | [`/discipline:reuse-or-replace`](../plugins/discipline/skills/reuse-or-replace/SKILL.md) | `discipline` | Reuse the established way or openly replace it, never a silent second way |
 | [`/discipline:script-the-deterministic-work`](../plugins/discipline/skills/script-the-deterministic-work/SKILL.md) | `discipline` | Script counting, diffing, and transforms instead of eyeballing them |
 | [`/discipline:scrutinize-dont-coast`](../plugins/discipline/skills/scrutinize-dont-coast/SKILL.md) | `discipline` | Re-examine your own recent output through a fresh-context pass |
@@ -314,13 +314,18 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/testing:check`](../plugins/testing/skills/check/SKILL.md) | `testing` | Report whether node and jq resolve for the testing hooks. Never installs. |
 | [`/toolchain:check-prerequisites`](../plugins/toolchain/skills/check-prerequisites/SKILL.md) | `toolchain` | Report whether the tools toolchain declares resolve. Never installs. |
 | [`/typos-format:check`](../plugins/typos-format/skills/check/SKILL.md) | `typos-format` | Report whether typos and node are installed. Never installs. |
+| [`/user-experience:evaluate`](../plugins/user-experience/skills/evaluate/SKILL.md) | `user-experience` | Plan and run UX evaluations, fair-choice checks and measure selection, evidence-labeled |
+| [`/user-experience:plan-user-research`](../plugins/user-experience/skills/plan-user-research/SKILL.md) | `user-experience` | Plan user research and write its instruments, evidence-labeled |
+| [`/user-experience:shape`](../plugins/user-experience/skills/shape/SKILL.md) | `user-experience` | Detect the app's stage and the project's own evidence, then chain the UX jobs in order |
+| [`/user-experience:structure`](../plugins/user-experience/skills/structure/SKILL.md) | `user-experience` | Shape user flows, information architecture and content structure, evidence-labeled |
+| [`/user-experience:synthesize`](../plugins/user-experience/skills/synthesize/SKILL.md) | `user-experience` | Synthesize research data into labeled themes, insights, needs, personas or jobs |
 | [`/user-interface:design`](../plugins/user-interface/skills/design/SKILL.md) | `user-interface` | Design interfaces from the project's system and installed tools; terminal guidance built in |
 | [`/visualization:present`](../plugins/visualization/skills/present/SKILL.md) | `visualization` | Slide deck through the claude.ai Slides Artifact type, outline markdown as the record |
 | [`/visualization:visualize`](../plugins/visualization/skills/visualize/SKILL.md) | `visualization` | Pick the best visual form for what is in the conversation and render it |
 | [`/wizard:generate`](../plugins/wizard/skills/generate/SKILL.md) | `wizard` | Author a hardened interactive bash wizard for human-only setup, credential, and cutover steps |
 | [`/wizard:unattended`](../plugins/wizard/skills/unattended/SKILL.md) | `wizard` | Author an unattended script a human launches once for a privilege or policy boundary |
 | [`/work-items:scan-todos`](../plugins/work-items/skills/scan-todos/SKILL.md) | `work-items` | Sweep source comments for TODO and FIXME markers, resolve or file each |
-| [`/work-items:ship`](../plugins/work-items/skills/ship/SKILL.md) | `work-items` | Route a spec container's macro journey. Status, execution shape, next step |
+| [`/work-items:ship`](../plugins/work-items/skills/ship/SKILL.md) | `work-items` | Route and run a spec container's macro journey. Status, execution shape, next step |
 | [`/work-items:track`](../plugins/work-items/skills/track/SKILL.md) | `work-items` | Backlog CRUD through the bound tracker. Add, list, close, stats |
 | [`/work-items:triage`](../plugins/work-items/skills/triage/SKILL.md) | `work-items` | Evaluate raw intake through the verified-to-eligible state machine |
 | [`/work-items:work`](../plugins/work-items/skills/work/SKILL.md) | `work-items` | Auto-select one work item and execute it end-to-end |

@@ -23,7 +23,8 @@ Keys, layers and the fan-out guard are owned by
 - `<role|all>`: one of `orchestrator`, `worker`, `verifier`, `retrieval`, or
   `all` for the whole map.
 - `code|research|mechanical`: optional workload; applies the role's
-  `workloads.<w>` keys (research lowers the worker's effort by default).
+  `workloads.<w>` keys, which only a config layer sets; the bundled defaults
+  set none.
 - `session=<alias>`: the session model's alias. When the caller did not pass
   one, fill it from your own model ID: the family name in it (`opus`,
   `sonnet`, `haiku`, `fable`) is the alias. When you cannot tell, omit it; the
@@ -51,11 +52,29 @@ role in this form:
 Write `inherit: omit the model option` wherever a variant's `omit_model` is
 true, so a caller copying the line passes no model and the agent runs on the
 session model. Then list every entry of `notes` (a skipped layer, a rejected
-value, an ignored key) as written. Exit 2 means an unknown role or argument:
+value, an ignored key, a role that resolves to haiku) as written. A haiku note
+means the role runs on a model no role here has passed the routing eval on;
+the rule is in
+[`${CLAUDE_PLUGIN_ROOT}/reference/routing-rubric.md`](${CLAUDE_PLUGIN_ROOT}/reference/routing-rubric.md).
+Exit 2 means an unknown role or argument:
 relay the valid roles from the error and stop.
 
 A caller launching a workflow passes the JSON's `roles` object as
-`args.roles`, unchanged.
+`args.roles`, unchanged. A caller spawning a subagent through the Agent tool
+with no named type applies one variant to that call: it passes the variant's
+model as `model`, or omits `model` when `omit_model` is true, and always
+passes its effort as `effort`.
+
+- **Pointer**: when a routed Agent dispatch runs at a different level than
+  the one passed, or you need the values the call accepts, fetch
+  [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level),
+  [sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
+  and [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level)
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: either sub-agents section changes which source wins
+  for a subagent's model or effort, or the model-config section states
+  whether an effort cap limits the per-call `effort`.
 
 ## What this skill does NOT do
 
@@ -80,11 +99,11 @@ Rechecks a default that looks wrong for the current models.
   id does not.
 - `fanout` and `single` differ only under a frontier or unknown session. Under
   an Opus session both say `inherit`, and `opus` would name the same model.
-- A named agent (`agentType`, or an Agent dispatch by subagent type) keeps the
-  model and effort in its own definition, so the fan-out guard does not reach
-  it. A named agent pinned below the frontier, such as `scoped-implementer` at
-  `sonnet`, stays off a frontier session model without the guard; one whose
-  dispatcher may raise it to the session tier is that dispatcher's rule to
-  keep.
+- The map never routes a named agent (`agentType`, or an Agent dispatch by
+  subagent type), so the fan-out guard does not reach it on its own. Its
+  dispatcher may pass `model` or `effort` on the call; for which source wins
+  over the definition's pins, see the pointer record under Output. Keeping a
+  named agent such as `scoped-implementer` off a frontier session model is
+  that dispatcher's rule to keep.
 - Team and overlay layers resolve against the repository root of the working
   directory. Inside a second worktree, run from that worktree.

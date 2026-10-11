@@ -53,7 +53,8 @@ node "<plugin-root>/skills/triage/scripts/build-board.mjs" --out "<dir>/triage-b
   {"number":1,"title":"","kind":"issue","state":"unlabeled","labels":[""],"blockedBy":[2]}]}
 ```
 
-- `state` is the attention-view bucket the item came from: `unlabeled`, `raw marker`, or `needs-info reply`.
+- `state` is the attention-view bucket the item came from: `unlabeled`, `raw marker`, `needs-info reply`, or
+  `blocked by won't-do`.
 - `kind` is `issue` or `PR`.
 - Give `blockedBy` (the issue numbers on the item's native blocked-by edges) only when the listing
   read them. Leave it out otherwise: the board then groups the item under "blockers not read" instead

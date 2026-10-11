@@ -12,7 +12,8 @@ continue in session, `/clear`, `session-flow:handoff`, `session-flow:continue-in
 terminals: `reconcile` and `orient` are state hygiene. They inform this decision (what is still
 running, where we stand) but never carry the session forward. Mid-task subagent delegation is a
 spawn-brief decision owned by `session-flow:orchestrate` (if installed); question 2 below is its
-only entrance and is the router's one non-terminal edge.
+only entrance and is the router's one non-terminal edge. A cloud session is not a terminal either:
+it rides along as advice (Output shape, below).
 
 ## Zone input (presence-gated, conservative)
 
@@ -72,7 +73,8 @@ boundary.
    is no save-point.* (Absent that skill: push everything durable by hand, meaning commits, PR
    bodies, and issue notes, before stopping.)
 1. **Did the user explicitly request background continuation, AND can the work proceed without
-   human input right now?** → `session-flow:continue-in-background`. *Ordered BEFORE every
+   human input right now?** → `session-flow:continue-in-background` (`--cloud` when the user
+   asked for a cloud session). *Ordered BEFORE every
    cost-based question below, including question 3's zero-cost in-session exit, on the same
    ground question 0 already establishes: a hard fact outranks a cost heuristic. Question 3 asking
    first would answer yes whenever context is healthy, silently discarding an explicit user
@@ -105,41 +107,40 @@ boundary.
    prefer continue when the next stage consumes this stage's reasoning verbatim, because a summary of the
    reasoning is not the reasoning; this never overrides a degraded zone, where the questions
    below choose the route.*
-4. **Is this session's context disposable: nothing in it is worth carrying forward, the next work
-   is unrelated work, or two corrections on the same issue have already failed?** → `/clear`.
-   *The cheapest reset, asked before any writing mechanism: capturing state nothing needs is pure
-   cost. Unrelated work is work that neither uses this stage's artifact or files nor serves the
-   same Original goal or work item. After two failed corrections we clear and restate the problem
-   rather than carry those attempts forward.*
-5. **Does the work leave this session, or is a finished spec or plan moving into execution?** →
+4. **Is this session's context disposable: the next work is unrelated and nothing from this
+   session carries over to anything, or two corrections on the same issue have already failed?**
+   → `/clear`. *The cheapest reset, asked before any writing mechanism: capturing state nothing
+   needs is pure cost. Unrelated work is work that neither uses this stage's artifact or files nor
+   serves the same Original goal or work item. After two failed corrections we clear and restate
+   the problem rather than carry those attempts forward.*
+5. **Does the work leave this session, is a finished spec or plan moving into execution, or is
+   the next work unrelated while something from this session still carries over?** →
    `session-flow:handoff`, then the user `/clear`s. *Leaving means another agent, another
    checkout, a colleague, another machine, or a break longer than the prompt cache lasts. We
-   execute a finished spec or plan in a new session. An attended run that
-   has already been compacted and whose output quality is now degrading also hands off to a fresh
-   session rather than compacting again; unattended runs leave auto-compact on (context-guard's
-   reader contract). This is the first mechanism that pays a write cost without a live
-   continuation attached: a handoff carries forward exactly the state that matters.* The skill
-   ships in this plugin, so it is never absent here; a handoff file is written through it, never
-   free-hand.
-6. **Fallthrough: the next work is the related next task** → `/compact <focus>`, typed by the
-   user, the focus naming what the summary must keep. *A related next task uses this stage's
-   artifact or files and serves the same Original goal or work item, so the session's context is
-   still its context.*
+   execute a finished spec or plan in a new session. Switching to unrelated work with a follow-up,
+   an open item or a finding still owed hands off rather than clears, so that state survives the
+   reset. This is the first mechanism that pays a write cost without a live continuation attached:
+   a handoff carries forward exactly the state that matters.* The skill ships in this plugin, so it
+   is never absent here; a handoff file is written through it, never free-hand.
+6. **Fallthrough: the next work is in the same phase or activity, or is the related next task** →
+   `/compact <focus>`, typed by the user, the focus naming what the summary must keep. *Compaction
+   is the default within a phase or activity, and it may repeat: a session already compacted
+   compacts again when the window needs it. A related next task uses this stage's artifact or files
+   and serves the same Original goal or work item, so the session's context is still its context.*
 
 **Timing.** Before stepping away for longer than the prompt cache lasts, route now: hand off before
 leaving.
 
 **Same-task boundaries.** Whether the next stage is the same task follows the stage boundary:
 
+- within one phase or activity → `/compact <focus>` each time the window needs it (question 6).
 - explore → plan stays in one session, `/compact <focus>` when the window needs it.
 - a finished spec or plan → execution moves to a fresh session (question 5).
 - implementation → review runs in fresh context, for example a reviewer subagent.
 - two failed corrections on one issue → `/clear` (question 4).
 
-We route by task: same task compacts with a focus, unrelated work clears, work that leaves the
-session hands off. The "rather than compacting again" clause in question 5 is our judgment; no
-source we read compares a second compaction with a handoff, and the workflow evals carry the case
-that would settle it.
+We route by task: same phase or task compacts with a focus, unrelated work hands off when
+anything carries over and clears when nothing does, work that leaves the session hands off.
 
 - **Pointer**: for when context fills up, see
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>; for managing
@@ -176,6 +177,34 @@ table text, and the human's step: `/effort` in the continuing or resumed session
 `--effort` that `session-flow:continue-in-background` passes at launch. When the input says the
 table could not be read, say so and advise no level. The router advises the change and never
 sets it: neither autonomy tier below covers an effort change.
+
+**A cloud route rides along as advice.** Unless SKILL.md's `cloud_route` resolves to `off`, when
+the next chunk of work fits a cloud session, add it beside the mechanism with the reason, and name
+the launch as `/session-flow:continue-in-background --cloud`, which the user must ask for. A plan
+or handoff file sends that skill to its full path, which the cloud delivery refuses: when the file
+is committed and pushed, name the launch as `--cloud prompt <topic> <purpose naming the file's
+repo-relative path>`; when it is not, say the user commits and pushes it first. Judge
+the fit from the upstream criteria, read live through `/discovery:read-docs`, never from memory:
+
+- **Pointer**: the decision rule,
+  <https://code.claude.com/docs/en/remote-control#remote-control-vs-cloud-sessions>; when cloud
+  pays and what it shares, <https://code.claude.com/docs/en/claude-code-on-the-web#tips-for-cloud-tasks>
+  and <https://code.claude.com/docs/en/claude-code-on-the-web#limitations>; what a cloud session
+  lacks, <https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup>.
+  Correlate with <https://claude.dev/blog/claude-code-in-the-cloud/#local-or-cloud> for work that
+  stays local.
+- **As of**: 2026-10-11
+- **Recheck trigger**: any of those sections moves or changes what a cloud session runs on,
+  carries over, or shares with the account.
+
+The account matters when the user rotates CLI logins across accounts. A cloud session belongs to,
+and draws limits from, the account that started it: it frees local CPU and parallelism, not quota
+on that account. An idle account signed in on the web or Desktop can take the task on its own
+quota. Each account needs its own cloud environment with the repo's setup script, or the repo's
+plugins do not load (this marketplace documents its script in
+<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/cloud-sessions.md>). Teleport
+and CLI follow-ups need the starting account, so they fail once the CLI login has switched; say
+which account the advice assumes.
 
 ## Autonomy: two tiers, each explicitly licensed
 

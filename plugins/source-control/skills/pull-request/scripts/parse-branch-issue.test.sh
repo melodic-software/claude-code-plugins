@@ -49,15 +49,31 @@ run_test "feat/just-a-feature no number" "feat/just-a-feature" "" 1
 run_test "worktree-foo-bar wrong prefix" "worktree-foo-bar" "" 1
 run_test "cursor/abc-xyz cloud-agent no number" "cursor/abc-xyz" "" 1
 
-# Configurable grammar: a consumer whose branches place the (numeric
-# GitHub) issue number differently passes an ERE whose LAST capture group is
-# that number. The downstream `Closes #N` needs a numeric GitHub issue id, so
-# the capture must resolve to digits.
+# Configurable grammar: a consumer whose branches place the reference
+# differently passes an ERE whose LAST capture group is that reference, an
+# issue number or a tracker key.
 run_test "username-scoped scheme via custom pattern" "alice/1234-fix" "1234" 0 '^[^/]+/([0-9]+)-'
 run_test "trailing-number scheme via custom pattern" "feat/add-widget-1234" "1234" 0 '-([0-9]+)$'
 run_test "custom pattern, no match -> exit 1" "main" "" 1 '^[^/]+/([0-9]+)-'
 # shellcheck disable=SC2016  # the placeholder is a literal test input, not an expansion
 run_test "unsubstituted user_config placeholder falls back to default" "feat/42-x" "42" 0 '${user_config.branch_issue_pattern}'
+run_test "tracker key via custom pattern" "feat/SW2-1234-x" "SW2-1234" 0 '^[^/]+/([A-Z][A-Z0-9]*-[0-9]+)-'
+
+# --no-default: a tracker-bound caller lets the adapter own the default grammar.
+run_no_default() {
+  local desc="$1" pattern="$2" expected_out="$3" expected_exit="$4" actual_out actual_exit
+  actual_out=$(bash "$PARSER" "feat/42-x" "$pattern" --no-default 2>/dev/null)
+  actual_exit=$?
+  if [[ "$actual_out" == "$expected_out" && "$actual_exit" -eq "$expected_exit" ]]; then
+    echo "PASS: $desc"
+    PASS=$((PASS + 1))
+  else
+    echo "FAIL: $desc (got out='$actual_out' exit=$actual_exit)"
+    FAIL=$((FAIL + 1))
+  fi
+}
+run_no_default "--no-default with no consumer pattern exits 3, prints nothing" "" "" 3
+run_no_default "--no-default still applies a consumer pattern" '^[^/]+/([0-9]+)-' "42" 0
 
 # Layered `.claude/source-control.md` cascade. Each case gets its own fixture
 # HOME and repo root. `layer <file> <value>` writes one `## branch_issue_pattern`

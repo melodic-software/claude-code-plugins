@@ -5,12 +5,12 @@
       "id": 1,
       "name": "narrate-exit-2-runs-the-check",
       "prompt": "/speech:narrate just stopped with exit 2. What is missing?",
-      "expected_output": "Runs check.py with --data-dir and reports each PASS/FAIL row with the remedy it printed, then stops.",
+      "expected_output": "Runs check.py with --data-dir and reports each PASS/FAIL row with the remedy it printed, then offers the fixes without running any.",
       "files": [],
       "expectations": [
         "Runs `scripts/check.py --data-dir`",
         "Reports every FAIL row with the remedy the script printed",
-        "Installs and downloads nothing"
+        "Installs and downloads nothing before the user says yes"
       ]
     },
     {
@@ -35,6 +35,30 @@
         "Reports the rows and the summary line as printed",
         "On all PASS, does not suggest /speech:setup",
         "Modifies no file"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "failed-package-row-is-offered-not-run",
+      "prompt": "/speech:check\n\nThe plugin was enabled a minute ago in this session.",
+      "expected_output": "When the python-packages row fails, reports it and offers to run the repair line the row printed, and runs nothing until the user answers.",
+      "files": [],
+      "expectations": [
+        "Offers to run the python-packages repair line exactly as check.py printed it",
+        "Runs no install before the user says yes",
+        "Does not tell the user to start a new session as the only route"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "yes-runs-the-declared-repair-only",
+      "prompt": "/speech:check\n\nThe python-packages row failed. Yes, run the repair for me.",
+      "expected_output": "Runs the repair line check.py printed for python-packages and reports its result; uses no other installer.",
+      "files": [],
+      "expectations": [
+        "Runs the `pydeps.py install --data-dir` repair line the row printed",
+        "Does not run uv, uvx or a bare pip command of its own",
+        "Reports whether the repair succeeded"
       ]
     }
   ]

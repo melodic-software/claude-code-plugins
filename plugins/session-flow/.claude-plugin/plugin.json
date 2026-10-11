@@ -1,7 +1,7 @@
 {
   "name": "session-flow",
-  "version": "0.50.0",
-  "description": "Session lifecycle: workflow (next stage), handoff (save-point, resume prompt), continue-in-background, keep-going (resume after interruption or stall), find-handoff (recover a lost handoff), clean-stop (durable stopping point), retro and running-retro (retrospectives), audit-sessions, orient (where the session stands), orchestrate (delegation imperatives), reanchor (verify assumptions), reconcile (retire finished work), show-options (ranked skill menu), tidy-work (.work tiers), check, setup.",
+  "version": "0.54.0",
+  "description": "Session lifecycle: workflow (next stage), handoff (save-point, resume prompt), continue-in-background, keep-going (resume after interruption or stall), find-handoff (recover a lost handoff), clean-stop (durable stopping point), retro and running-retro (retrospectives), audit-sessions, audit-friction, orient (where the session stands), orchestrate (delegation imperatives), reanchor (verify assumptions), reconcile (retire finished work), show-options, tidy-work (.work tiers), check, setup.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -48,8 +48,14 @@
     "observer_analysis_model": {
       "type": "string",
       "title": "Observer analysis model",
-      "description": "Model ID for the headless post-session analysis run, the dominant cost lever. The default, claude-haiku-4-5, is the cheapest active tier; pin a different ID to trade cost for depth.",
-      "default": "claude-haiku-4-5"
+      "description": "Model ID for the headless post-session analysis run, the dominant cost lever. The default was chosen for faithful findings: in a local pilot it missed and invented the fewest; pin a different ID to trade depth for cost.",
+      "default": "claude-opus-5-5"
+    },
+    "observer_analysis_effort": {
+      "type": "string",
+      "title": "Observer analysis effort",
+      "description": "Effort level passed as --effort to the headless post-session analysis run, a second cost lever beside the model. The level is passed explicitly and also pins CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md.",
+      "default": "medium"
     },
     "observer_analysis_bare": {
       "type": "boolean",
@@ -113,6 +119,13 @@
       "default": 3,
       "min": 1,
       "max": 20
+    },
+    "cloud_route": {
+      "type": "string",
+      "title": "Cloud session suggestion",
+      "description": "Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask.",
+      "default": "offer",
+      "options": ["off", "offer"]
     }
   }
 }

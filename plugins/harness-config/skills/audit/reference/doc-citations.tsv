@@ -20,6 +20,8 @@ settings-reference	### `effortLevel`
 settings-reference	### `fallbackModel`
 settings-reference	### `availableModels`
 settings-reference	### `enforceAvailableModels`
+settings-reference	### `availableModelsMatch`
+settings-reference	### `deniedModels`
 settings-reference	### `enableAllProjectMcpServers`
 settings-reference	### `disabledMcpjsonServers`
 settings-reference	Overrides don't apply to plugin skills

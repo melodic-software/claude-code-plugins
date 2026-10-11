@@ -65,8 +65,13 @@ Build a single merged view, oldest first, each row tagged by kind:
 2. **`[ratify]`**, the subset of escalated items whose marker carries `kind=ratify-c3`: C3
    bug-fix-shaped admissions the worker loop queued for first-drain ratification (earn-trust
    posture; see `/work-items:work-loop`'s admission gate).
-3. **`[intake]`**. Untriaged raw intake, exactly the buckets `/work-items:triage`'s attention
-   view defines. Compose that view; do not re-derive its buckets here.
+3. **`[intake]`**. Untriaged raw intake: buckets 1-3 of `/work-items:triage`'s attention view
+   (unlabeled, raw marker, needs-info with a reporter reply). Compose that view; do not re-derive
+   its buckets here.
+4. **`[won't-do]`**, report-only. Bucket 4 of the same view (blocked by won't-do): items, often
+   already triaged, that wait on a blocker closed as won't-do. List them so the operator sees
+   them, but take no claim and make no change from this lane; the operator decides (drop the
+   edge, re-scope, or close) outside it.
 
 Lane-infrastructure items never enter the view, and this lane re-derives nothing to keep them out:
 the composed triage view already excludes the per-lane telemetry tracking issues (`/work-items:triage`,
@@ -74,7 +79,8 @@ the composed triage view already excludes the per-lane telemetry tracking issues
 
 Present the merged table with one-line summaries, then work rows in the operator's chosen order
 (default: oldest first, `[ratify]` rows before `[escalated]` before `[intake]` at equal age,
-ratifications unblock the waiting worker loop).
+ratifications unblock the waiting worker loop). `[won't-do]` rows are listed after the worked
+rows and are never worked or claimed here.
 
 ## Row claim (before any mutation)
 
@@ -231,7 +237,10 @@ contract's floor); provenance is the `rate-limit-guard` plugin's reader contract
 provenance only, since an installed plugin cannot read a sibling plugin's files at runtime.
 
 - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 95`
+- **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose session environment sets
+  `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read it at lane start with
+  `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it pauses when **either** window reports
+  `used_percentage >= 95`
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
@@ -241,8 +250,13 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
   snapshot file and re-evaluate on every write: the file carries an **`account.email` field when the
   writer could attribute the observation**, so a write is still the signal that the windows changed
   under you (account switch, another session's refresh).
-- **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
-  pause end, and report; a hard stop happens only on explicit user request.
+- **Drain-then-pause:** for an opted-in lane, on a trip, finish in-flight work, stop claiming new
+  work, pause until the pause end, and report; a hard stop happens only on explicit user request.
+  Without the opt-in, a window at or above 95 never pauses, slows, or stops the lane and never
+  lowers its model, effort, or review depth: it keeps working and reports the window, its
+  `used_percentage` and `resets_at`, and the operator's options: continue, switch accounts (a
+  human action a lane never performs or scripts;
+  https://github.com/melodic-software/claude-code-account-rotation), or opt in to pausing.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
   from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: it names an account only as of
   a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it
@@ -275,7 +289,7 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   `session_name`, any future account field) are user/AI-influenced. Parse them only with a JSON
   parser; never string-interpolate them into a shell command, another interpreter, or a prompt.
 
-For this attended lane, "stop claiming new work" means: finish the row in hand (including the
+For this attended lane, when opted in, "stop claiming new work" means: finish the row in hand (including the
 flip-while-claimed and assignee clear when disposition is complete), then stop pulling further rows
 and report the pause
 to the operator, who may explicitly choose to continue (the operator's presence is the "explicit

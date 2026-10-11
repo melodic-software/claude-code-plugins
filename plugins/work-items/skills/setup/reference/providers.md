@@ -52,6 +52,17 @@ Requires `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_
 The API token is referenced by env-var name only, never stored. Binding shape and the deferred
 live-instance facts are CONTRACT.md's "jira adapter".
 
+**Listing resolutions for the won't-do classification.** The instance's resolutions come from
+`GET https://<site>/rest/api/3/resolution/search`, paginated with `startAt` / `maxResults` until
+`isLast` is true; each value carries `id`, `name`, `description`, and `default` (true on the
+instance's default resolution). The older `GET /rest/api/3/resolution` is deprecated
+([Issue resolutions API](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-resolutions/)
+and its OpenAPI spec, as of 2026-10-10; recheck when that page changes the search endpoint
+or its fields). Call it
+with the same Basic auth the adapter uses (`auth_email` plus the token from `auth_env`), and
+write ids, never names, into `config.jira.resolutions`: admins can rename a resolution, and an id
+survives that.
+
 ## `gitea`
 
 Gitea / Forgejo is self-hostable and free, so it is the no-paid-tool option for solo developers.
@@ -108,7 +119,8 @@ than starting from a blank file.
 |---|---|---|
 | `lease_ttl_hours` | every provider | Claim-lease lifetime in hours. RECOMMENDED `24`. |
 | `storage_dir` | `local-markdown` | The item-store directory. |
-| `jira` | `jira` | `site` (Cloud host), non-empty `project_keys[]`, `auth_email`, `auth_env` (env-var NAME holding the token). Optional `blocked_by_link_type` / `done_category_keys` override the deferred live-instance defaults. |
+| `github` | optional, `github` | `wont_do_labels` (label names, no default, matched case-insensitively): a closed blocker carrying one counts as won't-do whatever its close reason. Written by the "Won't-do classification" pass. |
+| `jira` | `jira` | `site` (Cloud host), non-empty `project_keys[]`, `auth_email`, `auth_env` (env-var NAME holding the token). Optional `blocked_by_link_type` / `done_category_keys` override the deferred live-instance defaults; optional `resolutions` (`{"completed":[ids],"wont_do":[ids]}`, no default, absent = won't-do detection off) classifies resolution ids, written by the "Won't-do classification" pass. |
 | `gitea` | `gitea` | `host` (bare hostname), non-empty `scopes[]` (each `owner/repo`, the declared read scope **and** the authorization boundary), `auth_env`. Optional `page_size` (default 50, which you lower if the instance sets `api.MAX_RESPONSE_ITEMS` below that), `host_suffix` (your own egress pin; Gitea is self-hosted, so there is no vendor-domain default), `allow_custom_domain`. |
 | `linear` | `linear` | `host` (`api.linear.app`), non-empty `scopes[]` (each `<workspace>/<TEAMKEY>`, all sharing one workspace), `auth_env`. Optional `done_state_types` (which `WorkflowState.type` values count as closed; default `completed`/`canceled`/`duplicate`), `page_size`, `host_suffix`, `allow_custom_domain`. |
 

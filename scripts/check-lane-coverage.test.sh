@@ -11,7 +11,8 @@
 # names steps of the real pr-require-checks.yml, and an entry naming a step no fixture defines
 # is a stale opt-out by construction — so a fixture checked against it would fail
 # for a reason that has nothing to do with the case under test.
-# test-scope: .github/workflows/pr-require-checks.yml
+# The real workflow is the gate's own CI step (pr-require-checks.yml, step id
+# lane_coverage), which runs on every pull request.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -473,12 +474,5 @@ expect "a check name a peer workflow also carries fails and names it" 1 \
 
 expect "a missing peer directory exits 2" 2 "peer workflow directory not found" \
   --check "$peers/ci.yml" ci-status "$NONE" "$scratch/no-such-dir"
-
-# --- the real workflow ------------------------------------------------------
-
-expect "the repository's own pr-require-checks.yml is fully covered" 0 "reachable from ci-status.needs" --check
-expect "no pr-require-checks.yml check name is shared with another workflow here" 0 "no check name shared with" --check
-expect "every gate step in the repository's own pr-require-checks.yml is fed or opted out" 0 \
-  "gate step(s) fed to the aggregator" --check
 
 test_harness::report

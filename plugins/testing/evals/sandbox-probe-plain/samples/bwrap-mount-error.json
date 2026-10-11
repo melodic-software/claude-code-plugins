@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"sandbox-ok-7f3a\"}",
+      "why": "the call ran"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"bwrap: Creating new namespace failed: Operation not permitted\",\"is_error\":true}",
+      "why": "a different sandbox failure, not the mount-point one"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"Exit code 1\\nbwrap: Can't create file at /tmp/x/home/cwd/.eval-artifacts: Read-only file system\",\"is_error\":true}",
+      "why": "bwrap could not create the mount point"
+    }
+  ]
+}

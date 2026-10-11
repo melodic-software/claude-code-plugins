@@ -274,7 +274,7 @@ plugins/event-storming/skills/simulation/evals/fixtures/*.md
 plugins/firecrawl/README.md
 plugins/firecrawl/CHANGELOG.md
 plugins/firecrawl/skills/*/SKILL.md
-plugins/firecrawl/skills/update/UPSTREAM.md
+plugins/firecrawl/skills/update/upstream.md
 plugins/firecrawl/skills/firecrawl/context/*.md
 plugins/firecrawl/skills/update/context/*.md
 # The fleet plugin was authored purged rather than purged later, so its changelog

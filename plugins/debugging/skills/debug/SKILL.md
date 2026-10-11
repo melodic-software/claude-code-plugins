@@ -179,6 +179,8 @@ Required before declaring done:
 - Make the recommendation **after** the fix is in, not before. The post-fix view has more information than the pre-fix one
 - State its `Basis:`, `verified` with the `file:line` or loop output it rests on, or `judgment` (only when it is not consequential: cross-repo, shared infrastructure, irreversible, or security). A consequential one is grounded in its consumers first; one that cannot be settled is withheld and filed as an open question naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar)
 
+If the answer is a check (a lint or analyzer rule, a test, a hook) that would have caught the mistake deterministically, name its owner instead of leaving it as a note. A repo or policy mistake (a banned API, a wrong file location, a review-standard violation) goes to `/review:audit-enforceability` when the `review` plugin is installed; it reads a review-findings file, so record the finding in one first. A mistake in how the agent worked during the session goes to `/session-flow:retro` when the `session-flow` plugin is installed, which decides when a check is worth proposing. Otherwise, file it with your issue tracker as its own prevention finding. Propose the check; do not build it here.
+
 **Optional view.** After the post-mortem is written, offer an interactive view of it (the hypotheses with their verdicts and evidence, a tick for each the reader would re-open, a copy-out of the challenge). The page is never written beside the post-mortem, which stays the record. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs`, never hand-written; the publish destination comes from the `medium` cascade key. Procedure and data shape: [`${CLAUDE_PLUGIN_ROOT}/skills/debug/reference/rendered-view.md`](reference/rendered-view.md).
 
 ## Boundary, the bundled `debug` skill
@@ -214,8 +216,9 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 ## Next
 
 - The fix landed with its regression test, or a documented seam gap: `/review:quality-gate`.
-- The root cause is a design flaw that a focused patch cannot fix: `/planning:plan`.
+- The root cause is a design flaw that a focused patch cannot fix: `/planning:interview`.
 - No feedback loop could be built and the failure needs recording for later: `/bugs:write --file`.
+- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## When to escalate
 
@@ -223,5 +226,5 @@ If after 3 hypothesis-test cycles no candidate is panning out:
 
 - The hypothesis ranking was probably wrong. Go back to Phase 3, re-survey the repo, look for what was missed
 - The loop may not be tight enough. Re-iterate Phase 1 (faster, sharper, more deterministic)
-- The bug may need redesign rather than a patch. Switch to broader replanning with `/planning:plan` when the `planning` plugin is installed, or your environment's own plan-review capability otherwise
+- The bug may need redesign rather than a patch. Re-scope it with `/planning:interview` when the `planning` plugin is installed (it hands off to `/planning:plan`), or your environment's own planning capability otherwise
 - Do not push through a fifth or sixth attempt. That is how technical debt compounds and "fixes" break unrelated code

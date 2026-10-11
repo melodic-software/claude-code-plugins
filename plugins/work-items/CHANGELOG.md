@@ -3,6 +3,47 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.0] - 2026-10-11
+
+### Changed
+
+- **Breaking:** the inlined rate-limit floor makes pausing opt-in. A lane pauses at 95% only when its session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1`. Without it, the lane keeps working at the same model, effort and review depth, and reports the window, its reset time and the options: continue, switch accounts, or opt in (#7118).
+
+## [0.51.1] - 2026-10-11
+
+### Changed
+
+- `reference/standing-item-preconditions.md`: the `frontier-release-since-last-checked` precondition now defers the release class to the schedule row's `prompt`, and says the id keeps "frontier" only for history.
+
+## [0.51.0] - 2026-10-11
+
+### Added
+
+- **The tracker adapter owns the text that links a change to its item and the branch item-ID grammar.** A new offline `change-link` verb, implemented by every bundled adapter (github, gitea, jira, linear, local-markdown), returns the closing line (`Closes #42`, `Closes ENG-123`, or `null` where a merge closes nothing, as on Jira), the non-closing line, and the token a branch name carries; each manifest declares its branch grammar as `change_link.branch_pattern`. `/work-items:track link` exposes it to other plugins, and `track start`, `track done` and `work` now read it instead of writing GitHub's `Closes #N` and numeric branch names.
+
+- `/work-items:ship run #N` runs one container's ready items under its recorded execution shape, attended only: it claims them after the user approves the item list, hands them to `/implementation:implement-dispatch`'s item-list mode, and lands them one at a time, onto the integration branch as checkpoints or as per-item PRs. `ship` now routes and runs one container.
+
+- `/work-items:track` gains read actions `view` (an item's title, state, labels and body), `changes` (the change requests the tracker links as closing an item) and `labels` (the live label set, or which named labels are missing), and a write action `edit` (title, body, labels, a blocked-by edge, or a comment). `list --parent` lists a container's children, and `add` takes `--label`, `--body-file`, `--parent` and `--blocked-by`. Other plugins call these instead of a tracker's commands (ADR 0060). The GitHub adapter reference gains "Edit title / body", "List labels" and "Linked changes".
+
+### Changed
+
+- The execution-shape reference replaces "one item in flight" with "many in flight, the runner lands one at a time": sessions working a shared branch directly still keep one item in flight, and a runner that is the only writer may keep many.
+
+- Write "vertical slice" (or "item") for the work-item sense of slice in decompose, triage, ship, work and the seam and agent-brief references; "memory slice" and "topic slice" still name the per-topic folder.
+
+## [0.50.1] - 2026-10-10
+
+### Changed
+
+- `/work-items:triage` `## Next` names `/session-flow:workflow` for a session unsure where it stands, and drops `/work-items:attend-queue` to stay within four bullets.
+
+## [0.50.0] - 2026-10-10
+
+### Added
+
+- **Won't-do blockers.** The triage attention view has a fourth bucket, "blocked by won't-do": open items whose `blocked_by_wont_do_count` is above zero, whatever labels they carry, reported for the operator to drop the edge, re-scope, or close. The triage board accepts it as a `state`, and `/work-items:attend-queue` lists those items as report-only `[won't-do]` rows, taking `[intake]` from buckets 1-3 only.
+- **Won't-do detection follows each tracker's own vocabulary, with no built-in list.** Jira: the optional team binding key `config.jira.resolutions` (`{"completed": [ids], "wont_do": [ids]}`) classifies resolution ids, so a renamed resolution keeps its class. Absent, detection is off and no lookup is made. Present, the adapter reads done blockers' resolutions in one extra search, counts a `wont_do` id as won't-do, and keeps a blocker with an unclassified id, a failed lookup, or a missing search result blocking, with a stderr warning. GitHub: the optional key `config.github.wont_do_labels` makes a closed blocker carrying a listed label (case-insensitive) won't-do whatever its close reason. `/work-items:setup apply` lists the Jira instance's resolutions or the repo's labels and writes the key only from the user's choice; `check` reports Jira resolutions the binding does not classify.
+
 ## [0.49.9] - 2026-10-07
 
 ### Changed

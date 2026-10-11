@@ -989,9 +989,36 @@ function inert_scan(m, r,    s, d) {
 # ---------------------------------------------------------------------------
 # rule-source-text-read candidates: a file read whose path is a static
 # literal, optionally joined onto the test's own directory or the repository
-# root. A path from a variable, a glob or a walk is never a candidate, and
-# neither is a temp, fixture or testdata path.
+# root. In JS/TS a same-file const holding such a path counts as the path. Any
+# other variable, a glob or a walk is never a candidate, and neither is a temp,
+# fixture or testdata path.
 # ---------------------------------------------------------------------------
+
+# Record `const NAME = <static path>` (a literal, or a join or resolve over
+# literals) in SRC_CONST, with or without a type annotation. A let or var of
+# the same name only forgets it: a mutable binding can be reassigned. The
+# declaration may span lines until its parentheses close; one that never
+# resolves forgets NAME, so a stale value never applies.
+function src_const(m, r,    k, p) {
+  if (SRC_CN == "") {
+    if (!match(m, /^[[:space:]]*(export[[:space:]]+)?(const|let|var)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*(:[^=]*)?=/)) return
+    k = substr(m, RSTART, RLENGTH)
+    p = k !~ /^[[:space:]]*(export[[:space:]]+)?const[[:space:]]/
+    sub(/^[[:space:]]*(export[[:space:]]+)?(const|let|var)[[:space:]]+/, "", k); sub(/[[:space:]]*(:[^=]*)?=$/, "", k)
+    if (p) { delete SRC_CONST[k]; return }
+    SRC_CN = k; SRC_CL = SRC_CD = 0
+    SRC_CM = substr(m, RSTART + RLENGTH); SRC_CR = substr(r, RSTART + RLENGTH)
+    m = SRC_CM
+  } else { SRC_CM = SRC_CM " " m; SRC_CR = SRC_CR " " r }
+  SRC_CD += gsub(/\(/, "(", m) - gsub(/\)/, ")", m)
+  if (SRC_CD > 0 && ++SRC_CL < 20) return
+  k = SRC_CR
+  if ((p = index(SRC_CM, ";"))) k = substr(k, 1, p - 1)
+  k = SRC_CD ? "" : arg_path(trim(k))
+  if (k != "") SRC_CONST[SRC_CN] = k
+  else delete SRC_CONST[SRC_CN]
+  SRC_CN = ""
+}
 
 function unquote(s) {
   if (s ~ /^@?"[^"]*"$/) { sub(/^@?"/, "", s); sub(/"$/, "", s) }
@@ -1003,6 +1030,7 @@ function unquote(s) {
 # The literal path an argument list names, or "".
 function arg_path(args,    first, p) {
   first = split_top_comma(args) ? trim(SPLIT1) : trim(args)
+  if (first in SRC_CONST) return SRC_CONST[first]
   if (unquote(first) != "") return unquote(first)
   # new URL('lit', import.meta.url)
   if (first ~ /^new[[:space:]]+URL[[:space:]]*\(/ && index(first, "import.meta.url")) {
@@ -1028,7 +1056,9 @@ function join_literals(args,    out, part, more) {
   for (;;) {
     more = split_top_comma(args)
     part = trim(more ? SPLIT1 : args)
+    if (part == "" && !more) break
     if (out == "" && part ~ /^(__dirname|import\.meta\.dirname)$/) part = ""
+    else if (part in SRC_CONST) part = SRC_CONST[part]
     else {
       part = unquote(part)
       if (part == "") return ""
@@ -1066,7 +1096,9 @@ function src_flush(    blk, s, n, recs, i, f) {
 function src_emit(path) {
   gsub(/\\/, "/", path)
   sub(/^\.\//, "", path)
-  if (path == "" || path ~ /[*?[$]/ || path ~ /^\//) return
+  # A `$` is literal in a JS, Python, C# or Go string (a route file such as
+  # _app.$id.tsx); in shell and PowerShell it interpolates.
+  if (path == "" || path ~ /[*?[]/ || path ~ /^\// || (SHELL_LEX && index(path, "$"))) return
   if (tolower(path) ~ /(^|\/)(tmp|temp|fixtures?|testdata|__fixtures__|__testfixtures__|__snapshots__|snapshots?)(\/|$)/) return
   if (path !~ /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|cs|razor|go|sh|bash|ps1|psm1|vue|svelte)$/) return
   SRC_PEND = SRC_PEND line_kind() "\t" FNR "\t" path "\n"
@@ -2142,6 +2174,7 @@ function brace_decl() {
   if (LEXER == "bash") sh_file_facts()
 
   if (!SHELL_LEX) cls_scan(masked)
+  if (LEXER == "js") src_const(masked, raw)
   bd0 = bracket_depth
   if (MODEL == "file") whole_file()
   else if (MODEL == "indent") indent()

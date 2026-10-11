@@ -1,0 +1,38 @@
+name: pr-refine
+
+# Lane caller for pr-refine: its file stem is the lane, so the lanes token
+# broker accepts its write activities. No App key; the run job's OIDC token is
+# exchanged at LANES_BROKER_URL for audience LANES_BROKER_AUDIENCE.
+# Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr-number:
+        description: The PR to run the activity on.
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  fix-docs:
+    # Pipeline lanes skip draft PRs (docs/conventions/pr-pipeline/README.md).
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    concurrency:
+      group: ${{ github.workflow }}-fix-docs-${{ github.event.pull_request.number || inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: pr-refine
+      activity: fix-docs
+      pr-number: ${{ inputs.pr-number }}
+    secrets:
+      claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

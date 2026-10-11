@@ -1,0 +1,13 @@
+# user-experience team file fixture: a row with an unknown key (only the key drops) and a row whose
+# remaining keys fail the row schema (the row drops).
+version: 1
+routing:
+  version: 1
+  rows:
+    - job: evaluation
+      id: /design:design-critique
+      rank: 3
+      color: blue
+    - job: measurement
+      id: contentsquare
+      rank: first

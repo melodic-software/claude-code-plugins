@@ -4,6 +4,7 @@
 # The lib is imported by the audit-performance engine and by the
 # performance plugin, so its tests live beside the canonical copy rather than
 # inside either consumer.
+# test-scope: plugins/harness-ops/lib/test_spawn_noise.py
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

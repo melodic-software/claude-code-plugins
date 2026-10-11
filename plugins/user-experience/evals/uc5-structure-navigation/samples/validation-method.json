@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Validate the draft with a tree test of eight tasks.",
+      "why": "tree test"
+    },
+    {
+      "answer": "Run an open Card-Sort with 15 staff first.",
+      "why": "card sort, other case"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Ship this sidebar; it groups pages by role.",
+      "why": "no validation method"
+    }
+  ]
+}

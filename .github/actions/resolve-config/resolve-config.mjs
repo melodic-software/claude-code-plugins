@@ -20,6 +20,7 @@ const DEFAULT_CONFIG_PATH = "docs/conventions/pr-pipeline.yaml";
 const SCHEMA_PATH = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
 const VOCABULARY_PATH =
   ".github/standards/github-actions-conventions/vocabulary.json";
+const CODEOWNERS_PATH = ".github/CODEOWNERS";
 // pulls/{n}/files lists at most this many files; a list that long may be cut.
 const FILES_CAP = 3000;
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
@@ -87,6 +88,10 @@ async function gatherFacts(
         ? [file.filename, file.previous_filename]
         : [file.filename],
     );
+    // What the head still holds: an activity cannot edit a removed file.
+    facts.changedTargets = files
+      .filter((file) => file.status !== "removed")
+      .map((file) => file.filename);
   }
   return facts;
 }
@@ -144,6 +149,7 @@ export async function main({ env = process.env, github } = {}) {
       config: readUnderBase(basePath, configPath),
       schema,
       vocabulary: readJsonUnderBase(basePath, VOCABULARY_PATH),
+      codeowners: readUnderBase(basePath, CODEOWNERS_PATH),
       laneRules: readOwn("./lane-rules.json"),
       effectGrants: readOwn("./effect-grants.json"),
     };

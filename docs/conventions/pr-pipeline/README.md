@@ -12,6 +12,7 @@
 - [Trust-root paths](#trust-root-paths)
 - [Loop caps](#loop-caps)
 - [Changing this config](#changing-this-config)
+- [Outside this repository](#outside-this-repository)
 - [Names](#names)
 - [Not settled yet](#not-settled-yet)
 - [Versioning](#versioning)
@@ -68,9 +69,11 @@ A lane is one workflow with one model job; scripted jobs beside it report its ch
 name is its workflow file stem, and the lane never does another lane's job. Each activity runs
 through one of two shared runners:
 [`pr-run-activity-read.yml`](../../../.github/workflows/pr-run-activity-read.yml) for a `read`
-effect, with no App key in its run, and
+effect, with no App key and no OIDC token in its job, and
 [`pr-run-activity-write.yml`](../../../.github/workflows/pr-run-activity-write.yml) for any other
-effect. Their job contract is [`pr-run-activity.md`](pr-run-activity.md).
+effect, which gets its effect-scoped App token from the lanes token broker before any head
+checkout. No workflow holds the App key. Their job contract is
+[`pr-run-activity.md`](pr-run-activity.md).
 
 Each lane's stage, the effects and gating it may not use, and what it never does are in
 [`lane-rules.json`](../../../.github/actions/resolve-config/lane-rules.json), which the config
@@ -104,11 +107,14 @@ Every lane:
   runs per item: each comment, review reply and linked issue is checked by its own author, not by
   the PR's. Web pages and CI logs are untrusted wherever they came from and stay data. The
   trusted-actor list is one central standards component that every lane reads.
-- Runs Claude Code with `--permission-mode dontAsk` and every tool allowed, and gets the write
-  access its job needs through a short-lived, job-scoped App token, revoked when the job ends.
-  Local lanes keep auto mode (AGENTS.md). Capability is never removed for safety; safety comes from
-  who can trigger a lane, token lifetime and scope, workflow execution protections, the kill switch,
-  and a `ci-status` no lane can write (below).
+- Runs Claude Code with `--permission-mode dontAsk` and the tools its skill needs to do its job: a
+  write-effect skill can change, commit and push any file in the repository with its token
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). It gets the write access its job
+  needs through a short-lived, job-scoped App token, revoked when the job ends. Local lanes keep
+  auto mode (AGENTS.md). Capability is never removed for safety: a lane's scope comes from how
+  granular its activity is, the PR is the review step, and safety comes from who can trigger a
+  lane, token lifetime and scope, workflow execution protections, the kill switch, and a
+  `ci-status` no lane can write (below).
 - Reads its config, scripts and the trusted-actor list from the base SHA, never from the PR head,
   so a PR cannot change the rules it is judged by. Only the default branch is a trusted base, and a
   skill activity loads nothing else from the head:
@@ -153,10 +159,18 @@ Each activity declares:
   required check. A `gate` skill activity must not execute head code, since its verdict is read
   in the same job after the skill ran; tests, linters and builds that gate run as a `script`
   activity or under a separate design.
-- `reads-untrusted`: whether it reads issue, PR, comment, web or CI-log text. Ingested text is
-  data, never instructions ([`untrusted-content`](../untrusted-content/README.md)).
+- `reads-untrusted`: whether it reads issue, PR, comment, web or CI-log text, or PR head files,
+  which can quote such text. Ingested text is data, never instructions
+  ([`untrusted-content`](../untrusted-content/README.md)).
 - `inputs`: typed, from a closed set (`base-sha`, `head-sha`, `changed-paths`, `pr`, `issue`,
-  `baseline`, `findings`). An activity reads nothing from a session.
+  `baseline`, `findings`). An activity reads nothing from a session. `changed-paths` is computed
+  by the base-SHA config reader from the PR's file list, never from head text. It names what the
+  activity is asked to work on, not what it can touch; for a write effect it leaves out
+  instruction surfaces and paths `.github/CODEOWNERS` lists
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities); `changedPathTargets` in
+  [`resolve.mjs`](../../../.github/actions/resolve-config/resolve.mjs)). When nothing is left, the
+  activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
+  only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, work classes, events).
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
@@ -205,9 +219,9 @@ Each activity reports:
 - A check run named `<lane> / <activity>`, for example `pr-refine / simplify`.
 
 A skip reports as a neutral check with one reason from the schema's `$defs/skip-reason`:
-`not-applicable-paths` (a `paths` predicate missed), `not-applicable` (a label, event or
-work-class predicate missed), `prerequisite-missing`, `cost-gated`, `awaiting-human`,
-`superseded-sha`, `disabled-by-config` or `untrusted-trigger` (a fork, no same-repository PR, or an
+`not-applicable-paths` (a `paths` predicate missed, or every matching path was left out of
+`changed-paths`), `not-applicable` (a label, event or work-class predicate missed),
+`prerequisite-missing`, `cost-gated`, `awaiting-human`, `superseded-sha`, `disabled-by-config` or `untrusted-trigger` (a fork, no same-repository PR, or an
 actor or author not on the trusted-actor list). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
@@ -248,14 +262,53 @@ change to any of them is a change to every lane's powers:
 - `.github/workflows/**`;
 - `.github/CODEOWNERS`.
 
-The trust-root ruleset makes a change to a trust-root path that `.github/CODEOWNERS` assigns need
-an approving review from a human code owner, which the lanes App cannot give, with no App bypass;
-no lane goes live before it is in force. The exceptions are the paths `.github/CODEOWNERS` lists
-with no owner: the eight synced data files (the vocabulary, pyright and runner-policy data files)
-and the three synced hosted caller workflows (`pr-check-managed-files-hosted.yml`,
-`pr-review-hosted.yml`, `pr-review-security-hosted.yml`). The required `check-managed-files` job
-in `ci-status` guards them instead, failing any hand edit or deletion.
-The runner-policy script and both trusted-actors files stay owned. `pr-merge` never merges a PR that
+Code-owner review is off on the default branch by owner decision: the `trust-root` and `base`
+rulesets require no code-owner review and no approvals
+([github-iac ADR 0007](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0007-no-required-approving-reviews.md),
+amendment 2026-10-09; only azure-iac, which holds the broker, keeps it). `.github/CODEOWNERS`
+still lists the trust-root paths, owned or not, and only requests review. The controls on a
+trust-root change are:
+
+- base-SHA config: every lane reads its config, grants, actions and trusted-actor list from the
+  default branch, so a PR's own edit to them never governs its own run;
+- the trusted-actor filter: the trigger gate and the broker refuse an untrusted actor, PR author
+  or re-runner, and the lanes bot never starts a write run;
+- the broker's workflow-path rule: it mints only for a lane caller listed in the default-branch
+  config, calling a `pr-run-activity-write.yml` byte-equal to the tip, and the App token never
+  holds `workflows`, so no lane can push `.github/workflows/`;
+- the merge queue and the required `ci-status` check, which no lane can write;
+- required review-thread resolution;
+- the kill switch;
+- broker scoping: one mint per job, this repository only, the effect's grant, at most an hour,
+  revoked when the job ends;
+- the lane session: `--setting-sources user`, an explicit `--permission-mode dontAsk`, and never
+  `bypassPermissions`.
+
+A write lane can change and commit any file in the repository its token reaches, trust-root and
+instruction paths included; no tool rule limits which files it touches. The PR is the review step:
+the review lanes, `ci-status`, review-thread resolution and the merge gate see every lane commit
+before it reaches the default branch. Residuals, accepted by the owner:
+
+- a trust-root change merges with no human approval; what stands between it and the default
+  branch is the list above and whoever merges it;
+- the model can read its token (`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until the job revokes
+  it;
+- a skill's `Bash` grant can be wider than its job: `ai-slop:audit`, which `fix-docs` runs,
+  allows `Bash(git:*)` with no subcommand bound, and claude-code-action puts the token in the
+  origin URL. A run, including one steered by untrusted text it reads, can then push to any branch
+  no ruleset protects (the token is scoped to the repository, not the PR branch; rulesets cover
+  the default branch and `release/plugins`), run any shell command through `git -c
+  core.hooksPath=<dir>` or `git -c alias.<name>='!<command>'`, and push unsigned commits that skip
+  the signed-commit tool and the lane-branch freshness check. Unsigned commits on the PR branch
+  fail the check run's signed-commit step; a push to another branch is not checked;
+- a lane commit can change instruction files (`CLAUDE.md`, `AGENTS.md`, `.claude/`, skills) that
+  the PR author's local session loads once it checks out the branch.
+
+The paths `.github/CODEOWNERS` lists with no owner are the eight synced data files (the
+vocabulary, pyright and runner-policy data files) and the three synced hosted caller workflows
+(`pr-check-managed-files-hosted.yml`, `pr-review-hosted.yml`, `pr-review-security-hosted.yml`).
+The required `check-managed-files` job in `ci-status` fails any hand edit or deletion of them.
+`pr-merge` never merges a PR that
 touches a trust-root path, whatever its rung, and leaves it for a human. That refusal is recorded
 here and in `pr-merge`'s `never` rule in `lane-rules.json`; the merge activity enforces it when
 `pr-merge` is built.
@@ -272,6 +325,29 @@ escalates.
 The config file is a lane-power file: a human merges every change to it, and no lane does. The
 same holds for the trusted-actor list and any change to a lane's permissions, tokens or triggers.
 Everything downstream of that human merge may propagate on its own.
+
+## Outside this repository
+
+The lanes depend on pieces other repositories own. Each row names where that piece is documented;
+read it there, since this doc does not restate it. azure-iac, github-iac and architecture are
+private. As of 2026-10-10; recheck when a row's owner moves the doc or a new external piece joins
+the lanes.
+
+| Piece | Owner and doc |
+|---|---|
+| Org architecture: why each trust link exists, glossary | `melodic-software/architecture`, `docs/trust-links.md` and `docs/glossary.md` |
+| Token broker: the Function app, its Key Vault signing key, identities and roles, deploy | `melodic-software/azure-iac`: `README.md`, ADR 0001 (stack, who can mint), `src/lanes-token-broker/` |
+| Broker operations: health check, taking it down, key disable, key rotation, fallback to a runner key | Not yet tracked; [azure-iac#17](https://github.com/melodic-software/azure-iac/issues/17) adds the runbook to azure-iac |
+| Lanes App `melodic-automation-lanes`: identity and grant model | architecture `docs/trust-links.md` ("Lanes App"); github-iac ADR 0015 |
+| Org variables `CLAUDE_LANES_DISABLED`, `LANES_BROKER_URL`, `LANES_BROKER_AUDIENCE` | github-iac `OrgCiRouting.cs`; README "Claude lane kill-switches" (how to flip the switch); [ADR 0015](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0015-oidc-token-broker-for-pr-pipeline-lane-app-tokens.md) |
+| Repository variable `AUTOMATION_LANES_APP_SENDER_ID` | Set by hand on this repository and the sandbox, declared nowhere; [github-iac#677](https://github.com/melodic-software/github-iac/issues/677) |
+| `trust-root` ruleset, merge queues, code-owner review settings | github-iac `OrgRulesets.cs`; ADR 0015 Decision 5; [ADR 0007](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0007-no-required-approving-reviews.md). Its rollback is not yet tracked: [github-iac#677](https://github.com/melodic-software/github-iac/issues/677) |
+| Test repository | [`melodic-software/pr-pipeline-sandbox`](https://github.com/melodic-software/pr-pipeline-sandbox), whose README states its purpose |
+| Trusted actors, runner policy, Actions naming vocabulary | `melodic-software/standards` components [`trusted-actors`](https://github.com/melodic-software/standards/tree/main/components/trusted-actors), [`runner-policy`](https://github.com/melodic-software/standards/tree/main/components/runner-policy) and [`github-actions-conventions`](https://github.com/melodic-software/standards/tree/main/components/github-actions-conventions), synced into `.github/standards/` |
+| Review and intake reusable workflows | [`melodic-software/ci-workflows`](https://github.com/melodic-software/ci-workflows) `.github/workflows/pr-review.yml`, `pr-review-security.yml` and `intake-triage.yml`, called by this repository's synced `*-hosted.yml` callers and `intake-triage.yml` |
+
+In this repository, the lane runners and their contract are in [Lanes](#lanes), the config is
+`docs/conventions/pr-pipeline.yaml`, and the decisions are ADRs 0049 to 0051, 0053 to 0055 and 0058 in `docs/adr/`.
 
 ## Names
 

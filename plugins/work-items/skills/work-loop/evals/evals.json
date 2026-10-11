@@ -23,7 +23,7 @@
     {
       "id": 2,
       "name": "work-loop-adaptive-cap-guard-floor-and-572-provisioning",
-      "prompt": "/work-items:work-loop\n\nDurable state: item_cap=5, clean_streak=2, rate_limit_latch=false. work_loop_item_cap_ceiling is unset (manifest default 3). This cycle one item completes clean and a second returns a failed verdict after a seam exit 8 backoff. Mid-cycle the snapshot file at ~/.claude/rate-limit-guard/rate-limits.json shows five_hour used_percentage 98 with a fresh captured_at. One admitted item carries the capability-tier: frontier label.",
+      "prompt": "/work-items:work-loop\n\nDurable state: item_cap=5, clean_streak=2, rate_limit_latch=false. work_loop_item_cap_ceiling is unset (manifest default 3). This cycle one item completes clean and a second returns a failed verdict after a seam exit 8 backoff. Mid-cycle the snapshot file at ~/.claude/rate-limit-guard/rate-limits.json shows five_hour used_percentage 98 with a fresh captured_at. One admitted item carries the capability-tier: frontier label. The lane's session environment sets LOOP_LANE_RATE_LIMIT_PAUSE=1 (the operator opted in to pausing).",
       "expected_output": "The cycle clamps the persisted item_cap (5) to the resolved ceiling (3) after the durable-state re-read, reports the correction, then after dirty/clean adaptations persists the final post-outcome item_cap (e.g. clamped 5\u21923 then dirty \u2192 2). Execution delegates each admitted item to /work-items:work (claim/lease, dispatch, PR contract owned there), with worker-side provisioning owned by /work-items:work: the dispatched subagent materializes the item's branch and out-of-tree worktree as its own first step and works via git -C without entering it (via /source-control:worktree's non-entering seam when installed, plain git worktree add otherwise), and the orchestrator never invokes /source-control:worktree create itself since its EnterWorktree terminal would transition the parent session; a worker that cannot provision parks the item and escalates. The item carrying capability-tier: frontier runs at concurrency 1 under the frontier ceiling of 2; the general ceiling applies only to items without that label. The dirty item (failed verdict; seam exit 8 counts dirty) decrements the cap toward the floor and resets the clean streak; no ramp-up occurs once the 98% trip latches rate_limit_latch. The guard floor is honored as inlined: threshold 95% of either window, pause until the tripped window's resets_at, drain-then-pause (finish in-flight, stop claiming, report), staleness rule with a mandatory session Monitor on the snapshot file while paused, and untrusted session fields never string-interpolated. The composed budget is stated as item cap times implement-dispatch's per-item wave cap (its resolved cap: argument, operator option, or internal default, including the work_dispatch_concurrency_cap ceiling threaded through as --wave-cap when set), with the loop body's arithmetic over the two factors as an upper bound only and the effective wave one row under worker authority. Telemetry records guard mode and the updated state block. Clamping sets the cycle starting cap only; the telemetry upsert persists the final post-outcome item_cap after dirty/clean adaptations (e.g. clamped 5\u21923 then dirty \u2192 2).",
       "files": [],
       "expectations": [
@@ -91,8 +91,8 @@
     {
       "id": 6,
       "name": "work-loop-argv-shard-ordering-and-rejected-merge",
-      "prompt": "/work-items:work-loop melodic-software/example-repo --shard 0/2 --ordering newest-first --instance worker-a autopilot --merge c3-this-run\n\nHeadless launch under /loop. The checkout's origin remote resolves to melodic-software/example-repo. The frontier snapshot after scope filtering holds six autonomous candidates with numbers 101, 102, 103, 104, 105, 106 and distinct createdAt timestamps. Three items are admitted this cycle.",
-      "expected_output": "The lane parses the invocation surface: validates the optional owner/repo against the checkout (match \u2014 proceed), applies shard 0/2 so only even-numbered items (102, 104, 106) remain in the snapshot, orders admitted cap slots newest-first, and binds lane_instance worker-a for telemetry (overriding userConfig). It rejects autopilot and --merge c3-this-run with a clear message \u2014 merge authority and babysit tier tokens belong to the merge lane, not this worker lane \u2014 and does not silently ignore them. It loads reference/mode-standing.md only (default stop mode) and does not load reference/mode-drain.md. The cycle report states which source supplied each effective value.",
+      "prompt": "/work-items:work-loop melodic-software/example-repo --standing --shard 0/2 --ordering newest-first --instance worker-a autopilot --merge c3-this-run\n\nHeadless launch under /loop. The checkout's origin remote resolves to melodic-software/example-repo. The frontier snapshot after scope filtering holds six autonomous candidates with numbers 101, 102, 103, 104, 105, 106 and distinct createdAt timestamps. Three items are admitted this cycle.",
+      "expected_output": "The lane parses the invocation surface: validates the optional owner/repo against the checkout (match \u2014 proceed), applies shard 0/2 so only even-numbered items (102, 104, 106) remain in the snapshot, orders admitted cap slots newest-first, and binds lane_instance worker-a for telemetry (overriding userConfig). It rejects autopilot and --merge c3-this-run with a clear message \u2014 merge authority and babysit tier tokens belong to the merge lane, not this worker lane \u2014 and does not silently ignore them. It loads reference/mode-standing.md only (the explicit --standing a headless launch must carry) and does not load reference/mode-drain.md. The cycle report states which source supplied each effective value.",
       "files": [],
       "expectations": [
         "Validates owner/repo against the checkout remote when present and refuses on mismatch rather than guessing",
@@ -100,7 +100,7 @@
         "Fills execute cap slots in newest-first order when multiple items are admitted",
         "Binds --instance worker-a to the durable-state lane_instance and passes it to scripts/lane-telemetry-upsert.sh --instance, which owns the ^[a-z0-9][a-z0-9-]{0,31}$ gate and marker construction, rather than hand-transcribing the upsert",
         "Rejects autopilot and --merge c3-this-run with an explicit message naming the merge lane as the owning surface \u2014 never silently ignores inert merge/tier tokens",
-        "Loads reference/mode-standing.md for the default stop mode and does not load reference/mode-drain.md",
+        "Loads reference/mode-standing.md for the explicit --standing stop mode and does not load reference/mode-drain.md",
         "Reports the effective shard, ordering, instance, and stop_mode and which invocation tokens supplied each"
       ]
     },
@@ -163,7 +163,7 @@
     {
       "id": 11,
       "name": "work-loop-paused-lane-drops-latch-on-account-switch",
-      "prompt": "/work-items:work-loop\n\nThe lane is paused after a 98% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint, and the snapshot file holds a fresh snapshot whose account.email matches the new account with both windows at 40%. Later in the same run a second wake finds .claude.json unparsable.",
+      "prompt": "/work-items:work-loop\n\nThe lane is paused after a 98% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint, and the snapshot file holds a fresh snapshot whose account.email matches the new account with both windows at 40%. Later in the same run a second wake finds .claude.json unparsable. The lane's session environment sets LOOP_LANE_RATE_LIMIT_PAUSE=1 (the operator opted in to pausing).",
       "expected_output": "On the wake the lane reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser (never via the snapshot file) and compares fingerprints, never printing or interpolating the address. The fingerprint differs, so it re-evaluates with the fresh snapshot whose account.email fingerprint equals the new account: both windows below 95, so it resumes, clearing rate_limit_latch, paused_until, and latched_account together in the durable state, and adds an account-switch: resumed line to the cycle report without the address or fingerprint. On the second wake the unparsable state file means cannot attribute: the lane keeps its existing state, with no spurious drop of a latch and no fabricated pause.",
       "files": [],
       "expectations": [
@@ -178,7 +178,7 @@
     {
       "id": 12,
       "name": "work-loop-pause-entry-latches-the-tripping-snapshot-account",
-      "prompt": "/work-items:work-loop\n\nCycle start, and the lane is not paused. The snapshot file holds one snapshot captured 4 minutes ago whose account.email names account A and whose five-hour window reads 96%. After that snapshot the operator switched to account B: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names account B, and no other snapshot exists. Durable state carries no latched_account.",
+      "prompt": "/work-items:work-loop\n\nCycle start, and the lane is not paused. The snapshot file holds one snapshot captured 4 minutes ago whose account.email names account A and whose five-hour window reads 96%. After that snapshot the operator switched to account B: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names account B, and no other snapshot exists. Durable state carries no latched_account. The lane's session environment sets LOOP_LANE_RATE_LIMIT_PAUSE=1 (the operator opted in to pausing).",
       "expected_output": "The 96% reading trips the pause threshold. At pause entry the lane records latched_account as the fingerprint of the tripping snapshot's account.email (account A), never the fingerprint of the account .claude.json names now (account B), and writes it in the same write as paused_until. It then reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser, never printing the address, finds that account B differs from the latched account A, and re-evaluates at once instead of waiting for a later wake. No fresh snapshot attributes account B, so B's windows are unknown: it clears rate_limit_latch, paused_until, and latched_account together, runs reactive-only, and adds an account-switch: unknown line to the cycle report without the address or the fingerprint. It does not sleep until account A's resets_at.",
       "files": [],
       "expectations": [
@@ -193,7 +193,7 @@
     {
       "id": 13,
       "name": "work-loop-unattributed-trip-stays-paused",
-      "prompt": "/work-items:work-loop\n\nCycle start, and the lane is not paused. The snapshot file holds one snapshot captured 4 minutes ago whose five-hour window reads 96% and which has no account.email field. ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json names a readable .oauthAccount.emailAddress. Durable state carries no latched_account.",
+      "prompt": "/work-items:work-loop\n\nCycle start, and the lane is not paused. The snapshot file holds one snapshot captured 4 minutes ago whose five-hour window reads 96% and which has no account.email field. ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json names a readable .oauthAccount.emailAddress. Durable state carries no latched_account. The lane's session environment sets LOOP_LANE_RATE_LIMIT_PAUSE=1 (the operator opted in to pausing).",
       "expected_output": "The 96% reading trips the pause threshold. The snapshot has no account.email, so the pause entry is unattributed: latched_account stays null, and with no latched account there is nothing for the .claude.json account to differ from, so the lane does not treat it as a switch and does not re-evaluate at entry. It stays paused with paused_until set to the five-hour window's resets_at and rate_limit_latch set, finishes in-flight work, and stops claiming new work. On its first later wake it reads .oauthAccount.emailAddress directly from ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json with a JSON parser, never printing the address, records the fingerprint as latched_account, and continues the ordinary re-evaluation.",
       "files": [],
       "expectations": [
@@ -207,7 +207,7 @@
     {
       "id": 14,
       "name": "work-loop-switch-with-one-plausible-window-resumes",
-      "prompt": "/work-items:work-loop\n\nThe lane is paused after a 98% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint. The snapshot file holds one snapshot captured 2 minutes ago whose account.email matches the new account, with the five-hour window at 40% and no seven-day window.",
+      "prompt": "/work-items:work-loop\n\nThe lane is paused after a 98% five-hour trip. Durable state carries rate_limit_latch=true, a future paused_until, and latched_account set to a 16-hex fingerprint. A wake fires: ${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json now names a different .oauthAccount.emailAddress than the latched fingerprint. The snapshot file holds one snapshot captured 2 minutes ago whose account.email matches the new account, with the five-hour window at 40% and no seven-day window. The lane's session environment sets LOOP_LANE_RATE_LIMIT_PAUSE=1 (the operator opted in to pausing).",
       "expected_output": "The fingerprint differs, so the lane re-evaluates against the new account using the fresh snapshot, read once and used for both the fingerprint and the windows. Only the five-hour window is plausible and it is below 95, so it resumes: it clears rate_limit_latch, paused_until, and latched_account together and resumes claiming work. It does not treat the absent seven-day window as blocking the resume, does not fall to reactive-only, and does not keep the old account's paused_until. It adds an account-switch: resumed line to the cycle report without the address or fingerprint.",
       "files": [],
       "expectations": [
@@ -216,6 +216,62 @@
         "Clears rate_limit_latch, paused_until, and latched_account together",
         "Derives the snapshot's fingerprint and its windows from one read of the snapshot file, not from two reads",
         "Records an account-switch: resumed line in the cycle report with neither the address nor the fingerprint"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "work-loop-default-trip-keeps-claiming-and-reports-options",
+      "prompt": "/work-items:work-loop\n\nCycle start. Durable state still carries rate_limit_latch=true, a future paused_until and a latched_account, left by a run under the former default-on pause. The snapshot file holds one snapshot captured 3 minutes ago whose seven-day window reads 96% with a resets_at three days out. Two admitted items are on the frontier.",
+      "expected_output": "The lane reads LOOP_LANE_RATE_LIMIT_PAUSE from its environment (printenv) and finds it unset, so it clears the legacy rate_limit_latch, paused_until and latched_account together at cycle start, and the 96% reading does not pause, slow, or stop the lane: it sets no new latch or paused_until, keeps claiming the admitted items under its normal cap, and dispatches them with no lower model, effort, or review depth. The cycle report states the seven-day window, its used_percentage and its resets_at, and the operator's options: continue, switch accounts (claude-code-account-rotation), or opt in to pausing with LOOP_LANE_RATE_LIMIT_PAUSE=1.",
+      "files": [],
+      "expectations": [
+        "Clears the legacy rate_limit_latch, paused_until and latched_account together at cycle start, sets no new latch, and keeps claiming under its normal cap",
+        "Dispatches the items without lowering model, effort, or review depth",
+        "Reports the seven-day window, its used_percentage and its resets_at in the cycle report",
+        "Names the options: continue, switch accounts (an operator action the lane never performs), or opt in to pausing",
+        "Reads LOOP_LANE_RATE_LIMIT_PAUSE from its own environment (for example printenv) rather than assuming the opt-in"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "work-loop-truncated-snapshot-aborts-without-lifting-the-gate",
+      "prompt": "/work-items:work-loop --drain\n\nInteractive /loop session with the operator present. Cycle start. Durable state shows first_drain_complete=false, no_progress_streak=1, item_cap=2. The bound adapter is github, whose capabilities declare limits.list_items_max 1000. The seam's list-frontier --autonomous exits 0 with {\"schema_version\":\"1.0\",\"items\":[],\"truncated\":true}. The open-items read returned no rows. No open `Lane stall: work-loop` item exists.",
+      "expected_output": "The frontier envelope reports truncated: true, so the cycle-start snapshot is unusable and the cycle aborts with no state change. It runs no intake sweep, admission or execution and evaluates no exit condition: the empty item set is not an empty backlog, so the drain is not complete and first_drain_complete stays false. Because truncation does not clear on its own, the cycle raises the stall escalation now, without waiting for the no-progress threshold: a `Lane stall: work-loop` item with the human-gated role label and the machine-marked escalation comment, reporting the truncated frontier read, the github adapter and its list_items_max of 1000. The durable counters (no_progress_streak 1, item_cap 2, first_drain_complete false) are written back as read, with only heartbeat_at moving. The cycle report leads with a snapshot-unusable line naming the frontier read and the truncation, and, the launch being interactive, the lane schedules the next cycle instead of stopping.",
+      "files": [],
+      "expectations": [
+        "Treats the truncated frontier envelope as an unusable snapshot rather than an empty backlog",
+        "Does not set first_drain_complete and does not stop the drain as complete",
+        "Runs no intake sweep, admission, or execution this cycle",
+        "Raises the stall escalation in this cycle without waiting for no_progress_streak to reach the threshold, naming the truncated read, the adapter and its list_items_max",
+        "Leaves no_progress_streak, item_cap and the other durable counters as they were read",
+        "Reports the snapshot as unusable, naming the read and the truncation, and schedules the next cycle because the launch is interactive"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "work-loop-headless-launch-without-stop-mode-stops",
+      "prompt": "/work-items:work-loop --shard 1/2\n\nHeadless launch (claude -p from a launcher-stored prompt). The lane's telemetry comment exists and its durable state block records stop_mode=drain, shard {\"index\":1,\"count\":2} and scope=\"area:api\".",
+      "expected_output": "The launch is headless and carries neither --drain nor --standing, so the lane stops before any telemetry write or cycle work with a message saying the headless launch has no stop mode and asking for a relaunch with --drain or --standing plus the shard, scope and ordering it should run with. It does not read stop_mode or scope back from the telemetry comment, which is editable by the lane and by anyone with comment access, and it does not fall back to the standing default.",
+      "files": [],
+      "expectations": [
+        "Stops with a clear message naming the missing stop mode and the relaunch tokens (--drain or --standing)",
+        "Does not adopt stop_mode=drain or scope=area:api from the telemetry durable state block",
+        "Does not fall back to the standing default for a headless launch",
+        "Writes no telemetry and starts no cycle work before stopping"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "work-loop-headless-truncated-snapshot-escalates-and-stops",
+      "prompt": "/work-items:work-loop --standing\n\nHeadless launch (claude -p from a launcher-stored prompt). Cycle start. Durable state shows no_progress_streak=0, item_cap=3. The bound adapter is linear, whose capabilities declare limits.list_items_max 1000. The seam's list-frontier --autonomous exits 0 with {\"schema_version\":\"1.0\",\"items\":[{\"id\":\"linear:ENG-12\"}],\"truncated\":true}. No open `Lane stall: work-loop` item exists.",
+      "expected_output": "The truncated frontier read makes the snapshot unusable, so the cycle aborts with no state change: no intake sweep, admission, execution or exit evaluation, and the durable counters are written back as read with only heartbeat_at moving. In the same cycle, without waiting for the no-progress threshold, it raises the stall escalation (`Lane stall: work-loop`, human-gated role label, machine-marked escalation comment) naming the truncated read, the linear adapter and its list_items_max of 1000. Because the launch is headless, the lane then stops the loop with a message saying the snapshot was truncated at the linear adapter's list_items_max of 1000 and the lane cannot see its whole backlog, instead of scheduling another cycle.",
+      "files": [],
+      "expectations": [
+        "Aborts the cycle on the truncated read and does not admit or execute linear:ENG-12",
+        "Raises the stall escalation in this cycle even though no_progress_streak is 0",
+        "Leaves the durable counters as they were read",
+        "Stops the loop because the launch is headless, with a message naming the linear adapter and the list_items_max of 1000",
+        "Does not schedule another cycle"
       ]
     }
   ]

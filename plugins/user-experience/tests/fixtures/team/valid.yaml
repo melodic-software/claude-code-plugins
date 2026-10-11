@@ -1,0 +1,13 @@
+# user-experience team file fixture: every key, block form, no route changes.
+version: 1
+routing:
+  version: 1
+  rows: []
+  disable: []
+  deny: []
+jtbd_school: outcome-driven-innovation
+research_paths:
+  - research
+persona_paths:
+  - personas.md
+output_home: docs/ux

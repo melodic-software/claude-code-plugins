@@ -14,7 +14,8 @@
 #
 #   - the basenames @@EXEMPT_BASENAMES_HUMAN@@, conventional spellings tooling
 #     and forges look for exactly
-#   - the paths @@EXEMPT_PATHS_HUMAN@@
+#   - the paths @@EXEMPT_PATHS_HUMAN@@, and a path a root exempts (above) that
+#     no other root claims
 #   - the extensions @@EXEMPT_EXTENSIONS_HUMAN@@, whose casing belongs to the
 #     language rather than to this rule
 #
@@ -62,26 +63,84 @@ NAME_RE='@@REGEX_SQ@@'
 # and eat the arguments that follow it.
 RULE_NAME='@@RULE_SQ@@'
 ROOTS_PLAIN='@@ROOTS_PLAIN@@'
-ROOTS=(@@ROOTS_ARRAY@@)
+# One git pathspec per scope entry, and at the same index that root's
+# exempt_paths as `:(glob)` pathspecs, one per line.
+SCOPES=(@@SCOPE_SPECS_ARRAY@@)
+SCOPE_EXEMPTS=(@@SCOPE_EXEMPTS_ARRAY@@)
 EXEMPT_BASENAMES=(@@EXEMPT_BASENAMES_ARRAY@@)
 EXEMPT_PATHS=(@@EXEMPT_PATHS_ARRAY@@)
 EXEMPT_EXTENSIONS=(@@EXEMPT_EXTENSIONS_ARRAY@@)
 offenders=()
 
-# Tracked paths under the roots, read once. NUL-delimited, so a path git would
-# otherwise C-quote (a non-ASCII byte, a tab, or a newline) arrives as the raw
-# bytes. The basename pass and the case-collision pass both walk this array.
-paths=()
+# Every tracked path, read once. NUL-delimited, so a path git would otherwise
+# C-quote (a non-ASCII byte, a tab, or a newline) arrives as the raw bytes.
+all=()
 while IFS= read -r -d '' path; do
-  paths+=("$path")
-done < <(git ls-files -z -- "${ROOTS[@]}")
+  all+=("$path")
+done < <(git ls-files -z)
+
+# Each scope entry's listing, and its root's exempt listing, is a subsequence
+# of `all` in the same index order, so one forward walk marks it with no
+# lookup table (stock macOS Bash 3.2 has no associative arrays). The exempt
+# set is its own positive listing, never an `:(exclude)` pathspec beside the
+# root's: git matches an exclude glob against the wrong base once the positive
+# pathspecs share a directory prefix. ex[k] carries the stamp of the entry
+# whose root exempts all[k]; claimed[k] is set when any entry claims it, and
+# judged_all[k] when one claims it without its root exempting it.
+claimed=()
+judged_all=()
+ex=()
+s=0
+while ((s < ${#SCOPES[@]})); do
+  stamp=$((s + 1))
+  exspec=()
+  while IFS= read -r one; do
+    [[ -n "$one" ]] && exspec+=("$one")
+  done <<<"${SCOPE_EXEMPTS[$s]}"
+  if ((${#exspec[@]} > 0)); then
+    k=0
+    while IFS= read -r -d '' one; do
+      while ((k < ${#all[@]})) && [[ "${all[$k]}" != "$one" ]]; do
+        k=$((k + 1))
+      done
+      ex[k]=$stamp
+      k=$((k + 1))
+    done < <(git ls-files -z -- "${exspec[@]}")
+  fi
+  k=0
+  while IFS= read -r -d '' one; do
+    while ((k < ${#all[@]})) && [[ "${all[$k]}" != "$one" ]]; do
+      k=$((k + 1))
+    done
+    claimed[k]=1
+    [[ "${ex[k]:-}" == "$stamp" ]] || judged_all[k]=1
+    k=$((k + 1))
+  done < <(git ls-files -z -- "${SCOPES[$s]}")
+  s=$((s + 1))
+done
+
+# The paths in scope, in index order, with judged[i] beside paths[i]. The
+# basename pass and the case-collision pass both walk this array.
+paths=()
+judged=()
+k=0
+while ((k < ${#all[@]})); do
+  if [[ -n "${claimed[k]:-}" ]]; then
+    paths+=("${all[$k]}")
+    judged+=("${judged_all[k]:-}")
+  fi
+  k=$((k + 1))
+done
 
 # One pass for the basename rule. Exemptions are checked in the order the
 # header lists them; the regex only sees what nothing exempted. Each is an
 # inline loop rather than a function: under `set -e`, a function called in a
 # condition silently disables errexit for its whole body, and the three tests
 # read the same way in sequence anyway.
+i=-1
 for path in ${paths+"${paths[@]}"}; do
+  i=$((i + 1))
+  [[ -n "${judged[i]:-}" ]] || continue
   skip=""
   for _pat in ${EXEMPT_PATHS+"${EXEMPT_PATHS[@]}"}; do
     # Unquoted on purpose: the entry is a glob, and quoting it would compare
@@ -121,14 +180,17 @@ done
 # see one `printf %q` record per folded path: a single line, so an embedded
 # newline stays inside its record, and the bytes compared are the folded path.
 # `sort -z` is not used: BSD sort, which macOS ships, has no `-z`.
+#
+# One `tr` folds the whole NUL-delimited list, so a root holding thousands of
+# files costs one process, not one per path. The folded list stays
+# index-aligned with `paths` because it is read back in the order it was
+# written.
 folded=()
-for path in ${paths+"${paths[@]}"}; do
-  # The trailing x keeps a path that ends in a newline intact. A command
-  # substitution strips trailing newlines, so x sits after them and is
-  # removed once the folded bytes are captured.
-  one="$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]' && printf x)"
-  folded+=("${one%x}")
-done
+if ((${#paths[@]} > 0)); then
+  while IFS= read -r -d '' one; do
+    folded+=("$one")
+  done < <(printf '%s\0' "${paths[@]}" | tr '[:upper:]' '[:lower:]')
+fi
 
 dups=""
 if ((${#folded[@]} > 0)); then

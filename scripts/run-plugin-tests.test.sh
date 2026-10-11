@@ -328,6 +328,38 @@ PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a path containing a colon ru
 assert_output_has "the colon path is reported whole" "PASS: plugins/od:d/name.test.sh"
 assert_output_has "the colon path keeps its output" "marker from the colon path"
 
+# --- the parallel group starts longest first ------------------------------------
+#
+# Under --jobs 1 the blocks print in start order. b and e tie at 30 s and keep
+# their sorted order, c follows at 10 s, and the unlisted a and d count 0 and
+# come last in sorted order. The serial suite s still runs before all of them,
+# however long the seconds file says it is.
+r="$(make_root longest-first)"
+for name in a b c d e s; do
+  write_suite "$r" "plugins/$name/$name.test.sh" 'echo ok'
+done
+seconds_list="$scratch/suite-seconds.txt"
+printf '%s\n' "# seconds" "plugins/c/c.test.sh 10" "plugins/b/b.test.sh 30" "plugins/e/e.test.sh 30" \
+  "plugins/s/s.test.sh 999" >"$seconds_list"
+serial_s="$scratch/serial-s.txt"
+printf 'plugins/s/s.test.sh\n' >"$serial_s"
+PLUGIN_TEST_SECONDS_LIST="$seconds_list" PLUGIN_TEST_SERIAL_LIST="$serial_s" run_runner 0 "a run ordered by suite-seconds exits 0" --root "$r"
+order="$(sed -n 's|^PASS: plugins/\(.\)/.*|\1|p' <<<"$RUN_OUTPUT" | tr -d '\n')"
+if [[ "$order" == "sbecad" ]]; then
+  ok "serial first, then the parallel group longest first with unlisted suites last in sorted order"
+else
+  fail "start order: expected sbecad, got $order"
+fi
+assert_output_has "the summary is unchanged by the ordering" "Suites: 6 (1 serial, 5 across up to 1 job(s))"
+
+PLUGIN_TEST_SECONDS_LIST="$scratch/no-such-seconds.txt" PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a missing seconds file runs in sorted order" --root "$r"
+order="$(sed -n 's|^PASS: plugins/\(.\)/.*|\1|p' <<<"$RUN_OUTPUT" | tr -d '\n')"
+if [[ "$order" == "abcdes" ]]; then
+  ok "with no seconds file the parallel group starts in sorted order"
+else
+  fail "start order without a seconds file: expected abcdes, got $order"
+fi
+
 # --- --shard partitions the corpus --------------------------------------------
 #
 # Sorted, the seven suites are a..g at indexes 0..6, so of three legs leg 0

@@ -10,7 +10,7 @@ Copy into your project's working-notes location. Tick as each phase completes.
 - [ ] Phase 3: Verify existence, confirming each candidate still exists in the working tree
 - [ ] Phase 4: Group files by project/ecosystem, dependency-ordered
 - [ ] Phase 4.5 (repo mode only): Confirmation gate. Inventory summary (surviving file count, groups, wave plan, scale estimate, exclusions by class) presented and confirmed, or an explicit-prose unattended authorization recorded for Phase 8
-- [ ] Phase 5: Create tasks, one TaskCreate per group; track via TaskUpdate
+- [ ] Phase 5: Track one entry per group, with TaskCreate/TaskUpdate when the task tools are present, else as a per-group list here
 - [ ] Phase 6: Run simplification waves, simplifier agent per group; capture findings + deferrals
 - [ ] Phase 6.1 (repo mode only): Refutation verifier per group, fresh context, trying to refute "behavior preserved"; a confirmed refutation reverts that group's file list
 - [ ] Phase 6.2 (repo mode only): Land the wave, with per-group commits pushed to the run's single feature branch; base branch merged in at the wave boundary; the run's one PR opened after the first wave and updated thereafter; under `in-place`, stage each group instead (one commit at the end for `in-place=commit`), with no push, base merge, or PR

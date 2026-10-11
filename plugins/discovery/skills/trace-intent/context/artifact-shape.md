@@ -84,8 +84,8 @@ and it is the mistake this file exists to prevent:
   improvises a shape no consumer can parse. The fabrication is the worse outcome, because it
   launders "someone hinted at this in a merge thread" into the field a fetched primary source
   occupies.
-- **The exploration header's `verified: read | grep | inferred`** describes whether a repository file
-  was opened. That is precisely the axis this skill refuses to grade intent on: reading the
+- **The exploration header's `verified: read | ran | grep | inferred`** describes whether a
+  repository file was opened or a check was run. That is precisely the axis this skill refuses to grade intent on: reading the
   implementation tells you what was built, almost never why, and code shape leaves this scale
   entirely rather than landing at its bottom rung.
 

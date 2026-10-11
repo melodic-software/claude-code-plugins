@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": "I checked all four screenshots at both widths and both times; nothing is wrong.\n\nVERDICT: CONFIRMED",
+      "why": "no defect, checked-and-fine prose"
+    },
+    {
+      "answer": "The cards, buttons, list and specs table render cleanly at 375 px and 1280 px, and the load and 1 s frames match.\nVERDICT: CONFIRMED",
+      "why": "no defect"
+    },
+    {
+      "answer": "No problems found.\n\nVERDICT: CONFIRMED",
+      "why": "terse"
+    },
+    {
+      "answer": "Checked text contrast, alignment, overlap, clipping, overflow and movement between frames: all fine.\nVERDICT: CONFIRMED",
+      "why": "lists checks that passed"
+    },
+    {
+      "answer": "The \"Trail gear\" heading is now blue, an intended change with good contrast on white. Nothing else changed.\nVERDICT: CONFIRMED",
+      "why": "notes the blue heading as fine"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "FINDING [contrast]: The card descriptions are slightly faint.\nVERDICT: NEEDS WORK",
+      "why": "reports a defect"
+    },
+    {
+      "answer": "FINDING [other]: none\nVERDICT: CONFIRMED",
+      "why": "a FINDING line, even with an empty body"
+    },
+    {
+      "answer": "### Finding (misalignment) - the Save button sits lower than Add to cart\nVERDICT: CONFIRMED",
+      "why": "FINDING line in an unusual shape"
+    },
+    {
+      "answer": "finding #1: at 375 px the badge touches the product title\nVERDICT: CONFIRMED",
+      "why": "FINDING line in an unusual shape"
+    },
+    {
+      "answer": "The card descriptions may be a little low contrast, but it is probably fine.\nVERDICT: CONFIRMED",
+      "why": "hedge about a possible defect"
+    },
+    {
+      "answer": "At 375 px the badge appears to touch the title, a minor overlap.\nVERDICT: CONFIRMED",
+      "why": "defect reported in prose"
+    },
+    {
+      "answer": "Nothing is wrong.\nVERDICT: NEEDS WORK",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "VERDICT: CONFIRMED\nLet me know if you want more checks.",
+      "why": "verdict is not the last line"
+    },
+    {
+      "answer": "FINDING [contrast]: The blue \"Trail gear\" heading is hard to read on white.\nVERDICT: NEEDS WORK",
+      "why": "treats the blue heading as a defect"
+    },
+    {
+      "answer": "The new blue heading may be a regression from the old dark color.\nVERDICT: CONFIRMED",
+      "why": "hedge about the blue heading"
+    }
+  ]
+}

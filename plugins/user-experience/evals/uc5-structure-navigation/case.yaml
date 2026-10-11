@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: uc5-structure-navigation
+description: "Use case 5 (greenfield, business): structure an app's navigation from its real routes and user groups, as a draft sitemap with a tree-test or card-sort plan"
+tags: [use-case, uc5]
+runs: 3
+expected_outcome: "A grouped navigation built from src/routes.tsx for clinic managers and staff, presented as a draft with a tree-test or card-sort plan to validate it"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Structure the navigation for this app. Right now every page sits in one flat sidebar. This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900

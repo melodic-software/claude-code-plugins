@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -51,6 +52,8 @@ describe("shallowCloneGitHubRepo", () => {
       shallowCloneGitHubRepo("https://github.com/owner/repo", "-destination", spawnFn),
     ).resolves.toBe(true);
     expect(capturedArgs).toEqual([
+      "-c",
+      "credential.helper=",
       "clone",
       "--depth",
       "1",
@@ -59,6 +62,88 @@ describe("shallowCloneGitHubRepo", () => {
       "https://github.com/owner/repo",
       "-destination",
     ]);
+  });
+});
+
+describe("shallowCloneGitHubRepo hardening", () => {
+  it("disables credential prompts and LFS smudge for the clone", async () => {
+    let capturedArgs;
+    let capturedOptions;
+    const spawnFn = (_command, args, options) => {
+      capturedArgs = args;
+      capturedOptions = options;
+      return {
+        on(event, callback) {
+          if (event === "close") callback(0);
+        },
+      };
+    };
+
+    await shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", spawnFn);
+
+    expect(capturedArgs.slice(0, 3)).toEqual(["-c", "credential.helper=", "clone"]);
+    const home = capturedOptions.env.HOME;
+    expect(home).not.toBe(os.homedir());
+    expect(path.basename(home)).toMatch(/^harvest-clone-home-/);
+    expect(capturedOptions.env.USERPROFILE).toBe(home);
+    expect(capturedOptions.env.XDG_CONFIG_HOME).toBe(home);
+    expect(fs.existsSync(home)).toBe(false);
+    expect(capturedOptions.env.GIT_ASKPASS).toBe("");
+    expect(capturedOptions.env.SSH_ASKPASS).toBe("");
+    expect(capturedOptions.env.GIT_TERMINAL_PROMPT).toBe("0");
+    expect(capturedOptions.env.GIT_LFS_SKIP_SMUDGE).toBe("1");
+  });
+
+  it("kills a clone that outlives the timeout and reports it as failed", async () => {
+    const hangingSpawn = (_command, _args, options) =>
+      spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], options);
+
+    const started = Date.now();
+    await expect(
+      shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", hangingSpawn, {
+        timeoutMs: 200,
+      }),
+    ).resolves.toBe(false);
+    expect(Date.now() - started).toBeLessThan(4000);
+  });
+
+  it("kills the clone's descendants on timeout, as git's remote helpers would be", async () => {
+    const pidDir = fs.mkdtempSync(path.join(os.tmpdir(), "clone-tree-"));
+    const pidFile = path.join(pidDir, "descendant.pid");
+    const forkingChild = [
+      'const { spawn } = require("node:child_process");',
+      'const g = spawn(process.execPath, ["-e", "setTimeout(() => {}, 30000)"], { stdio: "ignore" });',
+      'require("node:fs").writeFileSync(process.argv[1], String(g.pid));',
+      "setTimeout(() => {}, 30000);",
+    ].join("\n");
+    const forkingSpawn = (_command, _args, options) =>
+      spawn(process.execPath, ["-e", forkingChild, pidFile], options);
+    const isAlive = (/** @type {number} */ pid) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    let descendant = 0;
+    try {
+      await expect(
+        shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", forkingSpawn, {
+          timeoutMs: 1500,
+        }),
+      ).resolves.toBe(false);
+      descendant = Number(fs.readFileSync(pidFile, "utf8"));
+      const deadline = Date.now() + 3000;
+      while (isAlive(descendant) && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(isAlive(descendant)).toBe(false);
+    } finally {
+      if (descendant && isAlive(descendant)) process.kill(descendant);
+      fs.rmSync(pidDir, { recursive: true, force: true });
+    }
   });
 });
 

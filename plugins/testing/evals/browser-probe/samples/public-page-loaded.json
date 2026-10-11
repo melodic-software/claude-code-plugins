@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Page\\n- Page URL: https://example.com/\\n- Page Title: Example Domain\"}",
+      "why": "public page reached"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"### Error\\nError: page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://example.com/\",\"is_error\":true}",
+      "why": "sandbox proxy refused the domain"
+    },
+    {
+      "answer": "{\"type\":\"tool_use\",\"input\":{\"command\":\"playwright-cli -s=pinned goto https://example.com/\"}}",
+      "why": "the call alone, no result"
+    }
+  ]
+}

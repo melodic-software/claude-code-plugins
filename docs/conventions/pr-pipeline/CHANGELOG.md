@@ -1,5 +1,74 @@
 # Changelog for the PR pipeline convention
 
+## 1.4.2 - 2026-10-10
+
+Docs only. `version` stays 1.
+
+- README: "Outside this repository" names where each external piece the lanes depend on is
+  documented (broker, Lanes App, org variables, rulesets, sandbox, standards, ci-workflows).
+
+## 1.4.1 - 2026-10-10
+
+A skill activity can read its own plugin and a write activity commits its edits. `version` stays 1.
+
+- Every skill gets `Read` on `$RUNNER_TEMP/base-marketplace`, where its plugin loads from.
+- A write skill gets a scratch directory (`--add-dir` plus an `Edit` rule) and an appended system
+  prompt naming it; when the grant can commit, the prompt tells it to commit every file it changed
+  with `mcp__github_file_ops__commit_files`. `collect-base-activity` takes a `can-commit` input.
+
+## 1.4.0 - 2026-10-10
+
+Write activities get a narrower grant, the tools their skill needs and computed targets. `version`
+stays 1.
+
+- `effect-grants.json`: `mutate-branch` grants `contents: write` with `pull-requests: read` and
+  `issues: read`. The broker reads the same file at the tip, so a job resolved from an older base
+  fails `effect-mismatch` until the PR's base moves past this change.
+- A skill with any effect but `read` gets `Edit`, `Write`, `Agent` and the signed-commit tool, and
+  its own `allowed-tools` Bash; `WebFetch` and `WebSearch` stay off. No rule limits which files it
+  changes; the PR is the review step. `collect-base-activity` takes a required `effect` input and
+  drops its `reads-untrusted` and `trusted-context-path` inputs.
+- The `changed-paths` input is now passed: `resolve-config` writes it to the resolved file from the
+  PR's file list, and the prompt carries it after `args`. It selects what the skill is asked to
+  fix and is not a control. For a write effect it leaves out instruction surfaces and every path
+  the base `.github/CODEOWNERS` lists, and it drops a name with a leading `@`; an empty result
+  skips the activity with `not-applicable-paths`.
+- The trusted PR context reaches a `reads-untrusted` skill only as `TRUSTED_CONTEXT_FILE`; the
+  prompt no longer carries a `Trusted PR context:` line.
+- The write runner cuts the lane token string out of the skill's reply before showing or uploading
+  it.
+- `reads-untrusted` also covers PR head files, which can quote untrusted text.
+- The trust-root section states the hardening in force now that code-owner review is off by owner
+  decision, that a write lane can change any file, and the residuals, including what a skill's
+  unbounded `Bash(git:*)` grant allows with the token in the origin URL.
+- A skill that can commit commits to a lane branch made at the gated head SHA; the write runner
+  fast-forwards the PR branch to it only while the PR branch is still at that SHA, so a push
+  during the run is never overwritten, and fails the activity otherwise.
+
+## 1.3.0 - 2026-10-10
+
+The write runner gets its token from the lanes token broker. `version` stays 1; callers of the
+write file must change.
+
+- `pr-run-activity-write.yml` drops the `app-private-key` secret and the
+  `create-github-app-token` mint. Its run job holds `id-token: write` and, before
+  `select-trusted-text` and any head checkout, calls the new `request-lane-token` action, which
+  sends the job's OIDC token to `LANES_BROKER_URL` for audience `LANES_BROKER_AUDIENCE` once,
+  never retrying. Either variable empty fails red.
+- The step fails red on any answer but 200 (`lane-token-denied` with the broker's reason, or
+  `broker-unreachable`), and, after revoking the token, on a 200 whose effect, permissions, lane,
+  activity or repository differ from the job's own (`effect-mismatch`). The contract lists the
+  broker's reasons, `default-branch-not-main` included.
+- A final `if: always()` step, `actions/github-script` pinned by SHA, revokes the token and fails
+  red unless `DELETE /installation/token` returns 204 and a later
+  `GET /installation/repositories` with the token returns 401.
+- Callers of the write file pass no App key and grant `id-token: write` on the calling job.
+  `AUTOMATION_LANES_APP_CLIENT_ID` is no longer read.
+- With no App key in either runner, one lane may call both files.
+- `scripts/check-app-key-references.sh` fails `lint-repo` on `AUTOMATION_LANES_APP_PRIVATE_KEY`,
+  `app-private-key` or `AUTOMATION_LANES_APP_CLIENT_ID` anywhere under `.github/workflows/` or
+  `.github/actions/`.
+
 ## 1.2.0 - 2026-10-04
 
 The runner splits in two. `version` stays 1; callers of the old file must move.

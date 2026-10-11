@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: quiet-dx-only
+description: "CLI help text is developer-experience work, so no user-experience skill fires"
+tags: [quiet, control]
+runs: 3
+expected_outcome: "The answer rewrites the deploy help text keeping --env, --dry-run and --force, and no Skill call reaches a user-experience skill"
+execution:
+  prompt: "Rewrite the --help text for the deploy subcommand of our Go CLI so developers can scan it. Today it is one paragraph: deploy pushes the current build to an environment, use --env to pick staging or production, --dry-run to print the plan without changing anything, and --force to skip the confirmation prompt. Under 120 words."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 10

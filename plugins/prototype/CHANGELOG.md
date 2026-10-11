@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.12] - 2026-10-11
+
+### Changed
+
+- `explore-directions` points real-stack variant CSS at `/user-interface:write-css` when that skill is installed; HTML mockups keep their declared directions.
+
 ## [0.13.11] - 2026-10-04
 
 ### Fixed

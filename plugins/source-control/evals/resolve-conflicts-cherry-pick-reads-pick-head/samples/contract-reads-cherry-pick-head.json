@@ -1,0 +1,88 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git show CHERRY_PICK_HEAD -- billing/rules.py"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w log -p -1 CHERRY_PICK_HEAD -- billing/rules.py"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff CHERRY_PICK_HEAD~1 CHERRY_PICK_HEAD -- billing/rules.py"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log -p -1 main -- billing/rules.py"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "BASE=$(git merge-base HEAD CHERRY_PICK_HEAD) && git log --oneline \"$BASE\"..HEAD -- billing/rules.py"
+          }
+        }
+      ],
+      "why": "names the pseudoref only to find the base, then reads HEAD's side"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --all --oneline"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --verify CHERRY_PICK_HEAD"
+          }
+        }
+      ],
+      "why": "confirms the pseudoref exists without reading its commit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "test -f .git/CHERRY_PICK_HEAD && echo yes"
+          }
+        }
+      ],
+      "why": "checks the stop, reads no history"
+    }
+  ]
+}

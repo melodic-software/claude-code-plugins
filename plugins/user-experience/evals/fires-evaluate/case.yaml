@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: fires-evaluate
+description: "A single evaluation request (a heuristic evaluation of a flow) reaches /user-experience:evaluate"
+tags: [fires]
+runs: 3
+expected_outcome: "A Skill call reaches user-experience:evaluate, and the findings carry step, heuristic and severity, labeled likely problems"
+execution:
+  prompt: "Run a heuristic evaluation of our password reset flow. Step 1: a 'Forgot password?' link under the login button. Step 2: a page asking for an email, showing 'Invalid input' when the email is not on file. Step 3: a 'Check your email' message with no way to resend. Step 4: the emailed link opens a page for a new password, and the password rules appear only after a failed attempt. Step 5: success returns the user to the login page without signing them in. This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600

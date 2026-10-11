@@ -17,8 +17,9 @@ substitution variables, and the `shell:` / `disableSkillShellExecution` settings
 ## What it is
 
 `` !`command` `` and ` ```! ` blocks run at load time and their **output replaces the
-placeholder before Claude sees the skill**. This is preprocessing, not a tool call Claude makes. One
-deterministic command's result arrives already inlined, saving a per-invocation tool round-trip.
+placeholder before Claude sees the skill**. One deterministic command's result arrives already
+inlined, saving a per-invocation tool round-trip. Each command is still permission-checked before it
+runs; see [Grant every injected command](#grant-every-injected-command).
 
 ## When to precompute
 
@@ -37,9 +38,12 @@ Convert a context-gathering step to `!` injection when **all** hold:
   a short preview rather than as text, so a slow or large-output command either delays every load
   or hands Claude a path instead of the data
   ([How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)).
+- **Grantable.** A narrow `allowed-tools` rule in the skill covers it, and it is not the kind of
+  command a consumer's ask or deny rule plausibly matches (see
+  [Grant every injected command](#grant-every-injected-command)).
 
 Leave it as a body instruction when the step mutates state, is conditional on what Claude finds,
-needs an argument Claude derives, or is expensive.
+needs an argument Claude derives, is expensive, or cannot be granted that narrowly.
 
 ## Conventions we pin
 
@@ -48,7 +52,32 @@ stderr, and output-size semantics the skills page documents under
 [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run) and
 [When an injected command fails](https://code.claude.com/docs/en/skills#when-an-injected-command-fails),
 read 2026-09-02. **Recheck trigger:** a re-read of either section no longer matching the claims
-below, or the page documenting the shell options injections run under.
+below, or the page documenting the shell options injections run under. The permission convention
+carries its own record.
+
+### Grant every injected command
+
+We design every injected command for the default permission mode, where a command the permission
+check refuses aborts the skill load. We therefore:
+
+- **Pre-approve every injected line in the skill's own `allowed-tools`**, with a rule narrow enough
+  to name that command, covering every subcommand on the line, the fallback and any output cap
+  included, not only the probe.
+- **Move a command out of `!` injection** into a body instruction Claude runs as a normal tool call
+  when a consumer's deny or ask rule could plausibly match it, or when no narrow rule covers it.
+- **Never treat the `|| echo` fallback below as the permission guard.** The grant is that guard.
+
+- **Pointer**: when deciding whether an injected command will load under a consumer's rules or
+  permission mode, fetch
+  [Permission checks on injected commands](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)
+  live; for what an `allowed-tools` grant covers and when an organization setting makes Claude Code
+  ignore it, fetch [Pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill);
+  for how a rule matches a line joined by `||` or `|`, fetch
+  [Compound commands](https://code.claude.com/docs/en/permissions#compound-commands).
+- **As of**: 2026-10-10
+- **Recheck trigger**: the Permission checks on injected commands section changes which permission
+  results abort a render, Pre-approve tools for a skill stops covering injected commands, or the
+  Compound commands section changes how a rule matches each subcommand of a joined line.
 
 ### Defensive fallback is mandatory
 
@@ -60,8 +89,8 @@ injected text
 ([When an injected command fails](https://code.claude.com/docs/en/skills#when-an-injected-command-fails),
 read 2026-09-02; recheck when that section changes what counts as a failed injected command).
 Every injected command must therefore carry an explicit fallback, so a probe that
-cannot run degrades the rendered skill to a known string instead of preventing the skill from loading
-at all:
+runs and fails degrades the rendered skill to a known string instead of preventing the skill from
+loading at all. Permission refusals are the grant's job, not the fallback's (see above):
 
 ```
 - Working tree: !`git status --short || echo "(git status unavailable)"`

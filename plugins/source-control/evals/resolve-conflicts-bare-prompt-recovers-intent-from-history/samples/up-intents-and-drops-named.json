@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Main removed legacy_token on purpose: /orders returns 400 for token query auth since 2026-03-01 (SEC-12). Your branch added the region filter for the EU dashboard (ORD-5). Resolution keeps region and leaves legacy_token out. Tests pass; merge concluded."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Resolved the conflict by keeping both parameters, legacy_token and region, and finished the merge."
+    },
+    {
+      "answer": "Took main's version of api/client.py."
+    }
+  ]
+}

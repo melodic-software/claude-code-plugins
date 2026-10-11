@@ -39,7 +39,7 @@
         "Does NOT re-run the triage state machine on a decompose-published item — such items are born triaged (classified, role-labeled, briefed at creation)",
         "States the exclusion rule: triage covers raw intake only — untriaged items carrying the raw marker; the exclusion keys on absence of the raw marker (born triaged), not authorship and not the mere presence of classification labels",
         "Performs no triage writes on the item — no label changes, no needs-info comment, no close",
-        "Notes the attention view excludes decompose output by construction — it carries a routing decision and no raw marker, so being neither unlabeled nor raw-marked it falls in none of the view's buckets"
+        "Notes the attention view excludes decompose output by construction — it carries a routing decision and no raw marker, so being neither unlabeled nor raw-marked it falls in none of the view's intake buckets"
       ]
     },
     {
@@ -189,6 +189,20 @@
         "Leaves blockedBy out for an item whose blockers it did not read instead of reporting it unblocked"
       ],
       "id": 14
+    },
+    {
+      "id": 15,
+      "name": "triage-attention-view-surfaces-items-blocked-by-wont-do",
+      "prompt": "/work-items:triage\n\nInteractive session. The listing returns three open issues: #61 is unlabeled with blocked_by_wont_do_count 0; #62 carries status:ready and agent-ready, has a prior triage comment, and has blocked_by_count 1 and blocked_by_wont_do_count 1 because its only blocker #58 was closed as not planned; #63 carries needs-triage and has blocked_by_wont_do_count 0.",
+      "expected_output": "The attention view shows four buckets. #61 is under Unlabeled and #63 under Raw marker. #62 is under Blocked by won't-do even though it is already triaged and has a prior triage comment, because that bucket reads blocked_by_wont_do_count from the listing whatever labels the item carries and the defensive skip covers only the first three buckets. The line for #62 says its blocker closed as won't-do, so it waits on work that will not happen, and leaves the choice to the operator (drop the edge, re-scope, or close). It does not run #62 through the triage state machine and changes no label, edge or state.",
+      "files": [],
+      "expectations": [
+        "Lists #62 under a blocked-by-won't-do bucket, read from blocked_by_wont_do_count above zero",
+        "Does not drop #62 by the defensive skip or because it already carries routing labels",
+        "Keeps #61 under Unlabeled and #63 under Raw marker, each listed once",
+        "Says #62 waits on a blocker closed as won't-do and leaves dropping the edge, re-scoping or closing to the operator",
+        "Applies no label, edge or state change and does not re-run the triage state machine on #62"
+      ]
     }
   ]
 }

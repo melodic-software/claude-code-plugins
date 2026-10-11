@@ -172,7 +172,7 @@
         },
         "reads-untrusted": {
           "type": "boolean",
-          "description": "True when the activity reads text from issues, PR bodies, comments or web pages."
+          "description": "True when the activity reads text from issues, PR bodies, comments or web pages, or PR head files, which can quote such text."
         },
         "scope": { "enum": ["diff", "tree", "target"], "default": "diff" },
         "inputs": {

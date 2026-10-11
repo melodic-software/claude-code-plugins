@@ -80,43 +80,57 @@ fields_json="$(jq -cn --arg f "$WIT_JIRA_FIELDS" '$f | split(",")')"
 
 # Page via nextPageToken until the store is exhausted or the ceiling is reached
 # (documented truncation, not an error). Each page's issues are normalized and
-# accumulated; the ceiling caps total emitted rows across pages.
+# accumulated; the ceiling caps total emitted rows across pages. The loop runs in this
+# shell, not a piped group, so `last` survives it: the envelope's `truncated` is true
+# when the ceiling ended the walk before Jira reported its last page.
 next_token=""
 emitted=0
-{
-  while ((emitted < limit)); do
-    page_size=$((limit - emitted))
-    ((page_size > 5000)) && page_size=5000 # /search/jql caps maxResults at 5000/page
-    body="$(jq -cn --arg jql "$jql" --argjson fields "$fields_json" \
-      --argjson mr "$page_size" --arg tok "$next_token" \
-      '{jql: $jql, fields: $fields, maxResults: $mr} + (if $tok == "" then {} else {nextPageToken: $tok} end)')"
-    wit_jira_http POST "/search/jql" "$body"
-    wit_jira_require_ok "list-items search"
-    # A 2xx body that is not an object with an `issues` array (malformed JSON, or an
-    # error envelope an intermediary returned with a 200) must fail loudly — otherwise
-    # the jq below yields nothing, page_count is empty, the loop breaks, and an empty
-    # success envelope is emitted, silently telling list-frontier there is no work.
-    [[ "$(jq -r 'if (type == "object" and (.issues | type) == "array") then "ok" else "bad" end' <<<"$WIT_JIRA_BODY" 2>/dev/null)" == "ok" ]] || {
-      printf 'jira: list-items search returned a %s response without an issues array\n' "$WIT_JIRA_STATUS" >&2
-      exit "$EX_UNAVAILABLE"
-    }
-    page_count="$(jq -r '.issues | length' <<<"$WIT_JIRA_BODY")"
-    # Normalize the page atomically: capture, then check jq's exit. Streaming the
-    # objects straight to stdout would let a single malformed issue (e.g. a key the
-    # normalizer's parser rejects) abort jq mid-page while the already-emitted rows
-    # stand — an all-invalid page would then collapse to items:[] with exit 0, telling
-    # list-frontier there is no work. On any normalizer failure, fail loud (exit 8)
-    # instead of emitting a partial page.
-    page_items="$(jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg site "$WIT_JIRA_SITE" \
-      --argjson dk "$WIT_JIRA_DONE_KEYS" --arg blk "$WIT_JIRA_BLOCKED_BY_LINK_TYPE" \
-      ".issues[] | $WIT_JIRA_NORMALIZE_PROGRAM" <<<"$WIT_JIRA_BODY")" || {
-      printf 'jira: list-items — an issue in a %s page could not be normalized (malformed issue key?)\n' "$WIT_JIRA_STATUS" >&2
-      exit "$EX_UNAVAILABLE"
-    }
-    [[ -z "$page_items" ]] || printf '%s\n' "$page_items"
-    emitted=$((emitted + page_count))
-    next_token="$(jq -r '.nextPageToken // ""' <<<"$WIT_JIRA_BODY")"
-    # Last page: isLast true, or no continuation token, or the API returned nothing.
-    [[ "$(jq -r '.isLast // false' <<<"$WIT_JIRA_BODY")" == "true" || -z "$next_token" || "$page_count" == "0" ]] && break
-  done
-} | jq -c -s --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}'
+last=false
+rows=""
+while ((emitted < limit)); do
+  page_size=$((limit - emitted))
+  ((page_size > 5000)) && page_size=5000 # /search/jql caps maxResults at 5000/page
+  body="$(jq -cn --arg jql "$jql" --argjson fields "$fields_json" \
+    --argjson mr "$page_size" --arg tok "$next_token" \
+    '{jql: $jql, fields: $fields, maxResults: $mr} + (if $tok == "" then {} else {nextPageToken: $tok} end)')"
+  wit_jira_http POST "/search/jql" "$body"
+  wit_jira_require_ok "list-items search"
+  # A 2xx body that is not an object with an `issues` array (malformed JSON, or an
+  # error envelope an intermediary returned with a 200) must fail loudly — otherwise
+  # the jq below yields nothing, page_count is empty, the loop breaks, and an empty
+  # success envelope is emitted, silently telling list-frontier there is no work.
+  [[ "$(jq -r 'if (type == "object" and (.issues | type) == "array") then "ok" else "bad" end' <<<"$WIT_JIRA_BODY" 2>/dev/null)" == "ok" ]] || {
+    printf 'jira: list-items search returned a %s response without an issues array\n' "$WIT_JIRA_STATUS" >&2
+    exit "$EX_UNAVAILABLE"
+  }
+  page_count="$(jq -r '.issues | length' <<<"$WIT_JIRA_BODY")"
+  # Normalize the page atomically: capture, then check jq's exit. Streaming the
+  # objects straight to stdout would let a single malformed issue (e.g. a key the
+  # normalizer's parser rejects) abort jq mid-page while the already-emitted rows
+  # stand — an all-invalid page would then collapse to items:[] with exit 0, telling
+  # list-frontier there is no work. On any normalizer failure, fail loud (exit 8)
+  # instead of emitting a partial page.
+  # One resolution lookup per page covers every done blocker on it. It runs in a
+  # command substitution, so this page's WIT_JIRA_BODY is left intact.
+  res="$(jq -c '.issues' <<<"$WIT_JIRA_BODY" | wit_jira_blocker_resolutions)"
+  page_items="$(jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg site "$WIT_JIRA_SITE" \
+    --argjson dk "$WIT_JIRA_DONE_KEYS" --arg blk "$WIT_JIRA_BLOCKED_BY_LINK_TYPE" \
+    --argjson res "$res" \
+    ".issues[] | $WIT_JIRA_NORMALIZE_PROGRAM" <<<"$WIT_JIRA_BODY")" || {
+    printf 'jira: list-items — an issue in a %s page could not be normalized (malformed issue key?)\n' "$WIT_JIRA_STATUS" >&2
+    exit "$EX_UNAVAILABLE"
+  }
+  [[ -z "$page_items" ]] || rows+="$page_items"$'\n'
+  emitted=$((emitted + page_count))
+  next_token="$(jq -r '.nextPageToken // ""' <<<"$WIT_JIRA_BODY")"
+  # Last page: isLast true, or no continuation token, or the API returned nothing.
+  if [[ "$(jq -r '.isLast // false' <<<"$WIT_JIRA_BODY")" == "true" || -z "$next_token" || "$page_count" == "0" ]]; then
+    last=true
+    break
+  fi
+done
+truncated=true
+[[ "$last" == true ]] && truncated=false
+printf '%s' "$rows" |
+  jq -c -s --arg sv "$WIT_SCHEMA_VERSION" --argjson truncated "$truncated" \
+    '{schema_version: $sv, items: ., truncated: $truncated}'

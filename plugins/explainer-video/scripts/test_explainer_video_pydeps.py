@@ -1,3 +1,4 @@
+# test-scope: plugins/explainer-video/skills/*/SKILL.md plugins/explainer-video/skills/*.py plugins/explainer-video/scripts/* plugins/explainer-video/hooks/*.sh plugins/explainer-video/requirements.txt
 """pydeps.py: the hash-locked on-demand install (first install, no-op rerun, a failed install), the run launcher, and
 the hand-over to a supported interpreter.
 
