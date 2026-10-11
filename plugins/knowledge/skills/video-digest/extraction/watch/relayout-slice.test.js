@@ -1345,6 +1345,23 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(read(targetDir, "metadata/decks/€.pdf")).toBe("pdf");
   });
 
+  // Processing instructions, declarations, CDATA and closing tags are raw inline HTML,
+  // and a tag after an escaped `](` is a tag, not a link destination.
+  it("treats link-shaped text inside other raw HTML forms as data", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/notes.md": [
+        "before <?pi [fake](missing.md)?> after",
+        "<!DOCTYPE [fake](missing.md)> <![CDATA[ [fake](missing.md) ]]>",
+        '\\](<a title="[fake](missing.md)">)',
+        "[real](gone.md)",
+        "",
+      ].join("\n"),
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([{ file: "metadata/notes.md", ref: "gone.md" }]);
+  });
+
   // The URL parser trims leading and trailing spaces and controls from an attribute URL.
   it("trims edge whitespace from an HTML URL", () => {
     const root = makeDir("relayout-check-");

@@ -197,6 +197,9 @@ const HTML_START_TAG =
   /<([A-Za-z][A-Za-z0-9-]*)(?:\s+[A-Za-z_:][A-Za-z0-9_.:-]*(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*\/?>/g;
 /** An HTML comment. */
 const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+/** Other raw inline HTML: a closing tag, processing instruction, declaration or CDATA section. */
+const HTML_OTHER =
+  /<\/[A-Za-z][A-Za-z0-9-]*\s*>|<\?[\s\S]*?\?>|<![A-Za-z][^>]*>|<!\[CDATA\[[\s\S]*?\]\]>/g;
 /** A CommonMark URI or email autolink: https://spec.commonmark.org/0.31.2/#autolinks */
 const URI_AUTOLINK = /[A-Za-z][A-Za-z0-9+.-]{1,31}:[^\x00-\x20<>]*/.source;
 const EMAIL_LABEL = /[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?/.source;
@@ -207,7 +210,7 @@ const AUTOLINK = new RegExp(`<(?:${URI_AUTOLINK}|${EMAIL_AUTOLINK})>`, "g");
  * label's `]:`, plus optional whitespace with at most one line ending.
  */
 const DESTINATION_OPENER =
-  /(?<=(?:\]\(|(?:^|\n) {0,3}\[(?:[^\\[\]]|\\[\s\S])+\]:)[ \t]*(?:\r?\n[ \t]*)?)</y;
+  /(?<=(?:(?<!(?:^|[^\\])(?:\\\\)*\\)\]\(|(?:^|\n) {0,3}\[(?:[^\\[\]]|\\[\s\S])+\]:)[ \t]*(?:\r?\n[ \t]*)?)</y;
 
 /**
  * Offsets (into `text`) of every `src`/`href` value inside an HTML start tag,
@@ -270,7 +273,7 @@ function htmlRanges(text) {
   const tags = [...text.matchAll(HTML_START_TAG), ...text.matchAll(AUTOLINK)].filter(
     (tag) => !isDestination(Number(tag.index)),
   );
-  return [...text.matchAll(HTML_COMMENT), ...tags].map((match) => {
+  return [...text.matchAll(HTML_COMMENT), ...text.matchAll(HTML_OTHER), ...tags].map((match) => {
     const from = /** @type {number} */ (match.index);
     return /** @type {[number, number]} */ ([from, from + match[0].length]);
   });
