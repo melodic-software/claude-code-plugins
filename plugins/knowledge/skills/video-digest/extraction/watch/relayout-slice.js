@@ -151,9 +151,11 @@ const REFERENCE_DEFINITION_LABEL = new RegExp(
   String.raw`^ {0,3}\[((?:${BACKSLASH}|[^[\]\\\r\n]|\r?\n(?![ \t]*\r?\n)){1,999})\]:[ \t]*(?:\r?\n[ \t]*)?`,
   "gm",
 );
+/** A line ending inside a title, which never spans a blank line (only spaces or tabs). */
+const TITLE_LINE_END = String.raw`\n(?![ \t]*\r?\n)`;
 /** What may follow a definition's destination: a line ending, or a title then one. */
 const DEFINITION_TAIL = new RegExp(
-  String.raw`^(?:[ \t]+(?:"(?:${BACKSLASH}|[^"\\])*"|'(?:${BACKSLASH}|[^'\\])*'|\((?:${BACKSLASH}|[^()\\])*\)))?[ \t]*(?:\r?\n|$)`,
+  String.raw`^(?:[ \t]+(?:"(?:${BACKSLASH}|${TITLE_LINE_END}|[^"\\\n])*"|'(?:${BACKSLASH}|${TITLE_LINE_END}|[^'\\\n])*'|\((?:${BACKSLASH}|${TITLE_LINE_END}|[^()\\\n])*\)))?[ \t]*(?:\r?\n|$)`,
 );
 
 /**
@@ -246,9 +248,23 @@ const HTML_NAMED_REFERENCES = /** @type {Record<string, string>} */ ({
 });
 
 /**
+ * HTML's replacements for numeric references to 0x80-0x9F (windows-1252),
+ * indexed from 0x80; a 0 entry keeps the code point.
+ * https://html.spec.whatwg.org/multipage/parsing.html#numeric-character-reference-end-state
+ */
+const WINDOWS_1252 = [
+  0x20ac, 0, 0x201a, 0x0192, 0x201e, 0x2026, 0x2020, 0x2021,
+  0x02c6, 0x2030, 0x0160, 0x2039, 0x0152, 0, 0x017d, 0,
+  0, 0x2018, 0x2019, 0x201c, 0x201d, 0x2022, 0x2013, 0x2014,
+  0x02dc, 0x2122, 0x0161, 0x203a, 0x0153, 0, 0x017e, 0x0178,
+];
+
+/**
  * An HTML attribute value with its character references decoded: the named
  * ones a path can hold (`&amp;` `&lt;` `&gt;` `&quot;` `&apos;`) and numeric
- * ones (`&#39;`, `&#x27;`). Anything else stays as written.
+ * ones (`&#39;`, `&#x27;`) under HTML's replacements: 0, a surrogate or a
+ * value past U+10FFFF is U+FFFD, and 0x80-0x9F map through windows-1252.
+ * Anything else stays as written.
  *
  * @param {string} value
  */
@@ -256,7 +272,8 @@ function decodeHtmlReferences(value) {
   return value.replace(/&(?:#(\d+)|#[xX]([0-9A-Fa-f]+)|([A-Za-z]+));/g, (match, dec, hex, name) => {
     if (dec !== undefined || hex !== undefined) {
       const code = dec !== undefined ? Number(dec) : Number.parseInt(hex, 16);
-      return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+      const invalid = code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff);
+      return String.fromCodePoint(invalid ? 0xfffd : WINDOWS_1252[code - 0x80] || code);
     }
     return HTML_NAMED_REFERENCES[name] ?? match;
   });
@@ -805,6 +822,8 @@ export function inlineLinks(text) {
           closeQuote = scan;
           break;
         }
+        // A title never spans a blank line (one holding only spaces or tabs).
+        if (text[scan] === "\n" && /^[ \t]*\r?\n/.test(text.slice(scan + 1))) break;
       }
       if (closeQuote === -1) continue;
       at = closeQuote + 1;

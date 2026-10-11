@@ -1283,6 +1283,38 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     );
   });
 
+  it("keeps a link whose destination names a retained file by a windows-1252 reference", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "source/decks/€.pdf": "pdf",
+        "key-frames/visual-frames.md": "[deck](../source/decks/&#x80;.pdf)\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "metadata/decks/€.pdf")).toBe("pdf");
+  });
+
+  // HTML numeric character reference replacements: 0x80 is windows-1252's
+  // euro sign (U+20AC), and 0 becomes U+FFFD.
+  it("applies HTML's numeric character reference replacements", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/decks/€.pdf": "pdf",
+      "metadata/deck-inventory.md": "[deck](decks/&#x80;.pdf)\n",
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([]);
+    const replacement = String.fromCodePoint(0xfffd);
+    expect(
+      inlineLinks("[a](a&#0;b.md) [b](&#xD800;.md) [c](&#x110000;.md) [d](&#x81;.md)").map(
+        ({ dest }) => dest,
+      ),
+    ).toEqual([`a${replacement}b.md`, `${replacement}.md`, `${replacement}.md`, "\u0081.md"]);
+  });
+
   it("resolves a destination holding a character reference in the link check", () => {
     const root = makeDir("relayout-check-");
     writeTree(root, {
@@ -1403,6 +1435,34 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
         '[a](a.md "say \\"hi\\"") [b](b.md \'it\\\'s\') [c](c.md (one \\) two)) [d](d.md)',
       ).map(({ dest }) => dest),
     ).toEqual(["a.md", "b.md", "c.md", "d.md"]);
+  });
+
+  // CommonMark: a link title may span lines but not a blank line (one holding
+  // only spaces or tabs); with such a title the construct is not a link.
+  it("reads no link or definition whose title spans a blank line", () => {
+    expect(inlineLinks('[example](missing.md "title\n\ncontinued")')).toEqual([]);
+    expect(inlineLinks("[example](missing.md (title\n \t\ncontinued))")).toEqual([]);
+    expect(inlineLinks('[ok](kept.md "title\ncontinued")').map(({ dest }) => dest)).toEqual([
+      "kept.md",
+    ]);
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/notes.md": [
+        '[example](missing.md "title',
+        "",
+        'continued")',
+        "",
+        "[d]: gone.md 'title",
+        "  ",
+        "continued'",
+        "",
+        '[e]: lost.md "title',
+        'continued"',
+        "",
+      ].join("\n"),
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([{ file: "metadata/notes.md", ref: "lost.md" }]);
   });
 
   it("reads a link with a parenthesized title and rewrites its destination", async () => {
