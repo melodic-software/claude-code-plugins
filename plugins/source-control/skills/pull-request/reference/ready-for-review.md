@@ -88,7 +88,9 @@ author's reasoning.
   gaps, Actions and hook permissions).
 - **The verify gate of [prep.md](prep.md) §1.5, last.** The merge moved HEAD, so the gate that ran
   in prep no longer covers the commit that ships. Commit whatever the reviews changed first;
-  nothing that edits the tree runs after the gate.
+  nothing that edits the tree runs after the gate. When the repository ships
+  `scripts/check-affected.sh`, run `scripts/check-affected.sh --tests` first as the
+  deterministic gate; exit 1 stops the flip.
 
 Completion criterion: any review evidence the plan asks for is linked, both reviews' findings are
 fixed or recorded, and the verify gate is clean on `git rev-parse HEAD`.
