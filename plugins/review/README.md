@@ -75,7 +75,7 @@ Invoke via `@review:<agent>` or let Claude delegate.
   orchestrator review plugins, then normalizes everything into one ranked findings report.
   Modes: default (auto-scales to diff size), `run-everything` (full roster), `fix` (applies
   the merged set of persisted findings, the only mutating mode).
-- **`/review:explain-change [pr-number|this branch] [--event ready] [--policy off|offer|always] [--quiz]`**.
+- **`/review:explain-change [pr-number|this branch] [--event ready] [--policy off|offer|always] [--quiz] [--risk-only]`**.
   Change digest for a pull request: why, before and after, a risk map that a fresh-context
   agent checks (disputed rows stay, marked), where to focus, a run-e2e recording link when one
   exists for the head, annotated hunks, and a quiz on request. The markdown digest is the
@@ -84,7 +84,9 @@ Invoke via `@review:<agent>` or let Claude delegate.
   says otherwise; the shipped default publishes only a public repository's diff with no
   credential-shaped hunk, and keeps any other page local. The `review-digest` cascade concern sets `digest_policy` (`off`, `offer` by
   default, or `always` at the ready flip) and the offer thresholds. It never posts to the pull
-  request and never gates merge.
+  request and never gates merge. `--risk-only` returns just the checked risk map and a `demote`
+  flag, which may only send an unattended merge to a human and never makes a pull request
+  merge-eligible.
 - **`/review:audit-enforceability <findings-file>`**. Read-only enforcement audit over ONE
   operator-named findings file: derives a class per finding, maps it to the cheapest deterministic
   rung (editorconfig severity, analyzer-pack rule, custom analyzer, Semgrep rule, architecture
