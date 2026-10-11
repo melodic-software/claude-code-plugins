@@ -21,7 +21,7 @@ pointers below the table when a write depends on one.
 | Ancestor CLAUDE.md | every dir from filesystem root down to cwd | Session start; excludable via `claudeMdExcludes` |
 | Nested/subdirectory CLAUDE.md | `<subdir>/CLAUDE.md` below cwd | ON-DEMAND when Claude works with a file in that subdirectory (see [load triggers](#load-triggers)) |
 | Project rules | `.claude/rules/**/*.md` | No `paths:` frontmatter → session start; with `paths:` globs → on-demand when Claude works with a matching file (see [load triggers](#load-triggers)) |
-| User rules | `~/.claude/rules/*.md` | Session start, alongside project rules; keep the two sets consistent, since neither is a fallback for the other |
+| User rules | `~/.claude/rules/*.md` | Session start, alongside project rules; neither set takes precedence over the other, so keep the two consistent |
 | `--add-dir` CLAUDE.md/rules | instruction files in each added directory | Session start only behind an opt-in; off by default |
 | `@` imports | `@path` inside CLAUDE.md/rules | Expanded at launch with the importing file, so an import does NOT reduce context vs inlining |
 | AGENTS.md | `AGENTS.md` in cwd and ancestors; nested: attaches lazily; see the source-conflict record in [load triggers](#load-triggers) | Session start, but whether it loads depends on a Project instructions setting and on which CLAUDE.md files sit at or above cwd: read both at the AGENTS.md pointer below. Availability moves; read it from the sources record in `instruction-placement`'s `skills/migrate/reference/sources.md` rather than from here. Where it does not load natively: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
@@ -113,6 +113,14 @@ with its sibling at the pointer.
 - **As of**: 2026-10-11
 - **Recheck trigger**: one of the three flag rows changes its mode restriction or leaves the table,
   or the System prompt flags section changes which flags combine.
+
+Source conflict: the subagent file-flag row and the System prompt flags section disagree on whether
+a flag combines with its own file form; read both before relying on either.
+
+- **Pointer**: <https://code.claude.com/docs/en/cli-reference#cli-flags> and
+  <https://code.claude.com/docs/en/cli-reference#system-prompt-flags>.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either place changes what it says about combining a flag with its file form.
 
 ## Other-ecosystem analogues
 

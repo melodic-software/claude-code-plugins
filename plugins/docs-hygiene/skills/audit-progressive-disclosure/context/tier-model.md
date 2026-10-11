@@ -66,7 +66,7 @@ and upstream ownership overrides the local treatment (the finding stays): see
   [Avoid deeply nested references](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-deeply-nested-references)
   and [Structure longer reference files with table of contents](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-table-of-contents).
 - **As of**: 2026-10-11
-- **Recheck trigger**: a fetch of the owning page no longer carrying a table row's value
+- **Recheck trigger**: an owning section changes or drops a value a row grades against, which
   re-derives that row; each fleet audit re-runs the whole table.
 
 **TOC threshold conflict.** The platform best-practices section
