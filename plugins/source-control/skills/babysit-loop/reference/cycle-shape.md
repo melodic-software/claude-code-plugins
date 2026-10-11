@@ -26,7 +26,9 @@ is.
    promotable cell effective-unpromoted, because step 3 then skips the invocation, and step 3
    reports the result each cycle.
 1. **Re-anchor.** Re-read the durable loop state block from the telemetry comment (conversation
-   context is compaction-lossy, the comment is the source of truth for the counters); classify
+   context is compaction-lossy, the comment is the source of truth for the counters) through the
+   upsert script's `--read` mode, which considers only comments the lane's own write identity wrote
+   ([reference/telemetry-upsert.md](telemetry-upsert.md), "Reading the state block"); classify
    guard mode against the rate-limit guard floor in [`../SKILL.md`](../SKILL.md); take the cycle-start snapshot with
    `node <plugin-root>/skills/babysit-loop/scripts/lane-snapshot.mjs --repo <owner/repo>`. It reads
    every page of open PRs and open issues through GraphQL cursor pagination and prints them only
