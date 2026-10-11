@@ -426,7 +426,9 @@ A scheduled GitHub Actions workflow, `.github/workflows/maintenance-file-upstrea
 runs the check once a month with `--report` and hands the report to
 `scripts/upstream-drift-issues.sh`, which keeps one issue per upstream titled
 `Upstream drift: <owner>/<repo>`: it opens the issue when that upstream drifts, updates the same
-issue in place on later runs, and closes it once the upstream is clean. The run fails only on a
+issue in place on later runs, and closes it once the upstream is clean. It also closes, with a
+comment, any open `Upstream drift:` issue the workflow's bot opened for a repository the report no
+longer names, such as one whose `docs/upstream` page was removed or renamed. The run fails only on a
 script error or a failed issue write; drift alone does not fail it. It differs from
 `maintenance-check-upstream-drift.yml`, which runs weekly over the vendored skills' own update
 scripts, fails on drift, and never opens an issue. Whether to adopt an
