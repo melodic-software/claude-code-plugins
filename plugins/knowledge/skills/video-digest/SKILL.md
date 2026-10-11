@@ -46,6 +46,7 @@ Read a spoke **only when its condition holds**. These are mutually exclusive by 
 | `context/output-contract.md` | when about to write or stage slice artifacts, or when a non-default `library_dir` work root is configured |
 | `context/quality-gates.md` | when grading a phase or a finished slice against binary criteria |
 | `context/synthesis-contract.md` | when harvesting decks, or when applying the frame promotion bar |
+| `templates/vision-json-shapes.md` | when briefing a vision subagent to write a sheet triage, promotion-decisions or quality-audit JSON file. Each file's keys and the rules its validators enforce |
 | `context/companion-primary-sources.md` | when the operator supplied companion primary source URL(s) with the queue or watch |
 | `context/gotchas.md` | when a run failed and you need the recovery path |
 

@@ -13,7 +13,8 @@ author those by hand.
 One file per contact sheet, written by that sheet's subagent. The brief also carries the sheet's
 entry from `key-frames/sheet-frame-index.json`, because the cells must match it.
 `merge-triage-json.js` validates each file and builds `triage/manifest.json`, which
-`validate-triage-json.js` checks against the index.
+`validate-triage-json.js` checks against the index. The `model` rule is enforced later, by
+`check-watch-outcomes.js` at outcome verification.
 
 | Key | Rule |
 | --- | --- |
