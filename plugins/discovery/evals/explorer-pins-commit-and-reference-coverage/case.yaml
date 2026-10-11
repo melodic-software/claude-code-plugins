@@ -27,13 +27,13 @@ graders:
     arm: with-only
   - name: sha-pinned
     type: regex
-    pattern: '^\s*(-\s+)?sha:\s*"?f1e312a2d8074519be9bb00d710fbc170f607d1f"?\s*$'
+    pattern: '^\s*(-\s+)?sha:\s*"?f1e312a2d8074519be9bb00d710fbc170f607d1f"?(\s+#.*)?\s*$'
     flags: m
     target: { source: file, path: .memory/payments-rounding/EXPLORE.md }
     arm: with-only
   - name: dirty-flag-recorded
     type: regex
-    pattern: '^\s*(-\s+)?dirty:\s*(true|false)\s*$'
+    pattern: '^\s*(-\s+)?dirty:\s*(true|false)(\s+#.*)?\s*$'
     flags: m
     target: { source: file, path: .memory/payments-rounding/EXPLORE.md }
     arm: with-only
