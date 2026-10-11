@@ -4,6 +4,12 @@ Notable changes to the recommendation-basis contract (SemVer). Changing the grou
 label's values, or the re-emit shape is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [2.0.1] - 2026-10-10
+
+Patch: the conforming-surfaces table folds the `/discipline:do-your-research-deep` row into
+`/discipline:do-your-research`, whose fan-out tier now carries the per-recommendation ledger row.
+The contract is unchanged.
+
 ## [2.0.0] - 2026-10-04
 
 Major: the grounding bar's external side changes. It no longer asks for "current consensus", which

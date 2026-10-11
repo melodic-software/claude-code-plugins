@@ -1149,18 +1149,18 @@
         "aliases: checkup",
         "native description: Health-check the user's Claude Code setup and fix issues: diagnose installation health - what the `claude doctor` terminal diagnostics cover - from local data (duplicate or leftover installs, PATH, unparsable settings files, broken or colliding agent definitions, skills whose frontmatter fails to parse); find unused skills, MCP servers, and plugins versus their context cost and disable dead weight; deduplicate local CLAUDE.md files against checked-in ones; trim checked-in CLAUDE.md files by cutting content a session could derive from the codebase (directory layouts, tech-stack lists, architecture overviews) while keeping gotchas, rationale, and non-standard conventions; migrate always-loaded CLAUDE.md guidance into lazy skills and nested CLAUDE.md files; flag slow hooks and context-heavy extensions; check the installed version is current; make auto mode the default permission mode; and pre-approve frequently denied read-only commands. Use when the user asks for a doctor run, checkup, audit, tune-up, or cleanup of their Claude Code setup or configuration.",
         "argument hint: [prompt-audit [<path>]]",
-        "invocation mode (2026-09-29, Claude Code 2.1.284): user-invocable only, model invocation disabled",
+        "invocation mode (2026-10-10, Claude Code 2.1.296): user-invocable only, model invocation disabled (`disableModelInvocation: true`, `aliases: [\"checkup\"]` read from the binary)",
         "detect: human-added pair, not emitted at threshold 0.30 / top-k 3 (discovery score 0.0565)",
         "docs cross-check (commands reference, 2026-09-29): documented"
       ],
       "observation": {
         "class": "extraction",
-        "detail": "extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals)",
-        "date": "2026-09-29"
+        "detail": "read from binary v2.1.296 on 2026-10-10: the doctor skill registration carries `disableModelInvocation: true` and `aliases: [\"checkup\"]`; the native description and argument hint above are from the v2.1.284 extraction of 2026-09-29",
+        "date": "2026-10-10"
       },
       "recheck": {
         "trigger": "a Claude Code release changes the `prompt-audit` subcommand of `/doctor`, the skill's alias or gating, or lets the model invoke it",
-        "verified": "2026-09-29"
+        "verified": "2026-10-10"
       },
       "baked": {
         "description_phrase": false,
@@ -4163,15 +4163,15 @@
       },
       "component": {
         "plugin": "discipline",
-        "skill": "do-your-research-deep",
+        "skill": "do-your-research",
         "kind": "skill"
       },
-      "reason": "The workflow researches a new question on the web; ours verifies the session's own claims against primary sources. The research pair is recorded against discovery:research-deep. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "reason": "The workflow researches a new question on the web; ours verifies the session's own claims against primary sources, in its fan-out tier. The research pair is recorded against discovery:research-deep. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.284",
       "date": "2026-09-29",
       "fingerprint": {
         "native": "35ef5a070cef5131d27447a7ec8baee7",
-        "component": "8cf36b37c5a220e76886fe21c73bd9b9"
+        "component": "78e146b446e81e0454864de191884e30"
       }
     },
     {
