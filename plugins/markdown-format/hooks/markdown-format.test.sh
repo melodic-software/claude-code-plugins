@@ -12,6 +12,7 @@
 # is invoked as a subprocess from an UNRELATED cwd so the `cd repo-root` config
 # discovery is genuinely exercised (running from the repo root would false-pass
 # a hook that skips the cd).
+# test-scope: plugins/markdown-format/.claude-plugin/plugin.json plugins/markdown-format/hooks/hooks.json plugins/markdown-format/prerequisites.json
 
 set -uo pipefail
 

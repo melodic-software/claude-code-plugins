@@ -205,8 +205,8 @@ assert_eq "library defines the full helper API a generated wizard calls" "" "$mi
 STAGES_SECTION="$TEST_TMPDIR/stages.sh"
 awk 'found { print } /^# STAGES/ { found = 1 }' "$TEMPLATE" >"$STAGES_SECTION"
 assert_eq "example TOTAL_STAGES matches the stage() calls below the marker" \
-  "$(grep -E '^TOTAL_STAGES=' "$STAGES_SECTION" | tail -n1 | cut -d= -f2)" \
-  "$(grep -cE '^stage "' "$STAGES_SECTION")"
+  "$(grep -E '^[[:space:]]*TOTAL_STAGES=' "$STAGES_SECTION" | tail -n1 | cut -d= -f2)" \
+  "$(grep -cE '^[[:space:]]*stage "' "$STAGES_SECTION")"
 
 # --- 2. Fail-closed without a terminal --------------------------------------
 
@@ -1198,6 +1198,51 @@ BODY
 else
   skip_case "TERM=dumb case: util-linux script (pty) unavailable"
 fi
+
+# --- 12. Editing the script while it runs -----------------------------------
+
+# bash reads a script as it runs it, from a file offset. An in-place edit that
+# lengthens the file shifts earlier bytes under that offset, so an unwrapped
+# script runs them again. The shipped wrapper (stages inside run_wizard, which
+# ends in `exit`) is parsed whole before the first stage runs. The case swaps
+# the example stages for a body that rewrites its own script in place, with a
+# pad line exactly as long as the two lines already run, then counts step-1.
+# The unwrapped control proves the edit does re-run a step when nothing guards it.
+EDIT_BODY="$TEST_TMPDIR/edit-body.sh"
+cat >"$EDIT_BODY" <<'BODY'
+echo "ran:step-1"
+[[ -e "$0.done" ]] || { : >"$0.done"; cat "$0.edited" >"$0"; }
+echo "ran:step-2"
+BODY
+edit_case() {
+  local mode="$1" script pad
+  script="$(mktemp "$TEST_TMPDIR/edit.XXXXXX")"
+  sed 's|exec 3</dev/tty|exec 3<"$WIZARD_TEST_TTY"|' "$TEMPLATE" |
+    awk -v mode="$mode" -v body="$EDIT_BODY" '
+      /^run_wizard\(\) \{$/ {
+        if (mode == "wrapped") print
+        while ((getline line < body) > 0) print line
+        skip = 1; next
+      }
+      skip && /^  finish$/ { skip = 0; after = 1 }
+      skip { next }
+      after && mode == "unwrapped" && (/^}$/ || /^run_wizard "\$@"$/) { next }
+      { print }' >"$script"
+  pad=$(($(head -n2 "$EDIT_BODY" | wc -c) - 2))
+  { printf '#%*s\n' "$pad" '' | tr ' ' x; cat "$script"; } >"$script.edited"
+  case_exec "$script" "$TTY_EOF"
+}
+assert_eq "layout pin: the shipped template's last line is the run_wizard call (exit stays inside it)" \
+  'run_wizard "$@"' "$(tail -n1 "$TEMPLATE")"
+out="$(edit_case wrapped)"
+rc=$?
+assert_eq "an in-place edit mid-run does not re-run an earlier step" 1 \
+  "$(grep -c '^ran:step-1$' <<<"$out")"
+assert_contains "... and the wizard still runs to its finish" "$out" "Setup complete"
+assert_exit "... exiting 0, reading nothing past the run_wizard call" 0 "$rc"
+out="$(edit_case unwrapped)"
+assert_eq "control: the same edit re-runs step-1 when the stages are not wrapped" 2 \
+  "$(grep -c '^ran:step-1$' <<<"$out")"
 
 # --- Tally ------------------------------------------------------------------
 

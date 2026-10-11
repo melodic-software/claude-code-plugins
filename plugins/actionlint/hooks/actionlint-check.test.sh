@@ -12,7 +12,7 @@
 # the caller's working directory would surface (the tool is file-anchored, so a
 # correct hook needs no cd). actionlint is required to drive the violation
 # assertions; without it the suite skips (the hook itself no-ops silently).
-# test-scope: plugins/actionlint/hooks/* plugins/actionlint/.claude-plugin/plugin.json
+# test-scope: plugins/actionlint/hooks/* plugins/actionlint/.claude-plugin/plugin.json plugins/actionlint/lib/prerequisites.mjs plugins/actionlint/prerequisites.json
 
 set -uo pipefail
 

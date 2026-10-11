@@ -71,10 +71,10 @@ test('the single judge may inherit: an inherit single variant omits model', asyn
   assert.equal(x.opts.effort, 'high')
 })
 
-test('session model unknown (no roles passed): the extractor falls back to sonnet at low', async () => {
+test('session model unknown (no roles passed): the extractor falls back to sonnet at medium', async () => {
   const { calls, logs } = await run({ diffBase: 'origin/main', slices: ['a.md'] })
   assert.equal(extract(calls).opts.model, 'sonnet')
-  assert.equal(extract(calls).opts.effort, 'low')
+  assert.equal(extract(calls).opts.effort, 'medium')
   assert.ok(logs.some(l => l.includes('built-in fallbacks')))
 })
 

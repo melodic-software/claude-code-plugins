@@ -11,6 +11,7 @@
 #     p = min(1, 2 * sum(comb(n, k) for k <= min(b, c)) / 2^n)), never with
 #     these scripts.
 # Every interval prints to 4 decimals with z = 1.959964.
+# test-scope: plugins/testing/skills/audit/adapters/*.yaml
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # The judge hooks' fixtures: a temp dir, a `claude` on PATH that records any
 # real call, the stub judge behind TEST_JUDGE_CMD, and the ok/fail counters.

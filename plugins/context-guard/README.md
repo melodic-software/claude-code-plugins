@@ -137,6 +137,34 @@ whether a compaction degraded the evidence, the bands and the gate state. Where 
 refuses the tool's registration (an organization policy can refuse a user mod's tools), the module
 logs one debug line saying so, and the lines, gate, band and writes carry on.
 
+### Prompt-cache status-line segment (optional)
+
+The main conversation's prompt-cache state reaches only a status line: a mod's
+`$.session.usage()` carries no cache expiry, so the band row cannot show it without guessing the
+lifetime, which depends on plan and usage-credit state a mod cannot read. `scripts/cache-line.mjs`
+reads the status line's `prompt_cache` object and prints one segment:
+
+```text
+cache ● warm until 14:32 (1h) · hit 91%
+cache ○ cold · next message re-caches ~82k · hit 88% · misses 2 (last: tools_changed)
+```
+
+It shows the expiry as a clock time, not a countdown, because Claude Code re-runs the status line
+when a warm cache expires; no `refreshInterval` is needed. It prints nothing before the first
+response, covers the main conversation only (subagents and workflows have their own, shorter
+lifetime the object leaves out), and does not appear in cloud or `-p` sessions, where a status line
+does not run. `NO_COLOR` turns its color off. A plugin cannot add a status-line segment, so
+`/context-guard:setup apply cache-line` copies the script to `~/.claude/context-guard/cache-line.mjs`
+and prints the `statusLine` edit for you to paste, built by the script's `--wire` mode: your existing
+command runs first through `--after`, and your other `statusLine` keys stay. It never writes your settings. Pointer: for the
+object's fields, see
+[Prompt cache fields](https://code.claude.com/docs/en/statusline#prompt-cache-fields). As of:
+2026-10-10. Recheck trigger: that section renames a field the script reads.
+
+The plugin sends no keep-warm requests: each one spends usage to save a rebuild that may never
+come. For the lifetime rules and the settings that change them, see
+[Prompt caching](https://code.claude.com/docs/en/prompt-caching).
+
 ### Telemetry
 
 With `HOOK_TELEMETRY_SINK` set, the module sends envelopes per the
@@ -230,7 +258,7 @@ what holds their budget now:
 |---|---|---|
 | The statusline tee's suite | The snapshot body, atomic write, rename retry, prune and the processes per render | The `snapshot:` cases and the `budget:` case in `hooks/context-guard.test.ts`; the helper's own suite, [`lib/write-snapshot.test.mjs`](../../lib/write-snapshot.test.mjs), for the atomic write, rename retry, prune and temp files |
 | The statusline shim's suite | The shim finding the installed tee | Nothing: no shim ships |
-| The wiring compose script's suite | Composing a `statusLine` around the shim | Nothing: nothing is composed now |
+| The wiring compose script's suite | Composing a `statusLine` around the shim | Nothing for the shim, which no longer ships. The optional cache segment composes its own `statusLine` with `cache-line.mjs --wire`, tested in `scripts/cache-line.test.sh` |
 | The crossing hook's and the PreToolUse gate's suites, process counts included | The crossing lines, the gate and the processes per fire | The line, gate and `budget:` cases in `hooks/context-guard.test.ts` |
 | The hook-census ceiling on the crossing hook in `.performance/ratchets.json` | Processes per crossing-hook fire | The `budget:` case: 0 processes on a call that writes nothing |
 
@@ -263,7 +291,8 @@ Code's native binary neither ships nor uses Node ([setup](https://code.claude.co
 The marker and the zone resolver run on Bash (Git Bash on native Windows, so install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)). The zone resolver,
 which `/context-guard:setup check` runs, and `setup apply`'s merge into an existing `zones.json`
-need [`jq`](https://jqlang.org/download/) on `PATH`; the module and the marker do not.
+need [`jq`](https://jqlang.org/download/) on `PATH`; the module and the marker do not. The optional
+prompt-cache status-line segment runs on Node.js too.
 `/context-guard:setup check` reports these prerequisites; `/context-guard:check` reports whether
 `node` and `jq` resolve. `context_window` fields can be `null` before the first response and right
 after `/compact`; readers own null handling.

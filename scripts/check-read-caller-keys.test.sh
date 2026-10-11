@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: .github/standards/runner-policy/package.json
 # Black-box contract test for check-read-caller-keys.sh.
 #
 # Self-contained and cwd-independent: builds a throwaway tree with fixture

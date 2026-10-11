@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# test-scope: plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
+# test-scope: plugins/harness-ops/skills/inventory/scripts/js/package.json
 """The open wrong-value and unresolved-only findings on #5640 in the bundle
 reader of inventory.py, pinned under both readers. Naming inventory.py,
 parser_reader.py and js/parser_helper.cjs here is what makes

@@ -14,6 +14,14 @@ pygments==2.21.0 \
     --hash=sha256:610ca751c9bc2492b38eb9a38a7fbc93edbbb2d7182edaf34e66ae493dee5c8c
 pytest==9.1.1 \
     --hash=sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c
+# lizard measures the js-complexity-share counter in .performance/ratchets.json.
+# Its numbers move with its version, so the pin is exact; pathspec is its one
+# dependency not pinned above (pygments is). Both are pure-Python wheels, one
+# hash each.
+lizard==1.24.0 \
+    --hash=sha256:a688bc607a891ff4a7836826f25742dc9c1bf648da3075dbd495e199e8848602
+pathspec==1.1.1 \
+    --hash=sha256:a00ce642f577bf7f473932318056212bc4f8bfdf53128c78bbd5af0b9b20b189
 # pyyaml reads the skill/agent frontmatter surface for the hook-exec-form gate
 # (#2569): YAML has no jq, and a hand-rolled walk lost three review rounds to
 # spellings it had not anticipated. Unlike the pure-Python pins above this is a

@@ -66,6 +66,7 @@ SKIPPED=()        # things we couldn't do (e.g. gh missing, gh errors)
 _WIZARD_TMP=""
 # if-form, not `[[ ]] &&`: a false condition must not leave a nonzero status
 # for the EXIT trap under set -e, which would turn a successful run into exit 1.
+# shellcheck disable=SC2329  # invoked by the EXIT trap below
 _cleanup() { if [[ -n "$_WIZARD_TMP" && -f "$_WIZARD_TMP" ]]; then rm -f -- "$_WIZARD_TMP"; fi; }
 trap _cleanup EXIT
 
@@ -456,6 +457,7 @@ set_secret() { _gh_set secret "$1" "$2"; }
 # set_var NAME VALUE — set a GitHub Actions repo variable (non-secret), value
 # piped over stdin (gh reads standard input when --body is omitted), never
 # argv. Same refusals as set_secret.
+# shellcheck disable=SC2329  # library API; the example stage does not call it
 set_var() { _gh_set variable "$1" "$2"; }
 
 # finish — clear, then a closing summary of everything configured. Names only
@@ -478,26 +480,34 @@ finish() {
 # STAGES — author this section. One stage() per step the human takes.
 # REPLACE the example below with your real stages, in dependency order, and
 # set TOTAL_STAGES to match the stages you write.
+# Keep every stage inside run_wizard, ahead of its closing `finish` and `exit`,
+# and keep the last line as is: bash then parses the whole file before the
+# first prompt, so editing the script while it runs cannot re-run a step.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=1
+run_wizard() {
+  TOTAL_STAGES=1
 
-banner "Stripe setup"
+  banner "Stripe setup"
 
-# ── EXAMPLE STAGE — replace me ────────────────────────────────────────────
-# shellcheck disable=SC2154  # ask/ask_secret assign the named variable via printf -v
-stage "Stripe — API keys"
-say "We'll grab your Stripe test keys and store them for local dev + CI."
-open_url "https://dashboard.stripe.com/test/apikeys"
-step "On the API keys page, copy the Publishable key (starts pk_test_)."
-ask STRIPE_PUBLISHABLE_KEY "Paste the publishable key:"
-step "Click 'Reveal test key' on the Secret key row, then copy it."
-ask_secret STRIPE_SECRET_KEY "Paste the secret key:"
-# shellcheck disable=SC2154  # assigned by ask via printf -v
-write_env STRIPE_PUBLISHABLE_KEY "$STRIPE_PUBLISHABLE_KEY"
-# shellcheck disable=SC2154  # assigned by ask_secret via printf -v
-write_env STRIPE_SECRET_KEY "$STRIPE_SECRET_KEY"
-set_secret STRIPE_SECRET_KEY "$STRIPE_SECRET_KEY" # CI needs this one
-# ── END EXAMPLE STAGE ─────────────────────────────────────────────────────
+  # ── EXAMPLE STAGE — replace me ──────────────────────────────────────────
+  # shellcheck disable=SC2154  # ask/ask_secret assign the named variable via printf -v
+  stage "Stripe — API keys"
+  say "We'll grab your Stripe test keys and store them for local dev + CI."
+  open_url "https://dashboard.stripe.com/test/apikeys"
+  step "On the API keys page, copy the Publishable key (starts pk_test_)."
+  ask STRIPE_PUBLISHABLE_KEY "Paste the publishable key:"
+  step "Click 'Reveal test key' on the Secret key row, then copy it."
+  ask_secret STRIPE_SECRET_KEY "Paste the secret key:"
+  # shellcheck disable=SC2154  # assigned by ask via printf -v
+  write_env STRIPE_PUBLISHABLE_KEY "$STRIPE_PUBLISHABLE_KEY"
+  # shellcheck disable=SC2154  # assigned by ask_secret via printf -v
+  write_env STRIPE_SECRET_KEY "$STRIPE_SECRET_KEY"
+  set_secret STRIPE_SECRET_KEY "$STRIPE_SECRET_KEY" # CI needs this one
+  # ── END EXAMPLE STAGE ───────────────────────────────────────────────────
 
-finish
+  finish
+  exit
+}
+
+run_wizard "$@"

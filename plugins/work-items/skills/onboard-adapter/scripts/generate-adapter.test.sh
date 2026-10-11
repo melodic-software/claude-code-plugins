@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/*
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 # Contract tests for generate-adapter.sh — the deterministic half of
 # /work-items:onboard-adapter.
@@ -37,10 +38,11 @@ BASE_SPEC='{
     "create-item": true, "get-item": true, "claim": false, "renew-lease": false,
     "release": false,
     "reclaim": false, "link-blocks": false, "add-sub-item": false,
-    "list-items": true, "list-sub-items": false, "capabilities": true
+    "list-items": true, "list-sub-items": false, "change-link": true, "capabilities": true
   },
   "features": { "cross_repo_edges": false, "sub_items": false, "leases": false, "labels": true },
   "limits": { "sub_items_per_parent": 0, "sub_item_depth": 0, "dependencies_per_type": 0, "list_items_max": 1000 },
+  "change_link": { "branch_pattern": "^[a-z]+/([0-9]+)-" },
   "deferrals": []
 }'
 
@@ -119,7 +121,7 @@ A="$HAPPY_ROOT/tools/work-item-tracker/adapters/acmetracker"
 B="$HAPPY_ROOT/tools/work-item-tracker/conformance/bindings"
 
 for f in capabilities.json capabilities.sh capabilities.test.sh common.sh common.test.sh README.md \
-  create-item.sh get-item.sh list-items.sh; do
+  create-item.sh get-item.sh list-items.sh change-link.sh; do
   assert_file "generated $f" "$A/$f"
 done
 # #2950 requires the conformance binding be generated alongside the adapter — without
@@ -170,6 +172,7 @@ assert_eq "manifest provider" "acmetracker" "$(jq -r '.provider' "$A/capabilitie
 assert_eq "manifest keeps a declared-true verb" "true" "$(jq -r '.verbs["get-item"]' "$A/capabilities.json")"
 assert_eq "manifest keeps a declared-false verb" "false" "$(jq -r '.verbs.claim' "$A/capabilities.json")"
 assert_eq "manifest carries limits" "1000" "$(jq -r '.limits.list_items_max' "$A/capabilities.json")"
+assert_eq "manifest carries the branch grammar" "^[a-z]+/([0-9]+)-" "$(jq -r '.change_link.branch_pattern' "$A/capabilities.json")"
 
 # The global/env spelling of the provider name is UPPER-cased. A skipped fold stays
 # self-consistent across generated files, so nothing else here would notice it.

@@ -123,9 +123,14 @@ denial; with the cap at 3, all three launch.
 **Recheck trigger.** A release note naming `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` or the subagent
 concurrency cap.
 
+**Basis.** Both cases now spawn `sonnet` subagents instead of `haiku`, and were rerun live after
+that change, `probe.py run --live --retries 1 --max-runs 4 --max-cost-usd 4 --case <id>...`, with
+the launch above. Linux (WSL2), Claude Code **2.1.296**, 2026-10-11: 2 runs, no retry needed. Raw
+streams were not kept. The recheck trigger and expiry above apply.
+
 | Case | Expected | Observed | Verdict |
 |---|---|---|---|
-| `concurrency/subagent-cap-refuses-over-limit` | refused (any of 3) | 1 of 3 refused | pass |
+| `concurrency/subagent-cap-refuses-over-limit` | refused (any of 3) | 1 of 3 refused, "Concurrent subagent limit reached" | pass |
 | `concurrency/subagent-cap-allows-within-limit` | ran (all 3) | 3 of 3 launched | pass |
 
 ## 8. The sandbox blocks unlisted hosts inside the command

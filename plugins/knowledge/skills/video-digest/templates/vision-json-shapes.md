@@ -1,6 +1,6 @@
 # Vision JSON shapes: agent-authored files
 
-Phase 4 of the watch (`context/watch-pipeline.md`) has subagents write three JSON files by hand.
+Phases 4 to 6 of the watch (`context/watch-pipeline.md`) have subagents write three JSON files by hand.
 The validators reject anything off-shape, so copy the block for the file you are writing, keep
 every key, and replace the values. Each brief that asks a subagent for one of these files carries
 that file's section of this template.

@@ -172,7 +172,9 @@ First resolve these into shell variables the block below reads. A skill runs **i
 config from the **rendered `${user_config.observer_*}` values** (an unexpanded token or empty = the
 default), the `CLAUDE_PLUGIN_OPTION_*` env vars the hook uses are NOT set in a skill's Bash context:
 
-- `OBS_MODEL` ← `${user_config.observer_analysis_model}` (default `claude-haiku-4-5`)
+- `OBS_MODEL` ← `${user_config.observer_analysis_model}`; `OBS_EFFORT` ←
+  `${user_config.observer_analysis_effort}`. Leave either empty for its default: the observer reads
+  it from the plugin's `.claude-plugin/plugin.json` `userConfig`
 - `OBS_IDLE` ← `${user_config.observer_idle_seconds}` (default `900`); `OBS_MAX` ←
   `${user_config.observer_max_seconds}` (default `86400`)
 - `OBS_ANALYSIS` ← `${user_config.observer_analysis_enabled}` (default `true`), an operator who set it
@@ -204,7 +206,7 @@ PY=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 \
 args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$MEMORY_DIR/running-retros"
   --session-id "$CLAUDE_CODE_SESSION_ID" --plugin-root "$PLUGIN_ROOT"
   --previous-running-retro "${PREV_LEDGER:-}" --previous-session-id "${PREV_SID:-}"
-  --model "${OBS_MODEL:-claude-haiku-4-5}"
+  --model "${OBS_MODEL:-}" --effort "${OBS_EFFORT:-}"
   --idle-seconds "${OBS_IDLE:-900}" --max-seconds "${OBS_MAX:-86400}")
 [[ "${OBS_ANALYSIS:-true}" != "false" ]] && args+=(--analysis)
 [[ "${OBS_BARE:-false}" == "true" ]] && args+=(--bare)

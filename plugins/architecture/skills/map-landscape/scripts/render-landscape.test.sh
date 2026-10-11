@@ -5,6 +5,7 @@
 #
 # The fixture record is written here rather than collected, so the renderer is
 # tested against a fixed input and every assertion is about rendering alone.
+# test-scope: .markdownlint-cli2.jsonc
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

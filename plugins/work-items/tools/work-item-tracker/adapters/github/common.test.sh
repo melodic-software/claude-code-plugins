@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: .work-item-tracker.json
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 # common.sh is a sourceable contract lib — assert it sources cleanly and exposes
 # its public helpers (no --help contract; it is sourced, never invoked).

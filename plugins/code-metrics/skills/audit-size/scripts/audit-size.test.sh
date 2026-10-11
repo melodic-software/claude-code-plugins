@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Regression tests for the audit-size entry point (audit-size.sh): option parsing,
 # JSON versus markdown output, and exit-code passthrough from dispatch.sh.
-# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
+# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/* plugins/code-metrics/skills/audit-size/SKILL.md
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

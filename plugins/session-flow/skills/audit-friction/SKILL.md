@@ -64,7 +64,7 @@ is installed; when it is not, say so once in the report and take its fallback:
 - `/harness-config:audit-permission-grants` and `/harness-config:audit-automation-gaps` (step 3):
   skip them and name each check not run.
 - `/harness-ops:behavior-probes` (step 5 and the Gotchas): mark platform-behavior claims unprobed.
-- `/discipline:do-your-research-deep` (step 5): one agent checks the selected claims against their
+- `/discipline:do-your-research tiered` (step 5): one agent checks the selected claims against their
   primary sources, citing each.
 - `/harness-config:draft-auto-mode-rules` (step 7): list the `classifier` groups in
   `R/PR-DRAFTS.md` instead.
@@ -129,7 +129,7 @@ ask once, defaulting to `consequential`. An unattended run uses `consequential` 
 Probe platform-behavior claims with `/harness-ops:behavior-probes`: choosing a mode that includes
 probes is the person asking for a live run; an unattended run probes live only when its launch
 prompt asked for that, else dry-runs and marks the claims unprobed. Fact-check with
-`/discipline:do-your-research-deep` over the selected claims, in parallel with the probes. Correct
+`/discipline:do-your-research tiered` over the selected claims, in parallel with the probes. Correct
 `PLAN.md` from both before step 6.
 
 ### 6. Decide

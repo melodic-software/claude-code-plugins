@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/harness-ops/skills/inventory/scripts/js/package-lock.json plugins/harness-ops/skills/inventory/scripts/js/package.json
 """Tests for parser_reader.py, the js/parser_helper.cjs process it drives, and
 inventory.py's --reader=parser|compare wiring.
 

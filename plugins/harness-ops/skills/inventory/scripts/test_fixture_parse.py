@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# test-scope: plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
+# test-scope: plugins/harness-ops/scripts/docs-cache.sh plugins/harness-ops/scripts/fetch-docs.sh
 """Every JavaScript fixture test_inventory.py feeds the reader in
 inventory.py parses as a module under acorn. Naming inventory.py here is
 what makes scripts/affected-tests.sh select this suite when it changes.

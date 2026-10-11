@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.3] - 2026-10-11
+
+### Changed
+
+- `visualize` points hand-authored CSS and SVG styling outside the page chrome at `/user-interface:write-css` when that skill is installed.
+
 ## [0.12.2] - 2026-10-10
 
 ### Fixed

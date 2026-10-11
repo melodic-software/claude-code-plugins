@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/user-experience/tests/fixtures/*
 # Discovery wrapper for the user-experience detect suite: scripts/run-plugin-tests.sh
 # finds plugins/**/*.test.sh, so this runs detect.test.mjs. SKIPs (exit 0) without Node.
 set -uo pipefail

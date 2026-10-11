@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/evals/evals/*
 """Fixture suite for validate-cases.py.
 
 Every fixture is built in a temporary directory from the inline strings here, so

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Suppressed\n\nsrc/app.css:2 [color] ... (project convention: docs/css-conventions.md)",
+      "why": "heading"
+    },
+    {
+      "answer": "**Suppressed**\n- src/app.css:14 [color]",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "## Findings\nsrc/app.css:2 [color] Write the color in oklch().",
+      "why": "colors reported as findings, no suppressed section"
+    }
+  ]
+}
