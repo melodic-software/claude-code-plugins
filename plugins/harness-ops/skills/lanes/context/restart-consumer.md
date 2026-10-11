@@ -62,6 +62,24 @@ effort, and settings all come from the operator's local lane config, and nothing
 read from a comment is interpolated into a command or path. A telemetry comment
 can never name a lane the operator has not configured.
 
+**Only the lanes' own comments count.** The sentinel is public, so anyone who can
+comment on a telemetry issue can post a lookalike carrying `restart_request`. The
+consumer reads only comments written by the lanes' write identity, resolved once
+per run in the order source-control's babysit-loop telemetry upsert uses: the
+`gh api user` login when it reports a User; `<slug>[bot]` from `--app-slug <slug>`
+when that call fails or reports a Bot; else the reported Bot login plus `[bot]`.
+With no identity resolved the run exits 4 before reading any lane. Run the
+consumer under the account its lanes write as, and pass `--app-slug` when that is
+an App installation token; `print-schedule` carries a passed `--app-slug` into
+every command it emits.
+
+- **Pointer:** the login an installation token's writes carry,
+  [Authenticating as a GitHub App installation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation).
+- **As of:** 2026-10-11.
+- **Recheck:** an App token's comments landing under a login other than
+  `<slug>[bot]`, or a consumer run under an App token exiting 4 with `--app-slug`
+  passed.
+
 ## Operator setup: registering the schedule
 
 Registration is an **operator action**; neither the script nor the skill ever
@@ -222,7 +240,8 @@ parity claim.
 Optional `lanes[].telemetry` config keys (`issue`, `marker`, `instance`, `repo`)
 bind a lane to its telemetry comment; every one has a working default (issue
 resolved by the exact `Lane telemetry: <lane>` title, marker matched by the shared
-sentinel plus a `restart_request`-bearing state block, instance unpinned, repo
+sentinel plus a `restart_request`-bearing state block in a comment by the write
+identity, instance unpinned, repo
 defaulting to the consumer's `--target-repo`). A bound `marker` names a lane
 **type** and matches every writer instance of it, since a live comment's marker
 carries the loop-lane convention's `@<instance>` writer suffix; pin one instance
