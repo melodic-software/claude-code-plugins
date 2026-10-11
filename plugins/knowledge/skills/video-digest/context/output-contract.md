@@ -73,18 +73,22 @@ The script runs on a closed slice, or on an unclosed one whose outcome checks pa
 itself and refuses when they fail). It refuses any slice whose temp media is gone unless
 `--no-media` is passed, which takes nothing from the temp session (no media, frames, caption
 tracks or info JSON) even when it still exists; after a normal close that is the only way it runs.
-Without `--no-media` it also refuses a partly removed temp session, naming the missing piece: the
-video (or an empty one), the info JSON, `frame-times.json`, any frame image, a frame
+It refuses a `watch.json` that is not an object, whose `videoId` is not a plain id (it names
+`media/<id>.<ext>`), that lacks a `title` or `sourceUrl`, or whose temp session dirs are not
+strings. Without `--no-media` it also refuses a partly removed temp session, naming the missing
+piece: the video, an empty video, caption track or frame image, the info JSON,
+`frame-times.json` (or one that is not a JSON object), any frame image, a frame
 `frame-times.json` lists, a `frame-times.json` entry for a scene or interval frame on disk
-(anchor frames carry their time in their name), or the caption tracks. It refuses a temp session holding several videos
-(an X post with more than one), naming them, since the watch does not record which one is
-primary; a recorded temp dir outside the OS temp dir or overlapping the slice; and a symlink in
-the slice or the temp session, since a copy would follow it. It refuses when the slice is, holds,
-or sits inside a path the run writes: the target, `<target>.relayout-backup`, or a
-`.<target-name>.relayout-*` staging dir beside the target. In every mode, `--no-media` included,
-it refuses when one of those paths is, holds, or sits inside a temp dir `watch.json` records,
-existing or not, since `close` deletes those. It refuses an existing target unless
-`--replace` is passed, which replaces the target and keeps its `README.md`. The replaced target is moved to `<target>.relayout-backup` and deleted only once the
+(anchor frames carry their time in their name), or the caption tracks. It refuses a temp session
+holding several videos (an X post with more than one), naming them, since the watch does not
+record which one is primary; a recorded temp dir outside the OS temp dir or overlapping the
+slice; and a symlink in the slice or the temp session, since a copy would follow it. It refuses
+when the slice is, holds, or sits inside a path the run writes: the target,
+`<target>.relayout-backup`, or a `.<target-name>.relayout-*` staging dir beside the target. In
+every mode, `--no-media` included, it refuses when one of those paths is, holds, or sits inside a
+temp dir `watch.json` records, existing or not, since `close` deletes those. It refuses an
+existing target unless `--replace` is passed, which replaces the target and keeps its
+`README.md`. The replaced target is moved to `<target>.relayout-backup` and deleted only once the
 new layout is in place. If a run is interrupted mid-swap, the next run restores the target from
 that backup when the target is missing (and says so), and refuses, naming the backup, when both
 exist; remove whichever one you do not want to keep.
@@ -93,20 +97,26 @@ It writes the knowledge-corpus layout: `transcript/`, `metadata/` (with a trimme
 the companion sources brief, and the fetched `decks/` and `attachments/`), `frames/all/`,
 `frames/key/` beside the frame and vision logs in `frames/`, `media/<id>.<ext>`, `analysis/`
 (`RESEARCH.md`, `research/`, `recommendations/`, the companion digest), and a provenance
-`README.md` when the target has none. The script's header comment is the authoritative mapping.
-Each slice path the copied markdown names (links and backticked paths) is rewritten through a
-path map relative to the file's new location. One naming a pipeline file the layout does not keep
-(such as `run-state/watch.json`, or an extracted frame's bare name under `--no-media`) becomes
-plain text saying it is not retained, and one naming a directory whose files went to several
-places (`source/`) becomes plain text naming where they went. It builds the layout in a sibling
-staging directory and link-checks it there; it exits 1 listing every slice-internal path that
-still does not resolve, including a bare extracted-frame name. Not checked: paths under
-`plugins/`, `docs/`, `templates/` and `.claude/`, `AGENTS.md`, paths that leave the target, and
-backticked paths whose first segment is neither a top-level directory of the target nor an entry
-beside the naming file (paths into another repository). Only a passing check moves the staging
-directory into place; on any failure the staging directory is removed and the target is left as
-it was. Without `--replace` the move is a single rename that fails, rather than replacing
-anything, when a target appeared during the run. Fix what it lists in the slice and re-run.
+`README.md` when the target has none; the trimmed `info.json` also drops the local download
+paths yt-dlp records. The script's header comment is the authoritative mapping. Each slice path
+the copied markdown names (inline and reference-style links, HTML `src`/`href`, and backticked
+paths, percent-encoded or with `\` separators) is rewritten through a path map relative to the
+file's new location, and a relative link that leaves the slice keeps pointing at the same file.
+One naming a pipeline file the layout does not keep (such as `run-state/watch.json`, the slice's
+own journey `README.md`, or an extracted frame's bare name under `--no-media`) becomes plain text
+saying it is not retained; one naming a directory whose files went to several places (`source/`)
+names where they went; one naming a lane folder the slice never produced (`source/decks/`) says
+so. It builds the layout in a sibling staging directory and link-checks it there; it exits 1
+listing every slice-internal path that still does not resolve, including a bare extracted-frame
+name and a path under an original lane whose parent directory the slice had (`source/missing.txt`).
+Not checked: paths under `plugins/`, `docs/`, `templates/` and `.claude/`, `AGENTS.md`, paths
+that leave the target, and backticked paths that are neither under such a lane directory nor
+under a top-level directory of the target or an entry beside the naming file (paths into another
+repository, such as `research/deepening/...` from an upstream repo). Only a passing check moves
+the staging directory into place; on any failure the staging directory is removed and the target
+is left as it was. Without `--replace` the install never replaces anything that appeared during
+the run, even an empty directory: on POSIX it claims the target with an exclusive mkdir before
+renaming onto it. Fix what it lists in the slice and re-run.
 
 ## Agent-written artifacts share the same root
 

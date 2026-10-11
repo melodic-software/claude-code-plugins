@@ -59,6 +59,9 @@ function makeFixture({ status = "complete", withMedia = true, extraFiles = {} } 
         requested_subtitles: {},
         _format_sort_fields: [],
         requested_downloads: [{}],
+        _filename: "/tmp/video-extraction-x/abc123XYZ_0.mp4",
+        filename: "/tmp/video-extraction-x/abc123XYZ_0.mp4",
+        __files_to_move: {},
         comments: Array.from({ length: 25 }, (_, index) => ({ id: `c${index}` })),
       }),
     });
@@ -170,7 +173,7 @@ describe("relayoutSlice", () => {
     expect(read(targetDir, "analysis/recommendations/menu.md")).toBe(
       [
         "Evidence: `../../transcript/transcript.txt` and ![slide](../../frames/key/title-slide.png).",
-        "Detail: `../research/findings/topic.md`, the hub [README](README.md), the [journey](../../README.md).",
+        "Detail: `../research/findings/topic.md`, the hub [README](README.md), the journey (README.md, not retained in this copy).",
         "Target file: `plugins/knowledge/skills/video-digest/SKILL.md`.",
         "Run state: run-state/watch.json (not retained in this copy), selection (key-frames/selection.json, not retained in this copy).",
         "Upstream: `research/deepening/html-report.md:92` in mattpocock/skills.",
@@ -750,6 +753,123 @@ describe("relayoutSlice", () => {
 
     expect(result.exitCode).toBe(0);
     expect(fs.existsSync(path.join(targetDir, "transcript/en.vtt"))).toBe(false);
+  });
+});
+
+describe("relayoutSlice input shapes and reference forms (adversarial sweep)", () => {
+  /** @param {string} sliceDir @param {(state: Record<string, any>) => unknown} edit */
+  function editState(sliceDir, edit) {
+    const statePath = path.join(sliceDir, "run-state", "watch.json");
+    const next = edit(JSON.parse(fs.readFileSync(statePath, "utf8")));
+    fs.writeFileSync(statePath, JSON.stringify(next));
+  }
+
+  it.each([
+    ["a videoId that is a path", (/** @type {any} */ s) => ({ ...s, videoId: "../../escaped" })],
+    ["no title", (/** @type {any} */ s) => ({ ...s, title: undefined })],
+    ["no sourceUrl", (/** @type {any} */ s) => ({ ...s, sourceUrl: "" })],
+    ["null instead of an object", () => null],
+    [
+      "a temp dir that is not a string",
+      (/** @type {any} */ s) => ({ ...s, tempSession: { ...s.tempSession, workDir: 123 } }),
+    ],
+  ])("refuses, without throwing, a watch.json with %s", async (_label, edit) => {
+    const { sliceDir, targetDir } = makeFixture();
+    editState(sliceDir, edit);
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.readdirSync(path.dirname(targetDir))).toEqual([]);
+  });
+
+  it("rewrites reference-style definitions, HTML src, encoded, spaced and backslash paths", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "research/findings/my notes.md": "notes\n",
+        "key-frames/visual-frames.md": [
+          '[defined][1] and <img src="frames/title-slide.png">',
+          "[spaced](<../research/findings/my notes.md>) [encoded](../research/findings/my%20notes.md)",
+          "Windows: `frames\\title-slide.png`.",
+          "",
+          "[1]: ../source/transcript.txt",
+          "",
+        ].join("\n"),
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      [
+        '[defined][1] and <img src="key/title-slide.png">',
+        "[spaced](<../analysis/research/findings/my notes.md>) [encoded](../analysis/research/findings/my%20notes.md)",
+        "Windows: `key/title-slide.png`.",
+        "",
+        "[1]: ../transcript/transcript.txt",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("flags a reference-style definition to a path that does not exist", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "research/claim-inventory.md": "[gone][g]\n\n[g]: findings/gone.md\n" },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([
+      { file: "analysis/research/claim-inventory.md", ref: "findings/gone.md" },
+    ]);
+  });
+
+  it("keeps a link that leaves the slice pointing at the same file from its deeper location", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "research/claim-inventory.md": "[other](../../other-slice/RESEARCH.md)\n" },
+    });
+    const sibling = path.join(path.dirname(sliceDir), "other-slice", "RESEARCH.md");
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    const link = /\]\(([^)]+)\)/.exec(read(targetDir, "analysis/research/claim-inventory.md"))?.[1];
+    expect(path.resolve(targetDir, "analysis/research", String(link))).toBe(sibling);
+  });
+
+  it("leaves another repo's lane-named path in RESEARCH.md alone", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "RESEARCH.md": "Upstream: `research/deepening/html-report.md:92` in mattpocock/skills.\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+  });
+
+  it.each([
+    [
+      "an empty caption track",
+      (/** @type {Record<string, string>} */ d) =>
+        fs.writeFileSync(path.join(d.workDir, `${VIDEO_ID}.en.vtt`), ""),
+    ],
+    [
+      "an empty frame image",
+      (/** @type {Record<string, string>} */ d) =>
+        fs.writeFileSync(path.join(d.framesDir, "anchor_00012000_0001.png"), ""),
+    ],
+  ])("refuses a temp session with %s", async (_label, damage) => {
+    const { sliceDir, targetDir, workDir, framesDir } = makeFixture();
+    damage({ workDir, framesDir });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
   });
 });
 

@@ -44,7 +44,7 @@ import { LANES } from "../lib/slice-lanes.js";
 import { resolveTempSession } from "../lib/temp-session-paths.js";
 import { watchStatePath } from "./watch-state.js";
 
-/** info.json keys the corpus copy drops: format, caption-URL, heatmap and request lists. */
+/** info.json keys the corpus copy drops: format, caption-URL, heatmap and request lists, and the local download paths yt-dlp records. */
 export const INFO_JSON_DROPPED_KEYS = Object.freeze([
   "formats",
   "requested_formats",
@@ -55,6 +55,9 @@ export const INFO_JSON_DROPPED_KEYS = Object.freeze([
   "http_headers",
   "requested_subtitles",
   "_format_sort_fields",
+  "_filename",
+  "filename",
+  "__files_to_move",
   "requested_downloads",
 ]);
 
@@ -106,11 +109,15 @@ const FRAME_IMAGE = /\.(?:png|jpe?g)$/i;
 /** The slice lane directories, plus the `SLICE/` root alias. */
 const SLICE_LANE_NAMES = new Set([...Object.values(LANES), "SLICE"]);
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
-const PLACEHOLDER = /[<>{}*$\s]/;
+const PLACEHOLDER = /[<>{}*$]/;
 const LINE_SUFFIX = /:\d+(?:[-,]\d+)*$/;
 const MARKDOWN_LINK = /(\]\()(<[^>]+>|[^)\s]+)/g;
 const FULL_LINK = /!?\[([^\]\n]*)\]\((<[^>]+>|[^)\s]+)[^)\n]*\)/g;
 const BACKTICK_SPAN = /`([^`\s]+)`/g;
+/** `[label]: path` reference-style link definitions. */
+const REFERENCE_DEFINITION = /^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]+>|\S+)/gm;
+/** `src="…"` and `href="…"` in inline HTML. */
+const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)=")([^"\n]+)"/g;
 /** A backticked span names a path when it holds a separator or ends in an extension. */
 const PATH_LIKE = /\/|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)?(?:#.*)?$/;
 
@@ -189,16 +196,18 @@ function deriveDirectoryMap(fileMap) {
  * @property {boolean} framesDropped - the layout keeps no extracted frames (`--no-media`)
  * @property {string} sliceName - the slice directory's own name
  * @property {Set<string>} sliceEntries - every slice-relative file and directory
+ * @property {string} sliceAbs - absolute slice directory
+ * @property {string} targetAbs - absolute final target directory
  */
 
-/** @typedef {{ target: string, isDir: boolean } | { retired: string, note: string }} Lookup */
+/** @typedef {{ target: string, isDir: boolean } | { retired: string, note: string } | { outside: string }} Lookup */
 
 /**
  * Split a reference into its path and the suffix to carry over unchanged
  * (`#anchor`, `?query`, `:line`).
  *
  * @param {string} ref
- * @returns {{ refPath: string, suffix: string }}
+ * @returns {{ refPath: string, suffix: string, encoded: boolean }}
  */
 function splitReference(ref) {
   const hash = ref.search(/[#?]/);
@@ -209,7 +218,20 @@ function splitReference(ref) {
     suffix = line[0] + suffix;
     refPath = refPath.slice(0, line.index);
   }
-  return { refPath, suffix };
+  // Compare paths the way the filesystem sees them: percent-decoded, with
+  // Windows separators as `/`. A rewrite re-encodes when the original was.
+  let encoded = false;
+  if (refPath.includes("%")) {
+    try {
+      const decoded = decodeURI(refPath);
+      encoded = decoded !== refPath;
+      refPath = decoded;
+    } catch {
+      // Not valid percent-encoding: keep it as written.
+    }
+  }
+  if (!URL_SCHEME.test(refPath)) refPath = refPath.replace(/\\/g, "/");
+  return { refPath, suffix, encoded };
 }
 
 /**
@@ -244,10 +266,13 @@ function lookUpReference(refPath, sourceFile, map) {
   } else if (bare.includes(marker)) {
     keys = [path.posix.normalize(bare.slice(bare.indexOf(marker) + marker.length))];
   } else {
-    keys = [
-      path.posix.normalize(path.posix.join(path.posix.dirname(sourceFile), bare)),
-      bare.startsWith(".") ? null : path.posix.normalize(bare),
-    ];
+    const fromFile = path.posix.normalize(path.posix.join(path.posix.dirname(sourceFile), bare));
+    // A relative path that leaves the slice (a sibling slice, the repo) keeps
+    // pointing at the same place from the file's new, deeper location.
+    if (fromFile === ".." || fromFile.startsWith("../")) {
+      return { outside: path.resolve(map.sliceAbs, ...fromFile.split("/")) };
+    }
+    keys = [fromFile, bare.startsWith(".") ? null : path.posix.normalize(bare)];
   }
   for (const key of keys) {
     const found = lookup(key);
@@ -309,12 +334,20 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   const unwrap = (/** @type {string} */ target) =>
     target.startsWith("<") ? target.slice(1, -1) : target;
   const rewrite = (/** @type {string} */ ref) => {
-    const { refPath, suffix } = splitReference(ref);
+    const { refPath, suffix, encoded } = splitReference(ref);
     const found = lookUpReference(refPath, sourceFile, map);
     if (!found || "retired" in found) return ref;
-    const relative = path.posix.relative(path.posix.dirname(targetFile), found.target) || ".";
-    const trailing = found.isDir && refPath.endsWith("/") ? "/" : "";
-    const next = `${relative}${trailing}${suffix}`;
+    let relative;
+    let trailing = "";
+    if ("outside" in found) {
+      const fileDir = path.dirname(path.join(map.targetAbs, targetFile));
+      relative = path.relative(fileDir, found.outside).split(path.sep).join("/");
+      trailing = refPath.endsWith("/") ? "/" : "";
+    } else {
+      relative = path.posix.relative(path.posix.dirname(targetFile), found.target) || ".";
+      trailing = found.isDir && refPath.endsWith("/") ? "/" : "";
+    }
+    const next = `${encoded ? encodeURI(relative) : relative}${trailing}${suffix}`;
     if (next !== ref) rewrites += 1;
     return next;
   };
@@ -328,6 +361,13 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     .replace(MARKDOWN_LINK, (_match, open, target) =>
       target.startsWith("<") ? `${open}<${rewrite(unwrap(target))}>` : `${open}${rewrite(target)}`,
     )
+    // Reference-style definitions and HTML src/href attributes take the same
+    // path rewrite. One naming a file the layout drops is left for the link
+    // check to flag: a definition or attribute has no prose to rewrite into.
+    .replace(REFERENCE_DEFINITION, (_match, open, target) =>
+      target.startsWith("<") ? `${open}<${rewrite(unwrap(target))}>` : `${open}${rewrite(target)}`,
+    )
+    .replace(HTML_PATH_ATTRIBUTE, (_match, open, target) => `${open}${rewrite(target)}"`)
     .replace(BACKTICK_SPAN, (match, span) => {
       if (!PATH_LIKE.test(span)) return match;
       const found = lookUpReference(splitReference(span).refPath, sourceFile, map);
@@ -358,15 +398,17 @@ function looksSliceInternal(refPath, fileDir, topLevel, sliceDirs) {
   if (!refPath.includes("/")) return FRAME_NAME.test(refPath);
   if (/^(?:\.\.?|SLICE)\//.test(refPath)) return true;
   const first = refPath.split("/")[0];
-  if (topLevel.has(first) || fs.existsSync(path.join(fileDir, first))) return true;
-  // A path left under an original slice lane (`source/missing.txt`) is a
-  // slice path the rewrite could not place. With the slice's directories
-  // known, it counts when its parent directory existed in the slice, so a
-  // path into another repository that shares a lane name
-  // (`research/deepening/x.md`) stays external; without them, any lane name
-  // counts.
-  if (!SLICE_LANE_NAMES.has(first)) return false;
-  return sliceDirs === undefined || sliceDirs.has(path.posix.dirname(refPath.replace(/\/+$/, "")));
+  // A path under an original slice lane name (`source/missing.txt`) is the
+  // slice's when its parent directory existed in the slice, so a path into
+  // another repository that shares a lane name (`research/deepening/x.md`)
+  // stays external even beside `analysis/research/`. Without the slice's
+  // directories, any lane name counts.
+  if (SLICE_LANE_NAMES.has(first)) {
+    return (
+      sliceDirs === undefined || sliceDirs.has(path.posix.dirname(refPath.replace(/\/+$/, "")))
+    );
+  }
+  return topLevel.has(first) || fs.existsSync(path.join(fileDir, first));
 }
 
 /**
@@ -402,8 +444,10 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
       if (rel.startsWith("..") || path.isAbsolute(rel)) return;
       if (!fs.existsSync(resolved)) unresolved.push({ file, ref });
     };
-    for (const match of text.matchAll(MARKDOWN_LINK)) {
-      check(match[2].replace(/^<|>$/g, ""), true);
+    for (const pattern of [MARKDOWN_LINK, REFERENCE_DEFINITION, HTML_PATH_ATTRIBUTE]) {
+      for (const match of text.matchAll(pattern)) {
+        check(match[2].replace(/^<|>$/g, ""), true);
+      }
     }
     for (const match of text.matchAll(BACKTICK_SPAN)) {
       check(match[1], false);
@@ -460,6 +504,40 @@ function provenanceReadme({ title, sourceUrl, videoId, acquiredAt }, presentTopD
   ].join("\n");
 }
 
+/** A video id as yt-dlp's `%(id)s` writes it: no separator, no `..`. */
+const VIDEO_ID = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * What is wrong with a parsed watch.json's shape for this script, or null.
+ * `videoId` names `media/<id>.<ext>`, so it must not hold a path; the title
+ * and source URL fill the provenance README; the temp session dirs are paths.
+ *
+ * @param {unknown} state
+ * @returns {string|null}
+ */
+function watchStateShapeProblem(state) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) return "is not a JSON object";
+  const record = /** @type {Record<string, unknown>} */ (state);
+  if (typeof record.videoId !== "string" || !VIDEO_ID.test(record.videoId)) {
+    return `videoId ${JSON.stringify(record.videoId)} is not a plain video id`;
+  }
+  for (const field of ["title", "sourceUrl"]) {
+    if (typeof record[field] !== "string" || record[field] === "") {
+      return `has no ${field} string`;
+    }
+  }
+  const temp = record.tempSession;
+  if (temp === undefined || temp === null) return null;
+  if (typeof temp !== "object" || Array.isArray(temp)) return "tempSession is not an object";
+  const session = /** @type {Record<string, unknown>} */ (temp);
+  for (const field of ["workDir", "framesDir", "contactSheetsDir", "acquiredAt"]) {
+    if (session[field] !== undefined && typeof session[field] !== "string") {
+      return `tempSession.${field} is not a string`;
+    }
+  }
+  return null;
+}
+
 /**
  * What the frames dir lacks for a complete `frames/all/`: `frame-times.json`
  * (an object keyed by frame file), at least one frame image, and every frame
@@ -489,6 +567,11 @@ function missingFrames(framesDir) {
   if (readable && !isTimesObject) {
     missing.push(`a frame-times.json holding a JSON object (${framesDir})`);
   }
+  const emptyImages = [...names].filter(
+    (name) => FRAME_IMAGE.test(name) && fs.statSync(path.join(framesDir, name)).size === 0,
+  );
+  if (emptyImages.length > 0)
+    missing.push(`non-empty frames (empty: ${emptyImages.sort().join(", ")})`);
   if (![...names].some((name) => FRAME_IMAGE.test(name))) {
     missing.push(`any frame image (${framesDir})`);
   }
@@ -632,6 +715,8 @@ export async function relayoutSlice({
   } catch {
     return refuse(`no readable run-state/watch.json under ${slice}`);
   }
+  const shapeProblem = watchStateShapeProblem(state);
+  if (shapeProblem) return refuse(`run-state/watch.json ${shapeProblem}`);
   const outcomesPass = () => {
     try {
       return verifyOutcomes(slice) === 0;
@@ -727,6 +812,9 @@ export async function relayoutSlice({
         .flatMap((dir) => (dir ? findSymlinks(dir).map((link) => path.join(dir, link)) : []))
         .map((link) => `regular files in place of symlinks (${link})`),
       ...(captioned && media.captionPaths.length === 0 ? ["the caption tracks"] : []),
+      ...media.captionPaths
+        .filter((caption) => fs.statSync(caption).size === 0)
+        .map((caption) => `a non-empty caption track (${path.basename(caption)} is empty)`),
     ];
     if (missing.length > 0) {
       return refuse(
@@ -767,13 +855,14 @@ export async function relayoutSlice({
     });
   }
 
-  // A reference to the slice README lands on the target README, provenance or existing.
-  const files = new Map([
-    ["README.md", "README.md"],
-    ...plan.flatMap((entry) =>
+  // The slice's own README (its journey) is not copied: the target's README is
+  // a provenance page with other headings, so a reference to the slice README
+  // becomes not-retained text rather than a link to a different page.
+  const files = new Map(
+    plan.flatMap((entry) =>
       entry.sourceFile ? [/** @type {[string, string]} */ ([entry.sourceFile, entry.to])] : [],
     ),
-  ]);
+  );
   /** @type {PathMap} */
   const map = {
     files,
@@ -782,6 +871,8 @@ export async function relayoutSlice({
     framesDropped: noMedia,
     sliceName: path.basename(slice),
     sliceEntries,
+    sliceAbs: slice,
+    targetAbs: target,
   };
 
   // Build the whole layout in a sibling staging directory and move it into
