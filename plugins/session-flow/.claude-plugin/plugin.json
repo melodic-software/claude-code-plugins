@@ -119,6 +119,13 @@
       "default": 3,
       "min": 1,
       "max": 20
+    },
+    "cloud_route": {
+      "type": "string",
+      "title": "Cloud session suggestion",
+      "description": "Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask.",
+      "default": "offer",
+      "options": ["off", "offer"]
     }
   }
 }

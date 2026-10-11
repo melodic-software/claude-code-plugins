@@ -156,6 +156,19 @@
         "The level passed for this verify task is not below medium",
         "The launch result is reported and the skill STOPS"
       ]
+    },
+    {
+      "id": 13,
+      "name": "cloud-unpushed-commits-no-launch",
+      "prompt": "/continue-in-background --cloud prompt — run the rest in a cloud session. The tree is clean but I have two local commits I haven't pushed.",
+      "expected_output": "The skill produces the save-point and rails prompt, then finds unpushed commits on the branch. Because the cloud VM clones the pushed branch, it does not run claude --cloud; it reports why, names commit-and-push as the fix, and falls back to the /clear-then-paste instruction.",
+      "files": [],
+      "expectations": [
+        "The unpushed-commit check runs before any launch",
+        "claude --cloud is not run",
+        "The report says the cloud session would not see the unpushed commits and names pushing as the fix",
+        "The fallback is the standard /clear-then-paste instruction"
+      ]
     }
   ]
 }
