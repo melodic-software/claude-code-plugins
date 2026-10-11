@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.20.12] - 2026-10-11
+
+### Fixed
+
+- video-digest `resume` reports a closed slice as having nothing to resume and leaves its continuation prompt untouched, writes only slice-relative paths into `continuation-prompt.md`, stops before vision with a re-run instruction when the temp session dirs are gone, and rejects a slug that is not a single slice-name segment ([#6822](https://github.com/melodic-software/claude-code-plugins/issues/6822)).
+
 ## [0.20.11] - 2026-10-10
 
 ### Fixed

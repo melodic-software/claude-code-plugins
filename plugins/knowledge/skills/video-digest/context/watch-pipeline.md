@@ -143,7 +143,22 @@ inspection sample:
 
 Before the research agenda, write `research/claim-inventory.md`:
 
-- Segment the transcript into sessions with timestamps
+- Segment the transcript into sessions with timestamps, one `## <n>. <name>` heading per session
+  followed by a `**Boundary:**` line with the start and end stamps. Stamps are `[m:ss]` (minutes
+  unbounded, as the transcript writes them) or `[h:mm:ss]`. The session gates and
+  `list-promotion-candidates.js` read only this shape; a session table is not parsed, and an
+  inventory with no parsed session fails `session-visual-coverage` and `session-synthesis-depth`:
+
+  ```markdown
+  ## 1. Opening and agenda
+
+  **Boundary:** [0:04] welcome → [1:33] first demo
+
+  ## 2. First demo
+
+  **Boundary:** [1:33] first demo → [1:05:30] Q&A
+  ```
+
 - Extract verifiable claims per segment (product names, version gates, metrics, comparisons) as
   tier-3 rows
 - Derive `research/research-agenda.md` clusters from the inventory; do not jump to research without

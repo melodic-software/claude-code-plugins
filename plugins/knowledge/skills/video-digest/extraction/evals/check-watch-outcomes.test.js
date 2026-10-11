@@ -178,3 +178,84 @@ describe("checkWatchOutcomes research gate", () => {
     expect(check?.actual).toBe("skipped (--skip-research)");
   });
 });
+
+/**
+ * A slice with one promoted synthesis frame at 30 s of a 600 s video and the
+ * given claim inventory.
+ *
+ * @param {string} claimInventory
+ * @returns {string}
+ */
+function makeSessionSlice(claimInventory) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "watch-outcomes-sessions-"));
+  onTestFinished(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  for (const dir of ["run-state", "research", "key-frames/frames"]) {
+    fs.mkdirSync(path.join(tmp, dir), { recursive: true });
+  }
+  fs.writeFileSync(path.join(tmp, "run-state", "watch.json"), JSON.stringify({}));
+  fs.writeFileSync(
+    path.join(tmp, "key-frames", "selection.json"),
+    JSON.stringify({
+      durationSec: 600,
+      selectedFrames: [{ file: "scene_0001.png", timestampSec: 30 }],
+    }),
+  );
+  fs.writeFileSync(path.join(tmp, "key-frames", "frames", "0001.png"), "");
+  fs.writeFileSync(path.join(tmp, "research", "claim-inventory.md"), claimInventory);
+  return tmp;
+}
+
+/**
+ * @param {string} sliceDir
+ * @param {string} id
+ */
+function sessionCheck(sliceDir, id) {
+  return checkWatchOutcomes(sliceDir).checks.find((c) => c.id === id);
+}
+
+describe("checkWatchOutcomes session gates", () => {
+  it("fails both session gates when a table-form inventory parses to no session", () => {
+    const slice = makeSessionSlice(
+      [
+        "# Claim inventory",
+        "",
+        "## Session segments",
+        "",
+        "| ID | Window | Topic |",
+        "| --- | --- | --- |",
+        "| S1 | 0:04-1:33 | Opening |",
+        "| S2 | 1:33-9:10 | Main talk |",
+        "",
+      ].join("\n"),
+    );
+    for (const id of ["session-visual-coverage", "session-synthesis-depth"]) {
+      const check = sessionCheck(slice, id);
+      expect(check?.pass).toBe(false);
+      expect(check?.severity).toBe("fail");
+      expect(check?.actual).toContain("no session parsed");
+      expect(check?.actual).toContain("**Boundary:**");
+    }
+  });
+
+  it("passes when every heading-form session holds a promoted frame", () => {
+    const slice = makeSessionSlice("## 1. Opening\n\n**Boundary:** [0:00] start → [5:00] main\n");
+    expect(sessionCheck(slice, "session-visual-coverage")?.pass).toBe(true);
+    expect(sessionCheck(slice, "session-synthesis-depth")?.pass).toBe(true);
+  });
+
+  it("names a heading-form session that holds no promoted frame", () => {
+    const slice = makeSessionSlice(
+      [
+        "## 1. Opening",
+        "**Boundary:** [0:00] start → [5:00] main",
+        "",
+        "## 2. Closing",
+        "**Boundary:** [5:00] main → [10:00] end",
+        "",
+      ].join("\n"),
+    );
+    const check = sessionCheck(slice, "session-visual-coverage");
+    expect(check?.pass).toBe(false);
+    expect(check?.actual).toBe("missing: Closing");
+  });
+});

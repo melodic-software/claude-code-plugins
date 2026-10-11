@@ -42,7 +42,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 
 ## Phase 3: Claim landscape (before research)
 
-- [ ] **3.1** `research/claim-inventory.md`. Verify: sessions with boundaries; ≥4 claims/session (conference); ≥40 claims if ≥4h
+- [ ] **3.1** `research/claim-inventory.md`. Verify: one `## <n>. <name>` heading plus `**Boundary:** [m:ss] … [m:ss]` line per session (format in `watch-pipeline.md` Phase 2; a table is not parsed); ≥4 claims/session (conference); ≥40 claims if ≥4h
 - [ ] **3.2** `research/research-agenda.md` drafted from inventory. Verify: cluster rows map to claim IDs
 - [ ] **3.3** No research fan-out started before 3.1. Verify: agenda exists before first research cluster
 

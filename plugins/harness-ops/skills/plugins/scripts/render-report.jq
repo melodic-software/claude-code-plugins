@@ -189,9 +189,12 @@ def block($d):
              end
          end),
 
+      # The digest names this plugin's own row; a digest written before it did
+      # carries no row, so the note names no plugin rather than guess one.
       (if .self_updated == true then
-         (($updated + .downgraded) | map(select(.id | test("^[^@]+@") )) | .[0]) as $row
-         | "Note: this run updated \(($row.id // "this plugin") | split("@")[0]) (\($row.old // "?") → \($row.new // "?")). The algorithm that ran is the pre-update one:",
+         (if .self_update == null then "this plugin"
+          else "\(.self_update.id | split("@")[0]) (\(.self_update.old // "?") → \(.self_update.new // "?"))" end) as $what
+         | "Note: this run updated \($what). The algorithm that ran is the pre-update one:",
            "  ${CLAUDE_PLUGIN_ROOT} still resolves to the version loaded at session start. /reload-plugins",
            "  before relying on the new version."
        else empty end),
@@ -212,7 +215,14 @@ def block($d):
            end,
          "  (not counted as divergences: converge cannot cd into a path that is not present. A path can also",
          "   be absent because a volume is unmounted or a share is offline, so this is an observation, not a",
-         "   verdict that the directory is gone for good.)"
+         "   verdict that the directory is gone for good.)",
+         # Only project-scope records under the source-control worktree root are that audit's to
+         # classify, so the pointer needs a project-scope record and says which of them it covers.
+         (if ($s.project // 0) > 0 then
+            "  \($s.project) of these are project-scope. For those left by worktrees removed under the",
+            "  source-control worktree root, /source-control:worktree audit (if installed) classifies them",
+            "  and gives the gated reap; local-scope records and other paths are not that audit's to reap."
+          else empty end)
        else empty end),
 
       (.cache_content as $c
