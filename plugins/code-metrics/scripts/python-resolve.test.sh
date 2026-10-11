@@ -32,7 +32,8 @@ assert_eq "floor read from report.py" "3.9" "$CM_PYTHON_FLOOR"
 assert_eq "PY runs and satisfies the floor" 0 "$?"
 
 # 2. A two-word launcher is kept as two array elements: a fake `py` on an
-#    otherwise interpreter-free PATH.
+#    otherwise interpreter-free PATH. Read from CM_PY_NATIVE, because on a
+#    host whose Python writes CRLF, PY is the wrapper.
 stubs="$(mktemp -d)"
 trap 'rm -rf "$stubs"' EXIT
 real_python="$(command -v python3 || command -v python)"
@@ -46,7 +47,7 @@ chmod +x "$stubs/py"
 for tool in bash sed tr command; do
   p="$(command -v "$tool" 2>/dev/null)" && [[ -f "$p" ]] && ln -s "$p" "$stubs/$tool"
 done
-out="$(PATH="$stubs" bash -c 'source "$1"; cm_resolve_python && printf "%s|" "${PY[@]}"' _ "$SCRIPT")"
+out="$(PATH="$stubs" bash -c 'source "$1"; cm_resolve_python && printf "%s|" "${CM_PY_NATIVE[@]}"' _ "$SCRIPT")"
 assert_eq "py -3 resolves as two array elements" "py|-3|" "$out"
 
 # 3. Nothing resolves: returns 1 and PY is empty (a PATH with the shell
@@ -65,14 +66,15 @@ assert_eq "no interpreter returns 1 with an empty PY" "1:0" "$out"
 out="$("${PY[@]}" -c 'print("a"); print("b")' | od -An -c | tr -s ' \n' ' ')"
 assert_eq "PY output carries no CR on this machine" " a \n b \n " "$out"
 
-# 5. A CRLF interpreter (a stub that appends a CR to every line, as native
-#    Windows Python's text-mode stdout does) is wrapped: PY strips the CR,
+# 5. A CRLF interpreter (a stub that ends every line with exactly one CR, as
+#    native Windows Python's text-mode stdout does, whether or not the real
+#    interpreter under it already writes CRLF) is wrapped: PY strips the CR,
 #    keeps the interpreter's exit status, and CM_PY_NATIVE names the
 #    interpreter itself (#6794).
 crlf="$(mktemp -d)"
 cat >"$crlf/python3" <<EOF
 #!/usr/bin/env bash
-"$real_python" "\$@" | sed 's/\$/\r/'
+"$real_python" "\$@" | sed 's/\r*\$/\r/'
 exit "\${PIPESTATUS[0]}"
 EOF
 chmod +x "$crlf/python3"

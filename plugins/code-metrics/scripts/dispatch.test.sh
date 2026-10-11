@@ -636,7 +636,8 @@ assert_doc "the row is unavailable with the tool's own reason and no 'collect fa
 rm -rf "$noconf" "$ladder"
 
 # 26. An interpreter that writes CRLF, as native Windows Python does (#6794).
-# A stub `python3` ahead of the real one appends a CR to every stdout line, so
+# A stub `python3` ahead of the real one ends every stdout line with exactly
+# one CR (also when the real one already writes CRLF), so
 # a Linux runner sees what Git Bash sees: every path, lane glob, exclusion,
 # scope default, and registry bash reads back from Python would carry a
 # trailing CR. Unhandled, `a.sh<CR>` matches no lane (every file lands in
@@ -647,7 +648,7 @@ real_py="$(command -v python3 || command -v python)"
 for name in python3 python; do
   cat >"$crlf/$name" <<EOF
 #!/usr/bin/env bash
-"$real_py" "\$@" | sed 's/\$/\r/'
+"$real_py" "\$@" | sed 's/\r*\$/\r/'
 exit "\${PIPESTATUS[0]}"
 EOF
   chmod +x "$crlf/$name"
