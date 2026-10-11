@@ -244,7 +244,7 @@ the step UNKNOWN with remediation, never green.
 
    - **GraphQL reachability (a different wall, probed the same way).** The two canaries above prove
      the lane's own scripts reach the classifier; this one proves the forge will answer them.
-     A cloud session behind the GitHub proxy is served no GraphQL, and the forge CLI's PR reads run
+     A cloud session behind the GitHub proxy can refuse GraphQL, and the forge CLI's PR reads run
      over GraphQL. Probe it read-only against the repository itself with the viewer-login query in
      the [GitHub provider reference](../../reference/providers/github/README.md) "Sandboxed
      sessions", which holds the upstream pointer.

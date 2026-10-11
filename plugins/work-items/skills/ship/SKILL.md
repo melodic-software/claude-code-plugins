@@ -83,8 +83,8 @@ comes from the bound adapter's own read, not from `get-item`:
 gh issue view "<number>" --repo "<owner>/<repo>" --json body,title
 ```
 
-That command routes through GraphQL and returns `HTTP 403` in a sandboxed session; the REST
-substitute is in the bound adapter's operations reference (GitHub:
+That command routes through GraphQL; on a sandboxed session's `HTTP 403` refusal, use the REST
+substitute in the bound adapter's operations reference (GitHub:
 [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md)
 "View item"). Pointer:
 [Configure cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy),

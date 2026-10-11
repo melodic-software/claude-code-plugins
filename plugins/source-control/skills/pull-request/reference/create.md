@@ -112,7 +112,7 @@ fi
 
 **Skip conditions:** branch has zero commits ahead (nothing to rebase), or merge-base already equals `$REMOTE/$DEFAULT_BRANCH` (branch is current).
 
-**Sandboxed sessions: resolve the default branch over REST.** The CLI's repository read sends the same GraphQL query its PR create does, so this is the *first* step on the normal `create` path to fail with `HTTP 403` in a session served no GraphQL. See §2.4.0 for the full restriction and the placeholder-anchoring rule. Substitute the REST repository read ([GitHub](../../../reference/providers/github/pull-request/create.md#default-branch-over-rest)).
+**Sandboxed sessions: resolve the default branch over REST.** The CLI's repository read sends the same GraphQL query its PR create does, so this is the *first* step on the normal `create` path to fail with `HTTP 403` when the GitHub proxy refuses GraphQL. See §2.4.0 for the full restriction and the placeholder-anchoring rule. Substitute the REST repository read ([GitHub](../../../reference/providers/github/pull-request/create.md#default-branch-over-rest)).
 
 ## 2.3 Stage and commit
 
@@ -193,7 +193,7 @@ issue is missing or not open, clears `ISSUE_NUM`, and the orphan-PR prompt below
 
 **Single-issue branch:** parser returns `N` from `<type>/<N>-<slug>` (and `chore/routine-issue-<N>-<slug>` for cloud routines). When the issue read confirms the issue exists and its state is `OPEN`, `${CLOSES_LINE}` becomes `Closes #N`. If the issue is missing, closed, or otherwise not open, the flow falls through to the orphan-PR prompt. Never ship a stale or unverified keyword.
 
-**Sandboxed sessions: run this check over REST.** The CLI's issue read routes through GitHub's GraphQL API, and a cloud session behind the GitHub proxy is served no GraphQL operation at all, so the read fails with `HTTP 403` whatever credentials are supplied. The default block swallows that 403 and leaves `ISSUE_STATE` empty, so the flow reports a live, open issue as "missing or not open" and drops the very `Closes #N` line §2.4.2.1 then gates on. Substitute the REST issue read, which reports `state` in lower case ([GitHub](../../../reference/providers/github/pull-request/create.md#issue-state-over-rest), with the evidence and its recheck trigger).
+**Sandboxed sessions: run this check over REST.** The CLI's issue read routes through GitHub's GraphQL API, so where the GitHub proxy refuses that GraphQL read, it fails with `HTTP 403` whatever credentials are supplied. The default block swallows that 403 and leaves `ISSUE_STATE` empty, so the flow reports a live, open issue as "missing or not open" and drops the very `Closes #N` line §2.4.2.1 then gates on. Substitute the REST issue read, which reports `state` in lower case ([GitHub](../../../reference/providers/github/pull-request/create.md#issue-state-over-rest), with the evidence and its recheck trigger).
 
 **Placeholder anchoring.** A REST call's `{owner}` and `{repo}` placeholders expand from the repository of the **current directory** ([GitHub](../../../reference/providers/github/pull-request/create.md#placeholder-anchoring)). That is safe on the normal `create` path, whose cwd is the branch's own clone, but not under §2.7, where the invoking orchestrator sits out-of-tree: there, run the call from `$WT` (the subshell form §2.7 already uses for `resolve-remote.sh`) or name the repository explicitly. The same rule governs the REST PR-create fallback in §2.4.3.
 

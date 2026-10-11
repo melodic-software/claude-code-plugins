@@ -70,8 +70,8 @@ is.
    A trailer stays legitimate as recorded operator context and as a proposal, and is reported as
    such, but it never partitions: an item classified only in its body counts as **unclassified
    here**, not eligible at any rung, exactly as an item with no record at all.
-   Close-linkage is GraphQL-only, and `closingIssuesReferences` is unavailable in a session served
-   no GraphQL (a cloud session behind the GitHub proxy; `skills/babysit-prs/SKILL.md` "Engine and
+   Close-linkage is GraphQL-only, and `closingIssuesReferences` is unreadable wherever the forge refuses
+   that GraphQL read (a cloud session behind the GitHub proxy; `skills/babysit-prs/SKILL.md` "Engine and
    degrade", and the upstream pointer in `reference/providers/github/README.md` "Sandboxed
    sessions"). That is the no-close-linkage case already
    ruled on below, so it partitions the same way, NOT eligible, at any rung. It is also moot for

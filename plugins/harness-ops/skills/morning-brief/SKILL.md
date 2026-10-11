@@ -90,8 +90,8 @@ truncated list never reads as the whole set: the label inventory (and then the q
 rows are not filtered to labels that exist), a queue count (shown as `N+`), the
 open-PR list, the decision list, and the telemetry issue search.
 
-The `gh` subcommands ride GraphQL. When the host serves no GraphQL (the cloud
-GitHub proxy's HTTP 403 refusal), sections 1-4 are re-read from repository-scoped REST endpoints and the
+The `gh` subcommands ride GraphQL. When a GraphQL read is refused (the cloud
+GitHub proxy's HTTP 403), sections 1-4 are re-read from repository-scoped REST endpoints and the
 header names the transport. Two consequences: the merge-ready list reports
 `review=n/a` and reads merge state for at most `--pr-limit` open PRs (default 50),
 saying so when capped or when GitHub has not finished computing a PR's mergeability;
