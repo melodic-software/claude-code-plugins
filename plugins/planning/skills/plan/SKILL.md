@@ -141,7 +141,7 @@ Prefer the simplest plan that works and keep each step's changes surgical.
 
 Before planning, verify the knowledge base is ready:
 
-- **Is the effort coherent enough to plan?**. If the work is too big to hold at once AND still too foggy to phrase as sharp decisions (missing questions you can't yet state, not just unanswered ones), `/planning:plan` is premature. A plan needs a coherent target. Guide the user to `/planning:wayfind` first (it charts the fog as a decision map and works it down until a destination coheres); recommend, never auto-switch. Skip when the effort is already scoped and the open items are answerable questions
+- **Is the effort coherent enough to plan?**. If the work is too big to hold at once AND still too foggy to phrase as sharp decisions (missing questions you can't yet state, not just unanswered ones), `/planning:plan` is premature. A plan needs a coherent target. Guide the user to `/planning:wayfind` when an interview of the effort already outgrew one session (it charts the fog as a decision map and works it down until a destination coheres), else to `/planning:interview` first; recommend, never auto-switch. Skip when the effort is already scoped and the open items are answerable questions
 - **Is product intent clear?**. For product-driven feature work (new user-facing surface, business-driven change, cross-team initiative), check that the topic's memory slice holds `PRD.md` (`<memory_dir>/<topic-slug>/PRD.md`, default `.work/`) OR that problem/users/success-metrics are already crisp in conversation. If fuzzy, suggest running `/planning:prd` first. Skip this check for engineering-internal work (refactors, infra, hooks, conventions, bug fixes). `/planning:prd` does not apply
 - **Has exploration been done?**. Check if the conversation contains exploration findings for the relevant area. If not, suggest running the exploration capability first (`/discovery:explore` if enabled). Don't plan in the dark
 - **Has research been done?**. Check if external research has been completed for technical claims the plan will rely on. If not, suggest running the research capability first (`/discovery:research` if enabled). Plans built on assumptions instead of evidence lead to rework
@@ -228,8 +228,8 @@ Apply the reviewer rule under Planning Process before blast radius or presentati
    one bounded sub-agent (default `effort: medium`, capped turns). One sentence is enough.
 3. Dispatch the plugin's **`plan-reviewer`** agent (`agents/plan-reviewer.md`) with the prompt from
    [context/plan-reviewer.md](context/plan-reviewer.md). Do not substitute a generic read-only
-   sub-agent: the agent definition carries bounded `effort` and `maxTurns` that session effort cannot
-   lower per invocation (the verification record in `agents/plan-reviewer.md`).
+   sub-agent, and pass no `effort` on the call: the agent definition carries the reviewer's bounded
+   `effort` and `maxTurns` (the effort record in `agents/plan-reviewer.md`).
    When the reviewer stops at its `maxTurns` limit its output may be marked partial, and older
    clients do not mark it. A complete report ends with its `### Summary` counts, or is the literal
    `No plan gaps found.` for a clean pass; treat any other return without that section as

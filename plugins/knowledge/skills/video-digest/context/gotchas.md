@@ -10,9 +10,11 @@ Acquisition tries without cookies first; on *"Sign in to confirm you're not a bo
 
 Acquisition applies yt-dlp `--retries`, `--sleep-requests`, `--sleep-subtitles` plus an **outer exponential backoff on HTTP 429**. Batch runs cap concurrency via the `max_concurrent_acquires` option (default 1, max 3); raising it increases 429 risk.
 
+A caption download still throttled after that backoff fails the run with a rate-limit error naming the yt-dlp message, not "No English captions found": the captions may exist. Wait several minutes and re-run.
+
 ## Temp-session expiry
 
-Bulk frames and contact sheets stay in OS `tempSession` dirs, not the repo. When those dirs have been reaped, `run-state/watch.json` `tempSession` paths are stale, so **re-run `run-watch.js`** before vision (resume detects this and stops for the same reason).
+Bulk frames and contact sheets stay in OS `tempSession` dirs, not the repo. When those dirs have been reaped, `run-state/watch.json` `tempSession` paths are stale, so **re-run `run-watch.js`** before vision. `resume` checks those dirs, reports `tempSessionPresent` and `missingTempDirs`, and exits 1 with that instruction when the next phase is vision and a dir is gone.
 
 A successful `close` removes those recorded dirs on purpose, after it marks the slice complete. When one is locked (on Windows, a scanner or player holding a file open), `close` warns on stderr with the path and still succeeds; delete that dir by hand once the lock is gone.
 
