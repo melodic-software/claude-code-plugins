@@ -169,6 +169,31 @@
         "The report says the cloud session would not see the unpushed commits and names pushing as the fix",
         "The fallback is the standard /clear-then-paste instruction"
       ]
+    },
+    {
+      "id": 14,
+      "name": "cloud-without-user-ask-launches-locally",
+      "prompt": "Continue this in the background while I grab lunch. (The model invokes the skill with arguments: --cloud prompt)",
+      "expected_output": "The user asked for background work but never asked for a cloud session, so the skill drops the model-supplied --cloud and takes the local delivery: it produces the save-point and rails prompt and launches a local claude --bg session, not claude --cloud.",
+      "files": [],
+      "expectations": [
+        "claude --cloud is not run",
+        "The skill treats the background request as not covering a cloud launch",
+        "The local background delivery runs instead"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "cloud-default-full-path-no-launch",
+      "prompt": "/continue-in-background --cloud — run the rest of this plan in a cloud session. The tree is clean and pushed; the work is backed by a PLAN.md in my memory folder.",
+      "expected_output": "The save-point engine takes the full path by default because a plan backs the work. A handoff file in the memory tier never reaches the cloud session, so the skill does not run claude --cloud; it tells the user to commit and push the handoff or plan and start the cloud session with a prompt naming its repo-relative path, and it commits nothing itself.",
+      "files": [],
+      "expectations": [
+        "The save-point takes the full path without the user forcing it",
+        "claude --cloud is not run",
+        "The report names committing and pushing the handoff or plan as the route",
+        "The skill does not commit anything"
+      ]
     }
   ]
 }

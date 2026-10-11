@@ -168,22 +168,24 @@ fallback), then:
 
 ## Delivery variant: `--cloud`
 
-Same hard gate, save-point, rails payload, prompt file, failure fallback and STOP. Steps 1 to 3
-change, because the cloud VM clones the GitHub remote at the current branch, never this checkout:
+Same hard gate, save-point, rails payload, prompt file, failure fallback and STOP, plus one more
+condition: the user's own words asked for a cloud session. A request for background work alone
+does not cover it; without that, drop `--cloud` and take the local delivery. Steps 1 to 3
+change, because the cloud session works only from what is pushed (Pointer below):
 
 1. **Only pushed work reaches it.** Launch only when `git status --porcelain -uall` lists nothing
    but save-point files (the linked-worktree exception does not apply) and
    `git rev-list --count @{upstream}..HEAD` prints `0`. No upstream, a failed command, or any other
    result → no launch; fall back as the dirty case does and name commit-and-push as the fix. A
    handoff file in the memory tier never reaches the VM, and the full path's `Read @` names a local
-   path, so launch only on the prompt-only path. When the full path is forced, do not launch:
+   path, so launch only on the prompt-only path. When the save-point takes the full path, forced or by default, do not launch:
    tell the user to commit and push the handoff or plan, then start the cloud session with a
    prompt naming its repo-relative path. This skill commits nothing.
 2. **Launch** from the project root with the prompt file and no other flag:
    `claude --cloud "$(cat "<prompt-file>")" && rm -f "<prompt-file>"`.
 3. **Report** the session id and link it prints, plus the return paths: `claude --teleport <id>`
-   or `/teleport` to continue it in a terminal, which needs a clean tree, the session's branch
-   pushed, and the same account; `claude -p "<message>" --cloud <id>` to queue a follow-up. Name
+   or `/teleport` to continue it in a terminal (its requirements: Pointer below), which needs the
+   same account; `claude -p "<message>" --cloud <id>` to queue a follow-up. Name
    the account the CLI is signed in to now: the session draws that account's limits, teleport and
    follow-ups fail after the CLI switches accounts, and the repo's plugins load only when that
    account's cloud environment runs the repo's setup script.

@@ -198,7 +198,8 @@ The account matters when the user rotates CLI logins across accounts. A cloud se
 and draws limits from, the account that started it: it frees local CPU and parallelism, not quota
 on that account. An idle account signed in on the web or Desktop can take the task on its own
 quota. Each account needs its own cloud environment with the repo's setup script, or the repo's
-plugins do not load (this marketplace documents its script in `docs/cloud-sessions.md`). Teleport
+plugins do not load (this marketplace documents its script in
+<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/cloud-sessions.md>). Teleport
 and CLI follow-ups need the starting account, so they fail once the CLI login has switched; say
 which account the advice assumes.
 
