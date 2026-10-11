@@ -156,6 +156,67 @@ Describe 'Get-CisaKevCache' -Tag 'lib' {
         }
     }
 
+    Context 'cache state annotation (#6505)' {
+        It 'marks a freshly fetched list fresh with no fetch error' {
+            Set-KevFetchMock -CveId 'CVE-2024-0101'
+
+            $result = Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath
+            $result._cache_state | Should -Be 'fresh'
+            $result._fetch_error | Should -BeNullOrEmpty
+            $result._cache_age_days | Should -BeLessThan 1
+        }
+
+        It 'marks an in-date cache fresh without fetching' {
+            Set-Content -LiteralPath $script:cachePath -Value (ConvertTo-KevCacheJson -CveId 'CVE-2024-0102') -Encoding utf8
+            Mock Invoke-WebRequest { }
+
+            $result = Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath -MaxAgeDays 7
+            $result._cache_state | Should -Be 'fresh'
+            Should -Invoke Invoke-WebRequest -Times 0
+        }
+
+        It 'marks a fallback to the prior cache stale, with its age and the fetch error' {
+            Set-Content -LiteralPath $script:cachePath -Value (ConvertTo-KevCacheJson -CveId 'CVE-2024-0103') -Encoding utf8
+            (Get-Item -LiteralPath $script:cachePath).LastWriteTime = (Get-Date).AddDays(-10)
+            Mock Invoke-WebRequest { throw 'network down' }
+
+            $result = Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath `
+                -MaxAgeDays 7 -WarningAction SilentlyContinue
+            $result._cache_state | Should -Be 'stale'
+            $result._fetch_error | Should -Match 'network down'
+            $result._cache_age_days | Should -BeGreaterOrEqual 9.9
+        }
+
+        It 'marks a failed fetch with no usable prior cache unavailable' {
+            Mock Invoke-WebRequest { throw 'DNS lookup failed' }
+
+            $result = Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath `
+                -WarningAction SilentlyContinue
+            $result._cache_state | Should -Be 'unavailable'
+            $result._fetch_error | Should -Match 'DNS lookup failed'
+            $result._cache_age_days | Should -BeNullOrEmpty
+        }
+
+        It 'marks a failed fetch over the seed stub unavailable, not empty' {
+            Set-Content -LiteralPath $script:cachePath -Value '{"_comment":"stub","vulnerabilities":[]}' -Encoding utf8
+            Mock Invoke-WebRequest { throw 'host not known' }
+
+            $result = Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath `
+                -WarningAction SilentlyContinue
+            $result._cache_state | Should -Be 'unavailable'
+        }
+
+        It 'marks a successful fetch of an empty feed empty' {
+            Mock Invoke-WebRequest {
+                Set-Content -LiteralPath $OutFile -Value '{"vulnerabilities":[]}' -Encoding utf8
+            } -ParameterFilter { $OutFile -like '*.download' }
+
+            $result = Get-CisaKevCache -CachePath $script:cachePath -LogPath $script:logPath
+            $result._cache_state | Should -Be 'empty'
+            $result._fetch_error | Should -BeNullOrEmpty
+        }
+    }
+
     Context 'egress logging' {
         It 'appends a GET line to the log when a refresh is attempted' {
             Set-KevFetchMock -CveId 'CVE-2024-0006'
