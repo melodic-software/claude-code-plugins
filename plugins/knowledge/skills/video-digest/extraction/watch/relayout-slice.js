@@ -332,6 +332,36 @@ function deriveDirectoryMap(fileMap) {
 
 /** @typedef {{ target: string, isDir: boolean } | { retired: string, note: string } | { outside: string }} Lookup */
 
+/** Stand-ins for a backslash-escaped `#` or `?`, which are part of the path. */
+const LITERAL_HASH = "";
+const LITERAL_QUERY = "";
+
+/**
+ * A link or definition destination with its CommonMark backslash escapes of
+ * ASCII punctuation decoded. An escaped `#` or `?` is literal, not a fragment
+ * or query, so it becomes a stand-in that splitReference keeps in the path.
+ * `escapedChars` lists the characters the original escaped, to re-escape on
+ * rewrite.
+ *
+ * @param {string} raw
+ * @returns {{ dest: string, escapedChars: string }}
+ */
+function unescapeDestination(raw) {
+  let escapedChars = "";
+  const dest = raw.replace(/\\([!-/:-@[-`{-~])/g, (_match, char) => {
+    if (!escapedChars.includes(char)) escapedChars += char;
+    if (char === "#") return LITERAL_HASH;
+    if (char === "?") return LITERAL_QUERY;
+    return char;
+  });
+  return { dest, escapedChars };
+}
+
+/** @param {string} value */
+function literalText(value) {
+  return value.replaceAll(LITERAL_HASH, "#").replaceAll(LITERAL_QUERY, "?");
+}
+
 /**
  * Split a reference into its path and the suffix to carry over unchanged
  * (`#anchor`, `?query`, `:line`). With `fragments: false`, a raw `#` or `?`
@@ -371,7 +401,7 @@ function splitReference(ref, { fragments = true } = {}) {
     encoded = decoded !== refPath;
     refPath = decoded;
   }
-  return { refPath, suffix, encoded };
+  return { refPath: literalText(refPath), suffix: literalText(suffix), encoded };
 }
 
 /**
@@ -498,11 +528,12 @@ const NOT_RETAINED = "not retained in this copy";
 
 /**
  * @typedef {Object} InlineLink
- * @property {string} dest - the destination, angle brackets removed and `\(` `\)` unescaped
+ * @property {string} dest - the destination, angle brackets removed and backslash escapes decoded
+ *   (an escaped `#` or `?` as a literal stand-in, see unescapeDestination)
  * @property {number} destStart - offset of the destination as written (its `<` when angled)
  * @property {number} destEnd - offset just past it
  * @property {boolean} angle - written as `<...>`
- * @property {boolean} escaped - held backslash-escaped parentheses
+ * @property {string} escapedChars - the punctuation the destination backslash-escaped
  * @property {string} label - the link text, `!` and brackets removed
  * @property {number} labelStart - offset of the link's `[` (or its `!`), -1 when unmatched
  * @property {number} labelEnd - offset of the `]` that closes the link text
@@ -627,11 +658,10 @@ export function inlineLinks(text) {
       labelStart > 0 && text[labelStart - 1] === "!" && !isEscaped(text, labelStart - 1);
     const linkStart = image ? labelStart - 1 : labelStart;
     links.push({
-      dest: raw.replace(/\\([()])/g, "$1"),
+      ...unescapeDestination(raw),
       destStart,
       destEnd,
       angle,
-      escaped: /\\[()]/.test(raw),
       label,
       labelStart: linkStart,
       labelEnd: open,
@@ -657,7 +687,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   let rewrites = 0;
   const unwrap = (/** @type {string} */ target) =>
     target.startsWith("<") ? target.slice(1, -1) : target;
-  const rewrite = (/** @type {string} */ ref, fragments = true) => {
+  const rewrite = (/** @type {string} */ ref, fragments = true, escapedChars = "") => {
     const { refPath, suffix, encoded } = splitReference(ref, { fragments });
     const found = lookUpReference(refPath, sourceFile, map);
     if (!found || "retired" in found) return ref;
@@ -671,7 +701,9 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       relative = path.posix.relative(path.posix.dirname(targetFile), found.target) || ".";
       trailing = found.isDir && refPath.endsWith("/") ? "/" : "";
     }
-    const written = encoded ? relative.split("/").map(encodeURIComponent).join("/") : relative;
+    let written = encoded ? relative.split("/").map(encodeURIComponent).join("/") : relative;
+    // Re-escape what the original destination backslash-escaped.
+    for (const char of escapedChars) written = written.replaceAll(char, `\\${char}`);
     const next = `${written}${trailing}${suffix}`;
     if (next !== ref) rewrites += 1;
     return next;
@@ -700,9 +732,9 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       });
       continue;
     }
-    const next = rewrite(link.dest);
+    const next = rewrite(link.dest, true, link.escapedChars);
     if (next === link.dest) continue;
-    const written = link.escaped ? next.replace(/[()]/g, "\\$&") : next;
+    const written = next;
     edits.push({
       from: link.destStart,
       to: link.destEnd,
@@ -715,8 +747,10 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   for (const match of linkMasked.matchAll(REFERENCE_DEFINITION)) {
     const [from, to] = /** @type {[number, number]} */ (match.indices?.[2]);
     const target = text.slice(from, to);
-    const next = target.startsWith("<") ? `<${rewrite(unwrap(target))}>` : rewrite(target);
-    if (next !== target) edits.push({ from, to, text: next });
+    const { dest, escapedChars } = unescapeDestination(unwrap(target));
+    const rewritten = rewrite(dest, true, escapedChars);
+    if (rewritten === dest) continue;
+    edits.push({ from, to, text: target.startsWith("<") ? `<${rewritten}>` : rewritten });
   }
   for (const match of linkMasked.matchAll(HTML_PATH_ATTRIBUTE)) {
     const group = [2, 3, 4].find((at) => match[at] !== undefined) ?? 2;
@@ -894,14 +928,14 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
       const resolved = path.resolve(fileDir, refPath);
       const rel = path.relative(root, resolved);
       if (rel.startsWith("..") || path.isAbsolute(rel)) return;
-      if (!fs.existsSync(resolved)) unresolved.push({ file, ref });
+      if (!fs.existsSync(resolved)) unresolved.push({ file, ref: literalText(ref) });
     };
     const { fenceMasked, linkMasked } = maskCode(text);
     for (const link of inlineLinks(linkMasked)) check(link.dest, true);
     for (const match of linkMasked.matchAll(REFERENCE_DEFINITION)) {
       // A line such as `[0:33]: implementing ...` parses as a definition but is
       // prose; only a destination that reads as a path is checked.
-      const destination = match[2].replace(/^<|>$/g, "");
+      const destination = unescapeDestination(match[2].replace(/^<|>$/g, "")).dest;
       if (PATH_LIKE.test(destination)) check(destination, true);
     }
     for (const match of linkMasked.matchAll(HTML_PATH_ATTRIBUTE)) {
@@ -1266,6 +1300,16 @@ export async function relayoutSlice({
   if (sliceInStaging) {
     return refuse(`the slice ${slice} sits in a relayout staging dir of ${target}`);
   }
+  // Read the whole slice tree once, up front: an unreadable directory in it
+  // is refused here, naming it, rather than failing mid-copy.
+  /** @type {string[]} */
+  let sliceFiles;
+  try {
+    sliceFiles = listFiles(slice);
+  } catch (error) {
+    const where = /** @type {NodeJS.ErrnoException} */ (error).path ?? slice;
+    return refuse(`cannot read ${where} in the slice: ${errorMessage(error)}`);
+  }
   const symlinks = findSymlinks(slice);
   if (symlinks.length > 0) {
     return refuse(`the slice holds symlinks, which a copy would follow: ${symlinks.join(", ")}`);
@@ -1445,7 +1489,7 @@ export async function relayoutSlice({
 
   /** @type {{ from: string, to: string, sourceFile?: string }[]} */
   const plan = [];
-  const sliceFiles = listFiles(slice);
+
   const sliceEntries = new Set(
     sliceFiles.flatMap((file) =>
       file.split("/").map((_part, index, parts) => parts.slice(0, index + 1).join("/")),

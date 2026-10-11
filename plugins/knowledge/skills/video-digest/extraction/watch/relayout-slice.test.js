@@ -930,6 +930,55 @@ describe("relayoutSlice", () => {
     expect(fs.existsSync(fixture.targetDir)).toBe(false);
   });
 
+  it("decodes backslash escapes in link and definition destinations, keeping \\# in the path", async () => {
+    const body = [
+      "[n](../research/findings/notes\\#1.md#intro) [q](../research/findings/what\\?.md)",
+      "",
+      "[def]: ../research/findings/notes\\#1.md",
+      "",
+    ].join("\n");
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "research/findings/notes#1.md": "n\n",
+        "research/findings/what?.md": "w\n",
+        "key-frames/visual-frames.md": body,
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      [
+        "[n](../analysis/research/findings/notes\\#1.md#intro) [q](../analysis/research/findings/what\\?.md)",
+        "",
+        "[def]: ../analysis/research/findings/notes\\#1.md",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "refuses, naming it, a slice holding an unreadable nested dir",
+    async () => {
+      const { sliceDir, targetDir } = makeFixture();
+      const locked = path.join(sliceDir, "research", "findings");
+      fs.chmodSync(locked, 0o000);
+      const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+      try {
+        const result = await relayoutSlice({ sliceDir, targetDir });
+        const message = stderr.mock.calls.map(([chunk]) => String(chunk)).join("");
+
+        expect(result.exitCode).toBe(1);
+        expect(message).toContain(locked);
+        expect(fs.readdirSync(path.dirname(targetDir))).toEqual([]);
+      } finally {
+        stderr.mockRestore();
+        fs.chmodSync(locked, 0o755);
+      }
+    },
+  );
+
   it("matches a backticked path whose name holds # or ? before reading a fragment", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: {
