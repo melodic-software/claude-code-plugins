@@ -1,0 +1,26 @@
+{
+  "effortLevel": "low",
+  "hooks": {
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PROBE_WORKDIR}/.claude/hooks/log-effort.py\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PROBE_WORKDIR}/.claude/hooks/log-effort.py\""
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -31,7 +31,13 @@ three boundaries hold:
   directly is outside this skill's boundary, the same rule the rest of this skill follows. So this
   section names the condition and stops. If the records came from a tool that owns those directories'
   lifecycle, that tool is where they should be dropped at teardown; this skill does not reach into
-  another plugin's configuration to find out.
+  another plugin's configuration to find out. When `stale_project_records.project`, the count of
+  project-scope records among them, is above 0, the section's last rows name one such tool,
+  `/source-control:worktree audit (if installed)`, and say in the report what that audit handles:
+  project-scope records whose path was a worktree under the source-control worktree root, not
+  local-scope records or other paths. With only local-scope records the rows are omitted, because
+  that audit reads project-scope records alone. The rows are a pointer only: this skill does not
+  check whether that plugin is installed, which paths are worktrees, or what the audit would decide.
 
 A record does not have to come from a deliberate install. A repo whose committed `.claude/settings.json`
 carries an `enabledPlugins` block mirroring what the user already has at user scope writes one

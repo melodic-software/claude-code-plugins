@@ -62,6 +62,15 @@ unavailable, run the same wait with Bash `run_in_background`.
 - **Recheck trigger**: that section changes what Monitor runs, how it reports back, or where it is
   available.
 
+That `run_in_background` wait passes the background maximum as its `timeout`, and when a stop
+notice ends it while the wait still matters, start it again.
+
+- **Pointer**: when a background wait could run long, fetch
+  <https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands> live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section changes which sessions it covers, its limits, or its stop
+  notice.
+
 The nested-dispatch grant is conditional: we treat `Agent` as absent at the spawn-depth limit,
 whatever the `tools` list says, so a deeply chained dispatch fans out nothing; plan the brief's
 work as your own.
@@ -111,7 +120,8 @@ decision, a cross-module contract change, or a file outside the fence, that is t
 brief's escalation clause names: STOP and report, so the orchestrator can re-dispatch the phase to
 `implementation:implementer`. Never stretch to finish it here.
 
-`effort` is pinned alongside `model` so the phase never runs at the session's level.
+`effort` is pinned alongside `model` so the phase never runs at the session's level. A dispatcher
+passes no spawn `effort` here.
 
 We bind `sonnet` at `effort: medium` for a well-scoped implementation phase, and keep Opus as the
 binding for complex work. Where an organization's `availableModels` allowlist blocks `sonnet`, we
@@ -123,8 +133,10 @@ the effort-pin owner's ruling of 2026-10-01.
   <https://code.claude.com/docs/en/model-config#adjust-effort-level> and
   <https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-sonnet-5-5>;
   for the subagent model order and allowlist substitution, see
-  <https://code.claude.com/docs/en/sub-agents#choose-a-model>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: the Agent tool gains a per-spawn effort parameter, the costs section changes
-  its model split, either effort section changes its advice for `medium`, the allowlist
-  substitution changes, or the `sonnet` alias moves to a new model.
+  <https://code.claude.com/docs/en/sub-agents#choose-a-model>; for the per-spawn `effort` and its
+  rank over the pin, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the subagents effort section changes precedence or which spawns honor
+  `effort`, the costs section changes its model split, either effort-levels section changes its
+  advice for `medium`, the allowlist substitution changes, or the `sonnet` alias moves to a new
+  model.

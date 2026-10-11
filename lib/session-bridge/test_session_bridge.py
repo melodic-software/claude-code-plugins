@@ -1,3 +1,4 @@
+# test-scope: lib/session-bridge/watch.sh lib/session-bridge/wake.sh
 """Tests for session-bridge: the Transport port, the loopback adapter's server and client halves,
 and watch.sh and wake.sh against a toy app built on the bridge.
 

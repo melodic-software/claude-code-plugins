@@ -91,13 +91,14 @@ jobs:
         || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
-      # A gate skill succeeds only on a `pass` verdict, and a skill whose
-      # commits could not be moved onto the PR branch fails. The verdict step's
+      # A gate skill succeeds only on a `pass` verdict, a skill that took no
+      # model turn fails, and a skill whose commits could not be moved onto
+      # the PR branch fails. The verdict step's
       # ACT_OUTCOME repeats this expression: runner-policy refuses YAML aliases.
       act-outcome: >-
         ${{ steps.act-skill.outcome == 'success'
         && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
-        || steps.promote.outcome == 'failure') && 'failure'
+        || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success') && 'failure'
         || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
         || steps.act-script.outcome }}
     steps:
@@ -225,6 +226,7 @@ jobs:
           max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
           gating: ${{ steps.config.outputs.gating }}
           effect: ${{ steps.config.outputs.effect }}
+          can-commit: ${{ steps.config.outputs.can-commit }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
 
       # Nothing after this step needs sudo or docker.
@@ -339,12 +341,76 @@ jobs:
             echo '```'
           } >>"$GITHUB_STEP_SUMMARY"
 
+      # A slash command whose expansion fails, such as a skill pre-compute line
+      # the permission mode denies, ends with a `success` result and no model
+      # turn, so the act did nothing. This fails it and records why. The same
+      # step runs in pr-run-activity-read.yml, which holds no lane token.
+      - name: Check the skill took a model turn
+        id: act-turns
+        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          EXECUTION_FILE: >-
+            ${{ steps.act-skill.outputs.execution_file
+            || format('{0}/claude-execution-output.json', runner.temp) }}
+          REPLY_DIR: ${{ runner.temp }}/skill-reply
+          LANE_TOKEN: ${{ steps.lane-token.outputs.token }}
+        with:
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const { EXECUTION_FILE, REPLY_DIR, LANE_TOKEN } = process.env;
+            // Head code could have planted one; only this step's copy is uploaded.
+            fs.rmSync(`${REPLY_DIR}/act-turns.json`, { force: true });
+            const redact = (text) => (LANE_TOKEN ? text.split(LANE_TOKEN).join('[REDACTED]') : text);
+            let messages = [];
+            try {
+              messages = JSON.parse(fs.readFileSync(EXECUTION_FILE, 'utf8'));
+            } catch (error) {
+              core.setFailed(`No readable execution file: ${error.code ?? error.name}`);
+              return;
+            }
+            const result = messages.filter((m) => m.type === 'result').at(-1) ?? {};
+            const textOf = (content) =>
+              typeof content === 'string' ? content : (content ?? []).map((block) => block?.text ?? '').join('\n');
+            const diag = {
+              subtype: result.subtype ?? null,
+              is_error: result.is_error ?? null,
+              num_turns: result.num_turns ?? null,
+              duration_ms: result.duration_ms ?? null,
+              models: Object.keys(result.modelUsage ?? {}),
+              // The CLI's own report of a failed slash command expansion.
+              local_command_stderr: messages
+                .filter((m) => m.type === 'user')
+                .map((m) => textOf(m.message?.content))
+                .filter((text) => text.includes('<local-command-stderr>'))
+                .map((text) => redact(text).slice(0, 2000)),
+            };
+            fs.mkdirSync(REPLY_DIR, { recursive: true });
+            fs.writeFileSync(`${REPLY_DIR}/act-turns.json`, `${JSON.stringify(diag, null, 2)}\n`);
+            await core.summary
+              .addHeading('Skill run', 3)
+              // addCodeBlock does not escape its text.
+              .addCodeBlock(JSON.stringify(diag, null, 2).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'), 'json')
+              .write();
+            // JSON escapes newlines, so no field can start a workflow command.
+            core.info(JSON.stringify({ subtype: diag.subtype, is_error: diag.is_error, num_turns: diag.num_turns, models: diag.models.length }));
+            if (!(diag.num_turns > 0) || diag.models.length === 0) {
+              core.setFailed(
+                'no-model-turn: the skill ended without a model turn, so it did nothing; ' +
+                  'the step summary and the skill-reply artifact hold the result fields and any local-command stderr',
+              );
+            }
+
       - name: Upload the skill's final reply
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/skill-reply/reply.txt
+          # Named files only: head code can write into this directory.
+          path: |
+            ${{ runner.temp }}/skill-reply/reply.txt
+            ${{ runner.temp }}/skill-reply/act-turns.json
           retention-days: 7
           if-no-files-found: error
 
@@ -460,7 +526,7 @@ jobs:
           ACT_OUTCOME: >-
             ${{ steps.act-skill.outcome == 'success'
             && (steps.config.outputs.gating == 'gate' && steps.skill-verdict.outcome != 'success'
-            || steps.promote.outcome == 'failure') && 'failure'
+            || steps.promote.outcome == 'failure' || steps.act-turns.outcome != 'success') && 'failure'
             || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
             || steps.act-script.outcome }}
           VERDICT_DIR: ${{ runner.temp }}/verdict

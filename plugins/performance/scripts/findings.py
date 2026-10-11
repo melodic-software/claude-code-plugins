@@ -5,8 +5,9 @@ folder passed as a literal argument. Subcommands:
 
     run-start --data <dir> --session <id> --mode attended|unattended --session-evidence true|false
                                         create runs/<UTC-stamp>/findings.json, print the run dir
-    add --run <run-dir>                 append the finding(s) on stdin; refuse any that break a rule,
-                                        including a citation whose as_of is not the run's date
+    add --run <run-dir> [--json <text>] append the finding(s) passed in --json, else on stdin;
+                                        refuse any that break a rule, including a citation whose
+                                        as_of is not the run's date
     finish --run <run-dir>              validate the whole run, write report.md, print its path
     validate <findings.json>            exit 1 naming each rule a finding breaks
     rank <findings.json>                one `<section>\t<id>` line per finding, in report order
@@ -965,10 +966,11 @@ def cmd_run_start(args: argparse.Namespace) -> int:
 def cmd_add(args: argparse.Namespace) -> int:
     path = Path(args.run) / "findings.json"
     doc = load(str(path))
+    source = "stdin" if args.json is None else "--json"
     try:
-        new = json.loads(sys.stdin.read())
+        new = json.loads(sys.stdin.read() if args.json is None else args.json)
     except ValueError as exc:
-        die(f"stdin is not JSON: {exc}")
+        die(f"{source} is not JSON: {exc}")
     new = new if isinstance(new, list) else [new]
     have = {f.get("id") for f in doc["findings"]}
     day = run_date(doc)
@@ -1352,6 +1354,8 @@ def main() -> int:
     p.set_defaults(fn=cmd_run_start)
     p = sub.add_parser("add")
     p.add_argument("--run", required=True)
+    # An argument, so a sweeper under worktree isolation needs no heredoc to pass findings.
+    p.add_argument("--json")
     p.set_defaults(fn=cmd_add)
     p = sub.add_parser("finish")
     p.add_argument("--run", required=True)

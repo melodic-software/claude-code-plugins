@@ -13,7 +13,7 @@
         "Verifies files exist on disk",
         "Groups files by project/ecosystem relatedness",
         "Orders groups by dependency (config first, tests last)",
-        "Creates tasks for each group",
+        "Tracks each group (task tools when present, else the checklist)",
         "Runs a simplifier agent per group",
         "Runs each group's verification through /toolchain:check when installed, else the project's own canonical commands, after each group",
         "Presents the final summary table"

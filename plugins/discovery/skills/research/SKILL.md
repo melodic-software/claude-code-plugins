@@ -310,11 +310,9 @@ four-part records live in [reference/native-deep-research.md](reference/native-d
 
 ## Next
 
+- Findings feed work with no locked contract whose diff will not be quick to review and cheap to retry: `/planning:interview`.
 - Findings settle a type, contract, or boundary choice: `/planning:design`.
-- Findings are ready to act on with no design question open: `/planning:plan`.
-- One upstream docs page settles the claim: `/discovery:read-docs <url-or-slug> [question]`
-  (`scripts/fetch-docs.sh --cache`).
-- The reasons behind a past decision: `/discovery:trace-intent <subject>`.
+- Unsure where this leaves the work, or arrived mid-flow: `/session-flow:workflow`.
 
 ## See also
 

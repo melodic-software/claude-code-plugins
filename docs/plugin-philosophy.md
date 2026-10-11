@@ -674,7 +674,9 @@ is nothing it could conformingly write. Three kinds of surface qualify, in any c
   it is the operator's to apply, and names what re-invalidates it (a plugin update moving
   `${CLAUDE_PLUGIN_ROOT}`, say).
 - **External prerequisites setup can only verify**: a system tool, service, or credential, per the
-  prerequisites section. `check` probes and reports the remediation; installing is the operator's.
+  prerequisites section. `check` probes and reports the remediation; installing is the operator's
+  decision, and the agent runs the fix only on the operator's yes
+  ([When a check fails](conventions/prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes)).
 
 Check-only is therefore a consequence of having nothing conforming to write, never a preference and
 never a shortcut. A plugin with even one writable owned artifact takes the narrow-write shape
@@ -786,7 +788,8 @@ current refusals. They stay; they are not defects against a missing subaction.
 Declare every required runtime, shell, CLI, service, credential, and platform constraint at the point
 of use and in the plugin README. Never download or execute an undeclared tool as an incidental fallback.
 The [prerequisites convention](conventions/prerequisites/README.md) owns the machine-readable
-declaration and its checker.
+declaration and its checker, and the rule for running a declared fix: the agent offers it and runs
+it only on the user's yes ([When a check fails](conventions/prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes)).
 
 Classify absence deliberately:
 
@@ -882,7 +885,7 @@ platform boundary. Consequently:
 - never assume Bash, `jq`, executable bits, symlinks, a package manager, or a browser is present;
 - state a shell requirement and provide the supported Windows path when a shell script is unavoidable;
 - keep tracked filenames, encoding, and generated output portable; and
-- verify OS-sensitive changes on each supported platform, or record an honest manual-verification gap.
+- verify OS-sensitive changes on each supported platform, or record the manual-verification gap.
 
 Optional platform integrations must degrade visibly and preserve the portable core result.
 
@@ -971,7 +974,7 @@ is its sibling constraint, and the write-time doctrine budgeting both lives in
   deletion round proves itself safe.
 - **The durable tier is exempt.** Deterministic policy hooks (gates that enforce team or safety
   policy regardless of model capability) and team conventions checked into git are the officially
-  carved-out durable instruction tiers. Classify a hook honestly before keeping it: a hook that
+  carved-out durable instruction tiers. Classify a hook before keeping it: a hook that
   enforces policy survives ablation; a hook that corrects model behavior is an ablation candidate
   like any prose instruction.
 
@@ -1134,8 +1137,9 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
 
 - **Decision:** this agent departs from three defaults on purpose. Bar: it has one dispatch site,
   `/planning:plan` Step 3, and its description says not to invoke it directly, so the
-  multiple-sites clause is unmet; the pin clause carries it, because a definition is the only way to bound
-  this one review's effort (a generic Agent-tool dispatch has no per-invocation `effort`). For the same
+  multiple-sites clause is unmet; the pin clause carries it, because we keep this one review's level
+  in the definition: the pin sets it, and `/planning:plan` passes no per-call `effort` (a passed
+  value would replace the pin), so no call site can drift from it. For the same
   reason the Step 3 site names no generic fallback: the plugin ships the agent, so there is
   nothing to presence-gate. Effort: it pins `effort: medium`, not the `high` that a
   consequential-verdict lane pins, because its pin bounds cost; the brevity line and `maxTurns`
@@ -1147,10 +1151,13 @@ actually enforces, never "read-only" (Pointer: for plugin agent frontmatter, see
   [#4256](https://github.com/melodic-software/claude-code-plugins/issues/4256), which measured a
   nested plan review at 31.6 minutes and 277k tokens at session effort; the closing comment on
   [#4849](https://github.com/melodic-software/claude-code-plugins/pull/4849), which kept
-  `opus`.
-- **As of:** 2026-09-29.
-- **Recheck trigger:** a second dispatch site or direct use appears (the exception then ends), the Agent
-  tool gains a per-invocation `effort` parameter, or the agent's `model` or `effort` changes.
+  `opus`; when weighing a per-call level against the pin, fetch
+  [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)
+  live.
+- **As of:** 2026-10-10.
+- **Recheck trigger:** a second dispatch site or direct use appears (the exception then ends), the
+  Step 3 dispatch starts passing `effort`, that section changes how a per-call `effort` ranks against
+  the `effort` field or which spawns honor it, or the agent's `model` or `effort` changes.
 
 ### Model tiers
 
@@ -1352,14 +1359,13 @@ same depth on two models):
   cost (the environment variable still wins, per above). The pin is not relative: on a model
   whose own default sits above `high`, it caps the lane below that model's default, and the recheck
   trigger above exists exactly for this. The reach is the mechanism's, not the rule's: a generic
-  Agent-tool dispatch carries no effort control: we read the live Agent tool schema, which has a
-  per-invocation `model` parameter and no effort counterpart, and that probe has no stored
-  artifact (Pointer: for the per-call parameters the docs name, see
-  [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model).
-  As of: 2026-07-29. Recheck trigger: the Agent tool gains an effort parameter), so it
-  structurally inherits the session level and its floor is the
-  session baseline; promoting such a lane to a named agent is how it gains the pin (a required
-  effort pin satisfies the named-agent bar's pin clause). The named agents that pin `medium`
+  Agent-tool dispatch carries a level only when its call passes one, which a call site can forget,
+  and the docs scope the parameter to non-fork spawns, so we treat a fork as running at the session
+  level with the session baseline as its floor (Pointer: when a dispatch needs its own level, fetch
+  [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level) live.
+  As of: 2026-10-10. Recheck trigger: that section changes what the per-call `effort` overrides or
+  which spawns honor it), and promoting such a lane to a named agent is how it gains the pin (a
+  required effort pin satisfies the named-agent bar's pin clause). The named agents that pin `medium`
   instead, and why, are listed under [pinned agents](#effort-tiers). An orchestrator skill
   whose consequential work executes in generic dispatches reaches them through its own pin: a
   skill-level pin governs the orchestrating conversation and, by our probe, the subagents it
@@ -1368,16 +1374,15 @@ same depth on two models):
 - **Read-only bulk mechanical sweeps may pin `low`.** We allow it where speed and cost matter more
   than depth, subagent sweeps included, and never for a lane that changes code, verifies a
   change, or does work likely to hit edge cases (the [effort floor](#effort-floor)). Not at the model ladder's own bottom rung either, because the
-  two ladders do not compose there: we read the model the `haiku` alias resolves to as having no
-  effort support, so a pin there has no level to land on. What the harness does with such a pin,
-  whether ignore it, warn, or fail, is **unverified here**, and no page we read settles it. The rule
-  does not rest on that gap: a lane wanting the cheapest tier takes it by model alone and omits the
-  pin, because the dial it would be reaching for only exists one rung up (Pointer: for which models
-  support effort, see
-  [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level);
+  two ladders do not compose there: which model the `haiku` alias lands on, and whether that model
+  has an effort dial, depends on the provider, so one pin does not mean one level across our
+  operators. A lane wanting the cheapest tier takes it by model alone and omits the
+  pin (Pointer: when a lane weighs a pin on the `haiku` alias, fetch
+  [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases) and
+  [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) live;
   for what a lower level trades away, see
   [effort: how effort works](https://platform.claude.com/docs/en/build-with-claude/effort#how-effort-works).
-  As of: 2026-10-01. Recheck trigger: a Haiku model appears among the models that support effort).
+  As of: 2026-10-10. Recheck trigger: every model the `haiku` alias resolves to appears among the models that support effort).
 - **Every other named agent pins the level its work's task row gives it**, never below `medium`
   for code-changing or verifying work (the [effort floor](#effort-floor); the per-pin rows under
   pinned agents name each row). Only a skill with no consequential output omits the pin and
@@ -1452,8 +1457,9 @@ it; `songwriting` `object-writer`, because creative generation is not verificati
 `ecosystem-specialist`, `discovery` `explorer` and `performance` `go-faster-sweeper`, because their
 work is clearly scoped tool use, running a repository's declared commands, reading and indexing a
 scope, and checking named areas of the development process. No pin goes below `medium`, because a low-effort executor stops detecting
-that it is stuck. A frontmatter pin is what holds a named agent's lane, since an Agent-tool dispatch
-passes no effort.
+that it is stuck. A frontmatter pin is what holds a named agent's lane for any dispatch that
+passes no `effort` of its own, which is every dispatch of a pinned named agent this repository
+writes unless the user overrides the level for a run; a passed value would override the pin (see "Where per-task effort is set" below).
 
 - **Pointer:** the agent definitions themselves, listed by
   `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`;
@@ -1510,18 +1516,26 @@ and verdict lanes follow the `high` row; well-specified mechanical work follows 
 - **Recheck trigger:** a row named in the table changes, the default effort of the model an agent's
   alias resolves to changes, or an agent's `model` or `effort` changes.
 
-**Override levers.** We name two levers for a user who wants a pinned agent at another level.
-`CLAUDE_CODE_EFFORT_LEVEL` sets one level for a whole session and replaces every pin. A Workflow
-script's `agent()` call passes `opts.effort`, and `opts.model`, for that call alone. A
-`maxEffortLevel` setting or an organization effort cap also limits every pin.
+**Override levers.** We name three levers for a user who wants a pinned agent at another level.
+`CLAUDE_CODE_EFFORT_LEVEL` sets one level for a whole session and replaces every pin, a spawn's
+`effort` included. A Workflow script's `agent()` call passes `opts.effort`, and `opts.model`, for
+that call alone, and an Agent-tool call that spawns a non-fork subagent passes its own `effort` for
+that dispatch alone, replacing the pin. A `maxEffortLevel` setting or an organization effort cap
+also limits every pin.
 
 - **Pointer:** for the variable, see
   [environment variables](https://code.claude.com/docs/en/env-vars#variables); for how a pin ranks
   against the variable and a cap, see
-  [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level).
-- **As of:** 2026-10-01.
-- **Recheck trigger:** the variable stops replacing a frontmatter pin, or the Agent tool gains a
-  per-invocation `effort` parameter.
+  [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
+  for the Agent-tool call, fetch
+  [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level) live.
+  Our `/harness-ops:behavior-probes` cases in the `subagent` area, run on Claude Code 2.1.296,
+  observed the variable outranking a spawn value and a spawn value outranking a pin; the docs
+  scope the parameter to non-fork spawns, and no case probes a fork.
+- **As of:** 2026-10-10.
+- **Recheck trigger:** the variable stops replacing a frontmatter pin, the Agent tool's
+  per-invocation `effort` stops overriding the `effort` field, or that section changes which spawns
+  honor it.
 
 Our Workflow probe: an explicit `opts.effort` or `opts.model` on an `agent()` call overrode the
 named agent's frontmatter pin for that call, and omitting them kept the pin. No docs section
@@ -1531,25 +1545,29 @@ covers per-call effort for `agent()`; for the call itself, see
 - **Pointer:** probes `wf_1a471686-8a2` and `wf_5196f26b-e1f`, run on Claude Code 2.1.284 and
   2.1.285; no artifact is stored in this repository.
 - **As of:** 2026-10-01.
-- **Recheck trigger:** a docs page starts covering per-call effort for a workflow `agent()` call or
-  for the Agent tool.
+- **Recheck trigger:** a docs page starts covering per-call effort for a workflow `agent()` call.
 
 **Where per-task effort is set.** We set a task's effort through Workflow's per-call effort
-option. An Agent-tool dispatch of a named agent runs at that agent's pin, and a generic one at the
-session level. A lane's `--effort` sets the session level, so it covers the orchestrator's own
-turns and its generic dispatches; it does not move a named agent's pin. Workflow scripts this
-repository ships never pass an effort below a named agent's pin, and omit effort on a call to a
-named agent to keep the pin. A call that names no agent passes an explicit level.
+option or the Agent tool's per-call `effort`. An Agent-tool dispatch that passes no `effort` runs a
+named agent at its pin and an unpinned one at the session level; the docs scope the per-call
+`effort` to non-fork spawns. A lane's `--effort` sets the session level, so it covers the orchestrator's own
+turns and the generic dispatches that pass no `effort`; it does not move a named agent's pin.
+Workflow scripts this repository ships, and the Agent-tool dispatches its skills write, never pass
+an effort below a named agent's pin, and omit effort on a call to a pinned named agent to keep the
+pin. A Workflow call that names no agent passes an explicit level, and so does a non-fork
+Agent-tool spawn of an unpinned agent where the skill has resolved one.
 
 - **Pointer:** for the `--effort` flag, see
   [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags); for a
   subagent's `effort` field and its rank over the session level, see
-  [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
-  No docs page covers per-call effort for a Workflow `agent()` call as of 2026-10-02; our Workflow
+  [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields);
+  when an Agent-tool call needs its own level, fetch
+  [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level) live.
+  No docs page covers per-call effort for a Workflow `agent()` call as of 2026-10-10; our Workflow
   probe above is the record.
-- **As of:** 2026-10-02.
-- **Recheck trigger:** a docs page starts covering it, the Agent tool gains an effort parameter, or
-  either section above changes how the flag or the field ranks.
+- **As of:** 2026-10-10.
+- **Recheck trigger:** a docs page starts covering it, or any section above changes how the flag,
+  the field, or the per-call `effort` ranks, or which spawns honor the per-call `effort`.
 
 **A skill's pin reaches the subagents it dispatches.** We treat a skill's frontmatter `effort` pin
 as applying to the main turns while that skill is active and to the subagents it dispatches.

@@ -6,6 +6,7 @@
 #   bash plugins/education/skills/illustrate/scripts/build-explainer.test.sh
 #
 # Exit 0 clean, 1 findings, 2 environment (node missing).
+# test-scope: plugins/education/skills/illustrate/SKILL.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -169,7 +170,7 @@ const longFlow = JSON.parse(
 check("a flow of 7 steps lands in the vertical list", longFlow.diagrams[0].flowcol?.length === 7 && longFlow.diagrams[0].flow.length === 0);
 check("a flow of 4 steps stays on the horizontal list", longFlow.diagrams[1].flow.length === 4 && longFlow.diagrams[1].flowcol?.length === 0);
 const css = /<style>([\s\S]*?)<\/style>/.exec(page)?.[1] ?? ""; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
-const rule = (selector) => new RegExp(`(^|\\n)${selector.replace(".", "\\.")} \\{([^}]*)\\}`).exec(css)?.[2] ?? "";
+const rule = (selector) => new RegExp(`(^|\\n)${selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\{([^}]*)\\}`).exec(css)?.[2] ?? "";
 const flowWraps = [...css.matchAll(/(^|\n)([^{\n]*)\{([^}]*)\}/g)].filter((m) => /\.flow\b/.test(m[2]) && /flex-wrap: wrap/.test(m[3])); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("the horizontal flow never wraps a line", /flex-wrap: nowrap/.test(rule(".flow")) && flowWraps.length === 0, rule(".flow"));
 check("the horizontal flow scrolls inside its card", /overflow-x: auto/.test(rule(".flow")));
@@ -184,6 +185,60 @@ check("an empty timeline and an empty compare are hidden", /\.timeline:empty \{ 
 check("a hub with no center and no branches is hidden", /\.hub:has\(\.hub-center:empty\):has\(\.branches:empty\) \{ display: none; \}/.test(css));
 check("a before-after with no items is hidden", /\.change:not\(:has\(li\)\) \{ display: none; \}/.test(css));
 check("compare columns stack on a narrow page", /repeat\(auto-fit, minmax\(/.test(rule(".compare")), rule(".compare"));
+
+// Each theme's tokens, so the accents can be checked for variety and contrast.
+const themeBlock = (head) => css.split(head)[1]?.split("}")[0] ?? "";
+const tokens = (body) => Object.fromEntries([...body.matchAll(/--([a-z0-9]+): (#[0-9a-f]{6});/g)].map((m) => [m[1], m[2]])); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+const themes = {
+  light: tokens(themeBlock(":root {")),
+  "dark by preference": tokens(themeBlock(":root:not([data-theme=light]) {")),
+  "dark by choice": tokens(themeBlock(":root[data-theme=dark] {")),
+};
+const ACCENTS = [1, 2, 3, 4, 5];
+const accentRule = (n) => (n === 1 ? rule(".picture") : rule(`.picture:nth-child(${n === 5 ? "5n" : `5n+${n}`})`));
+check(
+  "each of five card positions takes its own accent and tint",
+  ACCENTS.every((n) => accentRule(n).includes(`--accent: var(--a${n});`) && accentRule(n).includes(`--tint: var(--t${n});`)),
+  ACCENTS.map(accentRule).join(" | "),
+);
+for (const [name, t] of Object.entries(themes)) {
+  const values = ACCENTS.map((n) => t[`a${n}`]);
+  check(`adjacent cards differ in accent in the ${name} theme`, values.every(Boolean) && new Set(values).size === 5, values.join(","));
+}
+const luminance = (hex) => {
+  const [r, g, b] = hex.slice(1).match(/../g).map((h) => parseInt(h, 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const contrast = (a, b) => {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+};
+for (const [name, t] of Object.entries(themes)) {
+  const low = [];
+  for (const n of ACCENTS) {
+    // A node label sits on the surface; card text, a muted before-side, and an accent date sit on the tint.
+    const pairs = [["fg", "surface"], ["fg", `t${n}`], ["muted", `t${n}`], [`a${n}`, `t${n}`]];
+    for (const [fg, bg] of pairs) {
+      const r = t[fg] && t[bg] ? contrast(t[fg], t[bg]) : 0;
+      if (r < 4.5) low.push(`${fg} on ${bg} ${r.toFixed(2)}`);
+    }
+  }
+  check(`every accent keeps text at 4.5:1 or more in the ${name} theme`, low.length === 0, low.join(", "));
+}
+check("the box behind a node label is the surface", /background: var\(--surface\)/.test(rule(".box")), rule(".box"));
+check("the first card is the lead diagram, drawn larger", /padding: 2rem/.test(rule(".picture:first-child .diagram")) && /font-size/.test(rule(".picture:first-child h2")));
+check("every kind draws inside one tinted diagram area", /background: var\(--tint\)/.test(rule(".diagram")) && LISTS.every((key) => page.split('class="diagram"')[1]?.split('class="caption"')[0]?.includes(`data-rv-each="${key}"`)));
+const tick = /<label class="unclear"[^>]*>(.*?)<\/label>/.exec(page)?.[1] ?? ""; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+check("the still-unclear toggle wraps its pick", /^<input type="checkbox" data-rv-pick="">/.test(tick) && (page.match(/data-rv-pick=/g) ?? []).length === 1, tick);
+// A ticked toggle changes its glyph, not only its color, so the state survives forced colors.
+check(
+  "the still-unclear toggle shows a different glyph when ticked",
+  /<span class="mark-off" aria-hidden="true">\?<\/span><span class="mark-on" aria-hidden="true">✓<\/span>/.test(tick) && // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+    /\.unclear \.mark-on, \.unclear:has\(input:checked\) \.mark-off \{ display: none; \}/.test(css) && // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+    /\.unclear:has\(input:checked\) \.mark-on \{ display: inline; \}/.test(css), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  tick,
+);
+check("the still-unclear toggle is named for screen readers", /<span class="sr">Still unclear<\/span>/.test(tick) && /clip-path: inset\(50%\)/.test(rule(".sr")), tick);
 
 const wordy = "Gamma Ray (1996): first band name, dropped after a cease-and-desist";
 const capModel = { diagrams: [{ heading: "Albums", steps: ["short", wordy] }, { kind: "stack", steps: [wordy, "x".repeat(60)] }] };
@@ -212,23 +267,156 @@ const kinds = buildExplainerRecord({
     { heading: "Change", kind: "before-after", before: ["Old way"], after: ["New way", "Fewer steps"] },
   ],
 });
-const section = (name) => kinds.split(`## ${name}\n\n`)[1]?.split("\n## ")[0].trimEnd() ?? "";
-check("a hub reads as its center line then bulleted branches", section("Hub") === "Main band\n\n- Side one\n- Side two", section("Hub"));
+const sectionOf = (text, name) => text.split(`## ${name}\n\n`)[1]?.split("\n## ")[0].trimEnd() ?? "";
+const section = (name) => sectionOf(kinds, name);
+const fence = (...lines) => ["```mermaid", ...lines, "```"].join("\n");
 check(
-  "a timeline reads as dated lines",
-  section("Timeline") === "- 1998: First album\n- 2002: Third album\n- Undated",
+  "a hub reads as its center line then bulleted branches, drawn from the center",
+  section("Hub") ===
+    `Main band\n\n- Side one\n- Side two\n\n${fence("flowchart LR", '    n1["Main band"]', '    n2["Side one"]', '    n3["Side two"]', "    n1 --> n2", "    n1 --> n3")}`,
+  section("Hub"),
+);
+check(
+  "a timeline reads as dated lines, drawn as a top-to-bottom chain",
+  section("Timeline") ===
+    `- 1998: First album\n- 2002: Third album\n- Undated\n\n${fence(
+      "flowchart TB",
+      '    n1["1998: First album"]',
+      '    n2["2002: Third album"]',
+      '    n3["Undated"]',
+      "    n1 --> n2 --> n3",
+    )}`,
   section("Timeline"),
 );
 check(
-  "a compare reads as a markdown table, a pipe in a cell escaped and a short column padded",
-  section("Compare") === "| A \\| B | C |\n| --- | --- |\n| one | three |\n| two |  |",
+  "a compare reads as a markdown table, a pipe in a cell escaped and a short column padded, drawn as subgraphs",
+  section("Compare") ===
+    `| A \\| B | C |\n| --- | --- |\n| one | three |\n| two |  |\n\n${fence(
+      "flowchart LR",
+      '    subgraph s1["A | B"]',
+      '        n1["one"]',
+      '        n2["two"]',
+      "    end",
+      '    subgraph s2["C"]',
+      '        n3["three"]',
+      "    end",
+    )}`,
   section("Compare"),
 );
 check(
-  "a before-after reads as two labeled lists",
-  section("Change") === "Before:\n\n- Old way\n\nAfter:\n\n- New way\n- Fewer steps",
+  "a before-after reads as two labeled lists, drawn as two linked subgraphs",
+  section("Change") ===
+    `Before:\n\n- Old way\n\nAfter:\n\n- New way\n- Fewer steps\n\n${fence(
+      "flowchart LR",
+      '    subgraph s1["Before"]',
+      '        n1["Old way"]',
+      "    end",
+      '    subgraph s2["After"]',
+      '        n2["New way"]',
+      '        n3["Fewer steps"]',
+      "    end",
+      "    s1 --> s2",
+    )}`,
   section("Change"),
 );
+const shapes = buildExplainerRecord({
+  diagrams: [
+    { heading: "Short", kind: "flow", steps: ["Ask", "Answer"], caption: "Takeaway", text: ["More"] },
+    { heading: "Long", kind: "flow", steps: seven.slice(0, 5) },
+    { heading: "Layers", kind: "stack", steps: ["Top", "Bottom"] },
+    { heading: "Nothing" },
+  ],
+});
+check(
+  "a flow is drawn left to right after its arrow line, before the caption and text",
+  sectionOf(shapes, "Short") === `Ask → Answer\n\n${fence("flowchart LR", '    n1["Ask"]', '    n2["Answer"]', "    n1 --> n2")}\n\n**Takeaway**\n\nMore`,
+  sectionOf(shapes, "Short"),
+);
+check(
+  "a flow the page draws one step per line is drawn top to bottom",
+  sectionOf(shapes, "Long").endsWith('    n1 --> n2 --> n3 --> n4 --> n5\n```') && sectionOf(shapes, "Long").includes("flowchart TB"),
+  sectionOf(shapes, "Long"),
+);
+check(
+  "a stack is drawn top to bottom with plain links",
+  sectionOf(shapes, "Layers") === `- Top\n- Bottom\n\n${fence("flowchart TB", '    n1["Top"]', '    n2["Bottom"]', "    n1 --- n2")}`,
+  sectionOf(shapes, "Layers"),
+);
+const longWhen = "Between the second and the third studio albums";
+const longHeading = "Options the team weighed in the first planning round";
+const uncut = buildExplainerRecord({
+  diagrams: [
+    { kind: "timeline", points: [{ when: longWhen, label: "Tour" }] },
+    { kind: "compare", columns: [{ heading: longHeading, items: ["a"] }, { heading: "B", items: ["b"] }] },
+  ],
+});
+check(
+  "a long date and a long column heading reach mermaid as the text form shows them",
+  uncut.includes(`- ${longWhen}: Tour`) && uncut.includes(`n1["${longWhen}: Tour"]`) && uncut.includes(`| ${longHeading} |`) && uncut.includes(`subgraph s1["${longHeading}"]`),
+  uncut,
+);
+check("a diagram with nothing to draw gets no mermaid block", !shapes.split("## Nothing")[1]?.includes("```"), shapes);
+
+// Every diagram of the hostile model is followed by exactly one mermaid block.
+const blocksPer = record
+  .split(/^## /m) // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  .slice(1, 1 + model.diagrams.length)
+  .map((part) => (part.match(/^```mermaid$/gm) ?? []).length); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+check("every diagram is followed by exactly one mermaid block", blocksPer.join(",") === "1,1,1,1,1,1", blocksPer.join(","));
+check("words and sources carry no mermaid block", !record.split("## Words used here")[1]?.includes("```"));
+
+// Labels from fetched text cannot leave their quotes, close the fence, add a statement, or open
+// a directive.
+const evil = [
+  'say "hi" now',
+  "tick ` here",
+  "fence ``` here",
+  "line one\nclick n1 call alert()",
+  "%%{init: {}}%%",
+  "bracket ] here",
+  "<b>bold</b> & #quot;",
+];
+const injected = buildExplainerRecord({
+  diagrams: [
+    { heading: "Flow", kind: "flow", steps: evil.slice(0, 4) },
+    { heading: "Stack", kind: "stack", steps: evil },
+    { heading: "Hub", kind: "hub", center: evil[4], branches: evil.slice(5) },
+    { heading: "Timeline", kind: "timeline", points: evil.map((label, n) => ({ when: evil[(n + 3) % evil.length], label })) },
+    { heading: "Compare", kind: "compare", columns: [{ heading: evil[0], items: evil.slice(1, 3) }, { heading: evil[4], items: [evil[3]] }] },
+    { heading: "Change", kind: "before-after", before: [evil[2]], after: [evil[4]] },
+  ],
+});
+const drawn = [...injected.matchAll(/^```mermaid\n([\s\S]*?)^```$/gm)].map((m) => m[1]); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+check("each hostile diagram is drawn", drawn.length === 6, String(drawn.length));
+const body = drawn.join("");
+check("no mermaid block holds a percent pair", !body.includes("%%"), body);
+check("no mermaid block holds a backtick", !body.includes("`"), body);
+const builderLine =
+  /^(flowchart (LR|TB)|    n\d+\["[^"]*"\]|        n\d+\["[^"]*"\]|    subgraph s\d+\["[^"]*"\]|    end|    n\d+( (-->|---) n\d+)+|    s1 --> s2)$/; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+const stray = body.split("\n").filter((line) => line !== "" && !builderLine.test(line));
+check("every mermaid line is one the builder writes, each label inside its own two quotes", stray.length === 0, stray.join(" | "));
+check(
+  "no mermaid line starts with a statement keyword taken from a label",
+  !body.split("\n").some((line) => /^\s*(click|style|classDef|linkStyle|class|call)\b/.test(line)), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  body,
+);
+const quoted = body.split("\n").filter((line) => line.includes('"'));
+check("each quoted line holds exactly its own two quotes", quoted.every((line) => (line.match(/"/g) ?? []).length === 2), quoted.join(" | ")); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+check(
+  "a hostile label is kept as mermaid entity codes",
+  body.includes('["say #quot;hi#quot; now"]') &&
+    body.includes('["#37;#37;{init: {}}#37;#37;"]') &&
+    body.includes('["line one click n1 call alert()"]') &&
+    body.includes('["#lt;b#gt;bold#lt;/b#gt; #amp; #35;quot;"]') &&
+    body.includes('["bracket ] here"]') &&
+    body.includes('["fence here"]'),
+  body,
+);
+check(
+  "a label with nothing printable left is one space, which mermaid accepts",
+  buildExplainerRecord({ diagrams: [{ steps: ["```", "\u0007"] }] }).includes('    n1[" "]\n    n2[" "]'),
+);
+check("the page carries no mermaid source", !page.includes("flowchart") && !page.includes("mermaid"));
 
 const run = (args, input) => spawnSync(process.execPath, [builderPath, ...args], { input, encoding: "utf8" });
 const json = JSON.stringify(model);

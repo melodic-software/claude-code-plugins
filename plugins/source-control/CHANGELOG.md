@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.83.2] - 2026-10-10
+
+### Added
+
+- **A `claude plugin eval` suite for `/source-control:resolve-conflicts`.** Seven cases tagged `row22`, each scaffolding a git repository that is stopped in a real conflict: a two-stop rebase, a six-file merge where the prompt asks for `--ours` or abort, a merge with a conflict that has no markers, a cherry-pick, a merge whose incoming tip never touched the file, a revert, and a merge with only "sort it out" as the prompt. Most graders are deterministic: the resolved file contents, history read before the first edit, tests run before the operation concludes, and the concluding reflog line. They also cover the "It's working if" checks from the archived upstream skill page. Three cases add one model-judged grader each, and every grader carries pass and fail samples. The skill body is unchanged.
+
 ## [0.83.1] - 2026-10-10
 
 ### Fixed
