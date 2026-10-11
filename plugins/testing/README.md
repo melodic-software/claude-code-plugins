@@ -217,6 +217,11 @@ its test scan. Keep the team's scan config where it is (the `docs/conventions/te
 `reuse_running_instance` only in `docs/conventions/testing.yaml`, or in a personal layer on a
 machine that runs this release.
 
+Its `worst-case` action also reads an optional `.claude/testing/worst-case.md`, after the bundled
+catalog in `run-e2e/context/worst-case.md`: the project's own worst-case values, field limits and
+data formats, read as data. The action renders a target with that data, reverts what it injected
+(proven with `cmp` snapshots), and reports what breaks without editing component code.
+
 `/testing:audit` and the `test-scan` hook read the testing config through the same cascade
 (`~/.claude/testing.yaml`, the team layer, `.claude/testing.local.yaml`): adapters to turn off or
 allow, path globs to exclude or include, extra adapter globs, consumer adapters, and a level per

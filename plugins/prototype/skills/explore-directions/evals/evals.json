@@ -109,14 +109,27 @@
     },
     {
       "id": 10,
-      "name": "handover-gives-strengths-costs-and-a-pick",
+      "name": "handover-gives-tradeoffs-without-a-pick",
       "prompt": "The three variants of the recipe search page are built. Hand them over to me.",
-      "expected_output": "The handover lists each variant's tradeoffs (what it does well, what it costs), names one recommended variant with a one-line reason, and still leaves the choice to the user through the reply template. It does not fold the recommended variant in on its own.",
+      "expected_output": "The handover lists each variant's tradeoffs (its axis, when it is the right choice, what it costs) without pre-picking a favorite, and leaves the choice to the user through the reply template. It does not fold any variant in on its own.",
       "files": [],
       "expectations": [
-        "The handover states at least one strength and one cost for every variant",
-        "The handover names exactly one recommended variant and gives a reason for it",
+        "The handover states when each variant is the right choice and what it costs",
+        "The handover does not pre-pick a favorite variant",
         "The response leaves the pick to the user (the reply template is still shown) and does not fold any variant in"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "mockup-inlines-bundled-switcher",
+      "prompt": "I don’t have the app running yet. Show me three directions for a pricing card I can flip between in my browser.",
+      "expected_output": "Takes the HTML mockup substrate: one self-contained file:// page with the CSP meta tag, three variant containers marked with data-variant and data-variant-label, each with a named direction and axis, and the bundled assets/variant-switcher.html inlined whole before </body> rather than a hand-written switcher; the handover lists each variant with its axis, when it wins and its cost, without pre-picking a favorite. On a real stack the skill instead builds the framework-idiomatic switcher from step 3.",
+      "files": [],
+      "expectations": [
+        "The page inlines the bundled variant switcher (its .vs nav and script) instead of writing a new switcher",
+        "Each variant container carries data-variant and data-variant-label",
+        "Each variant has a direction name and a stated axis",
+        "The handover does not pre-pick a favorite"
       ]
     }
   ]

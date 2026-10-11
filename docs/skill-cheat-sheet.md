@@ -129,6 +129,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/retro-audio:sfx`](../plugins/retro-audio/skills/sfx/SKILL.md) | `retro-audio` | Render one retro sound effect to a WAV file |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 | [`/speech:narrate`](../plugins/speech/skills/narrate/SKILL.md) | `speech` | Script in, narration.wav and words.json out (kokoro local; elevenlabs optional, third-party) |
+| [`/user-interface:write-animation`](../plugins/user-interface/skills/write-animation/SKILL.md) | `user-interface` | Decide whether an element should animate, then write it in the project's stack |
 | [`/user-interface:write-css`](../plugins/user-interface/skills/write-css/SKILL.md) | `user-interface` | Write or review CSS after discovering the project's stack, tokens, targets and conventions |
 
 ## 9. Test
@@ -172,6 +173,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/review:ratchet`](../plugins/review/skills/ratchet/SKILL.md) | `review` | Hold a count in CI with a checked-in ceiling a human merges |
 | [`/review:security-review`](../plugins/review/skills/security-review/SKILL.md) | `review` | Org CI security-review lane command for a GitHub pull request |
 | [`/skill-quality:check`](../plugins/skill-quality/skills/check/SKILL.md) | `skill-quality` | Static QA gate for skill frontmatter, caps, and evals |
+| [`/user-interface:audit-animation`](../plugins/user-interface/skills/audit-animation/SKILL.md) | `user-interface` | Review interface animation read-only, with severity and evidence per finding |
 
 ## 11. Verify outcome
 

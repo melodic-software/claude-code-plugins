@@ -90,13 +90,16 @@ opens with nothing running.
 ## HTML mockup substrate
 
 When the intent selector picks this row, the variants live in one self-contained `file://` HTML
-page with synthetic data and an in-page switcher. Assemble one per task (there is no canned
-template to copy):
+page with synthetic data and an in-page switcher. Assemble one per task:
 
-1. **N variant containers**. One block per variant, all in the single page.
-2. **An in-memory switcher**. `file://` has no routing, so there is no `?variant=` URL; toggle
-   container visibility in memory instead. Build its floating bar, buttons and keyboard handling
-   to the real-stack switcher table in step 3 below.
+1. **N variant containers**. One block per variant, all in the single page, each marked with
+   `data-variant` (its key) and `data-variant-label` (its name).
+2. **The bundled in-memory switcher**. `file://` has no routing, so there is no `?variant=` URL.
+   Inline [assets/variant-switcher.html](assets/variant-switcher.html) whole, just before
+   `</body>`: it shows one variant at a time, switches on its arrows, number keys and left/right
+   arrow keys with wraparound, replays a variant's entrance, ignores keys while a field has
+   focus, and runs under the CSP below. It is chrome, not a contestant: leave its look alone, and
+   move it to the top only when a variant occupies the bottom center.
 3. **A copy-out terminator**, a small control that lifts the winning-variant key plus notes back
    out as text you can paste into your durable answer.
 
@@ -176,6 +179,10 @@ Offer the pass before step 2, and only while the look is still open, meaning the
 direction and there is no host page under sub-shape A. If the user accepts, the step 2 variants
 follow whichever directions the user keeps; if not, step 2 begins as it normally would.
 
+Before building, give each variant a name that describes its direction ("Quiet", "Dense",
+"Editorial", never "Option A") and the axis it diverges on (layout, density, personality, motion,
+interaction model) in a phrase.
+
 ### 2. Draft the variants
 
 Sort every design choice into what must change between variants and what must not:
@@ -218,15 +225,16 @@ The switcher is a small floating bar, fixed at the bottom center of the viewport
 
 The handover message has four parts, in this order:
 
-1. **Where to look.** The route URL, and under it one line per variant: its key and, when
-   evidence was captured, its screenshot path.
+1. **Where to look.** The route URL, and under it one line per variant: its key, its name and,
+   when evidence was captured, its screenshot path.
 2. **Evidence per variant.** With `/playwright:playwright` among the available skills, load each
    variant in it, use its main control once (open the menu, submit the form, change the tab), and
    capture a screenshot; the handover pairs every variant key with its screenshot path. Without
    that skill, the handover says no screenshots exist.
-3. **Tradeoffs and a pick to start from.** Give every variant one line of strengths and one of
-   costs, and close with the variant you would choose and why. That choice is advice: the reply
-   template still decides, and no variant is folded in before the user answers it.
+3. **Tradeoffs.** One row per variant: its axis, when it is the right choice, and what it costs.
+   Sell each honestly and never pre-pick a favorite; asked which you would choose, answer from the
+   product's personality and how often people will use it. No variant is folded in before the
+   user answers the reply template.
 4. **The reply template** below, machine-legible, for the user to fill, so the answer comes back
    as the next prompt in a form that needs no re-reading (on the mockup substrate, the copy-out
    terminator lifts it).

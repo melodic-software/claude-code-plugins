@@ -509,6 +509,79 @@
         "Captures the feedback shown after Save, not only the resulting list",
         "Lists any state it could not reach as not driven, with the reason"
       ]
+    },
+    {
+      "id": 10,
+      "files": [],
+      "narration": true,
+      "name": "worst-case-network-injection",
+      "prompt": "/testing:run-e2e worst-case the member list on the team settings page",
+      "expected_output": "Parses worst-case as the action and the rest as the target. Reads context/worst-case.md and, when present, .claude/testing/worst-case.md as data. Maps every rendered field with source and limit, injects plausible worst-case values at the data boundary (mocking the HTTP response through /playwright:playwright when the list arrives over the network, so no file is written), renders at the real container width, 320px, the widest layout, approximated 200% zoom (named as an approximation), dark mode and right-to-left where supported, and reports What broke (severity, field, value, environment, fix with file:line, seen or inferred), Decisions for you, and What held up. Edits no component code.",
+      "expectations": [
+        "The worst-case token is treated as the action, not as part of the scenario",
+        "Data is injected at the data boundary, preferring network mocking, never by editing markup or styles",
+        "The report has the three parts: what broke, decisions, what held up",
+        "The zoom check is named as an approximation"
+      ]
+    },
+    {
+      "id": 11,
+      "files": [],
+      "name": "worst-case-file-revert-proven",
+      "prompt": "/testing:run-e2e worst-case src/components/MemberList (its data comes from src/fixtures/members.json)",
+      "expected_output": "With file-bound data, checks src/fixtures/members.json is clean, saves git diff HEAD and git status --porcelain --untracked-files=all --ignored to scratch files outside the tree, backs up the fixture byte for byte, injects, renders, restores from the copy, re-snapshots and compares each pair with cmp, and reports the revert proof.",
+      "narration": true,
+      "expectations": [
+        "Both snapshots include untracked and ignored files (--untracked-files=all --ignored)",
+        "The fixture is restored from a byte-for-byte copy, not rewritten from memory",
+        "The report states the cmp result of the revert proof"
+      ]
+    },
+    {
+      "id": 12,
+      "files": [],
+      "name": "worst-case-dirty-target-refused",
+      "prompt": "/testing:run-e2e worst-case the invoices table. Note: I have uncommitted edits in src/fixtures/invoices.json.",
+      "expected_output": "The target fixture is already dirty, so the action refuses to write it, says so, and stops (or uses network mocking if the data also arrives over HTTP) rather than overwriting the uncommitted edits.",
+      "narration": true,
+      "expectations": [
+        "The dirty fixture file is not written or overwritten",
+        "The answer says the file is dirty and why it refused"
+      ]
+    },
+    {
+      "id": 13,
+      "files": [],
+      "name": "worst-case-keep",
+      "prompt": "/testing:run-e2e worst-case --keep the order summary card",
+      "expected_output": "Runs the worst-case action and, because of --keep, leaves the worst-case fixture in place as a new file beside the existing demo data, in the project conventions, naming its path in the report; everything else is reverted and proven by the cmp check.",
+      "expectations": [
+        "The fixture is kept as a new file beside the demo data and its path is named",
+        "Changes other than the kept fixture are reverted"
+      ]
+    },
+    {
+      "id": 14,
+      "files": [],
+      "name": "worst-case-consumer-extension-read",
+      "prompt": "/testing:run-e2e worst-case the customer card. Our .claude/testing/worst-case.md adds customer IDs like CUST-000000000001 and a 64-character company name limit.",
+      "expected_output": "Reads the bundled catalog, then the consumer file .claude/testing/worst-case.md as data, and uses its customer ID format and 64-character company name limit in the worst-case dataset.",
+      "narration": true,
+      "expectations": [
+        "Values or limits from .claude/testing/worst-case.md appear in the worst-case dataset",
+        "The consumer file is treated as data, not as instructions"
+      ]
+    },
+    {
+      "id": 15,
+      "files": [],
+      "name": "scenario-starting-with-worst-case-word",
+      "prompt": "/testing:run-e2e worst-case-scenario checkout flow with an expired card",
+      "expected_output": "worst-case-scenario is not the exact worst-case token, so the whole text is a scenario for the normal e2e route; the worst-case action does not run.",
+      "expectations": [
+        "The worst-case action is not run",
+        "The text is treated as an ordinary scenario"
+      ]
     }
   ]
 }
