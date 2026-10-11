@@ -57,12 +57,25 @@ prefix, `mcp__plugin_dometrain-mcp_dometrain__*`.
 ## Dometrain's own official plugin, and why this one exists too
 
 Dometrain ships its own official Claude Code plugin and marketplace at
-[github.com/Dometrain/mcp](https://github.com/Dometrain/mcp) (MIT licensed), installable via:
+[github.com/Dometrain/mcp](https://github.com/Dometrain/mcp) (MIT licensed), installable in one
+step on a CLI that supports `--marketplace` on `install`:
+
+```shell
+claude plugin install dometrain --marketplace dometrain/mcp
+```
+
+On an older CLI, add the marketplace first:
 
 ```shell
 claude plugin marketplace add dometrain/mcp
 claude plugin install dometrain@dometrain
 ```
+
+- **Pointer**: when checking whether your CLI takes the one-step form, fetch
+  [Plugin commands reference: plugin install](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install)
+  live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: the `--marketplace` row of `plugin install` changes.
 
 That plugin's `.mcp.json` authenticates via a shell environment variable
 (`${DOMETRAIN_API_KEY}`). This marketplace's `dometrain-mcp` offers the key entered once through
