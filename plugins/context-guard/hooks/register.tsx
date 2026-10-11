@@ -316,9 +316,15 @@ export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Setting
 
 // The verdict lines due at one carrier: a line that another one already starts with (an approach
 // line its crossing repeats, with or without an action after it) is sent once.
+// Follows the verdict lines once per carrier past smart. The verdict alone pushed Claude toward
+// handoffs and terse delegation, so the line names the durable-state step and leaves the rest a choice.
+const OPTIONS =
+  'context-guard: options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.'
+
 const renderAll = (events: Event[], s: Session, cfg: Config, settings: Settings) => {
   const lines = [...new Set(events.map(e => renderEvent(e, s, cfg, settings)))]
-  return lines.filter(l => !lines.some(o => o !== l && o.startsWith(l)))
+  const verdicts = lines.filter(l => !lines.some(o => o !== l && o.startsWith(l)))
+  return events.some(e => e.zone !== 'smart') ? [...verdicts, OPTIONS] : verdicts
 }
 
 // Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.

@@ -40,7 +40,7 @@
     "rate_limit_line_threshold": {
       "type": "number",
       "title": "Rate-limit line threshold (percent)",
-      "description": "Window use at which Claude gets the threshold line, 1 to 100; any other value reads as the default. Default 95, the loop lanes' pause edge, which stays 95 whatever this is set to.",
+      "description": "Window use at which Claude gets the threshold line, 1 to 100; any other value reads as the default. Default 95, the pause threshold of a loop lane that opted in to pausing, which stays 95 whatever this is set to.",
       "default": 95
     },
     "rate_limit_approach_pct": {
