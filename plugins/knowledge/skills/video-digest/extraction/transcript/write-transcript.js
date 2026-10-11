@@ -61,7 +61,12 @@ const EDGE_PUNCTUATION =
  * @param {string} text
  */
 function words(text) {
-  return tokens(text).filter((token) => /[\p{L}\p{N}]/u.test(token));
+  return tokens(text).filter(isWord);
+}
+
+/** @param {string} token - a word holds at least one letter or digit */
+function isWord(token) {
+  return /[\p{L}\p{N}]/u.test(token);
 }
 
 /** @param {string[]} run */
@@ -120,7 +125,7 @@ export function dropParagraphBoundaryRepeats(transcript, cues) {
     if (!current || !previous) continue;
     const previousWords = words(previous[2]);
     const currentTokens = tokens(current[2]);
-    const wordAt = currentTokens.flatMap((token, at) => (comparableWord(token) ? [at] : []));
+    const wordAt = currentTokens.flatMap((token, at) => (isWord(token) ? [at] : []));
     const currentWords = wordAt.map((at) => currentTokens[at]);
     const longest = Math.min(
       BOUNDARY_REPEAT_MAX_WORDS,

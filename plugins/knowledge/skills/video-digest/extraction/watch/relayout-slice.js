@@ -196,6 +196,11 @@ const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:\?[^#]*)?(?:#.*)?
 const HTML_START_TAG = /<([A-Za-z][A-Za-z0-9-]*)(?:\s(?:"[^"]*"|'[^']*'|[^<>"'])*)?\/?>/g;
 /** An HTML comment. */
 const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+/** A CommonMark URI or email autolink: https://spec.commonmark.org/0.31.2/#autolinks */
+const URI_AUTOLINK = /[A-Za-z][A-Za-z0-9+.-]{1,31}:[^\x00-\x20<>]*/.source;
+const EMAIL_LABEL = /[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?/.source;
+const EMAIL_AUTOLINK = `${/[\w.!#$%&'*+/=?^`{|}~-]+@/.source}${EMAIL_LABEL}(?:\\.${EMAIL_LABEL})*`;
+const AUTOLINK = new RegExp(`<(?:${URI_AUTOLINK}|${EMAIL_AUTOLINK})>`, "g");
 /**
  * A `<` opening a link or definition destination: after `](` or a definition
  * label's `]:`, plus optional whitespace with at most one line ending.
@@ -231,10 +236,11 @@ function htmlAttributeValues(text) {
 }
 
 /**
- * Ranges of `text` holding HTML start tags and comments: attribute and
- * comment text is data, so the link, definition and backticked-path passes
- * skip it; only htmlAttributeValues reads a tag. An angle-bracket link or
- * definition destination such as `<source>` is a destination, not a tag.
+ * Ranges of `text` holding HTML start tags, comments and autolinks: attribute,
+ * comment and autolink text is data, so the link, definition and
+ * backticked-path passes skip it (an autolink's `](` is no link); only
+ * htmlAttributeValues reads a tag. An angle-bracket link or definition
+ * destination such as `<source>` is a destination, not a tag or autolink.
  *
  * @param {string} text
  * @returns {[number, number][]}
@@ -244,7 +250,7 @@ function htmlRanges(text) {
     DESTINATION_OPENER.lastIndex = at;
     return DESTINATION_OPENER.test(text);
   };
-  const tags = [...text.matchAll(HTML_START_TAG)].filter(
+  const tags = [...text.matchAll(HTML_START_TAG), ...text.matchAll(AUTOLINK)].filter(
     (tag) => !isDestination(Number(tag.index)),
   );
   return [...text.matchAll(HTML_COMMENT), ...tags].map((match) => {
@@ -904,6 +910,8 @@ export function inlineLinks(text) {
           closeQuote = scan;
           break;
         }
+        // A (...) title holds no unescaped `(`; with one, this is no link.
+        if (quote === "(" && text[scan] === "(") break;
         // A title never spans a blank line (one holding only spaces or tabs).
         if (text[scan] === "\n" && /^[ \t]*\r?\n/.test(text.slice(scan + 1))) break;
       }

@@ -1509,6 +1509,21 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(checkLayoutLinks(root)).toEqual([{ file: "metadata/notes.md", ref: "lost.md" }]);
   });
 
+  // CommonMark: a (...) title holds no unescaped parenthesis, so this is no link.
+  it("reads no link whose parenthesized title holds a bare parenthesis", () => {
+    expect(inlineLinks("[example](missing.md (title(with paren))")).toEqual([]);
+  });
+
+  // CommonMark: an autolink binds before link grouping, so its `](` is no link.
+  it("flags no link inside a URI autolink", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/notes.md": "[foo<https://example.com/?search=](missing.md)>\n",
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([]);
+  });
+
   it("reads a link with a parenthesized title and rewrites its destination", async () => {
     expect(inlineLinks("[x](a.md (Title)) and [y](b.md)").map(({ dest }) => dest)).toEqual([
       "a.md",

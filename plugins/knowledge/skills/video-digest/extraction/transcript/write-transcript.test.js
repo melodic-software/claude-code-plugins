@@ -188,6 +188,24 @@ that answer was
     );
   });
 
+  it("drops overlapping cues' carried-over words after a >> marker, keeping the marker", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+that answer was
+
+00:00:03.000 --> 00:00:05.500
+&gt;&gt; Very good.
+
+00:00:05.000 --> 00:00:07.000
+&gt;&gt; Very good question, thanks.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe(
+      "[0:01] that answer was >> Very good.\n\n[0:05] >> question, thanks.",
+    );
+  });
+
   it("keeps two words the speaker genuinely repeats across a paragraph boundary", () => {
     const autoVtt = `WEBVTT
 
