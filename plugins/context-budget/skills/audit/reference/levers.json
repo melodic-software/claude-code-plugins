@@ -121,6 +121,31 @@
       "recheckTrigger": "The settings reference changes either artifact key's semantics or scope restrictions."
     },
     {
+      "id": "disable-web-fetch",
+      "title": "CLAUDE_CODE_DISABLE_WEB_FETCH",
+      "mechanism": "Turns the WebFetch tool off while WebSearch stays. Probed: WebFetch leaves the tool list (removal, not refusal).",
+      "category": "removes-weight",
+      "categoryBasis": "Env row documented (Claude Code 2.1.285 or later). The page does not say whether the definition leaves the request; removal was probed on Claude Code 2.1.296, 2026-10-10: with the variable set, the session's init tool list dropped WebFetch (28 to 27 tools).",
+      "conditions": "How much it moves depends on where WebFetch sits in the consumer's session. The probe (Claude Code 2.1.296, 2026-10-10) measured request-side input tokens (input plus cache creation plus cache read) and saw a negligible change with WebFetch removed, likely because WebFetch was deferred there. When it loads upfront, the prefix bucket should move. Price per bucket rather than assuming either.",
+      "posture": "recommendable-on-fit",
+      "scope": "Environment variable.",
+      "detection": "CLAUDE_CODE_DISABLE_WEB_FETCH in the environment; WebFetch's presence in the baseline tool list, and whether it sits in the deferred or the prefix bucket.",
+      "measurement": "attribute --tools WebFetch prices the removal per bucket; a snapshot with the variable set in the spawned environment confirms the wiring (WebFetch absent from the tool list).",
+      "emittedConfig": "CLAUDE_CODE_DISABLE_WEB_FETCH=1 (environment)",
+      "caveats": [
+        "Removes capability, not just weight: confirm the operator does not fetch pages through Claude. WebSearch is unaffected.",
+        "A bare-name deny of WebFetch (deny-bare-tool) is the persistent permissions.deny route to the same removal; this variable is the switch for one environment.",
+        "Claim: the variable removes WebFetch's definition rather than refusing calls. Basis: on Claude Code 2.1.296, 2026-10-10, a headless session with CLAUDE_CODE_DISABLE_WEB_FETCH=1 listed 27 tools in its init event against 28 without it, WebFetch the one missing (melodic-software/claude-code-plugins#6778). Pointer: when deciding whether to offer this lever, fetch the CLAUDE_CODE_DISABLE_WEB_FETCH row at https://code.claude.com/docs/en/env-vars live. As of 2026-10-10. Recheck: the env-vars row states removal or refusal, or a snapshot with the variable set still lists WebFetch."
+      ],
+      "citations": [
+        "https://code.claude.com/docs/en/env-vars",
+        "https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior",
+        "https://code.claude.com/docs/en/changelog"
+      ],
+      "verified": "2026-10-10",
+      "recheckTrigger": "The env-vars CLAUDE_CODE_DISABLE_WEB_FETCH row states removal or refusal, or a snapshot with the variable set still lists WebFetch."
+    },
+    {
       "id": "include-git-instructions",
       "title": "includeGitInstructions: false / CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS",
       "mechanism": "Removes the git commit/PR instruction prose that rides inside the Bash tool's description. The env var overrides the settings key (binary predicate at the verified version: a set env wins; otherwise includeGitInstructions defaults true).",
@@ -156,7 +181,7 @@
       "measurement": "snapshot with and without the variable in the spawned environment; compare System prompt (and System tools, if the prompt category is omitted).",
       "emittedConfig": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1 (environment; no settings.json form)",
       "caveats": [
-        "Distinct from CLAUDE_CODE_SIMPLE (--bare): two separately registered variables. The sibling disables fetches, keychain reads, and CLAUDE.md auto-discovery — a behavior change, not a prompt trim. Never conflate them.",
+        "Distinct from CLAUDE_CODE_SIMPLE (--bare): two separately registered variables. The sibling bare-simple-mode row changes startup behavior wholesale, and its smaller system prompt and tool set come with that; this row trims only the prompt. Never conflate them.",
         "Headless sdk-mode /context may omit a System prompt category at this version; a lean-vs-full delta then surfaces only in the buckets that move."
       ],
       "citations": [
@@ -168,24 +193,27 @@
     {
       "id": "bare-simple-mode",
       "title": "CLAUDE_CODE_SIMPLE / --bare (the confusion guard)",
-      "mechanism": "Simple mode: disables fetches, keychain reads, and CLAUDE.md auto-discovery. Not a prompt-stripping lever — that is the sibling variable above.",
+      "mechanism": "Simple mode: a stripped-down startup with a smaller tool set and a minimal system prompt. It skips auto-discovery of local configuration (the cited headless bare-mode section lists what it skips), and from Claude Code 2.1.286 it also connects only the MCP servers named on the command line, sends the model no system reminders (the skill listing among them) and starts no background tasks. Its prompt trim is a side effect of that behavior change; the prompt-only lever is the sibling variable above.",
       "category": "removes-weight",
-      "categoryBasis": "Documented (env-vars row plus the --bare CLI equivalent). Its payload effect (memory files not auto-discovered) is a side effect of a behavior change, unmeasured here.",
-      "conditions": "Only the memory-file bucket is affected, and only where CLAUDE.md auto-discovery was contributing; the behavior cost usually dominates.",
+      "categoryBasis": "Documented on the headless page's bare-mode section; the env var and the flag are the same switch (the flag sets the variable). Its payload effect is a side effect of a behavior change, unmeasured here.",
+      "conditions": "Several buckets can move, each only where it was contributing: System prompt and System tools (the minimal prompt and smaller tool set), every bucket that discovered configuration fills (Memory files, Skills, Custom agents), MCP tools from any server not named on the command line, and reminder-borne weight such as the skill listing. The MCP and reminder limits need Claude Code 2.1.286 or later; before that they held only partly, so measure rather than assume. The behavior cost usually dominates every one of these.",
       "posture": "disclose-only",
       "scope": "Environment variable; --bare CLI flag.",
-      "detection": "CLAUDE_CODE_SIMPLE in the environment.",
-      "measurement": "snapshot with and without; compare Memory files.",
+      "detection": "CLAUDE_CODE_SIMPLE in the environment; --bare on the invocation.",
+      "measurement": "snapshot with and without; compare System prompt, System tools (and both deferred buckets), Memory files, Skills (skipped discovery and the dropped listing reminder both land there), Custom agents and MCP tools.",
       "emittedConfig": null,
       "caveats": [
-        "Listed chiefly so it is never mistaken for the prompt lever; recommending it for token savings would trade away core behavior."
+        "Listed chiefly so it is never mistaken for the prompt lever; recommending it for token savings would trade away core behavior.",
+        "Source conflict: the headless bare-mode section, the cli-reference --bare row and the env-vars CLAUDE_CODE_SIMPLE row differ on what bare mode limits. Pointer: when deciding what bare mode drops, fetch https://code.claude.com/docs/en/headless#start-faster-with-bare-mode, https://code.claude.com/docs/en/cli-reference#cli-flags and https://code.claude.com/docs/en/env-vars live. As of 2026-10-10. Recheck: the three sections agree on what bare mode limits, or any of them changes it."
       ],
       "citations": [
+        "https://code.claude.com/docs/en/headless#start-faster-with-bare-mode",
         "https://code.claude.com/docs/en/env-vars",
-        "https://code.claude.com/docs/en/cli-reference#cli-flags"
+        "https://code.claude.com/docs/en/cli-reference#cli-flags",
+        "https://code.claude.com/docs/en/changelog"
       ],
-      "verified": "2026-08-17",
-      "recheckTrigger": "The env-vars reference changes what simple mode disables."
+      "verified": "2026-10-10",
+      "recheckTrigger": "headless#start-faster-with-bare-mode or the env-vars CLAUDE_CODE_SIMPLE row changes what simple mode drops."
     },
     {
       "id": "skill-overrides",

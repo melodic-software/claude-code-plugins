@@ -193,14 +193,14 @@ through unchanged.
   data they cannot trust, never a fabricated zone. The shipped bands are declared judgment
   defaults. `zones.json` is the tuning path. The reader contract points at the model-config page's
   default auto-compact thresholds and records how they relate to the bands. The trigger itself is
-  operator-tunable: `autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`,
-  `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`, and `autoCompactEnabled` / `DISABLE_AUTO_COMPACT`. Bands
+  operator-tunable, per model as well as globally; the reader contract's tunable
+  table records which surfaces we rely on and where to read the rest. Bands
   belong **below** whatever it resolves to, normalized into the percentage shape, so the session
-  reaches a boundary decision before the harness compacts for it. Note that `used_percentage`
-  always measures against the model's *full* window, so a lowered auto-compact window no longer
-  shows up in the percentage. The reader contract owns those surfaces, their verification dates,
+  reaches a boundary decision before the harness compacts for it. `used_percentage` always
+  measures against the model's *full* window, so a lowered auto-compact window no longer shows up
+  in the percentage. The reader contract owns those surfaces, their verification dates,
   and the rationale.
-- **Integrity boundary (stated honestly).** The snapshot directory is owner-only where POSIX
+- **Integrity boundary.** The snapshot directory is owner-only where POSIX
   modes work; on Windows ACL volumes it keeps the inherited ACLs and other local users could forge
   snapshots. Zones are routing hints. Consumers must never attach security or egress decisions
   to a zone word. See the reader contract's untrusted-data section.

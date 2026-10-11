@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.20.11] - 2026-10-10
+
+### Fixed
+
+- **docpage-digest's Agent-tool fallback now sets the verifier's effort.** Where the Workflow tool is unavailable, Phase 4 dispatches verifier A through the Agent tool and now passes `effort` on that call on the same terms as the Workflow call, instead of accepting whatever the agent's pin or the session level happened to be. The skill no longer says the Agent tool takes no per-call effort, which stopped being true in Claude Code 2.1.292, and both places now point at the subagents docs section on effort for the live precedence.
+
 ## [0.20.10] - 2026-10-10
 
 ### Fixed
