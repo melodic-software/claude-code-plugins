@@ -92,6 +92,7 @@ claims:
         measures: "<variable, population, era, and the claim's scenario or only the general mechanism>"
         role: primary          # primary | corroborator
         published: 2025-11-11  # YYYY, YYYY-MM or YYYY-MM-DD, or undated
+        dated_by: printed      # how published was derived (see "Dating an undated living doc"); optional if the page prints the date
         applies_to: "<product> <version range>"   # or version-independent
         standing: current      # current | historical, derived as below
     inference: "<one line: why the claim follows from its sources jointly>"
@@ -169,6 +170,35 @@ taken. The verifier holds no envelope, so this field is how it learns the strict
 
 **The header set is closed; the sidecar set is open.** Adding a sidecar needs no schema change.
 Adding a header *field* does, so keep the header small enough that widening it stays cheap.
+
+### Dating an undated living doc
+
+Many living vendor pages print no date, and under `evidence_use: publish` an undated primary fails
+criterion 13. **Rule: `published:` records a date the publisher, or the publisher's source
+repository, attaches to that page's content.** A serve-time HTTP header (`Last-Modified`, `Date`,
+`ETag`) records when the page was served, so it is never a publication date. When a page prints no
+date, the researcher derives one by the method below for its family and records that method in the
+source entry as `dated_by:`. `dated_by:` is optional where the page itself prints the date (write
+`printed` or omit it) and expected wherever the date was derived. The verifier re-derives the date
+by the recorded method and grades the method (criterion 13's dispatch brief says so); it does not
+pick its own. `scripts/check-source-applicability.py` rejects a `dated_by:` that names a serve-time
+header. A family with no row, and no public source repository, records `published: undated`.
+
+| Family | Method (`dated_by:`) | Pointer | As of | Recheck trigger |
+|---|---|---|---|---|
+| code.claude.com | `sitemap-lastmod`: the `<lastmod>` beside that page's `<loc>` | [docs sitemap](https://code.claude.com/docs/sitemap.xml) | 2026-10-11 | the docs host changes how it builds the sitemap, or a spot check finds a `lastmod` that moved with no content change |
+| docs.github.com | `source-commit`: the date of the last commit that touched the page's source file | [github/docs `content/`](https://github.com/github/docs/tree/main/content) | 2026-10-11 | the page's source moves out of that repository |
+| Microsoft Learn | `ms-date`: the page's `ms.date` metadata; else `source-commit`, the last commit on its source file | [Learn metadata reference, required metadata](https://learn.microsoft.com/en-us/contribute/content/metadata#required-metadata) | 2026-10-11 | the metadata reference changes what `ms.date` means |
+| any other family | `source-commit` when the source repository is public, else `undated` | the page's own repository | n/a | the vendor starts printing a date |
+
+Basis for the code.claude.com row, from a spot check on 2026-10-11: `lastmod` varies per `<loc>`
+across the sitemap rather than carrying one build stamp, and the one page whose content date is
+independently checkable agreed with it, the changelog page, whose newest entry date matched that
+page's `lastmod` day. That is one agreeing check, not proof for every page. If a later spot check
+shows `lastmod` tracking regeneration instead of edits, the row becomes `undated` and the table
+says so. The docs.github.com and Microsoft Learn rows were not re-derived against live pages in
+this pass; a researcher who uses one confirms the method on the page it cites and records the
+result in `measures:`.
 
 ## The fetch log: the written record criteria 6 and 9 are graded against
 
