@@ -86,7 +86,9 @@
 #     grows with this count while every per-command cap still holds: 2,339
 #     sibling `$(: rm)` in 16,378 characters measured 65 s through the chain
 #     on Windows, and a row that runs past its hooks.json `timeout` cannot
-#     be counted on to block (pointer record under Over-length below). No
+#     be counted on to block. Relay: the pointer record is under Over-length
+#     below. As of: 2026-10-11. Recheck trigger: that record leaves the
+#     Over-length entry, or its own recheck trigger fires. No
 #     guard sees the whole chain's time, which is why the cap
 #     lives here. An unprimed payload is counted whole, which no command
 #     inside it can exceed.

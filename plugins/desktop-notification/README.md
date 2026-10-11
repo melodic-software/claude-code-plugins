@@ -50,7 +50,9 @@ available. It needs Node.js on `PATH`: the hook launches through `node hooks/exe
 a Claude Code install does not guarantee Node, so without it the hook does not launch and
 notifications do not fire ([install Node.js](https://nodejs.org/en/download)). It also needs [`jq`](https://jqlang.github.io/jq/) on `PATH`; without jq, notifications
 are disabled and `/desktop-notification:check` reports it, because a Notification hook has no notice
-channel of its own (the Notification pointer record under Behavior covers what it can return). macOS needs nothing
+channel of its own. Relay: what it can return is in the Notification pointer record under
+[Behavior](#behavior). **As of**: 2026-10-11. **Recheck trigger**: that record leaves Behavior,
+or its own recheck trigger fires. macOS needs nothing
 further; Linux needs `libnotify` only for the `os_toast` channel; Windows needs
 nothing (terminal channels only). Telemetry
 timing uses `EPOCHREALTIME` (Bash 5.0+); on older bash the telemetry envelope is

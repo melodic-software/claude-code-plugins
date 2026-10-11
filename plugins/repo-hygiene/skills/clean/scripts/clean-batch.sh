@@ -137,9 +137,10 @@ fail_usage() {
 # so the skill passes --data-dir "${CLAUDE_PLUGIN_DATA}", substituted when the
 # skill loads. An inherited value is used only when its last path segment names
 # this plugin (repo-hygiene-<marketplace>); otherwise the plan, and the run.*
-# pruning beside it, would land in another plugin's data dir. The pointer record
-# for where the plugin variables resolve is in the clean skill's SKILL.md,
-# "Spoke paths".
+# pruning beside it, would land in another plugin's data dir. Relay: the pointer
+# record for where ${CLAUDE_PLUGIN_DATA} substitutes is in ../SKILL.md#spoke-paths.
+# As of: 2026-10-11. Recheck trigger: that section is renamed or its pointer
+# record moves, or the record's own recheck trigger fires.
 plugin_data_dir() {
   local seg
   if [[ -n "$DATA_DIR_ARG" ]]; then
