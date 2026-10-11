@@ -139,7 +139,7 @@ Each maps to the term or doctrine that owns the concept.
 | highway / stale highway | **navigation pointer** above; survives only as a quoted mnemonic |
 | cache *(the doc-restating-environment sense)* | `docs-hygiene:audit-derivability`'s derivable-from-environment doctrine; the word is overloaded here (plugin cache, prompt cache) |
 | sediment | the `docs-hygiene` audit family's pruning doctrine; collides with the code-sense use in `playbooks:fable-5` |
-| sycophancy | nothing. It is a generic LLM-behavior term with no distinct project meaning. Free-prose use is unaffected; it is simply not project vocabulary |
+| sycophancy | nothing. It is a generic LLM-behavior term with no distinct project meaning. Free-prose use is unaffected; it is not project vocabulary |
 | slice *(the work-item sense)* | **vertical slice** above; bare "slice" means the topic folder |
 | map / territory | the source author's metaphor, cited where it appears in [`finding-your-unknowns.md`](finding-your-unknowns.md) "The unknowns taxonomy"; never house vocabulary (metaphor-jargon risk) |
 
