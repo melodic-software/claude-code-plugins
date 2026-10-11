@@ -3,6 +3,90 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.2] - 2026-10-11
+
+### Changed
+
+- `pull-request` and `worktree` spokes name forge operations and link their GitHub commands, which now live in per-spoke provider files under `reference/providers/github/pull-request/` and in the provider README (#6941).
+
+- The `babysit-prs` spokes (`loop.md`, `safety.md`, `orchestration.md`, `freshness.md`, `stuck-checks.md`) and the `babysit-loop` `cycle-shape.md` spoke name forge operations instead of `gh` commands; the GitHub commands, procedures and CLI facts moved to new files under `reference/providers/github/babysit-prs/` and `reference/providers/github/babysit-loop/`, linked from each call site. Behavior is unchanged: every command is still reachable from its spoke, and the worker prompt, the pinned approve mechanic and the pre-computed context keep their `gh` lines.
+
+### Fixed
+
+- The babysit engine recognizes the cloud GitHub proxy's current GraphQL refusal text, and the pull-request, setup and babysit skills now say only to switch to REST on that refusal, pointing at the upstream section.
+
+## [1.0.1] - 2026-10-11
+
+### Added
+
+- **An offline gh fixture for the `pull-request` ready eval cases.** `evals/fixtures/gh-forge/` gives a scaffolded repository a bare local `origin` and a `gh` stand-in that serves one open draft pull request (view, list, diff, ready) and refuses everything else, so no run reaches GitHub. A case cannot set `PATH`, so the scaffold puts the stand-in on it through `~/.zshenv` in the run's temporary home, which zsh reads for every command; the fixture therefore reaches the stand-in only when the operator's shell is zsh. `pull-request-ready-hands-pr-to-explain-change` and `pull-request-ready-merges-base-never-rebases` now use it, so a correct ready run gets past the pull request lookup to the base merge, the flip and the explain-change hand-off. The skill body is unchanged.
+
+### Changed
+
+- The `ready` step runs `scripts/check-affected.sh --tests` on the merged head as its deterministic gate when the repository ships that script.
+
+### Fixed
+
+- The PR-body linkage gates judge a body whose section ends in a long run of blanks in linear time. The old whitespace trim was quadratic, so about 18,000 trailing blanks ran past the 15 s hook timeout and the gate stopped checking that body (#7069).
+
+- `pull-request` and `babysit-prs`: the cloud-session polling rule no longer says cloud sessions have no PR-event route. It keeps the decision to poll, with a pointer to the upstream auto-fix section, an as-of date and a recheck trigger.
+- The `pr-linkage-mcp-gate` docs and hook comment no longer say cloud sessions lack `gh`: `gh pr create` there is absent or refused by the cloud GitHub proxy, which is why PRs go through the MCP tools.
+
+- `/source-control:resolve-conflicts` now triggers when a stopped merge or rebase comes with a request to skip resolution by taking `--ours`/`--theirs` on every file or aborting, the case where its protections matter most (#7070).
+
+- `babysit-loop` takes its cycle-start snapshot through a new `lane-snapshot.mjs`, which reads every open pull request and issue through GraphQL cursor pagination and exits non-zero on a read failure (3) or on a list incomplete on two reads (4): a repeated number, or a count that differs from the `totalCount` each page reported, so an item skipped or duplicated between pages never yields `complete: true`. On a failed snapshot the cycle takes no drain exit and holds `cycle` and `backoff_level`, so a failed read is never an empty queue; it counts toward the no-progress streak, so a snapshot failure that never clears raises the stall escalation (#7143).
+- `babysit-loop`'s telemetry upsert is now `telemetry-upsert.sh`, with distinct exit codes (3 invalid input, 4 no gh, 5 a failed API call, 6 an unconfirmed write) and a read-back byte-compared with the body sent, so a stale or overwritten comment no longer passes as this cycle's telemetry (#7143).
+
+- only adopt babysit-loop telemetry comments the lane wrote
+
+  The telemetry upsert matched any comment opening with the public
+  sentinel, so an outsider's lookalike with a lower id became canonical.
+  The lookup and the lowest-id reconcile now consider only comments
+  written by the script's own write identity (the `gh api user` login,
+  or `<app-slug>[bot]` under an App token via `--app-slug`), and a new
+  `--read` mode gives re-anchor the same filtered read (#7167). A create
+  that lands under another login (a wrong `--app-slug`) deletes that
+  comment and exits 5, naming the login it landed under.
+
+## [1.0.0] - 2026-10-11
+
+### Changed
+
+- **Breaking:** the inlined rate-limit floor makes pausing opt-in. A lane pauses at 95% only when its session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1`. Without it, the lane keeps working at the same model, effort and review depth, and reports the window, its reset time and the options: continue, switch accounts, or opt in (#7118).
+- `pull-request` watch handoff: a window at or above 95% no longer blocks starting or offering a watcher. The skill reports the window, its reset time and the options, and the person decides.
+
+## [0.84.1] - 2026-10-11
+
+### Changed
+
+- The `pull-request`, `babysit-prs`, `babysit-loop`, `setup`, `worktree`, `commit` and `resolve-conflicts` skill bodies name forge operations instead of `gh` commands; the GitHub commands for each operation are in the new `reference/providers/github/README.md`. Behavior is unchanged: the phase spokes and bundled scripts still run the same commands.
+
+### Fixed
+
+- `pr-body-linkage-gate` and `pr-linkage-mcp-gate` accept a tracker's link line as `/work-items:track link` prints it (`Closes ENG-123`, `Refs ENG-123`, `Refs: SW2-12`, `Refs: local-markdown:local/markdown#7`), alone on its line. They blocked the Linear, Jira and local-markdown link lines before.
+
+## [0.84.0] - 2026-10-11
+
+### Added
+
+- **`/source-control:pull-request create` now asks for a `Left out:` line in the verification section.** The line names what was not run or checked, each with its reason, so a reviewer can tell a gap from an omission.
+
+- **`/source-control:pull-request create` takes the PR's link line from the bound work-item tracker.** With the `work-items` plugin installed and a tracker bound, it resolves the branch's item through `/work-items:track link`, so a Jira or Linear binding gets that tracker's link text; without a binding the GitHub `Closes #N` default is unchanged. `parse-branch-issue.sh` accepts a tracker key (`SW2-1234`) as well as an issue number, and a `--no-default` mode that leaves the default grammar to the tracker's adapter.
+
+- `/source-control:pull-request view` and `list`: read-only actions other skills call instead of a forge CLI. `view [<pr>] [--diff]` prints one pull request's facts as JSON, with the repository's visibility, or its diff; with no number it reads the current branch's pull request. `list` prints pull requests by head branch (`--head`) or head-branch pattern (`--head-match`), in any state, up to 1000 rows. `--out <file>` writes either output to a file, so a large diff reaches a later gate whole.
+
+- `/source-control:pull-request view` returns `mergeCommit`, and `list` takes `--search <text>` to keep the PRs the forge's text search matches.
+
+### Changed
+
+- `pull-request ready` hands the pull request to `/review:explain-change` with `--event ready` right after the flip, so the `digest_policy` setting takes effect on the pushed head: `off` does nothing, `offer` offers the digest when a trigger fires, and `always` builds it. The digest gates nothing.
+
+### Fixed
+
+- **The PR monitor's Monitor watch arms again on current Claude Code.** `/source-control:pull-request monitor` armed its watch with a `persistent` option that Claude Code no longer accepts, so the call failed and the PR went unwatched. The watch now passes an explicit `timeout_ms`, re-arms on the deadline notice while the PR still needs watching, and runs one full iteration after each re-arm so nothing that landed in the gap is missed. The poll's first pass records the current checks without emitting them, so a re-arm no longer replays every finished check. The pull-request skill, the babysit loop, and the plugin README now describe a watch that is re-armed at each deadline rather than a session-long one.
+- **The monitor no longer depends on `TaskList`.** Finding and stopping an existing watch now uses the task id the session got back when it armed the watch, because current models do not get the task-tracking tools by default.
+- **The cloud fallback poll survives the background time limit.** Where the Monitor tool is unavailable, the `run_in_background` poll now passes an explicit `timeout` and starts again when the stop notice arrives, so a long CI run in an unattended session is no longer cut off.
+
 ## [0.83.2] - 2026-10-10
 
 ### Added

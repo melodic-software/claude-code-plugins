@@ -157,6 +157,7 @@ lin_issue_json() {
       identifier: ("ENG-" + ($n|tostring)),
       number: $n, title: $t,
       url: ("https://linear.app/acme/issue/ENG-" + ($n|tostring)),
+      createdAt: "2026-08-20T12:00:00.500Z",
       state: {type: $st, name: "In Progress"},
       assignee: {displayName: "kyle", email: "kyle@example.invalid"},
       labels: {nodes: [{name: "type: fix"}]},
