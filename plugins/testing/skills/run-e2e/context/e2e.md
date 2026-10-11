@@ -103,7 +103,8 @@ page changes what it says about automated accessibility coverage or same-environ
 
 No catch rate per check is measured yet. On Linux, `playwright-cli` cannot run inside
 `claude plugin eval`'s Bash: the eval sandbox blocks Unix sockets, so Chromium aborts at launch, and
-no case key, CLI flag or managed `sandbox.network.allowAllUnixSockets` setting lifted the block
+plugin evals expose no case key or CLI flag for sandbox network options (plugin-evals docs, as of
+2026-10-11), and a managed `sandbox.network.allowAllUnixSockets: true` policy did not lift the block
 (Claude Code 2.1.296, eval-lane runs 38150050988 and 38151389439; findings in the marketplace repository's ADR 0056). Browser
 eval cases therefore move to an MCP-driven harness
 ([#7137](https://github.com/melodic-software/claude-code-plugins/issues/7137)). The rubric rows

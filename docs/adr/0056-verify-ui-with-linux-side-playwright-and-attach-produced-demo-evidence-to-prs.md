@@ -228,8 +228,9 @@ in `melodic-software/claude-code-plugins` Actions.
   `FATAL:chrome/browser/process_singleton_posix.cc:297] Check failed: . socket() failed: Operation not permitted (1)`
   (run 38150050988): the sandbox's seccomp filter blocks `socket(AF_UNIX)`, and
   the CLI's own daemon also uses a Unix socket on Linux. The eval writes its own sandbox settings;
-  case keys, CLI flags and a managed policy setting `sandbox.network.allowAllUnixSockets: true` did
-  not lift the block (run 38151389439). Pointers:
+  plugin evals expose no case key or CLI flag for sandbox network options (plugin-evals docs, as of
+  2026-10-11), and a managed `sandbox.network.allowAllUnixSockets: true` policy did not lift the
+  block (run 38151389439). Pointers:
   [plugin evals](https://code.claude.com/docs/en/plugin-evals) and the `allowAllUnixSockets` entry
   in the [settings reference](https://code.claude.com/docs/en/settings-reference). As of:
   2026-10-11. Recheck trigger: a Claude Code release that exposes sandbox network options to eval
