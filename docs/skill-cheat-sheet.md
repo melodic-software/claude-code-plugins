@@ -167,6 +167,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/review:quality-gate`](../plugins/review/skills/quality-gate/SKILL.md) | `review` | Single-lens review checkpoint routed to the matching reviewer |
 | [`/review:security-review`](../plugins/review/skills/security-review/SKILL.md) | `review` | Org CI security-review lane command for a GitHub pull request |
 | [`/skill-quality:check`](../plugins/skill-quality/skills/check/SKILL.md) | `skill-quality` | Static QA gate for skill frontmatter, caps, and evals |
+| [`/user-interface:audit-animation`](../plugins/user-interface/skills/audit-animation/SKILL.md) | `user-interface` | Review interface animation read-only, with severity and evidence per finding |
 
 ## 11. Verify outcome
 

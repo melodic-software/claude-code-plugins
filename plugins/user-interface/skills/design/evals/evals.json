@@ -58,6 +58,27 @@
       "expectations": [
         "The response points to /prototype:explore-directions for throwaway layout variants"
       ]
+    },
+    {
+      "id": 6,
+      "name": "animation-build-routes-to-authoring",
+      "prompt": "Our design is settled. Now add an entrance animation to the onboarding cards.",
+      "expected_output": "Building an interface animation is the animation-authoring concern. The skill routes to its highest-ranked installed route, this plugin’s /user-interface:write-animation when nothing ranked above it applies, and says which route it took.",
+      "files": [],
+      "expectations": [
+        "The response routes the request to the animation-authoring concern or to /user-interface:write-animation",
+        "The response says which route it took"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "animation-review-routes-to-audit",
+      "prompt": "Can you check whether the animations we added in this branch are any good?",
+      "expected_output": "Reviewing existing animation is the animation-audit concern, whose first route is /user-interface:audit-animation; the skill routes there instead of reviewing the motion itself.",
+      "files": [],
+      "expectations": [
+        "The response routes the review to /user-interface:audit-animation or the animation-audit concern"
+      ]
     }
   ]
 }

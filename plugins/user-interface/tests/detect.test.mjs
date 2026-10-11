@@ -15,7 +15,7 @@ const MCP = join(FIX, "mcp-list.txt");
 const scratch = mkdtempSync(join(tmpdir(), "ui-detect-"));
 after(() => rmSync(scratch, { recursive: true, force: true }));
 const HOME = join(scratch, "home");
-mkdirSync(join(HOME, ".claude/skills/animate"), { recursive: true });
+mkdirSync(join(HOME, ".claude/skills/vercel-react-view-transitions"), { recursive: true });
 
 /** Runs detect.mjs as a CLI; `env` replaces the child's environment when given. */
 function detect(args, env, cwd) {
@@ -271,6 +271,23 @@ describe("--config", () => {
     assert.match(errors, /routing\.deny\[0\]: must be a string/);
   });
 
+  test("a team row or disable entry naming a concern no bundled row has is kept with a warning", () => {
+    const team = join(scratch, "team-stale-concern.yaml");
+    writeFileSync(
+      team,
+      "routing:\n  version: 1\n  disable:\n    - concern: Not A Concern\n      id: /pixel-art:ui\n" +
+        "    - concern: retired-concern\n      id: /pixel-art:ui\n    - concern: visual-direction\n      id: /pixel-art:ui\n",
+    );
+    const { config: c } = detect([...base, "--team", team]);
+    assert.deepEqual(c.values.routing.disable, [
+      { concern: "retired-concern", id: "/pixel-art:ui" },
+      { concern: "visual-direction", id: "/pixel-art:ui" },
+    ]);
+    const errors = c.layers.find((l) => l.name === "team").errors.join("\n");
+    assert.match(errors, /routing\.disable\[1\]\.concern: retired-concern names no bundled concern/);
+    assert.doesNotMatch(errors, /disable\[2\]/);
+  });
+
   test("a team row that matches no bundled row is held to the full row schema", () => {
     const team = join(scratch, "team-new-row.yaml");
     writeFileSync(team, "routing:\n  version: 1\n  rows:\n    - concern: visual-direction\n      id: brand-new-tool\n");
@@ -422,7 +439,7 @@ describe("installed tools", () => {
   });
 
   test("a skill counts when its directory is in the user or project skills folder", () => {
-    assert.ok(installed.includes("/animate"));
+    assert.ok(installed.includes("/vercel-react-view-transitions"));
     assert.ok(!installed.includes("/design-taste-frontend"));
     const project = join(scratch, "proj");
     mkdirSync(join(project, ".claude/skills/design-taste-frontend"), { recursive: true });

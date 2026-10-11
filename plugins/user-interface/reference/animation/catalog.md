@@ -122,7 +122,7 @@ allows, not a target.
 | `press` | press feedback |
 | `small` | tooltips, small popovers |
 | `medium` | dropdowns, menus, selects |
-| `large` | modals, dialogs, drawers, sheets |
+| `large` | modals, dialogs, drawers, sheets, toasts |
 
 - Small, frequent interface motion sits near the short end of its role; a shorter dropdown feels
   more responsive than a longer one.

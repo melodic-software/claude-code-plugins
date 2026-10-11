@@ -70,7 +70,9 @@ its rows in rank order and use the first one for which all of these hold:
   they may need to sign in.
 
 Writing or reviewing CSS is the `css-authoring` concern; its first route is this plugin's own
-`/user-interface:write-css`, so CSS work goes there once the design decisions are made.
+`/user-interface:write-css`, so CSS work goes there once the design decisions are made. Building
+an interface animation is the `animation-authoring` concern, and reviewing existing animation is
+`animation-audit`.
 
 Invoke a skill route by its id without the leading slash (the Skill tool takes `plugin:skill`);
 for a plugin route, use the skill it provides for the concern; for a tool route, call that tool (Claude Design: see Gotchas). A skill only its user can start (the Skill tool refuses it) is handed over instead: give

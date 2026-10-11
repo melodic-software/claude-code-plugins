@@ -15,8 +15,9 @@ Name what you found before designing, so the user can correct it.
 
 ## Route
 
-Take the concern (visual direction, typography and color, motion, components, design system,
-accessibility, mockups, CSS authoring, responsive testing, writing) to the highest-ranked route
+Take the concern (visual direction, typography and color, animation authoring, animation audit,
+components, design system, accessibility, mockups, CSS authoring, responsive testing, writing) to
+the highest-ranked route
 that is installed and reachable. Where the project defines the concern, a style-imposing tool such as frontend-design
 is not used for it; offer one only for a concern the project leaves open.
 
@@ -35,8 +36,8 @@ Writing or reviewing the CSS itself is the `css-authoring` concern: hand it to
 
 ## Motion and interaction
 
-Design these in whichever motion route is taken; the project's own system still leads, and the
-review checklist below checks only what was built.
+Design these in whichever `animation-authoring` route is taken; the project's own system still
+leads, and the review checklist below checks only what was built.
 
 - **Interruptible motion.** When the target changes mid-animation, continue from the current value
   and velocity; never restart from zero. Sources:
@@ -57,7 +58,7 @@ review checklist below checks only what was built.
   [corner-smoothing-skill](https://github.com/gabrielobholz/corner-smoothing-skill) (MIT).
 - **Layout changes keep each element's identity.** Give items stable keys and tween position, size
   and radius; text moves with its box and never scales. For the library or view-transition API, take
-  the motion route in `routing.json`. Sources:
+  the `animation-authoring` route in `routing.json`. Sources:
   [post](https://x.com/gabriell_lab/status/2089016710745534571),
   [post](https://x.com/gabriell_lab/status/2091140734560669972).
 - **Brief motion in named terms and numbers, not adjectives.** Name the scroll effect
