@@ -232,7 +232,9 @@ them live when a command's output, or the files you find, do not match the entry
   events, which this version does not read".
 - **Not checked**: no ask or deny rule in any scope read: `no-data`, reason "no ask or deny rule
   in <scopes read>; prompt timing needs OpenTelemetry tool_decision events, which this version
-  does not read" plus the unread scopes.
+  does not read" plus the unread scopes. The settings page fetch is unread: `no-data`, reason "the
+  settings page could not be read in this run, so the settings file paths are unknown; rerun
+  /performance:go-faster where code.claude.com is reachable".
 - **Guard**: every finding in this area is `flag-only`.
 - **Catalog**: [catalog/harness.md](catalog/harness.md) rows with area `permissions`;
   [catalog/measurement.md](catalog/measurement.md) rows with area `all`.
@@ -255,7 +257,10 @@ them live when a command's output, or the files you find, do not match the entry
   `startup ledger, latest row`, `command` `/context-budget:audit --ledger`, `fix_owner`
   `/instruction-placement:audit`, horizon `later`, route `next-run`.
 - **Not checked**: no instruction file exists: `no-data`, reason "no always-loaded instruction
-  file found: nothing loads at launch, so there is no instruction cost to measure".
+  file found: nothing loads at launch, so there is no instruction cost to measure". The memory
+  page fetch is unread: `no-data`, reason "the memory page could not be read in this run, so the
+  launch-loaded file list is unknown; rerun /performance:go-faster where code.claude.com is
+  reachable".
 - **Guard**: an instruction that blocks, denies or asks is a guard; a finding that would remove or
   relax one is `flag-only`. A speedup that conflicts with a loaded instruction sets
   `conflicts_instruction` to the file and line, and is `flag-only`.

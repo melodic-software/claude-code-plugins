@@ -3,8 +3,8 @@
 #
 # Exists because a worktree-isolated agent refused a pre-compute line carrying genuine
 # `$`-expansion (`$local`, command substitution, `${VAR:-default}`), so the derivation
-# inline made the whole skill fail to load there (probe: #1687 in the marketplace
-# repository; recheck when a worktree-isolated session loads such a line). The invoking
+# inline made the whole skill fail to load there (the probe and its recheck trigger are
+# in SKILL.md's "Pre-computed Context" section). The invoking
 # line in SKILL.md passes plugin variables only; the `$`-bearing logic lives here, where a
 # shell reads it as an ordinary script. `${user_config.*}` tokens must NEVER reach the
 # pre-compute line either: we do not rely on one being substituted, and a surviving
