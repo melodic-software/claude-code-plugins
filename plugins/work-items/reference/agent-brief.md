@@ -32,7 +32,7 @@ The agent needs to know when it's done. Every criterion should be independently 
 
 ### Explicit scope boundaries
 
-State what is out of scope. Prevents gold-plating or assumptions about adjacent features.
+State what is out of scope. This keeps the agent from doing more than the job needs or assuming adjacent features are included.
 
 ## Template
 
@@ -94,7 +94,7 @@ The brief specifies what's left to do *to the existing diff*. Apply this variant
 |-----|-----|-----|
 | File paths in key interfaces | Go stale within days | Name types and functions instead |
 | "Fix the bug" acceptance criteria | Not verifiable | "Running X produces Y" |
-| No out-of-scope section | Agent gold-plates | List 2-3 explicit boundaries |
+| No out-of-scope section | Agent does more than the job needs | List 2-3 explicit boundaries |
 | Procedural steps ("open file, add line") | Agent makes different implementation choices | Describe desired behavior |
 | Implementation-specific ("use a HashMap") | Constrains agent unnecessarily | Describe the requirement the data structure must satisfy |
 | Restarting a PR from a blank implementation | Ignores attached code | Finish what exists; current-behavior-of-the-diff |

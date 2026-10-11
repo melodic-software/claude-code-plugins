@@ -108,10 +108,9 @@ works where no binding resolves; where the provider exposes no body concept at a
 written by whoever can file in that tracker, so a surface that adds a body read inherits the
 item-content-trust boundary along with it.
 [`${CLAUDE_PLUGIN_ROOT}/reference/item-content-trust.md`](${CLAUDE_PLUGIN_ROOT}/reference/item-content-trust.md)
-carries the rule and its failure modes. Stated here because this is the document a *new* surface
-consults when it needs body text, and the reference it would otherwise have to already know about:
-every live reading surface in this plugin cites the boundary, but until now the seam doc that
-teaches the read did not, so the link ran one way only.
+carries the rule and its failure modes. It is linked here because this is the document a *new*
+surface consults when it needs body text, and it would otherwise have to already know the
+reference exists.
 
 Coordination claims are race-safe at the seam (assignee + lease comment; `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol"). The retired hold→verify→claim label dance is gone. Reads are non-mutating; writes route through the adapter's identity policy.
 
