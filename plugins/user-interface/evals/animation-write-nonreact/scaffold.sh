@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Seeds a Svelte app with an unanimated todo list and no animation library.
+# Seeds a Svelte app with an unanimated task list and no animation library.
 set -euo pipefail
 
 mkdir -p src/lib
