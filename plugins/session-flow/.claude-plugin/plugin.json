@@ -54,7 +54,7 @@
     "observer_analysis_effort": {
       "type": "string",
       "title": "Observer analysis effort",
-      "description": "Effort level passed as --effort to the headless post-session analysis run, a second cost lever beside the model. The default, medium, is passed explicitly, and the run drops CLAUDE_CODE_EFFORT_LEVEL from its environment because that variable overrides --effort. Accepted levels depend on the model. See reference/observer.md.",
+      "description": "Effort level passed as --effort to the headless post-session analysis run, a second cost lever beside the model. The default, medium, is passed explicitly; the run drops CLAUDE_CODE_EFFORT_LEVEL, which would override it. Accepted levels depend on the model. See reference/observer.md.",
       "default": "medium"
     },
     "observer_analysis_bare": {

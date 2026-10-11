@@ -1275,6 +1275,7 @@ class LedgerAndRetention(unittest.TestCase):
                     self.assertTrue(ob._run_analysis())
                 cmd = captured["cmd"]
                 self.assertEqual(cmd[cmd.index("--effort") + 1], expected)
+                self.assertEqual(cmd[cmd.index("--model") + 1], "claude-opus-5-5")
 
     def test_effort_env_var_is_stripped_from_the_run(self):
         # CLAUDE_CODE_EFFORT_LEVEL overrides --effort, so the child must not see it.
@@ -1635,7 +1636,7 @@ class ArmLauncher(unittest.TestCase):
                 "--plugin-root",
                 str(tmp),
                 "--model",
-                "claude-haiku-4-5",
+                "claude-opus-5-5",
                 # Analysis-free (no `claude -p` call) keeps this fast and
                 # hermetic; the spawn call itself -- the site of the bug --
                 # is still real. --idle-seconds is set well above the time
