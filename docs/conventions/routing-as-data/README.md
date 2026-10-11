@@ -149,7 +149,7 @@ user-writable layer.
 
 | Plugin | Status |
 |---|---|
-| `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows. Exception: the deferred `axe-accessibility` row keeps a bare `id` and `detect` until it is qualified |
+| `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows. Exception: the deferred `axe-accessibility` row keeps a bare `id` and `detect` until it is qualified. Team layer: `<home>/user-interface.yaml` holds `routing` beside `css` keys, and `routing` is accepted in the team layer only; it is validated, but `/user-interface:design` does not apply it yet. Deviation ([ADR 0061](../../adr/0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md)): the `css` keys also take a structured personal layer (user-global `~/docs/conventions/user-interface.yaml` and `<home>/user-interface.local.yaml`), against the no-structured-personal-layer rule above |
 | `user-experience` (`/user-experience:shape`) | Adopts: group field `job`, the first team-layer implementer; applies #6642's two limits narrower than this doc |
 | Developer-experience plugin | Planned |
 

@@ -1,0 +1,10 @@
+version: 1
+css:
+  important: utilities-only
+  rules:
+    disable:
+      - hover
+routing:
+  version: 1
+  deny:
+    - superdesign
