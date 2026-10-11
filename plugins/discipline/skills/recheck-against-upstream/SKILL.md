@@ -96,7 +96,7 @@ buys nothing.
 only, whatever the argument or trigger. Where the fan-out would fit, add a
 ledger entry recommending a direct `/discipline:recheck-against-upstream
 fan-out` run instead. The batch is audit-only and keeps its cost bounded by
-leaving fan-out tiers out, and a fork's recheck dispatches no subagents.
+leaving fan-out tiers out.
 
 - **Pointer**: whether a fork's Agent tool can spawn,
   [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools).

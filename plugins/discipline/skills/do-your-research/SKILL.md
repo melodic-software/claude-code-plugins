@@ -141,7 +141,7 @@ fan-out's subagent cost buys nothing.
 whatever the argument or trigger. Where the fan-out would fit, add a ledger
 entry recommending a direct `/discipline:do-your-research tiered` run instead.
 The batch is audit-only and keeps its cost bounded by leaving fan-out tiers
-out, and a fork's audit dispatches no subagents.
+out.
 
 - **Pointer**: whether a fork's Agent tool can spawn,
   [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
