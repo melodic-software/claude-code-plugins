@@ -147,6 +147,11 @@ async function compare(v) {
     failed ||= !pass;
     console.log(`differing=${differing} tolerance=${tolerance} verdict=${pass ? 'pass' : 'fail'} name=${name}`);
   }
+  for (const name of Object.keys(after.images).sort()) {
+    if (name in base.images) continue;
+    failed = true;
+    console.log(`differing=extra tolerance=${tolerance} verdict=fail name=${name}`);
+  }
   return failed ? 1 : 0;
 }
 

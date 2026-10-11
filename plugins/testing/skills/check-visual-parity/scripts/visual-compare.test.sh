@@ -367,6 +367,11 @@ if ((pixel)); then
   assert_eq "a size mismatch exits 1" 1 "$rc"
   assert_contains "and prints differing=size fail" "$out" "differing=size tolerance=0 verdict=fail name=cart.png"
 
+  capture "$T/after" "chromium 140" "cart.png" "4 4" "a b=c.png" "4 4" "extra.png" "4 4"
+  cmp_run --tolerance 0
+  assert_eq "an image only the after capture has exits 1" 1 "$rc"
+  assert_contains "and prints differing=extra fail" "$out" "differing=extra tolerance=0 verdict=fail name=extra.png"
+
   capture "$T/after" "chromium 141" "cart.png" "4 4" "a b=c.png" "4 4"
   cmp_run --tolerance 0
   assert_eq "a host fingerprint mismatch exits 2" 2 "$rc"

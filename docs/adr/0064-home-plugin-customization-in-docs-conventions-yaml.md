@@ -110,8 +110,8 @@ that must tell a broken file from an absent key.
   `scripts/sync-shared-copies.sh`.
 - A malformed team file no longer reads as a partial value: the reader takes the fallback and says so
   on stderr, and a fail-closed caller uses `--strict`.
-- CI schema validation reports without blocking, so a schema violation reaches a reviewer, not a
-  required check.
+- CI schema validation feeds the job's result aggregator (Decision 7), so a schema violation fails
+  the required check and an invalid convention file cannot merge.
 
 Recheck when the pipeline settles how `<root>` resolves, or when #5906 finishes migrating the
 existing surfaces.
