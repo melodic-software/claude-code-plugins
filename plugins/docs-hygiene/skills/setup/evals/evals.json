@@ -68,7 +68,7 @@
       "name": "apply-refuses-a-file-needing-a-hand-edit",
       "narration": true,
       "prompt": "/docs-hygiene:setup apply compress_articles=keep [docs/conventions/docs-hygiene.yaml sets compress_articles twice: once to keep and once to cut.]",
-      "expected_output": "check reports a WARN that compress_articles is set 2 times. setup-apply.mjs refuses with one line, exits 1 and leaves the file untouched, because a key set twice needs a hand edit first. The skill reports the refusal and asks the operator to remove one of the two lines; it does not edit the file itself.",
+      "expected_output": "check reports a WARN that key compress_articles is set more than once (it appears 2 times). setup-apply.mjs refuses with one line, exits 1 and leaves the file untouched, because a key set twice needs a hand edit first. The skill reports the refusal and asks the operator to remove one of the two lines; it does not edit the file itself.",
       "files": [],
       "expectations": [
         "Reports the duplicate key as a WARN naming the file and the key",
