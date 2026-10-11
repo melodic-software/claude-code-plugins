@@ -23,6 +23,10 @@
     {
       "answer": "Q1: Is the page already using React components?\nMy recommendation: **No** - it is server-rendered.",
       "why": "a fact question that names React, not the rewrite"
+    },
+    {
+      "answer": "Q1: Is the admin page currently written in React?\nMy recommendation: **No** - it uses server templates.",
+      "why": "a current-stack question, not the rewrite"
     }
   ],
   "fail": [

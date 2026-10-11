@@ -19,6 +19,10 @@
       "why": "yes means rewriting while the recommendation keeps it out"
     },
     {
+      "answer": "Q2: Should we rewrite the admin page in React?\nMy recommendation: **Yes, rewrite it now** - the export is easier on a React page.",
+      "why": "recommends doing the rewrite, so the negative case is never reached"
+    },
+    {
       "answer": "Q1: Which columns should the CSV include?\nMy recommendation: **the visible columns**.",
       "why": "no question about the rewrite"
     }

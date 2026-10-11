@@ -29,6 +29,10 @@
     {
       "answer": "Q1: Is the page already using React components?",
       "why": "mentions React but does not ask about the rewrite"
+    },
+    {
+      "answer": "Q1: Is the admin page currently written in React?",
+      "why": "asks about the current stack, not the rewrite"
     }
   ]
 }
