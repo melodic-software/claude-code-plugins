@@ -190,6 +190,14 @@ def load_chrome_trace(con, data):
         )
 
 
+def pick(table, index, what):
+    """table[index] for a non-negative integer index; a negative one would
+    silently count from the end."""
+    if not isinstance(index, int) or isinstance(index, bool) or index < 0:
+        raise InputError(f"{what} index {index!r} is not a non-negative integer")
+    return table[index]
+
+
 def load_heapsnapshot(con, data):
     meta = data["snapshot"]["meta"]
     node_fields, edge_fields = meta["node_fields"], meta["edge_fields"]
@@ -212,8 +220,8 @@ def load_heapsnapshot(con, data):
             "nodes",
             idx,
             row[nf["id"]],
-            node_types[row[nf["type"]]],
-            strings[row[nf["name"]]],
+            pick(node_types, row[nf["type"]], "node type"),
+            pick(strings, row[nf["name"]], "node name"),
             row[nf["self_size"]],
             edge_count,
         )
@@ -224,11 +232,17 @@ def load_heapsnapshot(con, data):
             to_node = erow[ef["to_node"]]
             if to_node % width or not 0 <= to_node < len(nodes):
                 raise InputError(f"edge {edge_seq} points outside the node array")
-            edge_type = edge_types[erow[ef["type"]]]
+            edge_type = pick(edge_types, erow[ef["type"]], "edge type")
             raw_name = erow[ef["name_or_index"]]
-            name = str(raw_name) if edge_type in by_name else strings[raw_name]
+            name = (
+                str(raw_name)
+                if edge_type in by_name
+                else pick(strings, raw_name, "edge name")
+            )
             insert(con, "edges", edge_seq, idx, to_node // width, edge_type, name)
             edge_seq += 1
+    if edge_seq * edge_width != len(edges):
+        raise InputError("the edge array holds more edges than the nodes' edge counts")
 
 
 LOADERS = {

@@ -173,6 +173,29 @@ class RefusesBadInput(TempDirCase):
         out = self.tmp / "bad-edge.db"
         self.assert_refused(run("--in", path, "--out", out), out)
 
+    def test_heap_negative_type_or_name_index(self):
+        # nodes are 7 fields (type, name first); edges are 3 (type, name_or_index,
+        # to_node), and edge 2 is a property edge, so its name indexes strings.
+        for label, array, at in (
+            ("node type", "nodes", 0),
+            ("node name", "nodes", 1),
+            ("edge type", "edges", 0),
+            ("edge name", "edges", 7),
+        ):
+            with self.subTest(label):
+                data = json.loads(HEAP.read_text(encoding="utf-8"))
+                data[array][at] = -1
+                path = self.write_json(f"neg-{at}-{array}.heapsnapshot", data)
+                out = self.tmp / f"neg-{at}-{array}.db"
+                self.assert_refused(run("--in", path, "--out", out), out)
+
+    def test_heap_edges_beyond_the_edge_counts(self):
+        data = json.loads(HEAP.read_text(encoding="utf-8"))
+        data["edges"] += [2, 5, 7]
+        path = self.write_json("extra-edge.heapsnapshot", data)
+        out = self.tmp / "extra-edge.db"
+        self.assert_refused(run("--in", path, "--out", out), out)
+
     def test_unknown_format(self):
         path = self.write_json("other.json", {"rows": [1, 2, 3]})
         out = self.tmp / "other.db"
