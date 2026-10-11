@@ -38,16 +38,12 @@ fi
 
 ## Issue state over REST
 
-`gh issue view --json` routes through GitHub's GraphQL API, and sandboxed sessions (Claude Code on
-the web and remote execution) serve only a pinned set of GraphQL operations, refusing the rest with
-`HTTP 403`. Verified 2026-09-06 against Claude Code 2.1.263 and
-[Configure cloud environments](https://code.claude.com/docs/en/cloud-environments#github-proxy):
-"the proxy serves only a pinned set of GraphQL operations for pull-request workflows", rejecting the
-rest with a 403 reading `This GraphQL query is not enabled for this session` and naming the REST
-fallback `gh api repos/{owner}/{repo}/...`. The restriction applies to every request through the
-proxy regardless of the credentials supplied, so a `GH_TOKEN` gets the same 403. Recheck when that
-page stops carrying that span, or when a release note names the GitHub proxy or its GraphQL
-allowlist. The `2>/dev/null || true` in the block above swallows that 403. Substitute the REST
+`gh issue view --json` routes through GitHub's GraphQL API, and a cloud session behind the GitHub
+proxy is served no GraphQL operation at all, so the call fails with `HTTP 403` whatever token is
+set. Pointer:
+[Configure cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy),
+which names the refusal and the REST fallback. As-of: 2026-10-11. Recheck trigger: that section
+changes its GraphQL entry, or a release note names the GitHub proxy. The `2>/dev/null || true` in the block above swallows that 403. Substitute the REST
 issues endpoint, which reports `state` in lower case:
 
 ```bash
@@ -84,7 +80,7 @@ PR_NUMBER=$(basename "$PR_URL")
 ## Open the PR over REST
 
 `gh pr create` sends a `RepositoryInfo` GraphQL query as its repo-info preamble, before it touches
-the pull-request API at all, so under the pinned-GraphQL restriction it returns `HTTP 403` having
+the pull-request API at all, so under the GraphQL restriction it returns `HTTP 403` having
 created nothing. `POST /repos/{owner}/{repo}/pulls` is REST and works. It requires `head` and
 `base`, and `title` unless an existing `issue` is being converted; `body`, `draft`, and
 `maintainer_can_modify` are optional. Five differences from `gh pr create` matter:

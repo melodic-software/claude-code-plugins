@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.22.1] - 2026-10-11
+
+### Fixed
+
+- Correct a released entry's link to the Opus 5 note on disabling thinking: the page was retired upstream, so the link now points at an archived copy.
+
 ## [0.22.0] - 2026-10-11
 
 ### Added
