@@ -65,7 +65,7 @@ can never name a lane the operator has not configured.
 **Only the lanes' own comments count.** The sentinel is public, so anyone who can
 comment on a telemetry issue can post a lookalike carrying `restart_request`. The
 consumer reads only comments written by the lanes' write identity, resolved once
-per run in the order source-control's babysit-loop telemetry upsert uses: the
+per run: the
 `gh api user` login when it reports a User; `<slug>[bot]` from `--app-slug <slug>`
 when that call fails or reports a Bot; else the reported Bot login plus `[bot]`.
 With no identity resolved the run exits 4 before reading any lane. Run the

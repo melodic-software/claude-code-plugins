@@ -103,8 +103,7 @@
 # telemetry issue can post a lookalike carrying `restart_request`. Only comments
 # whose author is the lanes' write identity are read; every other comment is
 # ignored, whatever it carries. The identity is resolved once per run, before any
-# lane is read, in the same order as source-control's babysit-loop
-# telemetry-upsert.sh:
+# lane is read, in this order:
 #   1. `gh api user` reports a User: that login (a personal or machine-user token).
 #   2. that call fails or reports a Bot: SLUG[bot] from --app-slug SLUG (an App
 #      installation token cannot call `gh api user`).
