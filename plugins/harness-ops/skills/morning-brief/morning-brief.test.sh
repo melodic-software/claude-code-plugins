@@ -1105,6 +1105,31 @@ printf 'a file, not a dir\n' >"$TMP/data-is-file"
 OUT_NOSAVE="$(MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/data-is-file" run_stub gql "${FIX_ARGS[@]}")"
 assert_contains "bookmark: a data dir it cannot write says so" "$(section "$OUT_NOSAVE" "== Findings stranded")" "bookmark not saved under the data dir"
 
+# --data-dir is the one write destination a pre-approved run takes from its
+# arguments: only an absolute, literal path is accepted, and nothing is written
+# when it is refused.
+mkdir -p "$TMP/rel-cwd"
+OUT_REL="$(cd "$TMP/rel-cwd" && MB_GH_FIXTURES="$STR" MB_DATA_DIR="rel-data" run_stub gql "${FIX_ARGS[@]}")"
+RC_REL=$?
+assert_exit "data-dir: a relative path is refused with exit 3" 3 "$RC_REL"
+assert_contains "data-dir: a relative path names the rule" "$OUT_REL" "--data-dir must be an absolute path"
+assert_eq "data-dir: a relative path writes nothing" "" "$(ls -A "$TMP/rel-cwd")"
+OUT_DOTDOT="$(MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/dd/../escaped" run_stub gql "${FIX_ARGS[@]}")"
+RC_DOTDOT=$?
+assert_exit "data-dir: a .. segment is refused with exit 3" 3 "$RC_DOTDOT"
+assert_contains "data-dir: a .. segment names the rule" "$OUT_DOTDOT" "no .. segment"
+assert_eq "data-dir: a .. segment writes nothing" "no" "$([[ -e "$TMP/escaped" || -e "$TMP/dd" ]] && echo yes || echo no)"
+MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/abs/data..dir" run_stub gql "${FIX_ARGS[@]}" >/dev/null
+RC_ABS=$?
+assert_exit "data-dir: an absolute path (.. inside a name) is accepted" 0 "$RC_ABS"
+assert_eq "data-dir: an absolute path still saves the bookmark" "2026-07-17T08:00Z" "$(bookmark_of "$TMP/abs/data..dir")"
+mkdir -p "$TMP/data-link/morning-brief/$FIXTURE_REPO"
+printf 'untouched\n' >"$TMP/link-target"
+ln -s "$TMP/link-target" "$TMP/data-link/morning-brief/$FIXTURE_REPO/stranded-cutoff"
+OUT_LINK="$(MB_GH_FIXTURES="$STR" MB_DATA_DIR="$TMP/data-link" run_stub gql "${FIX_ARGS[@]}")"
+assert_contains "bookmark: a symlinked bookmark is not saved" "$(section "$OUT_LINK" "== Findings stranded")" "bookmark not saved under the data dir"
+assert_eq "bookmark: a symlinked bookmark's target is untouched" "untouched" "$(cat "$TMP/link-target")"
+
 # A page that claims more results but carries no cursor is not a full read.
 mkdir -p "$TMP/gql-nocursor" "$TMP/data-nocursor/morning-brief/$FIXTURE_REPO"
 jq '.data.repository.pullRequests.pageInfo.endCursor = null' "$STR/api-graphql-first.json" >"$TMP/gql-nocursor/api-graphql-first.json"

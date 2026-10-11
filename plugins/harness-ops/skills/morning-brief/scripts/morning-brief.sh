@@ -50,7 +50,8 @@
 #   morning-brief.sh --stale-hours N          age past which a lane is STALE (default 6)
 #   morning-brief.sh --stranded-days N        floor of the stranded-findings window, in days (default 3)
 #   morning-brief.sh --data-dir DIR           base dir for the stranded bookmark (default $CLAUDE_PLUGIN_DATA
-#                                             when it names harness-ops, else ~/.claude/plugins/data/harness-ops)
+#                                             when it names harness-ops, else ~/.claude/plugins/data/harness-ops);
+#                                             absolute, with no .. segment or control character
 #   morning-brief.sh --rec-maxlen N           truncate RECOMMENDED previews (default 240; 0 = full)
 #   morning-brief.sh --pr-limit N             cap on per-PR reads: REST merge state, and base freshness of clean PRs (default 50)
 #   morning-brief.sh --help
@@ -212,6 +213,13 @@ while (($# > 0)); do
     ;;
   --data-dir)
     require_value "$1" "${2:-}"
+    # The skill pre-approves this script with any arguments, so the one path it
+    # writes under must be absolute and literal.
+    abs_re='^(/|[A-Za-z]:[/\\])' dotdot_re='(^|[/\\])\.\.([/\\]|$)'
+    [[ "$2" =~ $abs_re && ! "$2" =~ $dotdot_re && "$2" != *[[:cntrl:]]* ]] || {
+      printf 'morning-brief: --data-dir must be an absolute path with no .. segment or control character\n' >&2
+      exit 3
+    }
     DATA_DIR_ARG="$2"
     shift 2
     ;;
@@ -1159,11 +1167,16 @@ stranded_bookmark_path() {
   printf '%s/morning-brief/%s/stranded-cutoff' "${base%/}" "$key"
 }
 
+# Refuses a symlinked bookmark, and writes through a fresh mktemp file so a
+# link planted at the temp path is never followed.
 save_bookmark() {
-  local file="$1" value="$2"
-  mkdir -p "${file%/*}" 2>/dev/null &&
-    printf '%s\n' "$value" >"$file.tmp.$$" 2>/dev/null &&
-    mv -f "$file.tmp.$$" "$file" 2>/dev/null
+  local file="$1" value="$2" tmp
+  [[ ! -L "$file" ]] && mkdir -p "${file%/*}" 2>/dev/null &&
+    tmp="$(mktemp "$file.XXXXXX" 2>/dev/null)" || return 1
+  if ! { printf '%s\n' "$value" >"$tmp" && mv -f "$tmp" "$file"; } 2>/dev/null; then
+    rm -f "$tmp"
+    return 1
+  fi
 }
 
 print_stranded() {
