@@ -10,6 +10,10 @@ import { pathToFileURL } from "node:url";
 
 const WORKFLOWS = ".github/workflows";
 const READ_WORKFLOW = `${WORKFLOWS}/pr-run-activity-read.yml`;
+// The one job of the read workflow that may name id-token. It runs no PR head
+// code, so it may only check out the default branch tip.
+const CHECK_JOB = "broker-check";
+const TIP_REF = "${{ github.event.repository.default_branch }}";
 const REPOSITORY = "melodic-software/claude-code-plugins";
 // A job-level `uses:` naming one of this repository's workflows, in local
 // (`./`) or remote (`owner/repo/...@ref`) form.
@@ -170,8 +174,43 @@ function secretFindings(expression) {
   return findings;
 }
 
+// The read workflow's check job node, or null. Only offsets inside its range
+// may name id-token.
+function checkJobOf(file, doc) {
+  if (file !== READ_WORKFLOW) {
+    return null;
+  }
+  const node = doc.getIn(["jobs", CHECK_JOB], true);
+  return yaml.isMap(node) ? node : null;
+}
+
+function checkTipCheckouts(file, job, lineCounter) {
+  const steps = job.get("steps", true);
+  for (const step of yaml.isSeq(steps) ? steps.items : []) {
+    const value = step?.toJSON?.();
+    if (
+      typeof value?.uses === "string" &&
+      /^actions\/checkout@/i.test(value.uses.trim()) &&
+      value.with?.ref !== TIP_REF
+    ) {
+      offenders.push(
+        `${file}:${lineCounter.linePos(step.range[0]).line}: the ${CHECK_JOB} job checks out a ref other than the default branch tip`,
+      );
+    }
+  }
+}
+
 function check(file) {
   const { doc, lineCounter } = files.get(file);
+  const checkJob = checkJobOf(file, doc);
+  if (checkJob) {
+    checkTipCheckouts(file, checkJob, lineCounter);
+  }
+  const inCheckJob = (offset) =>
+    checkJob !== null &&
+    offset >= checkJob.range[0] &&
+    offset < checkJob.range[2];
+  const idTokenFinding = `the read workflow names id-token outside its ${CHECK_JOB} job`;
   const lineAt = (node, value, index) => {
     const start = lineCounter.linePos(node.range[0]).line;
     const block = node.type === "BLOCK_LITERAL" || node.type === "BLOCK_FOLDED";
@@ -204,8 +243,12 @@ function check(file) {
           "passes secrets: inherit",
         );
       }
-      if (file === READ_WORKFLOW && /id-token/i.test(key)) {
-        offenders.push(`${file}:${keyLine}: the read workflow names id-token`);
+      if (
+        file === READ_WORKFLOW &&
+        /id-token/i.test(key) &&
+        !inCheckJob(pair.key.range[0])
+      ) {
+        offenders.push(`${file}:${keyLine}: ${idTokenFinding}`);
       }
     },
     Scalar(_, node) {
@@ -223,9 +266,9 @@ function check(file) {
         }
       }
       const idToken = /id-token/i.exec(text);
-      if (file === READ_WORKFLOW && idToken) {
+      if (file === READ_WORKFLOW && idToken && !inCheckJob(node.range[0])) {
         offenders.push(
-          `${file}:${lineAt(node, text, idToken.index)}: the read workflow names id-token`,
+          `${file}:${lineAt(node, text, idToken.index)}: ${idTokenFinding}`,
         );
       }
     },

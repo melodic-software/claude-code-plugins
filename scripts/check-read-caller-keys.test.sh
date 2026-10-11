@@ -183,9 +183,35 @@ run_case "a workflow that does not parse fails" 1 \
   "printf 'jobs: [unclosed\n' >.github/workflows/broken.yml" \
   ".github/workflows/broken.yml: does not parse as YAML"
 
+# append_check_job <job> <ref>: appends to the read workflow, from line 14, a
+# job holding id-token: write whose checkout step (line 19) checks out <ref>.
+append_check_job() {
+  printf '  %s:\n    permissions:\n      id-token: write\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v7\n        with:\n          ref: %s\n' \
+    "$1" "$2" >>"$READ"
+}
+# shellcheck disable=SC2016  # literal workflow expressions, never expanded
+TIP='${{ github.event.repository.default_branch }}'
+# shellcheck disable=SC2016
+HEAD_REF='${{ github.event.pull_request.head.sha }}'
+
 run_case "a read workflow that names id-token fails" 1 \
   "printf '      id-token: write\n' >>$READ" \
-  "$READ:14: the read workflow names id-token"
+  "$READ:14: the read workflow names id-token outside its broker-check job"
+
+run_case "id-token in the broker-check job that checks out the default branch tip passes" 0 \
+  "append_check_job broker-check '$TIP'" "(1 caller(s))"
+
+run_case "id-token in the run job still fails beside a broker-check job" 1 \
+  "append_check_job broker-check '$TIP' && sed -i '10a\\      id-token: write' $READ" \
+  "$READ:11: the read workflow names id-token outside its broker-check job"
+
+run_case "id-token in a job with another name fails" 1 \
+  "append_check_job broker-check-2 '$TIP'" \
+  "$READ:16: the read workflow names id-token outside its broker-check job"
+
+run_case "a broker-check job that checks out the PR head fails" 1 \
+  "append_check_job broker-check '$HEAD_REF'" \
+  "$READ:19: the broker-check job checks out a ref other than the default branch tip"
 
 run_case "a read workflow that references the key fails" 1 \
   "printf '      app-private-key:\n        required: true\n' >>$READ" \
