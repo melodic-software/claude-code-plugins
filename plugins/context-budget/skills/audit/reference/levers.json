@@ -174,7 +174,7 @@
       "mechanism": "Switches to the lean system prompt on models where the full prompt is default.",
       "category": "removes-weight",
       "categoryBasis": "Env row documented; measured large on some models and a measured no-op on models where the lean prompt is already default.",
-      "conditions": "Model-dependent. On a model that already defaults to the lean prompt the env var can only measure zero, and that zero is explained (already-default), not merely reported. Which models already default lean, `claude-haiku-5-5` included, is read from the probe record https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/claude-code-lean-prompt-selector.md, rerun against the installed binary; no docs page covers it as of 2026-10-10. Per operator decision, advice does not branch on model — measure on the consumer's session model and report the measured delta, including an explained zero.",
+      "conditions": "Model-dependent. On a model that already defaults to the lean prompt the env var can only measure zero, and that zero is explained (already-default), not merely reported. Which models already default lean is read from the probe record https://github.com/melodic-software/claude-code-plugins/blob/main/docs/upstream/claude-code-lean-prompt-selector.md, rerun against the installed binary; no docs page covers it as of 2026-10-10. Per operator decision, advice does not branch on model — measure on the consumer's session model and report the measured delta, including an explained zero.",
       "posture": "recommendable-on-fit",
       "scope": "Environment variable only; no settings key.",
       "detection": "CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT in the environment; the session model from the baseline snapshot.",

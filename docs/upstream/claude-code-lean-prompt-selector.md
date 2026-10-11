@@ -17,7 +17,7 @@ zero's cause and never changes a recommendation.
 Read the selector and the model capability table from the installed binary:
 
 ```bash
-B="$(readlink -f "$(command -v claude)")"
+B="$(perl -MCwd -e 'print Cwd::abs_path(shift)' "$(command -v claude)")"
 grep -ao 'function [A-Za-z_$]*([a-z]){let [a-z]=[A-Za-z_$]*([a-z]),[a-z]=[A-Za-z_$]*([a-z],"lean_prompt",[a-z]);.\{0,400\}' "$B"
 perl -0777 -ne 'for (split /\{id:"/) { next unless /^(claude-[a-z0-9-]+)",family:.*?capabilities:\[([^\]]*)\]/s;
   print "$1 ", ($2 =~ /"lean_prompt"/ ? "lean_prompt" : "-"), "\n" }' "$B" | sort -u
