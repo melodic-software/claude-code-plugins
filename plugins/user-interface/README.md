@@ -65,9 +65,11 @@ The `css` keys are read by a CSS authoring skill that is not released yet; until
 nothing.
 
 **Provenance.** `scripts/detect.mjs --config` prints every resolved value with the layer that
-supplied it, and `/user-interface:setup check` shows them as a table. `css_important` and
-`css_token_fallback` ship userConfig defaults equal to `defaults.yaml`, so their provenance reads
-`userConfig` even when nobody set them.
+supplied it, and `/user-interface:setup check` shows them as a table. A `css_*` option counts only once you store a
+value for it: the `default` in `plugin.json` is not delivered to skills, so an option you never set
+reads from a lower layer (probe record:
+[`docs/extensibility-contract-smoke-tests.md`](../../docs/extensibility-contract-smoke-tests.md),
+Test D).
 
 **Changing a value.** `/user-interface:setup apply <key>=<value>` writes the team file;
 `--user` writes the user-global file and `--local` the personal file, adding `<home>/*.local.*` to

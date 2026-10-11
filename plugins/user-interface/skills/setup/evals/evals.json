@@ -4,8 +4,8 @@
     {
       "id": 1,
       "name": "check-reports-each-value-with-its-provenance",
-      "prompt": "/user-interface:setup check — docs/conventions/user-interface.yaml sets css.important: utilities-only and css.rules.disable: [hover]; docs/conventions/user-interface.local.yaml sets css.token_fallback: literal.",
-      "expected_output": "Writes the userConfig values to a JSON file with the Write tool, runs detect.mjs --config --user-config with that file, and presents one row per css key with its value and provenance: css.important from team, css.token_fallback from local, css.rules.disable from defaults and team, the rest from defaults or userConfig. It notes that css_important and css_token_fallback show userConfig provenance by default because their userConfig defaults equal the plugin defaults. Writes no config file.",
+      "prompt": "/user-interface:setup check — docs/conventions/user-interface.yaml sets css.important: utilities-only and css.rules.disable: [hover]; docs/conventions/user-interface.local.yaml sets css.token_fallback: literal. No css_* plugin option has a stored value.",
+      "expected_output": "Writes the userConfig values to a JSON file with the Write tool, runs detect.mjs --config --user-config with that file, and presents one row per css key with its value and provenance: css.important from team, css.token_fallback from local, css.rules.disable from defaults and team, the rest from defaults or userConfig. With no css_* option stored, no key shows userConfig provenance, and no literal ${user_config...} placeholder is written into the userConfig JSON. Writes no config file.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -13,7 +13,8 @@
         "Passes the userConfig values through a file written with the Write tool, not on a shell command line",
         "Shows each css key's value with its provenance layer (team, local, defaults or userConfig)",
         "Names both defaults and team as the provenance of css.rules.disable",
-        "Explains that a userConfig provenance on css_important or css_token_fallback can be the shipped default, not a user choice",
+        "Reports css.important and css.token_fallback provenance as their file or defaults layer, never userConfig, when no css_* option is stored",
+        "Leaves out of the userConfig JSON any key whose value is empty or a literal ${user_config...} placeholder",
         "Does not write or edit any config file"
       ]
     },
