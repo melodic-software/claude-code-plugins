@@ -69,11 +69,21 @@ export const ALLOWED_MISS_PREFIXES = Object.freeze([
   "AGENTS.md",
 ]);
 
+/** Source-lane folders the layout keeps, and where each one goes. */
+const SOURCE_FOLDERS = new Map([
+  ["companion-digest", "analysis/companion-digest"],
+  ["decks", "metadata/decks"],
+  ["attachments", "metadata/attachments"],
+]);
+/** The pipeline's extracted frame names: scene, interval and anchor frames. */
+const FRAME_NAME = /^(?:(?:scene|interval)_\d{4}|anchor_\d+_\d{4})\.png$/;
 const KEY_FRAME_LOGS = new Set([
   "key-frames-manifest.md",
   "visual-frames.md",
   "key-frame-quality-audit.md",
   "frame-triage-log.md",
+  "vision-plan.md",
+  "visual-gaps.md",
 ]);
 const SOURCE_METADATA = new Set([
   "harvested-links.json",
@@ -106,8 +116,8 @@ export function corpusPathForSliceFile(sliceRel) {
   const name = rest.join("/");
   if (sliceRel === "RESEARCH.md") return "analysis/RESEARCH.md";
   if (lane === LANES.research || lane === LANES.recommendations) return `analysis/${sliceRel}`;
-  if (lane === LANES.source && rest[0] === "companion-digest" && rest.length > 1) {
-    return `analysis/${name}`;
+  if (lane === LANES.source && SOURCE_FOLDERS.has(rest[0]) && rest.length > 1) {
+    return `${SOURCE_FOLDERS.get(rest[0])}/${rest.slice(1).join("/")}`;
   }
   if (lane === LANES.source && rest.length === 1) {
     if (TRANSCRIPT_TEXT.test(name)) return `transcript/${name}`;
@@ -166,11 +176,12 @@ function deriveDirectoryMap(fileMap) {
  * @property {Map<string, string>} files - slice-relative file → target-relative file
  * @property {Map<string, string>} dirs - slice-relative directory → target-relative directory
  * @property {Map<string, string>} tempFrames - temp frame file name → target-relative file
+ * @property {boolean} framesDropped - the layout keeps no extracted frames (`--no-media`)
  * @property {string} sliceName - the slice directory's own name
  * @property {Set<string>} sliceEntries - every slice-relative file and directory
  */
 
-/** @typedef {{ target: string, isDir: boolean } | { retired: string }} Lookup */
+/** @typedef {{ target: string, isDir: boolean } | { retired: string, note: string }} Lookup */
 
 /**
  * Split a reference into its path and the suffix to carry over unchanged
@@ -233,7 +244,22 @@ function lookUpReference(refPath, sourceFile, map) {
     if (found) return found;
   }
   const retired = keys.find((key) => key !== null && map.sliceEntries.has(key));
-  if (retired) return { retired };
+  if (retired) {
+    // A directory whose kept files went to several places (`source/`) has no
+    // single new location: name where they went instead.
+    const splitInto = [
+      ...new Set(
+        [...map.files]
+          .filter(([from]) => from.startsWith(`${retired}/`))
+          .map(([, to]) => `${to.split("/")[0]}/`),
+      ),
+    ].sort();
+    return {
+      retired,
+      note:
+        splitInto.length > 0 ? `split across ${splitInto.join(", ")} in this copy` : NOT_RETAINED,
+    };
+  }
   // An unknown file in a copied directory moves with the directory, so the
   // link check flags it at its new location.
   for (const key of bare.includes("/") ? keys : []) {
@@ -242,8 +268,11 @@ function lookUpReference(refPath, sourceFile, map) {
       return { target: `${dir}/${path.posix.basename(key)}`, isDir: false };
     }
   }
-  const frame = bare.includes("/") ? undefined : map.tempFrames.get(bare);
-  return frame ? { target: frame, isDir: false } : null;
+  if (bare.includes("/")) return null;
+  const frame = map.tempFrames.get(bare);
+  if (frame) return { target: frame, isDir: false };
+  // Without the temp frames (`--no-media`) a frame name names nothing kept.
+  return map.framesDropped && FRAME_NAME.test(bare) ? { retired: bare, note: NOT_RETAINED } : null;
 }
 
 const NOT_RETAINED = "not retained in this copy";
@@ -278,7 +307,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       const found = lookUpReference(splitReference(unwrap(target)).refPath, sourceFile, map);
       if (!found || !("retired" in found)) return match;
       rewrites += 1;
-      return `${label} (${found.retired}, ${NOT_RETAINED})`;
+      return `${label} (${found.retired}, ${found.note})`;
     })
     .replace(MARKDOWN_LINK, (_match, open, target) =>
       target.startsWith("<") ? `${open}<${rewrite(unwrap(target))}>` : `${open}${rewrite(target)}`,
@@ -288,7 +317,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       const found = lookUpReference(splitReference(span).refPath, sourceFile, map);
       if (found && "retired" in found) {
         rewrites += 1;
-        return `${found.retired} (${NOT_RETAINED})`;
+        return `${found.retired} (${found.note})`;
       }
       return `\`${rewrite(span)}\``;
     });
@@ -300,14 +329,16 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
  * explicit `./` or `../` path, or one whose first segment is a top-level
  * entry of the re-laid-out slice or an entry beside the naming file. Any
  * other path is one the path map did not know under no slice directory, a
- * path into another repository.
+ * path into another repository. A bare name reads as a slice path only when
+ * it is an extracted frame's name, which the rewrite turns into a path or
+ * not-retained text.
  *
  * @param {string} refPath
  * @param {string} fileDir - absolute directory of the naming file
  * @param {Set<string>} topLevel - top-level entries of the re-laid-out slice
  */
 function looksSliceInternal(refPath, fileDir, topLevel) {
-  if (!refPath.includes("/")) return false;
+  if (!refPath.includes("/")) return FRAME_NAME.test(refPath);
   if (/^(?:\.\.?|SLICE)\//.test(refPath)) return true;
   const first = refPath.split("/")[0];
   return topLevel.has(first) || fs.existsSync(path.join(fileDir, first));
@@ -679,6 +710,7 @@ export async function relayoutSlice({
     files,
     dirs: deriveDirectoryMap(files),
     tempFrames,
+    framesDropped: noMedia,
     sliceName: path.basename(slice),
     sliceEntries,
   };
@@ -759,13 +791,21 @@ export async function relayoutSlice({
 
   // The backup keeps a fixed name so a run killed between the two renames is
   // recovered at the next start (see the backup check above).
-  const hadTarget = fs.existsSync(target);
+  // Without --replace the install is a single rename onto the target path,
+  // never a backup-and-swap: a target that appeared after the early check
+  // (another run, a person) makes the rename fail (ENOTEMPTY or EEXIST on
+  // POSIX, EPERM on Windows) instead of being replaced. POSIX lets the rename
+  // replace an empty directory, which holds nothing to lose.
+  const hadTarget = replace && fs.existsSync(target);
   try {
     if (hadTarget) fs.renameSync(target, backup);
     fs.renameSync(staging, target);
   } catch (error) {
     if (hadTarget && !fs.existsSync(target) && fs.existsSync(backup)) fs.renameSync(backup, target);
     discard(staging);
+    if (!replace && fs.existsSync(target)) {
+      return refuse(`${target} appeared during the run; pass --replace to replace it`);
+    }
     return refuse(`could not move the layout into place: ${/** @type {Error} */ (error).message}`);
   }
   if (hadTarget) discard(backup);

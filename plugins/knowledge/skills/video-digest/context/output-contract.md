@@ -86,20 +86,24 @@ new layout is in place. If a run is interrupted mid-swap, the next run restores 
 that backup when the target is missing (and says so), and refuses, naming the backup, when both
 exist; remove whichever one you do not want to keep.
 
-It writes the knowledge-corpus layout: `transcript/`, `metadata/` (with a trimmed `info.json`
-and the companion sources brief), `frames/all/`, `frames/key/` beside the frame logs in
-`frames/`, `media/<id>.<ext>`, `analysis/` (`RESEARCH.md`, `research/`, `recommendations/`, the
-companion digest), and a provenance `README.md` when the target has none. The script's header
-comment is the authoritative mapping. Each slice path the copied markdown names (links and
-backticked paths) is rewritten through a path map relative to the file's new location, and one
-naming a pipeline file the layout does not keep (such as `run-state/watch.json`) becomes plain
-text saying it is not retained. It builds the layout in a sibling staging directory and
-link-checks it there; it exits 1 listing every slice-internal path that still does not resolve.
-Not checked: paths under `plugins/`, `docs/`, `templates/` and `.claude/`, `AGENTS.md`, paths
-that leave the target, and backticked paths whose first segment is neither a top-level directory
-of the target nor an entry beside the naming file (paths into another repository). Only a passing
-check moves the staging directory into place; on any failure the staging directory is removed and
-the target is left as it was. Fix what it lists in the slice and re-run.
+It writes the knowledge-corpus layout: `transcript/`, `metadata/` (with a trimmed `info.json`,
+the companion sources brief, and the fetched `decks/` and `attachments/`), `frames/all/`,
+`frames/key/` beside the frame and vision logs in `frames/`, `media/<id>.<ext>`, `analysis/`
+(`RESEARCH.md`, `research/`, `recommendations/`, the companion digest), and a provenance
+`README.md` when the target has none. The script's header comment is the authoritative mapping.
+Each slice path the copied markdown names (links and backticked paths) is rewritten through a
+path map relative to the file's new location. One naming a pipeline file the layout does not keep
+(such as `run-state/watch.json`, or an extracted frame's bare name under `--no-media`) becomes
+plain text saying it is not retained, and one naming a directory whose files went to several
+places (`source/`) becomes plain text naming where they went. It builds the layout in a sibling
+staging directory and link-checks it there; it exits 1 listing every slice-internal path that
+still does not resolve, including a bare extracted-frame name. Not checked: paths under
+`plugins/`, `docs/`, `templates/` and `.claude/`, `AGENTS.md`, paths that leave the target, and
+backticked paths whose first segment is neither a top-level directory of the target nor an entry
+beside the naming file (paths into another repository). Only a passing check moves the staging
+directory into place; on any failure the staging directory is removed and the target is left as
+it was. Without `--replace` the move is a single rename that fails, rather than replacing
+anything, when a target appeared during the run. Fix what it lists in the slice and re-run.
 
 ## Agent-written artifacts share the same root
 

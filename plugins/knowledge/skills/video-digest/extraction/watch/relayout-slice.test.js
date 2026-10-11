@@ -252,6 +252,80 @@ describe("relayoutSlice", () => {
       expect(fs.existsSync(path.join(targetDir, rel)), rel).toBe(false);
     }
     expect(read(targetDir, "transcript/transcript.txt")).toBe("[0:01] hello\n");
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      "| `key/title-slide.png` | scene_0001.png (not retained in this copy) |\n\nTiers: [manifest](key-frames-manifest.md)\n",
+    );
+  });
+
+  it("copies decks, attachments and the vision logs, rewriting their references", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "source/decks/session-1/slides.pdf": "pdf",
+        "source/attachments/pdf/notes.pdf": "pdf",
+        "source/deck-inventory.md": "Fetched: `decks/session-1/slides.pdf`.\n",
+        "research/sources.md": "Notes: [pdf](../source/attachments/pdf/notes.pdf).\n",
+        "key-frames/vision-plan.md": "# Vision plan\n",
+        "key-frames/visual-gaps.md": "# Visual gaps\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "metadata/decks/session-1/slides.pdf")).toBe("pdf");
+    expect(read(targetDir, "metadata/attachments/pdf/notes.pdf")).toBe("pdf");
+    expect(read(targetDir, "metadata/deck-inventory.md")).toBe(
+      "Fetched: `decks/session-1/slides.pdf`.\n",
+    );
+    expect(read(targetDir, "analysis/research/sources.md")).toBe(
+      "Notes: [pdf](../../metadata/attachments/pdf/notes.pdf).\n",
+    );
+    expect(read(targetDir, "frames/vision-plan.md")).toBe("# Vision plan\n");
+    expect(read(targetDir, "frames/visual-gaps.md")).toBe("# Visual gaps\n");
+  });
+
+  it("names where a split directory's files went instead of a single new path", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "recommendations/questions.md": "Inputs: `source/`.\n" },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "analysis/recommendations/questions.md")).toBe(
+      "Inputs: source (split across analysis/, metadata/, transcript/ in this copy).\n",
+    );
+  });
+
+  it("fails the link check on a frame name the temp session does not hold", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/visual-frames.md": "Rejected: `scene_0099.png`.\n" },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([{ file: "frames/visual-frames.md", ref: "scene_0099.png" }]);
+  });
+
+  it("refuses, without --replace, a target that appears after the early check", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    let calls = 0;
+
+    const result = await relayoutSlice({
+      sliceDir,
+      targetDir,
+      copyFile: (from, to) => {
+        calls += 1;
+        // Another run installs its layout while this one is staging.
+        if (calls === 1) writeTree(targetDir, { "theirs.md": "theirs\n" });
+        fs.copyFileSync(from, to);
+      },
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.readdirSync(targetDir)).toEqual(["theirs.md"]);
+    expect(fs.readdirSync(path.dirname(targetDir))).toEqual(["out"]);
   });
 
   it("fails the link check on a missing file under a slice directory", async () => {
@@ -556,5 +630,18 @@ describe("checkLayoutLinks", () => {
     });
 
     expect(checkLayoutLinks(root)).toEqual([]);
+  });
+
+  it("flags a bare extracted-frame name but not other bare file names", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "frames/all/scene_0001.png": "png",
+      "frames/visual-frames.md":
+        "Kept: `all/scene_0001.png`. Dangling: `anchor_00012000_0003.png`. Prose: `SKILL.md`, `README.md`.\n",
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "frames/visual-frames.md", ref: "anchor_00012000_0003.png" },
+    ]);
   });
 });

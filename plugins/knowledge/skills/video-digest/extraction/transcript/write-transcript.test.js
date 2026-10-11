@@ -97,6 +97,24 @@ On benchmarks too and then we moved on.
     );
   });
 
+  it("does not count a punctuation-only token like >> as a repeated word", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+that answer was
+
+00:00:03.000 --> 00:00:05.000
+&gt;&gt; Very good.
+
+00:00:05.000 --> 00:00:07.000
+&gt;&gt; Very good question, thanks.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe(
+      "[0:01] that answer was >> Very good.\n\n[0:05] >> Very good question, thanks.",
+    );
+  });
+
   it("keeps two words the speaker genuinely repeats across a paragraph boundary", () => {
     const autoVtt = `WEBVTT
 

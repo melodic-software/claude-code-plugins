@@ -40,13 +40,23 @@ const BOUNDARY_REPEAT_MAX_WORDS = 12;
 const PARAGRAPH_STAMP = /^(\[[^\]]*\]\s*)([\s\S]*)$/;
 
 /** @param {string} text */
-function words(text) {
+function tokens(text) {
   return text.split(/\s+/).filter(Boolean);
 }
 
 /** @param {string} word */
 function comparableWord(word) {
   return word.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
+}
+
+/**
+ * The lexical words of `text`: punctuation-only tokens such as `>>` are not
+ * words, so they never count toward a run's length.
+ *
+ * @param {string} text
+ */
+function words(text) {
+  return tokens(text).filter((token) => comparableWord(token) !== "");
 }
 
 /** @param {string[]} run */
@@ -99,7 +109,9 @@ export function dropParagraphBoundaryRepeats(transcript, cues) {
     const previous = PARAGRAPH_STAMP.exec(paragraphs[index - 1]);
     if (!current || !previous) continue;
     const previousWords = words(previous[2]);
-    const currentWords = words(current[2]);
+    const currentTokens = tokens(current[2]);
+    const wordAt = currentTokens.flatMap((token, at) => (comparableWord(token) ? [at] : []));
+    const currentWords = wordAt.map((at) => currentTokens[at]);
     const longest = Math.min(
       BOUNDARY_REPEAT_MAX_WORDS,
       previousWords.length,
@@ -114,7 +126,13 @@ export function dropParagraphBoundaryRepeats(transcript, cues) {
       ) {
         continue;
       }
-      paragraphs[index] = current[1] + currentWords.slice(length).join(" ");
+      // Keep punctuation-only tokens before the dropped words (a `>>` speaker
+      // marker); drop any between them.
+      const kept = [
+        ...currentTokens.slice(0, wordAt[0]),
+        ...currentTokens.slice(wordAt[length - 1] + 1),
+      ];
+      paragraphs[index] = current[1] + kept.join(" ");
       break;
     }
   }
