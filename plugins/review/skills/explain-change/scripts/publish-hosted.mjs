@@ -5,7 +5,8 @@
 // machine path or hostname sends the page to the private host. The page's id
 // lives in a sidecar under the plugin data dir, keyed by repository and pull
 // request, so a rebuild replaces the same page. When the page changes host, the
-// copy on the old host is deleted.
+// copy on the old host is deleted. A replace that fails (the recorded page was
+// deleted elsewhere, for one) is retried once as a create.
 //
 //   publish-hosted.mjs <page> --repo <[host/]owner/repo> --pr <n> --data-dir <dir>
 // The script looks up the --repo repository's visibility itself, on --repo's host
@@ -102,8 +103,11 @@ export function publishHosted({ page, host, repo, pr, dataDir }) {
   const sidecar = join(dataDir, "hosted", `${key}__${pr}.json`);
   const old = readSidecar(sidecar);
   const args = [page, "--visibility", gate.destination];
-  if (old?.visibility === gate.destination) args.push("--id", old.id);
-  const run = pagesPublish(args);
+  const replacing = old?.visibility === gate.destination;
+  let run = pagesPublish(replacing ? [...args, "--id", old.id] : args);
+  // A page deleted outside this script fails the replace; the contract's exit 6 does not say why,
+  // so one create follows any failed replace, and the old id goes under stale like any changed id.
+  if (replacing && !run.error && run.status === 6) run = pagesPublish(args);
   const failed = (reason) => ({ exit: 1, result: { medium: "file", reason } });
   if (run.error) return failed(`pages-publish did not run (${run.error.code ?? run.error.message})`);
   if (run.status === 4) return { exit: 4, result: { medium: "file", reason: "pages-publish refused credential-shaped content" } };
