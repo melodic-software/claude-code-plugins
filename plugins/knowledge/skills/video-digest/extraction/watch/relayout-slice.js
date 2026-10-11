@@ -440,25 +440,36 @@ function deriveDirectoryMap(fileMap) {
 const LITERAL_HASH = "";
 const LITERAL_QUERY = "";
 
+/** Stand-in for a backslash-escaped `&`, which starts no character reference. */
+const LITERAL_AMP = "";
+
 /**
- * A link or definition destination with its CommonMark backslash escapes of
- * ASCII punctuation decoded. An escaped `#` or `?` is literal, not a fragment
- * or query, so it becomes a stand-in that splitReference keeps in the path.
- * `escapedChars` lists the characters the original escaped, to re-escape on
- * rewrite.
+ * A link or definition destination decoded as CommonMark does: backslash
+ * escapes of ASCII punctuation, then character references (`&amp;`,
+ * `&#x26;`). An escaped `#` or `?` is literal, not a fragment or query, so it
+ * becomes a stand-in that splitReference keeps in the path. `escapedChars`
+ * lists the characters the original escaped, to re-escape on rewrite;
+ * `references` marks a destination that held a character reference, so a
+ * rewrite writes `&` as `&amp;`.
  *
  * @param {string} raw
- * @returns {{ dest: string, escapedChars: string }}
+ * @returns {{ dest: string, escapedChars: string, references: boolean }}
  */
 function unescapeDestination(raw) {
   let escapedChars = "";
-  const dest = raw.replace(/\\([!-/:-@[-`{-~])/g, (_match, char) => {
+  const unescaped = raw.replace(/\\([!-/:-@[-`{-~])/g, (_match, char) => {
     if (!escapedChars.includes(char)) escapedChars += char;
     if (char === "#") return LITERAL_HASH;
     if (char === "?") return LITERAL_QUERY;
+    if (char === "&") return LITERAL_AMP;
     return char;
   });
-  return { dest, escapedChars };
+  const decoded = decodeHtmlReferences(unescaped);
+  return {
+    dest: decoded.replaceAll(LITERAL_AMP, "&"),
+    escapedChars,
+    references: decoded !== unescaped,
+  };
 }
 
 /** @param {string} value */
@@ -642,6 +653,7 @@ const NOT_RETAINED = "not retained in this copy";
  * @property {number} destEnd - offset just past it
  * @property {boolean} angle - written as `<...>`
  * @property {string} escapedChars - the punctuation the destination backslash-escaped
+ * @property {boolean} references - the destination held a character reference (`&amp;`)
  * @property {string} label - the link text, `!` and brackets removed
  * @property {number} labelStart - offset of the link's `[` (or its `!`), -1 when unmatched
  * @property {number} labelEnd - offset of the `]` that closes the link text
@@ -761,8 +773,8 @@ export function inlineLinks(text) {
     if (text[at] !== ")") continue;
     const linkEnd = at + 1;
     // The `[` that opens this link's text, matching nested brackets. An
-    // escaped `]`, or an opening `[` that is escaped (`\[watch](...)`) or
-    // missing, means this is not a link.
+    // escaped `]`, or no unescaped opening `[` (`\[watch](...)`), means this
+    // is not a link.
     if (isEscaped(text, open)) continue;
     let labelStart = -1;
     let depth = 0;
@@ -774,10 +786,8 @@ export function inlineLinks(text) {
       ) {
         break;
       }
-      if ((text[back] === "[" || text[back] === "]") && isEscaped(text, back)) {
-        if (text[back] === "[" && depth === 0) break;
-        continue;
-      }
+      // An escaped bracket is literal text and takes no part in nesting.
+      if ((text[back] === "[" || text[back] === "]") && isEscaped(text, back)) continue;
       if (text[back] === "]") depth += 1;
       else if (text[back] === "[") {
         if (depth === 0) {
@@ -824,7 +834,12 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   let rewrites = 0;
   /** @type {string[]} */
   const spacedRefs = [];
-  const rewrite = (/** @type {string} */ ref, fragments = true, escapedChars = "") => {
+  const rewrite = (
+    /** @type {string} */ ref,
+    fragments = true,
+    escapedChars = "",
+    references = false,
+  ) => {
     const { refPath, suffix, encoded } = splitReference(ref, { fragments });
     const found = lookUpReference(refPath, sourceFile, map);
     if (!found || "retired" in found) return ref;
@@ -839,11 +854,15 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       trailing = found.isDir && refPath.endsWith("/") ? "/" : "";
     }
     let written = encoded ? relative.split("/").map(encodeURIComponent).join("/") : relative;
-    // Re-escape what the original destination backslash-escaped.
-    for (const char of escapedChars) written = written.replaceAll(char, `\\${char}`);
+    // Re-escape what the original destination backslash-escaped; an `&` in a
+    // destination that held character references is written `&amp;` instead.
+    for (const char of escapedChars) {
+      if (!(references && char === "&")) written = written.replaceAll(char, `\\${char}`);
+    }
     const next = `${written}${trailing}${suffix}`;
-    if (next !== ref) rewrites += 1;
-    return next;
+    if (next === ref) return ref;
+    rewrites += 1;
+    return references ? next.replaceAll("&", "&amp;") : next;
   };
   const { fenceMasked, linkMasked, tagText } = maskCode(text);
   // Every pass records edits by offset into the original text; the scans run
@@ -870,7 +889,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       });
       continue;
     }
-    const next = rewrite(link.dest, true, link.escapedChars);
+    const next = rewrite(link.dest, true, link.escapedChars, link.references);
     if (next === link.dest) continue;
     const written = next;
     edits.push({
@@ -884,8 +903,8 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   // flag: a definition or attribute has no prose to rewrite into.
   for (const { from, to, angle } of referenceDefinitions(linkMasked)) {
     const raw = text.slice(angle ? from + 1 : from, angle ? to - 1 : to);
-    const { dest, escapedChars } = unescapeDestination(raw);
-    const rewritten = rewrite(dest, true, escapedChars);
+    const { dest, escapedChars, references } = unescapeDestination(raw);
+    const rewritten = rewrite(dest, true, escapedChars, references);
     if (rewritten === dest) continue;
     edits.push({ from, to, text: angle ? `<${rewritten}>` : rewritten });
   }

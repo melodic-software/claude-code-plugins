@@ -1220,6 +1220,63 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     );
   });
 
+  // CommonMark: a backslash-escaped bracket is literal link text, so the link
+  // opens at the unescaped `[` before it.
+  it("reads a link whose text holds an escaped opening bracket", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/visual-frames.md": "[see \\[draft](../source/transcript.txt)\n" },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      "[see \\[draft](../transcript/transcript.txt)\n",
+    );
+  });
+
+  // CommonMark: entity and numeric character references are decoded in link
+  // destinations, so `a&amp;b.pdf` names the file `a&b.pdf`.
+  it("decodes character references in link and definition destinations", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "source/decks/a&b.pdf": "pdf",
+        "key-frames/visual-frames.md": [
+          "[deck](../source/decks/a&amp;b.pdf)",
+          "[hex][d]",
+          "",
+          "[d]: ../source/decks/a&#x26;b.pdf",
+          "",
+        ].join("\n"),
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      [
+        "[deck](../metadata/decks/a&amp;b.pdf)",
+        "[hex][d]",
+        "",
+        "[d]: ../metadata/decks/a&amp;b.pdf",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("resolves a destination holding a character reference in the link check", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/decks/a&b.pdf": "pdf",
+      "metadata/deck-inventory.md": "[deck](decks/a&amp;b.pdf) [gone](decks/c&amp;d.pdf)\n",
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "metadata/deck-inventory.md", ref: "decks/c&d.pdf" },
+    ]);
+  });
+
   it("flags a missing destination with parentheses rather than a truncated one", () => {
     const root = makeDir("relayout-check-");
     writeTree(root, { "metadata/deck-inventory.md": "[deck](decks/slides_(v2).pdf)\n" });

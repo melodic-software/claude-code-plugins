@@ -55,8 +55,14 @@ once per process, and the new name wins when both are set.
 
 **Scope of the setting.** `library_dir` relocates the work *root*; it does not reshape the
 `<watch-epic>/<video-slug>/` sub-path itself. A consumer whose own convention lands source
-material at a differently-shaped path (for example `sources/<type>/<slug>/`) lands under
-`library_dir` as written, then re-lays out the slice with `relayout-slice.js`:
+material at a differently-shaped path (for example `sources/<type>/<slug>/`) does not get that
+shape from this skill: land under `library_dir` as-written and re-lay-out by hand, or fork
+the sub-path in your own automation. This skill's contract is root relocation only.
+For the knowledge-corpus layout there is also `relayout-slice.js`, described next.
+
+### Re-laying out a slice with `relayout-slice.js`
+
+Run it on a slice landed under `library_dir`:
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/relayout-slice.js "<slice-dir>" "<target-dir>" [--no-media] [--replace]
