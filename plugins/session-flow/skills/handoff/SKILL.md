@@ -185,10 +185,8 @@ The constraints re-scan attestation is not a cumulative entry. It goes on the `R
 
 ## Settle in-flight work before writing
 
-Hand off only once everything the handoff describes is settled. A save-point written while work
-it describes is still running goes stale the moment that work returns: the result lands in this
-session, and the brief, the criteria, Environment and the `Next:` headlines still describe it as
-in flight. Repairing the file afterwards is a hand edit of a file the script owns.
+Hand off only once everything the handoff describes is settled; the failure shape is in
+`context/gotchas.md`.
 
 Before `save_point.py new` (or, on the prompt-only path, before the rails prompt), take every
 still-running item of off-thread work this session started, the kinds in
@@ -250,7 +248,10 @@ because the rails prompt is the deliverable the operator copies, and under heavy
 that ends on anything else can run out of room before the rails prompt appears: the save-point
 file exists, but the operator has nothing to paste after `/clear`. A response whose last text is
 not the rails block (plus its below-rail notes) is a FAILED handoff even when every box above is
-ticked. Emit the rails block before ending the turn, always.
+ticked. Emit the rails block before ending the turn, always. The one exception is a turn ended
+before `new` to wait for dependent work ("Settle in-flight work before writing"): no save-point
+exists yet, so it is not a failed handoff, and the turn that writes the save-point ends on the
+rails.
 
 **Full path:**
 

@@ -353,8 +353,21 @@
       "expectations": [
         "The response reads the `name-tournament` subagent's actual state before writing any save-point file",
         "The response identifies the tournament's result as something the handoff depends on, because the next action uses the chosen name",
-        "The save-point is written only after the tournament's result is in hand, and its brief or next action names the chosen module name rather than describing the tournament as in flight",
+        "No save-point is written and `new` is not run while the tournament runs; the response says it waits and writes once the result returns",
         "The response does not hand-edit the handoff file afterwards to fold in a late result"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "stuck-dependent-work-under-unattended-is-recorded-in-flight",
+      "prompt": "/session-flow:handoff unattended file migration-pass\n\n(Context: earlier this session you spawned a background subagent named `schema-diff` to compare the two schemas; the next action, writing the migration, depends on its diff. Its transcript has shown no new output for the last 40 minutes and its last line is a retry of the same failing connection.)",
+      "expected_output": "The model reads `schema-diff`'s real state, judges that the handoff depends on it, and sees from the stalled, repeating transcript that it is stuck. Because the invocation is `unattended`, it asks no one: it says the subagent is stuck, citing the transcript evidence, and writes the save-point with `schema-diff` recorded as in flight in Environment and its pending diff marked `UNVERIFIED (schema-diff still running)` wherever the save-point leans on it. It does not wait indefinitely, does not cancel the subagent on its own, and does not invent the diff's result.",
+      "files": [],
+      "expectations": [
+        "The response reads `schema-diff`'s actual state and cites the stalled transcript as evidence that it is stuck",
+        "The response asks the user no question about waiting or cancelling, because the invocation is `unattended`, and says it is handing off with the work recorded in flight",
+        "The save-point records `schema-diff` as still running and marks its pending result `UNVERIFIED (schema-diff still running)` or an equivalent `UNVERIFIED` marker",
+        "The response neither cancels the subagent itself nor states a schema diff result it never received"
       ]
     }
   ]
