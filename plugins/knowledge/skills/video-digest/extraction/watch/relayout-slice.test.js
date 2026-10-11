@@ -791,6 +791,52 @@ describe("relayoutSlice", () => {
     expect(fs.existsSync(targetDir)).toBe(false);
   });
 
+  it("reads no link inside a code span that spans lines, and treats a lone backtick as text", async () => {
+    const body = [
+      "Code: `see [gone](../research/gone.md)",
+      "and more` then [t](../source/transcript.txt).",
+      "A lone ` backtick and [u](../source/transcript.txt).",
+      "",
+    ].join("\n");
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/visual-frames.md": body },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(
+      body.replaceAll("](../source/transcript.txt)", "](../transcript/transcript.txt)"),
+    );
+  });
+
+  it("does not read an escaped \\[label](...) as a link", async () => {
+    const body = "Literal: \\[watch](../run-state/watch.json) and \\[x\\](../research/gone.md).\n";
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "key-frames/visual-frames.md": body },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/visual-frames.md")).toBe(body);
+  });
+
+  it("leaves a command span alone and does not link-check it", async () => {
+    const body = [
+      "Run `node run.mjs source/transcript.txt --no-media` or `source/transcript.txt --verbose`.",
+      "",
+    ].join("\n");
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "recommendations/questions.md": body },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "analysis/recommendations/questions.md")).toBe(body);
+  });
+
   it("leaves fenced code blocks alone and reads no link inside inline code", async () => {
     const body = [
       "Outside: [t](../source/transcript.txt).",

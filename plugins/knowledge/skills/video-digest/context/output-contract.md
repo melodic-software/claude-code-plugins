@@ -130,6 +130,13 @@ deletion by hand and never installs or deletes one, since it may belong to anoth
 or to a run still going. The warning does not stop the run; delete a named dir once no run is
 using it.
 
+### Known limits of the re-layout
+
+The reference scanner is not a full CommonMark parser. It does not model indented code blocks,
+HTML blocks, link labels nested more than one level, or link reference definitions inside
+containers (lists, block quotes). References in those constructs are left unrewritten, and the
+link check is the backstop: it refuses a dangling slice-internal path it can see.
+
 ## Agent-written artifacts share the same root
 
 **Do not split the slice.** Every `.work/<watch-epic>/…` path in this skill and its `context/`

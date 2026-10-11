@@ -114,8 +114,6 @@ const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const PLACEHOLDER = /[<>{}*$]/;
 /** `:12`, `:12-20`, `:12,15` and `:12:5` (line and column) suffixes. */
 const LINE_SUFFIX = /(?::\d+(?:[-,]\d+)*)+$/;
-/** A code span: a run of backticks, its content, and the same run closing it. */
-const BACKTICK_SPAN = /(?<!`)(`+)([^`\n](?:[^\n]*?[^`\n])?)\1(?!`)/g;
 /** `[label]: path` reference-style link definitions. */
 const REFERENCE_DEFINITION = /^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]+>|\S+)/dgm;
 /** `src` and `href` in inline HTML, double-, single- or unquoted. */
@@ -126,12 +124,13 @@ const PATH_LIKE = /[/\\]|\.[A-Za-z0-9]+(?::\d+(?:[-,]\d+)*)*(?:#.*)?$/;
 /**
  * A code span's content split for path handling: CommonMark strips one space
  * on each side when both are there (`` ` x ` ``), and a path may sit in
- * quotes. `core` is null when the content does not read as a single path:
- * spaces are allowed inside a segment (`My Slides.pdf`) but not at either
- * end or next to a separator, which is prose or a command.
+ * quotes. `core` is null when the content cannot be one path. `spaced` marks
+ * a candidate holding spaces (`My Slides.pdf`, or a command such as
+ * `node run.mjs x.js --no-media`): it counts as a path only when the whole
+ * span resolves through the path map, and it is never link-checked.
  *
  * @param {string} content
- * @returns {{ pad: string, quote: string, core: string|null }}
+ * @returns {{ pad: string, quote: string, core: string|null, spaced: boolean }}
  */
 function spanPath(content) {
   const pad = /^ .*[^ ].* $/.test(content) ? " " : "";
@@ -140,8 +139,82 @@ function spanPath(content) {
   const quote = quoted ? quoted[1] : "";
   if (quoted) core = quoted[2];
   const readsAsPath =
-    core === "SLICE" || (PATH_LIKE.test(core) && !/^\s|\s$|\s[/\\]|[/\\]\s|\s{2}/.test(core));
-  return { pad, quote, core: readsAsPath ? core : null };
+    !core.includes("\n") &&
+    (core === "SLICE" || (PATH_LIKE.test(core) && !/^\s|\s$|\s[/\\]|[/\\]\s|\s{2}/.test(core)));
+  return { pad, quote, core: readsAsPath ? core : null, spaced: /\s/.test(core) };
+}
+
+/**
+ * @typedef {Object} CodeSpan
+ * @property {number} start - offset of the opening backtick run
+ * @property {number} end - offset just past the closing run
+ * @property {string} ticks - the backtick run
+ * @property {string} content - what sits between the runs
+ */
+
+/**
+ * Every inline code span in `text`, read as CommonMark does: an unescaped run
+ * of backticks closed by the next run of exactly the same length, possibly on
+ * a later line of the same paragraph (no blank line between). A run with no
+ * such closer is literal backticks.
+ *
+ * @param {string} text
+ * @returns {CodeSpan[]}
+ */
+export function codeSpans(text) {
+  /** @type {CodeSpan[]} */
+  const spans = [];
+  let at = 0;
+  while (at < text.length) {
+    const open = text.indexOf("`", at);
+    if (open === -1) break;
+    let runEnd = open;
+    while (text[runEnd] === "`") runEnd += 1;
+    const ticks = text.slice(open, runEnd);
+    if (isEscaped(text, open)) {
+      at = open + 1;
+      continue;
+    }
+    let close = -1;
+    let scan = runEnd;
+    while (scan < text.length) {
+      const next = text.indexOf("`", scan);
+      if (next === -1) break;
+      if (/\n[ \t]*\n/.test(text.slice(runEnd, next))) break;
+      let nextEnd = next;
+      while (text[nextEnd] === "`") nextEnd += 1;
+      if (nextEnd - next === ticks.length) {
+        close = next;
+        break;
+      }
+      scan = nextEnd;
+    }
+    if (close === -1) {
+      at = runEnd;
+      continue;
+    }
+    spans.push({
+      start: open,
+      end: close + ticks.length,
+      ticks,
+      content: text.slice(runEnd, close),
+    });
+    at = close + ticks.length;
+  }
+  return spans;
+}
+
+/**
+ * True when the character at `at` is backslash-escaped: an odd number of
+ * backslashes sits right before it.
+ *
+ * @param {string} text
+ * @param {number} at
+ */
+function isEscaped(text, at) {
+  let count = 0;
+  for (let back = at - 1; back >= 0 && text[back] === "\\"; back -= 1) count += 1;
+  return count % 2 === 1;
 }
 
 /**
@@ -490,11 +563,18 @@ export function inlineLinks(text) {
     }
     if (text[at] !== ")") continue;
     const linkEnd = at + 1;
-    // The `[` that opens this link's text, matching nested brackets.
+    // The `[` that opens this link's text, matching nested brackets. An
+    // escaped `]`, or an opening `[` that is escaped (`\[watch](...)`) or
+    // missing, means this is not a link.
+    if (isEscaped(text, open)) continue;
     let labelStart = -1;
     let depth = 0;
     for (let back = open - 1; back >= 0; back -= 1) {
-      if (text[back - 1] === "\\") continue;
+      if (text[back] === "\n" && text[back - 1] === "\n") break;
+      if ((text[back] === "[" || text[back] === "]") && isEscaped(text, back)) {
+        if (text[back] === "[" && depth === 0) break;
+        continue;
+      }
       if (text[back] === "]") depth += 1;
       else if (text[back] === "[") {
         if (depth === 0) {
@@ -502,8 +582,9 @@ export function inlineLinks(text) {
           break;
         }
         depth -= 1;
-      } else if (text[back] === "\n" && text[back - 1] === "\n") break;
+      }
     }
+    if (labelStart === -1) continue;
     const label = labelStart === -1 ? "" : text.slice(labelStart + 1, open);
     const linkStart = labelStart > 0 && text[labelStart - 1] === "!" ? labelStart - 1 : labelStart;
     links.push({
@@ -605,12 +686,15 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     const next = rewrite(value);
     if (next !== value) edits.push({ from, to, text: next });
   }
-  for (const match of fenceMasked.matchAll(BACKTICK_SPAN)) {
-    const [whole, ticks, content] = match;
-    const from = /** @type {number} */ (match.index);
-    const { pad, quote, core } = spanPath(content);
+  for (const span of codeSpans(fenceMasked)) {
+    const from = span.start;
+    const whole = text.slice(span.start, span.end);
+    const { ticks, content } = span;
+    const { pad, quote, core, spaced } = spanPath(content);
     if (core === null) continue;
     const found = lookUpReference(splitReference(core).refPath, sourceFile, map);
+    // A span with spaces is a path only when it resolves as one whole path.
+    if (spaced && !found) continue;
     let next;
     if (found && "retired" in found) {
       rewrites += 1;
@@ -675,10 +759,8 @@ export function maskCode(text) {
   if (open !== null) fences.push([open.start, text.length]);
   const fenceMasked = blank(text, fences);
   /** @type {[number, number][]} */
-  const spans = [...fenceMasked.matchAll(BACKTICK_SPAN)].map((match) => [
-    /** @type {number} */ (match.index),
-    /** @type {number} */ (match.index) + match[0].length,
-  ]);
+  /** @type {[number, number][]} */
+  const spans = codeSpans(fenceMasked).map((span) => [span.start, span.end]);
   return { fenceMasked, linkMasked: blank(fenceMasked, spans) };
 }
 
@@ -758,9 +840,11 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
     for (const match of linkMasked.matchAll(HTML_PATH_ATTRIBUTE)) {
       check(match[2] ?? match[3] ?? match[4], true);
     }
-    for (const match of fenceMasked.matchAll(BACKTICK_SPAN)) {
-      const { core } = spanPath(match[2]);
-      if (core !== null) check(core, false);
+    for (const span of codeSpans(fenceMasked)) {
+      // A span with spaces may be a command (`node run.mjs x.js --flag`): only
+      // single-token spans are link-checked.
+      const { core, spaced } = spanPath(span.content);
+      if (core !== null && !spaced) check(core, false);
     }
   }
   return unresolved;
