@@ -67,11 +67,11 @@ or would just this user's convenience suffer (→ memory is fine)?
 
 Some findings have an owner skill that decides the target better than this catalog. Name it in the
 Phase 3 row only if its plugin is installed; otherwise use the matching section below (Hooks,
-CLAUDE.md / Rules).
+CLAUDE.md / Rules, or Skills for a script whose output cost many tokens).
 
 | Finding | Hand to |
 | --- | --- |
-| Mechanical mistake: a fixed pattern, banned API, wrong file location, or a review-standard violation | `/review:audit-enforceability`, which picks the cheapest deterministic check and its owner |
+| Mechanical mistake: a fixed pattern, banned API, wrong file location, or a review-standard violation | `/review:audit-enforceability`, which picks the cheapest deterministic check and its owner. It reads one review-findings file, not a retro table, so the row names the finding and the user records it in such a file before running the skill |
 | Missing automation: a hook, MCP server, skill, subagent, or scheduled task | `/harness-config:audit-automation-gaps`, which rejects new automation unless evidence earns it |
 | An instruction the model followed unaided, or one that is stale or conflicting | `/harness-config:audit-instructions` |
 | Whether standing instructions are still needed at all | `/harness-config:unhobble`, the bare-model experiment |
