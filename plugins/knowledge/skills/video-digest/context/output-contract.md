@@ -62,6 +62,10 @@ material at a differently-shaped path (for example `sources/<type>/<slug>/`) lan
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/relayout-slice.js "<slice-dir>" "<target-dir>" [--no-media] [--replace]
 ```
 
+Evidence for this step (#6902): re-laying out by hand broke relative paths twice.
+knowledge-corpus#42 took four review rounds and six threads to clear them, and knowledge-corpus#46
+fixed 41 broken paths in the slice #37 had landed.
+
 The media, every extracted frame, the served caption tracks and the info JSON come from the temp
 session `watch.json` records, which `close` removes. To keep them, run in this order:
 

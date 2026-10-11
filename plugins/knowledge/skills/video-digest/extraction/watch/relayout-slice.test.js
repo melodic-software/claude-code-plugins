@@ -908,6 +908,45 @@ describe("relayoutSlice", () => {
     );
   });
 
+  it.each([
+    ["framesDir", "framesDir"],
+    ["workDir", "workDir"],
+  ])("refuses, without throwing, a recorded %s that is a file", async (_label, field) => {
+    const fixture = makeFixture();
+    const dir = field === "framesDir" ? fixture.framesDir : fixture.workDir;
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.writeFileSync(dir, "not a directory");
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+    const result = await relayoutSlice({
+      sliceDir: fixture.sliceDir,
+      targetDir: fixture.targetDir,
+    });
+    const message = stderr.mock.calls.map(([chunk]) => String(chunk)).join("");
+    stderr.mockRestore();
+
+    expect(result.exitCode).toBe(1);
+    expect(message).toContain(`${dir} is not a readable directory`);
+    expect(fs.existsSync(fixture.targetDir)).toBe(false);
+  });
+
+  it("matches a backticked path whose name holds # or ? before reading a fragment", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "research/findings/notes#1.md": "n\n",
+        "recommendations/questions.md":
+          "Raw: `research/findings/notes#1.md`. Fragment: `research/findings/topic.md#intro`.\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "analysis/recommendations/questions.md")).toBe(
+      "Raw: `../research/findings/notes#1.md`. Fragment: `../research/findings/topic.md#intro`.\n",
+    );
+  });
+
   it("refuses an empty video file", async () => {
     const { sliceDir, targetDir, workDir } = makeFixture();
     fs.writeFileSync(path.join(workDir, `${VIDEO_ID}.mp4`), "");

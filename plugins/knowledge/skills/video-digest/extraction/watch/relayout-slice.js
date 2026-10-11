@@ -309,13 +309,15 @@ function deriveDirectoryMap(fileMap) {
 
 /**
  * Split a reference into its path and the suffix to carry over unchanged
- * (`#anchor`, `?query`, `:line`).
+ * (`#anchor`, `?query`, `:line`). With `fragments: false`, a raw `#` or `?`
+ * stays part of the path (a file named `notes#1.md`).
  *
  * @param {string} ref
+ * @param {{ fragments?: boolean }} [options]
  * @returns {{ refPath: string, suffix: string, encoded: boolean }}
  */
-function splitReference(ref) {
-  const hash = ref.search(/[#?]/);
+function splitReference(ref, { fragments = true } = {}) {
+  const hash = fragments ? ref.search(/[#?]/) : -1;
   let refPath = hash === -1 ? ref : ref.slice(0, hash);
   let suffix = hash === -1 ? "" : ref.slice(hash);
   const line = LINE_SUFFIX.exec(refPath);
@@ -630,8 +632,8 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
   let rewrites = 0;
   const unwrap = (/** @type {string} */ target) =>
     target.startsWith("<") ? target.slice(1, -1) : target;
-  const rewrite = (/** @type {string} */ ref) => {
-    const { refPath, suffix, encoded } = splitReference(ref);
+  const rewrite = (/** @type {string} */ ref, fragments = true) => {
+    const { refPath, suffix, encoded } = splitReference(ref, { fragments });
     const found = lookUpReference(refPath, sourceFile, map);
     if (!found || "retired" in found) return ref;
     let relative;
@@ -704,7 +706,15 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     const { ticks, content } = span;
     const { pad, quote, core, spaced } = spanPath(content);
     if (core === null) continue;
-    const found = lookUpReference(splitReference(core).refPath, sourceFile, map);
+    // The whole span, a raw `#` or `?` included (`notes#1.md`), is tried
+    // first; only when it names nothing is the suffix read as a fragment.
+    const wholeFound = lookUpReference(
+      splitReference(core, { fragments: false }).refPath,
+      sourceFile,
+      map,
+    );
+    const fragments = wholeFound === null;
+    const found = wholeFound ?? lookUpReference(splitReference(core).refPath, sourceFile, map);
     // A span with spaces is a path only when it resolves as one whole path.
     if (spaced && !found) continue;
     let next;
@@ -712,7 +722,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       rewrites += 1;
       next = `${found.retired} (${found.note})`;
     } else {
-      next = `${ticks}${pad}${quote}${rewrite(core)}${quote}${pad}${ticks}`;
+      next = `${ticks}${pad}${quote}${rewrite(core, fragments)}${quote}${pad}${ticks}`;
     }
     if (next !== whole) edits.push({ from, to: from + whole.length, text: next });
   }
@@ -833,6 +843,14 @@ export function checkLayoutLinks(rootDir, { sliceDirs } = {}) {
     const fileDir = path.dirname(path.join(root, file));
     const text = fs.readFileSync(path.join(root, file), "utf8");
     const check = (/** @type {string} */ ref, /** @type {boolean} */ isLink) => {
+      // A backticked path may hold a raw `#` or `?` in its name: if the whole
+      // span resolves, it is fine; otherwise the suffix is a fragment.
+      if (!isLink) {
+        const whole = splitReference(ref, { fragments: false }).refPath;
+        if (whole && !PLACEHOLDER.test(whole) && fs.existsSync(path.resolve(fileDir, whole))) {
+          return;
+        }
+      }
       const { refPath } = splitReference(ref);
       if (!refPath || URL_SCHEME.test(refPath) || PLACEHOLDER.test(refPath)) return;
       if (refPath.startsWith("/") || refPath.startsWith("~")) return;
@@ -993,8 +1011,9 @@ function watchStateShapeProblem(state) {
  * @returns {string[]}
  */
 function missingFrames(framesDir) {
-  if (!framesDir || !fs.existsSync(framesDir)) {
-    return [`the frames (${framesDir ?? "no tempSession.framesDir"})`];
+  if (!framesDir) return ["the frames (no tempSession.framesDir)"];
+  if (!readableDirectory(framesDir)) {
+    return [`the frames (${framesDir} is not a readable directory)`];
   }
   const names = new Set(fs.readdirSync(framesDir));
   const missing = [];
@@ -1014,7 +1033,7 @@ function missingFrames(framesDir) {
     missing.push(`a frame-times.json holding a JSON object (${framesDir})`);
   }
   const emptyImages = [...names].filter(
-    (name) => FRAME_IMAGE.test(name) && fs.statSync(path.join(framesDir, name)).size === 0,
+    (name) => FRAME_IMAGE.test(name) && sizeOf(path.join(framesDir, name)) === 0,
   );
   if (emptyImages.length > 0)
     missing.push(`non-empty frames (empty: ${emptyImages.sort().join(", ")})`);
@@ -1054,6 +1073,35 @@ function missingFrames(framesDir) {
 }
 
 /**
+ * True when `dir` is a directory this run can list.
+ *
+ * @param {string} dir
+ */
+function readableDirectory(dir) {
+  try {
+    if (!fs.statSync(dir).isDirectory()) return false;
+    fs.readdirSync(dir);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Size of `file` in bytes; 0 when it cannot be read, so an unreadable
+ * artifact is refused like an empty one.
+ *
+ * @param {string} file
+ */
+function sizeOf(file) {
+  try {
+    return fs.statSync(file).size;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * posix paths, relative to `dir`, of every symlink under it.
  *
  * @param {string} dir
@@ -1061,8 +1109,14 @@ function missingFrames(framesDir) {
  * @returns {string[]}
  */
 function findSymlinks(dir, prefix = "") {
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    // Missing or unreadable: the readability checks name it.
+    return [];
+  }
+  return entries.flatMap((entry) => {
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isSymbolicLink()) return [rel];
     return entry.isDirectory() ? findSymlinks(path.join(dir, entry.name), rel) : [];
@@ -1299,8 +1353,12 @@ export async function relayoutSlice({
       transcriptMetrics.transcriptStrategy === "asr" || transcriptMetrics.skipped === true
     );
     const missing = [
-      ...(media.videoPath ? [] : [`the video (${temp.workDir ?? "no tempSession.workDir"})`]),
-      ...(media.videoPath && fs.statSync(media.videoPath).size === 0
+      ...(temp.workDir && !readableDirectory(temp.workDir)
+        ? [`the work dir (${temp.workDir} is not a readable directory)`]
+        : media.videoPath
+          ? []
+          : [`the video (${temp.workDir ?? "no tempSession.workDir"})`]),
+      ...(media.videoPath && sizeOf(media.videoPath) === 0
         ? [`a non-empty video (${path.basename(media.videoPath)} is empty)`]
         : []),
       ...(media.videoPath && !media.metadataPath ? [`the info JSON (${mediaId}.info.json)`] : []),
@@ -1313,7 +1371,7 @@ export async function relayoutSlice({
         .map((link) => `regular files in place of symlinks (${link})`),
       ...(captioned && media.captionPaths.length === 0 ? ["the caption tracks"] : []),
       ...media.captionPaths
-        .filter((caption) => fs.statSync(caption).size === 0)
+        .filter((caption) => sizeOf(caption) === 0)
         .map((caption) => `a non-empty caption track (${path.basename(caption)} is empty)`),
     ];
     if (missing.length > 0) {
