@@ -205,12 +205,12 @@
       "name": "index-pins-commit-and-states-reference-coverage",
       "prompt": "Explore the payments rounding module inline; I will come back to this in a fresh session next week, so the EXPLORE.md has to tell me whether its line citations still hold.",
       "files": [],
-      "expected_output": "Writes EXPLORE.md whose frontmatter carries a repos: list with the repository's name (never an absolute path), the full HEAD sha, and a dirty flag taken at the final write, and whose body has a Code references section listing the cited repo-relative paths grouped by area, opening with coverage: exhaustive or coverage: key-files. It tells the user that a resuming session compares the sha with HEAD and diffs the cited paths before relying on a citation.",
+      "expected_output": "Writes EXPLORE.md whose frontmatter carries a repos: list with the repository's name (never an absolute path), the full HEAD sha taken before the first file read, and a dirty flag, and whose body has a Code references section listing the cited repo-relative paths grouped by area, opening with coverage: exhaustive or coverage: key-files. The index itself carries the instruction that a resuming session compares the sha with HEAD and, on a mismatch or dirty: true, diffs the cited paths and re-reads the changed ones before relying on a citation.",
       "expectations": [
         "The EXPLORE.md frontmatter has a repos: entry whose sha is the full 40-character output of git rev-parse HEAD, not a short sha or a branch name",
         "The repos: entry carries a dirty flag and names the repository without an absolute machine path",
         "The index body has a Code references section whose first line is exactly coverage: exhaustive or coverage: key-files",
-        "The staleness check is explained as comparing the recorded sha with HEAD and diffing the cited paths, not as re-running the whole exploration"
+        "The EXPLORE.md index itself states the staleness check as comparing the recorded sha with HEAD and diffing the cited paths, not as re-running the whole exploration"
       ]
     },
     {
@@ -236,18 +236,6 @@
         "Every abstract states a finding about the code, not a topic label for what was looked at",
         "The index copies each sidecar abstract verbatim",
         "Sidecar filenames stay EXPLORE-<section>.md with stable section ids rather than being renamed after their findings"
-      ]
-    },
-    {
-      "id": 19,
-      "name": "why-gap-routes-to-trace-intent",
-      "prompt": "Explore the payments rounding module. I also want to know why rounding was moved after currency conversion instead of before it.",
-      "files": [],
-      "expected_output": "Explores what the rounding code does now, including what git history shows changed and when. The 'why was it built this way' question is recorded in the gap-list and the Next-stage handoff as routed to /discovery:trace-intent, because the rationale lives in pull requests, issues and reviews that explore does not read. It does not reconstruct a rationale from commit messages or code shape and present it as the reason.",
-      "expectations": [
-        "The rationale question appears as a gap routed to /discovery:trace-intent",
-        "The run does not present a reconstructed design rationale as established fact",
-        "The run does not dispatch extra agents or a new fan-out to chase pull request or issue history itself"
       ]
     }
   ]

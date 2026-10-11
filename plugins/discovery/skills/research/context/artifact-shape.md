@@ -313,19 +313,22 @@ The index frontmatter also carries the commit each explored repository was read 
 ```yaml
 repos:
   - name: <repository name, e.g. owner/repo or its directory name; never an absolute path>
-    sha: <full 40-character `git rev-parse HEAD` at the final write>
-    dirty: false           # true when `git --no-optional-locks status --porcelain` was non-empty at the final write
+    sha: <full 40-character `git rev-parse HEAD` taken before the first file read>
+    dirty: false           # true when `git --no-optional-locks status --porcelain` was non-empty before the first read or at the final write, or HEAD at the final write no longer equals sha
 ```
 
-Every `path:line` citation in the set is only as good as the commit it was read at. A resuming
-session compares `sha` with its own `HEAD` and runs `git diff --stat <sha> -- <cited paths>`; a
-cited file that changed since is re-read before anything rests on it. `dirty: true` says some
-citations may point at uncommitted content the sha cannot reproduce. Outside a repository the list
-is `repos: []`.
+Every `path:line` citation in the set is only as good as the commit it was read at, so the sha is
+taken before any file is read and checked again at the final write. `dirty: true` says some
+citations may point at content the sha cannot reproduce: uncommitted changes, or a commit that
+landed mid-run. Outside a repository the list is `repos: []`.
 
 The index body adds a **`## Code references`** section after the section → file table: the
 repo-relative paths the findings cite, grouped by area, each with a few words on its role. Its first
 line is `coverage: exhaustive` (every file in the scope that bears on the task is listed) or
 `coverage: key-files` (the entry points and load-bearing files only), so a reader knows whether a
-file missing from the list was ruled out or simply not listed. These paths are also the set the
-staleness diff above runs over.
+file missing from the list was ruled out or simply not listed. Its second line is the staleness
+check, carried in the artifact because a later session may read nothing else:
+
+```markdown
+Before relying on a citation: compare each `repos[].sha` with `git rev-parse HEAD`. On a mismatch, or `dirty: true`, run `git diff --stat <sha> -- <paths below>` and re-read every listed path that changed.
+```

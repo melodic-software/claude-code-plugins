@@ -99,7 +99,7 @@ SOFTWARE.
 
 ## rpi: create-research
 
-`discovery`'s `/discovery:explore` artifact took five accuracy ideas from the `rpi` plugin's
+`discovery`'s `/discovery:explore` artifact took four accuracy ideas from the `rpi` plugin's
 research step: `plugins/rpi/skills/rpi/references/create-research/process.md` and
 `references/research_template.md`.
 
@@ -115,7 +115,6 @@ travels with the `discovery` files; the notice above covers the show-me text onl
 | `process.md` step 6: distinguish tests read from checks run; a pass claim carries its command and observed result | `verified: ran` with `command:` and `result:` (same file, EXPLORE sidecar header) | Adapted | **Taken:** the read/ran split and the command-plus-result evidence. **Added:** a write-producing test run is outside the dispatched explorer's read-only boundary, so there the pass question becomes a gap. |
 | Template "Code References": state whether coverage is exhaustive or covers key files | `## Code references` section with `coverage: exhaustive \| key-files` | Adapted | **Taken:** the coverage statement. The listing also scopes the SHA staleness diff. |
 | `process.md` step 6: headers assert what is true | Explore abstracts state the finding, not the coverage | Adapted | **Taken:** for the one-line abstracts mirrored into the index. **Rejected:** finding-named section headers; our sidecar names stay fixed because the gate and the section → file table key on them. |
-| `process.md` steps 3 and 7: subagent roles and a targeted follow-up for remaining questions | `/discovery:explore` gap routing to `/discovery:trace-intent` | Adapted | **Taken:** that a remaining "why" question goes somewhere that can answer it. Explore reads git only; rationale lives in pull requests and issues, which `/discovery:trace-intent` reads. **Rejected:** the four named subagent roles and the web-search researcher; explore's single-worker and scout model already covers locating and analyzing, and external sources are `/discovery:research`'s. |
 
 ## Not audited
 

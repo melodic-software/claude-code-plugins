@@ -186,8 +186,10 @@ Write into the memory slice, following the skill's 7-section output format:
 - **`EXPLORE.md` is always an index**, regardless of total size. It opens with a task restatement,
   carries a one-line abstract per sidecar, a section → file + anchor table, and a
   `## Code references` listing whose first line is `coverage: exhaustive | key-files`. Its
-  frontmatter pins each explored repository's `sha` and `dirty` flag under `repos:`, taken with
-  `git rev-parse HEAD` and `git --no-optional-locks status --porcelain` at the final write.
+  frontmatter pins each explored repository's `sha` and `dirty` flag under `repos:`: take
+  `git rev-parse HEAD` and `git --no-optional-locks status --porcelain` before your first file
+  read, and again at the final write. Record the first sha; set `dirty: true` if either status was
+  non-empty or HEAD moved in between.
 - **Sidecars**: `EXPLORE-<section>.md` beside the index, inside the same slice directory, each
   carrying the EXPLORE sidecar header (`verified: read | ran | grep | inferred` plus repo-relative paths, not the research header's tiers and pools), so a consumer can grep headers and read exactly one.
   A claim that a test or check passes needs `verified: ran` with the command and its observed
