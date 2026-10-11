@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: test
-  summary: Rewrite, quarantine or delete low-value tests in one folder behind a mutation gate, or delete only skeptic-cleared cannot-fail tests without one
+  summary: Rewrite, quarantine or delete low-value tests behind a mutation gate, or delete cannot-fail ones
 ---
 
 ## Repository context. Gather first
