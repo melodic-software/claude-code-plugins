@@ -46,7 +46,8 @@ function tokens(text) {
 
 /** @param {string} word */
 function comparableWord(word) {
-  return word.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
+  // Apostrophes in any form (', ’, ʼ) drop out, so don't, don’t and dont match.
+  return word.toLowerCase().replace(/\u02BC|[^\p{L}\p{N}]/gu, "");
 }
 
 /**

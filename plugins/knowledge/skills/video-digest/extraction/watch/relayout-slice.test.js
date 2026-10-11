@@ -882,6 +882,14 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     ]);
   });
 
+  it("skips backslash-escaped delimiters inside quoted and parenthesized titles", () => {
+    expect(
+      inlineLinks(
+        '[a](a.md "say \\"hi\\"") [b](b.md \'it\\\'s\') [c](c.md (one \\) two)) [d](d.md)',
+      ).map(({ dest }) => dest),
+    ).toEqual(["a.md", "b.md", "c.md", "d.md"]);
+  });
+
   it("reads a link with a parenthesized title and rewrites its destination", async () => {
     expect(inlineLinks("[x](a.md (Title)) and [y](b.md)").map(({ dest }) => dest)).toEqual([
       "a.md",

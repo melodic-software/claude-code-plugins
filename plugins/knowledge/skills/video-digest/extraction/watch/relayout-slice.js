@@ -390,7 +390,19 @@ export function inlineLinks(text) {
     // A title is "...", '...' or (...), set off from the destination by space.
     const quote = text[at];
     if (at > destEnd && (quote === '"' || quote === "'" || quote === "(")) {
-      const closeQuote = text.indexOf(quote === "(" ? ")" : quote, at + 1);
+      // The closing delimiter, skipping backslash-escaped characters.
+      const closer = quote === "(" ? ")" : quote;
+      let closeQuote = -1;
+      for (let scan = at + 1; scan < text.length; scan += 1) {
+        if (text[scan] === "\\") {
+          scan += 1;
+          continue;
+        }
+        if (text[scan] === closer) {
+          closeQuote = scan;
+          break;
+        }
+      }
       if (closeQuote === -1) continue;
       at = closeQuote + 1;
       while (text[at] === " " || text[at] === "\t") at += 1;

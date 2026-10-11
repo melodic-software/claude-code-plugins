@@ -114,15 +114,16 @@ name and a path under an original lane whose parent directory the slice had (`so
 Not checked: paths under `plugins/`, `docs/`, `templates/` and `.claude/`, `AGENTS.md`, paths
 that leave the target, and backticked paths that are neither under such a lane directory nor
 under a top-level directory of the target or an entry beside the naming file (paths into another
-repository, such as `research/deepening/...` from an upstream repo). Only a passing check moves
-the staging directory into place; on any failure the staging directory is removed and the target
-is left as it was. Without `--replace` the install is a single rename of the staging dir onto the
+repository, such as `research/deepening/...` from an upstream repo). Fix what the check lists in
+the slice and re-run. Only a passing check moves the staging directory into place; on any failure
+the staging directory is removed and the target is left as it was. Without `--replace` the install is a single rename of the staging dir onto the
 target path, which fails, and the run refuses, when a target with content appeared during the
 run. On POSIX that rename replaces an empty directory someone created meanwhile; that is
 accepted, since an empty directory holds no data. A run killed mid-copy or mid-install leaves its
 `.<target-name>.relayout-*` staging dir behind; the next run names any such dir in a warning for
 deletion by hand and never installs or deletes one, since it may belong to another slice's run
-or to a run still going. Fix what it lists in the slice and re-run.
+or to a run still going. The warning does not stop the run; delete a named dir once no run is
+using it.
 
 ## Agent-written artifacts share the same root
 

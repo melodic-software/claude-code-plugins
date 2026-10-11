@@ -118,6 +118,26 @@ Very good indeed, thanks.
     expect(result.transcript.split("\n\n")[1]).toMatch(/^\[0:05\] Very good question/);
   });
 
+  it.each([
+    ["a curly apostrophe", "don’t"],
+    ["a modifier-letter apostrophe", "donʼt"],
+    ["no apostrophe", "dont"],
+  ])("matches don't against %s when dropping a 3-word repeat", (_label, variant) => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+so we
+
+00:00:03.000 --> 00:00:05.000
+really don't care.
+
+00:00:05.000 --> 00:00:07.000
+Really ${variant} care about it.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe("[0:01] so we really don't care.\n\n[0:05] about it.");
+  });
+
   it("does not count a punctuation-only token like >> as a repeated word", () => {
     const autoVtt = `WEBVTT
 
