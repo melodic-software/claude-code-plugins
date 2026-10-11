@@ -200,9 +200,9 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
     "debug": (SWEPT, "Per-session debug logs (--debug / /debug only)"),
     "paste-cache": (SWEPT, "Contents of large pastes"),
     "image-cache": (SWEPT, "Attached images"),
-    "uploads": (SWEPT, "Per-session attachments from the web or mobile app"),
-    "dev-mods": (SWEPT, "Per-session mods Claude wrote"),
-    "usage-data": (SWEPT, "/insights reports and cached analysis data"),
+    "uploads": (SWEPT, "Uploads; see claude-directory#cleaned-up-automatically"),
+    "dev-mods": (SWEPT, "Mods; see claude-directory#cleaned-up-automatically"),
+    "usage-data": (SWEPT, "Usage data; see claude-directory#cleaned-up-automatically"),
     "session-env": (SWEPT, "Per-session environment metadata"),
     "tasks": (SWEPT, "Per-session task lists"),
     "shell-snapshots": (
@@ -211,10 +211,9 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
     ),
     "backups": (
         SWEPT,
-        "Earlier versions of ~/.claude.json kept when the file is rewritten",
+        "~/.claude.json backups; see claude-directory#cleaned-up-automatically",
     ),
     "feedback-bundles": (SWEPT, "Redacted transcript archives written by /feedback"),
-    "feedback": (SWEPT, "drafts/ holds queued Claude-drafted feedback for /feedback"),
     "todos": (
         SWEPT,
         "Legacy; no longer written. Sweep removes contents then the directory",
@@ -239,10 +238,7 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
         "Cached feature policy settings for your organization",
     ),
     "cache": (KEPT, "cache/changelog.md is a cached copy of the Claude Code changelog"),
-    "jobs": (
-        KEPT,
-        "Background session state; upstream lists it among state files to keep",
-    ),
+    "jobs": (KEPT, "Background session state; see claude-directory#state-files-to-keep"),
     # Session-scoped, explicitly NOT age-swept
     "sessions": (
         SESSION_SCOPED,

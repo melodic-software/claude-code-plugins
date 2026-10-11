@@ -78,8 +78,10 @@ timings and counts are not restated here, and a claim that needs one is re-deriv
     live. **As of**: 2026-10-11. **Recheck trigger**: that entry changes its default or minimum.
 - **Resumed mega-sessions:** we read `--continue`/`--resume` as mounting the whole transcript and
   Windows builds as repainting the full viewport, so per-keystroke render cost scales with mounted
-  transcript size. Session hygiene (fresh sessions, `/clear`) bounds it. Recheck when a release
-  note names resume loading or Windows rendering.
+  transcript size. Session hygiene (fresh sessions, `/clear`) bounds it.
+  - **Basis**: our source-level reading of the v2.1.228 bundle, no probe script; no docs section
+    states it. **As of**: 2026-08-12. **Recheck trigger**: a release note names resume loading or
+    Windows rendering.
 
 ## The "nuke ~/.claude" folk remedy: evidence status
 
@@ -142,7 +144,9 @@ shell of its own therefore puts at least two shells in the chain, which is
   [hooks: exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)
   and [statusline: manually configure a status line](https://code.claude.com/docs/en/statusline#manually-configure-a-status-line)
   live. **As of**: 2026-10-11. **Recheck trigger**: either section changes which shell wraps a
-  command, or `args` gains a no-shell variant for shell form. Two consequences for reading the report: an empty finding list means no row named a
+  command, or `args` gains a no-shell variant for shell form.
+
+Two consequences for reading the report: an empty finding list means no row named a
 SECOND shell, never that the rows run unwrapped; and the documented floor is a count of shells in
 the chain, not of surviving processes, which the engine does not run anything to measure. Which
 bash the wrapping shell is on Windows is `fan_out.shell_resolution`.
@@ -665,11 +669,15 @@ is unmeasured until someone takes readings there. See [desktop.md](https://code.
   recheck when either section changes the unit or the render triggers
 - [sub-agents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
   and [spawn depth](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
+  for each cap's default, accepted values, and the sessions it does not apply to. As of
+  2026-10-11; recheck when either section changes a default, its accepted values, or its
+  exemptions
 - [agent-teams](https://code.claude.com/docs/en/agent-teams)
 - [env-vars](https://code.claude.com/docs/en/env-vars)
 - [hooks](https://code.claude.com/docs/en/hooks)
 - [debug your config: check common causes](https://code.claude.com/docs/en/debug-your-config#check-common-causes):
-  the cheap first pass worth taking before this engine
+  the cheap first pass worth taking before this engine. As of 2026-10-11; recheck when that
+  section moves or stops listing the checks it runs
 - [desktop](https://code.claude.com/docs/en/desktop)
 - [llms.txt](https://code.claude.com/docs/llms.txt): the index; resolve doc URLs from here rather
   than guessing them

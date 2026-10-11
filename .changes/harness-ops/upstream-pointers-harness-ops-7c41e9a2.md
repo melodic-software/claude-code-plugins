@@ -4,8 +4,9 @@ bump: patch
 
 ### Fixed
 
-- `/harness-ops:audit-performance` no longer says either subagent cap is disabled by removing its variable; neither cap can be turned off. The skill item tells the reader not to relay the engine's `ceilings.trap` string for the caps and points at the sub-agents sections for accepted values.
-- `/harness-ops:audit-install-state` routes `~/.claude.json` growth to `claude purge` in Phase 5, matching its own reference, and its engine now classifies `uploads/`, `dev-mods/`, `feedback/` and `usage-data/` as swept and `jobs/` as kept instead of unclassified, with a corrected `backups/` note.
+- `/harness-ops:audit-performance`'s concurrency-ceilings step now tells the reader never to present any value, or removing the variable, as disabling either subagent cap, and not to relay the engine's `ceilings.trap` string for the caps; it points at the sub-agents and env-vars sections for accepted values and exemptions. The engine's `trap` string itself is unchanged, because `scripts/test_audit_performance.py:910` pins its text.
+- `/harness-ops:audit-install-state` routes `~/.claude.json` growth to `claude purge` in Phase 5, matching its own reference, and its engine now classifies `uploads/`, `dev-mods/` and `usage-data/` as swept and `jobs/` as kept instead of unclassified; the new and changed table notes are short labels with a docs pointer.
+- The `plugins` scope reference quotes the current `/plugin` install-summary line for a needed reload, and no longer says the summary's version is read from a pointer that names none.
 - `reference/surfaces.md` stops claiming that the absence of `image-cache/` or `feedback-bundles/` proves the sweep ran, and stops stating that `history.jsonl` is never trimmed.
 - The `plugins` scope reference re-derives its "nothing reaps project-scope records" claim now that the swept-path list names paths under `~/.claude/plugins/`.
 

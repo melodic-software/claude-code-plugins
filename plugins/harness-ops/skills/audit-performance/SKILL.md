@@ -254,14 +254,17 @@ spawns. Read `fan_out` in this order:
    limit, and every subagent carries the same statusline and hook fan-out as its parent, so two
    individually modest settings can license a very large population. Report effective values
    against documented defaults. **Never present any value, or removing the variable, as
-   disabling either cap**: both caps can be adjusted, neither can be turned off. The engine's
-   `trap` string beside them still words the caps as truthiness-gated; never relay it for them.
-   - **Pointer**: when judging what a cap value does, fetch
-     [sub-agents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit)
-     and
-     [sub-agents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
-     live. **As of**: 2026-10-11. **Recheck trigger**: either section changes which values it
-     accepts, or documents a way to disable its cap.
+   disabling either cap**; read what a value does, and where a cap is not enforced, from the
+   pointer. The engine's `trap` string beside them describes only the truthiness-gated observer
+   flag and says removing that variable disables it; never relay it for the caps. Rewording it
+   is left undone because `scripts/test_audit_performance.py:910` pins that text.
+   - **Pointer**: when judging what a cap value does or where it is not enforced, fetch
+     [sub-agents: concurrent subagent limit](https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit),
+     [sub-agents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents),
+     and the two variables' rows in
+     [env-vars: variables](https://code.claude.com/docs/en/env-vars#variables) live. **As of**:
+     2026-10-11. **Recheck trigger**: any of those changes the values a cap accepts, documents a
+     way to disable a cap, or adds or drops a session kind that is exempt from one.
 6. **`fan_out.statusline`**. Reported, never rendered. The engine reads `refreshInterval` as
    seconds (`refresh_interval_seconds`); reading it as milliseconds inverts the conclusion. Its
    `invocation_shape_findings` reads the same way as item 2: the command runs in a shell, so a

@@ -229,7 +229,9 @@ release note changes what session start records for an already-installed plugin.
 `true`, so the opt-out we advise on one machine is a `false` in `.claude/settings.local.json`.
 Pointer: for the precedence and the local opt-out, see
 [`enabledPlugins`](https://code.claude.com/docs/en/settings-reference#enabledplugins). As of:
-2026-10-11. Recheck trigger: that entry changes the precedence. Precedence settles which `enabledPlugins` value is effective, and the probe above
+2026-10-11. Recheck trigger: that entry changes the precedence.
+
+Precedence settles which `enabledPlugins` value is effective, and the probe above
 establishes that an effective project-scope `true` writes its own record regardless of the user
 scope. So every project-scope `true` duplicating a user-scope install produces one version-pinned
 project record per plugin per checkout.
@@ -254,10 +256,10 @@ section above records as unreapable.
 directory and does not touch `~/.claude`, and the section above records that no CLI verb removes a
 record by path (`-s project` acts on the cwd only, `prune` is dependency-only). We treat the
 product's own retention sweep as not covering them either. The swept-path list now names paths
-under `~/.claude/plugins/`, but they are the claude.ai-sync trash and the dated copies taken when
-`installed_plugins.json` is rewritten, not the live per-project records. A dropped record's
-set-aside copy aging out is cleanup of the copy; it is no evidence that a stranded record in the
-live file is ever reaped, so the claim above stands until a probe shows otherwise.
+under `~/.claude/plugins/`; we read none of those rows as the live per-project records (what each
+row holds is read at the pointer below). A swept copy aging out is cleanup of the copy; it is no
+evidence that a stranded record in the live file is ever reaped, so the claim above stands until
+a probe shows otherwise.
 
 - **Pointer**: when deciding whether the sweep reaps a project-scope record, fetch
   [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
@@ -309,8 +311,9 @@ monitors as needing a restart.
 **An install can now activate itself, but not the installs this skill issues.** An install started
 from the in-session `/plugin` interface reports its activation state, and this skill reads two
 lines of that summary: `Plugin is now active.` means the plugin is live with no reload, and
-`Run /reload-plugins to activate.` means it is not (the prompt-cache case or a failed activation).
-The version that introduced the summary is read from the pointer below.
+`Run /reload-plugins to apply.` means a reload is needed. What the interface does after that line,
+including when it leaves the plugin pending, is read at the pointer below. No docs section or
+changelog entry we found names the version that introduced the summary, so this skill states none.
 
 This does **not** relax the reload guidance below, because `sync` installs through the shell
 command, not the interface, and we treat a shell install as loading only at the next start or the
@@ -324,7 +327,7 @@ for below.
   [Install a plugin](https://code.claude.com/docs/en/plugins/install#install-a-plugin); for shell
   installs, see
   [Install from your shell](https://code.claude.com/docs/en/plugins/install#install-from-your-shell).
-- **As of**: 2026-09-05
+- **As of**: 2026-10-11
 - **Recheck trigger**: either summary line changes, or a shell install starts activating in an open
   session.
 
@@ -334,8 +337,8 @@ changes raise that warning is read at the pointer below, not predicted here.
 
 So follow this two-step rather than predicting the cause:
 
-1. Check the install summary: if it reports `Run /reload-plugins to activate.`, run
-   `/reload-plugins`.
+1. Check the install summary: if it reports `Run /reload-plugins to apply.` and the plugin is
+   still not active, run `/reload-plugins`.
 2. If that warns that the reload will re-read the conversation, rerun it as
    `/reload-plugins --force`.
 

@@ -60,12 +60,11 @@ Four facts about it that change how a finding should be read:
 
 The engine classifies these top-level names under `~/.claude/` as `product-managed-swept`:
 `projects`, `file-history`, `plans`, `debug`, `paste-cache`, `image-cache`, `uploads`, `dev-mods`,
-`session-env`, `tasks`, `shell-snapshots`, `backups`, `feedback-bundles`, `feedback` (its swept
-path is `feedback/drafts/`), `usage-data`, and the legacy `todos`, `statsig`, `logs`. Swept paths
-nested under another name (set-aside transcripts under `projects/`, the claude.ai-sync trash under
-`skills/` and `plugins/`, and the `installed_plugins` set-aside copies under `plugins/`) take their
-parent's classification; the engine keys on the top-level name only. Read what each holds from the
-pointer at the top of this file.
+`session-env`, `tasks`, `shell-snapshots`, `backups`, `feedback-bundles`, `usage-data`, and the
+legacy `todos`, `statsig`, `logs`. The engine keys on the top-level name only, so a swept path
+nested under another name takes its parent's classification, and a swept subpath whose parent has
+no row (such as `feedback/drafts/`) leaves that parent `unclassified`. Read which nested paths are
+swept, and what each path holds, from the pointer at the top of this file.
 
 One firing rule of ours rides on a row: **`image-cache/` sweeps other sessions' directories
 whatever their age**, so an old `image-cache/<session>/` disappearing immediately is expected,
@@ -96,9 +95,14 @@ reads as a deletion authorization.
 
 Absence is evidence only for the legacy directories: `todos/`, `statsig/` and `logs/` missing on an
 install old enough to have written them shows the sweep completed, including its
-remove-the-empty-directory step. Do not read the absence of `image-cache/` or `feedback-bundles/`
-that way: current versions write neither on every install, so their absence proves nothing about
-the sweep.
+remove-the-empty-directory step. Do not read the absence of any other swept path that way,
+`image-cache/` and `feedback-bundles/` included: whether current versions write a path at all is
+read from its row, so absence proves nothing about the sweep.
+
+- **Pointer**: when judging whether a swept path's absence means anything, fetch its row in
+  [claude directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically)
+  live. **As of**: 2026-10-11. **Recheck trigger**: a row there gains or loses a condition on
+  when the path is written, or a path joins or leaves the legacy set.
 
 ## Kept until you delete them
 
