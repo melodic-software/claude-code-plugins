@@ -1,0 +1,78 @@
+name: pr-unblock
+
+# Lane caller for pr-unblock: its file stem is the lane, so the lanes token
+# broker accepts its write activities. No App key; each run job's OIDC token is
+# exchanged at LANES_BROKER_URL for audience LANES_BROKER_AUDIENCE.
+# Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
+#
+# workflow_dispatch only: GitHub runs no pull_request workflow on a conflicting
+# PR. pr-unblock-dispatch.yml sends one dispatch per conflicting PR after a push
+# to the default branch and sets dispatcher-run-id; a trusted human may dispatch
+# with pr-number alone. Both jobs trust the default branch tip, since a
+# conflicting PR's base SHA is stale.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr-number:
+        description: The PR to resolve conflicts on.
+        required: true
+        type: string
+      dispatcher-run-id:
+        description: The pr-unblock-dispatch.yml run that sent this dispatch; empty for a human dispatch.
+        required: false
+        type: string
+        default: ""
+
+permissions: {}
+
+# A newer dispatch for the same PR replaces one still waiting; a running one
+# finishes.
+concurrency:
+  group: pr-unblock-${{ inputs.pr-number }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-conflicts:
+    # The per-PR write queue sits on the job behind this if:, so a run that
+    # does nothing never waits in it.
+    if: inputs.pr-number != ''
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    # One per-PR queue shared by every write lane: it queues, never cancels.
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: pr-unblock
+      activity: resolve-conflicts
+      pr-number: ${{ inputs.pr-number }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
+    secrets:
+      claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  report-escalation:
+    needs: resolve-conflicts
+    # escalation-reason is set only by the write runner's own steps.
+    if: needs.resolve-conflicts.outputs.escalation-reason != ''
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    concurrency:
+      group: pr-pipeline-write-${{ inputs.pr-number }}
+      queue: max
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: pr-unblock
+      activity: report-escalation
+      pr-number: ${{ inputs.pr-number }}
+      escalation-reason: ${{ needs.resolve-conflicts.outputs.escalation-reason }}
+      dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
+      trusted-base: default-tip
