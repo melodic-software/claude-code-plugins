@@ -95,7 +95,8 @@ recorded beside the key in
 parallel worker then runs on the session model, so a frontier session runs
 every agent of the stage on the frontier model (rates:
 [Pricing](https://platform.claude.com/docs/en/about-claude/pricing); usage:
-[Manage costs: Track your costs](https://code.claude.com/docs/en/costs#track-your-costs)).
+[Manage costs: Track your costs](https://code.claude.com/docs/en/costs#track-your-costs);
+as of 2026-10-11, recheck when either page moves the section linked here).
 Before writing
 it, say this and ask the user to confirm that specific key, separately from the
 rest of the change. Recommend the narrowest layer that covers what they mean:

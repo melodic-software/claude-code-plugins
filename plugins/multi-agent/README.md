@@ -89,16 +89,20 @@ returns no decision, so the session's permission rules still apply, and it
 passes once per agent run. `docs-raw.sh` fetches with `--public-only`, so the
 host must resolve only to global addresses and curl connects to the checked
 one alone. The gate fails open when `node` is missing or the hook times out
-(see Node.js below); a stdin error or a crash inside it denies. Every other
+(see Node.js below, and the hook-failure record in
+[`skills/check/SKILL.md`](skills/check/SKILL.md)); a stdin error or a crash inside it denies. Every other
 agent and the main thread pass through. The row is always-on: it fires on every
 `Bash` call, at a budget of one process (`node`) per call, ratcheted in
 `.performance/ratchets.json` as `multi-agent-pretooluse-bash-docs-fetcher-gate-spawns`.
 
-An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
-mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
-([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
-A mod can also approve a call they blocked, because its `tool.check` hook runs after them
-([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
+An installed mod can stop this plugin's `PreToolUse` hooks from running, and can approve a call
+they blocked, so the gate holds only where no installed mod overrides it. Where settings hooks run
+relative to mod hooks is read live:
+
+- **Pointer:** [mods events: where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)
+  and [mods events: approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** either section changes where settings hooks run relative to mod hooks.
 
 ## The fan-out guard
 
