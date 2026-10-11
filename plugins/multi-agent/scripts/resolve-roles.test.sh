@@ -171,7 +171,7 @@ assert_contains "home root: overlay not applicable" "$out" 'not-applicable (home
 assert_contains "home root: overlay value not applied" "$out" '"effort":"medium"'
 
 out="$("$SUT" pointers)"
-assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-10-02'
+assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-10-10'
 assert_contains "pointers lists the fan-out guard basis" "$out" $'fanout\tpointer\thttps://code.claude.com/docs/en/workflows#cost'
 
 printf '\n%d cases, %d failed\n' "$CASES" "$FAILED"
