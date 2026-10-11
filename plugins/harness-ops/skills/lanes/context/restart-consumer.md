@@ -65,20 +65,19 @@ can never name a lane the operator has not configured.
 **Only the lanes' own comments count.** The sentinel is public, so anyone who can
 comment on a telemetry issue can post a lookalike carrying `restart_request`. The
 consumer reads only comments written by the lanes' write identity, resolved once
-per run: the
-`gh api user` login when it reports a User; `<slug>[bot]` from `--app-slug <slug>`
-when that call fails or reports a Bot; else the reported Bot login plus `[bot]`.
-With no identity resolved the run exits 4 before reading any lane. Run the
-consumer under the account its lanes write as, and pass `--app-slug` when that is
-an App installation token; `print-schedule` carries a passed `--app-slug` into
-every command it emits.
+per run: the authenticated account's own login first, and the App named by
+`--app-slug` when the token is an App's; the exact order is the script's WRITE
+IDENTITY header. With no identity resolved the run acts on nothing and exits
+non-zero. Run the consumer under the account its lanes write as, and pass
+`--app-slug` when that is an App installation token; `print-schedule` carries a
+passed `--app-slug` into every command it emits.
 
-- **Pointer:** the login an installation token's writes carry,
-  [Authenticating as a GitHub App installation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation).
+- **Pointer:** how an installation token's writes are attributed,
+  [Authenticating as a GitHub App installation, About authentication as a GitHub App installation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation#about-authentication-as-a-github-app-installation).
 - **As of:** 2026-10-11.
-- **Recheck:** an App token's comments landing under a login other than
-  `<slug>[bot]`, or a consumer run under an App token exiting 4 with `--app-slug`
-  passed.
+- **Recheck:** that section changes how an installation's requests are
+  attributed, or a consumer run under an App token with `--app-slug` passed
+  reads no lane state.
 
 ## Operator setup: registering the schedule
 

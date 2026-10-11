@@ -66,7 +66,7 @@
 #   --agents-json FILE   read the session list from FILE instead of
 #                        `claude agents --json` (offline / test injection).
 #   --app-slug SLUG      the GitHub App whose installation token gh runs under;
-#                        its lanes' comments carry the login SLUG[bot]. See
+#                        lane comments are then read from SLUG[bot]. See
 #                        WRITE IDENTITY below.
 #   --telemetry-json FILE
 #                        read lane telemetry from FILE instead of `gh`: a JSON
@@ -105,8 +105,7 @@
 # ignored, whatever it carries. The identity is resolved once per run, before any
 # lane is read, in this order:
 #   1. `gh api user` reports a User: that login (a personal or machine-user token).
-#   2. that call fails or reports a Bot: SLUG[bot] from --app-slug SLUG (an App
-#      installation token cannot call `gh api user`).
+#   2. that call fails or reports a Bot: SLUG[bot] from --app-slug SLUG.
 #   3. a Bot report with no --app-slug: the reported login, plus `[bot]` when
 #      missing.
 # Anything else, or a login outside [A-Za-z0-9_-] plus an optional [bot], exits 4
