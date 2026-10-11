@@ -47,8 +47,9 @@ when the `planning` plugin is enabled).
    `--disallowedTools` when the implementer runs as its own `claude` session, or in
    `.claude/settings.local.json` when it is a subagent of this session (the rule then binds this
    session too, which is fine, since a test change goes through the user). Remove it when the run
-   ends. A deny rule does not cover every way a file can change (see Basis and limits for what it
-   covers), so the check above stays the gate.
+   ends. A deny rule does not cover every way a file can change (what it covers:
+   [Basis and limits](#basis-and-limits), as of 2026-10-11; recheck when that section's
+   file-path deny pointer moves or is dropped), so the check above stays the gate.
 5. **Review for special-casing.** A frozen test stops test edits, not code that recognizes the
    tested inputs and returns the expected values for them. Read the implementation diff for
    branches keyed to test data before trusting the green run.

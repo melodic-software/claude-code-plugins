@@ -10,16 +10,22 @@
 # Write call (the `if` probe, below). A glob with no slash matches the basename at any
 # depth (gitignore syntax). The task-end judge's background job (async) takes
 # the same PostToolUse rows; its Stop and SessionStart entries have no `if`.
-# The Stop entry runs with asyncRewake so the turn need not wait for it (the
-# background-hooks pointer below); it judges a finished subagent's writes with
-# the parent's.
+# The Stop entry runs with asyncRewake, so the turn ends without waiting for
+# it; it judges a finished subagent's writes with the parent's. asyncRewake:
+# https://code.claude.com/docs/en/hooks#command-hook-fields (as of 2026-10-11;
+# recheck when that section changes whether an asyncRewake hook runs in the
+# background).
 #
 # PostToolUse also gets one Bash row with no `if`: a Bash `if` matches
-# the command string, not the files the call changed (the `if` probe), so
-# test-scan-bash.sh filters the payload's changed files by the same globs.
+# the command string, not the files the call changed (the bashEditDiff
+# probe, below), so test-scan-bash.sh filters the payload's changed files by
+# the same globs.
 # The `if` probe: https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md#if-row-matching-and-hook-input-claude-code-21284-wsl2-2026-09-28
 # (as of 2026-09-28; recheck when a Claude Code release note changes how a
 # hook's `if` rule matches a tool call).
+# The bashEditDiff probe: https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md#basheditdiff-claude-code-21285-wsl2-2026-09-30
+# (as of 2026-09-30; recheck when a Claude Code release note changes what a
+# Bash `if` rule matches or which changed files a Bash hook payload lists).
 # Its launcher flag --skip-unless-stdin-contains bashEditDiff skips the bash
 # start on a payload with no Bash change diff, the case the script itself
 # exits on first; the row is advisory, so the flag's fail-open stall is safe.
