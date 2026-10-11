@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # Skill-local entry point for the plugin's shared ecosystem detector.
 #
-# Why this wrapper exists: an `allowed-tools` Bash rule can only substitute
-# ${CLAUDE_SKILL_DIR} and ${CLAUDE_PROJECT_DIR} (${CLAUDE_PLUGIN_ROOT} stays a
-# literal string there and the grant goes inert), so a grant that must reach a
-# bundled script has to name a path under the skill's own directory. The
+# Why this wrapper exists: this plugin's `allowed-tools` Bash grants name a
+# path under ${CLAUDE_SKILL_DIR}, never under ${CLAUDE_PLUGIN_ROOT}, so a grant
+# that must reach a bundled script needs a path under the skill's own
+# directory. That is a repo convention, not a platform limit; its reason is
+# kept in plugins/prototype/scripts/allowed-tools-pairing.test.sh. Which
+# variables an `allowed-tools` Bash rule substitutes is read live from
+# https://code.claude.com/docs/en/skills#available-string-substitutions
+# (as of 2026-10-11; recheck when that section changes which variables a
+# plugin skill's `allowed-tools` rules substitute). The
 # detector itself is shared with the sibling pressure-test skill and stays
 # single-sourced at the plugin root; this file is the ${CLAUDE_SKILL_DIR}-
 # addressable handle for it.

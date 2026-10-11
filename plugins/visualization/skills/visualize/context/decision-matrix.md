@@ -211,7 +211,9 @@ The identity string the offer quotes, and the finding that `/design` is a
 user-only design-Artifact creator rather than the claude.ai/design hub (whose text
 belongs to the separate `ClaudeDesign` tool), come from the same probe: the
 2026-09-29 extraction and the 2026-09-30 targeted string search of v2.1.285, both
-held in the `design` records of `docs/native-surfaces/records.json`.
+held in the `design` records of `docs/native-surfaces/records.json` (as of
+2026-10-11; recheck when those records add a probe of a later version or change
+the identity string).
 
 The design-sync family's registry disposition (defer, observed-only) also lives in
 `docs/native-surfaces/records.json` (its `design-sync` records), which keeps the
@@ -258,7 +260,10 @@ what terminal Markdown rendering covers.
   closes.
 - Artifact CSP, page size, source file types, availability gating and
   connector-backed live data: each is read live from the pointer in its own entry
-  above (Page constraints, Availability, Pull live data with MCP connectors).
+  under [Published Artifact](#published-artifact) and
+  [Availability gating](#availability-gating-why-the-surface-is-often-absent)
+  (as of 2026-10-11; recheck when either entry's pointer changes its target
+  section or one of those headings is renamed).
 - Artifact native mermaid, favicon requirement, theme-awareness
   (`prefers-color-scheme` / `data-theme`), and responsive rules: the Artifact
   tool's own description in the session (no public docs section covers them as of

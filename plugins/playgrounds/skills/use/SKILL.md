@@ -51,8 +51,9 @@ namespaced form.
 ## Step 2: Present, so invoke
 
 When the upstream skill is present, invoke it via the Skill tool with the user's
-brief as arguments, using the namespaced form `playground:playground` (Step 1's
-pointer covers why). Pass the request
+brief as arguments, using the namespaced form `playground:playground`
+([Step 1](#step-1-presence-check-provenance-not-prose)'s pointer covers why; as of
+2026-10-11, recheck when Step 1's pointer changes its target section). Pass the request
 as stated; the upstream skill owns template choice and generation. When the user names
 styles to leave out (italic accent words, pill-shaped buttons), carry that list in the
 brief; when they dislike a choice in the generated page, add it to the list and invoke
