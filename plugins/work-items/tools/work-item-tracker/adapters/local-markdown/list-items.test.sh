@@ -42,7 +42,7 @@ done
 LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS")"
 assert_eq "exactly the ceiling's worth of open items: truncated is false" "false" "$(jq -c '.truncated' <<<"$LISTED")"
 WIT_STORAGE_DIR="$STORE" bash "$(dirname "$S")/create-item.sh" --title "closed" >/dev/null
-sed -i 's/^state: "open"$/state: "closed"/' "$STORE/3.md"
+sed 's/^state: "open"$/state: "closed"/' "$STORE/3.md" >"$STORE/3.md.new" && mv "$STORE/3.md.new" "$STORE/3.md"
 LISTED="$(WIT_STORAGE_DIR="$STORE" bash "$FS")"
 assert_eq "a closed item past the ceiling: the open listing is complete" "false" "$(jq -c '.truncated' <<<"$LISTED")"
 WIT_STORAGE_DIR="$STORE" bash "$(dirname "$S")/create-item.sh" --title "three" >/dev/null

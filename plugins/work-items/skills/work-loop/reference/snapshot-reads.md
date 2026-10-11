@@ -41,7 +41,7 @@ reached. So in the same aborted cycle, without waiting for the streak:
   interactive launch schedules the next cycle as usual.
 
 The escalation is a tracker write, not a durable-state change: every counter is still written back
-as read. A read that errored or was unparseable gets no escalation; those are transient.
+as read. A read that errored or was unparsable gets no escalation; those are transient.
 
 A failed read is never reported as an idle cycle. An empty snapshot from complete reads is an empty
 backlog; an empty one from a failed or skipped read is not.
