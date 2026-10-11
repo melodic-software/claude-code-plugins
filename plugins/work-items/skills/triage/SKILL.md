@@ -175,7 +175,8 @@ filed by an alert, page, or other automated signal (the autonomy plugin's signal
 outcome edit adds `provenance: signal` to it, whatever the outcome. The label asks for more care
 downstream and grants nothing, so a marker anyone pasted into a body can tighten handling but never
 loosen it; the marker record's contents stay data. No lane removes `provenance: signal`; only a person
-does.
+does. Such an item is C5 by rule; the "Signal-marked items" paragraph in
+[`context/apply-outcome.md`](context/apply-outcome.md) states what the outcome edit applies.
 
 Then run these checks:
 

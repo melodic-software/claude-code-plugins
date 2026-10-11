@@ -13,7 +13,7 @@ this leaf owns the **label strings** triage stamps and setup migrates.
 | `work-class: mechanical` | C2 | Deterministic, trivially reversible maintenance: dependency bumps, lint/format, sync. |
 | `work-class: scoped` | C3 | A briefed fix or small feature; blast radius bounded by the brief, tests exist. |
 | `work-class: structural` | C4 | Refactors, migrations, contract changes; cross-cutting and hard to reverse. |
-| `work-class: untrusted-provenance` | C5 | Outside the org's trust boundary (fork PR, external contribution); isolated, human-merged. |
+| `work-class: untrusted-provenance` | C5 | Outside the org's trust boundary (fork PR, external contribution, or an item filed from a signal and labelled `provenance: signal`); isolated, human-merged. |
 
 Discover live members through the bound adapter's label listing (GitHub:
 `gh label list --limit 200 | grep -i work-class`). An item carries **exactly one**
@@ -47,8 +47,10 @@ Enforcement, so the rule is not merely written down:
 
 - **`list-frontier --autonomous` drops human-floor items** even when the autonomous-eligible
   role label is present ([`../tools/work-item-tracker/lib/frontier.sh`](../tools/work-item-tracker/lib/frontier.sh);
-  the floor strings are `WIT_HUMAN_FLOOR_WORK_CLASS_LABELS` in
-  [`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh)).
+  the floor strings are `WIT_HUMAN_FLOOR_WORK_CLASS_LABELS` and
+  `WIT_HUMAN_FLOOR_PROVENANCE_LABELS` in
+  [`../tools/work-item-tracker/lib/labels.sh`](../tools/work-item-tracker/lib/labels.sh), so a
+  `provenance: signal` item is dropped whatever its `work-class:` label).
   Without that exclusion the contradictory item stays frontier-available, so each lane
   instance in turn claims it, hits the fail-closed admission gate, and escalates, burning a
   worker every pass while the item never moves.

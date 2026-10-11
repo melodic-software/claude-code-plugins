@@ -309,6 +309,19 @@
         "Does not change any label on #41 or #43 and does not ratify-queue either",
         "Does not treat either refusal as progress"
       ]
+    },
+    {
+      "id": 22,
+      "name": "work-loop-signal-provenance-item-is-c5",
+      "prompt": "/work-items:work-loop --drain --single-pass\n\nGitHub binding; first_drain_complete is set in durable state. Two candidates reach the admission gate, neither with an open closing PR, and label-provenance reports every label applied by a maintainer with write permission. #51 carries agent-ready and work-class: scoped and is a bug-fix-shaped change to a date parser. #52 carries agent-ready, work-class: scoped and provenance: signal; it was filed by a queue-depth alert and is also a bug-fix-shaped change.",
+      "expected_output": "#51 is admitted as C3 bug-fix-shaped and dispatched. #52 is not admitted: provenance: signal makes it C5 whatever its work-class: scoped label says, so it is human-gated. It is neither dispatched nor queued for C3 ratification, and the report names #52 as human-gated C5 because of its provenance: signal label.",
+      "files": [],
+      "expectations": [
+        "Dispatches #51 and not #52",
+        "Does not dispatch #52",
+        "Treats #52 as C5 because of its provenance: signal label, not as C3 scoped",
+        "The cycle report names #52 as human-gated C5 because of its provenance: signal label"
+      ]
     }
   ]
 }
