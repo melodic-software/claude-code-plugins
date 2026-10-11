@@ -29,12 +29,21 @@ any run with no human to answer, STOP before any claim and report that `run` is 
    branch:**` line is absent, STOP and offer to record the line (SKILL.md Step 3). The run never
    applies the per-item default silently.
 
-   The session runs from a worktree on a non-default branch, never the main checkout:
-   `/implementation:implement-dispatch`'s branch preflight stops on the default branch.
+   The `**Integration branch:**` value is item-body data. Before any use it must consist only of
+   `A-Z a-z 0-9 . _ / -`, must not start with `-`, and must pass `git check-ref-format --branch
+   <value>`, the check `/implementation:implement-dispatch` applies to `--base`; STOP and report a
+   value that fails.
 
-1. **Gate the seam.** Run `"$TRACKER" capabilities`. When `list-frontier --parent` or `claim` is
-   unsupported, or the seam cannot run, STOP and name it: without race-safe claims a run is not
-   safe. An unsupported `renew-lease` or `release` is reported and the run continues; leases it
+1. **Gate the seam.** Resolve the seam as SKILL.md Step 2 does, then read its capabilities:
+
+   ```bash
+   TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
+   [[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
+   "$TRACKER" capabilities
+   ```
+
+   When `list-sub-items` (the verb behind `list-frontier --parent`) or `claim` is unsupported, or
+   the seam cannot run, STOP and name it: without race-safe claims a run is not safe. An unsupported `renew-lease` or `release` is reported and the run continues; leases it
    cannot renew or release expire on their own.
 
 1. **Check other holders.** From the rollup, list sibling items whose assignee holds a live lease
@@ -52,8 +61,12 @@ any run with no human to answer, STOP before any claim and report that `run` is 
 
 1. **Claim.** Claim each approved item through the seam (`reclaim` first, as `/work-items:track
    start` does; a `reclaim` exit 6 means the adapter has none, so skip it). A claim lost to a race
-   (exit 7) drops that item from the list and is reported. Renew the leases of items still claimed
-   before each later dispatch and before each landing.
+   (exit 7) drops that item from the list and is reported. Record each claim's
+   `lease_comment_id`. Renew the leases of items still claimed before each dispatch, each time a
+   dispatched worker returns, and before each landing. The item list carries no lease handle, so a
+   worker cannot renew mid-flight: a renew that exits 7 means the lease lapsed while the worker
+   ran. Claim the item again; when another session now holds it, drop that item's result, report
+   it, and do not land it.
 
 1. **Dispatch.** Invoke `/implementation:implement-dispatch` via the Skill tool with
    `--items <that list>`, and under `integration branch → single PR` with
