@@ -92,7 +92,7 @@ check "control characters in payload strings are stripped" \
   '{"prompt_cache":{"warm":true,"ttl":"1h\u001b]52;c;eA==\u0007","expires_at":1767227520,"misses":1,"last_miss_cause":{"causes":["tools\u001b[2J_changed"]}}}' \
   'cache ● warm until 00:32 (1h]52;c;eA==) · misses 1 (last: tools[2J_changed)'
 
-out="$(printf '%s' '{"prompt_cache":{"warm":true,"ttl":"1h","expires_at":1767227520}}' | TZ=UTC node "$SUT")"
+out="$(printf '%s' '{"prompt_cache":{"warm":true,"ttl":"1h","expires_at":1767227520}}' | env -u NO_COLOR TZ=UTC node "$SUT")"
 if [[ "$out" == *$'\e[32m●\e[0m'* ]]; then
   pass "color is on unless NO_COLOR is set"
 else

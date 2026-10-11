@@ -203,21 +203,27 @@ where those files live, see
 1. **Copy** `${CLAUDE_PLUGIN_ROOT}/scripts/cache-line.mjs` to
    `~/.claude/context-guard/cache-line.mjs`, creating the directory if needed. When the target is
    already byte-identical, write nothing and say so.
-2. **Print the statusLine edit; never write it, and never compose it by hand.** Pipe the
-   operator's user `settings.json` (read-only; `{}` when the file is absent) into
-   `node "${CLAUDE_PLUGIN_ROOT}/scripts/cache-line.mjs" --wire` and print its output as the
-   paste-ready `statusLine` object. With an existing `command` it wraps that command as one quoted
-   argument to `--after`, which runs it on the same input before the segment, and it keeps every
-   other `statusLine` key; with none it prints the bare segment. Relay its stderr note when it says
-   the line is already wired. Show the operator the exact current `command` it wrapped.
+2. **Find the `statusLine` in effect.** Read (read-only) every settings file that can set it and
+   take the one that wins by Claude Code's settings precedence; name that file to the operator. When
+   the winner is managed settings, stop: the operator cannot change it, so report that and print no
+   edit. When no file sets it, the target is the user `settings.json`. Pointer: for the precedence
+   order and the scopes a status line can live in, see
+   <https://code.claude.com/docs/en/settings#settings-precedence> and
+   <https://code.claude.com/docs/en/statusline#manually-configure-a-status-line>. As of:
+   2026-10-11. Recheck trigger: either section changes the scope order or where a status line may
+   be set.
+3. **Print the statusLine edit; never write it, and never compose it by hand.** Pipe that file
+   (`{}` when it is absent) into `node "${CLAUDE_PLUGIN_ROOT}/scripts/cache-line.mjs" --wire` and
+   print its output as the paste-ready `statusLine` object for that same file. With an existing
+   `command` it wraps that command as one quoted argument to `--after`, which runs it on the same
+   input before the segment, and keeps every other `statusLine` key; with none it prints the bare
+   segment. Relay its stderr note when it says the line is already wired, and show the exact
+   current `command` it wrapped. On native Windows without Git Bash, say the wrapper's quoting is
+   POSIX and stop rather than print an edit that would break the existing line.
 
-   Tell the operator the segment needs `node` on `PATH`, needs no `refreshInterval` because it
-   shows the expiry as a clock time, and covers the main conversation only. Pointer: for the
-   re-run at expiry, the subagent exclusion and the object's fields, see
-   <https://code.claude.com/docs/en/statusline#prompt-cache-fields>; for where a status line does
-   not run, see `${CLAUDE_PLUGIN_ROOT}/reference/cloud-headless-capture.md`. As of: 2026-10-11.
-   Recheck trigger: that section stops re-running the status line at `expires_at`.
-3. **After a plugin update**, re-running `apply cache-line` refreshes the copy; step 6 of `check`
+   Then point the operator at this plugin README's "Prompt-cache status-line segment" section for
+   what the segment needs and covers, rather than restating it here.
+4. **After a plugin update**, re-running `apply cache-line` refreshes the copy; step 6 of `check`
    reports a stale one.
 
 ## Uninstalling

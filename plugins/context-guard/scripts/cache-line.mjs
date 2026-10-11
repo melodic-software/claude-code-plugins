@@ -127,11 +127,21 @@ async function main() {
 	}
 
 	if (args[0] === "--after" && typeof args[1] === "string") {
-		// bash first, so a command written for bash keeps working; sh only where bash is missing.
+		// bash first, so a command written for bash keeps working; then sh; on Windows without
+		// either, PowerShell, so the existing output never silently disappears.
 		const opts = { input, stdio: ["pipe", "pipe", "inherit"] };
-		let run = spawnSync("bash", ["-c", args[1]], opts);
-		if (run.error?.code === "ENOENT")
-			run = spawnSync("sh", ["-c", args[1]], opts);
+		const shells = [
+			["bash", ["-c", args[1]]],
+			["sh", ["-c", args[1]]],
+		];
+		if (process.platform === "win32")
+			shells.push(["powershell.exe", ["-NoProfile", "-Command", args[1]]]);
+		let run;
+		for (const [bin, argv] of shells) {
+			run = spawnSync(bin, argv, opts);
+			if (run.error?.code !== "ENOENT") break;
+		}
+		if (run.error) process.stderr.write(`cache-line: ${run.error.message}\n`);
 		const prior = run.stdout ? run.stdout.toString() : "";
 		if (prior)
 			process.stdout.write(prior.endsWith("\n") ? prior : `${prior}\n`);
