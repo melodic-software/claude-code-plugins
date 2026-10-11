@@ -167,7 +167,7 @@ arm costs are not symmetric.
 Sizing anchors, measured on this plugin's own read-only suite at Claude Code 2.1.287 on 2026-10-02,
 with no `--model` (it served opus-5-5): 24 runs (four cases, three runs, two arms, sonnet judge) cost 1.67 USD,
 16 runs (two runs, haiku judge, then Haiku 4.5) 0.98 USD, and 42 short single-arm calibration runs 1.79 USD:
-0.04 to 0.07 USD per run on average, judge calls included, 0.03 to 0.17 USD for one run. An opus-judged run costs more.
+0.04 to 0.07 USD per run on average, judge calls included, 0.03 to 0.17 USD for one run. An opus-judged run costs more; size it from its own first run.
 
 **A fresh suite is priced at 0.1 USD per run in either arm, judge calls included, and the figure is
 called headroom.** It has no pass of its own to scale, while cases x runs x arms is known before any
