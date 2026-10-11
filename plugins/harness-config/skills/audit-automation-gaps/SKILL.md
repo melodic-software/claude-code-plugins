@@ -40,17 +40,18 @@ ordering, so read and use theirs.
 ## Boundary: no machine-readable hook enumerator
 
 This skill ships no hook-enumeration mode, and the absence is a decision rather than a gap. The
-native `/hooks` browser already reports the harness's own resolved set: it lists every event with a
-count of the hooks configured on it, and selecting one "shows its details: the event, matcher, type,
-source file, and command". A script here would restate that set from the settings files instead of
-from the resolution the harness actually performs, which is the weaker source. Revisiting the
+native `/hooks` menu already reports the harness's own resolved set, with the source each hook
+comes from. A script here would restate that set from the settings files instead of from the
+resolution the harness actually performs, which is the weaker source. Revisiting the
 decision requires first recording a native-surface verdict for `/hooks` in whatever registry the
 repository keeps for native-overlap decisions, because whether such a reference should exist at all
 is a human's call. This paragraph is a boundary, not a routing verdict.
 
-| Claim | Basis | As of | Recheck trigger |
-|---|---|---|---|
-| `/hooks` opens a read-only browser listing every hook event with its configured count, and selecting a hook "shows its details: the event, matcher, type, source file, and command" | [Automate actions with hooks](https://code.claude.com/docs/en/hooks-guide), the hooks-browser step | 2026-09-13 | A re-fetch finds the browser no longer read-only, or showing a different detail set |
+- **Pointer**: when you need what `/hooks` lists, or what it shows for a selected hook, fetch
+  [the /hooks menu](https://code.claude.com/docs/en/hooks#the-hooks-menu) live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section stops showing each hook's source, or the menu stops listing
+  the resolved set of configured hooks.
 
 ## Adapting to your environment (graceful degrade)
 
