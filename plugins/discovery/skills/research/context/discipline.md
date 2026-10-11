@@ -240,7 +240,7 @@ The "top of Google" is a ranking artifact, not an authority signal. SEO content 
 
 **Escalate on block, never downgrade.** A direct-fetch 403/429 means wrong fetcher, not vanished source. Escalation order: (1) a headless-browser URL reader if connected; (2) a managed scraping tool if available; (3) a synthesis tool forced to the blocked domain (domain-filter option). Only after those fail, fall back to secondary sources, and document the gap.
 
-**A size failure is the same trigger.** Rung-1 artifacts can be large, whether a model card or spec PDF, a long HTML specification, an API reference, or a source file, and an in-context fetcher may reject one with a content-length error (shape: `maxContentLength size of <N> exceeded`) or return only part of it. A partial in-context read is the same trigger as an error, whatever the result says about reading on. Escalate by moving the fetch out of context.
+**A size failure is the same trigger.** Rung-1 artifacts can be large, whether a model card or spec PDF, a long HTML specification, an API reference, or a source file, and an in-context fetcher may reject one with a content-length error (shape: `maxContentLength size of <N> exceeded`) or return only part of it. Escalate by moving the fetch out of context.
 
 - **Pointer**: when deciding whether a WebFetch result covers the whole page, fetch [tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior) live. **As of**: 2026-10-11. **Recheck trigger**: that section changes what a result reports for a page past the read cap, or which route it names for the unprocessed page.
 
