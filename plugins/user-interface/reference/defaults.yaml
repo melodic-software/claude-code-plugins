@@ -1,0 +1,14 @@
+# Layer 1 of the user-interface config cascade: the plugin's own defaults.
+# Later layers override a key (userConfig, ~/docs/conventions/user-interface.yaml,
+# <home>/user-interface.yaml, <home>/user-interface.local.yaml); `*.disable` lists add up.
+# Keys and allowed values: team.schema.json. Block style only.
+version: 1
+css:
+  browser_target: "baseline widely available"
+  techniques:
+    disable: []
+  rules:
+    disable: []
+  important: avoid
+  layer: null
+  token_fallback: ask
