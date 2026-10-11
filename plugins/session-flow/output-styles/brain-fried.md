@@ -1,6 +1,6 @@
 ---
-name: Brain fried
-description: Simplified register for cognitively depleted sessions. Short words, short answers, two options max
+name: Brain Fried
+description: Claude uses short words and short answers, and offers two options at most
 keep-coding-instructions: true
 ---
 

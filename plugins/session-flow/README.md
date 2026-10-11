@@ -59,7 +59,7 @@ it for delegation-heavy tasks.
 
 ## Output styles
 
-- **`Brain fried`**. Opt-in simplified register for cognitively depleted sessions (short words,
+- **`Brain Fried`**. Opt-in simplified register for cognitively depleted sessions (short words,
   short answers, two options max). Select it in `/config` → **Output style**. Coexists with
   `/education:explain` for one-shot deep explanations (#1223).
 
