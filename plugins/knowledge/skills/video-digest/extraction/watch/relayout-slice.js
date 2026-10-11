@@ -114,8 +114,8 @@ const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 const PLACEHOLDER = /[<>{}*$]/;
 /** `:12`, `:12-20`, `:12,15` and `:12:5` (line and column) suffixes. */
 const LINE_SUFFIX = /(?::\d+(?:[-,]\d+)*)+$/;
-/** `[label]: path` reference-style link definitions. */
-const REFERENCE_DEFINITION = /^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]+>|\S+)/dgm;
+/** `[label]: path` reference-style link definitions; the path may follow one line ending. */
+const REFERENCE_DEFINITION = /^( {0,3}\[[^\]\n]+\]:[ \t]*(?:\r?\n[ \t]*)?)(<[^>\n]+>|\S+)/dgm;
 /** `src` and `href` in inline HTML, double-, single- or unquoted. */
 const HTML_PATH_ATTRIBUTE = /(\b(?:src|href)\s*=\s*)(?:"([^"\n]+)"|'([^'\n]+)'|([^\s"'=<>`]+))/dgi;
 /** A backticked span names a path when it holds a separator or ends in an extension. */

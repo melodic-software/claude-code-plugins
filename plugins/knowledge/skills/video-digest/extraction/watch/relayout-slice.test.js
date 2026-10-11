@@ -1268,6 +1268,29 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(fs.readdirSync(path.dirname(targetDir))).toEqual([]);
   });
 
+  it("reads a reference definition whose destination follows a line ending", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "source/decks/slides.pdf": "pdf",
+        "key-frames/vision-plan.md": "[deck][d]\n\n[d]:\n  ../source/decks/slides.pdf\n",
+        "recommendations/questions.md": "[g][g]\n\n[g]:\n  ../research/gone.md\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([
+      { file: "analysis/recommendations/questions.md", ref: "../research/gone.md" },
+    ]);
+    fs.rmSync(path.join(sliceDir, "recommendations", "questions.md"));
+    const fixed = await relayoutSlice({ sliceDir, targetDir });
+    expect(fixed.exitCode).toBe(0);
+    expect(read(targetDir, "frames/vision-plan.md")).toBe(
+      "[deck][d]\n\n[d]:\n  ../metadata/decks/slides.pdf\n",
+    );
+  });
+
   it("flags a reference-style definition to a path that does not exist", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: { "research/claim-inventory.md": "[gone][g]\n\n[g]: findings/gone.md\n" },
