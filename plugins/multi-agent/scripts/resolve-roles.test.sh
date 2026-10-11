@@ -182,6 +182,11 @@ out="$(run plain all --session-model haiku)"
 assert_contains "haiku session: inheriting role noted" "$out" 'worker: resolves to haiku'
 assert_lacks "haiku session: sonnet retrieval not noted" "$out" 'retrieval: resolves to haiku'
 
+fixture haikufan
+printf 'schema: 1\nfanout:\n  model: haiku\n' >"$T/haikufan/home/.claude/multi-agent.yaml"
+out="$(run haikufan all --session-model fable)"
+assert_contains "haiku fan-out model on a frontier session: guarded role noted" "$out" 'worker: resolves to haiku'
+
 out="$(run plain all --session-model opus)"
 assert_lacks "no haiku anywhere: no haiku note" "$out" 'resolves to haiku'
 
