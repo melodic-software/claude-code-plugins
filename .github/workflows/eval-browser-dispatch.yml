@@ -253,7 +253,11 @@ jobs:
       # per run, at most 20 Bash calls whose tool_result has is_error true: the
       # command cut to 300 characters, and the result text cut to its first 120
       # and last 2500 characters when longer than 2620 (the end holds the daemon
-      # log), each JSON-quoted onto one line. Nothing else from the trace is printed. Trace text is
+      # log), each JSON-quoted onto one line. A second line, `key:`, holds the lines of the
+      # full result that match FATAL, Check failed, ERROR:, sandbox, permission or errno
+      # patterns (the cause line that a long crash stack pushes out of the tail), minus the
+      # known .bashrc noise, de-duplicated, at most 15, each cut to 300 characters; it is
+      # omitted when nothing matches. Nothing else from the trace is printed. Trace text is
       # tool output, so workflow commands are off while it prints.
       - name: Print Bash error excerpts
         if: always() && inputs.debug-errors
@@ -278,6 +282,13 @@ jobs:
               fi
               jq -nrR '
                 def tail_cut: if length > 2620 then .[:120] + " … " + .[-2500:] else . end;
+                def key_lines:
+                  [split("\n")[]
+                    | select(test("FATAL|Check failed|ERROR:|No usable sandbox|Permission denied|Operation not permitted|EACCES|EPERM|ENOENT|errno")
+                             and (contains(".bashrc: Permission denied") | not))
+                    | .[:300]]
+                  | reduce .[] as $l ([]; if index([$l]) then . else . + [$l] end)
+                  | .[:15] | join("\n");
                 [inputs | fromjson? | objects] as $m
                 | ([$m[] | select(.type == "assistant") | .message.content[]? | objects
                     | select(.type == "tool_use" and .name == "Bash" and (.id | type) == "string")
@@ -289,7 +300,7 @@ jobs:
                     | {cmd: $bash[$id],
                        out: (.content | if type == "array" then map(objects | select(.type == "text") | .text | tostring) | join("\n") else tostring end)}]
                 | "   \(length) Bash error(s), showing up to 20",
-                  (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out | tail_cut | tojson)")
+                  (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out | tail_cut | tojson)\(.out | key_lines | if . == "" then "" else "\n     key: \(tojson)" end)")
               ' "$trace" || echo "   could not read the trace"
             done || echo "could not read results.json"
           echo "::$token::"
