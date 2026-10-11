@@ -42,9 +42,11 @@ version, or say "ELI5", and you want `illustrate`.
 - **`/education:illustrate [topic]`**. A picture explainer for a concept or a
   codebase topic, one idea per diagram. It grounds itself first (reads the
   module, finds the decision record, reads the incident writeup, fetches a
-  primary source) rather than explaining from memory. It writes a markdown record
-  and, by default, an interactive page view of it, built from a checked-in
-  template so untrusted text renders only as text. Options:
+  primary source) rather than explaining from memory. It writes a markdown record,
+  where each diagram's text form is followed by a `mermaid` block that markdown
+  viewers which render mermaid draw, and, by default, an interactive page view of
+  it, built from a checked-in template so untrusted text renders only as text.
+  Options:
   - `zero-knowledge` (or "ELI5"): assumes the reader knows nothing, with minimal
     text and real identifiers demoted to parentheses. The default preset,
     `newcomer`, assumes general background.

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"t1\",\"type\":\"tool_result\",\"content\":\"0.1.22\",\"is_error\":false}]}}",
+      "why": "version printed as the whole tool result"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":[{\"type\":\"text\",\"text\":\"0.1.22\\n\"}]}]}}",
+      "why": "text block with a trailing escaped newline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"/bin/bash: line 1: playwright-cli: command not found\",\"is_error\":true}]}}",
+      "why": "binary not on PATH"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"playwright-cli --version\"}}]}}",
+      "why": "the call alone, no result"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"playwright-cli 0.1.22 should be installed\"}]}}",
+      "why": "a version mentioned in prose, not a tool result"
+    }
+  ]
+}
