@@ -21,8 +21,9 @@ is then your mandated first step, and you discover the path there and return it.
 its absence. What is never optional is one of the two: a brief that names neither an assigned path
 nor provisioning instructions is the omission that STOPs. After provisioning and before your first
 edit, fetch and confirm the branch starts from the intended base (`git -C <path> merge-base HEAD
-<remote>/<default>` equals `<remote>/<default>`, where `<remote>` is the remote provisioning based
-the branch on, not always `origin`); on a mismatch, STOP and report.
+<base>` equals `<base>`, where `<base>` is the base ref the brief names, such as an integration
+branch, else `<remote>/<default>`, and `<remote>` is the remote provisioning based the branch on,
+not always `origin`); on a mismatch, STOP and report.
 
 **The brief is the contract.** Its scope fence (ALLOWED/FORBIDDEN files and actions), its
 divergence-escalation clause, the project invariants it names, its acceptance criteria, its

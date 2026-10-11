@@ -250,6 +250,33 @@
         "Assigns running `./check` to the orchestrator's main-side gate after the worker returns",
         "Anchors the worker's commands on the literal path /srv/worktrees/svc-phase2 with `git -C` and absolute paths"
       ]
+    },
+    {
+      "id": 20,
+      "name": "item-list-runs-without-plan-and-holds-unlanded-dependent",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch --items .work/ci-perf/findings.md — no PLAN.md exists; the findings file lists F1 (targets scripts/ci/select.sh, acceptance: `bash tests/select.test.sh` passes), F2 (targets scripts/ci/matrix.sh, blocked-by: F1, acceptance: `bash tests/matrix.test.sh` passes) and F3 (targets docs/ci.md, acceptance: markdownlint clean). None is a tracker item. Plan the first wave.",
+      "expected_output": "Runs the list without asking for a plan. F1 and F3 are ready and go out together with disjoint fences; F2 is held because its declared blocker F1 has not landed on the base, and the run returns F2 as held with that reason rather than dispatching it on F1's unmerged branch. Each dispatched item gets its own fresh-context verifier with its acceptance check as the criteria.",
+      "files": [],
+      "expectations": [
+        "Does NOT ask for or require a PLAN.md before dispatching",
+        "Dispatches F1 and F3 in the first wave with mutually disjoint fences",
+        "Holds F2 and names F1 not yet landed on the base as the reason",
+        "Gives each dispatched item a phase-verifier whose criteria are that item's acceptance check"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "base-ref-replaces-default-branch-in-worktree-check",
+      "prompt": "/implementation:implement-dispatch --items items.md --base origin/integration/search — compose the brief for the first item; the worker provisions its own worktree on branch feat/12-index.",
+      "expected_output": "The brief has the worker cut feat/12-index from origin/integration/search, confirm before its first edit that `git merge-base HEAD origin/integration/search` equals origin/integration/search, STOP on a mismatch, and bring the branch current with origin/integration/search (not the default branch) before returning.",
+      "files": [],
+      "expectations": [
+        "The base check before the first edit compares against origin/integration/search, written literally",
+        "Does NOT check the base against the default branch",
+        "Tells the worker to STOP and report on a base mismatch",
+        "Brings the branch current with origin/integration/search before returning"
+      ]
     }
   ]
 }
