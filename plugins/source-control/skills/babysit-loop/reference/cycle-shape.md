@@ -27,9 +27,22 @@ is.
    reports the result each cycle.
 1. **Re-anchor.** Re-read the durable loop state block from the telemetry comment (conversation
    context is compaction-lossy, the comment is the source of truth for the counters); classify
-   guard mode against the rate-limit guard floor in [`../SKILL.md`](../SKILL.md); take the cycle-start snapshot: open PRs with head SHAs,
-   last-activity timestamps, and the provenance fields the rung partition consumes
-   (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`, plus the author login and bot type the trust test's listed-bot arm reads), and, in drain mode, open issues with the same author-association / login / bot-type fields the issue-author test consumes.
+   guard mode against the rate-limit guard floor in [`../SKILL.md`](../SKILL.md); take the cycle-start snapshot with
+   `node <plugin-root>/skills/babysit-loop/scripts/lane-snapshot.mjs --repo <owner/repo>`. It reads
+   every open PR and every open issue through paginated calls and prints them only when the read
+   is confirmed complete: open PRs with head SHAs (`headRefOid`), last-activity timestamps,
+   draft state, labels, and the provenance fields the rung partition consumes
+   (`isCrossRepository`, `headRepositoryOwner`, `authorAssociation`, plus the author login and bot
+   type the trust test's listed-bot arm reads), and open issues with the same author-association /
+   login / bot-type fields the issue-author test consumes. A `null` provenance field is a field
+   GitHub did not return, and the tests below fail closed on it.
+   **A failed snapshot is never a quiet queue.** Exit 0 is the only usable snapshot: 3 is a read
+   failure and 4 an incomplete read (truncated, or the queue moved between reads), and both print
+   nothing. On a non-zero exit, run no step 2 to 5 this cycle: take **no drain exit**, change **no
+   counter** (`cycle`, `backoff_level`, `no_progress_streak` hold), and invoke no mechanic. Still
+   upsert the telemetry with a cycle report naming the snapshot failure and its stderr reason and a
+   fresh `heartbeat_at`, then schedule the next wakeup at the current backoff. The drain exit and
+   the open-PR and open-issue counts every later step uses come only from an exit-0 snapshot.
 2. **Grace-window overlay.** From the snapshot, mark every PR whose head moved or that received
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a
    work-in-progress title marker, a do-not-merge label, or non-green checks). Marked PRs are
@@ -166,7 +179,9 @@ is.
 6. **Report and pace.** Update the no-progress streak, and, at the threshold, raise the stall
    escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
    block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta
-   covers the preceding interval and never this cycle's work); evaluate the stop condition; if not
+   covers the preceding interval and never this cycle's work) with the script
+   [reference/telemetry-upsert.md](telemetry-upsert.md) names, and on any non-zero exit record the
+   cycle as UNREPORTED per that file; evaluate the stop condition; if not
    stopping, `ScheduleWakeup` the next cycle. **Ground every claim in the cycle report against a
    tool result from this cycle, and say which work is unverified rather than omitting the
    distinction.** Nobody watched this cycle, so the report is the only record of it and a fabricated
