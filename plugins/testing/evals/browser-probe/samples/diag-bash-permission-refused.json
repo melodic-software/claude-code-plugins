@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"0.1.22\",\"is_error\":false}",
+      "why": "the call ran"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"permission_denials\":[{\"tool_name\":\"Read\",\"tool_input\":{\"file_path\":\"/x/peek/canary.txt\"}}]}",
+      "why": "only a Read was denied"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"permission_denials\":[]}",
+      "why": "no denials"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"This command requires approval\",\"is_error\":true}",
+      "why": "headless approval refusal"
+    },
+    {
+      "answer": "{\"type\":\"tool_result\",\"content\":\"Claude requested permissions to use Bash, but you haven't granted it yet.\",\"is_error\":true}",
+      "why": "ungranted tool"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"permission_denials\":[{\"tool_name\":\"Bash\",\"tool_use_id\":\"t1\",\"tool_input\":{\"command\":\"playwright-cli --version\"}}]}",
+      "why": "Bash listed in the run's denials"
+    }
+  ]
+}
