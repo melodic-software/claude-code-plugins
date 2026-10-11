@@ -109,7 +109,7 @@ def tree(path: Path) -> dict[str, bytes]:
 
 
 def test_missing_store_exits_3_and_writes_nothing(data_dir):
-    result = sweep(data_dir, "--format", "md")
+    result = sweep(data_dir, "--format", "md", "--write-report")
     assert result.returncode == 3
     env = envelope(result)
     assert (env["schema"], env["status"]) == ("audit-sessions.sweep/v1", "error")

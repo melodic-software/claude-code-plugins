@@ -75,13 +75,13 @@
       "id": 7,
       "name": "sweep-only-runs-no-collect-and-returns-json",
       "prompt": "/session-flow:audit-sessions sweep-only --since 2026-09-01",
-      "expected_output": "Consumer mode: the skill runs no collect, runs sweep.py with --format json and --since 2026-09-01 and without --write-report, and returns the JSON envelope (schema audit-sessions.sweep/v1) verbatim with its exit code. On exit 3 it says no store exists yet and names /session-flow:audit-sessions as the step that creates one.",
+      "expected_output": "Consumer mode: the skill runs no collect, runs sweep.py with --format json and --since 2026-09-01 and without --write-report, and returns the JSON envelope (schema audit-sessions.sweep/v1) verbatim with its exit code. On exit 3 it still returns the envelope and exit code first, then adds one line naming /session-flow:audit-sessions as the step that creates the store.",
       "files": [],
       "expectations": [
         "Does not run collect.py",
         "Runs sweep.py with --format json and without --write-report",
         "Returns the JSON envelope as sweep.py printed it, with its exit code",
-        "On exit 3 says no store exists and names /session-flow:audit-sessions"
+        "On exit 3 returns the envelope and exit code, then names /session-flow:audit-sessions as creating the store"
       ]
     },
     {
