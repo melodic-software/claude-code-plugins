@@ -148,6 +148,25 @@ class NextGraphTest(unittest.TestCase):
         rc, _, err = self.fx.run()
         self.assertEqual(rc, 0, err)
 
+    def test_pr_stage_is_off_ladder_not_prd(self) -> None:
+        # `pr` must not prefix-match `prd`: read as prd, this edge would skip
+        # the design stage and fail.
+        self.fx.skill("p:pull-request", "pr", "/p:plan")
+        self.fx.roster(
+            "p:interview | entry: start",
+            "p:pull-request | entry: reached by hand in this fixture",
+            "p:design",
+            "p:plan",
+            "p:decompose",
+            "p:implement | terminal: end",
+        )
+        rc, _, err = self.fx.run()
+        self.assertEqual(rc, 0, err)
+        ladder = ["explore", "prd", "plan", "retrospective"]
+        self.assertIsNone(gate.ladder_index("pr", ladder))
+        self.assertEqual(gate.ladder_index("prd", ladder), 1)
+        self.assertEqual(gate.ladder_index("retro", ladder), 3)
+
     def test_unresolved_target_fails_anywhere_in_tree(self) -> None:
         # The resolution check covers every skill's Next, not only the roster.
         self.fx.skill("q:outside", "anytime", "/q:renamed-away")

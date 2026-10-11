@@ -53,6 +53,9 @@ STEPS = Path("plugins/session-flow/skills/workflow/context/steps.md")
 TOKEN = re.compile(r"(?<![\w/.-])/([a-z0-9][a-z0-9-]*):([a-z0-9][a-z0-9-]*)(?![\w-])")
 STAGE_HEADING = re.compile(r"^## (\d+)\. (\w+)(?: \((conditional|optional)\b)?")
 WORKFLOW_STAGE = re.compile(r"^\s+workflow-stage:\s*([a-z-]+)\s*$")
+# A frontmatter stage matches a ladder heading word exactly; this is the one
+# value whose heading word differs. A prefix match would put `pr` on `prd`.
+STAGE_ALIASES = {"retro": "retrospective"}
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
 
 
@@ -140,10 +143,8 @@ def ladder_index(stage: str | None, ladder: list[str]) -> int | None:
     """Position of a frontmatter stage on the ladder; None when it is off the ladder."""
     if not stage:
         return None
-    for index, word in enumerate(ladder):
-        if word.startswith(stage):
-            return index
-    return None
+    word = STAGE_ALIASES.get(stage, stage)
+    return ladder.index(word) if word in ladder else None
 
 
 def read_roster(root: Path) -> dict[str, dict[str, str]]:
