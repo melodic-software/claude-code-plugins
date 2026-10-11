@@ -139,5 +139,5 @@ test('masks 100,000 characters quickly, including adversarial runs', () => {
   const start = Date.now()
   for (const input of inputs) mask(input)
   expect(Date.now() - start).toBeLessThan(1000)
-  expect(mask(inputs[0])).toBe(`${filler}${M} ${filler}${M}`)
+  expect(mask(inputs[0] as string)).toBe(`${filler}${M} ${filler}${M}`)
 })

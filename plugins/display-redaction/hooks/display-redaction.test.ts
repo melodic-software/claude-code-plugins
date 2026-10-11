@@ -192,6 +192,19 @@ test('/display-redaction off passes text through unmasked', async ($, on) => {
   expect(seen.props).toEqual({ text: `Write to ${EMAIL}.`, isFirstOfReply: true })
 })
 
+test('/display-redaction on after off masks again', async ($, on) => {
+  const seen = capture(on, 'AssistantMessage')
+  await $.command.run(run('off'))
+  await $.command.run(run('on'))
+  await $.ui.render({
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    requestId: 'm1',
+    props: { text: `Write to ${EMAIL}.`, isFirstOfReply: true },
+  })
+  expect(seen.props).toEqual({ text: `Write to ${M}.`, isFirstOfReply: true })
+})
+
 test('the command answers with no text, so nothing reaches the model', async ($) => {
   const result = await $.command.run(run('off'))
   expect(result.text).toBe(undefined)

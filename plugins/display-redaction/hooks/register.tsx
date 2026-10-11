@@ -6,7 +6,7 @@ const DISABLED = { plugin: 'display-redaction', key: 'disabled' } as const
 const COMMAND = {
   name: 'display-redaction',
   description: 'Mask emails and secrets on screen (on by default); off shows them',
-  argumentHint: 'off',
+  argumentHint: 'on|off',
   immediate: true,
 } as const
 
@@ -67,9 +67,10 @@ export const register: Register = (on, options) => {
 
   // The answer carries no text: a command's output row is stored where the model reads it.
   on('command.run', { command: 'display-redaction' }, async ($, e) => {
-    if (e.args.trim().toLowerCase() === 'off') {
-      await $.state.set(DISABLED, true)
-      await $.ui.log('display-redaction: masking is off for this session')
+    const arg = e.args.trim().toLowerCase()
+    if (arg === 'off' || arg === 'on') {
+      await $.state.set(DISABLED, arg === 'off')
+      await $.ui.log(`display-redaction: masking is ${arg} for this session`)
     } else {
       await $.ui.log(`display-redaction: masking is ${(await isDisabled($)) ? 'off' : 'on'}`)
     }
