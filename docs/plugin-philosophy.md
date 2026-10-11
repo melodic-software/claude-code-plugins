@@ -1359,7 +1359,7 @@ same depth on two models):
   whose own default sits above `high`, it caps the lane below that model's default, and the recheck
   trigger above exists exactly for this. The reach is the mechanism's, not the rule's: a generic
   Agent-tool dispatch carries a level only when its call passes one, which a call site can forget,
-  and per the docs a fork spawn ignores a passed level, so we treat it as running at the session
+  and the docs scope the parameter to non-fork spawns, so we treat a fork as running at the session
   level with the session baseline as its floor (Pointer: when a dispatch needs its own level, fetch
   [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level) live.
   As of: 2026-10-10. Recheck trigger: that section changes what the per-call `effort` overrides or
@@ -1528,9 +1528,9 @@ also limits every pin.
   [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
   for the Agent-tool call, fetch
   [subagents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level) live.
-  Our probe cases under `plugins/harness-ops/skills/behavior-probes/cases/subagent/`, run on Claude
-  Code 2.1.296, observed the variable outranking a spawn value and a spawn value outranking a pin;
-  that a fork spawn ignores a passed value is per the docs only.
+  Our `/harness-ops:behavior-probes` cases in the `subagent` area, run on Claude Code 2.1.296,
+  observed the variable outranking a spawn value and a spawn value outranking a pin; the docs
+  scope the parameter to non-fork spawns, and no case probes a fork.
 - **As of:** 2026-10-10.
 - **Recheck trigger:** the variable stops replacing a frontmatter pin, the Agent tool's
   per-invocation `effort` stops overriding the `effort` field, or that section changes which spawns
@@ -1548,8 +1548,8 @@ covers per-call effort for `agent()`; for the call itself, see
 
 **Where per-task effort is set.** We set a task's effort through Workflow's per-call effort
 option or the Agent tool's per-call `effort`. An Agent-tool dispatch that passes no `effort` runs a
-named agent at its pin and an unpinned one at the session level; per the docs a fork spawn ignores
-a passed value. A lane's `--effort` sets the session level, so it covers the orchestrator's own
+named agent at its pin and an unpinned one at the session level; the docs scope the per-call
+`effort` to non-fork spawns. A lane's `--effort` sets the session level, so it covers the orchestrator's own
 turns and the generic dispatches that pass no `effort`; it does not move a named agent's pin.
 Workflow scripts this repository ships, and the Agent-tool dispatches its skills write, never pass
 an effort below a named agent's pin, and omit effort on a call to a pinned named agent to keep the

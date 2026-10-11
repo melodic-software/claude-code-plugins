@@ -495,8 +495,8 @@ A body Read from disk is unsubstituted: the placeholder remains the literal char
 [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions);
 for the pin, see
 [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields).
-No docs page states which level a preloaded skill expands; our probe case
-`plugins/harness-ops/skills/behavior-probes/cases/subagent/preloaded-skill-placeholder-reflects-session-effort`,
+No docs page states which level a preloaded skill expands; our `/harness-ops:behavior-probes`
+case `subagent/preloaded-skill-placeholder-reflects-session-effort`,
 run on Claude Code 2.1.296, is the record. *As of:* 2026-10-10. *Recheck trigger:* that probe case
 fails, or a docs page starts stating which level a preloaded skill's placeholder expands.
 *Why the plugin cares.* `/discovery:research` scales source breadth by caller effort, and

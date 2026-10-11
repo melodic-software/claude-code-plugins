@@ -438,7 +438,7 @@ refuses a lane that names none.
 The lane's `--effort` covers the orchestrator's own turns. A Workflow dispatch
 sets effort per task. An Agent-tool spawn runs at the `effort` it passes; one
 that passes none runs at the effort pinned in the agent's definition, or at the
-lane's level when there is no pin. A fork spawn ignores a passed value
+lane's level when there is no pin. The parameter applies to non-fork spawns only
 ([subagents, "Choose an effort level"](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level),
 as of 2026-10-10; recheck when that section changes precedence or which spawns
 honor `effort`).
