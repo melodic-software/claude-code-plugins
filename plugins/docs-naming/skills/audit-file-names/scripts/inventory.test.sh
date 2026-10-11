@@ -145,6 +145,15 @@ for ex in '**/zzz/**' '**/fixtures/**'; do
   fi
 done
 
+# A root git refuses must fail the audit, never empty the scan for every root.
+for bad in '"../x"' '{"path": ".", "exempt_paths": ["/abs/**"]}'; do
+  root="$(new_fixture)"
+  jq --argjson r "$bad" '.file_names.roots += [$r]' "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+  mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+  bash "$SUT" --root "$root" >/dev/null 2>&1
+  assert_eq "a root outside the repository fails the audit ($bad)" "2" "$?"
+done
+
 root="$(new_fixture)"
 jq '.file_names.roots = ["nowhere"]' "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
 mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"

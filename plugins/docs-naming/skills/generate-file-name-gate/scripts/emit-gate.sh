@@ -193,13 +193,11 @@ SCOPES="$(printf '%s' "$CONFIG" | jq -c -f "$ROOT_SCOPES" 2>/dev/null | tr -d '\
 # back one per line, so both shapes are refused here rather than emitted.
 printf '%s' "$SCOPES" | jq -e 'all(.[]; all(.extensions[]; test("^[A-Za-z0-9]+$")))' >/dev/null ||
   die "a root's extensions may use letters and digits only"
-printf '%s' "$SCOPES" | jq -e 'all(.[]; ([.path, .exempt[]] | all(test("\n") | not)))' >/dev/null ||
-  die "a root's path or exempt_paths entry carries a newline"
 # git ls-files dies on a pathspec outside the repository, and inside the
 # gate's process substitution that death is invisible to `set -e`: the gate
 # would judge nothing and report a clean tree.
-printf '%s' "$SCOPES" | jq -e 'all(.[]; ([.path, .exempt[]] | all(startswith("/") or test("(^|/)\\.\\.(/|$)") | not)))' >/dev/null ||
-  die "a root's path or exempt_paths entry leaves the repository (absolute or a .. segment)"
+UNSAFE="$(printf '%s' "$SCOPES" | jq -r '[.[].unsafe | values][0] // empty' | tr -d '\r')"
+[[ -z "$UNSAFE" ]] || die "a root's path or exempt_paths entry $UNSAFE"
 
 # The suite seeds its cases under the first root that takes every extension,
 # else under the first root, with probe names cut to that root's extensions.
@@ -255,8 +253,21 @@ EXEMPT_PATH_SEEDS_ARRAY="$(list '.file_names.exempt_paths[]' |
 # hardcoded `conforming-name.md` is only conforming under a rule that allows a
 # hyphen, so a consumer with a different regex would receive a suite that fails
 # on its own clean fixture.
+#
+# The stems also take each extension the seeding root is limited to, so a root
+# claiming only `rst` still gets probes it claims.
+probe_names() {
+  local stem ext
+  {
+    printf '%s\n' "$@"
+    for ext in $PRIMARY_EXTS; do
+      for stem in "${@%.*}"; do printf '%s.%s\n' "$stem" "$ext"; done
+    done
+  } | awk '!seen[$0]++'
+}
+
 probe_ok() {
-  for cand in conforming-name.md conformingname.md conforming.md c1.md name.txt n.md n.txt; do
+  for cand in $(probe_names conforming-name.md conformingname.md conforming.md c1.md name.txt n.md n.txt); do
     printf '%s\n' "$cand" | grep -Eq "$REGEX" || continue
     exempt_by_list "$cand" "$(list '.file_names.exempt_basenames[]')" && continue
     exempt_by_list "${cand##*.}" "$(list '.file_names.exempt_extensions[]')" && continue
@@ -288,7 +299,7 @@ PROBE_OK="$(probe_ok)" ||
   die "no probe name this contract knows passes file_names.regex without being exempt, so the emitted suite would have no clean case; widen the rule or emit by hand"
 
 PROBE_BAD_ARRAY="$(
-  for cand in UPPER-KEBAB.md snake_case.md Mixed.md double..dot.md BadName.txt; do
+  for cand in $(probe_names UPPER-KEBAB.md snake_case.md Mixed.md double..dot.md BadName.txt); do
     printf '%s\n' "$cand" | grep -Eq "$REGEX" && continue
     exempt_by_list "$cand" "$(list '.file_names.exempt_basenames[]')" && continue
     exempt_by_list "${cand##*.}" "$(list '.file_names.exempt_extensions[]')" && continue

@@ -186,7 +186,7 @@ jq '.file_names.roots += [{"path": ".", "extensions": ["md"], "exempt_paths": ["
 mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
 out="$(emit "$root" --rule)"
 assert_contains "a root object emits" "$out" "EMITTED	scripts/check-file-names.sh"
-assert_contains "the rule lists the root's extension glob" "$(cat "$root/.claude/rules/file-names.md")" "paths: docs/**, **/*.md"
+assert_contains "the rule lists the root's extension glob" "$(cat "$root/.claude/rules/file-names.md")" "paths: docs/**, **/*.[mM][dD]"
 
 scoped="$TEST_TMPDIR/scoped-$RANDOM"
 mkdir -p "$scoped/scripts" "$scoped/docs/fixtures" "$scoped/tools/fixtures"
@@ -220,6 +220,17 @@ assert_contains "the summary counts each finding once" "$out" "5 offender(s)"
 
 out="$(timeout 300 bash "$root/scripts/check-file-names.test.sh" 2>&1)"
 assert_eq "the emitted suite passes under a root object" "0" "$?"
+
+# A root limited to an extension outside the built-in probe names still gets
+# probes it claims.
+root="$(new_fixture)"
+jq '.file_names.roots = [{"path": "docs", "extensions": ["rst"]}]' \
+  "$root/.claude/docs-naming.json" >"$root/.claude/t.json"
+mv "$root/.claude/t.json" "$root/.claude/docs-naming.json"
+out="$(emit "$root")"
+assert_contains "an rst-only root emits" "$out" "EMITTED	scripts/check-file-names.sh"
+out="$(timeout 300 bash "$root/scripts/check-file-names.test.sh" 2>&1)"
+assert_eq "the emitted suite passes under an rst-only root" "0" "$?"
 
 # Under a root below the repository root, where git would match an exclude
 # glob against the wrong base: an exempt glob matching nothing exempts nothing,

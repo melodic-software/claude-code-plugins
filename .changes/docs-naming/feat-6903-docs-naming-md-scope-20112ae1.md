@@ -9,7 +9,8 @@ bump: minor
 ### Changed
 
 - The emitted gate folds paths for the case-collision check with one `tr` over the whole list instead of one per path, so a root holding thousands of files stays fast.
+- The rule file's `paths:` globs match a root's extensions in any case, as the gate does, and a root limited to an extension outside the built-in probe names still gets an emitted suite.
 
 ### Security
 
-- `generate-file-name-gate` refuses a `regex` or `rule` that carries a newline. Both land on comment lines of the emitted checker, where a newline would end the comment and run the rest as shell on every CI run. It also refuses a root path or root exempt path that is absolute or has a `..` segment, which would otherwise make the emitted gate judge nothing and report a clean tree.
+- `generate-file-name-gate` refuses a `regex` or `rule` that carries a newline. Both land on comment lines of the emitted checker, where a newline would end the comment and run the rest as shell on every CI run. It also refuses a root path or root exempt path that is absolute or has a `..` segment, which would otherwise make the emitted gate judge nothing and report a clean tree. The audit inventory refuses the same roots and fails when `git ls-files` refuses a pathspec, and `setup check` reports them as a key-shape FAIL.

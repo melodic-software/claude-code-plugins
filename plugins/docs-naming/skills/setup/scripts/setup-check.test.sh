@@ -115,6 +115,11 @@ assert_contains "a root extension outside letters and digits is refused" "$out" 
 set_key "$root" roots '["docs",{"path":".","extensions":[5]}]'
 out="$(check "$root")"
 assert_contains "a non-string root extension is refused" "$out" "FAIL  key shape"
+for bad in '"../x"' '{"path":"../x"}' '{"path":"/abs"}' '{"path":".","exempt_paths":["docs/../../x"]}' '{"path":"a\nb"}'; do
+  set_key "$root" roots "[\"docs\",$bad]"
+  out="$(check "$root")"
+  assert_contains "a root the emitter cannot carry is refused ($bad)" "$out" "must stay inside the repository"
+done
 
 # 6. An unknown tier form fails.
 root="$(new_repo)"

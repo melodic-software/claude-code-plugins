@@ -396,7 +396,7 @@ if [[ -n "$drift_ready" ]] && mk_repo repo && [[ -n "$repo" ]]; then
     sed "s/^EXEMPT_NAMES=' /&MUTANT.md /" "$SUT_SRC" >"$repo/scripts/check-docs-naming.sh"
     if [[ -z "$(script_exempt_names "$SUT_SRC")" ]]; then
       fail "template drift: no names parsed from EXEMPT_NAMES in $SUT_SRC, so its exemptions are not seeded"
-    elif ! script_exempt_names "$repo/scripts/check-docs-naming.sh" | grep -qx MUTANT.md; then
+    elif ! grep -qx MUTANT.md < <(script_exempt_names "$repo/scripts/check-docs-naming.sh"); then
       fail "template drift: the script mutant did not take"
     else
       seeds=()

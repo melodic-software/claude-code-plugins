@@ -130,6 +130,10 @@ SCOPES="$(printf '%s' "$CONFIG" | jq -c -f "$ROOT_SCOPES" 2>/dev/null | tr -d '\
   die "the configuration's roots are not strings or {path, extensions, exempt_paths} objects"
 n_scopes="$(printf '%s' "$SCOPES" | jq 'length')"
 [[ "${n_scopes:-0}" -gt 0 ]] || die "the configuration declares no roots"
+# One pathspec outside the repository makes `git ls-files` print nothing for
+# every root, and the audit would report an empty scan as a clean tree.
+unsafe="$(printf '%s' "$SCOPES" | jq -r '[.[].unsafe | values][0] // empty' | tr -d '\r')"
+[[ -z "$unsafe" ]] || die "a root's path or exempt_paths entry $unsafe"
 
 roots_pathspec=()
 while IFS= read -r r; do
@@ -144,9 +148,11 @@ done < <(cfg '.file_names.exempt_paths[]')
 
 # Every tracked path under the roots, and separately those an exempt_paths
 # pathspec claims. Matching is git's own, so one matcher decides what `**` means.
-ALL_PATHS="$(git -C "$ROOT" ls-files -- "${roots_pathspec[@]}")"
+ALL_PATHS="$(git -C "$ROOT" ls-files -- "${roots_pathspec[@]}")" ||
+  die "git ls-files refused the roots' pathspecs"
 if [[ "${#exempt_paths_pathspec[@]}" -gt 0 ]]; then
-  EXEMPT_BY_PATH="$(git -C "$ROOT" ls-files -- "${exempt_paths_pathspec[@]}")"
+  EXEMPT_BY_PATH="$(git -C "$ROOT" ls-files -- "${exempt_paths_pathspec[@]}")" ||
+    die "git ls-files refused file_names.exempt_paths"
 else
   EXEMPT_BY_PATH=""
 fi
