@@ -55,9 +55,58 @@ once per process, and the new name wins when both are set.
 
 **Scope of the setting.** `library_dir` relocates the work *root*; it does not reshape the
 `<watch-epic>/<video-slug>/` sub-path itself. A consumer whose own convention lands source
-material at a differently-shaped path (for example `sources/<type>/<slug>/`) does not get that
-shape from this skill: land under `library_dir` as-written and re-lay-out by hand, or fork
-the sub-path in your own automation. This skill's contract is root relocation only.
+material at a differently-shaped path (for example `sources/<type>/<slug>/`) lands under
+`library_dir` as written, then re-lays out the slice with `relayout-slice.js`:
+
+```bash
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" watch/relayout-slice.js "<slice-dir>" "<target-dir>" [--no-media] [--replace]
+```
+
+The media, every extracted frame, the served caption tracks and the info JSON come from the temp
+session `watch.json` records, which `close` removes. To keep them, run in this order:
+
+1. `evals/check-watch-outcomes.js "<slice-dir>"` passes.
+2. `watch/relayout-slice.js "<slice-dir>" "<target-dir>"`, with media.
+3. `watch/watch-state.js close "<slice-dir>"`.
+
+The script runs on a closed slice, or on an unclosed one whose outcome checks pass (it runs them
+itself and refuses when they fail). It refuses any slice whose temp media is gone unless
+`--no-media` is passed, which takes nothing from the temp session (no media, frames, caption
+tracks or info JSON) even when it still exists; after a normal close that is the only way it runs.
+Without `--no-media` it also refuses a partly removed temp session, naming the missing piece: the
+video (or an empty one), the info JSON, `frame-times.json`, any frame image, a frame
+`frame-times.json` lists, a `frame-times.json` entry for a scene or interval frame on disk
+(anchor frames carry their time in their name), or the caption tracks. It refuses a temp session holding several videos
+(an X post with more than one), naming them, since the watch does not record which one is
+primary; a recorded temp dir outside the OS temp dir or overlapping the slice; and a symlink in
+the slice or the temp session, since a copy would follow it. It refuses when the slice is, holds,
+or sits inside a path the run writes: the target, `<target>.relayout-backup`, or a
+`.<target-name>.relayout-*` staging dir beside the target. In every mode, `--no-media` included,
+it refuses when one of those paths is, holds, or sits inside a temp dir `watch.json` records,
+existing or not, since `close` deletes those. It refuses an existing target unless
+`--replace` is passed, which replaces the target and keeps its `README.md`. The replaced target is moved to `<target>.relayout-backup` and deleted only once the
+new layout is in place. If a run is interrupted mid-swap, the next run restores the target from
+that backup when the target is missing (and says so), and refuses, naming the backup, when both
+exist; remove whichever one you do not want to keep.
+
+It writes the knowledge-corpus layout: `transcript/`, `metadata/` (with a trimmed `info.json`,
+the companion sources brief, and the fetched `decks/` and `attachments/`), `frames/all/`,
+`frames/key/` beside the frame and vision logs in `frames/`, `media/<id>.<ext>`, `analysis/`
+(`RESEARCH.md`, `research/`, `recommendations/`, the companion digest), and a provenance
+`README.md` when the target has none. The script's header comment is the authoritative mapping.
+Each slice path the copied markdown names (links and backticked paths) is rewritten through a
+path map relative to the file's new location. One naming a pipeline file the layout does not keep
+(such as `run-state/watch.json`, or an extracted frame's bare name under `--no-media`) becomes
+plain text saying it is not retained, and one naming a directory whose files went to several
+places (`source/`) becomes plain text naming where they went. It builds the layout in a sibling
+staging directory and link-checks it there; it exits 1 listing every slice-internal path that
+still does not resolve, including a bare extracted-frame name. Not checked: paths under
+`plugins/`, `docs/`, `templates/` and `.claude/`, `AGENTS.md`, paths that leave the target, and
+backticked paths whose first segment is neither a top-level directory of the target nor an entry
+beside the naming file (paths into another repository). Only a passing check moves the staging
+directory into place; on any failure the staging directory is removed and the target is left as
+it was. Without `--replace` the move is a single rename that fails, rather than replacing
+anything, when a target appeared during the run. Fix what it lists in the slice and re-run.
 
 ## Agent-written artifacts share the same root
 

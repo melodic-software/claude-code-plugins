@@ -41,6 +41,148 @@ describe("buildTranscriptText", () => {
     expect(result.transcript).toBe("[0:04] [music] >> Hi everybody.");
   });
 
+  it("drops two words a rolling caption carries into the next paragraph's cue", () => {
+    // The 51Eb4EtGqrI shape (#6992): the cue opening the new paragraph starts
+    // with the previous cue's closing words verbatim.
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+we ran the
+
+00:00:03.000 --> 00:00:05.000
+numbers on benchmarks, too.
+
+00:00:05.000 --> 00:00:07.000
+benchmarks, too. And then we moved on.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe(
+      "[0:01] we ran the numbers on benchmarks, too.\n\n[0:05] And then we moved on.",
+    );
+  });
+
+  it("drops two repeated words when the opening cue overlaps the previous cue in time", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+we ran the
+
+00:00:03.000 --> 00:00:05.500
+numbers on benchmarks, too.
+
+00:00:05.000 --> 00:00:07.000
+Benchmarks too and then we moved on.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe(
+      "[0:01] we ran the numbers on benchmarks, too.\n\n[0:05] and then we moved on.",
+    );
+  });
+
+  it("drops a repeat of three or more words compared case- and punctuation-insensitively", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+we ran the
+
+00:00:03.000 --> 00:00:05.000
+numbers on benchmarks, too.
+
+00:00:05.000 --> 00:00:07.000
+On benchmarks too and then we moved on.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe(
+      "[0:01] we ran the numbers on benchmarks, too.\n\n[0:05] and then we moved on.",
+    );
+  });
+
+  it("keeps two repeated words when a later cue in the opener's second carries them", () => {
+    // The opener (5.0s) does not carry "Very good" over; a later cue in the
+    // same second (5.4s) overlaps the opener and starts with those words.
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+that answer was
+
+00:00:03.000 --> 00:00:05.000
+very good.
+
+00:00:05.000 --> 00:00:05.600
+Very good question
+
+00:00:05.400 --> 00:00:07.000
+Very good indeed, thanks.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript.split("\n\n")[1]).toMatch(/^\[0:05\] Very good question/);
+  });
+
+  it("does not count a punctuation-only token like >> as a repeated word", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+that answer was
+
+00:00:03.000 --> 00:00:05.000
+&gt;&gt; Very good.
+
+00:00:05.000 --> 00:00:07.000
+&gt;&gt; Very good question, thanks.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe(
+      "[0:01] that answer was >> Very good.\n\n[0:05] >> Very good question, thanks.",
+    );
+  });
+
+  it("keeps two words the speaker genuinely repeats across a paragraph boundary", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+that answer was
+
+00:00:03.000 --> 00:00:05.000
+very good.
+
+00:00:05.000 --> 00:00:07.000
+Very good question, thanks.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe(
+      "[0:01] that answer was very good.\n\n[0:05] Very good question, thanks.",
+    );
+  });
+
+  it("keeps a single repeated word at a paragraph boundary", () => {
+    const autoVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+we ran the
+
+00:00:03.000 --> 00:00:05.000
+numbers again.
+
+00:00:05.000 --> 00:00:07.000
+Again we moved on.
+`;
+    const result = buildTranscriptText(autoVtt, true);
+    expect(result.transcript).toBe("[0:01] we ran the numbers again.\n\n[0:05] Again we moved on.");
+  });
+
+  it("leaves a manual-caption paragraph boundary repeat in place", () => {
+    const manualVtt = `WEBVTT
+
+00:00:01.000 --> 00:00:03.000
+We ran the numbers on benchmarks, too.
+
+00:00:05.000 --> 00:00:07.000
+Benchmarks too, and then we moved on.
+`;
+    const result = buildTranscriptText(manualVtt, false);
+    expect(result.transcript).toContain("Benchmarks too, and then we moved on.");
+  });
+
   it("parses manual captions without auto-clean pass", () => {
     const manualVtt = `WEBVTT
 
