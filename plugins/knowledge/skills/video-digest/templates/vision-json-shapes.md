@@ -52,7 +52,7 @@ image (`context/synthesis-contract.md` sets the bar). `vision-gated-promote.js` 
 | Key | Rule |
 | --- | --- |
 | `decisions` | Array, one row per candidate. |
-| `sourceFile` | Required. The frame file name in the temp session's frames directory; promotion fails when the file is not there. |
+| `sourceFile` | Required. The bare frame file name in the temp session's frames directory: no path separators, no drive prefix, not `.` or `..`. Promotion fails when the file is not there, is not a regular file, or resolves (through a symlink) outside that directory. |
 | `verdict` | `promote` or `reject`. |
 | `destName` | Required for `promote`. Semantic kebab-case name, `.png` optional: lowercase letters, digits and single hyphens. Pipeline tokens are refused: the prefixes `at-`, `scene_`, `anchor_`, `dens-`, `densification-`, `code-code-`, `code-demo-`, `code-terminal-`, `code-slides-`, `win-code-`, and the forms `dens-scene<N>`, `-m<N>.png` and `-m<N>-s<N>.png`. |
 | `gapNote` | Required for `promote`, at least 8 characters after trimming: what the frame shows that the transcript does not. |

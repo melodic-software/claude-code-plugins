@@ -17,10 +17,48 @@ import {
   normalizeSynthesisDestName,
 } from "../lib/synthesis-filename.js";
 import { resolveTempSession } from "../lib/temp-session-paths.js";
-import { validatePromotionDecisionsForSlice } from "../lib/watch-vision-validation.js";
+import {
+  promotionSourceFileReason,
+  validatePromotionDecisionsForSlice,
+} from "../lib/watch-vision-validation.js";
 import { dedupeSynthesisDir } from "./dedupe-synthesis-dir.js";
 import { promoteKeyFrames } from "./promote-key-frames.js";
 import { watchStatePath } from "./watch-state.js";
+
+/**
+ * Resolve a promotion `sourceFile` to the real path of a regular file directly inside `framesDir`.
+ * Throws when the name is not a bare file name, when the file is missing, or when it resolves
+ * (through `..` or a symlink) to anywhere other than `framesDir` itself.
+ *
+ * @param {string} framesDir
+ * @param {string} sourceFile
+ * @returns {string}
+ */
+export function resolveContainedFrame(framesDir, sourceFile) {
+  const reason = promotionSourceFileReason(sourceFile);
+  if (reason) {
+    throw new Error(`sourceFile ${JSON.stringify(sourceFile)} ${reason}`);
+  }
+  let realFramesDir;
+  try {
+    realFramesDir = fs.realpathSync(framesDir);
+  } catch {
+    realFramesDir = path.resolve(framesDir);
+  }
+  let realSource;
+  try {
+    realSource = fs.realpathSync(path.join(realFramesDir, sourceFile));
+  } catch {
+    throw new Error(`source frame missing: ${sourceFile}`);
+  }
+  if (path.dirname(realSource) !== realFramesDir) {
+    throw new Error(`source frame ${sourceFile} resolves outside the frames directory`);
+  }
+  if (!fs.statSync(realSource).isFile()) {
+    throw new Error(`source frame ${sourceFile} is not a regular file`);
+  }
+  return realSource;
+}
 
 /**
  * @param {string} sliceDir
@@ -62,10 +100,7 @@ export async function visionGatedPromote(sliceDir, { dryRun = false } = {}) {
     if (forbidden) {
       throw new Error(`forbidden destName ${destName}: ${forbidden}`);
     }
-    const sourcePath = path.join(framesDir, row.sourceFile);
-    if (!fs.existsSync(sourcePath)) {
-      throw new Error(`source frame missing: ${row.sourceFile}`);
-    }
+    const sourcePath = resolveContainedFrame(framesDir, row.sourceFile);
     promotions.push({ sourcePath, destName: `frames/${destName}` });
     promotionMap[destName] = {
       sourceFile: row.sourceFile,

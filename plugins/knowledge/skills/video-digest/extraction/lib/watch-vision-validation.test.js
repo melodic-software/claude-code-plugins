@@ -79,6 +79,30 @@ describe("validatePromotionDecisions", () => {
     });
     expect(errors).toEqual([]);
   });
+
+  it.each([
+    "../outside.png",
+    "..",
+    ".",
+    "nested/frame.png",
+    "..\\outside.png",
+    "/etc/passwd",
+    "C:outside.png",
+  ])("refuses sourceFile %j that is not a bare file name", (sourceFile) => {
+    const errors = validatePromotionDecisions({
+      decisions: [{ sourceFile, verdict: "reject", rejectReason: "talking-head" }],
+    });
+    expect(errors.some((e) => e.startsWith("decisions[0].sourceFile "))).toBe(true);
+  });
+
+  it("accepts a bare frame file name on a reject row", () => {
+    const errors = validatePromotionDecisions({
+      decisions: [
+        { sourceFile: "interval_0130.png", verdict: "reject", rejectReason: "talking-head" },
+      ],
+    });
+    expect(errors).toEqual([]);
+  });
 });
 
 describe("validateQualityAudit note enforcement", () => {

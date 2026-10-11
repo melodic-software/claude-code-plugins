@@ -12,7 +12,7 @@ import { renderQualityAudit } from "./render-quality-audit.js";
 import { renderTriageLog } from "./render-triage-log.js";
 import { runValidatePromotionDecisions } from "./validate-promotion-decisions.js";
 import { runValidateTriageJson } from "./validate-triage-json.js";
-import { visionGatedPromote } from "./vision-gated-promote.js";
+import { resolveContainedFrame, visionGatedPromote } from "./vision-gated-promote.js";
 
 const tempDirs = [];
 
@@ -23,14 +23,14 @@ afterEach(() => {
 });
 
 /**
- * @param {{ invalidTriage?: boolean, forbiddenDest?: boolean }} [options]
+ * @param {{ invalidTriage?: boolean, forbiddenDest?: boolean, sourceFile?: string }} [options]
  */
 function makeVisionSliceDir(options = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vision-gated-cli-"));
   const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), "vision-frames-"));
   tempDirs.push(dir, framesDir);
 
-  const sourceFile = "anchor_00000000_0001.png";
+  const sourceFile = options.sourceFile ?? "anchor_00000000_0001.png";
 
   const selectedFrames = CELL_IDS.map((_, index) => ({
     file: `anchor_${String(index).padStart(8, "0")}_0001.png`,
@@ -146,7 +146,7 @@ function makeVisionSliceDir(options = {}) {
     ),
   );
 
-  return { dir };
+  return { dir, framesDir };
 }
 
 describe("runValidateTriageJson", () => {
@@ -192,6 +192,85 @@ describe("visionGatedPromote", () => {
     expect(result.promoted).toContain("demo-slide.png");
     expect(fs.existsSync(path.join(dir, "key-frames", "promotion-map.json"))).toBe(true);
     expect(fs.existsSync(path.join(dir, "key-frames", "frames", "demo-slide.png"))).toBe(true);
+  });
+
+  it("refuses a sourceFile that climbs out of the frames directory and copies nothing", async () => {
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "vision-outside-"));
+    tempDirs.push(outsideDir);
+    fs.writeFileSync(path.join(outsideDir, "secret.png"), "outside");
+    const { dir } = makeVisionSliceDir({
+      sourceFile: `../${path.basename(outsideDir)}/secret.png`,
+    });
+
+    await expect(visionGatedPromote(dir)).rejects.toThrow(/sourceFile/);
+    expect(fs.existsSync(path.join(dir, "key-frames", "frames", "demo-slide.png"))).toBe(false);
+  });
+
+  it("refuses a frame that is a symlink to a file outside the frames directory", async (ctx) => {
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "vision-outside-"));
+    tempDirs.push(outsideDir);
+    const target = path.join(outsideDir, "secret.png");
+    fs.writeFileSync(target, "outside");
+    const { dir, framesDir } = makeVisionSliceDir({ sourceFile: "linked.png" });
+    try {
+      fs.symlinkSync(target, path.join(framesDir, "linked.png"));
+    } catch {
+      ctx.skip();
+    }
+
+    await expect(visionGatedPromote(dir)).rejects.toThrow(/outside the frames directory/);
+    expect(fs.existsSync(path.join(dir, "key-frames", "frames", "demo-slide.png"))).toBe(false);
+  });
+});
+
+describe("resolveContainedFrame", () => {
+  function makeFramesDir() {
+    const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), "vision-contained-"));
+    tempDirs.push(framesDir);
+    fs.writeFileSync(path.join(framesDir, "scene_0001.png"), "frame");
+    return framesDir;
+  }
+
+  it("returns the real path of a frame directly inside the frames directory", () => {
+    const framesDir = makeFramesDir();
+    expect(resolveContainedFrame(framesDir, "scene_0001.png")).toBe(
+      path.join(fs.realpathSync(framesDir), "scene_0001.png"),
+    );
+  });
+
+  it("accepts a symlink whose target stays inside the frames directory", (ctx) => {
+    const framesDir = makeFramesDir();
+    try {
+      fs.symlinkSync(path.join(framesDir, "scene_0001.png"), path.join(framesDir, "alias.png"));
+    } catch {
+      ctx.skip();
+    }
+    expect(resolveContainedFrame(framesDir, "alias.png")).toBe(
+      path.join(fs.realpathSync(framesDir), "scene_0001.png"),
+    );
+  });
+
+  it.each([
+    "../scene_0001.png",
+    "..",
+    ".",
+    "sub/scene_0001.png",
+    "..\\scene_0001.png",
+    "/etc/passwd",
+  ])("refuses %j before touching the file system", (sourceFile) => {
+    const framesDir = makeFramesDir();
+    expect(() => resolveContainedFrame(framesDir, sourceFile)).toThrow(/sourceFile/);
+  });
+
+  it("refuses a directory inside the frames directory", () => {
+    const framesDir = makeFramesDir();
+    fs.mkdirSync(path.join(framesDir, "nested"));
+    expect(() => resolveContainedFrame(framesDir, "nested")).toThrow(/not a regular file/);
+  });
+
+  it("reports a missing frame as missing", () => {
+    const framesDir = makeFramesDir();
+    expect(() => resolveContainedFrame(framesDir, "absent.png")).toThrow(/source frame missing/);
   });
 });
 
