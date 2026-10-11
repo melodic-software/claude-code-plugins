@@ -954,7 +954,8 @@ fetched_recently() {
 #   Pointer: <https://code.claude.com/docs/en/worktrees#choose-the-base-branch>
 #   As-of: 2026-10-11.
 #   Recheck trigger: that section changes how a "fresh" base refreshes the
-#   remote default branch, or the window or cap it names.
+#   remote default branch, the window or cap it names, or its fallback to
+#   local HEAD.
 # Returns 0 when no fetch was needed or it succeeded, 1 when it failed or hit
 # the cap. Prompts are disabled so a credential helper cannot stall the cap
 # waiting on input nobody will type.
@@ -974,8 +975,8 @@ fresh)
   # symbolically (never hardcode origin/main — the portability lint forbids
   # it), refreshing that branch first when the last fetch is over 24 hours old
   # (refresh_remote_branch). When the symref is not cached locally, fall back to local HEAD
-  # (matching Claude Code's documented behavior, which is itself origin-centric:
-  # https://code.claude.com/docs/en/worktrees#choose-the-base-branch) but warn loudly: "fresh"
+  # (matching Claude Code's documented behavior, which is itself origin-centric;
+  # see the pointer record on refresh_remote_branch) but warn loudly: "fresh"
   # promises the remote default branch, so a silent fall-through to HEAD could
   # carry unpushed local commits the caller did not want.
   #
