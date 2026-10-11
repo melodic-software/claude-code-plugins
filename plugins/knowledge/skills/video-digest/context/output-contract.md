@@ -76,8 +76,8 @@ Check these by hand after a re-layout; neither the rewrite nor the link check se
 - A link destination written with backslash escapes or character references (the link check
   flags it when it does not resolve, but it is not rewritten).
 - Code spans holding spaces (read as commands, not paths).
-- A link to a dropped file that wraps a rewritten image: the link is not turned into text, so
-  the link check fails the run on it.
+- Paths written from the work root (`.work/<watch-epic>/<slug>/…`) or with a bare `SLICE/`
+  prefix: they are left as written, not rewritten to the corpus layout.
 
 ## Agent-written artifacts share the same root
 
