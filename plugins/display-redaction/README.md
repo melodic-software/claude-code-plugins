@@ -1,17 +1,87 @@
 # display-redaction
 
-A Claude Code mod that masks email addresses and secret-shaped text (API keys, tokens, JWTs,
-private-key blocks) in what Claude Code draws, so a recording or screen share does not show them.
-It masks the screen only. The transcript, the model's context and the files on disk keep the
-original text, so this is not a privacy or data control.
+A Claude Code mod that masks email addresses and secret-shaped text in what Claude Code draws, so a
+recording or screen share does not show them. Each match draws as `[hidden]`.
+
+**It masks the screen only.** The model, the transcript stored on disk and anything you copy out
+keep the real text. This is not a privacy, DLP or data control, and its patterns can miss a secret.
+Check a recording before you share it.
+
+## Requirements
+
+Claude Code 2.1.287 or later (mods).
 
 ## Install
 
-```text
-/plugin install display-redaction --marketplace melodic-software/claude-code-plugins
+```shell
+/plugin marketplace add melodic-software/claude-code-plugins
+/plugin install display-redaction@melodic-software
 ```
 
-Minimum Claude Code 2.1.287 (mods). Not yet tested in any session type.
+The marketplace lists the plugin as off by default; enable it after installing.
+
+## What is masked
+
+- Email addresses, including one still streaming at the end of the text.
+- `sk-` keys, `ghp_` and `github_pat_` tokens, `xox*` Slack tokens, `AKIA` AWS key IDs, and JWTs
+  (`eyJ...`).
+- PEM private-key blocks, including one that has no end line yet.
+- Your own patterns from the `extra_patterns` option, one regular expression per entry. A pattern
+  that is over 200 characters, can match empty text, nests a quantifier inside a quantified group,
+  or does not compile is skipped, and a log line at session start counts the skipped entries.
+
+Not masked on purpose: an address whose local part is exactly `noreply`, a GitHub
+`<digits>+<name>@users.noreply.github.com` address, and `git@<host>:` remotes.
+
+## Where it applies
+
+Claude's replies, your prompts, tool calls and their output (including failed calls), command
+output, question prompts and info notices. Claude Code's own formatting is kept, because the text is
+swapped before Claude Code draws it.
+
+## What it does not mask
+
+A mod cannot reach, or this one does not hook:
+
+- the permission dialog
+- thinking blocks
+- multi-part or summarized teammate messages
+- the prompt input box
+- the slash-command echo
+- toasts, the status line, notifications, spinners and hints
+- ToolGroup summary lines
+- other plugins' rows and panes
+- the stored transcript and what the model reads
+
+## Limits
+
+- A masked value can break a tool-output row whose schema needs an exact value, such as an enum or
+  a match inside base64 image or PDF data. That row draws nothing; it does not leak.
+- Masked question texts and option labels are numbered so they stay distinct, so an answer may not
+  line up beside its question.
+- A `+` or `-` diff marker directly before an email is masked with it.
+- If the mod itself fails in a way nobody foresaw, the original text can draw. Check a recording
+  before you share it.
+
+## Fail-closed behavior
+
+Masking is on whenever the plugin is enabled. If a masking hook fails, the row draws masked text,
+not the original.
+
+## Commands
+
+- `/display-redaction off` shows the real text for the current session.
+- `/display-redaction on` masks again.
+
+Both work mid-reply. Masking returns on at the next session. After `/resume` or `/branch` the
+command may need to be run again only if it has disappeared; masking stays on.
+
+There is no hover reveal.
+
+## Tested in
+
+The plugin test kit (terminal and desktop surfaces) on Claude Code 2.1.296, plus `validate` and
+`tsc`. No live session yet.
 
 ## Options
 
