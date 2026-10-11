@@ -22,7 +22,11 @@ The pipe is the bound and belongs in the command: the Bash tool returns a comman
 
 ## Pre-computed context
 
-Open chore/tidy-* PRs: !`${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh 2>/dev/null | { grep -E '^(Open tidy|Throttle)' || echo "unknown"; }; :`
+Open chore/tidy-* PRs: !`${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh 2>/dev/null | { grep -E '^(Open tidy|Throttle)' || echo "unknown"; }`
+
+Every command in this line matches an `allowed-tools` grant, so a dontAsk lane can run this skill. A command outside the grants aborts the whole expansion, and the session ends at zero turns reported as success.
+
+- **Pointer**: when changing this line or its grants, fetch <https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands> live; the probe that found a zero-turn run under dontAsk is in <https://github.com/melodic-software/claude-code-plugins/pull/6732>. **As of**: 2026-10-11. **Recheck trigger**: a Claude Code release note that changes how pre-compute commands are permission-checked.
 
 ## Variables
 
