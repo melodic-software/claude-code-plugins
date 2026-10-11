@@ -158,4 +158,39 @@ git_test_config "$fixture" update-ref -d refs/remotes/origin/main
 run_hook "$fixture" 'git push origin docs-only'
 expect "no origin/main to compare against is not run" 0 0
 
+# The .claude/settings.json command runs the hook only when the hook script and
+# lib/hook-utils.sh match the merge-base with origin/main.
+gated="$tmp/gated"
+mkdir -p "$gated/.claude/hooks" "$gated/lib" "$gated/scripts"
+git_init_test_repo "$gated" || exit 2
+cp "$hook" "$gated/.claude/hooks/"
+cp "$repo_root/lib/hook-utils.sh" "$gated/lib/"
+cp "$fixture/scripts/check-affected.sh" "$gated/scripts/"
+git_test_config "$gated" add -A
+git_test_config "$gated" commit -q -m gated
+git_test_config "$gated" update-ref refs/remotes/origin/main HEAD
+gate_cmd="$(jq -r '.hooks.PreToolUse[] | .hooks[] | select(.if == "Bash(git push *)") | .command' \
+  "$repo_root/.claude/settings.json")"
+run_gate() {
+  local payload
+  rm -f "$marker"
+  payload="$(jq -cn --arg d "$gated" \
+    '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:$d,tool_input:{command:"git push origin feat/x"}}')"
+  RC=0
+  ERR="$(printf '%s' "$payload" | (cd "$gated" && CLAUDE_PROJECT_DIR="$gated" bash -c "$gate_cmd") 2>&1 >/dev/null)" || RC=$?
+  RAN=0
+  [[ -e "$marker" ]] && RAN=1
+}
+run_gate
+expect "the settings.json command runs an unchanged hook" 2 1
+git_test_config "$gated" checkout -q -b edits-hook
+printf 'touch "%s"\n' "$tmp/hook-payload" >>"$gated/.claude/hooks/check-affected-pre-push.sh"
+git_test_config "$gated" commit -q -am payload
+run_gate
+if [[ "$RC" == 0 && "$RAN" == 0 && ! -e "$tmp/hook-payload" ]]; then
+  ok "the settings.json command does not run a hook the branch changed"
+else
+  bad "the settings.json command does not run a hook the branch changed" "exit $RC ran=$RAN; stderr: $ERR"
+fi
+
 test_harness::report
