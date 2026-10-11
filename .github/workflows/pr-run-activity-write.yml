@@ -142,6 +142,7 @@ jobs:
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
       # The lanes App bot never starts a write activity, on any event, so one
       # write cannot chain into the next; a re-run must be started by a listed

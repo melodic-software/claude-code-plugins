@@ -90,6 +90,7 @@ jobs:
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
       - name: Stop when the kill switch is on
         if: steps.kill.outputs.proceed != 'true'

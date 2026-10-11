@@ -137,6 +137,7 @@ jobs:
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
       # No actor is denied, so a workflow_run read lane still runs after a
       # lanes App bot push (the job if: above already skips the bot's own
