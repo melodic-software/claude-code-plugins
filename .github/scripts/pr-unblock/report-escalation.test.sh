@@ -178,37 +178,29 @@ check "comment write fails once: label, then the comment twice" \
   "$(grep '^POST' "$STUB/requests")"
 check "comment write fails once: backs off once" 'sleep 5' "$(cat "$STUB/sleeps" 2>/dev/null)"
 
-setup '[]' '[]'
-echo 99 >"$STUB/fail_comments"
-run unresolved-conflict
-check "comment write fails every attempt: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
-check "comment write fails every attempt: label on, three comment attempts" \
-  "$LABEL_THEN_3_COMMENTS" "$(grep '^POST' "$STUB/requests")"
+# exhausted <name>: a run whose comment write fails every attempt (the job
+# fails, the label is on), then the PR as the next run sees it: label on,
+# comment write working, request log cleared.
+exhausted() {
+  setup '[]' '[]'
+  echo 99 >"$STUB/fail_comments"
+  run unresolved-conflict
+  check "$1: comment write fails every attempt: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
+  check "$1: comment write fails every attempt: label on, three comment attempts" \
+    "$LABEL_THEN_3_COMMENTS" "$(grep '^POST' "$STUB/requests")"
+  printf '{"number":42,"labels":[{"name":"needs-human"}]}' >"$STUB/issue.json"
+  echo 0 >"$STUB/fail_comments"
+  : >"$STUB/requests"
+  : >"$STUB/bodies"
+}
 
-setup '[]' '[]'
-echo 99 >"$STUB/fail_comments"
-run unresolved-conflict
-check "comment write fails after the label: exit 1" 1 "$([[ $RC -ne 0 ]] && echo 1 || echo 0)"
-check "comment write fails after the label: first run posted the label" \
-  "$LABEL_THEN_3_COMMENTS" "$(grep '^POST' "$STUB/requests")"
-printf '{"number":42,"labels":[{"name":"needs-human"}]}' >"$STUB/issue.json"
-echo 0 >"$STUB/fail_comments"
-: >"$STUB/requests"
-: >"$STUB/bodies"
+exhausted "retry after a failed comment"
 run unresolved-conflict
 check "retry after a failed comment: exit 0" 0 "$RC"
 check "retry after a failed comment: one comment, no label" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
 
 # A label left by a failed comment write is explained by the next run, on a later head too.
-setup '[]' '[]'
-echo 99 >"$STUB/fail_comments"
-run unresolved-conflict
-check "label left, later head: first run posted the label" \
-  "$LABEL_THEN_3_COMMENTS" "$(grep '^POST' "$STUB/requests")"
-printf '{"number":42,"labels":[{"name":"needs-human"}]}' >"$STUB/issue.json"
-echo 0 >"$STUB/fail_comments"
-: >"$STUB/requests"
-: >"$STUB/bodies"
+exhausted "label left, later head"
 run unresolved-conflict "$HEAD_B"
 check "label left, later head: exit 0" 0 "$RC"
 check "label left, later head: explains the label" 'POST repos/o/r/issues/42/comments' "$(grep '^POST' "$STUB/requests")"
