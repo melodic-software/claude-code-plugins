@@ -1166,13 +1166,14 @@ upsert_own_telemetry() {
   # reads it when pinned to it via its own --telemetry-issue).
   #
   # The search term and the selector below must stay BYTE-IDENTICAL to
-  # morning-brief.sh's resolve_telemetry_issue: they are what make both tools
+  # morning-brief.sh's resolve_telemetry_issue, the --limit included (the
+  # brief's TELEMETRY_SEARCH_LIMIT): they are what make both tools
   # resolve the SAME issue, and a silent divergence would post this consumer's
   # status where the brief never looks. Not factored into a shared source (the
   # two skills are independently installable), so restart-consumer.test.sh
   # asserts the literal appears verbatim in both files.
   [[ -n "$issue" ]] || issue="$(gh issue list --repo "$TARGET_REPO" --state open \
-    --search "loop-lane telemetry running per-lane status in:title" \
+    --search "loop-lane telemetry running per-lane status in:title" --limit 100 \
     --json number 2>/dev/null | jq -r 'sort_by(.number) | .[0].number // empty')"
   [[ -n "$issue" ]] || issue="$(resolve_issue_by_title "$TARGET_REPO" "Lane telemetry: $CONSUMER_LANE")"
   [[ -n "$issue" ]] || {
