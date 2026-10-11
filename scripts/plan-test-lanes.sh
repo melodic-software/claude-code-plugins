@@ -306,7 +306,7 @@ pack() {
     "$SECONDS_LIST" "$serial" "$list" |
     LC_ALL=C sort -t "$(printf '\t')" -k1,1nr -k2,2 |
     awk -F '\t' -v lane="$lane" -v budget="$budget" -v cap="$cap" -v force="$force" '
-      function est(l) { return load[l] > ser[l] + top[l] ? load[l] : ser[l] + top[l] }
+      function est(l) { return load[l] > solo[l] + top[l] ? load[l] : solo[l] + top[l] }
       function need(p,   s) {
         s = ""
         # The animation wheels are also where the speech suites get numpy.
@@ -335,7 +335,7 @@ pack() {
           for (l = 1; l < legs; l++) if (est(l) < est(best)) best = l
           load[best] += sec[i]
           if (span[i] > top[best]) top[best] = span[i]
-          if (!span[i]) ser[best] += sec[i]
+          if (!span[i]) solo[best] += sec[i]
           items[best] = items[best] (cnt[best]++ ? "," : "") "\"" path[i] "\""
           split(need(path[i]), w, " ")
           for (k in w) if (w[k] != "") has[best, w[k]] = 1
