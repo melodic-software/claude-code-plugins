@@ -1,6 +1,6 @@
 import type { Elements, RenderSurface, ThemeKey } from 'claude-code'
 
-import type { LiveCategory, LiveView } from '../types'
+import type { LiveCategory, LiveState, LiveView } from '../types'
 
 type Draw = Pick<Elements[RenderSurface], 'Box' | 'Text'>
 
@@ -46,7 +46,7 @@ export const Bar = ({ Box, Text }: Draw, categories: LiveCategory[], width: numb
   )
 }
 
-export const PaneBody = (draw: Draw, v: LiveView | null, error: string | null, columns: number) => {
+export const PaneBody = (draw: Draw, { view: v, error }: LiveState, columns: number) => {
   const { Box, Text } = draw
   return (
     <Box flexDirection="column">

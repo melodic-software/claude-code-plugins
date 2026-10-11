@@ -50,7 +50,8 @@ The `live_display` option picks where it shows:
   deferred categories are listed dimmed with "deferred" in place of a percent.
 - `band`. A bordered block of up to 5 rows above the prompt (header, bar, one-line legend), above
   other plugins' rows, fitted to the available width, and out of the way while a survey prompt
-  shows. `/context-budget live` opens or closes it. This multi-row band is an opt-in exception to
+  shows. `/context-budget live` opens or closes the detail pane and leaves the band on;
+  `/context-budget live off` hides the band. This multi-row band is an opt-in exception to
   the repository's one-row-per-mod display guidance
   ([mods](../user-interface/reference/types/mods.md)).
 - `off`. Nothing shows and nothing is measured.
@@ -63,9 +64,10 @@ on.
 call, when you open or switch the view and, while it is shown, when context usage changes. `off`
 makes no reads.
 
-**States.** Before the first response the pane says "waiting for next response" and the band draws
-nothing. When no breakdown is available, the pane shows the basic usage header and one "usage
-unavailable" line, and the band draws nothing.
+**States.** Before the first response, and right after a compaction, the pane says "waiting for
+next response" and the band draws nothing. When no breakdown is available, the pane shows the basic
+usage header and one "usage unavailable" line (the line alone when the basic figures fail too), and
+the band draws nothing.
 
 Tested in: the plugin test kit (terminal and desktop surfaces) on Claude Code 2.1.296, plus
 `claude plugin validate` and `tsc`. No live interactive, `--bg` or Desktop session has run it yet.

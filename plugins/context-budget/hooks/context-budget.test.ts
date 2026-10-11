@@ -13,7 +13,10 @@ const CATEGORIES = [
   { name: 'MCP tools', tokens: 5_000, color: 'subtle', isDeferred: true, kind: 'deferred' },
 ]
 
-type Usage = 'breakdown' | 'no-threshold' | 'no-breakdown' | 'rejected'
+// 'empty': no response measured yet (a fresh session, or just after a compaction), so the window
+// figures carry no tokens while the local breakdown estimate still answers.
+// 'breakdown-rejected': the breakdown call fails while the plain figures still answer.
+type Usage = 'breakdown' | 'no-threshold' | 'no-breakdown' | 'rejected' | 'breakdown-rejected' | 'empty'
 
 const breakdown = (threshold: boolean) => ({
   categories: CATEGORIES,
@@ -33,19 +36,18 @@ const breakdown = (threshold: boolean) => ({
 })
 
 // The engine beneath the plugin, and a second plugin's band row beneath this one's.
-const world = (on: any, usage: Usage = 'breakdown') => {
+// `held`: that usage call answers only once `until` settles, with an older 50k total.
+const world = (on: any, usage: Usage = 'breakdown', held?: { call: number; until: Promise<void> }) => {
   const w = { open: [] as string[], registered: [] as unknown[], usageCalls: 0 }
-  on('session.usage', () => {
+  on('session.usage', async ($: unknown, e: { breakdown?: string }) => {
     w.usageCalls += 1
-    if (usage === 'rejected') return { deny: 'usage unavailable' }
-    const context = { window: 1_000_000, tokens: 88_000, percent: 9 }
-    return {
-      value: {
-        startedAt: 0,
-        rateLimits: [],
-        context: usage === 'no-breakdown' ? context : { ...context, breakdown: breakdown(usage === 'breakdown') },
-      },
-    }
+    const older = held?.call === w.usageCalls
+    if (older) await held?.until
+    if (usage === 'rejected' || (usage === 'breakdown-rejected' && e.breakdown !== undefined)) return { deny: 'usage unavailable' }
+    const context = usage === 'empty' ? { window: 1_000_000 } : { window: 1_000_000, tokens: 88_000, percent: 9 }
+    const plain = usage === 'no-breakdown' || e.breakdown === undefined
+    const b = { ...breakdown(usage !== 'no-threshold'), ...(older ? { totalTokens: 50_000 } : {}) }
+    return { value: { startedAt: 0, rateLimits: [], context: plain ? context : { ...context, breakdown: b } } }
   })
   on('ui.open', ($: unknown, e: { id: string }) => {
     if (!w.open.includes(e.id)) w.open.push(e.id)
@@ -66,10 +68,12 @@ const world = (on: any, usage: Usage = 'breakdown') => {
   on('session.start', () => ({ cwd: '/work' }))
   on('session.end', ($: unknown, e: { sessionId: string }) => ({ sessionId: e.sessionId }))
   on('session.measure', ($: unknown, e: { changed: string[] }) => ({ changed: e.changed }))
+  on('prompt.submit', ($: unknown, e: { text: string }) => ({ text: e.text }))
   on('ui.render', { component: 'AbovePrompt' }, () => h('Text', {}, 'other plugin row'))
   return w
 }
 
+const submit = ($: any) => $.prompt.submit({ text: 'hello', wait: false, origin: { kind: 'user' } })
 const run = ($: any, args: string) => $.command.run({ command: 'context-budget', args })
 const live = ($: any) => run($, 'live')
 const measure = ($: any, changed: string[] = ['context']) =>
@@ -148,9 +152,32 @@ test('pane: no "compacts at" clause when auto-compaction has no threshold', asyn
   expect(shown.join('\n')).not.toContain('compacts at')
 })
 
-test('pane: before any measurement the pane says it is waiting for the next response', async ($, on) => {
-  world(on)
-  expect(await texts(await mountPane($))).toContain('waiting for next response')
+test('pane: /context-budget live before any response says it is waiting for the next response', async ($, on) => {
+  world(on, 'empty')
+  await live($)
+  const shown = await texts(await mountPane($))
+  expect(shown).toContain('waiting for next response')
+  expect(shown.join('\n')).not.toContain('◆ context')
+  expect(shown.join('\n')).not.toContain('usage unavailable')
+})
+
+test('pane: a failed breakdown shows the header from the plain usage figures and a one-line error', async ($, on) => {
+  world(on, 'breakdown-rejected')
+  await live($)
+  const shown = await texts(await mountPane($))
+  expect(shown).toContain('◆ context 88k of 1M 9%')
+  expect(shown.filter(t => t.startsWith('usage unavailable:'))).toHaveLength(1)
+})
+
+test('pane: a refresh that resolves after a newer one is dropped', { options: { live_display: 'band' } }, async ($, on) => {
+  let release = () => {}
+  const w = world(on, 'breakdown', { call: 1, until: new Promise<void>(resolve => (release = resolve)) })
+  const older = measure($)
+  await measure($)
+  release()
+  await older
+  expect(w.usageCalls).toBe(2)
+  expect(await texts(await mountBand($))).toContain(HEADER)
 })
 
 test('pane: usage with no breakdown shows a one-line error under the window figures', async ($, on) => {
@@ -167,6 +194,18 @@ test('pane: a rejected usage call shows a one-line error', async ($, on) => {
   const shown = await texts(await mountPane($))
   expect(shown.filter(t => t.startsWith('usage unavailable:'))).toHaveLength(1)
   expect(shown.join('\n')).not.toContain('waiting for next response')
+})
+
+test('band: bare /context-budget live toggles the detail pane and leaves the band on', async ($, on) => {
+  const w = world(on)
+  await run($, 'live band')
+  await measure($)
+  await live($)
+  expect(w.open).toEqual([PANE])
+  expect(await texts(await mountBand($))).toContain(HEADER)
+  await live($)
+  expect(w.open).toEqual([])
+  expect(await texts(await mountBand($))).toContain(HEADER)
 })
 
 test('pane: a second /context-budget live closes the open pane', async ($, on) => {
@@ -302,14 +341,19 @@ test('command: session.start registers /context-budget to run mid-turn', async (
   expect(w.registered).toEqual([expect.objectContaining({ name: 'context-budget', immediate: true })])
 })
 
-test('command: a /clear registers /context-budget again', async ($, on) => {
-  const w = world(on)
-  await $.session.end({ reason: 'clear', sessionId: 's1', resume: { id: 's1' } } as any)
-  expect(w.registered).toEqual([expect.objectContaining({ name: 'context-budget' })])
-})
+for (const reason of ['clear', 'resume'] as const) {
+  test(`command: the prompt after a session.end (${reason}) registers /context-budget again`, async ($, on) => {
+    const w = world(on)
+    await $.session.end({ reason, sessionId: 's1', resume: { id: 's1' } } as any)
+    expect(await submit($)).toEqual({ text: 'hello' })
+    expect(w.registered).toEqual([expect.objectContaining({ name: 'context-budget' })])
+    await submit($)
+    expect(w.registered).toHaveLength(1)
+  })
+}
 
-test('command: a session that ends for another reason registers nothing', async ($, on) => {
+test('command: a prompt with no session.end before it registers nothing and passes through unchanged', async ($, on) => {
   const w = world(on)
-  await $.session.end({ reason: 'prompt_input_exit', sessionId: 's1', resume: { id: 's1' } } as any)
+  expect(await submit($)).toEqual({ text: 'hello' })
   expect(w.registered).toEqual([])
 })

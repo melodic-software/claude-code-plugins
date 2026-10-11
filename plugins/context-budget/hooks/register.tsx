@@ -1,7 +1,7 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionContextUsage } from 'claude-code'
 
-import type { LiveMode, LiveView } from '../types'
+import type { LiveMode, LiveState, LiveView } from '../types'
 import { Band, PaneBody } from './parts'
 
 const COMMAND = 'context-budget'
@@ -12,15 +12,15 @@ const MODES: readonly LiveMode[] = ['pane', 'band', 'off']
 
 const isMode = (value: unknown): value is LiveMode => MODES.includes(value as LiveMode)
 
-const view = atom({ plugin: 'context-budget', key: 'view' } as const, null)
-const error = atom({ plugin: 'context-budget', key: 'error' } as const, null)
+const live = atom({ plugin: 'context-budget', key: 'live' } as const, { view: null, error: null })
 
-// Window figures only when there is no breakdown, which the caller reports as an error.
+// The header alone, from the window figures; none before a response is measured.
+const figures = (context: SessionContextUsage): LiveView | null =>
+  context.tokens === undefined ? null : { used: context.tokens, window: context.window, percent: context.percent ?? 0, categories: [] }
+
 const toView = (context: SessionContextUsage): LiveView | null => {
   const b = context.breakdown
-  if (b === undefined) {
-    return context.tokens === undefined ? null : { used: context.tokens, window: context.window, percent: context.percent ?? 0, categories: [] }
-  }
+  if (b === undefined) return figures(context)
   return {
     used: b.totalTokens,
     window: b.rawMaxTokens,
@@ -37,15 +37,24 @@ const toView = (context: SessionContextUsage): LiveView | null => {
   }
 }
 
+// Each refresh takes a number; one that resolves after a newer one started writes nothing.
+let latest = 0
+
 const refresh = async ($: EngineInterface) => {
+  const seq = ++latest
+  let state: LiveState
   try {
     const { context } = await $.session.usage({ breakdown: 'summary' })
-    await update($, view, () => toView(context))
-    await update($, error, () => (context.breakdown === undefined ? 'no breakdown in this session' : null))
+    state =
+      context.tokens === undefined
+        ? { view: null, error: null }
+        : { view: toView(context), error: context.breakdown === undefined ? 'no breakdown in this session' : null }
   } catch (err) {
-    await update($, view, () => null)
-    await update($, error, () => (err instanceof Error ? err.message : String(err)))
+    // The breakdown failed: the plain figures still give the header, when they answer.
+    const plain = await $.session.usage().catch(() => undefined)
+    state = { view: plain === undefined ? null : figures(plain.context), error: err instanceof Error ? err.message : String(err) }
   }
+  if (seq === latest) await update($, live, () => state)
 }
 
 const paneOpen = async ($: EngineInterface) => (await $.ui.panes()).some(pane => pane.id === PANE)
@@ -67,11 +76,21 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  // No session.start fires after /clear; registering again is harmless when the command survived.
+  // No session.start fires after /clear, /resume or /branch, so the next prompt registers the command
+  // again; registering again is harmless when the command survived.
+  let reregister = false
+
   on('session.end', async ($, e, next) => {
-    const ended = await next(e)
-    if (e.reason === 'clear') await registerCommand($).catch(() => undefined)
-    return ended
+    reregister = true
+    return next(e)
+  }).catch(($, e, next) => next(e))
+
+  on('prompt.submit', async ($, e, next) => {
+    if (reregister) {
+      reregister = false
+      await registerCommand($).catch(() => undefined)
+    }
+    return next(e)
   }).catch(($, e, next) => next(e))
 
   // Answers with no text: the pane or band is the output, and nothing lands in the transcript Claude reads.
@@ -108,15 +127,13 @@ export const register: Register = (on, options) => {
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) =>
-    PaneBody($.ui.resolve(e), await read($, view), await read($, error), e.props.bodyColumns),
-  )
+  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => PaneBody($.ui.resolve(e), await read($, live), e.props.bodyColumns))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const theirs = await next(e)
     if (e.props.hasSurvey || (await read($, mode)) !== 'band') return theirs
-    const v = await read($, view)
-    if (v === null || v.categories.length === 0 || (await read($, error)) !== null) return theirs
+    const { view: v, error } = await read($, live)
+    if (v === null || v.categories.length === 0 || error !== null) return theirs
     const { Box } = $.ui.resolve(e)
     return (
       <Box flexDirection="column">
