@@ -177,8 +177,10 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "
 
 Reads the slice `watch.json`, identifies the next incomplete phase (`acquire` → `transcript` →
 `watching` → `vision` → `harvest` → `research` → `synthesis`), refreshes `continuation-prompt.md`,
-and emits a copy/paste-ready continuation prompt. When `tempSession` paths are missing, re-run
-`run-watch.js` before vision. If the companion phase is unmarked, run Phase 0b first.
+and emits a copy/paste-ready continuation prompt whose paths are slice-relative. A `complete`
+slice reports `nothingToResume` and is left untouched. When the next phase is vision and a
+`tempSession` dir is gone, it exits 1: re-run `run-watch.js`, then resume. The slug must match
+`[A-Za-z0-9_-]+`. If the companion phase is unmarked, run Phase 0b first.
 
 **Handoff ritual** (context pressure or session end):
 
