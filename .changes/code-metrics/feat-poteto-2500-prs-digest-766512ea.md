@@ -17,3 +17,4 @@ bump: minor
 ### Fixed
 
 - **`audit-suppressions.sh --help` prints the whole header**, ending on the sentence that gives exit 0 and exit 2 and their meaning, which it used to cut off.
+- **Inline Python runs isolated.** Every `python -c` the entry points, the interpreter probe and `setup check` run now passes `-I`, so a `json.py` or other module a repository plants in the working directory is never imported in place of the standard library. Scripts run by path are unchanged: their sibling imports still resolve from their own directory.

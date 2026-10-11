@@ -110,7 +110,7 @@ confirm() {
     if [[ -z "$newest" || "$f" -nt "$newest" ]]; then newest="$f"; fi
   done
   [[ -n "$newest" ]] || return 1
-  cwd="$("$PY" -X utf8 -c 'import sys
+  cwd="$("$PY" -I -X utf8 -c 'import sys
 sys.path.insert(0, sys.argv[1])
 import transcript_reader
 sys.stdout.write(transcript_reader.first_cwd(sys.argv[2]) or "")' "$HERE" "$newest" 2>/dev/null)" || return 1

@@ -103,7 +103,7 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
-read -r CFG_DEFAULT CFG_BASE < <("${PY[@]}" -c '
+read -r CFG_DEFAULT CFG_BASE < <("${PY[@]}" -I -c '
 import json, sys
 scope = json.load(open(sys.argv[1], encoding="utf-8")).get("scope") or {}
 base = scope.get("base")
@@ -138,7 +138,7 @@ if [[ "$MODE" == change ]]; then
 fi
 
 # The correctness list travels as a file, one rule id per line.
-"${PY[@]}" -c '
+"${PY[@]}" -I -c '
 import json, sys
 config = json.load(open(sys.argv[1], encoding="utf-8"))
 rules = (config.get("suppressions") or {}).get("correctness_rules") or []
@@ -153,7 +153,7 @@ else
   printf '[]\n' >"$WORK/found.json"
 fi
 
-"${PY[@]}" -c '
+"${PY[@]}" -I -c '
 import datetime, json, sys
 config_path, found_path, mode, base, scope_path = sys.argv[1:6]
 config = json.load(open(config_path, encoding="utf-8"))
@@ -187,7 +187,7 @@ source "$PLUGIN_ROOT/scripts/persist-report.sh"
 KEPT="$(cm_persist_report audit-suppressions "$WORK/report.json")" || KEPT=""
 
 # shellcheck disable=SC2016 # the backticks are Markdown code spans in Python source, not substitutions
-"${PY[@]}" -c '
+"${PY[@]}" -I -c '
 import json, sys
 doc = json.load(open(sys.argv[1], encoding="utf-8"))
 kept = sys.argv[2]
@@ -235,7 +235,7 @@ elif len(rows) > CAP:
 # reaches a shell.
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || die_usage "--findings: not inside a git repository"
 # shellcheck disable=SC2016 # the backticks are Markdown code spans in Python source, not substitutions
-"${PY[@]}" -c '
+"${PY[@]}" -I -c '
 import datetime, json, os, re, sys
 
 doc_path, branch, root, memory_dir = sys.argv[1:5]

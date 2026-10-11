@@ -189,7 +189,7 @@ FILES_LIST="$WORK/files"
 : >"$FILES_LIST"
 
 json_str() {
-  "${PY[@]}" -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
+  "${PY[@]}" -I -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
 }
 
 count_lines() {
@@ -541,7 +541,7 @@ run_row() {
   # collector, reason, or hint is null. `hint` is the first install hint a
   # failed probe produced for the row, kept apart from the prose reason so a
   # renderer can print it once without parsing it back out.
-  "${PY[@]}" -c '
+  "${PY[@]}" -I -c '
 import json, sys
 lane, measure, collector, status, reason, hint = sys.argv[1:7]
 print(json.dumps({"lane": lane, "measure": measure, "collector": collector or None,

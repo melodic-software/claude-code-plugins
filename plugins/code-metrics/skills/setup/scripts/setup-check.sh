@@ -62,7 +62,7 @@ row() {
 # shellcheck source=../../../scripts/python-resolve.sh
 source "$SCRIPTS/python-resolve.sh"
 if cm_resolve_python; then
-  row PASS "python" "$("${PY[@]}" -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])') (floor $CM_PYTHON_FLOOR) via ${PY[*]}"
+  row PASS "python" "$("${PY[@]}" -I -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])') (floor $CM_PYTHON_FLOOR) via ${PY[*]}"
 else
   row FAIL "python" "no interpreter at or above ${CM_PYTHON_FLOOR} (tried python3, python, py -3); required for every skill"
   printf '\n%d FAIL\n' "$FAILS"
@@ -131,7 +131,7 @@ trap 'rm -rf "$RESOLVED" "$RESOLVED.err" "$LIVE"' EXIT
 if "${PY[@]}" "$SCRIPTS/resolve-config.py" --ladder "$SCRIPTS/collector-ladder.tsv" --home "$HOME_DIR" --repo-root "$REPO_ROOT" >"$RESOLVED" 2>"$RESOLVED.err"; then
   while IFS=$'\t' read -r measure reference provenance layer; do
     row INFO "reference $measure" "$reference (layer: $layer) $provenance"
-  done < <("${PY[@]}" -c '
+  done < <("${PY[@]}" -I -c '
 import json, sys
 d = json.load(open(sys.argv[1]))
 for t in d["thresholds"]:
