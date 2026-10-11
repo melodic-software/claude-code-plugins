@@ -19,7 +19,7 @@
     "implement_dispatch_wave_cap": {
       "type": "number",
       "title": "Dispatch wave cap (rows)",
-      "description": "Maximum worker rows /implementation:implement-dispatch runs at once within one plan phase. Leave unset to keep the internal 3-5 wave default. A fractional value is floored. A --wave-cap argument from a chaining caller takes precedence for that invocation.",
+      "description": "Maximum worker rows /implementation:implement-dispatch runs at once in one wave, counting rows from every plan phase in it. Leave unset to keep the internal 3-5 wave default. A fractional value is floored. A --wave-cap argument from a chaining caller takes precedence for that invocation.",
       "min": 1
     }
   }

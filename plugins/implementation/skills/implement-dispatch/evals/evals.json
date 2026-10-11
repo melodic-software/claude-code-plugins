@@ -86,7 +86,7 @@
       "files": [],
       "expectations": [
         "Honors --wave-cap 2 as the ceiling on worker rows in flight at once within the phase, capping at 2 rather than the internal 3–5",
-        "Runs the eight rows as sequential waves of at most 2 within the one phase, never starting a later phase's rows alongside them",
+        "Runs the eight rows as sequential waves of at most 2, never starting a later phase's rows alongside them since the plan marks no phase independent of this one",
         "Shares the assigned worktree only under the declared orchestrator authority: disjoint fences, no worker stages, and the build/test gate runs after each wave settles",
         "Treats the argument as the only change — the rest of the dispatch cadence (scope-fenced briefs, verify-returns, main-side build) is unchanged",
         "Floors a fractional cap to whole rows and treats a value below 1 as 1 — never a fractional or zero cap"
@@ -276,6 +276,45 @@
         "Does NOT check the base against the default branch",
         "Tells the worker to STOP and report on a base mismatch",
         "Brings the branch current with origin/integration/search before returning"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "independent-phases-share-one-wave",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch - autonomous run, commit authority orchestrator in one assigned worktree. The approved plan has phase 1 (one row, src/api/*.py) and phase 2 (one row, docs/api.md). Its dependency graph has no edge between them, its file-overlap matrix shows no overlap, and its Recommended shape is 'Wave A (parallel sub-agents, single message): 1, 2'. Nobody asked for parallel dispatch. Plan the first wave.",
+      "expected_output": "Phases 1 and 2 are independent by the plan's Execution shape, so both rows go out in one wave by default, without asking. Their fences are composed together and are disjoint, each row's FORBIDDEN list carries the other's paths, and the two rows count against the wave cap together. Each phase keeps its own acceptance criteria in its brief, gets its own phase-verifier and its own phase-boundary commit, and is not marked [DONE] on its sibling's verdict.",
+      "files": [],
+      "expectations": [
+        "Dispatches phase 1's row and phase 2's row in the same wave without asking the user",
+        "Composes both rows' fences together, disjoint, each FORBIDDEN list carrying the other row's paths",
+        "Dispatches a separate phase-verifier for each phase before marking it [DONE]",
+        "Commits each phase's source separately at its own phase boundary"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "dependent-phases-still-run-in-order",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch - autonomous run. The approved plan has phase 1 (adds a function to src/core/parse.py) and phase 2 (edits src/cli/main.py to call it). Its dependency graph says 'Phase 1 → Phase 2 because 2 calls 1's new function', and its Recommended shape is fully sequential. The two phases touch disjoint files. Plan the first wave.",
+      "expected_output": "Phase 2 depends on phase 1, so it is not independent even though the files are disjoint: the first wave holds only phase 1's rows. Phase 2 dispatches after phase 1 is verified and marked [DONE].",
+      "files": [],
+      "expectations": [
+        "The first wave holds only phase 1's rows",
+        "Does NOT treat disjoint files alone as making the phases independent",
+        "Dispatches phase 2 only after phase 1 is verified and marked [DONE]"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "team-routed-phase-falls-back-without-agent-teams",
+      "prompt": "/implementation:implement-dispatch phase-3 - interactive session. The approved plan routes phase 3 (three rows with disjoint fences) to an agent team because its workers must message each other. Agent teams are not enabled in this session. Dispatch phase 3.",
+      "expected_output": "Agent teams are not enabled, so phase 3 is not run as a team: its three rows go out as sub-agent workers under the normal dispatch cadence, and the run summary says the team routing fell back to sub-agents. No team is formed and no teammate is spawned.",
+      "files": [],
+      "expectations": [
+        "Does NOT form an agent team or spawn teammates for phase 3",
+        "Dispatches phase 3's rows as sub-agent workers with disjoint fences",
+        "States in its output that the team-routed phase fell back to sub-agent workers"
       ]
     }
   ]
