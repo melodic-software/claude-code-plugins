@@ -145,7 +145,8 @@ the lane says so. So `start`, `restart` and `status` print a `mods:` line under 
   reports when run from the repo against an empty directory: the settings scopes the lane
   reads, an organization's policy, and the rollout switch.
 - `unknown (<why>)`: the launcher cannot tell, for example with no CLI, an unrecognized
-  message, or a rollout value an earlier session saved.
+  message, a rollout value an earlier session saved, or a probe that did not answer in
+  time. The probe runs once, before the first lane launches, under a timeout.
 - `can load`: nothing the launcher sees stops mods. Causes that only the lane's session
   sees stay unchecked, so this never means the lane's mods are on.
 

@@ -138,7 +138,9 @@
 #   the CLI below the mods version floor, disableAllHooks in the lane's
 #   --settings, and what `claude plugin test` reports from the repo against an
 #   empty temp dir (settings scopes, policy, the rollout switch). One probe per
-#   run; it adds no claude call when the CLI is absent, which reads as unknown.
+#   run, before the first lane launches, each claude call bounded by a timeout
+#   (a hung one reads as unknown); it adds no claude call when the CLI is
+#   absent, which reads as unknown.
 #   The line is information only and never changes the exit code.
 #
 # Exit codes:
@@ -186,13 +188,65 @@ version_at_least() { # <candidate> <minimum>
   }' 2>/dev/null
 }
 
+# --- Bounded probes -----------------------------------------------------------
+# A read-only probe (`claude --version`, `claude plugin test`) that hangs must not
+# hold up the lanes, so each runs under a timeout and a hung one reads as no
+# answer. GNU timeout (or gtimeout) is used only when it has --kill-after; macOS
+# ships neither, so a pure-Bash watchdog is the fallback: TERM after the bound,
+# KILL after a short grace. LANES_PROBE_TIMEOUT_S shortens the bound for tests;
+# LANES_FORCE_BASH_TIMEOUT=1 forces the fallback.
+PROBE_TIMEOUT_S="${LANES_PROBE_TIMEOUT_S:-20}"
+PROBE_KILL_AFTER_S=2
+[[ "$PROBE_TIMEOUT_S" =~ ^[1-9][0-9]*$ ]] || PROBE_TIMEOUT_S=20
+PROBE_TIMEOUT_CMD=""
+if [[ "${LANES_FORCE_BASH_TIMEOUT:-}" != "1" ]]; then
+  for candidate in timeout gtimeout; do
+    if command -v "$candidate" >/dev/null 2>&1 &&
+      "$candidate" --help 2>&1 | grep -Fq -- '--kill-after'; then
+      PROBE_TIMEOUT_CMD="$candidate"
+      break
+    fi
+  done
+fi
+
+# run_bounded <cmd...>: runs the command under PROBE_TIMEOUT_S; exits 124 on a
+# timeout, like GNU timeout. The watchdog's output goes to /dev/null so a $(...)
+# around run_bounded does not wait on the watchdog's sleep.
+run_bounded() {
+  if [[ -n "$PROBE_TIMEOUT_CMD" ]]; then
+    "$PROBE_TIMEOUT_CMD" --signal=TERM --kill-after="${PROBE_KILL_AFTER_S}s" "${PROBE_TIMEOUT_S}s" "$@"
+    return
+  fi
+  local child watchdog status flag
+  flag="$(mktemp 2>/dev/null)" || flag=""
+  "$@" &
+  child=$!
+  (
+    sleep "$PROBE_TIMEOUT_S"
+    kill -TERM "$child" 2>/dev/null || exit 0
+    [[ -n "$flag" ]] && printf 'timeout\n' >"$flag"
+    sleep "$PROBE_KILL_AFTER_S"
+    kill -KILL "$child" 2>/dev/null || true
+  ) >/dev/null 2>&1 &
+  watchdog=$!
+  wait "$child"
+  status=$?
+  kill -TERM "$watchdog" 2>/dev/null || true
+  wait "$watchdog" 2>/dev/null || true
+  if [[ -n "$flag" ]]; then
+    [[ -s "$flag" ]] && status=124
+    rm -f "$flag"
+  fi
+  return "$status"
+}
+
 # Memoized: every lane in a run shares one `claude --version` probe. Callers read
 # CLI_VERSION_CACHE directly — a `$(cli_version)` substitution would populate the
 # cache inside a subshell and throw it away, re-probing once per lane.
 CLI_VERSION_CACHE=""
 cli_version() {
   [[ -n "$CLI_VERSION_CACHE" ]] && return 0
-  CLI_VERSION_CACHE="$(claude --version 2>/dev/null | tr -d '\r' |
+  CLI_VERSION_CACHE="$(run_bounded claude --version 2>/dev/null | tr -d '\r' |
     grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
   [[ -n "$CLI_VERSION_CACHE" ]] || CLI_VERSION_CACHE="unknown"
   return 0
@@ -226,7 +280,7 @@ probe_machine_mods() {
   fi
   cli_version
   if [[ "$CLI_VERSION_CACHE" == "unknown" ]]; then
-    MODS_STATE="unknown" MODS_CAUSE="claude --version gave no version"
+    MODS_STATE="unknown" MODS_CAUSE="claude --version gave no version within ${PROBE_TIMEOUT_S} s"
     return 0
   fi
   if ! version_at_least "$CLI_VERSION_CACHE" "$MODS_MIN_VERSION"; then
@@ -238,13 +292,19 @@ probe_machine_mods() {
     MODS_STATE="unknown" MODS_CAUSE="no temp dir for claude plugin test"
     return 0
   fi
-  out="$(cd "${REPO:-.}" 2>/dev/null && claude plugin test "$empty" 2>&1 | tr -d '\r')"
+  local rc=0
+  out="$(cd "${REPO:-.}" 2>/dev/null && run_bounded claude plugin test "$empty" 2>&1)" || rc=$?
+  out="${out//$'\r'/}"
   rmdir "$empty" 2>/dev/null
+  if ((rc == 124)); then
+    MODS_STATE="unknown" MODS_CAUSE="claude plugin test did not finish in ${PROBE_TIMEOUT_S} s"
+    return 0
+  fi
   case "$out" in
   *"no hooks module to load"*)
     MODS_STATE="can load" MODS_CAUSE="" ;;
-  *"turned off here"*)
-    MODS_STATE="off" MODS_CAUSE="a setting or policy turns them off; claude plugin test names disableAllHooks, allowManagedHooksOnly or a policy" ;;
+  *"hooks modules are turned off here"*)
+    MODS_STATE="off" MODS_CAUSE="a setting or policy turns them off: disableAllHooks in a settings file, or the organization's policy, per claude plugin test" ;;
   *"rollout switch served off"*)
     MODS_STATE="off" MODS_CAUSE="Anthropic's rollout switch served off, per claude plugin test" ;;
   *"saved off by an earlier session"*)
@@ -1148,6 +1208,9 @@ action_start() {
   # repo/plugin state the user did not sign off on (--no-pull/--no-update is the
   # intentional-skip path, which leaves the refresh status 0).
   refresh_repo_and_plugins || return 1
+  # Probe mods once, after the refresh and before the first launch, so a slow
+  # probe never sits between two lane launches.
+  probe_machine_mods
   info "lanes:"
   for_each_lane _start_one || rc=1
   return "$rc"
@@ -1158,6 +1221,7 @@ action_restart() {
   info "== lanes: restart$(lane_scope) =="
   warn_effort_env_override
   refresh_repo_and_plugins || return 1
+  probe_machine_mods # once, before the first relaunch (see action_start)
   info "lanes:"
   for_each_lane _restart_one || rc=1
   return "$rc"
@@ -1170,6 +1234,7 @@ action_stop() {
 
 action_status() {
   info "== lanes: status =="
+  probe_machine_mods # once, before the table
   printf '  %-12s %-8s %-8s %-8s %s\n' "LANE" "MODEL" "EFFORT" "STATE" "SESSION"
   for_each_lane _status_one
 }

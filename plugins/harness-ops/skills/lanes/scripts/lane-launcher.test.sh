@@ -109,6 +109,8 @@ if [[ "\$1" == "stop" ]]; then exit "\${STUB_CLAUDE_STOP_RC:-0}"; fi
 # can-load message) and logs the directory it ran from and whether <dir> is empty.
 if [[ "\$1" == "plugin" && "\$2" == "test" ]]; then
   printf 'plugin-test cwd=%s dir-empty=%s\n' "\$PWD" "\$([[ -d "\$3" && -z "\$(ls -A "\$3")" ]] && echo yes || echo no)" >>"$CLAUDE_LOG"
+  # STUB_CLAUDE_PLUGIN_TEST_HANG=1 never answers, to prove the probe is bounded.
+  [[ "\${STUB_CLAUDE_PLUGIN_TEST_HANG:-0}" == 1 ]] && exec sleep 60
   printf 'claude plugin test: %s\n' "\${STUB_CLAUDE_PLUGIN_TEST_OUT:-\$3: no hooks module to load; there is no hooks/hooks.json naming one in \"modules\"}"
   exit 1
 fi
@@ -117,6 +119,7 @@ fi
 if [[ "\$1" == "plugin" ]]; then exit "\${STUB_CLAUDE_UPDATE_RC:-0}"; fi
 # STUB_CLAUDE_VERSION drives the ultracode version gate; the default clears it.
 if [[ "\$1" == "--version" ]]; then
+  [[ "\${STUB_CLAUDE_VERSION_HANG:-0}" == 1 ]] && exec sleep 60
   printf '%s (Claude Code)\n' "\${STUB_CLAUDE_VERSION:-2.1.220}"
   exit 0
 fi
@@ -1189,8 +1192,9 @@ assert_eq "the machine probe runs once across three lanes" 1 "$(grep -c 'plugin-
 assert_contains "the probe runs from the lanes' launch directory against an empty dir" "$(cat "$CLAUDE_LOG")" "plugin-test cwd=$REPO dir-empty=yes"
 
 # Cause: a settings scope or policy, as claude plugin test reports it.
-out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='hooks modules are turned off here (disableAllHooks, allowManagedHooksOnly or a policy)' mods_run restart)"
-assert_contains "restart reports a settings or policy cause" "$out" "mods: off (a setting or policy turns them off"
+out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='hooks modules are turned off here' mods_run restart)"
+assert_contains "restart reports a settings or policy cause" "$out" "mods: off (a setting or policy turns them off: disableAllHooks in a settings file, or the organization's policy"
+assert_not_contains "the settings cause names no setting upstream does not" "$out" "allowManaged"
 assert_contains "an overlay false under a settings cause reads unknown, never on" "$out" "mods: unknown (the lane's --settings sets disableAllHooks to false"
 
 # Cause: the rollout switch served off.
@@ -1206,9 +1210,41 @@ out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='something new' m
 assert_contains "an unrecognized plugin test message reads unknown" "$out" "mods: unknown (claude plugin test gave no message the launcher knows)"
 assert_not_contains "an unrecognized message reports no lane as can load" "$out" "mods: can load"
 out="$(STUB_CLAUDE_VERSION=garbage mods_run status)"
-assert_contains "an unreadable version reads unknown" "$out" "mods: unknown (claude --version gave no version)"
+assert_contains "an unreadable version reads unknown" "$out" "mods: unknown (claude --version gave no version within 20 s)"
 out="$(PATH="$NOCLAUDE_PATH" mods_run status)"
 assert_contains "no CLI reads unknown" "$out" "mods: unknown (no claude CLI to probe)"
+
+# A hung probe is bounded: start and status --dry-run finish, and the lane reads
+# unknown with the bound. Run through GNU timeout when present and through the
+# pure-Bash watchdog (the macOS path) either way.
+hang_run() { # <action> <force-bash 0|1> <hang var>
+  local start_s end_s
+  start_s=$SECONDS
+  out="$(
+    export LANES_PROBE_TIMEOUT_S=1 LANES_FORCE_BASH_TIMEOUT="$2" "$3=1" STUB_CLAUDE_VERSION=2.1.296
+    mods_run "$1"
+  )"
+  end_s=$SECONDS
+  elapsed=$((end_s - start_s))
+}
+for force in 0 1; do
+  for action in start status; do
+    hang_run "$action" "$force" STUB_CLAUDE_PLUGIN_TEST_HANG
+    assert_contains "a hung plugin test reads unknown ($action, force-bash=$force)" "$out" "mods: unknown (claude plugin test did not finish in 1 s)"
+    assert_not_contains "a hung plugin test reads no lane as can load ($action, force-bash=$force)" "$out" "mods: can load"
+    assert_eq "a hung plugin test is bounded ($action, force-bash=$force)" 1 "$((elapsed < 15))"
+  done
+  hang_run status "$force" STUB_CLAUDE_VERSION_HANG
+  assert_contains "a hung claude --version reads unknown (force-bash=$force)" "$out" "mods: unknown (claude --version gave no version within 1 s)"
+  assert_eq "a hung claude --version is bounded (force-bash=$force)" 1 "$((elapsed < 15))"
+done
+
+# The probe runs before the first lane launches, not between launches.
+: >"$CLAUDE_LOG"
+STUB_CLAUDE_VERSION=2.1.296 run_launcher start --repo "$REPO" --config "$MODS_CONFIG" --agents-json "$AGENTS_EMPTY" --no-pull --no-update >/dev/null 2>&1
+probe_line="$(grep -n 'plugin-test' "$CLAUDE_LOG" | head -1 | cut -d: -f1)"
+launch_line="$(grep -n -- '--bg' "$CLAUDE_LOG" | head -1 | cut -d: -f1)"
+assert_eq "the mods probe precedes the first launch" 1 "$((${probe_line:-999} < ${launch_line:-0}))"
 
 # A launch the launcher refuses prints no mods line for that lane.
 out="$(STUB_CLAUDE_VERSION=2.1.202 run_launcher start --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1 | grep -c 'mods:' || true)"
