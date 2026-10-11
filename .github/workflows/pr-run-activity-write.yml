@@ -542,6 +542,10 @@ jobs:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
           github_token: ${{ steps.lane-token.outputs.token }}
           use_commit_signing: true
+          # A dispatcher-sent run is started by github-actions[bot]; the
+          # action refuses a bot actor unless it is listed. The trigger gate
+          # has already checked the dispatcher run this id names.
+          allowed_bots: ${{ inputs.dispatcher-run-id != '' && 'github-actions' || '' }}
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
           plugins: ${{ steps.stage.outputs.plugin }}
           prompt: ${{ steps.stage.outputs.prompt }}

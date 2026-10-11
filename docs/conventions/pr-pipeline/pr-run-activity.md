@@ -114,7 +114,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
    and `dispatched-workflow: .github/workflows/pr-unblock.yml`, so a `workflow_dispatch` sent by
    `github-actions[bot]` proceeds only when it names a run of that dispatcher on the default branch
    whose window holds this run's creation, and this run is `pr-unblock.yml`; every other
-   bot-sent dispatch stops with `untrusted-actor`. The checks are in the gate's README.
+   bot-sent dispatch stops with `untrusted-actor`. The checks are in the gate's README. Only
+   with a `dispatcher-run-id` does the skill step pass claude-code-action
+   `allowed_bots: github-actions`, which otherwise refuses a run a bot started.
 4. `check-trusted-base` asserts the PR targets the default branch and fails red otherwise. On `pull_request` the base
    branch is the event's `pull_request.base.ref`; on any other event (`workflow_dispatch`,
    `workflow_run`) it is read from the PR with the job's `GITHUB_TOKEN`. It then fails red unless
