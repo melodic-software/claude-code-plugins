@@ -67,7 +67,7 @@ Six flags. Four widen the sweep; two override the rename-mode resolution. Defaul
 | Flag | Effect | Apply mode? |
 |---|---|---|
 | `--include-historical` | Sweep archived/completed work notes and frozen records of past work | OK |
-| `--include-memory` | Sweep Claude Code auto-memory files and `MEMORY.md` indices in the auto-memory directory (resolution: [Auto-memory location](#auto-memory-location)) | OK |
+| `--include-memory` | Sweep Claude Code auto-memory files and `MEMORY.md` indices in the auto-memory directory (resolution: [Auto-memory location](#auto-memory-location); as of 2026-10-11; recheck trigger: that record or the memory-docs section it points at changes what moves the directory) | OK |
 | `--include-plan-docs` | Sweep the active plan/work-notes documents that document THIS rename | **AUDIT-MODE ONLY**, apply mode rejects with explicit error (footgun prevention; the plan doc documents the rename, both names appear by design) |
 | `--include-bare-token` | Surface the bare-token residue that container-rename mode suppresses ([patterns.md](context/patterns.md) "Phase 0b"). Always **Ambiguous**, never Certain. Not applicable to `audit orphans`, which sweeps no bare-token form | **AUDIT-MODE ONLY** |
 | `--container` | Force container-rename mode, skipping the evidence ladder ([patterns.md](context/patterns.md) "Phase 0b") | OK |
@@ -144,7 +144,7 @@ Paths skipped from sweeps automatically:
 - **Rename-documenting plan/work-notes documents**, an active plan file, migration notes, or changelog entry drafted for THIS rename references the rename pair as part of documenting the migration; both names appear by design. Identify these from conversation context and the consuming repository's work-notes conventions (its CLAUDE.md / rules). Skipping prevents self-reference loops.
 - **Archived/historical work notes**. Completed plan documents and frozen records of past work are deliberately preserved as-is; past renames documented there are historical record, not stale references.
 - `.git/`, `node_modules/`, `bin/`, `obj/`, `.venv/`, `dist/`, `build/`
-- Claude Code auto-memory files ([Auto-memory location](#auto-memory-location)) describing past renames
+- Claude Code auto-memory files ([Auto-memory location](#auto-memory-location); as of 2026-10-11; recheck trigger: that record or the memory-docs section it points at changes what moves the directory) describing past renames
 
 ## Composition
 

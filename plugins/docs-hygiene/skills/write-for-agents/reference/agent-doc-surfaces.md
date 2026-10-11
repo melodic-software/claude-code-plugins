@@ -82,7 +82,8 @@ Load-semantics facts that change how you write:
 - **Recheck trigger**: one of those sections changes a surface's load class, adds or removes a
   surface, or changes how rule scopes rank; the Project instructions setting is removed or its
   values change; the CLAUDE.md size target changes; the AGENTS.md unavailability section changes
-  where support is missing; or the compaction section changes which surfaces survive `/compact`.
+  where support is missing; the compaction section changes which surfaces survive `/compact`; or
+  the hooks JSON-output section removes, adds or changes a cap on hook output size.
 
 ### Load triggers
 

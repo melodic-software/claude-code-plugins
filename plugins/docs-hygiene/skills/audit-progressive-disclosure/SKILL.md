@@ -187,8 +187,8 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
 
 Each entry names the topic this skill relies on the source for, never what the source says; the
 pointer, as-of date and recheck trigger for each threshold live in
-[context/tier-model.md](context/tier-model.md); an entry that backs no threshold carries its own
-as-of date and recheck trigger.
+[context/tier-model.md](context/tier-model.md); a live-docs entry that backs no threshold
+carries its own as-of date and recheck trigger.
 
 - [Claude Code skills docs: Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle) and [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short). Loading levels, listing cap and drop order, compaction budgets
 - [Claude Code memory docs: Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions). CLAUDE.md/rules loading, 200-line target, fact-vs-procedure routing
@@ -199,4 +199,4 @@ as-of date and recheck trigger.
 - [How Skills work](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work). Just-in-time retrieval, pointer doctrine (correlate with [Anthropic engineering: context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents))
 - [skill-creator](https://github.com/anthropics/skills/tree/main/skills/skill-creator). Approaching-the-limit split trigger, >300-line TOC guidance
 - [UC Davis disclosure study (arXiv 2607.17598)](https://arxiv.org/abs/2607.17598). Scale boundary, depth>1 harm (academic corroboration)
-- [happyskills](https://happyskills.ai). Community source for the when-NOT-to-use description clause (advisory color only). As of: 2026-10-11. Recheck trigger: the site drops or reverses that clause guidance, or goes offline
+- [happyskills: listing eviction](https://happyskills.ai). Community source for eviction scoring and the when-NOT-to-use description clause (advisory color only)

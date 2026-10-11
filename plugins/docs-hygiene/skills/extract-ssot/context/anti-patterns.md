@@ -144,7 +144,7 @@ Patterns are framed for markdown extraction (the dominant case) but apply to cod
 
 - **Pointer**: for what a mid-session edit does, when the new content loads, and what keys prefix sharing, fetch [editing CLAUDE.md mid-session](https://code.claude.com/docs/en/prompt-caching#editing-claude-md-mid-session) and [cache scope](https://code.claude.com/docs/en/prompt-caching#cache-scope) live; for the API surface, [cache storage and sharing](https://platform.claude.com/docs/en/build-with-claude/prompt-caching#cache-storage-and-sharing).
 - **As of**: 2026-10-11
-- **Recheck trigger**: the prompt-caching page changes how a mid-session CLAUDE.md edit affects the cached prefix or when it loads, or the cache-scope section stops keying sharing on the startup git-status snapshot.
+- **Recheck trigger**: the prompt-caching page changes how a mid-session CLAUDE.md edit affects the cached prefix or when it loads; the cache-scope section stops keying sharing on the startup git-status snapshot; or the API cache-storage-and-sharing section changes what a cache entry is shared across or what keys it.
 
 **Symptom.** A rule corrected hours ago is still being violated by long-running sessions; two concurrent sessions in the same repo follow different versions of the same extracted rule.
 
