@@ -27,7 +27,8 @@ D/audit-sessions/
 - **Transcript text kept.** A record stores these strings from the transcript, each redacted before
   it is written:
   - excerpts of your own short typed turns, cut to `audit_sessions_excerpt_chars` characters, and
-    the session's custom title and agent name; 0 stores none of the three;
+    the session's custom title, generated title (`link_keys.ai_title`) and agent name; 0 stores
+    none of them;
   - the working directory, edited file paths (relative to it when inside it), branch names, PR
     repositories, and the names of slash commands, model-invoked skills and assistant errors;
   - in the `friction` block, per event: the command shape and, for a denial, the classifier's

@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import SCRIPTS, envelope, run_cli
+from conftest import FIXTURES, SCRIPTS, envelope, run_cli
 
 STATE_KEY = SCRIPTS.parents[2] / "lib" / "state-key.sh"
 
@@ -174,6 +174,7 @@ def test_full_session_record(data_dir, multi):
     }
     assert rec["link_keys"] == {
         "custom_title": "widget work",
+        "ai_title": None,
         "agent_name": "widget-agent",
         "first_ts": "2026-09-20T10:00:00Z",
     }
@@ -534,6 +535,50 @@ def test_excerpt_chars_zero_stores_no_title_or_agent_name(data_dir, multi):
     assert collect(data_dir, root, "--excerpt-chars", "0").returncode == 0
     link_keys = records(data_dir)["sess-a1"]["link_keys"]
     assert (link_keys["custom_title"], link_keys["agent_name"]) == (None, None)
+
+
+def current_types() -> list[dict]:
+    lines = (FIXTURES / "reader" / "current-types.jsonl").read_text(encoding="utf-8").splitlines()
+    return [json.loads(line) for line in lines if line.strip()]
+
+
+def test_ignored_record_types_change_no_metric(data_dir, multi, tmp_path):
+    root, _ = multi
+    assert collect(data_dir, root).returncode == 0
+    before = records(data_dir)["sess-a1"]
+    path = root / "proj-a" / "sess-a1.jsonl"
+    # Fields the collector reads off any known record, so a leak would show in the record.
+    leak = {"cwd": "/leak", "version": "9.9.9", "gitBranch": "leak-branch", "entrypoint": "sdk-cli",
+            "timestamp": "2026-12-31T23:59:59Z", "message": {"id": "msg_leak", "usage": {"output_tokens": 99}}}
+    ignored = [r for r in current_types() if r["type"] != "ai-title"]
+    for record in ignored:
+        append_record(path, {**leak, **record})
+
+    data_after = tmp_path / "data-after"
+    data_after.mkdir()
+    assert collect(data_after, root).returncode == 0
+    after = records(data_after)["sess-a1"]
+
+    assert after["unknown"] == before["unknown"]
+    assert after["parse"]["records"] == before["parse"]["records"] + len(ignored)
+    assert after["parse"]["unknown"] == before["parse"]["unknown"]
+    # Only the transcript's size and the per-version key census see the extra lines.
+    unchanged = set(before) - {"fingerprint", "parse", "census", "ingested_at"}
+    assert {k: after[k] for k in unchanged} == {k: before[k] for k in unchanged}
+
+
+def test_ai_title_is_a_redacted_link_key(data_dir, multi):
+    root, _ = multi
+    email = "".join(("dev.person", "@", "example", ".com"))
+    append_record(root / "proj-a" / "sess-a1.jsonl", {"type": "ai-title", "aiTitle": f"Ask {email}", "sessionId": "sess-a1"})
+    assert collect(data_dir, root).returncode == 0
+    rec = records(data_dir)
+    assert rec["sess-a1"]["link_keys"]["ai_title"] == "Ask <email>"
+    assert rec["sess-a2"]["link_keys"]["ai_title"] is None
+    assert rec["sess-a1"]["unknown"]["record_types"] == {"future-thing": 1}
+
+    assert collect(data_dir, root, "--excerpt-chars", "0").returncode == 0
+    assert records(data_dir)["sess-a1"]["link_keys"]["ai_title"] is None
 
 
 def test_overlong_typed_turn_is_skipped_unredacted_and_counted(data_dir, tmp_path):
