@@ -4,6 +4,14 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.7.1] - 2026-10-11
+
+**Patch, docs-only.** The `testing:audit` adopter row counts remedies pinned 8 of 13:
+`rule-throw-only-oracle`'s remedy now carries its negative assertion, that it is not the
+`rule-weak-oracle` remedy, so all eight report-only rules are pinned positive and negative in each
+scope they fire in. No producer-owned field's rule, coexistence obligation, or enforceability
+verdict moves.
+
 ## [3.7.0] - 2026-10-04
 
 **Minor, additive.** One crosswalk row admits `testing:audit`'s new report-only rule:
