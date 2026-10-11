@@ -519,8 +519,8 @@ disagree with it.
   so it names no section. As of: 2026-10-01. Recheck trigger: a current model's guide stating that
   verification instructions cause over-verification.
 - **Considered for `haiku-5-5` on 2026-10-10 and declined**, on the same ground as `sonnet-5-5`:
-  we read the Haiku 5.5 guide as asking code-changing components to carry a verification step, so
-  a finding there would remove what that section asks for. Pointer: [Haiku 5.5 guide, tell coding
+  we read the Haiku 5.5 guide as recommending a verification step for code-changing components
+  that skip checks, so a finding there would remove what that section recommends. Pointer: [Haiku 5.5 guide, tell coding
   agents to verify their
   changes](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#tell-coding-agents-to-verify-their-changes).
   As of: 2026-10-10. Recheck trigger: the Haiku 5.5 guide stating that verification instructions
@@ -853,12 +853,9 @@ promotion gate unmet, see "Unscoping considered" below).
   As of: 2026-10-01. Recheck trigger: that section drops the `reasoning_extraction` category.
 - **Considered for `haiku-5-5` on 2026-10-10 and declined.** The row's scope follows the models
   whose refusal categories include `reasoning_extraction`, and the Haiku 5.5 guide's refusal
-  section does not list it for that model, so the row stays inert there. Reasoning-like text in
-  that model's visible reply is a configuration matter the guide answers with thinking and effort,
-  not instruction text this row flags. Pointer: [Haiku 5.5 guide, safeguard
-  refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#safeguard-refusals)
-  and [Haiku 5.5 guide, keep reasoning out of user-facing
-  text](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#keep-reasoning-out-of-user-facing-text).
+  section does not list it for that model, so the row stays inert there. Pointer: [Haiku 5.5
+  guide, safeguard
+  refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#safeguard-refusals).
   As of: 2026-10-10. Recheck trigger: that refusal section lists `reasoning_extraction`.
 - **Unscoping considered on 2026-10-01 and declined.** Four model guides now name the category
   (Sonnet 5.5, Opus 5.5, Fable 5.1 and Fable 5), which on its face meets the convergent-guides arm
@@ -1215,7 +1212,7 @@ since each prescribes a request the model refuses.
 - **Widened to `haiku-5-5` on 2026-10-10, first arm only.** We read Claude Haiku 5.5's row in the
   per-model table as the pairing shape, not the outright reject, so it joins the Opus 5 arm and
   stays out of the second arm's set; the third arm stays Sonnet 5.5 alone. Only the API form fires
-  for it: Haiku 5.5 is in I17-a's no-effect set (read live there), so its harness disable surfaces
+  for it while it is in I17-a's no-effect set (read live there), whose harness disable surfaces
   are I17-a's. Remediate as on the Opus 5 arm. Pointer: [thinking: configuring
   thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#configuring-thinking),
   the Haiku 5.5 row, and [Haiku 5.5 guide, use effort to control
@@ -2408,8 +2405,9 @@ states the claim; promotion gate unmet).
   it covers.
 - **Considered for `haiku-5-5` on 2026-10-10 and declined.** The Haiku 5.5 guide has a mid-turn
   section, but we read it as covering where user words and harness notices go, not text added
-  after every tool result, which is this row's subject. It does not fire the trigger above, and the
-  row neither widens nor unscopes. Pointer: [Haiku 5.5 guide, mid-turn user
+  after every tool result, which is this row's subject. The trigger above fired on the same-titled
+  section; on re-read it does not cover this row's topic, so the gate stays unmet and the row
+  neither widens nor unscopes. Pointer: [Haiku 5.5 guide, mid-turn user
   messages](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-haiku-5-5#mid-turn-user-messages).
   As of: 2026-10-10. Recheck trigger: that section covers per-step text added after tool results.
 
