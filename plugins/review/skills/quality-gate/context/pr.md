@@ -15,7 +15,7 @@ routinely conflated; they are distinct:
 - **Bundled `/code-review` command**: invoked with no plugin namespace, and never assumed present
   (settings, the host, and the environment decide whether it resolves). Passing a PR as its target
   reviews that PR locally and reports into the session. Some of its arguments edit the working
-  tree, post to the PR, or hand the review to a cloud run; those make it a mutating surface.
+  tree or post to the PR; those make it a mutating surface.
 - **Managed Code Review GitHub App service**: a separate org-level service, enabled once by an
   admin, that reviews PRs and posts its results as inline PR comments, triggered by the repository's
   configured behavior or by a comment on the PR. Its availability (plans, preview status, and the
@@ -39,7 +39,7 @@ argument list, or the bundled command leaves the bundled-skill list.
 
 **Mutation gate.** The gate is by effect, not by flag name. It covers the plugin unconditionally,
 the managed service, and any bundled `/code-review` invocation whose arguments, as read live at the
-pointer above, edit the working tree, post to the PR, or hand the review to a cloud run. Every
+pointer above, edit the working tree or post to the PR. Every
 `/code-review:code-review` run ends by posting its findings as a PR comment, and triggering the
 managed service posts a full review; both violate the review modes' report-only contract, as does
 any bundled invocation that posts or edits. Dispatch any gated surface only on explicit user opt-in

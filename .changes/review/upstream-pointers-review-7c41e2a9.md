@@ -4,7 +4,7 @@ bump: patch
 
 ### Fixed
 
-- **The `quality-gate` PR mode gates the bundled `/code-review` by effect, not by a fixed flag list.** The list had gone stale: the command gained arguments that post to the pull request or hand the review to a cloud run. Any invocation whose arguments edit the working tree, post, or run in the cloud now needs explicit opt-in, and only a report-only run stays ungated. The managed Code Review service's availability, which now excludes more organization configurations, is read live instead of listed, and the bundled command is no longer called always available.
+- **The `quality-gate` PR mode gates the bundled `/code-review` by effect, not by a fixed flag list.** The list had gone stale: the command gained an argument that posts to the pull request. Any invocation whose arguments edit the working tree or post now needs explicit opt-in, as before; a run that only reports into the session stays ungated. The managed Code Review service's availability, which now excludes more organization configurations, is read live instead of listed, and the bundled command is no longer called always available.
 
 ### Changed
 
