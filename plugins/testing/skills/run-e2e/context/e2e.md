@@ -101,6 +101,10 @@ baselines). Recheck trigger: a benchmark measures current vision models on UI de
 injected-defect eval in this repository reports catch rates per check, or either cited Playwright
 page changes what it says about automated accessibility coverage or same-environment baselines.
 
+No per-check catch rate is measured yet; measured browser evals are tracked in
+[#7137](https://github.com/melodic-software/claude-code-plugins/issues/7137). Any catch rate quoted
+here names the harness path it measured, CLI or MCP.
+
 ### Recording tier (optional)
 
 Recording is off by default. The screenshot evidence above is the floor. When the `recording` key ([e2e-config.md](e2e-config.md)) is set, a run also captures a moving record; it supplements the screenshots, never replaces them. A trace is not a recording tier: every UI drive starts one before the first step (workflow step 5), whatever `recording` says, so a failed scenario carries one.
