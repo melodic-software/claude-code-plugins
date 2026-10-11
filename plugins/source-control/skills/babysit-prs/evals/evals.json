@@ -200,6 +200,21 @@
         "It states that the /autofix-pr session will not merge the PR, arm auto-merge, or enqueue it",
         "It names where merging stays: this skill's merge gate or a person"
       ]
+    },
+    {
+      "id": 17,
+      "name": "triage-rubric-partial-match-keeps-multi-finding-item-blocking",
+      "prompt": "/source-control:babysit-prs: PR #81 in acme/widgets. The base branch's docs/conventions/source-control.md has a '## Review-bot triage rubric' table whose only row is `trailing whitespace` | style-bot | dismiss | high. The snapshot lists one blocking feedback item, comment:5550001, a single style-bot comment holding three numbered findings: '1. trailing whitespace in utils.py:12', '2. off-by-one in paginate(): the last page is never returned', '3. trailing whitespace in cli.py:40'. Triage the item.",
+      "expected_output": "It splits the comment into its three findings and matches each against the rubric. Findings 1 and 3 match the dismiss row; finding 2 matches no row. Because not every finding in the item matched a dismiss row, it records no rubric disposition for comment:5550001 (no manage_feedback_ledger.py dispose --reason rubric), so the item stays blocking, and the off-by-one finding goes through the D1-D7 gates. The report names the deciding row for findings 1 and 3.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "It triages the three findings separately rather than the comment as one",
+        "It does not run manage_feedback_ledger.py dispose with --reason rubric for comment:5550001",
+        "It keeps comment:5550001 blocking while the off-by-one finding is unresolved",
+        "It sends the off-by-one finding through the D1-D7 gates",
+        "It names the trailing-whitespace row as the deciding row for findings 1 and 3"
+      ]
     }
   ]
 }

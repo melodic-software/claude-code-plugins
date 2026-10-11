@@ -168,8 +168,11 @@
 #                       the prompt gains the stage-start probe preamble
 #     cloud-routine,    print setup steps; launch nothing
 #     cloud-project
-#   A refused cloud launch runs local-worktree, except for a stage whose input
-#   is always untrusted, which is skipped with an error instead.
+#   A lane whose stage may read untrusted input is never launched on a cloud
+#   host: cloud-session, cloud-routine and cloud-project skip it with an error.
+#   ET_TRUSTED_STAGES is empty, so today that is every lane, a lane with no
+#   stage and any unknown stage included. Any other refused cloud launch runs
+#   local-worktree.
 #
 # Lane-stop gate arming (#1784):
 #   A lane whose settings request the autonomy lane-stop gate
@@ -1727,11 +1730,63 @@ action_status() {
 
 # --- run-once -------------------------------------------------------------------
 RUN_ONCE_LOCK=""
+remove_run_once_lock() { # <lock>: every file a holder writes, then the directory
+  rm -f "$1/pid" "$1/boot-id" "$1/acquired-at" "$1"/pid.tmp.* 2>/dev/null
+  rmdir "$1" 2>/dev/null
+}
 release_run_once_lock() {
   [[ -n "$RUN_ONCE_LOCK" ]] || return 0
-  rm -f "$RUN_ONCE_LOCK/pid" 2>/dev/null
-  rmdir "$RUN_ONCE_LOCK" 2>/dev/null
+  remove_run_once_lock "$RUN_ONCE_LOCK"
   RUN_ONCE_LOCK=""
+}
+
+# The same reclaim scheme restart-consumer.sh's lock uses. `kill -0` alone
+# cannot tell a live owner from an unrelated process that took its pid after a
+# reboot, so the lock records this boot's identity; with none to compare, a
+# live pid holds the lock for at most RUN_ONCE_LOCK_HARD_STALE_SECONDS. A lock
+# with no pid (its owner died between mkdir and the pid write) is held for
+# RUN_ONCE_LOCK_GRACE_SECONDS, dated by its acquired-at file, then reclaimed.
+RUN_ONCE_LOCK_GRACE_SECONDS=120
+RUN_ONCE_LOCK_HARD_STALE_SECONDS=86400
+run_once_boot_id() {
+  if [[ -n "${LANE_LAUNCHER_FAKE_BOOT_ID-}" ]]; then
+    printf '%s' "$LANE_LAUNCHER_FAKE_BOOT_ID"
+  elif [[ -r /proc/sys/kernel/random/boot_id ]]; then
+    tr -d '\r\n' </proc/sys/kernel/random/boot_id
+  else
+    return 1
+  fi
+}
+lock_uint() { # <file>: its non-negative integer, else 0
+  local v
+  v="$(tr -d '\r\n' <"$1" 2>/dev/null)" || v=""
+  [[ "$v" =~ ^[0-9]+$ ]] || v=0
+  printf '%s' "$v"
+}
+
+# 0 when the lock at <lock> has an owner that may still be running.
+run_once_lock_live() {
+  local lock="$1" now pid stamp recorded current
+  now="$(date +%s)"
+  pid="$(lock_uint "$lock/pid")"
+  stamp="$(lock_uint "$lock/acquired-at")"
+  if ((stamp == 0)); then
+    # Undated (a holder from before this scheme, or one still starting): date it
+    # now so a dead one ages out, and treat it as held this time.
+    printf '%s\n' "$now" >"$lock/acquired-at" 2>/dev/null
+    stamp="$now"
+  fi
+  if ((pid == 0)); then
+    ((now - stamp < RUN_ONCE_LOCK_GRACE_SECONDS))
+    return
+  fi
+  recorded="$(tr -d '\r\n' <"$lock/boot-id" 2>/dev/null)" || recorded=""
+  if current="$(run_once_boot_id)" && [[ -n "$recorded" ]]; then
+    [[ "$recorded" == "$current" ]] || return 1
+  elif ((now - stamp >= RUN_ONCE_LOCK_HARD_STALE_SECONDS)); then
+    return 1
+  fi
+  kill -0 "$pid" 2>/dev/null
 }
 
 # 0 taken · 1 held by a running owner · 2 the lock store is unusable. mkdir is
@@ -1740,20 +1795,25 @@ release_run_once_lock() {
 # scheduler entries never start a second copy, so that needs a hand-started
 # run at the scheduled second.
 take_run_once_lock() {
-  local lock="$1" pid
+  local lock="$1" pid boot
   mkdir -p "$(dirname "$lock")" 2>/dev/null
   if ! mkdir "$lock" 2>/dev/null; then
     [[ -d "$lock" ]] || return 2
-    pid="$(tr -d '\r\n' <"$lock/pid" 2>/dev/null)" || pid=""
-    [[ "$pid" =~ ^[0-9]+$ ]] && ! kill -0 "$pid" 2>/dev/null || return 1
+    run_once_lock_live "$lock" && return 1
+    pid="$(lock_uint "$lock/pid")"
+    ((pid)) || pid="none recorded"
     warn "reclaiming $lock: its owner (pid $pid) is no longer running"
-    rm -f "$lock/pid" 2>/dev/null
-    rmdir "$lock" 2>/dev/null
+    remove_run_once_lock "$lock"
     mkdir "$lock" 2>/dev/null || return 1
   fi
   RUN_ONCE_LOCK="$lock"
   trap release_run_once_lock EXIT
-  printf '%s\n' "$$" >"$lock/pid" 2>/dev/null || return 2
+  printf '%s\n' "$(date +%s)" >"$lock/acquired-at" 2>/dev/null || return 2
+  if boot="$(run_once_boot_id)"; then
+    printf '%s\n' "$boot" >"$lock/boot-id" 2>/dev/null || return 2
+  fi
+  # The pid goes in last and whole: a reader sees no pid or the complete one.
+  printf '%s\n' "$$" >"$lock/pid.tmp.$$" 2>/dev/null && mv -f "$lock/pid.tmp.$$" "$lock/pid" 2>/dev/null || return 2
 }
 
 _run_once_one() {
@@ -1818,33 +1878,82 @@ action_run_once() {
 # Single-quoted for a POSIX shell line (cron).
 sq() { printf "'%s'" "${1//\'/\'\\\'\'}"; }
 
-# Writes <script> calling run-once for <name>, atomically, executable.
+# The scheduled script and its config snapshot live under the launcher's data
+# directory, never in the checkout: a scheduler runs the script as the operator,
+# and a lane can write anywhere in its checkout, lanes.json included.
+schedule_dir() { printf '%s/%s/scheduled' "$(resolve_data_dir)" "$(repo_marker_key)"; }
+
+# sha256 of the file <path> as bare hex; nonzero when no hash tool resolves.
+sha256_of() {
+  local out
+  if command -v sha256sum >/dev/null 2>&1; then
+    out="$(sha256sum <"$1" 2>/dev/null)" || return 1
+  elif command -v shasum >/dev/null 2>&1; then
+    out="$(shasum -a 256 <"$1" 2>/dev/null)" || return 1
+  else
+    return 1
+  fi
+  out="${out%% *}"
+  [[ "$out" =~ ^[0-9a-f]{64}$ ]] || return 1
+  printf '%s' "$out"
+}
+
+# Writes <script> calling run-once for <name>, atomically, executable, beside a
+# snapshot of the config taken now. The script runs only while the snapshot's
+# sha256 matches the one recorded here.
 write_schedule_script() {
-  local name="$1" script="$2" self config data_base tmp
+  local name="$1" script="$2" self snapshot data_base tmp sum prompt_default=".work/lanes"
   self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-  config="$(cd "$(dirname "$CONFIG")" && pwd)/$(basename "$CONFIG")"
+  snapshot="${script%.sh}.lanes.json"
   data_base="$(resolve_data_dir)"
   data_base="${data_base%/lanes}"
   if ((DRY_RUN)); then
-    printf 'DRY-RUN: write %s\n' "$script"
+    printf 'DRY-RUN: write %s and %s\n' "$snapshot" "$script"
     return 0
   fi
   mkdir -p "$(dirname "$script")" 2>/dev/null || {
     err "lane '$name': cannot create $(dirname "$script")"
     return 1
   }
+  # Outside the repository the snapshot cannot be recognized as a pre-move
+  # config, so it names the prompt directory that config would default to.
+  ((LEGACY_CONFIG_HOME)) && prompt_default=".work"
+  tmp="$snapshot.tmp.$$"
+  if ! { jq --arg d "$prompt_default" '.prompt_dir //= $d' "$CONFIG" >"$tmp" 2>/dev/null &&
+    mv -f "$tmp" "$snapshot" 2>/dev/null; }; then
+    rm -f "$tmp" 2>/dev/null
+    err "lane '$name': cannot write the config snapshot $snapshot"
+    return 1
+  fi
+  sum="$(sha256_of "$snapshot")" || {
+    err "lane '$name': cannot hash $snapshot (no sha256sum or shasum)"
+    return 1
+  }
   tmp="$script.tmp.$$"
   if {
     printf '#!/usr/bin/env bash\n'
     printf '# Written by lane-launcher.sh print-schedule --write-script. Rewrite it the\n'
-    printf '# same way after a harness-ops update moves the launcher; do not edit it.\n'
+    printf '# same way after a harness-ops update moves the launcher or the lane config\n'
+    printf '# changes; do not edit it or the config snapshot it checks.\n'
     # A scheduler starts with a short PATH (cron's is /usr/bin:/bin), so the
     # PATH that found claude and jq when the script was written goes with it.
     printf 'export PATH=%q\n' "$PATH"
-    printf 'exec bash %q run-once %q --repo %q --config %q --data-dir %q\n' \
-      "$self" "$name" "$REPO" "$config" "$data_base"
+    printf 'lane=%q\nsnapshot=%q\nwant=%q\n' "$name" "$snapshot" "$sum"
+    cat <<'CHECK'
+if command -v sha256sum >/dev/null 2>&1; then got="$(sha256sum <"$snapshot" 2>/dev/null)"
+elif command -v shasum >/dev/null 2>&1; then got="$(shasum -a 256 <"$snapshot" 2>/dev/null)"
+else got=""; fi
+if [[ "${got%% *}" != "$want" ]]; then
+  printf 'lane %s: %s does not match the sha256 recorded when this script was written; refusing to run. Rerun print-schedule --write-script.\n' "$lane" "$snapshot" >&2
+  exit 1
+fi
+CHECK
+    # shellcheck disable=SC2016 # "$snapshot" expands when the generated script runs
+    printf 'exec bash %q run-once %q --repo %q --config "$snapshot" --data-dir %q\n' \
+      "$self" "$name" "$REPO" "$data_base"
   } >"$tmp" 2>/dev/null && chmod +x "$tmp" 2>/dev/null && mv -f "$tmp" "$script" 2>/dev/null; then
     info "  wrote $script"
+    info "  wrote $snapshot (sha256 $sum)"
     return 0
   fi
   rm -f "$tmp" 2>/dev/null
@@ -1867,7 +1976,7 @@ _schedule_one() {
     err "lane '$name': no effort set; run-once would refuse every scheduled pass; add lanes[].effort"
     return 1
   fi
-  script="$REPO/.work/lanes/scheduled/$name.sh"
+  script="$(schedule_dir)/$name.sh"
   if ((WRITE_SCRIPT)); then
     write_schedule_script "$name" "$script" || return 1
   elif [[ ! -f "$script" ]]; then
@@ -1882,7 +1991,7 @@ _schedule_one() {
   win_script="$(cygpath -w "$script" 2>/dev/null)" || win_script="$script"
   tr="\"$win_bash\" \"$win_script\""
   if ((${#tr} > SCHTASKS_TR_MAX)); then
-    err "lane '$name': the Windows task command is ${#tr} characters, over schtasks' $SCHTASKS_TR_MAX-character /TR limit; move the checkout to a shorter path"
+    err "lane '$name': the Windows task command is ${#tr} characters, over schtasks' $SCHTASKS_TR_MAX-character /TR limit; pass a shorter --data-dir"
     rc=1
   else
     info "Windows, from cmd.exe (a new run does not start while one is running):"

@@ -13,6 +13,16 @@ sandboxed session it fails with `HTTP 403`. Substitute:
 DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" --jq '.default_branch')
 ```
 
+## Read the open state at the base branch
+
+The repository level of `pr_open_state` comes from the PR's base branch in the base repository,
+never from the working tree or the branch being opened. A 404 means the level is unset.
+
+```bash
+gh api "repos/<base-owner>/<repo>/contents/docs/conventions/source-control.yaml?ref=<base-branch>" \
+  -H "Accept: application/vnd.github.raw"
+```
+
 ## Closes line without a tracker
 
 ```bash
@@ -74,7 +84,7 @@ file.
 # No reviewers are auto-requested by default — `gh pr create` runs without
 # `--reviewer`.
 # DRAFT_FLAG comes from the phase's resolved pr_open_state: (--draft) by
-# default, empty when the state is `ready`.
+# default, empty only when the state is `ready` and a person drives the run.
 PR_URL=$(gh pr create "${DRAFT_FLAG[@]}" --head "$BRANCH" --title "<type>: <description>" --body-file "$BODY_FILE")
 
 # Extract PR number from URL (gh pr create outputs the URL on success).

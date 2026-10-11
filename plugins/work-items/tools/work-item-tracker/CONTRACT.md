@@ -210,10 +210,17 @@ admission. For every `--label`, the adapter takes the most recent application of
 repository permission, and marks the label `trusted` only when that permission is `admin` or
 `write` (GitHub maps maintain to `write` and triage to `read`; pointer:
 [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user),
-as of 2026-10-04, recheck trigger: the endpoint's role mapping changes). `admitted` is `true` only when
-every named label is trusted. A label with no application event, an actor with no usable login,
-and a permission read that fails or returns no permission each yield an untrusted row with its
-`reason`; a failed timeline read exits with the mapped code and emits no result. The work-loop
+as of 2026-10-04, recheck trigger: the endpoint's role mapping changes). Each row carries the
+application's time as `at`. The adapter also reads when the item's body was last edited (GitHub:
+GraphQL `lastEditedAt`, since REST carries no edit time) and reports it as `body_edit`;
+`after_admission` is `true` when that edit is later than the latest `at` of the named labels,
+because a body rewritten after the labeler read it is not the body the labeler admitted.
+`admitted` is `true` only when every named label is trusted and `after_admission` is `false`; a
+trusted re-application after the edit admits the edited body. A label with no application event,
+an actor with no usable login, and a permission read that fails or returns no permission each
+yield an untrusted row with its `reason`; a failed or empty edit-time read sets `after_admission`
+to `null` with its `reason` and refuses; a failed timeline read exits with the mapped code and
+emits no result. The work-loop
 admission gate admits an item only on exit `0` with `admitted: true`, so an adapter that declares
 no `label-provenance` key (the gate reads an absent key as `false`, exit `6`) fails closed. Only
 the GitHub adapter implements it today.
@@ -441,7 +448,7 @@ Per-verb result objects:
 | `link-blocks` | `id, blocked_by, linked: true` |
 | `add-sub-item` | `id, parent_id, linked: true` |
 | `list-sub-items` | `{items:[…]}` envelope of normalized item objects (each `parent_id` = the container) |
-| `label-provenance` | `id, admitted` (bool), `labels: [{label, actor, permission, role, trusted, reason}]` (`null` where not read) |
+| `label-provenance` | `id, admitted` (bool), `labels: [{label, actor, at, permission, role, trusted, reason}]`, `body_edit: {edited_at, after_admission, reason}` (`null` where not read) |
 | `capabilities` | manifest object (see below) |
 
 ## ID grammar

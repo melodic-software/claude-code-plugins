@@ -284,7 +284,7 @@
     {
       "id": 23,
       "name": "pr-open-state-userconfig-only-opens-ready",
-      "prompt": "/pull-request create from branch feat/618-export-csv. The repository has no source-control.yaml under docs/conventions. The source-control userConfig option pr_open_state is set to ready, so SKILL.md's PR open state line substitutes to ready. Resolve the open state and open the PR.",
+      "prompt": "/pull-request create from branch feat/618-export-csv. The repository has no source-control.yaml under docs/conventions. The source-control userConfig option pr_open_state is set to ready, so SKILL.md's PR open state line substitutes to ready. The user is driving this session and answering prompts. Resolve the open state and open the PR.",
       "expected_output": "With no repository file, the per-user level supplies the value: pr_open_state resolves to ready from userConfig. gh pr create runs without --draft (a REST fallback sends draft=false), and the report names the open state and the userConfig level.",
       "files": [],
       "expectations": [
@@ -296,7 +296,7 @@
     {
       "id": 24,
       "name": "pr-open-state-repo-file-only-opens-ready",
-      "prompt": "/pull-request create from branch feat/618-export-csv. The repository's docs/conventions/source-control.yaml is captured in evals/fixtures/source-control-open-ready.yaml relative to the skill directory. The userConfig option pr_open_state is not set by the user, so it substitutes to its declared default, draft. Resolve the open state and open the PR.",
+      "prompt": "/pull-request create from branch feat/618-export-csv. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-ready.yaml relative to the skill directory. The userConfig option pr_open_state is not set by the user, so it substitutes to its declared default, draft. The user is driving this session and answering prompts. Resolve the open state and open the PR.",
       "expected_output": "The repository file sets pr_open_state: ready, which wins over the per-user default. The PR opens ready for review (no --draft), and the report names the repository level (docs/conventions/source-control.yaml).",
       "files": [
         "evals/fixtures/source-control-open-ready.yaml"
@@ -310,7 +310,7 @@
     {
       "id": 25,
       "name": "pr-open-state-repo-file-wins-over-userconfig",
-      "prompt": "/pull-request create from branch feat/618-export-csv. The repository's docs/conventions/source-control.yaml is captured in evals/fixtures/source-control-open-draft.yaml relative to the skill directory. The userConfig option pr_open_state is set to ready. Resolve the open state and open the PR.",
+      "prompt": "/pull-request create from branch feat/618-export-csv. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-draft.yaml relative to the skill directory. The userConfig option pr_open_state is set to ready. Resolve the open state and open the PR.",
       "expected_output": "Both levels set the key and the repository level wins: pr_open_state resolves to draft from docs/conventions/source-control.yaml even though the userConfig value is ready. The PR opens with --draft, the report names the repository level, and it says /source-control:pull-request ready is what flips the draft.",
       "files": [
         "evals/fixtures/source-control-open-draft.yaml"
@@ -337,7 +337,7 @@
     {
       "id": 27,
       "name": "pr-open-state-invalid-repo-value-falls-back-to-draft",
-      "prompt": "/pull-request create from branch feat/618-export-csv. The repository's docs/conventions/source-control.yaml is captured in evals/fixtures/source-control-open-invalid.yaml relative to the skill directory. The userConfig option pr_open_state is set to ready. Resolve the open state and open the PR.",
+      "prompt": "/pull-request create from branch feat/618-export-csv. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-invalid.yaml relative to the skill directory. The userConfig option pr_open_state is set to ready. Resolve the open state and open the PR.",
       "expected_output": "The repository level supplies published, which is neither draft nor ready, so it is not used. The skill says the repository file holds an invalid value, opens the PR as a draft, and reports the level as the default with the invalid repository value named. It does not fall through to the userConfig ready value and never opens the PR ready for review because of an unknown value.",
       "files": [
         "evals/fixtures/source-control-open-invalid.yaml"
@@ -523,6 +523,33 @@
         "The bundled read script runs with view 512 --diff and its output is returned unchanged",
         "No repository-context git calls run before the read",
         "No lifecycle phase runs and nothing is written to the pull request"
+      ]
+    },
+    {
+      "id": 41,
+      "name": "pr-open-state-head-branch-value-ignored",
+      "narration": true,
+      "prompt": "/pull-request create from branch feat/702-cache-ttl. The user is driving this session and answering prompts. On the base branch, main, docs/conventions/source-control.yaml does not exist (the contents API returns 404). The branch being opened adds that file with pr_open_state: ready in one of its commits. The userConfig option pr_open_state is not set by the user, so it substitutes to its declared default, draft. Resolve the open state and open the PR.",
+      "expected_output": "The repository level is read at the base branch, main, where the file is absent, so it is unset; the copy the branch adds is never read, because the branch under review must not choose its own open state. With the per-user level at its default, pr_open_state resolves to draft. The PR opens with --draft and the report names the default level.",
+      "files": [],
+      "expectations": [
+        "Reads docs/conventions/source-control.yaml at the base branch (for example the contents API with ref=main), not from the working tree or the head branch",
+        "Does not use the pr_open_state: ready that the branch's own commit adds",
+        "The PR is opened with --draft (or draft=true on the REST form)",
+        "The report names the supplying level as the default"
+      ]
+    },
+    {
+      "id": 42,
+      "name": "pr-open-state-unattended-run-opens-draft",
+      "prompt": "/pull-request create --pushed --worktree /work/wt-618 for branch feat/618-export-csv. This is an unattended lane run in a dontAsk session; no person is answering. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-ready.yaml relative to the skill directory. Resolve the open state and open the PR.",
+      "expected_output": "The base branch's file sets pr_open_state: ready, but the run is unattended, so the value is not used: the PR opens as a draft, and the report says the repository level set ready and an unattended run opens a draft, leaving the flip to /source-control:pull-request ready.",
+      "files": ["evals/fixtures/source-control-open-ready.yaml"],
+      "expectations": [
+        "Resolves the repository level to ready from the base branch's file",
+        "The PR is opened with --draft (or draft=true on the REST form) despite the ready value",
+        "The report names the unattended run as the reason the ready value was not used",
+        "The report says /source-control:pull-request ready is what flips the draft"
       ]
     }
   ]

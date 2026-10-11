@@ -14,7 +14,10 @@ marker, so a setting changed later does not move a window already posted. The la
 a window. Check in this order:
 
 1. **Human objection**, open window or not: a comment posted after the marker by a person, and not
-   already answered by a later `lane=work-loop` escalation marker on the item. A person here is an
+   already answered by a later `lane=work-loop` escalation marker on the item. An escalation
+   marker answers an objection only when the seam's configured write identity posted it, as with
+   the window marker; the same marker text from any other author is an ordinary comment, so a
+   pasted marker cannot cancel an objection (and, posted by a person, is itself an objection). A person here is an
    author that is not the seam's write identity, is not a bot account (the tracker reports its
    user type as `Bot`, or its login ends in `[bot]`), and whose comment carries no AI disclaimer. Step 5 escalates the item as
    `kind=escalated`, whose one-line question names the objecting comment, and it leaves the

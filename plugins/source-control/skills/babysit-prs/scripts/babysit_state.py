@@ -21,6 +21,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
+import babysit_checks
 from babysit_util import (
     MIN_HEAD_SHA_PREFIX_LENGTH,
     is_json_object,
@@ -303,15 +304,9 @@ def record_mutation_ledger_entry(
 
 
 def _check_rerun_key(check: dict[str, Any]) -> str:
-    # The same (type, name, workflow) triple babysit_checks keys identities by,
-    # serialized so no separator inside a check name can collide two checks.
-    return json.dumps(
-        [
-            str(check.get("type") or ""),
-            str(check.get("name") or ""),
-            str(check.get("workflow_name") or ""),
-        ]
-    )
+    # babysit_checks decides what one check is; serialized so no separator
+    # inside a check name can collide two checks.
+    return json.dumps(list(babysit_checks.check_identity_key(check)))
 
 
 class FlakeCapReached(RuntimeError):
@@ -350,8 +345,10 @@ def record_rerun(
             "time(s) at this head; treat the failure as real"
         )
     entry = ledger.setdefault(key, {})
-    by_head = entry.setdefault("check_reruns", {})
-    by_check = by_head.setdefault(head_sha, {})
+    # Only the head being judged keeps records: an older head's counts can
+    # never apply again, so they are dropped rather than kept forever.
+    by_check = json_object(json_object(entry.get("check_reruns")).get(head_sha))
+    entry["check_reruns"] = {head_sha: by_check}
     by_check[_check_rerun_key(check)] = {
         "check": {
             "type": str(check.get("type") or ""),

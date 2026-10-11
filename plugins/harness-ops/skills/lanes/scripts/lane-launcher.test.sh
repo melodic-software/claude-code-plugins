@@ -1661,6 +1661,45 @@ assert_eq "run-once reclaims a lock whose owner exited" 0 "$rc"
 assert_eq "the reclaiming run runs its pass" 1 "$(claude_runs)"
 assert_eq "the reclaiming run releases the lock" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
 
+# After a reboot the recorded pid may belong to an unrelated live process: a
+# lock recorded on another boot is reclaimed even though that pid answers.
+mkdir -p "$RO_LOCK"
+printf 'boot-before\n' >"$RO_LOCK/boot-id"
+printf '%s\n' "$$" >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(LANE_LAUNCHER_FAKE_BOOT_ID=boot-after et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a lock from an earlier boot is reclaimed despite a live pid" 1 "$(claude_runs)"
+assert_eq "the reclaiming run releases the earlier boot's lock" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
+# The same boot and a live pid: still held.
+mkdir -p "$RO_LOCK"
+printf 'boot-now\n' >"$RO_LOCK/boot-id"
+printf '%s\n' "$$" >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(LANE_LAUNCHER_FAKE_BOOT_ID=boot-now et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a live owner on this boot keeps the lock" 0 "$(claude_runs)"
+assert_contains "a live owner on this boot is reported as holding it" "$out" "another run-once holds"
+rm -rf "$RO_LOCK"
+
+# A run that died between mkdir and its pid write leaves a lock with no pid.
+# A fresh one may be a run still starting, so it is held; one older than the
+# grace period is dead and reclaimed.
+mkdir -p "$RO_LOCK"
+: >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a fresh lock with an empty pid is treated as held" 0 "$(claude_runs)"
+printf '%s\n' "$(($(date +%s) - 3600))" >"$RO_LOCK/acquired-at"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "an empty-pid lock older than the grace period is reclaimed" 1 "$(claude_runs)"
+assert_eq "the run that reclaimed the empty-pid lock releases it" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
+mkdir -p "$RO_LOCK"
+printf '%s\n' "$(($(date +%s) - 3600))" >"$RO_LOCK/acquired-at"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a missing-pid lock older than the grace period is reclaimed" 1 "$(claude_runs)"
+rm -rf "$RO_LOCK"
+
 # A lane already running as a background session is not run a second time.
 AGENTS_WORK_BG="$TMP/agents-work-bg.json"
 printf '%s\n' '[{"pid":1,"cwd":"/r","kind":"background","startedAt":1,"sessionId":"sid-bg","name":"work","status":"idle"}]' >"$AGENTS_WORK_BG"
@@ -1688,7 +1727,9 @@ et_publish ''
 # print-schedule: OS scheduler entries that call a generated per-lane script
 # ============================================================================
 et_lanes work-items:work-loop '{"schedule":{"every_minutes":15}}'
-SCHED_SCRIPT="$ET_REPO/.work/lanes/scheduled/work.sh"
+SCHED_DIR="$ET_DATA/lanes/$ET_KEY/scheduled"
+SCHED_SCRIPT="$SCHED_DIR/work.sh"
+SCHED_SNAPSHOT="$SCHED_DIR/work.lanes.json"
 : >"$CLAUDE_LOG"
 out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
 rc=$?
@@ -1712,6 +1753,33 @@ PATH="$ET_PATH" BASH_COMPAT=51 bash "$SCHED_SCRIPT" >/dev/null 2>&1
 rc=$?
 assert_eq "the generated script exits 0" 0 "$rc"
 assert_eq "the generated script runs one pass" 1 "$(claude_runs)"
+
+# The script and its config snapshot sit under the data directory, outside the
+# lane-writable checkout, and a scheduled run reads the snapshot: a lane that
+# rewrites lanes.json in the checkout changes nothing the scheduler runs.
+assert_eq "nothing is written under the checkout's .work/lanes/scheduled" "absent" "$([[ -e "$ET_REPO/.work/lanes/scheduled" ]] && echo present || echo absent)"
+assert_eq "a config snapshot is written beside the script" "yes" "$([[ -f "$SCHED_SNAPSHOT" ]] && echo yes || echo no)"
+jq -n '{lanes: [{name: "other", prompt: "work.md", effort: "high"}]}' >"$ET_REPO/.work/lanes/lanes.json"
+: >"$CLAUDE_LOG"
+PATH="$ET_PATH" BASH_COMPAT=51 bash "$SCHED_SCRIPT" >/dev/null 2>&1
+assert_eq "a scheduled run ignores a rewritten in-checkout config" 0 "$?"
+assert_eq "a scheduled run after the in-checkout rewrite still runs the snapshot's lane" 1 "$(claude_runs)"
+et_lanes work-items:work-loop '{"schedule":{"every_minutes":15}}'
+
+# A snapshot changed after it was written fails its sha256 check: no pass runs.
+cp "$SCHED_SNAPSHOT" "$TMP/snapshot.orig"
+jq '.lanes[0].effort = "low"' "$TMP/snapshot.orig" >"$SCHED_SNAPSHOT"
+: >"$CLAUDE_LOG"
+out="$(PATH="$ET_PATH" BASH_COMPAT=51 bash "$SCHED_SCRIPT" 2>&1)"
+assert_eq "a changed snapshot makes the scheduled script exit 1" 1 "$?"
+assert_contains "the refusal names the sha256 mismatch" "$out" "does not match the sha256"
+assert_eq "a changed snapshot runs no pass" 0 "$(claude_runs)"
+rm -f "$SCHED_SNAPSHOT"
+: >"$CLAUDE_LOG"
+PATH="$ET_PATH" BASH_COMPAT=51 bash "$SCHED_SCRIPT" >/dev/null 2>&1
+assert_eq "a missing snapshot makes the scheduled script exit 1" 1 "$?"
+assert_eq "a missing snapshot runs no pass" 0 "$(claude_runs)"
+cp "$TMP/snapshot.orig" "$SCHED_SNAPSHOT"
 
 # Only lanes with a schedule object get entries.
 et_lanes work-items:work-loop
@@ -1767,7 +1835,7 @@ out="$(et_run print-schedule --write-script --data-dir "$ET_DATA" 2>&1)"
 rc=$?
 assert_eq "a scheduled lane with an unsafe name exits 1" 1 "$rc"
 assert_contains "the refusal names the allowed characters" "$out" "letters, digits"
-assert_eq "no script is written for an unsafe name" "" "$(find "$ET_REPO/.work/lanes/scheduled" -name 'w*PWNED*' -print 2>/dev/null)"
+assert_eq "no script is written for an unsafe name" "" "$(find "$SCHED_DIR" -name 'w*PWNED*' -print 2>/dev/null)"
 et_lanes work-items:work-loop
 
 out="$(et_run start --write-script --data-dir "$ET_DATA" --dry-run 2>&1)"
@@ -1789,28 +1857,30 @@ chmod +x "$WIN_BIN/cygpath"
 tr_payload() { # the /TR value of the first schtasks /Create line, unescaped
   printf '%s\n' "$1" | grep -m1 '^schtasks /Create' | sed -e 's/.* \/TR "//' -e 's/"$//' -e 's/\\"/"/g'
 }
-long_repo() { # <length of the Windows form> -> a directory whose C:-prefixed path has that length
-  local base="$TMP/lr" pad
-  pad=$(($1 - 2 - ${#base} - 1))
+long_path() { # <base> <length of the Windows form> -> a path whose C:-prefixed form has that length
+  local base="$1" pad
+  pad=$(($2 - 2 - ${#base} - 1))
   printf '%s/%s' "$base" "$(printf '%*s' "$pad" '' | tr ' ' 'r')"
 }
-LR="$(long_repo 120)"
+# The script lives under the data directory, so its length sets the payload's.
+LR="$TMP/lr"
 mkdir -p "$LR/.work/lanes"
 printf 'You are the work lane.\n' >"$LR/.work/lanes/work.md"
 jq -n '{lanes: [{name: "work", prompt: "work.md", effort: "high", schedule: {every_minutes: 15}}]}' >"$LR/.work/lanes/lanes.json"
-out="$(PATH="$WIN_BIN:$ET_PATH" bash "$SCRIPT" print-schedule --repo "$LR" --data-dir "$ET_DATA" 2>&1)"
+LD="$(long_path "$TMP/ld" 120)"
+out="$(PATH="$WIN_BIN:$ET_PATH" bash "$SCRIPT" print-schedule --repo "$LR" --data-dir "$LD" 2>&1)"
 rc=$?
-assert_eq "print-schedule with a 120-character repository path exits 0" 0 "$rc"
+assert_eq "print-schedule with a 120-character data directory exits 0" 0 "$rc"
 payload="$(tr_payload "$out")"
-assert_eq "the /TR payload calls bash on the generated script" "\"C:\\Program Files\\Git\\usr\\bin\\bash.exe\" \"C:${LR//\//\\}\\.work\\lanes\\scheduled\\work.sh\"" "$payload"
+assert_contains "the /TR payload calls bash" "$payload" "\"C:\\Program Files\\Git\\usr\\bin\\bash.exe\" \"C:${LD//\//\\}\\lanes\\"
+assert_contains "the /TR payload names the lane's script under the data directory" "$payload" "\\scheduled\\work.sh\""
+assert_not_contains "the /TR payload does not point into the checkout" "$payload" "${LR//\//\\}"
 within_limit=no
 ((${#payload} <= 262)) && within_limit=yes
 assert_eq "the /TR payload is at most 262 characters" "yes" "$within_limit"
 
-LR2="$(long_repo 240)"
-mkdir -p "$LR2/.work/lanes"
-cp "$LR/.work/lanes/lanes.json" "$LR/.work/lanes/work.md" "$LR2/.work/lanes/"
-out="$(PATH="$WIN_BIN:$ET_PATH" bash "$SCRIPT" print-schedule --repo "$LR2" --data-dir "$ET_DATA" 2>&1)"
+LD2="$(long_path "$TMP/ld" 200)"
+out="$(PATH="$WIN_BIN:$ET_PATH" bash "$SCRIPT" print-schedule --repo "$LR" --data-dir "$LD2" 2>&1)"
 rc=$?
 assert_eq "a /TR payload over 262 characters exits 1" 1 "$rc"
 assert_contains "the refusal names the limit" "$out" "262"

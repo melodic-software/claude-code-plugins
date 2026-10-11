@@ -163,8 +163,13 @@ one reads the file itself.
   2. the `pr_open_state` `userConfig` value (the per-user level);
   3. `pr_open_state` in `docs/conventions/source-control.yaml` (the repository level).
 
-  The repository level is read from the repo root as [The three layers](#the-three-layers) resolves
-  it, and is not applicable at the home directory or outside a git working tree. A value other than
+  The repository level is read at the pull request's base branch, never from the working tree or
+  the head branch, with the same `contents?ref=<base-branch>` read the
+  [review-bot triage rubric](#review-bot-triage-rubric-docsconventionssource-controlmd) uses: a
+  branch must not choose to skip the draft for itself. It is not applicable at the home directory
+  or outside a git working tree. An unattended run (a loop lane, a CI lane, a `dontAsk` session, a
+  dispatched worker or orchestrator, any `--pushed` run) opens a draft whatever the value
+  resolves to, and reports that a `ready` was set and not used. A value other than
   `draft` or `ready` at either level is reported, naming the level, and resolves to `draft`: an
   unknown value never opens a PR ready for review. A `pr_open_state` H2 in any
   `source-control.md` layer is not read. `create` reports which level supplied the value. The
@@ -233,6 +238,9 @@ When several rows match one finding, the most cautious disposition wins: `ask`, 
 - Structured state wins: a `CHANGES_REQUESTED` review stays blocking.
 - A dismissal is an INCORRECT classification whose D5 reply quotes the row as its counter-evidence, so
   D7.5's thread-resolution rules apply unchanged.
+- A row decides one finding, never the comment that carries it. A comment holding several findings is
+  disposed of, or its thread resolved, on the rubric's say only when every finding in it matched a
+  `dismiss` row; otherwise the findings no row dismissed keep it open.
 
 **An `ask` row with no one to answer.** In an interactive session, show the user the finding and the
 row, and wait for the decision. In a run where nobody can answer (a CI lane, a

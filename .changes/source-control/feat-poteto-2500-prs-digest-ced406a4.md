@@ -30,21 +30,27 @@ bump: minor
 - **`pr_open_state` chooses whether `/source-control:pull-request create` opens a draft.** `draft`
   (the default, as before) or `ready`. The per-user value is the new `pr_open_state` `userConfig`
   option; a repository sets it in `docs/conventions/source-control.yaml`, which wins and is
-  validated by the new `schemas/source-control.schema.json`. `create` reports which level supplied
-  the value, and a value other than `draft` or `ready` opens a draft. `.claude/source-control.md`
-  does not carry the key.
+  validated by the new `schemas/source-control.schema.json`. The repository file is read at the
+  pull request's base branch, never from the working tree or the branch being opened, so a branch
+  cannot open itself ready and skip the `ready` phase's base merge, security review and verify
+  gate. An unattended run (a lane, CI, a `dontAsk` session, a dispatched worker or orchestrator,
+  every `create --pushed`) always opens a draft. `create` reports which level supplied the value,
+  and a value other than `draft` or `ready` opens a draft. `.claude/source-control.md` does not
+  carry the key.
 - **A repository can keep a review-bot triage rubric.** A `## Review-bot triage rubric` table in
   `docs/conventions/source-control.md` (pattern, optional reviewer, `dismiss`/`fix`/`ask`,
   `high`/`medium`/`low` confidence) is read at the PR's base branch by
   `/source-control:pull-request` `monitor` and `comments` and by `/source-control:babysit-prs`, so
-  both triage a recurring bot finding the same way. It never dismisses a security or data finding,
+  both triage a recurring bot finding the same way. A row decides one finding: a bot comment holding
+  several findings is disposed of on the rubric's say only when every one of them matched a
+  `dismiss` row, so one dismissable phrase cannot clear the rest. It never dismisses a security or data finding,
   and an `ask` row in a run with no one to answer leaves the thread open and reports it instead of
   prompting. Without the section, triage is unchanged.
 - **`/source-control:babysit-prs` reruns a failing check at most once per PR head.** The new
   `manage_feedback_ledger.py record-rerun` records each rerun in the durable mutation ledger, keyed
-  by PR, head SHA and check, before the rerun is triggered, and refuses a second one for the same
+  by PR, head SHA and check (identified the same way the snapshot identifies a check), before the rerun is triggered, and refuses a second one for the same
   check at the same head (exit 4): that failure is treated as real and fixed or reported. A new
-  head starts the count again. The command names the check by its hex id, which the snapshot
+  head starts the count again, and recording at it drops the older heads' records. The command names the check by its hex id, which the snapshot
   text prints first on each `failing check: rerun_id=<id> name="<name>"` line (check names are now
   JSON-escaped, one check per line), never by its name, because a fork PR controls its job
   names. `reference/native-autofix-pr.md` now states that an `/autofix-pr` session never

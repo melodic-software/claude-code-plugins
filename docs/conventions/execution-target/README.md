@@ -207,7 +207,7 @@ The lanes launcher carries a copy of the plugin column (`stage_required_plugins`
 
 | Reader | Keys it reads |
 |---|---|
-| `/harness-ops:lanes` launcher (`start`, `restart`) | `skill.<plugin>.<skill>` for the lane's `stage`, `class.untrusted-provenance` for `work-items:triage`, `default` |
+| `/harness-ops:lanes` launcher (`start`, `restart`, `run-once`) | `skill.<plugin>.<skill>` for the lane's `stage`, `class.untrusted-provenance` for `work-items:triage`, `default` |
 
 ## Residual risks
 

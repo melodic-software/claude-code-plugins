@@ -14,9 +14,11 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_checks as checks
 import babysit_delta as delta
 import babysit_state as state
 
@@ -430,6 +432,35 @@ class FlakeRerunCapTests(unittest.TestCase):
         ledger: dict[str, object] = {}
         self.record(ledger, "owner/a#1", FIRST_HEAD, LINT)
         self.assertEqual(state.rerun_count(ledger, "owner/a#2", FIRST_HEAD, LINT), 0)
+
+    def test_the_rerun_key_follows_check_identity_key(self) -> None:
+        # Whatever babysit_checks counts as one check is what the cap counts:
+        # with an identity that ignores the name's case, LINT is lint.
+        def case_folded(identity: dict) -> tuple[str, str, str]:
+            return (
+                str(identity.get("type") or ""),
+                str(identity.get("name") or "").lower(),
+                str(identity.get("workflow_name") or ""),
+            )
+
+        upper = {**LINT, "name": "LINT"}
+        ledger: dict[str, object] = {}
+        with mock.patch.object(checks, "check_identity_key", case_folded):
+            self.record(ledger, "owner/a#1", FIRST_HEAD, LINT)
+            self.assertEqual(
+                state.rerun_count(ledger, "owner/a#1", FIRST_HEAD, upper), 1
+            )
+
+    def test_only_the_latest_head_keeps_rerun_records(self) -> None:
+        ledger: dict[str, object] = {}
+        self.record(ledger, "owner/a#1", FIRST_HEAD, LINT)
+        self.record(ledger, "owner/a#1", SECOND_HEAD, LINT)
+        by_head = ledger["owner/a#1"]["check_reruns"]  # type: ignore[index]
+        self.assertEqual(list(by_head), [SECOND_HEAD])
+        self.record(ledger, "owner/a#1", SECOND_HEAD, LINT_NIGHTLY)
+        by_head = ledger["owner/a#1"]["check_reruns"]  # type: ignore[index]
+        self.assertEqual(list(by_head), [SECOND_HEAD])
+        self.assertEqual(len(by_head[SECOND_HEAD]), 2)
 
     def test_a_recorded_rerun_survives_the_next_snapshot_save(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:

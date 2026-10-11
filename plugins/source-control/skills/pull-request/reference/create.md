@@ -422,10 +422,15 @@ levels are in [../../../reference/config-resolution.md](../../../reference/confi
 "YAML keys"; read it yourself, since no script resolves it:
 
 1. **Repository level.** When §2.4.1's `config-root.sh classify` printed `repo`, read
-   `docs/conventions/source-control.yaml` at the repo root (under `--pushed`, the target
-   worktree's root). If the file has a top-level `pr_open_state:` key, its value (quotes and a
+   `docs/conventions/source-control.yaml` at the PR's base branch in the base repository, never
+   from the working tree or the branch being opened, the same way the review-bot rubric is read
+   ([config-resolution.md](../../../reference/config-resolution.md#review-bot-triage-rubric-docsconventionssource-controlmd);
+   [GitHub](../../../reference/providers/github/pull-request/create.md#read-the-open-state-at-the-base-branch)).
+   The head branch is the change under review, so a value it sets would let the change pick its
+   own path past the `ready` phase's base merge, security review and verify gate. A 404 means the
+   level is unset. If the file has a top-level `pr_open_state:` key, its value (quotes and a
    trailing `# comment` removed) wins. Report the level as `repository
-   (docs/conventions/source-control.yaml)`.
+   (docs/conventions/source-control.yaml at <base-branch>)`.
 2. **Per-user level.** Otherwise take the substituted value from SKILL.md's "PR open state" line.
    `ready` reports the level as `userConfig`.
 3. **Default.** Otherwise, including a substituted `draft` and the unsubstituted token, the state
@@ -433,7 +438,13 @@ levels are in [../../../reference/config-resolution.md](../../../reference/confi
 
 A value other than `draft` or `ready` at the level that supplied it is not used: say which level
 held which value, open the PR as a draft, and report the level as `default (invalid value at
-<level>)`. Set the flag for the commands below from the result: `DRAFT_FLAG=(--draft)` and
+<level>)`.
+
+**An unattended run always opens a draft.** When no person is driving this run (a loop lane, a CI
+lane, a `dontAsk` session, a worker or orchestrator dispatched by another skill, and every
+`--pushed` run), a resolved `ready` is not used: open the PR as a draft and report the level as
+`draft (unattended run; <level> set ready)`. Such a run acts on text it did not choose, so it
+leaves the flip to `/source-control:pull-request ready`, whose gates run first. Set the flag for the commands below from the result: `DRAFT_FLAG=(--draft)` and
 `DRAFT_JSON=true` for `draft`; `DRAFT_FLAG=()` and `DRAFT_JSON=false` for `ready`.
 
 Append `${ATTRIBUTION}` (resolved in §2.4.1) to `$BODY_FILE` only now, after both §2.4.2 gates have
@@ -531,7 +542,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
 - **§2.2 (rebase onto the default branch):** skipped. Bringing the branch current is the worker's pre-return responsibility, and residual staleness is caught by the Phase 3 mergeability read and CI. The out-of-tree orchestrator cannot rebase a branch it is not on with a clean tree, so it never owns this step.
 - **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above.
 - **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional and running it with `CLAUDE_PROJECT_DIR="$WT"` (`CLAUDE_PROJECT_DIR="$WT" parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`), so it reads the worktree's own `source-control.md` layers rather than the orchestrator's. The script defaults to `git branch --show-current` **in its own process**, which an out-of-tree orchestrator cannot redirect with `git -C`, so leaving it implicit would parse `Closes #N` from the orchestrator's own branch and silently drop the linkage.
-- **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). `DRAFT_FLAG` and `DRAFT_JSON` come from §2.4.3's open-state step, which reads `docs/conventions/source-control.yaml` from `$WT`, not the session cwd.
+- **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). `DRAFT_FLAG` and `DRAFT_JSON` come from §2.4.3's open-state step, which reads `docs/conventions/source-control.yaml` at the PR's base branch, never from `$WT` or the worker's branch. A `--pushed` run is unattended, so it always opens a draft: `DRAFT_FLAG=(--draft)` and `DRAFT_JSON=true`.
 
   In a sandboxed session that 403s, substitute §2.4.3's REST form, and anchor it, because the `{owner}`/`{repo}` placeholders expand from the current directory, which here is not the target repository. Run it from the worktree, in the subshell form this section already uses for `resolve-remote.sh`.
 

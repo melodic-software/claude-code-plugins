@@ -143,7 +143,9 @@ repository root, `local-background` from the lane's linked worktree, and nothing
 whose own trigger runs the stage there. A lane already running as a background session is skipped.
 A per-lane `mkdir` lock at `<data-dir>/lanes/<repo-key>/<lane>-run-once.lock` keeps two passes of
 one lane apart on one host: a run that finds the lock held exits `0` having run nothing, and a lock
-whose recorded owner pid has exited is reclaimed.
+whose owner is gone is reclaimed: its recorded pid has exited, it was taken on an earlier boot
+(where the host reports a boot id; elsewhere a live pid holds it for at most a day), or it holds no
+pid and is more than two minutes old.
 
 For a drain lane, the prompt file names the stage with its single-pass flag, for example
 `/work-items:work-loop --drain --single-pass` when that skill is among the available skills.
@@ -151,11 +153,16 @@ For a drain lane, the prompt file names the stage with its single-pass flag, for
 `print-schedule [--write-script] [lane...]` prints, for each lane with a `schedule`, a Task
 Scheduler entry and its removal, and a cron line when cron can express the interval (otherwise a
 systemd timer or launchd interval to use). Every entry calls
-`<repo>/.work/lanes/scheduled/<lane>.sh`, which `--write-script` writes and which calls `run-once`
-through this launcher's absolute path, with the config, data directory and `PATH` in effect when it
-was written. Rewrite the script after a harness-ops update moves the launcher. Calling a short
+`<data-dir>/lanes/<repo-key>/scheduled/<lane>.sh`, outside the checkout, because the scheduler runs
+it as the operator and a lane can write anywhere in its checkout. `--write-script` writes it beside
+`<lane>.lanes.json`, a snapshot of the config taken at that moment, and records the snapshot's
+sha256 in the script. Each run checks that sha256 and refuses, exit `1` with nothing run, when the
+snapshot is missing or changed; otherwise it calls `run-once` through this launcher's absolute path
+with the snapshot as `--config`, the data directory and the `PATH` in effect when it was written.
+Edits to `lanes.json` in the checkout therefore reach a scheduled run only after the operator
+reruns `--write-script`, and so does a harness-ops update that moves the launcher. Calling a short
 script keeps the Windows `/TR` payload to `"<bash>" "<script>"`; a lane whose payload would pass
-schtasks' 262-character limit is refused, so move the checkout to a shorter path. A scheduled
+schtasks' 262-character limit is refused, so pass a shorter `--data-dir`. A scheduled
 lane's name must be letters, digits, `.`, `_` or `-`, because it names the script and the task.
 Registering an entry is the operator's step. Run the `schtasks` lines from cmd.exe, as
 [restart-consumer.md](restart-consumer.md) explains for its own entries.

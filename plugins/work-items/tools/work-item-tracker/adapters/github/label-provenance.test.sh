@@ -35,11 +35,21 @@ if [[ "$1" == "--version" ]]; then
   printf 'gh version 2.97.0 (test)\n'
   exit 0
 fi
-path="" prog=""
+if [[ "${2:-}" == graphql ]]; then
+  if [[ -n "${GH_STUB_GRAPHQL_ERR:-}" ]]; then
+    printf '%s\n' "$GH_STUB_GRAPHQL_ERR" >&2
+    exit 1
+  fi
+  never_edited='{"data":{"repository":{"issueOrPullRequest":{"lastEditedAt":null}}}}'
+  printf '%s\n' "${GH_STUB_GRAPHQL:-$never_edited}"
+  exit 0
+fi
+path="" prog="" paginate=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --jq) prog="$2"; shift 2 ;;
-  api | --paginate) shift ;;
+  --paginate) paginate=1; shift ;;
+  api) shift ;;
   *) path="$1"; shift ;;
   esac
 done
@@ -49,7 +59,11 @@ case "$path" in
     printf '%s\n' "$GH_STUB_TIMELINE_ERR" >&2
     exit 1
   fi
+  # Like gh, --paginate applies --jq to each page and prints each result.
   jq -c "$prog" <<<"$GH_STUB_TIMELINE"
+  if ((paginate)) && [[ -n "${GH_STUB_TIMELINE_PAGE2:-}" ]]; then
+    jq -c "$prog" <<<"$GH_STUB_TIMELINE_PAGE2"
+  fi
   ;;
 */collaborators/*/permission)
   login="${path#*/collaborators/}"
@@ -89,8 +103,14 @@ run() {
   shift
   : >"$LOG"
   OUT="$(PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_PERM_DIR="$PERMS" \
-    GH_STUB_TIMELINE="$timeline" bash "$S" "$@" 2>/dev/null)"
+    GH_STUB_TIMELINE="$timeline" GH_STUB_TIMELINE_PAGE2="${PAGE2:-}" \
+    GH_STUB_GRAPHQL="${GRAPHQL:-}" GH_STUB_GRAPHQL_ERR="${GRAPHQL_ERR:-}" \
+    bash "$S" "$@" 2>/dev/null)"
   RC=$?
+}
+# edited <timestamp|null>: the GraphQL payload for an item whose body was last edited then.
+edited() {
+  jq -nc --argjson t "$1" '{data: {repository: {issueOrPullRequest: {lastEditedAt: $t}}}}'
 }
 
 ID="github:o/r#7"
@@ -192,5 +212,45 @@ TL="[$(ev "$AR" maint-b 2026-10-01T10:00:00Z),$(ev "$C1" triager-d 2026-10-01T10
 OUT="$(BASH_COMPAT=51 PATH="$STUB:$PATH" GH_STUB_LOG="$LOG" GH_STUB_PERM_DIR="$PERMS" \
   GH_STUB_TIMELINE="$TL" bash "$S" "$ID" --label "$AR" --label "$C1" 2>/dev/null)"
 assert_eq "BASH_COMPAT=51: triage-labelled C1 still refused" "false" "$(jq -r '.admitted' <<<"$OUT")"
+
+# --- a timeline split across two pages is read whole ---
+P1="[$(ev "$AR" dev-c 2026-10-01T10:00:00Z)]"
+P2="[$(ev "$C1" dev-c 2026-10-01T10:05:00Z),$(ev "$AR" triager-d 2026-10-01T11:00:00Z)]"
+PAGE2="$P2" run "$P1" "$ID" --label "$AR" --label "$C1"
+assert_eq "two-page timeline: the work-class event on page 2 is found" "dev-c" \
+  "$(jq -r --arg l "$C1" '.labels[] | select(.label == $l) | .actor' <<<"$OUT")"
+assert_eq "two-page timeline: a later page-2 re-application decides agent-ready" "triager-d" \
+  "$(jq -r --arg l "$AR" '.labels[] | select(.label == $l) | .actor' <<<"$OUT")"
+assert_eq "two-page timeline: not admitted on the page-2 triage labeler" "false" "$(jq -r '.admitted' <<<"$OUT")"
+assert_contains "the timeline read asks for every page" "$(grep timeline "$LOG")" "--paginate"
+
+# --- body edited after admission: the admitted brief is no longer the one in the body ---
+TL="[$(ev "$AR" dev-c 2026-10-01T10:00:00Z),$(ev "$C1" dev-c 2026-10-01T10:05:00Z)]"
+GRAPHQL="$(edited '"2026-10-01T11:00:00Z"')" run "$TL" "$ID" --label "$AR" --label "$C1"
+assert_eq "body edited after the latest label: exit 0" "0" "$RC"
+assert_eq "body edited after the latest label: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"
+assert_eq "body edited after the latest label: flagged" "true" "$(jq -r '.body_edit.after_admission' <<<"$OUT")"
+assert_eq "body edited after the latest label: edit time reported" "2026-10-01T11:00:00Z" "$(jq -r '.body_edit.edited_at' <<<"$OUT")"
+assert_eq "body edited after the latest label: labels themselves still trusted" "true true" \
+  "$(jq -r '[.labels[].trusted] | map(tostring) | join(" ")' <<<"$OUT")"
+GRAPHQL="$(edited '"2026-10-01T09:00:00Z"')" run "$TL" "$ID" --label "$AR" --label "$C1"
+assert_eq "body edited before both labels: admitted" "true" "$(jq -r '.admitted' <<<"$OUT")"
+# An edit between the two applications was seen by the later trusted labeler.
+GRAPHQL="$(edited '"2026-10-01T10:02:00Z"')" run "$TL" "$ID" --label "$AR" --label "$C1"
+assert_eq "body edited between the two labels: admitted" "true" "$(jq -r '.admitted' <<<"$OUT")"
+# A trusted re-application after the edit admits the edited body.
+TL2="[$(ev "$AR" dev-c 2026-10-01T10:00:00Z),$(ev "$AR" maint-b 2026-10-01T12:00:00Z)]"
+GRAPHQL="$(edited '"2026-10-01T11:00:00Z"')" run "$TL2" "$ID" --label "$AR"
+assert_eq "trusted re-label after the edit: admitted" "true" "$(jq -r '.admitted' <<<"$OUT")"
+assert_eq "label rows carry the event time" "2026-10-01T12:00:00Z" "$(jq -r '.labels[0].at' <<<"$OUT")"
+GRAPHQL="$(edited null)" run "$TL" "$ID" --label "$AR" --label "$C1"
+assert_eq "body never edited: admitted" "true" "$(jq -r '.admitted' <<<"$OUT")"
+# A failed or empty edit-time read refuses.
+GRAPHQL_ERR="HTTP 403: Resource not accessible" run "$TL" "$ID" --label "$AR" --label "$C1"
+assert_eq "failed edit-time read: exit 0" "0" "$RC"
+assert_eq "failed edit-time read: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"
+assert_contains "failed edit-time read: reason carries the error" "$(jq -r '.body_edit.reason' <<<"$OUT")" "edit-time read failed"
+GRAPHQL='{"data":{"repository":{"issueOrPullRequest":null}}}' run "$TL" "$ID" --label "$AR" --label "$C1"
+assert_eq "edit-time read with no item: not admitted" "false" "$(jq -r '.admitted' <<<"$OUT")"
 
 [[ $FAILED -eq 0 ]] || exit 1
