@@ -251,16 +251,22 @@ test('blocks keeps an unclosed fence through the end of the text', () => {
 // The worst user patterns the guard accepts: each tries many lengths at every start.
 const WORST_ACCEPTED = ['.*x', '[\\s\\S]*x', '.*.?.?x', '\\w*\\d{0,3}x', '(?=[\\s\\S]*x)y', 'a{0,4000}x', '(?:ab){0,4000}x']
 
-test('runs each of the worst accepted extra patterns over 100,000 characters in under a second', () => {
+// A wall-clock bound depends on the machine, so the test checks how cost grows instead: five times
+// the text costs about five times as much when it is linear, twenty-five times when quadratic.
+test('runs each of the worst accepted extra patterns in time linear in the text length', () => {
   const r = compilePatterns(WORST_ACCEPTED)
   expect(r.invalid).toEqual([])
   const extras = r.patterns.slice(-WORST_ACCEPTED.length)
   expect(extras.map((p) => p.source)).toEqual(WORST_ACCEPTED)
-  const inputs = ['a'.repeat(100_000), '1'.repeat(100_000), 'ab'.repeat(50_000), '= '.repeat(50_000)]
+  const inputs = (n: number) => ['a'.repeat(n), '1'.repeat(n), 'ab'.repeat(n / 2), '= '.repeat(n / 2)]
+  const cost = (pattern: RegExp, n: number) => {
+    const start = performance.now()
+    for (const input of inputs(n)) maskText(input, [pattern], M)
+    return performance.now() - start
+  }
   for (const pattern of extras) {
-    const start = Date.now()
-    for (const input of inputs) maskText(input, [pattern], M)
-    expect(Date.now() - start).toBeLessThan(1000)
+    cost(pattern, 10_000)
+    expect(cost(pattern, 50_000)).toBeLessThan(10 * cost(pattern, 10_000) + 50)
   }
 })
 
