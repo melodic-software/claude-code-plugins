@@ -5,6 +5,16 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-10-11
+
+### Changed
+
+- Past `smart`, the zone lines Claude reads are now followed by one options line: record decisions and pending items in a durable file, then continue, `/compact`, or hand off with `/session-flow:handoff`, as Claude and the user choose. The line also says a zone never calls for terser output, fewer agents, or lower quality (#7118).
+
+### Fixed
+
+- Repoint documentation links whose upstream anchor or target moved, so each one lands on the section it cites again.
+
 ## [0.17.0] - 2026-10-11
 
 ### Added
