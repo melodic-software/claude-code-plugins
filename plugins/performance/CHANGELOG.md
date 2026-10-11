@@ -3,6 +3,23 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.8] - 2026-10-11
+
+### Changed
+
+- go-faster: the model-effort-mismatch, mid-task-model-switch and mid-task-effort-change catalog rows are rechecked against their upstream pages after the latest model release and re-dated; the rows are unchanged.
+
+### Fixed
+
+- **`/performance:go-faster` records findings from a worktree-isolated session
+  ([#6234](https://github.com/melodic-software/claude-code-plugins/issues/6234)).** `findings.py add`
+  takes the findings as a `--json` argument (stdin still works when it is absent), and the sweeper
+  passes them that way in one plain command per Bash call, never through a heredoc, which worktree
+  isolation refused and left the run empty. The sweeper splits a large array across calls, returns
+  `refused-by-guard` when an `add` or `finish` is refused, and the skill releases the lock and
+  reports it. The skill also tells the main session not to enter or leave a worktree while a sweep
+  runs.
+
 ## [0.8.7] - 2026-10-10
 
 ### Fixed

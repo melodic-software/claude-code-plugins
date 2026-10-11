@@ -3,6 +3,26 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.2] - 2026-10-11
+
+### Added
+
+- **`browser-probe` eval case.** An environment probe for the browser eval lane, tagged `browser-probe` only so it runs alone under `--tag browser-probe`. Its deterministic graders record whether `playwright-cli` runs in the eval's Bash sandbox, Chromium launches (pinned by path, and the default channel), a workspace file page, a `127.0.0.1` page and a public page load, a screenshot is written, and whether the run can read a canary file inside the eval directory through `Read` or through the browser.
+
+- **Diagnostic graders on the `browser-probe` eval case.** Eight `diag-*` regex graders over the trace name why a probe step failed without uploading the trace: `playwright-cli` not on `PATH`, a Bash permission refusal, a sandbox filesystem or network refusal, a browser launch failure, a refused or missing `Read` of the canary, any tool error, and whether `playwright-cli` printed output at all. Each failure signature uses `match: not_contains`, so a clean run still scores 1.0, and each carries `weight: 0.001`, since the eval rejects a weight of 0, so the diagnostics barely move the score of the original twelve graders.
+
+- **`sandbox-probe-plain` and `sandbox-probe-scaffold` eval cases.** A paired environment probe for the eval's Bash sandbox, tagged `sandbox-probe` so it runs alone under `--tag sandbox-probe`, and `no-trigger` since no skill should fire. Each case asks for one `echo` call; the pair differs only in a scaffold that writes one file. The graders record whether the call ran, whether its output came back, and whether the sandbox refused it with `bwrap: Can't create file at`, so a run shows whether that refusal hits every eval or only scaffolded ones.
+
+### Changed
+
+- `/testing:fix-until-green` runs its test runner on `sonnet` at effort `medium` when no role map is passed, matching the multi-agent retrieval default.
+
+- **`haiku` is labeled the last-resort test judge class.** The README, the `test_judge_model` option description and the setup skill call it uncalibrated and prone to favor Claude-labeled output, and the README's effort note names where Haiku 5.5 takes effort.
+
+### Fixed
+
+- **`browser-probe` canary graders now pass when the eval directory stays hidden.** `claude plugin eval` hides the case's own directory from the run, so the two graders that required reading the canary failed on every correct run. They are renamed `evals-hidden-from-read` and `evals-hidden-from-browser` and use `match: not_contains` on the same canary patterns. A new `canary-goto-attempted` grader confirms the browser canary step ran, as `peek-read-attempted` already does for the `Read` step. `diag-read-refused` now matches only `File does not exist`, so the expected permission refusal of the canary `Read` no longer trips it, and `diag-sandbox-fs-refused` no longer counts `ERR_FILE_NOT_FOUND` on the canary page. `diag-tool-error` still fails on a correct run, because the hidden canary steps return tool errors by design.
+
 ## [0.25.1] - 2026-10-10
 
 ### Fixed

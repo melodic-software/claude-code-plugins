@@ -4,6 +4,42 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.20.13] - 2026-10-11
+
+### Changed
+
+- docpage-digest: verifier A dispatched through the Agent tool now passes its resolved level as the spawn `effort` on a generic spawn and omits it on a pinned named agent, instead of running at the session level.
+- map-corpus: the effort gotcha now points at the "Where per-task effort is set" record, which covers both the Agent tool's per-spawn `effort` and Workflow.
+
+- Skill bodies that routed to the retired `/discovery:research-deep` now name `/discovery:research` and its `deep` tier.
+
+### Fixed
+
+- video-digest decodes HTML entities in transcripts built from auto captions, so a `&gt;&gt;` speaker marker reads `>>` as it already did for manual captions ([#6824](https://github.com/melodic-software/claude-code-plugins/issues/6824)).
+
+- video-digest keeps an English caption file already written when another caption track's download fails (for example a translated track rate-limited with HTTP 429), records the failed track in `transcriptDegradation`, no longer requests YouTube's translations of manual tracks unless no English track landed, and prefers the original `en-orig` track over the bare auto `en` track ([#6812](https://github.com/melodic-software/claude-code-plugins/issues/6812), [#6740](https://github.com/melodic-software/claude-code-plugins/issues/6740)).
+
+- video-digest's `session-visual-coverage` and `session-synthesis-depth` outcome checks, and `list-promotion-candidates.js`, now fail with the required session format when `research/claim-inventory.md` parses to no session, instead of passing over zero sessions. Boundary stamps may be `[h:mm:ss]` as well as `[m:ss]`, and Phase 2 documents the `## <n>. <name>` plus `**Boundary:**` shape with an example.
+
+- video-digest's `watch-state.js close` (and `check-watch-outcomes.js`) now fails a slice whose research gate fails, through a new blocking `research-complete` outcome check that is skipped only when the watch ran with `--skip-research`. The research gate's docs now name `research/findings/*.md`, the path the gate counts, and no longer allow findings inline in `RESEARCH.md` ([#6814](https://github.com/melodic-software/claude-code-plugins/issues/6814)).
+- video-digest's `close` now also sets the slice `README.md` frontmatter `status:` to `complete`, so it matches `watch.json` ([#6823](https://github.com/melodic-software/claude-code-plugins/issues/6823)).
+
+- video-digest's `init-watch-checklist.js --force` keeps every ticked row (matched by row id) and the Resume notes when it regenerates the floors and per-sheet rows, instead of resetting the checklist to the template ([#6815](https://github.com/melodic-software/claude-code-plugins/issues/6815)).
+
+- video-digest: on Windows the automatic browser-cookie fallback now moves past Chrome when yt-dlp reports `Could not copy Chrome cookie database`, so it reaches Firefox instead of stopping at the Chrome failure ([#6816](https://github.com/melodic-software/claude-code-plugins/issues/6816)).
+
+- video-digest: a watch that fails before its slice records the temp session (an acquisition error, a 429, an unsupported URL) now removes the three temp directories it made, including the downloaded video, instead of leaving them in the OS temp dir. Once `watch.json` records them they stay for `--recover`.
+
+- video-digest documents the JSON it has subagents write (per-sheet triage, promotion decisions, post-promotion audit) in `templates/vision-json-shapes.md`, with a worked example each that passes the validators, and each brief carries its file's section ([#6818](https://github.com/melodic-software/claude-code-plugins/issues/6818)).
+- video-digest frames ingested transcripts, descriptions, comments, decks, companion pages and cloned repositories as untrusted data in the skill and in every subagent brief ([#6820](https://github.com/melodic-software/claude-code-plugins/issues/6820)).
+- video-digest names Git Bash on Windows and Node 20.11 as prerequisites, and the knowledge plugin's prerequisites check now reports a node older than 20.11 ([#6828](https://github.com/melodic-software/claude-code-plugins/issues/6828)).
+
+- video-digest names its successor in a `## Next` section, numbers its phases in `SKILL.md` and `watch-pipeline.md` the way the watch checklist and quality gates do, and documents the `--acquire-phase-gap` throttle flag in `reference/sources/youtube.md` and `gotchas.md` ([#6827](https://github.com/melodic-software/claude-code-plugins/issues/6827)).
+
+### Security
+
+- video-digest's shallow clones of repositories harvested from video descriptions now fail fast instead of prompting: the credential helper is cleared, terminal prompts and Git LFS downloads are disabled, and a clone still running after two minutes is killed and skipped ([#6829](https://github.com/melodic-software/claude-code-plugins/issues/6829)).
+
 ## [0.20.12] - 2026-10-11
 
 ### Fixed

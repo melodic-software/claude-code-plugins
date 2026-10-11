@@ -3,6 +3,24 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.72.2] - 2026-10-11
+
+### Added
+
+- **An interview eval case for a question whose natural recommendation is negative.** `interview-negative-recommendation-yes-accepts` floats a side idea (rewriting the admin page in React) that the interview should recommend against, and checks that round 1 asks about it and words the question so that answering "yes" accepts the recommendation. The skill body is unchanged: a with-and-without run of this case decides whether a wording rule is added.
+
+### Changed
+
+- Shared `standards-contract.md` synced to standards contract 1.0.3: the `.claude/rules` seam now says a path-scoped rule fires when Claude works with a matching file, not only when it reads one, and points at the memory docs for what loads a rule; no change to this plugin's behavior.
+
+- plan, plan-reviewer: Step 3 passes no spawn `effort` to the plan reviewer, because the Agent tool's per-spawn `effort` would replace its `effort: medium` pin; the reviewer's verification record now says so.
+
+- Interview session-config context: advisor pairing now says to price the stronger model alone at low effort first and to check that the advisor engages on the user's workload, with a pointer; evals 9 and 10 require both.
+
+- Skill bodies that routed to the retired `/discovery:research-deep` now name `/discovery:research` and its `deep` tier.
+
+- The `/planning:plan` template's note on why opening a pull request needs no duplicate check names `/source-control:pull-request create` instead of `gh pr create`.
+
 ## [0.72.1] - 2026-10-10
 
 ### Fixed

@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.0] - 2026-10-11
+
+### Added
+
+- **The tracker adapter owns the text that links a change to its item and the branch item-ID grammar.** A new offline `change-link` verb, implemented by every bundled adapter (github, gitea, jira, linear, local-markdown), returns the closing line (`Closes #42`, `Closes ENG-123`, or `null` where a merge closes nothing, as on Jira), the non-closing line, and the token a branch name carries; each manifest declares its branch grammar as `change_link.branch_pattern`. `/work-items:track link` exposes it to other plugins, and `track start`, `track done` and `work` now read it instead of writing GitHub's `Closes #N` and numeric branch names.
+
+- `/work-items:ship run #N` runs one container's ready items under its recorded execution shape, attended only: it claims them after the user approves the item list, hands them to `/implementation:implement-dispatch`'s item-list mode, and lands them one at a time, onto the integration branch as checkpoints or as per-item PRs. `ship` now routes and runs one container.
+
+### Changed
+
+- The execution-shape reference replaces "one item in flight" with "many in flight, the runner lands one at a time": sessions working a shared branch directly still keep one item in flight, and a runner that is the only writer may keep many.
+
 ## [0.50.1] - 2026-10-10
 
 ### Changed
