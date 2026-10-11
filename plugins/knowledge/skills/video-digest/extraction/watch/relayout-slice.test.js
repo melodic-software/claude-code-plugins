@@ -648,6 +648,35 @@ describe("relayoutSlice", () => {
     expect(fs.existsSync(targetDir)).toBe(false);
   });
 
+  it("still requires caption tracks when a caption transcript records a degradation", async () => {
+    const { sliceDir, targetDir, workDir } = makeFixture();
+    // write-transcript.js sets transcriptDegradation to the caption's
+    // provenanceNote even when that caption produced the transcript.
+    withTranscriptMetricsAndNoCaptions(
+      sliceDir,
+      { transcriptStrategy: "captions", transcriptDegradation: "auto captions only" },
+      workDir,
+    );
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
+  it("needs no caption tracks when no entry produced a transcript", async () => {
+    const { sliceDir, targetDir, workDir } = makeFixture();
+    withTranscriptMetricsAndNoCaptions(
+      sliceDir,
+      { skipped: true, reason: "no transcript-bearing entries" },
+      workDir,
+    );
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+  });
+
   it("needs no caption tracks when the transcript came from ASR", async () => {
     const { sliceDir, targetDir, workDir } = makeFixture();
     withTranscriptMetricsAndNoCaptions(sliceDir, { transcriptStrategy: "asr" }, workDir);

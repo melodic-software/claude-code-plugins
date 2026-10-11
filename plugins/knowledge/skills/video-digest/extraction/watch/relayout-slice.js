@@ -657,15 +657,15 @@ export async function relayoutSlice({
   };
   if (!noMedia) {
     // A partly removed temp session would yield a layout silently missing a part.
-    // Captions are required unless the transcript phase records that it did
-    // not come from captions (ASR, skipped, or degraded). A recovered watch
-    // records only `recovered`, and recovery itself needs a caption track, so
-    // it requires them too.
+    // Captions are required unless the transcript phase records that no
+    // caption fed the transcript: run-watch.js writes `transcriptStrategy:
+    // "asr"`, or `skipped: true` when no entry produced one. A
+    // `transcriptDegradation` can be a caption's provenance note, so it is not
+    // that evidence. A recovered watch records only `recovered`, and recovery
+    // itself needs a caption track, so it requires them too.
     const transcriptMetrics = state.phases?.transcript?.metrics ?? {};
     const captioned = !(
-      transcriptMetrics.transcriptStrategy === "asr" ||
-      transcriptMetrics.skipped ||
-      transcriptMetrics.transcriptDegradation
+      transcriptMetrics.transcriptStrategy === "asr" || transcriptMetrics.skipped === true
     );
     const missing = [
       ...(media.videoPath ? [] : [`the video (${temp.workDir ?? "no tempSession.workDir"})`]),
