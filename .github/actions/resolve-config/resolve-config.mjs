@@ -98,7 +98,9 @@ async function gatherFacts(
     facts.draft = event.pull_request?.draft ?? (await fetchPull()).draft;
   }
   if (needed.includes("labels")) {
-    const labels = event.pull_request?.labels ?? (await fetchPull()).labels;
+    const labels = needed.includes("freshLabels")
+      ? (await fetchPull()).labels
+      : (event.pull_request?.labels ?? (await fetchPull()).labels);
     facts.labels = labels.map((label) => label.name);
   }
   if (needed.includes("changedPaths")) {

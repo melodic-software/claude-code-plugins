@@ -167,11 +167,12 @@ function checkComposites(activities) {
 }
 
 // activity-rules.json: per leaf, the effects it may never have and what it
-// never does. A leaf with no row is valid. The token broker passes no rules
-// until it fetches the file.
-function checkActivityRules(activityRules = {}) {
+// never does. A leaf with no row is valid; a missing file is not, and every
+// forbidden effect must be one effect-grants.json knows.
+function checkActivityRules(activityRules, effectGrants) {
   const valid =
     isObject(activityRules) &&
+    isObject(effectGrants) &&
     Object.values(activityRules).every(
       (row) =>
         isObject(row) &&
@@ -180,13 +181,15 @@ function checkActivityRules(activityRules = {}) {
         (row["forbidden-effects"] === undefined ||
           (Array.isArray(row["forbidden-effects"]) &&
             row["forbidden-effects"].every(
-              (effect) => typeof effect === "string",
+              (effect) =>
+                typeof effect === "string" &&
+                Object.hasOwn(effectGrants, effect),
             ))),
     );
   if (!valid) {
     throw new Rejection(
       "activity-rules",
-      "activity-rules.json must map each activity to a `never` string and optional `forbidden-effects` list",
+      "activity-rules.json must be present and map each activity to a `never` string and an optional `forbidden-effects` list of effect-grants.json effects",
     );
   }
   return activityRules;
@@ -249,7 +252,10 @@ export function loadConfig(files, { configPath }) {
     }
   }
   checkComposites(doc.activities);
-  checkLeaves(doc.activities, checkActivityRules(files.activityRules));
+  checkLeaves(
+    doc.activities,
+    checkActivityRules(files.activityRules, files.effectGrants),
+  );
 
   for (const [laneName, lane] of Object.entries(doc.lanes)) {
     const rule = Object.hasOwn(files.laneRules, laneName)

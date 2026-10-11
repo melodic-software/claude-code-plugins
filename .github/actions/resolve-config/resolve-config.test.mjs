@@ -789,6 +789,24 @@ test("a needs-human label skips with awaiting-human", async () => {
   assert.equal(readOutputs(env.GITHUB_OUTPUT)["skip-reason"], "awaiting-human");
 });
 
+test("labels-absent reads labels from GET /pulls/{n}, not the event payload", async () => {
+  const { env } = workspace();
+  writeFileSync(
+    env.EVENT_PATH,
+    JSON.stringify({
+      action: "synchronize",
+      pull_request: { number: 42, labels: [], draft: false },
+    }),
+  );
+  withPredicate(env, { "labels-absent": ["needs-human"] });
+  const { github, calls } = pullReads([
+    { labels: [{ name: "needs-human" }] },
+  ]);
+  assert.equal(await main({ env, github, sleep: noSleep }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT)["skip-reason"], "awaiting-human");
+  assert.deepEqual(calls, [PULL]);
+});
+
 test("a draft PR misses draft: [false] with not-applicable", async () => {
   const { env } = workspace();
   dispatchWithPredicate(env, { draft: [false] });

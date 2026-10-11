@@ -1231,6 +1231,32 @@ test("a malformed activity-rules.json is rejected", () => {
   }
 });
 
+test("no activity rules at all is rejected, never read as no rules", () => {
+  assertRejected(
+    () => runRefine(COMPOSITE, {}, { activityRules: undefined }),
+    "activity-rules",
+  );
+  assertRejected(
+    () =>
+      grantOf(
+        COMPOSITE,
+        { lane: "pr-refine", activity: "fix-lint" },
+        { activityRules: undefined },
+      ),
+    "activity-rules",
+  );
+});
+
+test("a forbidden effect that is not an effect-grants.json key is rejected", () => {
+  const activityRules = {
+    "fix-lint": { never: "Merges", "forbidden-effects": ["merges"] },
+  };
+  assertRejected(
+    () => runRefine(COMPOSITE, {}, { activityRules }),
+    "activity-rules",
+  );
+});
+
 test("the shipped activity rules keep report-escalation off the branch", () => {
   const config = `version: 1
 activities:

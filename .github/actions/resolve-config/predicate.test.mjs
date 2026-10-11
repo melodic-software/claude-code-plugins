@@ -234,7 +234,7 @@ test("factsFor names mergeable, draft and the labels labels-absent reads, once e
       "labels-absent": ["needs-human"],
       draft: [false],
     }).sort(),
-    ["draft", "labels", "mergeable"],
+    ["draft", "freshLabels", "labels", "mergeable"],
   );
 });
 

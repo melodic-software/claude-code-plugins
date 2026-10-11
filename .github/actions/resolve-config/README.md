@@ -35,7 +35,8 @@ The step fails and writes no file when:
 3. A leaf's `effect` or `gating` is one its lane's `lane-rules.json` row forbids, for every leaf
    of every composite in the lane (`forbidden-by-lane`); or a leaf's `effect` is one its own
    `activity-rules.json` row forbids, in any lane or none (`forbidden-by-activity`). A leaf with no
-   row in `activity-rules.json` is valid; a malformed file is rejected (`activity-rules`).
+   row in `activity-rules.json` is valid; a missing or malformed file, or a forbidden effect `effect-grants.json` lacks, is rejected
+   (`activity-rules`).
 4. A lane's `stage` differs from its `lane-rules.json` row, or the lane has no row.
 5. A lane slot's `needs:` names an activity that is not one of the lane's slots
    (`needs-outside-lane`), or a composite child's names one that is not its sibling
@@ -63,7 +64,9 @@ response whose `head.sha` is `head-sha`: `mergeable: false` is `conflicting`, `t
 While the answer is null or describes another head, it reads again, three reads 5 seconds apart at
 most, then leaves the fact unknown, which skips the slot with `prerequisite-missing`. `draft` comes
 from the `pull_request` payload or the same response; on `workflow_dispatch`, labels, draft state
-and mergeability all come from one response when its first read settles.
+and mergeability all come from one response when its first read settles. A `labels-absent`
+predicate always reads labels from that response, never from the payload, so a hold added after
+the event still holds a queued run.
 
 ## Output
 
@@ -115,8 +118,8 @@ and decides a lane's App token grant through it. It runs the same file checks as
 slot whose lane or slot sets `enabled: false` gets no grant: it rejects with `slot-disabled`. It
 decides no `applies-when` predicate, so it takes no facts. `applies-when` is not an authorization
 control: it decides whether a slot runs, never what its token may do. Like `resolve()`, it throws
-a `Rejection` whose `code` names the failure. `files.activityRules` is optional: a caller that
-passes none checks no per-leaf rules.
+a `Rejection` whose `code` names the failure. `files.activityRules` is required: a caller that
+passes none is rejected with `activity-rules`.
 
 ## Job contract
 

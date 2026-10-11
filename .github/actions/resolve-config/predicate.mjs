@@ -75,10 +75,15 @@ export function pipelineEvent(eventName, payload) {
 }
 
 // The facts a predicate reads that need an API call; `event` is always known.
+// `freshLabels` asks for labels read from the PR now, never from the event
+// payload, so a hold added after the event still holds a queued run.
 export function factsFor(predicate) {
   const facts = KEYS.filter(
     ([key, fact]) => predicate?.[key] !== undefined && fact !== "event",
   ).map(([, fact]) => fact);
+  if (predicate?.["labels-absent"] !== undefined) {
+    facts.push("freshLabels");
+  }
   return [...new Set(facts)];
 }
 
