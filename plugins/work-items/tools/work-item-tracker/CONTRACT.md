@@ -62,7 +62,7 @@ dispatcher's presence gate exits `3` (the same first-run signal as a missing bin
 there is deliberately no silent fallback to another provider (the binding names the
 coordination surface; "Offline role activates only by manual binding switch" applies to
 degradation too). `capabilities` is the sole verb that still answers, since it reads the
-adapter manifest rather than the provider. Honest limitation, recorded 2026-08-17 (#2942):
+adapter manifest rather than the provider. Limitation, recorded 2026-08-17 (#2942):
 this repository's own spec board (#2933) had to be published through MCP tools with
 blocking edges as body text, because the publishing session had no `gh`.
 

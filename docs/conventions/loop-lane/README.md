@@ -666,7 +666,7 @@ un-suffixed comment is left in place and **never adopted, edited, or tombstoned 
 marker names no writer, so no instance can prove it owns it, and a lane that adopted it would
 reintroduce exactly the shared-comment clobber this rule removes. Retiring it is an operator action.
 Until then it remains readable, and stale: `morning-brief` will show it aging past the staleness
-threshold, which is the honest reading: nothing is writing it.
+threshold, because nothing is writing it.
 
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
 adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, its
