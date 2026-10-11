@@ -28,6 +28,7 @@ const LIVE_VOCABULARY = new URL(
 const VOCABULARY = JSON.parse(fixture("vocabulary.json"));
 const LANE_RULES = JSON.parse(read("./lane-rules.json"));
 const EFFECT_GRANTS = JSON.parse(read("./effect-grants.json"));
+const ACTIVITY_RULES = JSON.parse(read("./activity-rules.json"));
 const CONFIG_PATH = "docs/conventions/pr-pipeline.yaml";
 const FACTS = {
   event: "synchronize",
@@ -42,6 +43,7 @@ const files = (config, overrides = {}) => ({
   vocabulary: VOCABULARY,
   laneRules: LANE_RULES,
   effectGrants: EFFECT_GRANTS,
+  activityRules: ACTIVITY_RULES,
   ...overrides,
 });
 const run = (config, options = {}, overrides = {}) =>
@@ -705,7 +707,7 @@ test("a resolved grant is frozen and leaves effect-grants.json untouched", () =>
 
 test("a non-string effect is rejected even when the schema lets it through", () => {
   const schema = structuredClone(SCHEMA);
-  schema.$defs.activity.properties.effect = {};
+  schema.$defs.leaf.properties.effect = {};
   const config = edited((doc) => {
     doc.activities["run-tests"].effect = ["mutate-branch"];
   });
@@ -832,6 +834,449 @@ test("an activity with the changed-paths input needs the changed files even with
   );
 });
 
+// Composite activities
+
+const COMPOSITE = `version: 1
+activities:
+  simplify:
+    skill: code-tidying:batch-simplify
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: false
+  fix-lint:
+    script: scripts/fix-lint.sh
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: false
+    applies-when:
+      labels: [lint]
+  format-code:
+    script: scripts/format-code.sh
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: false
+  measure-coverage:
+    script: scripts/measure-coverage.sh
+    effect: read
+    gating: advisory
+    reads-untrusted: false
+  fix-ci:
+    children:
+      - activity: fix-lint
+      - activity: format-code
+        needs: [fix-lint]
+      - activity: measure-coverage
+    applies-when:
+      events: [synchronize]
+lanes:
+  pr-refine:
+    stage: refine
+    slots:
+      - activity: simplify
+      - activity: fix-ci
+        needs: [simplify]
+`;
+const composite = (edit) => {
+  const doc = parse(COMPOSITE);
+  edit(doc);
+  return stringify(doc);
+};
+const runRefine = (config, options = {}, overrides = {}) =>
+  run(config, { lane: "pr-refine", ...options }, overrides);
+const LINT_FACTS = { ...FACTS, labels: ["lint"] };
+
+test("a composite expands into its leaves in list order, depth first", () => {
+  const resolved = runRefine(COMPOSITE, { facts: LINT_FACTS });
+  assert.deepEqual(
+    resolved.lane.slots.map((slot) => slot.name),
+    ["simplify", "fix-lint", "format-code", "measure-coverage"],
+  );
+  assert.equal(
+    resolved.lane.slots.some((slot) => slot.name === "fix-ci"),
+    false,
+  );
+});
+
+test("a leaf under a composite resolves with its own definition and grant", () => {
+  const selected = runRefine(COMPOSITE, {
+    activity: "format-code",
+    facts: LINT_FACTS,
+  }).selected;
+  assert.deepEqual(
+    [selected.kind, selected.script, selected.effect, selected.grant.contents],
+    ["script", "scripts/format-code.sh", "mutate-branch", "write"],
+  );
+  assert.deepEqual([selected.applies, selected["skip-reason"]], [true, null]);
+});
+
+test("a leaf's needs are its composite slot's needs, then its own sibling needs", () => {
+  const slots = runRefine(COMPOSITE, { facts: LINT_FACTS }).lane.slots;
+  const needs = Object.fromEntries(slots.map((slot) => [slot.name, slot.needs]));
+  assert.deepEqual(needs, {
+    simplify: [],
+    "fix-lint": ["simplify"],
+    "format-code": ["simplify", "fix-lint"],
+    "measure-coverage": ["simplify"],
+  });
+});
+
+test("enabled is the AND of lane, composite slot and child slot", () => {
+  const compositeOff = composite((doc) => {
+    doc.lanes["pr-refine"].slots[1].enabled = false;
+  });
+  const slots = runRefine(compositeOff, { facts: LINT_FACTS }).lane.slots;
+  assert.deepEqual(
+    slots.map((slot) => [slot.name, slot.enabled, slot["skip-reason"]]),
+    [
+      ["simplify", true, null],
+      ["fix-lint", false, "disabled-by-config"],
+      ["format-code", false, "disabled-by-config"],
+      ["measure-coverage", false, "disabled-by-config"],
+    ],
+  );
+  const childOff = composite((doc) => {
+    doc.activities["fix-ci"].children[1].enabled = false;
+  });
+  assert.deepEqual(
+    runRefine(childOff, { facts: LINT_FACTS }).lane.slots.map(
+      (slot) => slot.enabled,
+    ),
+    [true, true, false, true],
+  );
+  const laneOff = composite((doc) => {
+    doc.lanes["pr-refine"].enabled = false;
+  });
+  assert.ok(
+    runRefine(laneOff, { facts: LINT_FACTS }).lane.slots.every(
+      (slot) => slot["skip-reason"] === "disabled-by-config",
+    ),
+  );
+});
+
+test("a composite's applies-when gates its subtree, and a leaf's own predicate must also match", () => {
+  const onPush = runRefine(COMPOSITE, {
+    facts: { ...LINT_FACTS, event: "push" },
+  }).lane.slots;
+  assert.deepEqual(
+    onPush.map((slot) => [slot.name, slot["skip-reason"]]),
+    [
+      ["simplify", null],
+      ["fix-lint", "not-applicable"],
+      ["format-code", "not-applicable"],
+      ["measure-coverage", "not-applicable"],
+    ],
+  );
+  const noLintLabel = runRefine(COMPOSITE, { facts: FACTS }).lane.slots;
+  assert.deepEqual(
+    noLintLabel.map((slot) => slot.applies),
+    [true, false, true, true],
+  );
+});
+
+test("a composite slot's applies-when replaces the composite's own", () => {
+  const config = composite((doc) => {
+    doc.lanes["pr-refine"].slots[1]["applies-when"] = { events: ["push"] };
+  });
+  const slots = runRefine(config, {
+    facts: { ...LINT_FACTS, event: "push" },
+  }).lane.slots;
+  assert.ok(slots.every((slot) => slot.applies === true));
+});
+
+test("neededFacts for a leaf under a composite include the composite's predicate facts", () => {
+  const config = composite((doc) => {
+    doc.activities["fix-ci"]["applies-when"] = { mergeable: ["conflicting"] };
+  });
+  assert.deepEqual(
+    neededFacts(files(config), {
+      lane: "pr-refine",
+      activity: "format-code",
+      configPath: CONFIG_PATH,
+    }),
+    ["mergeable"],
+  );
+});
+
+test("lane rules apply to every leaf of a composite", () => {
+  const mergeLeaf = composite((doc) => {
+    doc.activities["format-code"].effect = "merge";
+  });
+  assertRejected(() => runRefine(mergeLeaf), "forbidden-by-lane");
+  const inChecks = composite((doc) => {
+    doc.lanes["pr-run-checks"] = {
+      stage: "verify",
+      slots: [{ activity: "fix-ci" }],
+    };
+  });
+  assertRejected(() => runRefine(inChecks), "forbidden-by-lane");
+});
+
+test("a child needs entry must name a sibling in the same children list", () => {
+  const config = composite((doc) => {
+    doc.activities["fix-ci"].children[0].needs = ["simplify"];
+  });
+  assertRejected(() => runRefine(config), "needs-not-sibling");
+});
+
+test("a lane slot cannot need a leaf that sits inside a composite", () => {
+  const config = composite((doc) => {
+    doc.activities["check-tree"] = {
+      script: "scripts/check-tree.sh",
+      effect: "read",
+      gating: "advisory",
+      "reads-untrusted": false,
+    };
+    doc.lanes["pr-refine"].slots.push({
+      activity: "check-tree",
+      needs: ["fix-lint"],
+    });
+  });
+  assertRejected(() => runRefine(config), "needs-outside-lane");
+});
+
+test("a lane slot that needs a composite waits on each of its leaves", () => {
+  const config = composite((doc) => {
+    doc.activities["check-tree"] = {
+      script: "scripts/check-tree.sh",
+      effect: "read",
+      gating: "advisory",
+      "reads-untrusted": false,
+    };
+    doc.lanes["pr-refine"].slots.push({
+      activity: "check-tree",
+      needs: ["fix-ci"],
+    });
+  });
+  assert.deepEqual(
+    runRefine(config, { activity: "check-tree", facts: LINT_FACTS }).selected
+      .needs,
+    ["fix-lint", "format-code", "measure-coverage"],
+  );
+});
+
+test("a child naming an undefined activity is rejected", () => {
+  const config = composite((doc) => {
+    doc.activities["fix-ci"].children.push({ activity: "fix-types" });
+  });
+  assertRejected(() => runRefine(config), "undefined-activity");
+});
+
+test("a composite that contains itself, directly or through another, is rejected as a cycle", () => {
+  const direct = composite((doc) => {
+    doc.activities["fix-ci"].children.push({ activity: "fix-ci" });
+  });
+  assertRejected(() => runRefine(direct), "activity-cycle");
+  const indirect = composite((doc) => {
+    doc.activities["fix-all"] = { children: [{ activity: "fix-ci" }] };
+    doc.activities["fix-ci"].children.push({ activity: "fix-all" });
+  });
+  assertRejected(() => runRefine(indirect), "activity-cycle");
+});
+
+test("a composite inside a composite is rejected: at most two layers below the lane", () => {
+  const config = composite((doc) => {
+    doc.activities["fix-all"] = { children: [{ activity: "fix-ci" }] };
+    doc.lanes["pr-refine"].slots[1].activity = "fix-all";
+  });
+  assertRejected(() => runRefine(config), "activity-depth");
+});
+
+test("a composite name must pass the vocabulary like a leaf's", () => {
+  const config = COMPOSITE.replaceAll("fix-ci", "lint-fixes");
+  assertRejected(() => runRefine(config), "vocabulary");
+});
+
+test("a composite named run or report is rejected", () => {
+  assertRejected(
+    () => runRefine(COMPOSITE.replaceAll("fix-ci", "report")),
+    "reserved-name",
+  );
+});
+
+test("a leaf key may appear once in a lane's expanded tree", () => {
+  const config = composite((doc) => {
+    doc.lanes["pr-refine"].slots.push({ activity: "fix-lint" });
+  });
+  assertRejected(() => runRefine(config), "undefined-activity");
+});
+
+test("a composite carries no effect, gating, skill, script or inputs, and needs a child", () => {
+  for (const extra of [
+    { effect: "read" },
+    { gating: "gate" },
+    { skill: "a:b" },
+    { script: "scripts/x.sh" },
+    { inputs: ["pr"] },
+  ]) {
+    const config = composite((doc) => {
+      Object.assign(doc.activities["fix-ci"], extra);
+    });
+    assertRejected(() => runRefine(config), "invalid-config");
+  }
+  const empty = composite((doc) => {
+    doc.activities["fix-ci"].children = [];
+  });
+  assertRejected(() => runRefine(empty), "invalid-config");
+});
+
+test("resolveGrant grants a leaf under a composite and refuses the composite key", () => {
+  const request = { lane: "pr-refine" };
+  assert.deepEqual(
+    grantOf(COMPOSITE, { ...request, activity: "fix-lint" }),
+    {
+      effect: "mutate-branch",
+      grant: { contents: "write", "pull-requests": "read", issues: "read" },
+    },
+  );
+  assertRejected(
+    () => grantOf(COMPOSITE, { ...request, activity: "fix-ci" }),
+    "undefined-activity",
+  );
+  const compositeOff = composite((doc) => {
+    doc.lanes["pr-refine"].slots[1].enabled = false;
+  });
+  assertRejected(
+    () => grantOf(compositeOff, { ...request, activity: "fix-lint" }),
+    "slot-disabled",
+  );
+});
+
+test("selecting a composite key is rejected as undefined-activity", () => {
+  assertRejected(
+    () => runRefine(COMPOSITE, { activity: "fix-ci", facts: LINT_FACTS }),
+    "undefined-activity",
+  );
+});
+
+// prepare
+
+const withPrepare = (edit) =>
+  composite((doc) => {
+    doc.activities.simplify.prepare = "merge-base";
+    edit?.(doc);
+  });
+
+test("prepare on a non-read skill leaf resolves and is carried on the slot", () => {
+  const selected = runRefine(withPrepare(), {
+    activity: "simplify",
+    facts: LINT_FACTS,
+  }).selected;
+  assert.equal(selected.prepare, "merge-base");
+  assert.equal(
+    Object.hasOwn(
+      runRefine(COMPOSITE, { activity: "simplify", facts: LINT_FACTS })
+        .selected,
+      "prepare",
+    ),
+    false,
+  );
+});
+
+test("prepare on a read skill leaf is rejected", () => {
+  const config = withPrepare((doc) => {
+    doc.activities.simplify.effect = "read";
+  });
+  assertRejected(() => runRefine(config), "invalid-prepare");
+});
+
+test("prepare on a script leaf, or a value other than merge-base, fails the schema", () => {
+  const onScript = composite((doc) => {
+    doc.activities["fix-lint"].prepare = "merge-base";
+  });
+  assertRejected(() => runRefine(onScript), "invalid-config");
+  const otherMode = withPrepare((doc) => {
+    doc.activities.simplify.prepare = "rebase";
+  });
+  assertRejected(() => runRefine(otherMode), "invalid-config");
+});
+
+// Activity rules (trust root, beside lane-rules.json)
+
+test("an activity rule's forbidden effect rejects the leaf whatever lane it is in", () => {
+  const activityRules = {
+    "format-code": {
+      "forbidden-effects": ["mutate-branch"],
+      never: "Writes to the branch",
+    },
+  };
+  assert.throws(
+    () => runRefine(COMPOSITE, {}, { activityRules }),
+    (error) => {
+      assert.equal(error.code, "forbidden-by-activity");
+      assert.match(error.message, /Writes to the branch/);
+      return true;
+    },
+  );
+});
+
+test("a leaf with no activity rule is valid", () => {
+  assert.equal(
+    runRefine(COMPOSITE, { facts: LINT_FACTS }, { activityRules: {} }).lane
+      .slots.length,
+    4,
+  );
+});
+
+test("a malformed activity-rules.json is rejected", () => {
+  for (const activityRules of [
+    [],
+    { "fix-lint": "never" },
+    { "fix-lint": {} },
+    { "fix-lint": { never: "x", "forbidden-effects": "merge" } },
+  ]) {
+    assertRejected(
+      () => runRefine(COMPOSITE, {}, { activityRules }),
+      "activity-rules",
+    );
+  }
+});
+
+test("the shipped activity rules keep report-escalation off the branch", () => {
+  const config = `version: 1
+activities:
+  report-escalation:
+    script: .github/scripts/pr-unblock/report-escalation.sh
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: false
+lanes:
+  pr-unblock:
+    stage: unblock
+    slots:
+      - activity: report-escalation
+`;
+  assertRejected(
+    () => run(config, { lane: "pr-unblock" }),
+    "forbidden-by-activity",
+  );
+});
+
+// Stages
+
+test("the respond stage is gone; pr-unblock has stage unblock", () => {
+  const lane = (stage) => `version: 1
+activities:
+  report-escalation:
+    script: .github/scripts/pr-unblock/report-escalation.sh
+    effect: publish-artifact
+    gating: advisory
+    reads-untrusted: false
+lanes:
+  pr-unblock:
+    stage: ${stage}
+    slots:
+      - activity: report-escalation
+`;
+  assert.equal(
+    run(lane("unblock"), { lane: "pr-unblock" }).lane.stage,
+    "unblock",
+  );
+  assertRejected(
+    () => run(lane("respond"), { lane: "pr-unblock" }),
+    "invalid-config",
+  );
+});
+
 // The README example
 
 const EXAMPLE_FACTS = {
@@ -840,6 +1285,8 @@ const EXAMPLE_FACTS = {
   changedTargets: ["README.md"],
   labels: [],
   workClasses: [],
+  mergeable: "conflicting",
+  draft: false,
 };
 
 function resolveEveryExampleSlot(vocabulary) {
@@ -858,7 +1305,7 @@ function resolveEveryExampleSlot(vocabulary) {
 
 test("the README example validates and resolves for each of its lanes", () => {
   const results = resolveEveryExampleSlot(VOCABULARY);
-  assert.equal(Object.keys(results).length, 15);
+  assert.equal(Object.keys(results).length, 14);
   assert.deepEqual(
     [
       results["pr-review / claude"].model,
@@ -870,7 +1317,24 @@ test("the README example validates and resolves for each of its lanes", () => {
   assert.deepEqual(results["pr-refine / fix-docs"]["changed-paths"], [
     "README.md",
   ]);
-  assert.equal(results["pr-update / update"]["skip-reason"], "not-applicable");
+  const resolveConflicts = results["pr-unblock / resolve-conflicts"];
+  assert.deepEqual(
+    [
+      resolveConflicts.applies,
+      resolveConflicts.prepare,
+      resolveConflicts["reads-untrusted"],
+      resolveConflicts.effect,
+    ],
+    [true, "merge-base", true, "mutate-branch"],
+  );
+  assert.deepEqual(resolveConflicts["applies-when"], {
+    mergeable: ["conflicting"],
+    "labels-absent": ["do-not-merge", "needs-human"],
+    draft: [false],
+  });
+  assert.deepEqual(results["pr-unblock / report-escalation"].needs, [
+    "resolve-conflicts",
+  ]);
   assert.equal(
     results["post-merge-sweep-comments / sweep-comments"]["skip-reason"],
     "disabled-by-config",
@@ -886,5 +1350,5 @@ test("integration: the README example resolves against the synced standards voca
   const results = resolveEveryExampleSlot(
     JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")),
   );
-  assert.equal(Object.keys(results).length, 15);
+  assert.equal(Object.keys(results).length, 14);
 });

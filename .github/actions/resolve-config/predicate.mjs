@@ -1,5 +1,6 @@
 // `applies-when` over the facts of one run: every listed key must match, and
-// within a key any listed value matches.
+// within a key any listed value matches, except `labels-absent`, which matches
+// only when none of its labels is on the PR.
 import { posix } from "node:path";
 
 export class MissingFact extends Error {
@@ -11,17 +12,40 @@ export class MissingFact extends Error {
   }
 }
 
-// Predicate key, the fact it reads, and the test of one listed value.
+// Predicate key, the fact it reads, and whether the listed values match the
+// fact. Most keys match when any listed value does.
+const any = (test) => (listed, fact) =>
+  listed.some((value) => test(value, fact));
 const KEYS = [
   [
     "paths",
     "changedPaths",
-    (glob, paths) => paths.some((path) => posix.matchesGlob(path, glob)),
+    any((glob, paths) => paths.some((path) => posix.matchesGlob(path, glob))),
   ],
-  ["labels", "labels", (label, labels) => labels.includes(label)],
-  ["work-classes", "workClasses", (cls, classes) => classes.includes(cls)],
-  ["events", "event", (event, current) => event === current],
+  ["labels", "labels", any((label, labels) => labels.includes(label))],
+  [
+    "labels-absent",
+    "labels",
+    (listed, labels) => !listed.some((label) => labels.includes(label)),
+  ],
+  ["work-classes", "workClasses", any((cls, classes) => classes.includes(cls))],
+  ["events", "event", any((event, current) => event === current)],
+  // null is unknown mergeability, which never matches.
+  ["mergeable", "mergeable", any((state, current) => state === current)],
+  ["draft", "draft", any((draft, current) => draft === current)],
 ];
+
+// A miss's skip reason when the predicate decides more than one key: a held PR
+// first, since only a human resumes it, then a decided miss over an unknown.
+const MISS_ORDER = ["awaiting-human", "not-applicable", "prerequisite-missing"];
+const missReason = (key, fact) => {
+  if (key === "labels-absent") {
+    return "awaiting-human";
+  }
+  return key === "mergeable" && fact === null
+    ? "prerequisite-missing"
+    : "not-applicable";
+};
 
 const PULL_REQUEST_ACTIONS = {
   ready_for_review: "ready",
@@ -52,13 +76,14 @@ export function pipelineEvent(eventName, payload) {
 
 // The facts a predicate reads that need an API call; `event` is always known.
 export function factsFor(predicate) {
-  return KEYS.filter(
+  const facts = KEYS.filter(
     ([key, fact]) => predicate?.[key] !== undefined && fact !== "event",
   ).map(([, fact]) => fact);
+  return [...new Set(facts)];
 }
 
 export function applies(predicate, facts) {
-  let miss = null;
+  const misses = new Set();
   for (const [key, fact, matches] of KEYS) {
     const listed = predicate?.[key];
     if (listed === undefined) {
@@ -67,14 +92,32 @@ export function applies(predicate, facts) {
     if (facts[fact] === undefined) {
       throw new MissingFact(fact);
     }
-    if (!listed.some((value) => matches(value, facts[fact]))) {
+    if (!matches(listed, facts[fact])) {
       if (key === "paths") {
         return { applies: false, skipReason: "not-applicable-paths" };
       }
-      miss = "not-applicable";
+      misses.add(missReason(key, facts[fact]));
     }
   }
-  return miss === null
+  return outcome(misses);
+}
+
+function outcome(misses) {
+  const miss = MISS_ORDER.find((reason) => misses.has(reason));
+  return miss === undefined
     ? { applies: true, skipReason: null }
     : { applies: false, skipReason: miss };
+}
+
+// Several predicates that must all match, such as a composite's and its
+// leaf's, with the same precedence as the keys of one predicate.
+export function appliesAll(predicates, facts) {
+  const misses = new Set(
+    predicates
+      .map((predicate) => applies(predicate, facts).skipReason)
+      .filter((reason) => reason !== null),
+  );
+  return misses.has("not-applicable-paths")
+    ? { applies: false, skipReason: "not-applicable-paths" }
+    : outcome(misses);
 }
