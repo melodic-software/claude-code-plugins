@@ -367,7 +367,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   bash "$here/round.sh" --dir "$g" add-round --file tests/fixtures/ui_page/round.json --round 1 >/dev/null || bad "page: add-round refused"
   bash "$here/round.sh" --dir "$g" ensure-running --port 0 >/dev/null
   gport=$(sed -n 's/^PORT=//p' "$g/.interview-session.env" | tr -d '\r')
-  gphases=5
+  gphases=7
   for n in $(seq 1 "$gphases"); do
     sed "s/__PORT__/$gport/; s/__PHASE__/$n/" tests/ui_page.js >"$tmp/up$n.js"
   done
@@ -381,6 +381,10 @@ if command -v playwright-cli >/dev/null 2>&1; then
   grun 4
   grev Q3 --rec "The default image, pinned by digest."
   grun 5
+  grun 6
+  read -r -a gs <<<"$(unhandled "$g")"
+  bash "$here/round.sh" --dir "$g" reply Q8 --text "The support team reads them first." --seq "${gs[${#gs[@]} - 1]}" >/dev/null || bad "page: reply refused"
+  grun 7
   bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"

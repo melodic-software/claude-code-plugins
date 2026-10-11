@@ -96,6 +96,23 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.click("#qhead"); await page.keyboard.press("a"); await page.waitForTimeout(150);
     ok("#5910: a arms Rec", /pinned by digest/.test(await text("#choices .choice.armed")), await text("#choices .choice.armed"));
   }
+  if (PHASE === 6) { // the user asks Claude on Q8; the shell replies between phases
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q8"); await page.fill("#note", "Who reads the notes first?"); await page.click("#note"); await page.keyboard.press("Control+Shift+Enter"); await page.waitForTimeout(700);
+  }
+  if (PHASE === 7) { // #5817: the reply stays in the Thread, after a follow-up ask and a reload too
+    const REPLY = /The support team reads them first/;
+    await page.waitForTimeout(900); await pick("Q8");
+    ok("#5817: Claude's reply to the ask is in the Thread, not only in the latest-reply box", REPLY.test(await text("#thread")) && REPLY.test(await text("#latest")), await text("#thread"));
+    await page.click("#qhead"); await page.keyboard.press("l"); await page.waitForTimeout(300);
+    const needs = await page.$eval("#actNeeds", h => (h.nextElementSibling || {}).textContent || "").catch(() => "");
+    ok("#5817: the unanswered reply is listed under Activity: Needs you", /Replied on Q8/.test(needs), needs);
+    await page.keyboard.press("Escape"); await page.waitForTimeout(150);
+    await page.fill("#note", "And who reads them after that?"); await page.click("#note"); await page.keyboard.press("Control+Shift+Enter"); await page.waitForTimeout(700);
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400); await pick("Q8");
+    const th = await text("#thread");
+    ok("#5817: after a follow-up ask and a reload the reply is still in the Thread, after the ask it answers", REPLY.test(th) && th.indexOf("And who reads them after that") < th.search(REPLY) && th.search(REPLY) < th.indexOf("Who reads the notes first"), th);
+  }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
   return R.join("\n");

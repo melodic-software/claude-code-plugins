@@ -972,7 +972,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function historyOf(q){
     const a = (q.history || []).map(h => Object.assign({}, h));
     const b = (S.resp.history[q.id] || []).map(h => Object.assign({by: "user"}, h));
-    return a.concat(b).sort((x, y) => String(y.at).localeCompare(String(x.at)) || ((y.seq || 0) - (x.seq || 0)));
+    const k = h => h.seq || (h.replyTo != null ? h.replyTo + 0.5 : 0); // in the same second a reply follows the event it answers
+    return a.concat(b).sort((x, y) => String(y.at).localeCompare(String(x.at)) || k(y) - k(x));
   }
 
   // ---------- detail ----------
@@ -1114,7 +1115,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (altsOf(q).length) more += '<section class="blk"><h4>Alternatives</h4><div class="alts">' + altsOf(q).map(a =>
       '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + inline(a.text) + "</span></div>").join("") + "</div></section>";
     if (more) h += '<details class="more" id="more"' + (lsGet("moreOpen", false) ? " open" : "") + "><summary>Details: what we know, alternatives</summary>" + more + "</details>";
-    const hist = historyOf(q).filter(x => x.by !== "claude" || !lc || x.at !== lc.at || x.text !== lc.text); // the latest Claude reply is shown above, not again here
+    const hist = historyOf(q); // every Claude reply stays in the Thread, the latest one too
     h += '<section class="blk" id="thread"><h4>Thread</h4>' + (hist.length ? '<ol class="hist">' + hist.map(x => histLine(x, q)).join("") + "</ol>" : '<p class="empty">No activity yet.</p>') + "</section>";
     el.innerHTML = h;
     el.scrollTop = opts.top ? 0 : top;
