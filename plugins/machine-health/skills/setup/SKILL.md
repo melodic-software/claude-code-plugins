@@ -29,12 +29,17 @@ and always interviews.
 updates. Create it if missing.
 
 **There is no hardcoded fallback path, and inventing one is a defect rather than a safety net.** The
-directory under `~/.claude/plugins/data/` is named for the plugin's *install identity*
-(`<name>-<marketplace>`, or `<name>-inline` for a `--plugin-dir` session), not for the plugin. Any
-literal path written here therefore resolves to a **different** directory than the one this plugin
-actually reads and writes. The overlay and approvals land in one place while the audit's state
+data directory is not named for the plugin alone, so any literal path written here resolves to a
+**different** directory than the one this plugin actually reads and writes, as observed on a real
+machine (this plugin's CHANGELOG records the split). The overlay and approvals land in one place while the audit's state
 and logs live in another, each half looking complete to whoever wrote it, and the operator's
 disabled checks silently stop taking effect.
+
+- **Pointer**: how the data directory is named is in
+  [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables).
+  **As of**: 2026-10-11. **Recheck trigger**: that section changes how the directory name is derived,
+  or is renamed. The page does not cover `--plugin-dir` sessions; `check` prints the resolved path for
+  those.
 
 So when `${CLAUDE_PLUGIN_DATA}` renders as the literal unexpanded token, **stop at step 1 of
 `check`**: report that the skill is running outside plugin context and cannot resolve its state

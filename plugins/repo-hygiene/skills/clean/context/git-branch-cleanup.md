@@ -106,11 +106,14 @@ A merged PR whose head the local branch has moved off (priority 5a and 5b) is se
 | Family | Branch name | Source | Owner | Retention (remote mode) |
 |--------|-------------|--------|-------|-------------------------|
 | `agent` | `agent-` followed by hex digits only | Claude Code subagent worktrees; `worktree-create.sh` uses the harness name as the branch | `/source-control:worktree cleanup` | no window; released once no worktree has it checked out |
-| `claude` | `claude/*` | Claude Code on the web | the session that pushed it | 30 days (`CLEAN_RETENTION_CLAUDE_DAYS`) |
+| `claude` | `claude/*` | Claude Code cloud sessions (on the web, routine runs) | the session that pushed it | 30 days (`CLEAN_RETENTION_CLAUDE_DAYS`) |
 | `plan` | `plan/*` | named by hand | whoever named it | 90 days (`CLEAN_RETENTION_PLAN_DAYS`) |
 | `stranded` | `stranded/*` | named by hand | whoever named it | 30 days (`CLEAN_RETENTION_STRANDED_DAYS`) |
 | `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage | whoever pushed it | 30 days (`CLEAN_RETENTION_PREWIPE_DAYS`) |
 | `none` | anything else | no known source | not decided by family | none (`n/a`) |
+
+The `agent` and `claude` sources are claims about Claude Code's branch naming; their evidence and
+pointer records live with the same family table in `/repo-fleet-hygiene:audit`, which owns them.
 
 The `Retention` column is read only by the remote mode below; the local audit still reads the family for information alone.
 

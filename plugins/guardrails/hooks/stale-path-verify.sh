@@ -106,12 +106,10 @@ esac
 hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' \
   '.tool_input.content' '.tool_input.replace_all // false | tostring' || exit 0
 TOOL="${HOOK_JQ_FIELDS[0]}"
-# replace_all feeds reconstruction's uniqueness gate below. Per the tools
-# reference an Edit's `old_string` "must appear exactly once", and
-# `replace_all: true` is how every occurrence is replaced instead — so under
-# replace_all the same new_string landing in several places is the edit's own
-# footprint rather than an ambiguity.
-# https://code.claude.com/docs/en/tools-reference
+# replace_all feeds reconstruction's uniqueness gate below: under replace_all
+# the same new_string landing in several places is the edit's own footprint
+# rather than an ambiguity. The pointer record for the Edit tool's uniqueness
+# rule sits beside the same field in skill-reference-verify.sh.
 REPLACE_ALL=false
 case "$TOOL" in
 Edit)

@@ -5,14 +5,16 @@
 # Triggered on Bash and PowerShell tool calls.
 #
 # SCOPE — only fires when the source-control plugin is actually enabled for this
-# session. Claude Code merges `enabledPlugins` across scopes, so enablement is
-# resolved across user-global (`~/.claude/settings.json`), project
-# (`<repo>/.claude/settings.json`), and local (`.claude/settings.local.json`) in
-# precedence order (user-global is the base, project overrides it, local
-# overrides that — unconditionally; `claude plugin install --scope local` makes
-# a local-only key a first-class state) — a plugin enabled ONLY at user-global
-# (a common install) or ONLY at local scope is active here, so a probe reading
-# the project file alone false-negatives and this advisory never fires. Uncertain state (no jq, no
+# session. Enablement is resolved across the user-global
+# (`~/.claude/settings.json`), project (`<repo>/.claude/settings.json`), and
+# local (`.claude/settings.local.json`) files in Claude Code's settings
+# precedence, not read from the project file alone: a plugin enabled ONLY at
+# user-global (a common install) or ONLY at local scope is active here, so a
+# project-only probe false-negatives and this advisory never fires. Pointer:
+# the scope order and how `enabledPlugins` merges are in
+# https://code.claude.com/docs/en/settings#settings-precedence. As of:
+# 2026-10-11. Recheck trigger: that section reorders the scopes or changes how
+# `enabledPlugins` combines across them, or is renamed. Uncertain state (no jq, no
 # value at any scope) never flags a `gh pr create` call — an advisory firing on
 # unknown state is noise, not signal. A missing jq specifically still surfaces a
 # one-time systemMessage that the guard is disabled

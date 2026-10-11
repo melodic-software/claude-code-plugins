@@ -603,6 +603,10 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   A modest tree whose oldest entry keeps aging is evidence that nothing reclaims it, which a size
   threshold alone cannot see until the volume is already at risk. The contrast case is
   `$CLAUDE_JOB_DIR/tmp`, which has a documented cleanup owner and stays small indefinitely.
+  Pointer: that owner is in
+  [Where state is stored](https://code.claude.com/docs/en/agent-view#where-state-is-stored). As of:
+  2026-10-11. Recheck trigger: that section stops naming when the per-session scratch directory is
+  removed, or is renamed.
 
 - **Why a per-file arm, and why it runs before the walk:** a single runaway background-task output
   can hold nearly all of the tree's bytes. A total-size verdict alone never says which file to

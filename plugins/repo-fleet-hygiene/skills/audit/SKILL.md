@@ -67,10 +67,17 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
 - `--apply-plan <path>`: standalone read-only mode. Render the ordered dry-run approval artifact
   for a previously written plan (cannot combine with discovery flags).
 
-Always pass `--project-dir "${CLAUDE_PROJECT_DIR}"` on audit runs (not on `--apply-plan`). That
-variable is substituted in this markdown content and in `allowed-tools` Bash rules, but it is
-**not** present in the Bash tool's environment, so the script cannot read it for itself. Passing
-it in is what makes the project rung below reachable at all.
+Always pass `--project-dir "${CLAUDE_PROJECT_DIR}"` on audit runs (not on `--apply-plan`). The
+script does not read the project directory from its environment, so passing it in is what makes
+the project rung below reachable at all.
+
+- **Pointer**: where the token is substituted is in
+  [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions),
+  and which processes receive the variable is in
+  [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
+  **As of**: 2026-10-11. **Recheck trigger**: the first section stops substituting
+  `${CLAUDE_PROJECT_DIR}` in skill content, the second starts listing the Bash tool among the
+  processes that receive it, or either is renamed.
 
 If no explicit scope and no config-supplied `fleet.root`/`fleet.repo` resolve, the run uses the
 shared no-scope ladder: `--named` paths, then `ghq root --all` when `ghq` is installed, then the
@@ -181,7 +188,7 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    | Family | Branch name | Source |
    |---|---|---|
    | `agent` | `agent-` followed by hex digits only | Claude Code subagent worktrees |
-   | `claude` | `claude/*` | Claude Code on the web |
+   | `claude` | `claude/*` | Claude Code cloud sessions (on the web, routine runs) |
    | `plan` | `plan/*` | named by hand |
    | `stranded` | `stranded/*` | named by hand |
    | `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage |
@@ -189,7 +196,7 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    | Claim | Basis | As of | Recheck |
    |---|---|---|---|
    | `agent-<hex>` branches come from Claude Code subagent worktrees. | `plugins/source-control/scripts/worktree-create.sh` uses the harness-supplied name verbatim as the branch. | 2026-09-29 | The harness stops supplying `agent-<hex>` names, or that script changes how it names the branch. |
-   | `claude/*` branches come from Claude Code on the web. | Observed on fleet remotes; <https://code.claude.com/docs/en/claude-code-on-the-web> names no branch prefix. | 2026-09-29 | That page names a branch prefix, or a `claude/*` branch turns up with another origin. |
+   | `claude/*` branches come from Claude Code cloud sessions. | Observed on fleet remotes in this skill's remote-branch inventory (`scripts/audit-fleet.sh`, the `claude/*` family case). Pointer: the routine-run branch prefix is in <https://code.claude.com/docs/en/routines#repositories-and-branch-permissions>; <https://code.claude.com/docs/en/claude-code-on-the-web> names none. | 2026-10-11 | That routines section changes the prefix or is renamed, the web page names a prefix, or a `claude/*` branch turns up with another origin. |
 
    **Unmerged remote branch:** a remote-tracking head with no `MERGED` PR row (not the default,
    current, or worktree-attached branch) gets one more read-only GraphQL query for pull requests

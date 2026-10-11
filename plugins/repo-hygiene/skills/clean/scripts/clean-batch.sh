@@ -132,14 +132,14 @@ fail_usage() {
 }
 
 # plugin_data_dir: print the directory the default batch plan lives under. The
-# Bash tool's environment does not carry this plugin's CLAUDE_PLUGIN_DATA, and
-# another plugin's SessionStart hook can export its own data dir there under that
-# name, so the skill passes --data-dir "${CLAUDE_PLUGIN_DATA}", substituted when
-# the skill loads. An inherited value is used only when its last path segment
-# names this plugin (repo-hygiene-<marketplace>); otherwise the plan, and the
-# run.* pruning beside it, would land in another plugin's data dir. Basis:
-# plugins reference, "Where each variable resolves", as of 2026-10-03; recheck
-# when that section changes where ${CLAUDE_PLUGIN_DATA} substitutes.
+# environment is not trusted for this plugin's CLAUDE_PLUGIN_DATA (another
+# plugin's SessionStart hook can export its own data dir there under that name),
+# so the skill passes --data-dir "${CLAUDE_PLUGIN_DATA}", substituted when the
+# skill loads. An inherited value is used only when its last path segment names
+# this plugin (repo-hygiene-<marketplace>); otherwise the plan, and the run.*
+# pruning beside it, would land in another plugin's data dir. The pointer record
+# for where the plugin variables resolve is in the clean skill's SKILL.md,
+# "Spoke paths".
 plugin_data_dir() {
   local seg
   if [[ -n "$DATA_DIR_ARG" ]]; then

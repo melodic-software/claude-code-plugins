@@ -8,16 +8,22 @@ and evidence contracts; the plugin does not rely on remembered behavior.
 
 ## Claude Code
 
-- [Create plugins](https://code.claude.com/docs/en/plugins/create): plugin root/layout, namespaced skills,
-  local `--plugin-dir` testing, and reusable plugin boundary.
-- [Plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference): manifest fields and
-  `${CLAUDE_PLUGIN_ROOT}`.
-- [Plugin loading reference](https://code.claude.com/docs/en/plugins/loading): plugin cache isolation.
-- [Skills](https://code.claude.com/docs/en/skills): skill frontmatter, arguments, and `allowed-tools`
-  semantics. `allowed-tools` grants permission but does not remove other tools, so the skill also states
-  its report-only behavioral boundary explicitly.
-- [Marketplace reference](https://code.claude.com/docs/en/plugins/marketplace-reference): local marketplace
-  catalog structure and validation.
+The entries below are pointers, re-verified 2026-10-11; the recheck trigger above applies.
+
+- [Plugin layout](https://code.claude.com/docs/en/plugins/create#plugin-layout) and
+  [Develop without a marketplace](https://code.claude.com/docs/en/plugins/create#develop-without-a-marketplace):
+  plugin root/layout, namespaced skills, local `--plugin-dir` testing, and reusable plugin boundary.
+- [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables):
+  manifest path variables such as `${CLAUDE_PLUGIN_ROOT}`.
+- [Find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk): plugin cache
+  isolation.
+- [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) and
+  [Pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill):
+  skill frontmatter, arguments, and what `allowed-tools` does and does not restrict. The skill states its
+  report-only behavioral boundary explicitly rather than relying on `allowed-tools` for it.
+- [Marketplace file](https://code.claude.com/docs/en/plugins/marketplace-reference#marketplace-file) and
+  [Validation messages](https://code.claude.com/docs/en/plugins/marketplace-reference#validation-messages):
+  local marketplace catalog structure and validation.
 
 ## Git
 
