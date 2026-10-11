@@ -116,13 +116,13 @@ Three things make the real slot count higher than the simplifier count:
 
 - Refutation verifiers occupy slots, and one runs per group.
 - The grouping refinement agent occupies a slot.
-- Resuming an already-finished subagent takes a fresh slot **without** re-checking the limit, so a
-  resumed run can exceed the cap it appears to be respecting.
+- A resumed subagent occupies a slot too; how resumes interact with the limit is in the section
+  linked above, so count them rather than assume the cap covers them.
 
 Budget against the total, not the simplifier count. When rate-limit pressure appears, **degrade to
-sequential**. Finish the wave one group at a time. Do not retry into the cap: the concurrency-limit
-error is explicitly not retryable, and a retry loop against it burns the run's remaining budget
-producing nothing.
+sequential**. Finish the wave one group at a time. Do not retry into the cap: a retry loop against
+the limit burns the run's remaining budget producing nothing. What the limit error tells the agent
+is in the same section.
 
 ## Execution and spawn contract
 
@@ -148,14 +148,16 @@ The prompt carries everything the main workflow's Phase 6 prompt carries, plus:
 **Repo mode does not invoke the bundled `/simplify`.** This is not because `/simplify` lacks a
 target. It accepts one. There are two concrete reasons:
 
-1. `/simplify` fans out review agents of its own, so one dispatch occupies several concurrency
+1. `/simplify` fans out review agents of its own (the `/simplify` row in
+   [All commands](https://code.claude.com/docs/en/commands#all-commands); record in
+   [bundled-simplify.md](bundled-simplify.md)), so one dispatch occupies several concurrency
    slots rather than one. At a 4–6 soft cap that can leave a single group in flight, not four.
-2. Spawn depth is limited, and at the limit the Agent tool is withheld from the subagent
-   ([sub-agents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents);
-   as of 2026-10-02, recheck when the depth default or the at-limit behavior changes), at which
-   point `/simplify` **silently** degrades to a single-pass inline variant. A per-group worker whose
-   thoroughness depends on how deep in the spawn tree it happens to land gives a run that reports
-   uniform coverage while delivering uneven coverage.
+2. Spawn depth is limited, and what a subagent at the limit can still spawn is upstream behavior
+   ([Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents);
+   as of 2026-10-11, recheck when that section changes the depth default or the at-limit
+   behavior). A `/simplify` dispatched from a worker near the limit may not get to fan out its own
+   review agents, so a per-group worker's thoroughness would depend on how deep in the spawn tree
+   it happens to land, and the run would report uniform coverage while delivering uneven coverage.
 
 An agent with an inline prompt has neither problem: one slot, and the same instructions at every
 depth.

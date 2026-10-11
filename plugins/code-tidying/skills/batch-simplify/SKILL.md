@@ -18,8 +18,10 @@ once and stays there.
 
 **Identity check.** The name is in the skill listing; the description is advisory. A description
 that reads as a different surface is a likely user or project shadow: skip with a warning and
-spawn the agent. A name with no description (`name-only`, budget overflow) is invoked with the
-warning "identity confirmed by name alone".
+spawn the agent. A name listed with no description is invoked with the warning "identity
+confirmed by name alone". Pointer for when the listing drops a description:
+[Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short).
+As of: 2026-10-11. Recheck trigger: that section changes when a description is dropped.
 
 **Mutation.** Groups the step runs over go one at a time, never in a parallel wave. Before each
 invocation, fingerprint the tracked files outside that group; any change there right after it is
@@ -27,8 +29,9 @@ invocation, fingerprint the tracked files outside that group; any change there r
 
 **Skip report.** When the step does not run, the state names why: `did not resolve in this
 session`, invocation refused (the reason, never retried), or identity mismatch; those three name the axis
-line: settings or environment, plan, platform or provider, host surface; and the enable path
-(`disableBundledSkills`, `skillOverrides`). When `simplify` runs but says it ran a weaker
+line: settings or environment, plan, platform or provider, host surface; and the enable path,
+read live from [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)
+(record in [context/bundled-simplify.md](context/bundled-simplify.md)). When `simplify` runs but says it ran a weaker
 procedure, the state is resolved but degraded, and the report relays its disclosure instead of
 calling the group fully simplified.
 
@@ -286,9 +289,9 @@ If zero items were deferred across all groups, state explicitly: *"No items defe
 One native Claude Code surface does this skill's job at single-target scale, and the two get
 conflated whenever the request is "run simplify":
 
-- **`simplify` (bundled skill)**: one run takes one target, the changed code or a path or PR
-  reference, reviews it for reuse, simplification, efficiency, and altitude cleanups, and applies
-  the fixes.
+- **`simplify` (bundled skill)**: a single-target cleanup pass that edits the code it reviews.
+  What it reviews and which targets it takes are in the pointer records in
+  [context/bundled-simplify.md](context/bundled-simplify.md).
 - **This skill (marketplace plugin).** Sweeps a time window, a branch, or the whole repository in
   waves, grouped by ecosystem in dependency order, with a checklist, a deferred-items contract,
   and a docs mode for factual staleness.
@@ -301,9 +304,9 @@ repository, or when the passes need grouping and tracking.
 through the Native step or this skill's simplifier agent, never both; two passes over one file in
 one sweep would mix their diffs.
 
-**Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
-host; this section states what to do when one resolves, never that it is present. The four-part
-records live in [context/bundled-simplify.md](context/bundled-simplify.md).
+**Availability is never assumed.** This section states what to do when a bundled surface
+resolves, never that it is present. The pointer records, including what can turn a bundled skill
+off, live in [context/bundled-simplify.md](context/bundled-simplify.md).
 
 ## Edge cases
 
