@@ -50,4 +50,12 @@ describe("parseSessionsFromClaimInventory", () => {
 `;
     expect(parseSessionsFromClaimInventory(body)).toEqual([]);
   });
+
+  it("parses no session from a heading whose boundary has no bracketed stamp", () => {
+    const body = `## 1. Opening
+
+**Boundary:** 0:04 → 1:33
+`;
+    expect(parseSessionsFromClaimInventory(body)).toEqual([]);
+  });
 });

@@ -11,12 +11,14 @@ export const SESSION_FORMAT_HINT =
   "`**Boundary:** [m:ss] <label> → [m:ss] <label>` line ([h:mm:ss] also accepted); " +
   "a session table is not parsed";
 
+const BOUNDARY_STAMP = /\[(\d+):(\d+)(?::(\d+))?\]/g;
+
 /**
  * @param {string} boundaryLine e.g. "[0:57] welcome → [7:58] next segment" or "[1:05:30] ..."
  * @returns {{ startSec: number, endSec: number|null }}
  */
 export function parseBoundaryLine(boundaryLine) {
-  const stamps = [...boundaryLine.matchAll(/\[(\d+):(\d+)(?::(\d+))?\]/g)].map((m) =>
+  const stamps = [...boundaryLine.matchAll(BOUNDARY_STAMP)].map((m) =>
     m[3] === undefined
       ? Number(m[1]) * 60 + Number(m[2])
       : Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]),
@@ -34,7 +36,8 @@ export function parseSessionsFromClaimInventory(claimInventoryBody) {
   for (const section of sections) {
     const nameLine = section.split("\n")[0]?.trim();
     const boundaryMatch = section.match(/\*\*Boundary:\*\*\s*(.+)/);
-    if (!nameLine || !boundaryMatch) continue;
+    // A boundary with no bracketed stamp would span the whole video.
+    if (!nameLine || !boundaryMatch?.[1].match(BOUNDARY_STAMP)) continue;
     const { startSec, endSec } = parseBoundaryLine(boundaryMatch[1]);
     sessions.push({ name: nameLine, startSec, endSec });
   }
