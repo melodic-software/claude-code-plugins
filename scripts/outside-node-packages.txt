@@ -6,6 +6,7 @@
 .github/actions/check-signed-commits
 .github/actions/check-trusted-base
 .github/actions/check-trusted-trigger
+.github/actions/collect-base-activity
 .github/actions/report-check-run
 .github/actions/select-trusted-text
 plugins/knowledge/vendor/repo-analysis
