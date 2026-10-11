@@ -3,4 +3,4 @@ css:
 routing:
   version: 1
   deny:
-    - canva
+    - figma

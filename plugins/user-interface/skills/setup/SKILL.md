@@ -14,7 +14,7 @@ repository and by the resolver header in `${CLAUDE_PLUGIN_ROOT}/scripts/lib/conf
 keys and allowed values by `${CLAUDE_PLUGIN_ROOT}/reference/team.schema.json`. Never name a layer
 path from memory: take each one from detect's `config.layers[].path`.
 
-**Arguments.** No argument or `check` runs the check. `apply` runs the check, then writes one key.
+**Arguments.** `[check|apply] [--user|--local] [<key>=<value>]`. No argument or `check` runs the check. `apply` runs the check, then writes one key.
 The layer `apply` writes is the team file by default, the user-global file with `--user`, and the
 personal file with `--local`. `<key>=<value>` uses the dotted schema path (`css.important=allow`,
 `css.rules.disable=hover`); without one, ask for the key and value, recommendation first, with a

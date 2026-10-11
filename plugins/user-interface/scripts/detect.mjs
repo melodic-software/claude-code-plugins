@@ -48,7 +48,7 @@ const ESLINT_CONFIG = /^eslint\.config\.(js|cjs|mjs|ts|cts|mts)$/;
 const ESLINT_CSS = ["@eslint/css", "eslint-plugin-css"];
 const CSS_IN_JS = ["styled-components", "@emotion/react", "@emotion/styled", "@vanilla-extract/css", "@stitches/react", "@linaria/core", "@pandacss/dev"];
 // Style kind by lowercased extension; a component kind counts only when the file holds a <style> block.
-const STYLE_EXT = { ".css": "css", ".scss": "scss", ".sass": "sass", ".less": "less", ".styl": "stylus" };
+const STYLE_EXT = { ".css": "css", ".scss": "scss", ".sass": "sass", ".less": "less", ".styl": "stylus" }; // spellchecker:disable-line
 const COMPONENT_EXT = { ".vue": "vue", ".svelte": "svelte", ".astro": "astro" };
 const SKIP_DIRS = new Set(["node_modules", "dist", "build", "coverage", "out"]);
 const MAX_ENTRIES = 20_000;
