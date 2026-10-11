@@ -111,15 +111,15 @@ facts=$(gh pr view ${pr_args[@]+"${pr_args[@]}"} ${repo_args[@]+"${repo_args[@]}
 # Visibility over REST: GraphQL is refused in some sandboxed sessions. The host
 # and owner/repo come from the pull request's own URL.
 url=$(printf '%s' "$facts" | jq -r '.url // ""' | tr -d '\r')
-host="" nwo=""
+host="" repo_path=""
 if [[ "$url" =~ ^https?://([^/]+)/([^/]+/[^/]+)/pull/[0-9]+$ ]]; then
-  host="${BASH_REMATCH[1]}" nwo="${BASH_REMATCH[2]}"
+  host="${BASH_REMATCH[1]}" repo_path="${BASH_REMATCH[2]}"
 fi
 visibility=UNKNOWN
-if [[ -n "$nwo" ]]; then
+if [[ -n "$repo_path" ]]; then
   host_args=()
   [[ "$host" != github.com ]] && host_args=(--hostname "$host")
-  v=$(gh api ${host_args[@]+"${host_args[@]}"} "repos/$nwo" --jq '.visibility' 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')
+  v=$(gh api ${host_args[@]+"${host_args[@]}"} "repos/$repo_path" --jq '.visibility' 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')
   [[ "$v" =~ ^(PUBLIC|PRIVATE|INTERNAL)$ ]] && visibility="$v"
 fi
 

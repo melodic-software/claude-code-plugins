@@ -416,7 +416,7 @@ describe("publish gate: the default artifact medium publishes only a public, cre
     const skill = readFileSync(join(SKILL, "SKILL.md"), "utf8");
     assert.match(skill, /`\/source-control:pull-request view <n> \[--repo <owner\/repo>\] --out <dir>\/facts\.json`/);
     assert.match(skill, /`\/source-control:pull-request view <n> --diff --out <dir>\/pr\.diff`/);
-    assert.match(skill, /--publish-gate "\$\(jq -r '\.visibility \/\/ "UNKNOWN"' <dir>\/facts\.json\)" \[--explicit\] < <dir>\/pr\.diff/);
+    assert.match(skill, /--publish-gate "\$\(node -p 'require\(process\.argv\[1\]\)\.visibility \?\? "UNKNOWN"' <dir>\/facts\.json\)" \[--explicit\] < <dir>\/pr\.diff/);
     assert.match(skill, /publishing as a private Artifact on claude\.ai/);
     assert.match(skill, /`offer`:.*a private Artifact on claude\.ai/);
     assert.match(skill, /`medium: artifact` in `~\/\.claude\/rendered-views\.md`/);
