@@ -189,22 +189,15 @@ what fail-open forbids.
 2. **Sibling automation 429s visible to the session**: machine-readable infra comments or CI
    annotations on PRs/issues this session is already reading (for example review-lane comments that
    classify `api_error_status: 429` as `rate-limit`). Treat a live cluster of sibling 429s as thin
-   headroom: shrink concurrency further; restore width only after those signals stop, never on a
+   headroom: shrink concurrency; restore width only after those signals stop, never on a
    guessed recovery.
 3. **`stop-events.jsonl` when present**: same read cadence as the reactive fallback below. In a
    typical cloud container the file is absent; absence is not evidence of healthy windows.
 
-**Orchestration fallback when headroom is unobservable.** Sessions that size fan-out width from
-rate-limit headroom (notably `session-flow`'s `/session-flow:orchestrate` imperative 7) treat
-unobservable headroom as **thin by default**: start at a small conservative concurrent-worker cap,
-prefer shorter waves over a wide tree, and scale only on the reactive signals above, never on the
-missing snapshot file. The orchestrate skill owns the imperative wording; this contract owns the
-classification that makes the fallback mandatory rather than optional.
-
 **Documented residual (not closed here):** no producer is known to write the snapshot file where a cloud
 / remote consumer can read it today. Shipping or verifying one, whether fleet `cloud-environment` wiring, a synced
-snapshot, or a harness/API exposure, is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only plus the
-orchestration fallback above is the complete honest contract. Do not open a tracking issue solely
+snapshot, or a harness/API exposure, is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only is the complete honest
+contract. Do not open a tracking issue solely
 to restate this residual; the residual is this paragraph.
 
 ## Detection records (reactive fallback)

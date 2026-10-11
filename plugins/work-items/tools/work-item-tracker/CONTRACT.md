@@ -55,8 +55,13 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
 
 ### Degradation without `gh` (cloud / MCP-only sessions)
 
-Some execution environments have GitHub access but no `gh` binary, notably cloud sessions
-whose GitHub surface is MCP tools (model-plane, not shell-plane). In such a session the
+Some execution environments have GitHub access but no `gh` binary: their GitHub surface is MCP
+tools (model-plane, not shell-plane). Anthropic-hosted cloud sessions are not that case by
+default, since `gh` is in their
+[installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools), but their
+[GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy) refuses
+GraphQL-backed `gh` calls, so a verb that makes one fails there even with `gh` present. In a
+session with no `gh` the
 seam **cannot run any `github` verb that shells out**, reads and writes alike: the
 dispatcher's presence gate exits `3` (the same first-run signal as a missing binding), and
 there is deliberately no silent fallback to another provider (the binding names the
