@@ -107,12 +107,6 @@ journey (discovery through review) whose items share one execution shape.
 The set of work items ready to take now: open, unblocked, unassigned, and not a container. Scoped
 to one container, it is that container's frontier.
 
-In work-item text, bare "frontier" means this set. The word has other senses elsewhere, each read
-from its own context and none of them this entry, among them: the most-capable model tier
-(`multi-agent`'s `frontier` config key, "frontier tier" and "frontier session" in implementation
-and PR dispatch), the questions whose prerequisites are settled (`planning:interview` and
-`planning:prd` "frontier rounds"), and a learner's next concepts (`education:teach`).
-
 **slice**
 
 The per-topic working folder `<memory_dir>/<topic-slug>/` (default `.work/`) that holds a topic's
