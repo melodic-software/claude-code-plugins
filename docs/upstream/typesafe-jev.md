@@ -95,7 +95,7 @@ verdict. A row that names its own trigger in its cell adds it to the shared one.
 | Topic | Ours | Verdict | Pointer | As of |
 |---|---|---|---|---|
 | Cheap routing gate in front of agent work (level 5) | Role routing in `plugins/multi-agent/reference/defaults.yaml`, resolved by `/multi-agent:route`; subagents with a `model:` field | COVERED. Native subagents and role routing do the job with no new vendor | [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) | 2026-10-10 |
-| Haiku tier for per-item classification fan-out | `retrieval` role defaults to `sonnet` at `low` effort (`plugins/multi-agent/reference/defaults.yaml`); no role uses Haiku | TRACK. A shared default changes only on eval evidence, owned by `/multi-agent:audit-defaults`. Trigger: a pilot eval of Haiku against the current `retrieval` default on this repo's fan-out stages | [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) | 2026-10-10 |
+| Haiku tier for per-item classification fan-out | `retrieval` role defaults to `sonnet` at `low` effort (`plugins/multi-agent/reference/defaults.yaml`); no role uses Haiku | REJECT. Our eval failed Haiku 5.5 against the current default on both stages that use the role, under a bar fixed before the run and scored twice independently. Recheck trigger: a new Haiku model, or a change to the stages that use the `retrieval` role; either re-runs that eval with the same bar | For the result, read our evaluation [#6955](https://github.com/melodic-software/claude-code-plugins/issues/6955); for model choice per subagent, read [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) live | 2026-10-10 |
 | Per-turn "should I compact now" decision (level 7) | context-guard token-band zones (`plugins/context-guard/hooks/zone.ts`, `DEFAULT_BANDS`; "Blocking gate" in `plugins/context-guard/README.md`) and the phase-boundary call in `/session-flow:workflow` | TRACK. Build no model-judged compaction trigger until a trigger below fires; which hook types PreCompact runs is read live at the sections this row points at. Trigger: PreCompact gains `prompt` hook support, or a session shows compaction at the wrong moment that the zones and workflow routing did not prevent | [PreCompact](https://code.claude.com/docs/en/hooks#precompact) and [Prompt-based hooks](https://code.claude.com/docs/en/hooks#prompt-based-hooks) | 2026-10-10 |
 | Cheap file reads and questions over files at scale (levels 8 and 9) | `/discovery:explore`, `/discovery:read-docs`, the built-in Explore agent, and subagent delegation (the context-economy chapter of `/playbooks:fable-5`) | COVERED, by the delegation the built-in subagents section this row points at describes; the #5809 round 2 file-scouting hint failed its bar | [Built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents) | 2026-10-10 |
 
@@ -107,9 +107,7 @@ Open owner decisions, each with its recommendation:
    auto mode? Recommendation: build nothing until one is observed; if one is, design it as a
    `command` hook with `onFailure: "block"` that returns `ask` interactively and `deny` in an
    unattended lane.
-2. **Haiku tier for `retrieval`.** Recommendation: defer; settle it with an eval through
-   `/multi-agent:audit-defaults`, since the default is shared across plugins.
-3. **Compaction timing.** Has compaction fired at the wrong moment despite context-guard zones and
+2. **Compaction timing.** Has compaction fired at the wrong moment despite context-guard zones and
    `/session-flow:workflow`? Recommendation: defer until a session shows it.
-4. **Fail-closed guards.** Should any security-class guardrails hook flip to fail-closed?
+3. **Fail-closed guards.** Should any security-class guardrails hook flip to fail-closed?
    Recommendation: keep fail-open, and first fix the one guard found that can fail silently ([#6905](https://github.com/melodic-software/claude-code-plugins/issues/6905)) so a silent failure becomes visible.
