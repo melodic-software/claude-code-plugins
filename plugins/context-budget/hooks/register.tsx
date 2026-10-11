@@ -80,8 +80,11 @@ export const register: Register = (on, options) => {
   // again; registering again is harmless when the command survived.
   let reregister = false
 
+  // The old conversation's figures go with it; a refresh still in flight writes nothing.
   on('session.end', async ($, e, next) => {
     reregister = true
+    latest++
+    await update($, live, () => ({ view: null, error: null }))
     return next(e)
   }).catch(($, e, next) => next(e))
 

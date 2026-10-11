@@ -5,10 +5,12 @@ import type { LiveCategory, LiveState, LiveView } from '../types'
 type Draw = Pick<Elements[RenderSurface], 'Box' | 'Text'>
 
 // 90000 -> 90k, 1000000 -> 1M, 1500000 -> 1.5M.
+// A value that rounds to 1000k is shown as 1M.
 export const tokens = (n: number): string => {
-  if (n >= 1_000_000) return `${+(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${Math.round(n / 1_000)}k`
-  return String(n)
+  const k = Math.round(n / 1_000)
+  if (k >= 1_000) return `${+(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${k}k`
+  return String(Math.round(n))
 }
 
 export const headerText = (v: LiveView): string =>

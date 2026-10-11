@@ -1,5 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
+import { tokens } from './parts'
+
 const PANE = 'context-budget-live'
 const HEADER = '◆ context 90k of 1M · compacts at 955k 9%'
 
@@ -326,13 +328,29 @@ test('off: /context-budget live off closes the pane and stops refreshing', async
   expect(w.usageCalls).toBe(calls)
 })
 
-test('mode: a session choice survives the session.start a hot reload raises again', { options: { live_display: 'pane' } }, async ($, on) => {
+test('mode: a later session.start does not reset a mode chosen with /context-budget live', { options: { live_display: 'pane' } }, async ($, on) => {
   world(on)
   await $.session.start({ cwd: '/work' } as any)
   await run($, 'live band')
   await $.session.start({ cwd: '/work' } as any)
   await measure($)
   expect(await texts(await mountBand($))).toContain(HEADER)
+})
+
+for (const reason of ['clear', 'resume'] as const) {
+  test(`band: a session.end (${reason}) clears the old figures until the next measurement`, async ($, on) => {
+    world(on)
+    await run($, 'live band')
+    await measure($)
+    await $.session.end({ reason, sessionId: 's1', resume: { id: 's1' } } as any)
+    expect(await texts(await mountBand($))).toEqual(['other plugin row'])
+    await measure($)
+    expect(await texts(await mountBand($))).toContain(HEADER)
+  })
+}
+
+test('tokens: a value that rounds to 1000k reads as 1M', () => {
+  expect([999, 1_500, 999_499, 999_500, 999_999, 1_000_000, 1_500_000].map(tokens)).toEqual(['999', '2k', '999k', '1M', '1M', '1M', '1.5M'])
 })
 
 test('command: session.start registers /context-budget to run mid-turn', async ($, on) => {
