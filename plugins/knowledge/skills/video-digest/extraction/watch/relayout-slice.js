@@ -1709,6 +1709,14 @@ export async function relayoutSlice({
   if (symlinks.length > 0) {
     return refuse(`the slice holds symlinks, which a copy would follow: ${symlinks.join(", ")}`);
   }
+  // The reference scanner reads LF and CRLF line endings only; refuse rather than misread.
+  const bareCr = sliceFiles.filter(
+    (file) =>
+      MARKDOWN_FILE.test(file) && /\r(?!\n)/.test(fs.readFileSync(path.join(slice, file), "utf8")),
+  );
+  if (bareCr.length > 0) {
+    return refuse(`Markdown with bare CR line endings is not supported: ${bareCr.join(", ")}`);
+  }
 
   // An interrupted `--replace` swap leaves the previous target at this name.
   if (fs.existsSync(backup)) {
@@ -1769,6 +1777,9 @@ export async function relayoutSlice({
 
   if (fs.existsSync(target) && !replace) {
     return refuse(`${target} exists; pass --replace to replace it`);
+  }
+  if (fs.existsSync(target) && !fs.lstatSync(target).isDirectory()) {
+    return refuse(`${target} exists and is not a directory; --replace only replaces a directory`);
   }
 
   // `--no-media` takes nothing from the temp session, even when it still exists.

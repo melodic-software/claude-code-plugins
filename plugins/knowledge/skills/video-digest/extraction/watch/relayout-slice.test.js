@@ -231,6 +231,28 @@ describe("relayoutSlice", () => {
     expect(fs.readdirSync(path.dirname(targetDir))).toEqual(["out"]);
   });
 
+  it("refuses --replace on a target that is a regular file and keeps the file", async () => {
+    const { sliceDir, targetDir } = makeFixture();
+    fs.mkdirSync(path.dirname(targetDir), { recursive: true });
+    fs.writeFileSync(targetDir, "precious\n");
+
+    const result = await relayoutSlice({ sliceDir, targetDir, replace: true });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.readFileSync(targetDir, "utf8")).toBe("precious\n");
+  });
+
+  it("refuses a slice whose Markdown uses bare CR line endings", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: { "research/findings/cr.md": "[deck]: ../../source/transcript.txt\rnext\r" },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(fs.existsSync(targetDir)).toBe(false);
+  });
+
   it("refuses an existing target without --replace and leaves it untouched", async () => {
     const { sliceDir, targetDir } = makeFixture();
     writeTree(targetDir, { "stale.md": "old\n" });
