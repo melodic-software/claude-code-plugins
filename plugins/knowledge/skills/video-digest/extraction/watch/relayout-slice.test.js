@@ -1665,6 +1665,22 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     ]);
   });
 
+  it("flags a definition naming a dropped slice file that matches an allowed miss", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "AGENTS.md": "slice notes",
+        "research/claim-inventory.md": "[rules]: AGENTS.md\n\nSee [rules].\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unresolved).toEqual([
+      { file: "analysis/research/claim-inventory.md", ref: "AGENTS.md" },
+    ]);
+  });
+
   it("matches the AGENTS.md allowed miss exactly and the directories by whole segment", async () => {
     const { sliceDir, targetDir } = makeFixture({
       extraFiles: {
@@ -2289,6 +2305,13 @@ describe("checkLayoutLinks", () => {
     });
 
     expect(checkLayoutLinks(root)).toEqual([{ file: "analysis/RESEARCH.md", ref: "~notes.md" }]);
+  });
+
+  it("checks a ..-prefixed name as inside the target", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, { "README.md": "[notes](..notes.md)\n" });
+
+    expect(checkLayoutLinks(root)).toEqual([{ file: "README.md", ref: "..notes.md" }]);
   });
 
   it("flags an unresolved path under a slice lane whose directory the slice had", async () => {

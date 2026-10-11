@@ -661,9 +661,7 @@ function lookUpReference(refPath, sourceFile, map) {
       const absolute = path.resolve(map.sliceAbs, ...fromFile.split("/"));
       const inside = path.relative(map.sliceAbs, absolute);
       if (inside === "") return sliceRootLookup(map);
-      if (inside.startsWith("..") || path.isAbsolute(inside)) {
-        return { outside: absolute };
-      }
+      if (!isSameOrInside(absolute, map.sliceAbs)) return { outside: absolute };
       keys = [inside.split(path.sep).join("/")];
     } else {
       keys = [fromFile, bare.startsWith(".") ? null : path.posix.normalize(bare)];
@@ -1176,7 +1174,7 @@ function looksSliceInternal(refPath, fileDir, topLevel, sliceDirs) {
  *   `spacedRefs` maps a target-relative file to the spaced code-span paths a
  *   rewrite placed in it, which are checked like links;
  *   `retiredRefs` maps a target-relative file to the references a rewrite left
- *   naming a dropped slice file, never skipped as placeholders
+ *   naming a dropped slice file, always flagged
  * @returns {{ file: string, ref: string }[]} unresolved references
  */
 export function checkLayoutLinks(
@@ -1200,6 +1198,12 @@ export function checkLayoutLinks(
       /** @type {boolean} */ isLink,
       /** @type {boolean} */ knownPath = isLink,
     ) => {
+      // A reference the rewrite found naming a dropped slice file dangles, whatever
+      // its text looks like (an allowed miss, a placeholder).
+      if (retired.has(ref)) {
+        unresolved.push({ file, ref: literalText(ref) });
+        return;
+      }
       // Any reference may hold a raw `#` or `?`, or a `:12` ending, in its
       // name: read as WHOLE_NAME_FIRST orders it, the first reading that
       // resolves passes; the last one is checked below.
@@ -1213,12 +1217,10 @@ export function checkLayoutLinks(
       if (isAllowedMiss(refPath)) return;
       if (!knownPath && !looksSliceInternal(refPath, fileDir, topLevel, sliceDirs)) return;
       const resolved = path.resolve(fileDir, refPath);
-      const rel = path.relative(root, resolved);
-      if (rel.startsWith("..") || path.isAbsolute(rel)) return;
+      if (!isSameOrInside(resolved, root)) return;
       if (fs.existsSync(resolved)) return;
-      // A placeholder that names no real file is not a dangling path; one the
-      // rewrite found naming a dropped slice file is.
-      if (PLACEHOLDER.test(refPath) && !retired.has(ref)) return;
+      // A placeholder that names no real file is not a dangling path.
+      if (PLACEHOLDER.test(refPath)) return;
       unresolved.push({ file, ref: literalText(ref) });
     };
     const { fenceMasked, linkMasked, tagText } = maskCode(text);
