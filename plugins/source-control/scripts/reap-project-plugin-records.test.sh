@@ -255,6 +255,24 @@ SHIM
   assert_not_contains "no git restore runs over a pre-existing edit" "$(cat "$GIT_LOG")" "restore"
   assert_contains "the file is left exactly as the CLI wrote it" "$(cat "$GWT/.claude/settings.json")" '"enabledPlugins": {}'
 
+  # A staged-only change (index differs from HEAD, worktree matches HEAD) is a
+  # pre-existing edit too: classifying it clean would let the restore's
+  # --staged drop it.
+  GWT="$TEST_TMPDIR/gwt-staged"
+  new_repo "$GWT"
+  printf '{"staged": true}\n' >"$GWT/.claude/settings.json"
+  git -C "$GWT" add .claude/settings.json
+  printf '%s\n' "$ORIGINAL_SETTINGS" >"$GWT/.claude/settings.json"
+  seed_state "$(jq -n --arg wt "$(native_of "$GWT")" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
+  reset_log
+  : >"$GIT_LOG"
+  STUB_REWRITE_SETTINGS=1 EXTRA_PATH="$GIT_SHIM" run "$GWT" --worktree-path "$GWT"
+  assert_exit "a staged-only change does not change the exit code" 0 "$RC"
+  assert_contains "the staged change survives the pass" \
+    "$(git -C "$GWT" show :.claude/settings.json 2>/dev/null)" '"staged": true'
+  assert_not_contains "a staged-only change is not restored over" "$OUT" "info: restored"
+  assert_contains "a staged-only change is warned about" "$OUT" "uncommitted changes before the pass"
+
   # Untracked: left alone, warned about.
   GWT="$TEST_TMPDIR/gwt-untracked"
   mkdir -p "$GWT/.claude"

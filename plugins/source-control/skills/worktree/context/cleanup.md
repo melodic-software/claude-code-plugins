@@ -124,8 +124,10 @@ resolves strictly against the current directory (measured in [fixtures/README.md
 enforces the same thing from the other side: it refuses unless `--worktree-path` names the directory
 it is already standing in, so it structurally cannot act on any path but its own.
 
-The uninstall call also rewrites the worktree's `.claude/settings.json`. The helper leaves that file
-as it found it: when git tracks it there and it was unmodified before the pass, the helper restores
+The uninstall call was observed to also rewrite the worktree's `.claude/settings.json` (reported in
+issue #6007, observed 2026-10-03; recheck when a Claude Code release changes `claude plugin
+uninstall`, or when the helper's restore stops firing on real teardowns). The helper leaves that
+file as it found it either way: when git tracks it there and it was unmodified before the pass, the helper restores
 it from git and prints an `info:` line naming it, so the plain `git worktree remove` follows
 directly. When the file was untracked or already modified, the helper leaves it alone and prints a
 `warn:` line if the CLI changed it; plain removal then refuses, and the escalation guard below

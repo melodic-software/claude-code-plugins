@@ -275,7 +275,10 @@ settings_git_state() {
     printf 'untracked'
     return
   }
-  if git diff --quiet HEAD -- "$SETTINGS_REL" 2>/dev/null; then
+  # Both halves: `git diff HEAD` alone compares only the worktree to HEAD, so a
+  # staged-only change would read clean and the restore's --staged would drop it.
+  if git diff --quiet -- "$SETTINGS_REL" 2>/dev/null &&
+    git diff --cached --quiet HEAD -- "$SETTINGS_REL" 2>/dev/null; then
     printf 'clean'
   else
     printf 'modified'
@@ -306,9 +309,9 @@ settle_settings() {
     return 0
   fi
   case "$settings_before_state" in
-  modified) reason="it already had uncommitted changes before the pass" ;;
-  untracked) reason="git does not track it here" ;;
-  *) reason="this directory is not inside a git work tree" ;;
+    modified) reason="it already had uncommitted changes before the pass" ;;
+    untracked) reason="git does not track it here" ;;
+    *) reason="this directory is not inside a git work tree" ;;
   esac
   printf 'warn: the uninstall CLI changed %s; left as is because %s.\n' "$SETTINGS_REL" "$reason"
 }
