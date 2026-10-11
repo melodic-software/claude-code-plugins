@@ -18,13 +18,16 @@ invocation:
 - Changed files vs HEAD, `git diff --name-only HEAD`
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+bounds nothing: the command's result is already delivered before a read instruction can apply. What
+a result delivers inline is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
+(as of 2026-10-11; recheck when that section changes what a valid result returns inline).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+separate body Bash calls rather than pre-compute lines, one command per call. The worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation", holds the dated record for why; how injected
+commands run is [Extend Claude with skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
+(as of 2026-10-11; recheck when that section changes how a skill's injected commands are grouped).
 
 ## Variables
 
@@ -58,6 +61,7 @@ Arguments: `$ARGUMENTS`
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that still reads as a literal placeholder (a dollar sign and braces around
 the variable name) rather than an effort level, this body was read directly instead of
 skill-loaded, so the substitution never ran: treat the run as `high` and leave the cap to the config.
+The substitution and the levels it yields are [Extend Claude with skills § Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions) (as of 2026-10-11; recheck when that section renames the effort substitution or changes its levels).
 
 Effort supplies a **default cap only when nothing else sets one**. The precedence is `--max` first,
 then the configured `max-mutants`, then this table; effort never lowers a cap the caller or the
