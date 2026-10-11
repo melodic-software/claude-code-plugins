@@ -147,7 +147,10 @@ holds the probe and the pointer record for subagents; for the session lifetime:
 **A silent engine-gate launch or runtime failure is surfaced.** A `Stop`-event detector
 (`skills/clean/scripts/guard_launch_monitor.py`, a separate hook entry in `hooks/hooks.json`,
 independent of the engine-gate guard itself) scans the session transcript for
-`hook_non_blocking_error` records naming the engine gate's own command string and warns once per
+`hook_non_blocking_error` records (a transcript record type no docs page covers as of 2026-10-11;
+the detector's fixtures in `skills/clean/scripts/test_guard_launch_monitor.py` hold the shape it
+keys on; recheck when a Claude Code release renames the type or a docs page starts covering
+transcript records) naming the engine gate's own command string and warns once per
 session with the failure count and the most recent failure's exit code, duration, and stderr, so a
 guard that never ran or died mid-run does not look identical to a guard that ran and approved. This
 covers only the `destructive_guard.py` command string in the current session's transcript: it does
