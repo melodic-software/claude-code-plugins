@@ -107,7 +107,7 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
   return {
     bad,
     writes: options.rate_limit_guard_enabled !== false,
-    lines: options.rate_limit_lines_enabled !== false,
+    lines: options.model_notices === true,
     operator: options.rate_limit_report_mode === 'operator',
     threshold: number('rate_limit_line_threshold', PAUSE_EDGE),
     approach: number('rate_limit_approach_pct', 90),
@@ -557,7 +557,7 @@ export const register: Register = (on, options) => {
       $.tool.register({
         name: 'status',
         description:
-          "Returns this session's plan rate-limit usage as JSON, from the last API response: `windows` keyed by kind (five_hour, seven_day, and any other window reported except the spend limit), each with `used_percentage`, `resets_at` and `verdict`; an overall `verdict`, the worst window's (`quiet`, `approach` at or above `approach_pct`, `edge` at or above `line_threshold`, or `unknown` when no window is reported); those two thresholds and `lanes_pause_edge`, where a loop lane that opted in to pausing pauses; and `spend_limit` when a gateway reports one. A window whose reset time has passed is left out. The figures change only when an API response arrives. By default rate-limit-guard also adds a line to the next prompt or tool result when the 5-hour or 7-day window rises to approach or edge, or resets from edge. Read-only.",
+          "Returns this session's plan rate-limit usage as JSON, from the last API response: `windows` keyed by kind (five_hour, seven_day, and any other window reported except the spend limit), each with `used_percentage`, `resets_at` and `verdict`; an overall `verdict`, the worst window's (`quiet`, `approach` at or above `approach_pct`, `edge` at or above `line_threshold`, or `unknown` when no window is reported); those two thresholds and `lanes_pause_edge`, where a loop lane that opted in to pausing pauses; and `spend_limit` when a gateway reports one. A window whose reset time has passed is left out. The figures change only when an API response arrives. With the model_notices option on (off by default), rate-limit-guard also adds a line to the next prompt or tool result when the 5-hour or 7-day window rises to approach or edge, or resets from edge. Read-only.",
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       }),
       $.command.register({

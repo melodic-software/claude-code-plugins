@@ -10,7 +10,10 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/labels.sh"
 
 # wit_filter_frontier <autonomous:true|false> [<human-gated-label>] [<container-label>]
 # stdin a list-items envelope, stdout the frontier. Callers with a binding pass its
-# resolved WIT_HUMAN_GATED_LABEL / WIT_CONTAINER_LABEL so a remap is honored.
+# resolved WIT_HUMAN_GATED_LABEL / WIT_CONTAINER_LABEL so a remap is honored. The
+# source envelope's `truncated` passes through unchanged: filtering a truncated
+# listing yields a truncated frontier. An adapter that predates the field emits
+# none, and the frontier then carries none either, so a reader sees "unknown".
 wit_filter_frontier() {
   local autonomous="${1:-false}" human_gated="${2:-$WIT_DEFAULT_HUMAN_GATED_LABEL}" container="${3:-$WIT_DEFAULT_CONTAINER_LABEL}"
   local floor_json
@@ -34,5 +37,5 @@ wit_filter_frontier() {
                end)
         )
     ]
-  }'
+  } + (if has("truncated") then {truncated: .truncated} else {} end)'
 }

@@ -77,6 +77,7 @@ PAGE=1
 # the authoritative end-of-list signal and the clamp stops mattering. The short-page heuristic
 # stays as the fallback for anything that does not send one; it costs no extra request.
 SEEN=0
+TRUNCATED=false
 while :; do
   # `type=issues` is a real query parameter on this endpoint (enum: issues|pulls). Without it
   # gitea returns pull requests too, which are then dropped below — so PRs consumed the page
@@ -108,12 +109,14 @@ while :; do
   fi
   PAGE=$((PAGE + 1))
   # The declared ceiling from capabilities.json. Exceeding it is a DOCUMENTED truncation, not
-  # an error (CONTRACT.md "Adapter contract") — but it is never silent. Measured against rows
+  # an error (CONTRACT.md "Adapter contract") — but it is never silent: stderr says so and the
+  # envelope carries `truncated: true`. Measured against rows
   # ACTUALLY RETURNED, not `PAGE * page_size`: under the server clamp those diverge and the
   # walk would announce a ceiling it never reached.
   if ((SEEN > WIT_GITEA_LIST_ITEMS_MAX)); then
     printf 'list-items.sh: reached the declared ceiling of %s items for %s; results are truncated\n' \
       "$WIT_GITEA_LIST_ITEMS_MAX" "$REPO" >&2
+    TRUNCATED=true
     break
   fi
 done
@@ -148,14 +151,15 @@ done < <(jq -r '.number' "$ROWS")
 # row with no count, which `error` turns into one) emits nothing rather than a truncated
 # or partial envelope with a success status.
 jq -c -s --slurpfile counts "$COUNTS" --arg sv "$WIT_SCHEMA_VERSION" \
-  --arg full "$WIT_GITEA_OWNER/$WIT_GITEA_REPO" '
+  --arg full "$WIT_GITEA_OWNER/$WIT_GITEA_REPO" --argjson truncated "$TRUNCATED" '
   ($counts | map({key: (.number | tostring), value: .blocked_by_count}) | from_entries) as $bbc_by_number
   | {schema_version: $sv,
      items: [ .[]
        | (.repository.full_name //= $full)
        | ($bbc_by_number[.number | tostring]) as $bbc
        | if $bbc == null then error("no blocker count for issue " + (.number | tostring)) else . end
-       | '"$WIT_GITEA_NORMALIZE_PROGRAM"' ]}' "$ROWS" || {
+       | '"$WIT_GITEA_NORMALIZE_PROGRAM"' ],
+     truncated: $truncated}' "$ROWS" || {
   printf 'list-items.sh: could not normalize the gitea issues in %s; refusing to report a partial list as complete\n' "$REPO" >&2
   exit "$EX_INTERNAL"
 }
