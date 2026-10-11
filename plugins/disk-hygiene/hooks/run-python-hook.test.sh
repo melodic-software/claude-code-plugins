@@ -879,6 +879,13 @@ assert_eq "the Stop row skips a session that launched no guard" "1" \
   "$(jq '[.hooks.Stop[].hooks[] |
     select(([.command] + ((.args // []) | map(tostring)) | join(" ")) | contains("--skip-unless-marker guard-launch-monitor"))] | length' \
     "$HOOKS_JSON")"
+# The launcher makes the same skip before bash starts, with the same explicit
+# root and subdirectory the script gets; lib/exec-bash.gates.test.mjs proves
+# the launcher side.
+assert_eq "the launcher skips the Stop row before bash with the script's own marker flags" "true" \
+  "$(jq '[.hooks.Stop[].hooks[].args | select(map(tostring) | join(" ") | contains("guard_launch_monitor.py")) |
+    .[1:6] == ["--marker-root", "${CLAUDE_PLUGIN_DATA}", "--skip-unless-marker", "guard-launch-monitor",
+      "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh"] and .[6:10] == .[1:5]] == [true]' "$HOOKS_JSON" | tr -d '\r')"
 
 # --- the SessionStart node notice is shell form and needs no node ---
 # Its behavior, with and without node and under PowerShell, is run by

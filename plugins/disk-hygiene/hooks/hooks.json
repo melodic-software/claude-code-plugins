@@ -122,6 +122,10 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--marker-root",
+              "${CLAUDE_PLUGIN_DATA}",
+              "--skip-unless-marker",
+              "guard-launch-monitor",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
               "--marker-root",
               "${CLAUDE_PLUGIN_DATA}",
