@@ -174,10 +174,17 @@ never/core/unknown promote warning in that report, never silently drop them.
 - **The preflight is the guard, not an optimization.** Skipping it does not
   make the sweep cheaper. It makes every ledger unfalsifiable, and the
   batched pass's step 4 writes those ledgers' remedies to the working tree.
-- **Forks run at the parent model's cost.** Plan each in-scope corrector's
-  audit as a run on the parent model over the full transcript (fetch the fork
-  section under the first gotcha above for which model a fork uses); the wave cap bounds
-  burst, not per-fork cost. Keeping the `never` tier and every member's
+- **Budget each fork as a full-price run.** Plan each in-scope corrector's
+  audit as costing what a run of the main session over the whole transcript
+  costs; the wave cap bounds burst, not per-fork cost.
+  - **Pointer**: when estimating a fork's model and context, fetch
+    <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
+    live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes which model a fork runs on or how
+    much of the main session's context it receives.
+
+  Keeping the `never` tier and every member's
   fan-out tier out, and relevance-gating the situational tier, are what hold
   the fan-out small. Order of magnitude from
   a real full-batch run on a mid-length session: each fork consumed

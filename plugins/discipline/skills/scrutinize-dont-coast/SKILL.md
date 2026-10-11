@@ -77,9 +77,8 @@ for this one it is the **core step**. Adversarially re-examining output the same
 context just produced is exactly the bias that rule targets, so the pass is not
 optional here. It **must** run as a fresh-context (non-fork) subagent, blind to the
 reasoning that produced the output: handed the artifact and the requirement, not the
-story of how the work was reached, and told to find what is wrong. A fork inherits
-the parent conversation and carries the bias forward, so it does not satisfy this.
-(This means the Agent tool's fork subagent type. A *skill's* `context: fork`
+story of how the work was reached, and told to find what is wrong. Never use a fork
+subagent for this pass. (This means the Agent tool's fork subagent type. A *skill's* `context: fork`
 frontmatter is a different mechanism the docs also call fork, and this rule does not
 exclude it.)
 
