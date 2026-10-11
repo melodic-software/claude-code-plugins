@@ -122,7 +122,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Context Minimalism | Minimal prompt + a way to fetch context; over-specifying = micromanaging |
 | Write It Down | On every mistake: rule into CLAUDE.md / skill, not a chat correction |
 | Nested Subagents | Agents spawn agents. Context management primitive; never author a tree needing a specific depth. For the depth ceiling and how to change it, see [nested subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents) (as of 2026-10-02; recheck when the default or the variable name changes) |
-| fork: true | Run a skill in its own context window; the tip's key is not the documented field, see Section 92's amendment |
+| fork: true | Run a skill in its own context window; the tip's key is not the documented field, see [Section 92's amendment](reference/orchestration.md#92-fork-true-runs-a-skill-in-its-own-context-window-experimental) (as of 2026-10-11; recheck when that amendment's pointed skills sections change the field that forks a skill) |
 | Fable 5 | Historical (Fable 5 launch, Jun 2026): best coding model by a wide margin; trigger-happy safety classifiers. For current standing and price, see the [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison) and [pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing) (as of 2026-10-02; recheck on a new model release) |
 | Four Unknowns | Known/unknown × known/unknown, the gap between your prompt and the codebase |
 | Blindspot Pass | Ask Claude to surface your unknown unknowns before you write code |

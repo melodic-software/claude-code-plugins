@@ -57,7 +57,11 @@ Hooks run logic at specific points in the agent lifecycle:
 - **PermissionRequest**: route permission prompts to WhatsApp for mobile approve/deny
 - **Stop**: poke Claude to keep going whenever it stops
 
-Docs: https://code.claude.com/docs/en/hooks#hook-events
+- **Pointer**: for the hook events that exist and when each fires, see
+  [Hook events](https://code.claude.com/docs/en/hooks#hook-events).
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section adds, renames or removes a hook event, or a Claude Code release
+  note touches one.
 
 See also: [Section 6: Hooks](foundations.md)
 
@@ -188,7 +192,11 @@ Custom agents are a powerful primitive often overlooked. Define a new agent in `
 claude --agent=<your-agent-name>
 ```
 
-Docs: https://code.claude.com/docs/en/sub-agents#invoke-subagents-explicitly
+- **Pointer**: for how `--agent` runs a defined agent as the main session, see
+  [Invoke subagents explicitly](https://code.claude.com/docs/en/sub-agents#invoke-subagents-explicitly).
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section renames or removes the `--agent` flag or changes what it loads,
+  or a Claude Code release note touches it.
 
 See also: [Section 22: Agents](customization.md)
 

@@ -47,7 +47,11 @@ Plan migration interactively; `/batch` fans work to parallel agents, each in its
 
 Uses: PR babysitting, Slack summaries, deploy monitoring, any repeating workflow.
 
-Learn more: https://code.claude.com/docs/en/scheduled-tasks#run-on-a-fixed-interval
+- **Pointer**: for the interval syntax `/loop` accepts, see
+  [Run on a fixed interval](https://code.claude.com/docs/en/scheduled-tasks#run-on-a-fixed-interval).
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes the interval syntax or moves, or a Claude Code release
+  note touches `/loop`.
 
 ## 32. Code Review: Agents Hunt for Bugs
 

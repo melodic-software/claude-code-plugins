@@ -43,8 +43,8 @@ We treat a claude.ai system-prompt sentence as a fact about claude.ai and mobile
 
 Two worked divergences, both from published claude.ai system-prompt entries we read 2026-08-03, both false about this harness, and both already superseded. They stay examples from that read, not a fresh census:
 
-- The Claude Opus 4.1 entry, dated August 5 2025, on retaining information across chats. Here, cross-session memory is a documented feature; read [Auto memory](https://code.claude.com/docs/en/memory#auto-memory) for what carries over.
-- The Claude Sonnet 3.5 entry, dated November 22 2024, on opening URLs. Here, fetching a URL is a documented tool; read [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior) for what it does.
+- The Claude Opus 4.1 entry, dated August 5 2025, on retaining information across chats. Here, cross-session memory is a documented feature; read [Auto memory](https://code.claude.com/docs/en/memory#auto-memory) for what carries over (as of 2026-10-11; recheck when that section is renamed or removed, or a Claude Code release note changes auto memory).
+- The Claude Sonnet 3.5 entry, dated November 22 2024, on opening URLs. Here, fetching a URL is a documented tool; read [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior) for what it does (as of 2026-10-11; recheck when that section is renamed or removed, or a Claude Code release note changes WebFetch).
 
 As of that 2026-08-03 read, neither sentence survived in a current entry, which makes wrong-surface and stale-entry independent errors: a reader who caught only the surface mismatch would still be relying on a retired prompt. Clear both before a vendor sentence becomes a premise. Recheck when the published system-prompt notes restore either sentence.
 

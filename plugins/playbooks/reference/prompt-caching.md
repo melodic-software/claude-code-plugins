@@ -135,7 +135,8 @@ covers it. Treat it as unconfirmed until a Console-side check or a docs page set
   tokens go; an application without an Admin key logs each response's `usage` object instead.
   Pointer: for the Admin API, see
   [Which API do you need](https://platform.claude.com/docs/en/manage-claude/usage-cost-api#which-api-do-you-need).
-  As of: 2026-10-11. Recheck trigger: a re-read of that page no longer supporting this row.
+  As of: 2026-10-11. Recheck trigger: a re-read of that section no longer supporting this row,
+  or an API release note touching this topic.
 - **Bound output where the task allows.** Constraining an agent's output length is an
   API-request cost lever. It is scope-disjoint from instruction-surface hygiene: a numeric
   output ceiling written into a skill body is an anti-pattern the prompt-audit discipline
