@@ -1458,7 +1458,7 @@ work is clearly scoped tool use, running a repository's declared commands, readi
 scope, and checking named areas of the development process. No pin goes below `medium`, because a low-effort executor stops detecting
 that it is stuck. A frontmatter pin is what holds a named agent's lane for any dispatch that
 passes no `effort` of its own, which is every dispatch of a pinned named agent this repository
-writes; a passed value would override the pin (see "Where per-task effort is set" below).
+writes unless the user overrides the level for a run; a passed value would override the pin (see "Where per-task effort is set" below).
 
 - **Pointer:** the agent definitions themselves, listed by
   `git grep -n '^effort:' -- 'plugins/*/agents/*.md'`;

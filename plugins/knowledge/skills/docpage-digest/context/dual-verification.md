@@ -10,7 +10,8 @@ Two independent verifiers over the full digest set, fresh context, production ra
   completeness (no source section unrepresented), fidelity (digest claims traceable to source),
   and fabrication (no claim without a source anchor). The call passes effort `high` by default,
   and the operator may set a different level for one run. A call that names an agent omits effort
-  unless the run overrides it, so that agent's own pin holds. Where the Workflow tool is
+  unless the run overrides it, so that agent's own pin holds; an override never goes below the
+  pin. Where the Workflow tool is
   unavailable, dispatch verifier A through the Agent tool instead, as a non-fork spawn, passing
   `effort` on that call on the same terms as the Workflow call. On either route the verdict header
   records the effective effort and where it came from. If the effective effort is below `medium`,
