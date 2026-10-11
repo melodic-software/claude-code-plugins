@@ -22,6 +22,9 @@ fetched 2026-10-11). Per that article:
 - Runs started by the Claude Code GitHub Action count as Claude Code usage, so the credits do not
   cover them, even with `-p`.
 - Unused credits expire at the end of each billing cycle.
+- When the credits run out, usage continues against any purchased credits or auto-reload, and an
+  invoiced org is billed as usual; an org with no other credits stops API requests until the next
+  monthly credits arrive.
 
 Recheck this record when that article changes what the credits cover or how an organization links
 to a plan.
@@ -38,7 +41,11 @@ map (#6958, resolved on #6959) and declined a paid backstop (#6966).
 3. **They are the fallback that keeps a lane from stalling on a subscription limit.** A lane that
    hits its limit moves to API keys, rotating through the linked orgs. When every linked org's
    credits and the lane's subscription are spent, the lane pauses, alerts the operator, and resumes
-   when a subscription window resets or credits refill. There is no paid backstop.
+   when a subscription window resets or credits refill. There is no paid backstop, so a linked org
+   used for the fallback holds no purchased credits, has auto-reload off, and is not invoiced: the
+   article says usage continues against purchased credits or auto-reload, and invoiced usage beyond
+   the credits is billed, while an org with no other credits stops API requests until the next
+   monthly credits arrive.
 4. **Subscriptions stay one account per workload.** Each account runs to its limit and waits for
    the reset; no lane rotates between subscription accounts automatically.
 5. **The mechanisms are decided on the capacity map (#6958), not here:** which lanes fall back,
