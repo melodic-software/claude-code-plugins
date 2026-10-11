@@ -28,9 +28,7 @@ Nothing is blocked.
 The `retrieval` role was evaluated against `sonnet` at `low`, its default at
 the time, and Haiku
 failed on accuracy
-([#6955](https://github.com/melodic-software/claude-code-plugins/issues/6955),
-recorded in
-[#6956](https://github.com/melodic-software/claude-code-plugins/pull/6956)).
+([#6955](https://github.com/melodic-software/claude-code-plugins/issues/6955)).
 `retrieval` stays on `sonnet`.
 
 ## Where to read the specifics
