@@ -20,7 +20,8 @@ A file the caller or the user writes, one entry per item:
   inside the untrusted-data fence below, and says `Design: none` when it is absent.
 - `branch` and `model` (optional): the item's branch name and its routing row's `Model` value.
   Without `branch`, the name is `item/<slug>`, where `<slug>` is the id lowercased with every
-  character outside `a-z 0-9` replaced by `-`; two entries that derive one name are a STOP.
+  character outside `a-z 0-9` replaced by `-`. Two entries whose branch names match, given or
+derived, are a STOP.
 
 An entry with no `targets` or no `acceptance` is not dispatchable, and neither is inferred: that
 entry is returned as `stopped` with the reason, and the rest of the list runs.
