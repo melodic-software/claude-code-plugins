@@ -62,6 +62,15 @@ unavailable, run the same wait with Bash `run_in_background`.
 - **Recheck trigger**: that section changes what Monitor runs, how it reports back, or where it is
   available.
 
+That `run_in_background` wait passes the background maximum as its `timeout`, and when a stop
+notice ends it while the wait still matters, start it again.
+
+- **Pointer**: when a background wait could run long, fetch
+  <https://code.claude.com/docs/en/tools-reference#time-limit-for-background-commands> live.
+- **As of**: 2026-10-10
+- **Recheck trigger**: that section changes which sessions it covers, its limits, or its stop
+  notice.
+
 The nested-dispatch grant is conditional: we treat `Agent` as absent at the spawn-depth limit,
 whatever the `tools` list says, so a deeply chained dispatch fans out nothing; plan the brief's
 work as your own.

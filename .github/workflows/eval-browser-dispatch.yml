@@ -1,0 +1,201 @@
+name: eval-browser-dispatch
+
+# Runs `claude plugin eval` on a fresh GitHub-hosted runner, by hand only, for
+# eval cases that drive a browser through Bash. A local run cannot: the eval's
+# throwaway HOME hides tools installed under /home, and a symlinked ~/.docker
+# makes the eval refuse any Bash-granting run. Here node, playwright-cli and
+# Chromium are installed outside HOME and on PATH.
+#
+# Lane hardening follows ADR 0049
+# (docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md):
+# the dispatcher must be on the trusted-actor list, the org kill switch is
+# read before the model step, the job token can only read contents, and each
+# dispatch gets a fresh runner. No write token exists in this job. The lane
+# runs only when dispatched on the default branch, so every eval case it runs
+# has merged through review.
+#
+# Only an env allowlist (PATH, ANTHROPIC_*, CLAUDE_CODE_*, EVAL_*) reaches an
+# eval run (code.claude.com/docs/en/plugin-evals, "How runs are isolated", as
+# of 2026-10-10), so PLAYWRIGHT_BROWSERS_PATH does not: a case that needs the
+# Chromium below reads EVAL_PLAYWRIGHT_BROWSERS_PATH.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Eval target, a plugin directory or one case file.
+        required: true
+        type: string
+        default: plugins/testing
+      tag:
+        description: Optional --tag filter; space-separated tags, any of which selects a case.
+        required: false
+        type: string
+        default: ""
+      runs:
+        description: Runs per case per arm.
+        required: true
+        type: number
+        default: 1
+      allow-tools:
+        description: Tools granted beyond the read-only set, comma-separated.
+        required: true
+        type: string
+        default: Bash(playwright-cli *)
+
+permissions: {}
+
+jobs:
+  eval:
+    # Default branch only: a dispatch on any other ref, or an event that names
+    # no default branch, skips the job before any step runs.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read # check out the repository; nothing in this job writes
+    steps:
+      # The dispatched commit, which the job if: holds to the default branch.
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+
+      - name: Stop when the kill switch is on
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: |
+          echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable})"
+          exit 1
+
+      # check-trusted-trigger needs a PR, and a dispatch here names none, so
+      # the dispatcher is matched against the same list directly: the event
+      # actor by numeric id, the re-runner by login, as that action does. Both
+      # must be listed humans, and the lanes App bot is denied by id, as in
+      # pr-run-activity-write.yml.
+      - name: Check the dispatcher is a trusted human
+        env:
+          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+        run: |
+          if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
+            exit 1
+          fi
+          if [ "$ACTOR_ID" = "$APP_SENDER_ID" ]; then
+            echo "::error::bot-actor: the lanes App bot cannot dispatch this lane"
+            exit 1
+          fi
+          if ! jq -e --argjson id "$ACTOR_ID" --argjson app "$APP_SENDER_ID" --arg login "$TRIGGERING_ACTOR" '
+              .version == 1
+              and any(.actors[]; .id == $id and .kind == "human")
+              and any(.actors[];
+                (.login | ascii_downcase) == ($login | ascii_downcase)
+                and .kind == "human" and .id != $app)
+            ' "$LIST" >/dev/null; then
+            echo "::error::untrusted-actor: the dispatcher or re-runner is not a listed human"
+            exit 1
+          fi
+
+      # The tools and Chromium go under /opt, outside HOME, which each eval
+      # run replaces with a temporary one. Only these directories are made
+      # while sudo works; no third-party code runs before isolation.
+      - name: Create the tool directories
+        run: sudo install -d -o "$(id -u)" -g "$(id -g)" /opt/tools /opt/pw
+
+      # Installs the bubblewrap and socat the Bash sandbox needs, lifts the
+      # Ubuntu 24.04 AppArmor user-namespace restriction, then removes sudo
+      # and docker access for the rest of the job.
+      - name: Isolate the runner
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: "true"
+
+      # Every binary this job runs comes from the locked root toolchain. Its
+      # install scripts run here, after sudo and docker access are gone.
+      - name: Install the locked root toolchain
+        run: |
+          cp .base/package.json .base/package-lock.json /opt/tools/
+          npm ci --prefix /opt/tools
+          echo "/opt/tools/node_modules/.bin" >> "$GITHUB_PATH"
+
+      # Chromium comes from the playwright that the locked playwright-cli
+      # uses. Without sudo there is no --with-deps: the hosted image already
+      # carries a browser's system libraries.
+      - name: Install Chromium
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: /opt/pw
+        run: |
+          node /opt/tools/node_modules/playwright/cli.js install chromium
+          command -v playwright-cli claude
+
+      - name: Run the plugin eval
+        working-directory: .base
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Strips credentials from Bash subprocesses inside each eval run.
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          EVAL_PLAYWRIGHT_BROWSERS_PATH: /opt/pw
+          TARGET: ${{ inputs.target }}
+          TAGS: ${{ inputs.tag }}
+          RUNS: ${{ inputs.runs }}
+          ALLOW_TOOLS: ${{ inputs.allow-tools }}
+          OUT: ${{ runner.temp }}/eval-results
+        run: |
+          case "$TARGET" in
+            '' | -*) echo "::error::target must be a path"; exit 1 ;;
+          esac
+          if ! [[ $RUNS =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::runs must be a positive integer"
+            exit 1
+          fi
+          mkdir -p "$OUT"
+          IFS=, read -ra tools <<< "$ALLOW_TOOLS"
+          read -ra tags <<< "$TAGS"
+          for value in "${tools[@]}" "${tags[@]}"; do
+            case "$value" in
+              -*) echo "::error::a tag or tool must not start with -"; exit 1 ;;
+            esac
+          done
+          args=(
+            "$TARGET"
+            --trust-plugin
+            --scaffold
+            --no-publish
+            --runs "$RUNS"
+            --model claude-sonnet-5-5
+            --judge-model claude-opus-5-5
+            --max-cost-usd 5
+            --output-dir "$OUT"
+            --json "$OUT/results.json"
+            --allow-tools "${tools[@]}"
+          )
+          if [ "${#tags[@]}" -gt 0 ]; then
+            args+=(--tag "${tags[@]}")
+          fi
+          claude plugin eval "${args[@]}"
+
+      - name: Upload the eval results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eval-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/eval-results/
+          if-no-files-found: warn
+          retention-days: 30
