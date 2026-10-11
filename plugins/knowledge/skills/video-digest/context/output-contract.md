@@ -86,7 +86,8 @@ record which one is primary; a video whose id is not this slice's (for an X post
 info JSON does not name this post as its `display_id`); a recorded work, frames or
 contact-sheets dir outside the OS temp dir or overlapping the slice; and a symlink in the slice
 or the temp session, since a copy would follow it. It refuses when the slice is, holds, or sits
-inside a path the run writes: the target, `<target>.relayout-backup`, or a `.<target-name>.relayout-*` staging dir beside the target. In
+inside a path the run writes: the target, `<target>.relayout-backup`, or a
+`.<target-name>.relayout-*` staging dir beside the target. In
 every mode, `--no-media` included, it refuses when one of those paths is, holds, or sits inside a
 temp dir `watch.json` records, existing or not, since `close` deletes those. It refuses an
 existing target unless `--replace` is passed, which replaces the target and keeps its
