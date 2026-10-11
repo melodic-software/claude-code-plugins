@@ -501,6 +501,55 @@ function unescapeDestination(raw) {
   };
 }
 
+/** Text a CommonMark destination would decode as a character reference. */
+const REFERENCE_START = /^&(?:#\d+|#[xX][0-9A-Fa-f]+|[A-Za-z]+);/;
+
+/**
+ * Write `newPath` as a Markdown destination that parses back to exactly
+ * `newPath`, in the original's form. A literal `#` or `?` arrives as its
+ * stand-in and is written backslash-escaped. Angle form escapes `<`, `>` and
+ * `\`, and writes a line ending as a numeric reference; bare form escapes `\`,
+ * a leading `<` and every unbalanced parenthesis, and switches to angle form
+ * for a space or a control character. Punctuation the original escaped stays
+ * escaped; an `&` is written `&amp;` where the original used references, and
+ * escaped where it would otherwise start one.
+ *
+ * @param {string} newPath
+ * @param {{ angle: boolean, escapedChars: string, references: boolean }} original
+ * @returns {string} the destination as written, angle brackets included
+ */
+export function encodeDestination(newPath, { angle, escapedChars, references }) {
+  const chars = [...newPath];
+  const asAngle = angle || chars.some((char) => /[\x00-\x20\x7f]/.test(char));
+  /** @type {Set<number>} */
+  const unbalanced = new Set();
+  if (!asAngle) {
+    const open = [];
+    chars.forEach((char, at) => {
+      if (char === "(") open.push(at);
+      else if (char === ")" && open.pop() === undefined) unbalanced.add(at);
+    });
+    for (const at of open) unbalanced.add(at);
+  }
+  const written = chars.map((char, at) => {
+    if (char === LITERAL_HASH) return "\\#";
+    if (char === LITERAL_QUERY) return "\\?";
+    if (char === "&") {
+      if (references) return "&amp;";
+      const startsReference = REFERENCE_START.test(chars.slice(at).join(""));
+      return escapedChars.includes("&") || startsReference ? "\\&" : "&";
+    }
+    if (asAngle && (char === "\n" || char === "\r")) return `&#${char.charCodeAt(0)};`;
+    const structural =
+      char === "\\" ||
+      (asAngle ? char === "<" || char === ">" : unbalanced.has(at) || (at === 0 && char === "<"));
+    // A raw `#` or `?` is a fragment or query; only its stand-in was escaped.
+    const kept = escapedChars.includes(char) && char !== "#" && char !== "?";
+    return structural || kept ? `\\${char}` : char;
+  });
+  return asAngle ? `<${written.join("")}>` : written.join("");
+}
+
 /** @param {string} value */
 function literalText(value) {
   return value.replaceAll(LITERAL_HASH, "#").replaceAll(LITERAL_QUERY, "?");
@@ -903,7 +952,6 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     /** @type {string} */ ref,
     /** @type {{ fragments?: boolean, lines?: boolean }} */ split = {},
     escapedChars = "",
-    references = false,
   ) => {
     const { refPath, suffix, encoded } = splitReference(ref, split);
     const found = lookUpReference(refPath, sourceFile, map);
@@ -919,15 +967,14 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       trailing = found.isDir && refPath.endsWith("/") ? "/" : "";
     }
     let written = encoded ? relative.split("/").map(encodeURIComponent).join("/") : relative;
-    // Re-escape what the original destination backslash-escaped; an `&` in a
-    // destination that held character references is written `&amp;` instead.
-    for (const char of escapedChars) {
-      if (!(references && char === "&")) written = written.replaceAll(char, `\\${char}`);
-    }
+    // A `#` or `?` the original escaped stays a literal path character:
+    // its stand-in, which encodeDestination writes escaped.
+    if (escapedChars.includes("#")) written = written.replaceAll("#", LITERAL_HASH);
+    if (escapedChars.includes("?")) written = written.replaceAll("?", LITERAL_QUERY);
     const next = `${written}${trailing}${suffix}`;
     if (next === ref) return ref;
     rewrites += 1;
-    return references ? next.replaceAll("&", "&amp;") : next;
+    return next;
   };
   const { fenceMasked, linkMasked, tagText } = maskCode(text);
   // Every pass records edits by offset into the original text; the scans run
@@ -955,26 +1002,22 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
       continue;
     }
     if (found && "retired" in found) retiredRefs.push(link.dest);
-    const next = rewrite(link.dest, split, link.escapedChars, link.references);
+    const next = rewrite(link.dest, split, link.escapedChars);
     if (next === link.dest) continue;
-    const written = next;
-    edits.push({
-      from: link.destStart,
-      to: link.destEnd,
-      text: link.angle ? `<${written}>` : written,
-    });
+    edits.push({ from: link.destStart, to: link.destEnd, text: encodeDestination(next, link) });
   }
   // Reference-style definitions and HTML src/href values take the same path
   // rewrite. One naming a file the layout drops is left for the link check to
   // flag: a definition or attribute has no prose to rewrite into.
   for (const { from, to, angle } of referenceDefinitions(linkMasked)) {
     const raw = text.slice(angle ? from + 1 : from, angle ? to - 1 : to);
-    const { dest, escapedChars, references } = unescapeDestination(raw);
+    const original = { ...unescapeDestination(raw), angle };
+    const { dest } = original;
     const { found, split } = findReference(dest, sourceFile, map);
     if (found && "retired" in found) retiredRefs.push(dest);
-    const rewritten = rewrite(dest, split, escapedChars, references);
+    const rewritten = rewrite(dest, split, original.escapedChars);
     if (rewritten === dest) continue;
-    edits.push({ from, to, text: angle ? `<${rewritten}>` : rewritten });
+    edits.push({ from, to, text: encodeDestination(rewritten, original) });
   }
   for (const { from, to, group } of htmlAttributeValues(tagText)) {
     // An attribute value may hold character references (`&amp;`): map the

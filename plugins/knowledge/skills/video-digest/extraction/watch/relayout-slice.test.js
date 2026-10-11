@@ -4,7 +4,12 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { checkLayoutLinks, inlineLinks, relayoutSlice } from "./relayout-slice.js";
+import {
+  checkLayoutLinks,
+  encodeDestination,
+  inlineLinks,
+  relayoutSlice,
+} from "./relayout-slice.js";
 
 /** @type {string[]} */
 const scratch = [];
@@ -1712,6 +1717,66 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
       expect(read(targetDir, "frames/vision-plan.md")).toBe(
         "[deck][deck]\n\n[deck]: <../metadata/decks/a\\>b.pdf>\n",
       );
+    },
+  );
+
+  // CommonMark: `&gt;` decodes to `>`, which written raw would close the
+  // angle destination early.
+  it.skipIf(process.platform === "win32")(
+    "escapes a > decoded from a character reference in a rewritten angle destination",
+    async () => {
+      const { sliceDir, targetDir } = makeFixture({
+        extraFiles: {
+          "source/decks/a>b.pdf": "pdf",
+          "key-frames/vision-plan.md": "[deck](<../source/decks/a&gt;b.pdf>)\n",
+        },
+      });
+
+      const result = await relayoutSlice({ sliceDir, targetDir });
+
+      expect(result.exitCode).toBe(0);
+      expect(read(targetDir, "frames/vision-plan.md")).toBe(
+        "[deck](<../metadata/decks/a\\>b.pdf>)\n",
+      );
+    },
+  );
+
+  it("escapes an unbalanced parenthesis in a rewritten bare destination", async () => {
+    const { sliceDir, targetDir } = makeFixture({
+      extraFiles: {
+        "source/decks/a)b.pdf": "pdf",
+        "key-frames/vision-plan.md":
+          "[deck](<../source/decks/a)b.pdf>) [bare](../source/decks/a\\)b.pdf)\n",
+      },
+    });
+
+    const result = await relayoutSlice({ sliceDir, targetDir });
+
+    expect(result.exitCode).toBe(0);
+    expect(read(targetDir, "frames/vision-plan.md")).toBe(
+      "[deck](<../metadata/decks/a)b.pdf>) [bare](../metadata/decks/a\\)b.pdf)\n",
+    );
+  });
+
+  // Round trip against the CommonMark reading inlineLinks applies: the written
+  // destination spans exactly what was written and decodes to the new path.
+  it.each(
+    ["a>b.pdf", "a<b.pdf", "<a.pdf", "a)b.pdf", "a(b.pdf", "a b.pdf", "a&gt;b.pdf", "a\\b.pdf"]
+      .flatMap((name) => [false, true].map((angle) => [name, angle]))
+      .flatMap((row) => [false, true].map((references) => [...row, references])),
+  )(
+    "writes %s (angle %s, references %s) so it parses back unchanged",
+    (name, angle, references) => {
+      const newPath = `../metadata/decks/${name}`;
+      const written = encodeDestination(newPath, {
+        angle: Boolean(angle),
+        escapedChars: "",
+        references: Boolean(references),
+      });
+      const [link] = inlineLinks(`[x](${written})`);
+
+      expect(link?.dest).toBe(newPath);
+      expect(link?.destEnd).toBe(4 + written.length);
     },
   );
 
