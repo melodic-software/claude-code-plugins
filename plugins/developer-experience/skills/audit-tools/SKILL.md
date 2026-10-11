@@ -42,7 +42,7 @@ Inventory everything, then judge it; an item left out of the inventory gets no v
 - Agent tooling in the repository: skills, legacy `.claude/commands` files, Claude Code hooks
   wherever the repository defines them, subagents, and the project `.mcp.json`. Every location
   is read live from the agent tooling pointer in [Gotchas](#gotchas) (as of 2026-10-11; recheck
-  when that pointer's recheck trigger fires).
+  when that pointer moves out of Gotchas, is dropped, or its as-of date changes).
 
 Read the repository's developer tooling conventions file when `AGENTS.md` names one. When none
 exists, or it misstates what the repository has, say so and tell the user to run

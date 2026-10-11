@@ -31,8 +31,8 @@ Add to the consuming project's `.mcp.json` (or user-scope MCP config). Anonymous
 ```
 
 With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects). Only use this form once `CONTEXT7_API_KEY` is actually set in your environment (or add a `${VAR:-default}` fallback): an unset variable shows up as failed auth, not as a config error (the Unset variables without a default pointer at the top of this file, which sits under no
-section heading, has the detail; as of 2026-10-11; recheck when that pointer's recheck trigger
-fires):
+section heading, has the detail; as of 2026-10-11; recheck when that pointer moves, is dropped,
+or its as-of date changes):
 
 ```json
 {

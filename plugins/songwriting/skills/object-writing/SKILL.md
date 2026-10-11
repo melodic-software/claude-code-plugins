@@ -106,8 +106,8 @@ Dispatch rules:
    fleet both multiply, but only one of them changes the writing. A fan-out that needs the lever
    sets it on the spawn, not through a workflow (the pointer below, to
    [Choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level),
-   says which spawns take it; as of 2026-10-11; recheck when that pointer's recheck trigger
-   fires). A spawn of `object-writer` omits `effort` unless the writer asks for another level.
+   says which spawns take it; as of 2026-10-11; recheck when that pointer's URL or as-of
+   date changes, or it is dropped). A spawn of `object-writer` omits `effort` unless the writer asks for another level.
 
    - **Pointer**: before relying on the effort of an agent spawn, whether or not it passes
      `effort`, fetch <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.

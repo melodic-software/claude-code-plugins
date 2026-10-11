@@ -74,7 +74,8 @@ Official contracts:
    - If `ToolSearch` returned a connection error for the `dometrain` server, quote it verbatim.
    - Otherwise do not assert why. Whether a failed connection reaches this turn depends on
      configuration this skill cannot inspect (see the mechanism note's pointer in
-     [Purpose](#purpose); as of 2026-10-11; recheck when that pointer's recheck trigger fires).
+     [Purpose](#purpose); as of 2026-10-11; recheck when that pointer moves out of
+     Purpose, is dropped, or its as-of date changes).
      Direct the user to run `/mcp` themselves rather than claim knowledge it does not have.
    - The fix depends on the setup in play, and this skill cannot tell from tool absence alone
      which one the user is on. For `dometrain-mcp`, the user reconfigures the key with
