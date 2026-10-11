@@ -5,7 +5,7 @@ recording or screen share does not show them.
 
 By default each match in Claude's replies, your prompts and command output draws as a solid dark
 bar, and hovering the pointer over it shows the value. This reproduces the hide-email mod in
-Anthropic's "Mods in Claude Code" video, colors included. Tool rows, question prompts and notices
+Anthropic's "Mods in Claude Code" video, colors included on a full-color terminal. Tool rows, question prompts and notices
 draw each match as `[hidden]`. The `mask_style` option switches the text surfaces to `[hidden]` too.
 
 **It masks the screen only.** The model, the transcript stored on disk and anything you copy out
