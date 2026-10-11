@@ -533,6 +533,17 @@ assert_eq "case 10: project enforce with a list is not flagged" "0" "$(jq '[.fin
 assert_eq "case 10: user enforce without a list is an error" "error" "$(jq -r '.findings[] | select(.identity.claim=="enforceAvailableModels-without-list" and .identity.sites[0].surface=="user:settings.json") | .severity' <<<"$out")"
 assert_eq "case 10: deep-link boolean is a warning" "warning" "$(jq -r '.findings[] | select(.identity.claim=="disableDeepLinkRegistration:true") | .severity' <<<"$out")"
 
+# --- Case 10b: managed-only model policy outside managed settings -------------
+# Source: the engine's managed-only decision for these keys, pointing at
+# https://code.claude.com/docs/en/settings-reference#availablemodelsmatch and
+# https://code.claude.com/docs/en/settings-reference#deniedmodels: either key in
+# a file this audit reads is a policy that is not in force.
+m="$(make_machine hpolicy)"
+printf '%s\n' "$CLEAN_SETTINGS" | jq '. + {deniedModels:["opus"]}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"availableModelsMatch":"exact"}' >"$m/user/settings.json"
+out=$(run "$m" --json 2>&1) || true
+assert_eq "case 10b: project deniedModels is a warning" "warning" "$(jq -r '.findings[] | select(.identity.claim=="deniedModels-outside-managed" and .identity.sites[0].surface==".claude/settings.json") | .severity' <<<"$out")"
+assert_eq "case 10b: user availableModelsMatch is a warning" "warning" "$(jq -r '.findings[] | select(.identity.claim=="availableModelsMatch-outside-managed" and .identity.sites[0].surface=="user:settings.json") | .severity' <<<"$out")"
 # --- Case 11: environment variables ---------------------------------------------
 m="$(make_machine env)"
 mkdir -p "$m/docs"

@@ -1,6 +1,6 @@
 ---
 description: "Control C1, tagged regression-guard: the only change is the page heading turned blue (#1d4ed8, above 4.5:1 on white); a pixel diff flags it, but it is no defect"
-tags: [testing, vision, ui-defects, regression-guard]
+tags: [testing, vision, ui-defects, regression-guard, no-trigger]
 runs: 3
 max_turns: 30
 timeout_seconds: 600

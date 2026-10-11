@@ -58,11 +58,18 @@ export function deriveVideoSlug(title, videoId) {
 
 /**
  * Resolve the `.work/<watch-epic>/<video-slug>/` directory under the repo root.
+ * The slug is one directory segment held to the slice-key charset, so an
+ * operator-typed slug cannot climb out of the epic dir.
  *
  * @param {string} repoRoot
  * @param {string} videoSlug
  * @returns {string}
  */
 export function resolveWorkSliceDir(repoRoot, videoSlug) {
+  if (!SAFE_SLICE_KEY_PATTERN.test(videoSlug)) {
+    throw new Error(
+      `Unsafe slice slug ${JSON.stringify(videoSlug)}: must match [A-Za-z0-9_-]+ (one directory under .work/${YOUTUBE_WATCH_EPIC_DIR}/)`,
+    );
+  }
   return path.join(repoRoot, ".work", YOUTUBE_WATCH_EPIC_DIR, videoSlug);
 }

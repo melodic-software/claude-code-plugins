@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/work/r/r/.base/plugins/testing/evals/browser-probe/peek/canary.txt"}}],
+      "why": "the READ step"
+    },
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "D:\\a\\r\\plugins\\testing\\evals\\browser-probe\\peek\\canary.txt"}}],
+      "why": "Windows separators"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "/tmp/w/probe/commands.txt"}}],
+      "why": "only the step list"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "playwright-cli -s=pinned goto file:///x/peek/canary.html"}}],
+      "why": "browser route, not Read"
+    }
+  ]
+}
