@@ -92,7 +92,7 @@ emit() {
 
 case "$op" in
 user)
-  # The real call runs `--jq .login`, so it prints the bare login.
+  # The real call runs `--jq '.login + " " + .type'`, so it prints both.
   printf '%s %s\n' "$LOGIN" "${FAKE_GH_TYPE:-User}"
   ;;
 list)
@@ -346,6 +346,33 @@ FAKE_GH_LOGIN=kyle_corp
 export FAKE_GH_LOGIN
 run "$GOOD"
 check_rc 0 "$RC" "a login with an underscore resolves"
+if grep -q 'clean_streak=1' "$FAKE_GH_STATE/c-77.body" && ! grep -q -- '--method POST' "$FAKE_GH_ARGV"; then
+  pass "an underscore login adopts its own comment rather than posting a new one"
+else
+  fail "an underscore login did not adopt its own comment"
+fi
+
+# Resolution order: a User login wins over --app-slug; a Bot report yields to it.
+fresh_state
+printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
+run "$GOOD" --app-slug lane-app
+check_rc 0 "$RC" "a User login with --app-slug still exits 0"
+if grep -q 'clean_streak=1' "$FAKE_GH_STATE/c-77.body"; then
+  pass "a User login wins over --app-slug"
+else
+  fail "--app-slug overrode a User login"
+fi
+fresh_state
+printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
+printf 'lane-app[bot]' >"$FAKE_GH_STATE/c-77.author"
+FAKE_GH_LOGIN=other-app FAKE_GH_TYPE=Bot
+export FAKE_GH_LOGIN FAKE_GH_TYPE
+run "$GOOD" --app-slug lane-app
+if grep -q 'clean_streak=1' "$FAKE_GH_STATE/c-77.body"; then
+  pass "--app-slug wins over a reported Bot login"
+else
+  fail "a reported Bot login overrode --app-slug"
+fi
 
 fresh_state
 FAKE_GH_FAIL=user
@@ -426,6 +453,9 @@ fi
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "owner/repo/../../other/target" \
   --issue "$ISSUE" --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
 check_rc 6 "$?" "a traversal-shaped --repo exits 6 before any API call"
+bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "../.." \
+  --issue "$ISSUE" --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
+check_rc 6 "$?" "a dot-segment --repo exits 6 before any API call"
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "4a2" \
   --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
 check_rc 7 "$?" "a non-numeric --issue exits 7"

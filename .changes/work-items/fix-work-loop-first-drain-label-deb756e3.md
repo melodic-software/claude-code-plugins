@@ -19,3 +19,14 @@ bump: patch
   identity authored (the gh api user login, or <slug>[bot] via --app-slug,
   matching babysit-loop), checks a create's author, and exits 15 when the
   identity is unresolved.
+
+### Fixed
+
+- close review gaps in the first-drain gate and upsert identity
+
+  first-drain-ratified.sh now decides on the last labeled or unlabeled
+  event, rejects an application made through a GitHub App, and rejects
+  dot-segment --repo values (as does the upsert). A proposal is raised only
+  on exit 1, never on a failed read. Tests cover resolution order and
+  underscore-login adoption; the docs state the --app-slug requirement under
+  App tokens and the shared-token limit.

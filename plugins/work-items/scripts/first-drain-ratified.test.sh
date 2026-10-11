@@ -65,9 +65,10 @@ fresh() {
 labels() { # issue labels, one name per argument
   jq -n '{labels: [$ARGS.positional[] | {name: .}]}' --args "$@" >"$FAKE_DIR/issue.json"
 }
-event() { # $1 page file, $2 event, $3 label, $4 actor type, $5 actor login
-  jq -n --arg e "$2" --arg l "$3" --arg t "$4" --arg a "$5" \
-    '[{event: $e, label: {name: $l}, actor: {type: $t, login: $a}}]' >"$FAKE_DIR/$1"
+event() { # $1 page file, $2 event, $3 label, $4 actor type, $5 actor login, [$6 app slug]
+  jq -n --arg e "$2" --arg l "$3" --arg t "$4" --arg a "$5" --arg app "${6:-}" \
+    '[{event: $e, label: {name: $l}, actor: {type: $t, login: $a},
+       performed_via_github_app: (if $app == "" then null else {slug: $app} end)}]' >"$FAKE_DIR/$1"
 }
 run() {
   bash "$CHECK" --repo "$REPO" --issue "$ISSUE" >"$WORK/out" 2>"$WORK/err"
@@ -115,6 +116,23 @@ event events-2.json labeled "$LABEL" User kyle
 run
 check_rc 0 "$RC" "a User re-application on a later page ratifies"
 
+# --- an App acting through a user token is not a person ---------------------
+fresh
+labels "$LABEL"
+event events-1.json labeled "$LABEL" User kyle lane-app
+run
+check_rc 1 "$RC" "a User-typed actor acting via a GitHub App is not ratified"
+
+# --- a removal after the last application revokes it ------------------------
+# The label reappearing with no fresh application (a rename onto this name)
+# must not revive the operator's earlier one.
+fresh
+labels "$LABEL"
+event events-1.json labeled "$LABEL" User kyle
+event events-2.json unlabeled "$LABEL" User kyle
+run
+check_rc 1 "$RC" "a label whose last event is a removal is not ratified"
+
 # --- a labeled event for a different label does not count -------------------
 fresh
 labels "$LABEL"
@@ -147,6 +165,8 @@ check_rc 11 "$RC" "an unparsable issue read exits 11"
 fresh
 bash "$CHECK" --repo "owner/repo/../../other" --issue "$ISSUE" >/dev/null 2>&1
 check_rc 6 "$?" "a traversal-shaped --repo exits 6"
+bash "$CHECK" --repo "../.." --issue "$ISSUE" >/dev/null 2>&1
+check_rc 6 "$?" "a dot-segment --repo exits 6"
 bash "$CHECK" --repo "$REPO" --issue "4a" >/dev/null 2>&1
 check_rc 7 "$?" "a non-numeric --issue exits 7"
 bash "$CHECK" --repo "$REPO" --issue "$ISSUE" --bogus >/dev/null 2>&1

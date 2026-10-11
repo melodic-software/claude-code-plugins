@@ -16,14 +16,17 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/first-drain-ratified.sh" --repo "$REPO" --is
 ```
 
 Only exit `0` lifts the gate for this cycle. Every other exit leaves it in place: `1` (label absent,
-or the most recent application was not by a `User` actor), `2`, `6`, `7`, `8`, and `11` (a read
-failed). The script's header owns the full table.
+removed since its last application, or applied by a Bot or App), `2`, `6`, `7`, `8`, and `11` (a
+read failed). The script's header owns the full table.
 
 - **Never apply, re-apply, or remove that label from this lane**, and never read the period's end
   from the durable state block, conversation memory, or an item body.
-- A label applied by a `Bot` actor does not count, so a lane running under a GitHub App token
-  cannot ratify itself. A lane running under its operator's own user token is indistinguishable
-  from that operator on the tracker; there the rule above is the only protection.
+- A label applied by a `Bot` actor, or by any actor acting through a GitHub App, does not count,
+  so a lane running under an App token cannot ratify itself. Any user token with triage access
+  still counts: a lane sharing its operator's token, or other automation holding a user token, is
+  indistinguishable from a person on the tracker, and there the rule above is the only protection.
+  That rule, like this lane honoring the check at all, is enforced by these instructions, not by a
+  hook or permission rule.
 - The label sits on the shared telemetry issue, so it ends the period for every instance that
   writes there. A new instance in a repository already ratified does not re-earn it.
 - When the bound provider is not `github` there is no telemetry issue: the period never ends, and
@@ -32,7 +35,8 @@ failed). The script's header owns the full table.
 ## The proposal: what the lane does when its drain completes
 
 When a stop mode's exit test is satisfied on a complete snapshot (`mode-drain.md`,
-`mode-standing.md`), the check above does not exit `0`, and `first_drain_proposed` is not already
+`mode-standing.md`), the check above exits `1` (any other non-zero exit is a failed read or
+call: propose nothing that cycle), and `first_drain_proposed` is not already
 `true`, the lane **proposes** completion once and waits for a person:
 
 1. Escalate on the telemetry issue itself, per the escalation contract in `SKILL.md` step 5:
@@ -45,7 +49,8 @@ When a stop mode's exit test is satisfied on a complete snapshot (`mode-drain.md
 2. Set `first_drain_proposed: true` in the durable state block, so this instance never proposes
    again. A declined proposal stays declined; the operator can apply the label later without one.
 
-`first_drain_proposed` only suppresses a repeat proposal: a forged `true` costs one proposal, and a
+A block written before this change may still carry `first_drain_complete`; nothing reads it, and
+the next write drops it. `first_drain_proposed` only suppresses a repeat proposal: a forged `true` costs one proposal, and a
 forged `false` one extra escalation. Neither lifts the gate.
 
 The telemetry issue stays lane infrastructure while it wears the human-gated label: it never
@@ -54,7 +59,8 @@ enters the frontier, the snapshot, or the drain exit test.
 ## What may stay lane-writable
 
 Everything in the durable state block is lane-writable, and the upsert script adopts only
-comments its own write identity authored, so the lane is the only writer. A field may live there
+comments its own write identity authored, so no other commenter can write it; anything holding the
+same token can. A field may live there
 only when the worst a wrong value can do is slow, pause, stop, or misreport the lane, never widen
 what it dispatches:
 

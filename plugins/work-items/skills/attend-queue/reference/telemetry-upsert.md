@@ -31,7 +31,7 @@ bash "<plugin-root>/scripts/lane-telemetry-upsert.sh" \
 | `--repo` | The target repository as `owner/name`. |
 | `--issue` | The lane's tracking issue number. |
 | `--body-file` | The file holding this pass's composed body. |
-| `--app-slug` | Optional. The GitHub App whose installation token `gh` runs under. The write identity is the `gh api user` login when that call reports a User; when it fails or reports a Bot, `<app-slug>[bot]`, else the reported Bot login plus `[bot]`. |
+| `--app-slug` | Optional; required under an App installation token, where the upsert otherwise exits 15 every cycle. No config key carries the slug yet, so the launch prompt supplies it. The GitHub App whose installation token `gh` runs under. The write identity is the `gh api user` login when that call reports a User; when it fails or reports a Bot, `<app-slug>[bot]`, else the reported Bot login plus `[bot]`. |
 
 ## What the upsert writes
 

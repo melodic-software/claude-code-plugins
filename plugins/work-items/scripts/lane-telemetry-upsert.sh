@@ -36,8 +36,9 @@
 # WRITE IDENTITY. The `gh api user` login when that call reports a User; when it
 # fails (an App installation token cannot call it) or reports a Bot, <slug>[bot]
 # from --app-slug, else the reported Bot login with its [bot] suffix. Unresolved:
-# exit 15, nothing written. A create is checked to have landed under that login,
-# so a wrong --app-slug cannot post a fresh, never-found comment every cycle.
+# exit 15, nothing written. A create is checked to have landed under that login:
+# a wrong --app-slug still posts one never-found comment per cycle, but every
+# such cycle exits 15 instead of reporting success, so the cause is visible.
 #
 # WRITER CHECK. The sentinel is public text anyone can paste into a comment, so
 # the lookup adopts only comments the write identity authored. A foreign sentinel
@@ -222,7 +223,7 @@ fi
 
 # Checked before any gh api URL path: GitHub's routing normalizes `..` segments,
 # redirecting the write to another repository the token can reach.
-if [[ ! "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+if [[ ! "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ || "/$REPO/" =~ /\.+/ ]]; then
   err "--repo must be owner/name (got: '$REPO')"
   exit 6
 fi

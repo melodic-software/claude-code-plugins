@@ -14,18 +14,20 @@
 #   --help
 #
 # RATIFIED means the issue carries the label `loop-lane: first-drain-ratified`
-# AND the most recent `labeled` event for it was performed by an actor of type
-# `User`. A label a Bot applied (a lane running under a GitHub App token) does
-# not count, so such a lane cannot ratify itself. A lane running under the same
-# user token as its operator is indistinguishable from that operator here; for
-# that setup the protection is the lane's rule never to apply this label.
+# AND the most recent `labeled` or `unlabeled` event for it is a `labeled` event
+# whose actor is of type `User` and was not acting through a GitHub App. A label
+# a Bot or an App applied does not count, so a lane running under an App token
+# cannot ratify itself. Any user token with triage access still counts: a lane
+# sharing its operator's token, or other automation holding a user token, is
+# indistinguishable from a person here, and only the lane's rule never to apply
+# this label protects that setup.
 #
 # Exit codes. Only 0 lifts the gate; the caller treats every other code as
 # "not ratified" (fail closed).
 #
 #   0   ratified
-#   1   not ratified: the label is absent, its applying event is missing, or a
-#       non-User actor applied it (the reason is on stderr)
+#   1   not ratified: the label is absent, its last event is not an
+#       application, or a Bot or App applied it (the reason is on stderr)
 #   2   usage: a missing, repeated, or unknown argument
 #   6   --repo is not owner/name
 #   7   --issue is not a positive integer
@@ -62,7 +64,7 @@ while (($#)); do
   esac
 done
 
-if [[ ! "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+if [[ ! "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ || "/$REPO/" =~ /\.+/ ]]; then
   err "--repo must be owner/name (got: '$REPO')"
   exit 6
 fi
@@ -96,16 +98,23 @@ events="$(gh api --paginate "repos/$REPO/issues/$ISSUE/events?per_page=100" 2>/d
   err "event read failed; not ratified (fail closed)"
   exit 11
 }
-actor="$(jq -rs --arg l "$LABEL" \
-  'add // [] | map(select(.event == "labeled" and .label.name == $l)) | last | .actor // {} | "\(.type // "")\t\(.login // "")"' \
+# The last labeled-or-unlabeled event decides, so a label that reappears without
+# a fresh application (a rename onto this name) never revives an old one.
+last="$(jq -rs --arg l "$LABEL" \
+  'add // [] | map(select((.event == "labeled" or .event == "unlabeled") and .label.name == $l)) | last // {}
+   | "\(.event // "")|\(.actor.type // "")|\(if .performed_via_github_app == null then "" else "app" end)|\(.actor.login // "")"' \
   <<<"$events" 2>/dev/null)" || {
   err "event read was unparsable; not ratified (fail closed)"
   exit 11
 }
-type="${actor%%$'\t'*}"
-login="${actor#*$'\t'}"
-if [[ "$type" != "User" ]]; then
-  err "label '$LABEL' was applied by '${login:-unknown}' (type '${type:-none}'), not a person; not ratified"
+# `|` cannot occur in any field and, unlike a tab, does not collapse empty fields.
+IFS='|' read -r event type via login <<<"$last"
+if [[ "$event" != "labeled" ]]; then
+  err "label '$LABEL' has no applying event after its last removal; not ratified"
+  exit 1
+fi
+if [[ "$type" != "User" || -n "$via" ]]; then
+  err "label '$LABEL' was applied by '${login:-unknown}' (type '${type:-none}'${via:+, via a GitHub App}), not a person; not ratified"
   exit 1
 fi
 
