@@ -223,12 +223,19 @@ Present findings as a GFM table per dimension:
 Map each Phase 2 finding to an improvement target. Also identify improvements not tied to specific
 findings.
 
-**Keep only durable findings.** Test each one before it gets a row. Would a later session act
-differently because of it, rather than just having more to read? Could that session tell from the
-wording when it applies? And would it survive six months of renamed files, new versions and new
-commit hashes? Any "no" drops it. So do commit SHAs, line numbers and one-off facts. Compare "the
-14:02 build failed on a stale lock file", which describes one moment, with "a build that fails on
-a lock file is retried only after the lock's owner is checked", which can stay true for years.
+**Keep only durable findings.** A finding gets a row only when it passes all three tests below.
+One failure drops it, and so does a finding that rests on a commit SHA, a line number or a fact
+true of this session alone.
+
+| Test | It fails when |
+| --- | --- |
+| Names its trigger | Nothing in the wording lets a later session recognise the situation it covers |
+| Changes behaviour | A later session would read it and then do exactly what it would have done anyway |
+| Lasts six months | Renamed files, new versions or new commit hashes in that time would make it false |
+
+"PR 412's first CI run timed out in the Playwright suite" records an event and fails the last test.
+"When a Playwright timeout is the only CI failure, read the trace before changing the test" can
+still guide a session next year.
 
 **Research before recommending.** For any recommendation involving skills, hooks, agents, or Claude
 Code configuration: verify it against current official docs before presenting, read through the

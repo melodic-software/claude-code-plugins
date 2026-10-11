@@ -58,22 +58,43 @@ TypeScript; read that file first.
   const retry = { attempts: 3, backoff: "exponential" } satisfies RetryPolicy;
   ```
 
-- **Ways to narrow, from last resort up to first choice:** an `as` after validation; a type
-  predicate function; `typeof` or `instanceof`; an `in` check; a test of a union's literal tag field.
-- **A type predicate (`value is T`) has to test all of `T`.** One that inspects a single field and
-  then vouches for the whole type is still a cast, only with a name that sounds safe.
-- **Every `as` sits after the check that justifies it.** Its one routine home is a parse function,
-  casting to a brand once the check has passed. Everywhere else, narrow or change the model.
+- **Pick the narrowing by what the value is.** Rank 1 is the first choice; when two rows fit the
+  same value, the lower rank wins. Ranks 1 to 3 are checks the compiler runs; 4 and 5 are claims you
+  write, so reach them only when no compiler check fits.
+
+  | The value is | Narrow with | Rank |
+  |---|---|---|
+  | A primitive or a class instance | `typeof` or `instanceof` | 3 |
+  | An object whose variants differ in which keys exist | an `in` test, `"prNumber" in run` | 2 |
+  | A union whose variants carry a literal tag | a tag comparison, `run.status === "failed"` | 1 |
+  | Outside data no compiler check can settle | a type predicate function, `v is T` | 4 |
+  | Data a validation step has already checked | `as` | 5 |
+
+- **A predicate is a claim only its author checks.** `function isManifest(v): v is PluginManifest`
+  that reads `name` and skips `version` lets a manifest with no version through as a
+  `PluginManifest`, and the compiler trusts it. The body tests every field the return type names.
+- **In a parse function, once the check has passed, `as` turns the checked string into its brand.**
+  That is the cast's one routine use, and it always follows the check that justifies it. Anywhere
+  else, narrow instead, or change the model so no cast is needed.
 
 ## Modeling
 
-- **A new interface is only for a shape nothing else defines.** Otherwise build the type from the
-  one that owns the shape: indexed access types, `typeof`, or the utility types for picking,
-  omitting, parameters, return types and awaited values.
+- **A shape some code already holds is computed from that code.** A hand-written copy drifts from
+  its owner. A new interface is right only for a shape no type, function or constant defines yet.
+
+  | You need | Compute it as |
+  |---|---|
+  | What a function returns | `ReturnType<typeof parseInvoice>`, wrapped in `Awaited<...>` when it returns a promise |
+  | One field of a type | `Invoice["total"]` |
+  | The shape of a constant | `typeof retry` |
+  | What a function takes | `Parameters<typeof parseInvoice>` |
+  | A type minus some fields, or only some of them | `Omit<Invoice, "id">`, `Pick<Invoice, "id" \| "dueOn">` |
+
 - **Variant state is a union with a literal tag**, such as `{ kind: "idle" } | { kind: "failed";
-  reason: string } | ...`, and a switch over it closes with a `never` check. The default branch
-  assigns the value to a `never`-typed variable, so a variant added later stops that switch from
-  compiling.
+  reason: string } | ...`. End every switch over it with a default branch that hands the value to a
+  variable declared `never`. While each variant has its case, the value there is `never` and the
+  assignment compiles; once a variant arrives without a case it no longer is, and the build fails
+  at that switch.
 
   ```ts
   default: {
@@ -82,13 +103,15 @@ TypeScript; read that file first.
   }
   ```
 
-- **Let the shape carry the rule where it can.** "At least one" is a tuple with a rest element
-  (`[Line, ...Line[]]`), and a closed set is a union of string literals. `Line[]` stays for as long
-  as every function over it has an answer for zero lines. Switch to the tuple once code reading the
-  lines must assert that one exists, whether through an index read followed by `!`, a cast, or a
-  throw for the empty case.
-- **A brand separates values on one primitive that must never be swapped**, such as an invoice id
-  and a customer id. Nothing but the parse function creates a branded value.
+- **Let the shape carry the rule where it can.** A closed set is a union of string literals, and
+  "at least one" is a tuple with a rest element, `[Phase, ...Phase[]]`. To choose between `Phase[]`
+  and that tuple, read the code that consumes a plan's phases. A plan summary that prints "no
+  phases" when the list is empty handles that case, so `Phase[]` stays. Code that throws when the
+  array is empty, casts it, or reads `phases[0]!` is asserting that a phase exists: change the type
+  to the tuple so the compiler holds that guarantee instead.
+- **Brand two kinds of value that share a primitive and must never be swapped.** An invoice id and
+  a customer id are both strings; with a brand on each, passing one where the other belongs fails
+  to compile. Only the parse function produces a branded value.
 
   ```ts
   declare const invoiceIdTag: unique symbol;

@@ -25,6 +25,7 @@ bump: minor
 - Shared `README.md` synced as `reference/standards-contract.md`; no change to this plugin's skills. The standards contract is now 1.1.0 and adds the `paved-path` index row kind, which planning resolves like any other row.
 - **Passages adapted from an upstream course are reworded in our own words.** `design`'s test-seam thread, `plan`'s ADR admission test, `prd`'s durability rule and prototype-snippet exception, and `interview`'s relentless-mode framing and two Q&A gotchas no longer share phrasing with the upstream skills they came from. Every rule is unchanged. `interview`'s SKILL.md and `context/loop.md` still carry shared phrasing in sections `tests/interview-defenses.test.sh` digests; they are left for an attended edit.
 - Reworded more passages adapted from upstream skills in our own words: `design`'s SKILL.md and its `type-discipline.md` and `type-discipline/typescript.md` references, `draft-goal-condition`'s SKILL.md and eval prose, and `prd`'s SKILL.md. Every rule and eval expectation is unchanged.
+- Reworded `design`'s type-discipline references in our own words: the TypeScript narrowing order and type derivation are now tables, and the examples come from this repository (lane runs, plugin manifests, plan phases). Every rule is unchanged.
 
 ### Fixed
 

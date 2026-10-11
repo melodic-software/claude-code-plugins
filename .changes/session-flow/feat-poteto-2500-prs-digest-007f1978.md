@@ -13,6 +13,7 @@ bump: minor
 - **`/session-flow:handoff` and the save-point engine word the purpose argument and the link-don't-copy rule in their own terms.** Both no longer share phrasing with the upstream handoff skill. Behavior is unchanged.
 - **Reworded keep-going, recall and retro text in our own words.** The keep-going retry and trail-verdict rules, recall's condensing and report steps, retro's review lenses, durable-finding test and placement-first rule, the README summary and their eval cases now share no phrasing or structure with the upstream skills. Behavior is unchanged.
 - **`/session-flow:recall` finds unmerged closed pull requests through `/source-control:pull-request list`.** It runs one closed-state search per word and keeps rows with no merge commit; when that skill is not available or the read fails, the report says the source was skipped.
+- **Reworded keep-going's trail check and its README summary in our own words.** The trail section is now a check the reader runs with the verdict table carrying the report entries, and the README lists the three situations keep-going handles. Behavior is unchanged.
 
 ### Added
 

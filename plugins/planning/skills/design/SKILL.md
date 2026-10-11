@@ -146,16 +146,11 @@ This phase ends with a `type-inventory.md` in which every type traces back to a 
 
 Produce: `type-inventory.md`
 
-Close Phase 3 by auditing the inventory. A check below that turns up a problem sends that type back to the design threads:
+Close Phase 3 by auditing the inventory: take each type in turn and follow one of its values from where it is made to where it is read. A fault found at any stop sends that type back to the design threads.
 
-| Check | A problem looks like |
-|---|---|
-| Shape ownership | A type redraws a shape that a schema, spec or migration already defines |
-| Outside input | Some input becomes a domain type somewhere other than where it arrives, or code further in validates the same input a second time |
-| Admitted combinations | The types accept a mix of field values the domain never allows |
-| Unproven claims | A cast, assertion or suppression remains with no check behind it |
-| Adding a variant | Some sites would keep running silently instead of failing to compile |
-| Added strength | A strengthened type guards a value that cannot actually go wrong, so it buys precision and nothing else |
+1. **Where it is made.** When a schema, spec or migration already describes the shape, the entry derives from it instead of drawing it again. When the value comes from outside the program, it becomes this type at the place it arrives, and nothing further in validates that input again.
+2. **What it holds.** Try to write a mix of field values the domain forbids; a type that accepts it is too loose. For each type the design strengthened, name the function that would fail on part of its input without the extra strength. With no such function, the strength guards nothing that can go wrong, and that is a fault too.
+3. **Where it is read.** Picture one more variant: every site that reads the type must then fail to compile, not keep running silently. On the same path, every cast, assertion or suppression has a check in front of it.
 
 Once type modeling stabilizes, run the `terminology` action for the cross-cutting naming review of the full inventory. Per-type naming during modeling is not a substitute for the whole-inventory pass.
 

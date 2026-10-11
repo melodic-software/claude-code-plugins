@@ -6,32 +6,18 @@ file only after detecting the language.
 
 ## Rules
 
-**Where a shape comes from.** When another artifact already defines a shape (a schema, an API
-description, a migration, a generated client), that artifact is the source: derive the type from
-it, because a second copy written by hand drifts. Untyped data (request bodies, files, environment
-variables, queue messages, database rows, replies from other services) is parsed once, at the point
-it enters the program, into a domain type. The parse fails right there with an error naming the
-input, and code beyond that point accepts the domain type without checking again what the parse
-already established.
+Phase 3 meets each of these situations while it fills `type-inventory.md`. Find the row that
+matches and make its decision.
 
-**What a value can hold.** Prefer a representation in which a bad value cannot be written down over
-one that needs a check to stay correct. Money is a currency code plus a whole count of minor units,
-not a float next to an unconstrained string; a page of results is its items together with either a
-next-page cursor or an explicit marker saying it is the last. Distinct states each get their own
-variant of a sum type (a tagged union, a sealed hierarchy, an enum with payloads), so a forbidden
-state cannot be built at all. A request that is `idle`, `loading`, `loaded` with rows, or `failed`
-with a reason is four variants. One record with an optional `rows`, an optional `error` and a status
-string lets code build combinations nobody wants, since only comments say which ones are valid.
-Strengthening stops once it stops paying: tighten a type only where some function would otherwise
-fail, throw or return nothing for part of its input. When every function is total over the type it
-takes, the model is strong enough, and wrapping values that no code ever confuses adds ceremony,
-not safety.
-
-**How code consumes a value.** Branch over a sum type in a form where a new variant breaks the build
-at every site that ignores it; a catch-all default that silently swallows unknown variants hides the
-sites the new one needs. The checker is never overruled: a cast, a non-null assertion or a
-suppression comment asserting a type the code has not proven turns a compile-time error into a
-run-time one. When the checker cannot see a fact, change the model or add the check that proves it.
+| The design has | Decide | Reason |
+|---|---|---|
+| A shape that a schema, an API description, a migration or a generated client already defines | Derive the type from that artifact | Any hand-kept duplicate falls out of step with it |
+| Data with no type yet: queue messages, request bodies, database rows, environment variables, files, replies from other services | Convert it into a domain type at its entry point, in a single parse that rejects bad input on the spot with an error naming that input | Everything downstream receives the domain type and trusts it, so nothing repeats the parse's checks |
+| A value with limits on what it may hold | Pick the encoding that cannot express an invalid value ahead of one that relies on a check to remain valid. Money: a currency code with an integer count of minor units, never a float beside a free-form string. A page of results: its items with either a cursor for the next page or a marker saying this page is the last | A value that relies on a check stays valid only while every writer remembers the check |
+| States that exclude one another | One variant per state in a sum type (a tagged union, a sealed hierarchy, an enum with payloads). A lane run has four: `queued`, `running`, `merged` carrying its PR number, and `failed` carrying a reason. A single record holding a status string beside an optional `prNumber` and an optional `failureReason` is the shape to avoid | That record compiles with a PR number and a failure reason set at once, and nothing but a comment says such a pair is invalid |
+| A pull to tighten a type further | Add strength only at a function that, given the looser type, would throw, fail or have no result for some inputs. When every function returns a result for every value of the type it accepts, the model is strong enough | A wrapper around values no code mixes up costs ceremony and buys no safety |
+| Code that branches over a sum type | Branch in a form that stops compiling at every site that leaves a newly added variant unhandled; no catch-all default that quietly absorbs variants it does not know | A catch-all conceals exactly the sites the new variant has to reach |
+| A fact the checker cannot see | Change the model, or add the check that proves the fact. Never assert an unproven type with a cast, a non-null assertion or a suppression comment | Silencing the checker does not remove the error; it moves it from compile time to run time |
 
 ## Language files
 

@@ -120,13 +120,13 @@
       "id": 10,
       "name": "resume-another-agents-trail-names-a-verdict",
       "prompt": "keep going on the cache migration. A background agent worked on it overnight on branch feat/cache-v2; its last message says the migration is done and recommends switching the default store, but it never opened a PR.",
-      "expected_output": "Before acting, the skill confirms on feat/cache-v2 that the migration the overnight agent called done really is done. It finds that work through the branch, its commits and any PR, never through an agent id, and it measures the trail against the original goal. It then picks a single verdict out of four (continue, ship the finished recommendation, ratify, restart); for a finished recommendation nobody delivered, ship the finished recommendation is the expected pick once the migration claim checks out. The report separates work kept from the trail from work redone, giving a reason for each redo.",
+      "expected_output": "The overnight work is located through feat/cache-v2, its commits and any PR; an agent id plays no part. The original goal is tested against that trail, and the agent's \"migration is done\" message is verified on the branch before anything rests on it. Exactly one of the four verdicts follows (ratify, ship the finished recommendation, continue, restart). Here the recommendation was finished but never delivered, so once the migration checks out the expected verdict is ship the finished recommendation. The report keeps work carried over from the trail apart from work done again, and each piece done again has its reason.",
       "files": [],
       "expectations": [
-        "Checks the claim that the migration is complete against the branch before relying on it",
-        "Finds the overnight work by its branch, commits or a PR rather than by an agent or task id",
-        "Picks one and only one verdict among continue, ship the finished recommendation, ratify and restart, and gives the reason",
-        "Its report separates what was taken over from the trail from what was redone"
+        "Verifies the \"migration is done\" message against feat/cache-v2 before relying on it",
+        "Locates the overnight work through its branch, its commits or a PR, not through an agent or task id",
+        "Names a single verdict, with its reason, from the four: ratify, ship the finished recommendation, continue, restart",
+        "The report lists work carried over from the trail apart from work done again"
       ]
     }
   ]

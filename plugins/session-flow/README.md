@@ -155,12 +155,17 @@ a kill on a hunch. Safe, idempotent work auto-resumes; re-running side-effectful
 comment, a deploy) *and* killing or restarting work it cannot prove is dead are gated. After a usage
 limit lifts it continues rather than summarizing-and-stalling (the block is already over if it is
 running again); while a limit still holds it hands back via `handoff` rather than self-arming a
-scheduler. When the session that launched some work is gone, the work is located through its
-branch or PR, since the agent id went with the session. A restart that fails gets a retry fitted to
-the cause, two at the most, after which the item is dropped and the rest of the work replanned.
-Picking up work another agent left behind ends in one verdict (continue, ship the finished
-recommendation, ratify, restart), and the report says which parts were kept and which redone.
-Intent is inferred from the conversation; arguments are optional.
+scheduler. Intent is inferred from the conversation; arguments are optional. Three situations get
+their own handling:
+
+- **Another agent left a trail.** keep-going confirms the trail's status claims on the artifact,
+  gives it one verdict (ratify, ship the finished recommendation, continue, restart), and reports
+  what it took over separately from what it redid.
+- **An item keeps failing.** It is marked abandoned, and the plan for the remaining work redrawn
+  without it, when its second retry fails. Each retry is fitted to the cause of the failure before
+  it; only a cause outside the work, or no visible cause, gets an unchanged rerun.
+- **The session that started the work is gone.** Its agent and task ids went with it, so the work
+  is found by its branch, PR, worktree or commits.
 
 ```shell
 /session-flow:keep-going              # inventory → inspect → goal-align → recover → reconcile → report

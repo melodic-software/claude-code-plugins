@@ -116,23 +116,28 @@ itself the thing this skill removes.
 
 ## Picking up another agent's trail
 
-Sometimes the resumed work belongs to a different session or agent: a
-branch a background agent pushed, a worker's return, a handoff file you
-did not write. Its record is where you begin, and repeating what it
-already records wastes the run. Once step 3 has checked the goal, judge
-the trail by where it ended and give it exactly one verdict:
+Run this check when another session or agent did the work you are
+resuming, after step 3 has tested the goal:
 
-| Where the trail ended | Verdict | What you do |
-|---|---|---|
-| At a conclusion that someone must accept | **Ratify** | Hold the conclusion up against today's evidence; report whether it stands, naming each place it fails |
-| At a finished change or recommendation nobody delivered | **Ship the finished recommendation** | Confirm it on the real artifact, then deliver it |
-| Partway, still pointed at the goal | **Continue** | Pick up at the point it reached |
-| In failure, or aimed at a goal that has since drifted | **Restart** | Begin again from the goal, stating why the trail was dropped |
+1. Open the artifact behind each status line the trail writes about
+   itself ("tests pass", "done"): run the test command, read the
+   branch, open the PR. Each line is confirmed or false; nothing rests
+   on a line that is not confirmed.
+2. Find the one row that matches the trail's confirmed end state. The
+   trail gets that row's verdict and no other.
 
-The trail's own status lines ("tests pass", "done") are claims; confirm
-them on the artifact before relying on them. The report keeps two lists:
-items taken over as found, and items redone, each redo with its reason.
-Redoing something the trail had already proved buys nothing.
+| Confirmed end state | Verdict | Action | Report entry |
+|---|---|---|---|
+| A change or recommendation is finished but nobody delivered it | **Ship the finished recommendation** | Deliver it | Taken over: the delivered item |
+| A conclusion is waiting for someone to accept it | **Ratify** | Test it against today's evidence | Whether it holds, and each place it fails |
+| Work stopped partway and still serves the goal | **Continue** | Resume from its last confirmed point | Taken over: the confirmed items; redone: any false ones, each with its reason |
+| Work failed, or serves a goal that has since drifted | **Restart** | Start again from the goal | Why the trail was dropped |
+
+The confirmed parts of the trail are where you start. Redo only what
+step 1 found false or what the verdict calls for, so an item the trail
+had already proved never appears among the redone items. The report
+keeps taken-over and redone items in two lists, each redo with its
+reason.
 
 ## Zone input (presence-gated, conservative)
 
