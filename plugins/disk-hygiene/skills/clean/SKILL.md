@@ -11,7 +11,8 @@ hooks:
         # finds Git Bash and never System32\bash.exe, then runs
         # run-python-hook.sh. Bare `bash` or `python3` as `command` is the
         # launch that fails open on Windows.
-        # Which placeholders a skill hook gets rests on our probe, issue #1014.
+        # A skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT}
+        # (our probe, PR #1014), so args pass only `--plugin-root`.
         # Pointer: when checking how exec form spawns `command` with `args`,
         # fetch https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
         # and https://code.claude.com/docs/en/hooks#command-hook-fields live.
