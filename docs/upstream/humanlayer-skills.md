@@ -109,7 +109,7 @@ SOFTWARE.
 Evaluated at `main@653b641` (2026-10-08T21:54:25Z), read 2026-10-10. `plugins/rpi/` was added by
 upstream PR #13 (opened 2026-10-07, merged 2026-10-08); its eleven commits run from `e19a7a4`
 (2026-10-05, "add portable rpi workflow entry skill") to `3b53bed` (2026-10-08). `plugin.json` says
-version 1.0.0, licence MIT. Files read in full: `skills/rpi/SKILL.md`, `references/workflow.md`,
+version 1.0.0, license MIT. Files read in full: `skills/rpi/SKILL.md`, `references/workflow.md`,
 `references/show-me.md`, the create and iterate `structure-outline` and `design-discussion` processes
 and templates, `references/implement-outline/process.md` and `agents/outline-implementer-agent.md`.
 
@@ -160,7 +160,7 @@ workstream that decides the row, or says none does.
 | Outline implementer stops on a mismatch with "Expected / Found / Why this matters / How should I proceed?" | Silent deviation from the plan. **Stated** | `/implementation:implement` divergence detection routes back to planning; dispatched workers carry a divergence-escalation clause | CONVERGENT | **Already present.** |
 | Task directory `.agents/artifacts/<slug>`, numbered documents, "recommend not committing the artifacts" | Writing into another task's documents. Tests `ambiguous-task-directory` and `main-branch`. **Stated** | Memory slice under `.work/` | CONVERGENT | **Already present.** |
 | Portable across Claude Code and Codex: subagent reference copies, `<rpi-invocation>` placeholders checked by `scripts/sync-rpi-references.ts` | One skill text for several hosts. **Inference** from commit `04ecf04` | Claude Code only | NONE | **Not adopted:** this marketplace targets Claude Code. |
-| Live workflow tests that drive a host on fixture repositories, each assertion naming a failure | Behavioural drift across models and hosts. **Inference** | Plugin eval suites for `plan` and `interview` | CONVERGENT | **Already present** in shape. |
+| Live workflow tests that drive a host on fixture repositories, each assertion naming a failure | Behavioral drift across models and hosts. **Inference** | Plugin eval suites for `plan` and `interview` | CONVERGENT | **Already present** in shape. |
 
 **License.** `plugins/rpi/.claude-plugin/plugin.json` says MIT and the repository LICENSE is the MIT
 notice reproduced below. Nothing from `rpi` is copied into this marketplace; if text is, the same
