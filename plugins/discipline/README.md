@@ -109,7 +109,7 @@ standards repo, a conventions tree) with progressive, relevance-routed
 loading, re-asserts the core principles: DRY / single source of truth, low
 coupling and high cohesion, change-together-lives-together, SOLID, clean
 code. Audits the work against them with doc citations, and respects a
-declared managed / locally-owned seam.
+declared managed / locally-owned boundary.
 
 ```shell
 /discipline:follow-our-standards    # resolve + re-anchor + audit + correct
@@ -201,7 +201,7 @@ native (covering the requirements and plausible future ones) > official /
 authoritative > vetted third-party. Every dependency is a coupling point
 priced at adoption time (abandonment, pricing pivot, license change,
 security posture, exit cost); building what already exists is a finding.
-When the evaluation is load-bearing it routes to a research capability
+When the choice depends on the evaluation, it routes to a research capability
 (`/discovery:research`, `-deep` for a big surface) rather than a verdict from
 memory, degrading to an explicit cited research pass. Fires at choice-time
 and over choices already embedded in the work.
@@ -295,7 +295,7 @@ win).
 
 Re-anchors a *meta* discipline rather than a single content axis: don't coast
 on your own recent output. Confidence that work is sound is not evidence that
-it is. The load-bearing adversarial re-examination runs in a fresh-context
+it is. The adversarial re-examination runs in a fresh-context
 (non-fork) subagent blind to the reasoning that produced the output. It makes
 two deliberate, documented deltas to the shared loop. It **stops the
 trajectory first** and **remediates with the user** rather than autonomously.
