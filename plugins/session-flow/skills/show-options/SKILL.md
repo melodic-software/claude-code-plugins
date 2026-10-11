@@ -147,7 +147,7 @@ time. It reads and writes one small ledger of what it last surfaced. Path and re
 fixed in [`context/buckets.md`](context/buckets.md) so two sessions cannot pick different ones and
 lose the rotation. It is deliberately **not** in `${CLAUDE_PLUGIN_DATA}`: a fixed filename there
 would be one file per *machine*, and a spotlight shown in one repository would suppress it in
-another (why: the plugin data dir record in `reference/structure.md`).
+another (why: the plugin data dir record in `${CLAUDE_PLUGIN_ROOT}/reference/structure.md`).
 
 ## Render two tiers
 
