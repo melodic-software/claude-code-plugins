@@ -762,7 +762,8 @@ to the template re-renders here too.
 >
 > - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
 > - **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose
->   session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses, and it
+>   session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read
+>   it at lane start with `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it
 >   pauses when **either** window reports `used_percentage >= 95`
 > - **Pause end:** the **tripped** window's `resets_at`; when **both**
 >   windows trip, the **later** `resets_at`
@@ -782,8 +783,9 @@ to the template re-renders here too.
 >   the opt-in, a window at or above 95 never pauses, slows, or stops the
 >   lane and never lowers its model, effort, or review depth: it keeps
 >   working and reports the window, its `used_percentage` and `resets_at`,
->   and the operator's options: continue, switch accounts
->   (https://github.com/melodic-software/claude-code-account-rotation), or
+>   and the operator's options: continue, switch accounts (a human action
+>   a lane never performs or scripts;
+>   https://github.com/melodic-software/claude-code-account-rotation), or
 >   opt in to pausing.
 > - **Account switch:** while paused, a consumer **MUST** read
 >   `.oauthAccount.emailAddress` directly from

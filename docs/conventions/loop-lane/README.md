@@ -878,16 +878,20 @@ A lane may set the guard's report mode with `--settings`; this is optional.
 
 **Pausing is opt-in.** By default a lane never pauses, slows, or stops on a window reading, and a
 reading never lowers its model, effort, or review depth: at the pause threshold it keeps working
-and reports the window, its percentage and reset time, and the operator's options (continue, switch
-accounts with [claude-code-account-rotation](https://github.com/melodic-software/claude-code-account-rotation),
-or opt in to pausing). An operator who wants drain-then-pause sets `LOOP_LANE_RATE_LIMIT_PAUSE=1` in
-the lane session's environment, for example with
-`--settings '{"env":{"LOOP_LANE_RATE_LIMIT_PAUSE":"1"}}'` at launch. The rest of the floor (pause
-end, Monitor, account switch, latch) applies only to an opted-in lane. Reactive-only backoff on a
-rate-limit error the session itself hits is unchanged: that is the API refusing, not a lane
-choosing to stop. A default pause stopped every lane at 95% and led sessions to read a usage
-reading as a reason to stop or to ration quality
-([#7118](https://github.com/melodic-software/claude-code-plugins/issues/7118)).
+and reports the window, its percentage and reset time, and the operator's options, as the floor's
+**Drain-then-pause** bullet words them. An operator who wants drain-then-pause sets the floor's
+opt-in variable in the lane session's environment, for example through an `env` entry in
+`--settings` at launch. The rest of the floor (pause end, Monitor, account switch, latch) applies
+only to an opted-in lane. Reactive-only backoff on a rate-limit error the session itself hits is
+unchanged: that is the API refusing, not a lane choosing to stop. A default pause stopped every
+lane at the threshold and led sessions to read a usage reading as a reason to stop or to ration
+quality ([#7118](https://github.com/melodic-software/claude-code-plugins/issues/7118)).
+
+**An account switch is the operator's act.** A lane never performs or scripts one. The
+[claude-code-account-rotation](https://github.com/melodic-software/claude-code-account-rotation)
+tool switches only on a human click, and its README lists running the loop lanes while rotating as
+outside its first version: a lane whose operator switches accounts relies on the floor's
+**Account switch** bullet and the known gaps below.
 
 **A named check enforces the rule.** `scripts/check-loop-lane-floor-drift.sh` extracts the floor
 block from the reader contract and compares it against an explicit registry of every surface that

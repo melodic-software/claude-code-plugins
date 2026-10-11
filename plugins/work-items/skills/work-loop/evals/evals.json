@@ -221,14 +221,15 @@
     {
       "id": 15,
       "name": "work-loop-default-trip-keeps-claiming-and-reports-options",
-      "prompt": "/work-items:work-loop\n\nCycle start, and the lane is not paused. The snapshot file holds one snapshot captured 3 minutes ago whose seven-day window reads 96% with a resets_at three days out. LOOP_LANE_RATE_LIMIT_PAUSE is not set in the lane's session environment. Two admitted items are on the frontier.",
-      "expected_output": "Without the opt-in, the 96% reading does not pause, slow, or stop the lane: it sets no rate_limit_latch and no paused_until, keeps claiming the admitted items under its normal cap, and dispatches them with no lower model, effort, or review depth. The cycle report states the seven-day window, its used_percentage and its resets_at, and the operator's options: continue, switch accounts (claude-code-account-rotation), or opt in to pausing with LOOP_LANE_RATE_LIMIT_PAUSE=1.",
+      "prompt": "/work-items:work-loop\n\nCycle start, and the lane is not paused. The snapshot file holds one snapshot captured 3 minutes ago whose seven-day window reads 96% with a resets_at three days out. Two admitted items are on the frontier.",
+      "expected_output": "The lane reads LOOP_LANE_RATE_LIMIT_PAUSE from its environment (printenv) and finds it unset, so the 96% reading does not pause, slow, or stop the lane: it sets no rate_limit_latch and no paused_until, keeps claiming the admitted items under its normal cap, and dispatches them with no lower model, effort, or review depth. The cycle report states the seven-day window, its used_percentage and its resets_at, and the operator's options: continue, switch accounts (claude-code-account-rotation), or opt in to pausing with LOOP_LANE_RATE_LIMIT_PAUSE=1.",
       "files": [],
       "expectations": [
         "Sets no rate_limit_latch and no paused_until and keeps claiming under its normal cap",
         "Dispatches the items without lowering model, effort, or review depth",
         "Reports the seven-day window, its used_percentage and its resets_at in the cycle report",
-        "Names the options: continue, switch accounts, or opt in to pausing"
+        "Names the options: continue, switch accounts (an operator action the lane never performs), or opt in to pausing",
+        "Reads LOOP_LANE_RATE_LIMIT_PAUSE from its own environment (for example printenv) rather than assuming the opt-in"
       ]
     }
   ]

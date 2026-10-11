@@ -277,6 +277,8 @@ test('lines: a line past smart ends with one options line naming the durable-sta
   const { w } = world(on)
   w.percent = 30
   expect(options((await bash($)).context)).toEqual([])
+  w.percent = 45
+  expect((await bash($)).context).toEqual([approach('smart', 'acceptable')])
   w.percent = 60
   const acceptable = (await bash($)).context ?? []
   expect(own(acceptable)).toEqual([crossing('acceptable')])
@@ -286,6 +288,17 @@ test('lines: a line past smart ends with one options line naming the durable-sta
   expect(options((await bash($)).context)).toEqual([OPTIONS])
   w.percent = 81
   expect((await bash($)).context ?? []).toEqual([])
+})
+
+test('lines: an operator threshold passed in the smart zone gets its line and no options line', async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, { thresholds: [{ at_percent: 30, action: 'handoff' }] })
+  w.percent = 20
+  await bash($)
+  w.percent = 31
+  expect((await bash($)).context).toEqual([
+    `context-guard: smart zone (1 of 3), past an operator threshold. context-guard (operator setting for a threshold): handoff.`,
+  ])
 })
 
 test('lines: a crossing that lands inside the approach margin says so once, in the crossing line', async ($, on) => {
@@ -951,7 +964,10 @@ test('operator mode: a typed turn holds the line and offers it at turn end with 
   w.percent = 60
   expect(own((await bash($)).context)).toEqual([])
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  const offered = offer(crossing('acceptable'))
+  // Written out once in full, so the offer helper's join is pinned against a literal.
+  const offered =
+    'FYI, context-guard: acceptable zone (2 of 3). options: record decisions and pending items in a durable file, then continue, /compact, or hand off with /session-flow:handoff, as you and the user choose. A zone never calls for terser output, fewer agents, or lower quality.'
+  expect(offer(crossing('acceptable'))).toBe(offered)
   expect(w.suggested).toEqual([offered])
   expect(await notice($)).toBe(offered)
   expect(own((await prompt($, 'composer')).context)).toEqual([])

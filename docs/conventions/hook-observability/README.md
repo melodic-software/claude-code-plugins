@@ -421,9 +421,16 @@ amended the What bullet twice on 2026-10-04: dropping the standing-rule sentence
 - **What.** Each line names its plugin and a verdict worded as a fact. The verdict names no action,
   claims no authority and gives no order. `context-guard`'s boundary lines add that continuing is
   the user's call, and may be followed by the dumb-zone save note or an operator-configured
-  `zones.json` action. `rate-limit-guard`'s lines carry the verdict only, except that the line at
-  the threshold ends with one directive, `Keep working.`, the only order this exception admits on a
-  context channel. The owner decided this on 2026-10-04: they rotate accounts by hand on the alerts,
+  `zones.json` action. `rate-limit-guard`'s lines carry the verdict only. Since 2026-10-11 (#7118)
+  each mod may also follow its verdict lines with one constant options line per carrier, the only
+  text this exception admits that names actions on a context channel: `rate-limit-guard`'s at an
+  approach or threshold line (continue at the same model, effort and review depth, the user can
+  switch accounts, or schedule after the reset; usage never calls for lowering any of the three),
+  `context-guard`'s past `smart` (record decisions in a durable file, then continue, compact or hand
+  off as Claude and the user choose; a zone never calls for terser output, fewer agents or lower
+  quality). The owner decided this after sessions moved subagents to a smaller model, stopped
+  launching agents and steered toward handoffs on the verdict alone. An earlier `Keep working.`
+  directive (2026-10-04) has since left `rate-limit-guard`. The owner decided that on 2026-10-04: they rotate accounts by hand on the alerts,
   and an interactive session waits out a usage limit on its own
   (<https://code.claude.com/docs/en/interactive-mode#wait-for-a-usage-limit-to-reset>), so a line
   read as a cue to stop would end work the session can finish. The observed stumble: on

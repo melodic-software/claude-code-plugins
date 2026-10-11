@@ -47,7 +47,7 @@ A line states the window, the threshold crossed, and the use and reset time the 
 After the approach and threshold lines at a carrier comes one options line:
 
 ```text
-rate-limit-guard: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. Usage never calls for stopping, pausing, or lowering model, effort or review depth.
+rate-limit-guard: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor.
 ```
 
 Facts alone led Claude to stop launching agents and to move work to a smaller model

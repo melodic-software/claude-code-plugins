@@ -96,7 +96,7 @@ as a transcript line Claude does not read.
 The menu never reaches Claude: an exit menu in model context manufactures the model's own
 initiative to stop, summarize, or hand off, which the instruction-audit catalog flags as check I23.
 Claude's options line lists compaction and a handoff as choices beside continuing, never as a
-step to take.
+step to take; it is a deliberate exception to I23, decided by the owner in #7118.
 
 ### Operator mode
 

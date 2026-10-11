@@ -302,10 +302,12 @@ skill's module check), none of the following runs except the PostCompact marker.
   and `ui.log` doc comments in the build's `claude-code/index.d.ts` types. As of: 2026-10-04.
   Recheck trigger: either doc comment changes what the model reads. Pointer: for what to do when the context fills up, see
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. As of: 2026-10-04.
-  Recheck trigger: that section is renamed, moved or removed. **Neither the menu nor the router
-  pointer ever reaches the model channel.** A menu injected into
-  model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
-  live finding under I23 of `/harness-config:audit-instructions`. By default the module sends the
+  Recheck trigger: that section is renamed, moved or removed. **Neither the person's menu nor the
+  router pointer ever reaches the model channel.** I23 of `/harness-config:audit-instructions`
+  holds that a menu injected into model context manufactures the model's own initiative to stop,
+  summarize, or hand off. The options line below is a deliberate, owner-decided exception to that
+  row (2026-10-11, issue #7118): an audit that flags it records it as this known exception rather
+  than a new finding. By default the module sends the
   verdict, any operator-configured `zones.json` action, and past `smart` one options line: record
   decisions and pending items in a durable file, then continue, `/compact`, or hand off as the
   model and the user choose, and a zone never calls for terser output, fewer agents, or lower
