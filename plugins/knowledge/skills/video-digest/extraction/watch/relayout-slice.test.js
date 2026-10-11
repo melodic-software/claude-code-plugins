@@ -1302,6 +1302,21 @@ describe("relayoutSlice input shapes and reference forms (adversarial sweep)", (
     expect(read(targetDir, "metadata/decks/€.pdf")).toBe("pdf");
   });
 
+  // HTML attributes accept a numeric reference without its semicolon; Markdown
+  // destinations do not, so only the attribute is decoded.
+  it("decodes semicolonless numeric references in HTML attributes only", () => {
+    const root = makeDir("relayout-check-");
+    writeTree(root, {
+      "metadata/decks/a&b.pdf": "pdf",
+      "metadata/deck-inventory.md":
+        '<a href="decks/a&#38b.pdf">deck</a>\n[md](decks/c&#38d.pdf)\n',
+    });
+
+    expect(checkLayoutLinks(root)).toEqual([
+      { file: "metadata/deck-inventory.md", ref: "decks/c&#38d.pdf" },
+    ]);
+  });
+
   // HTML numeric character reference replacements: 0x80 is windows-1252's
   // euro sign (U+20AC), and 0 becomes U+FFFD.
   it("applies HTML's numeric character reference replacements", () => {

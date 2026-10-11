@@ -282,8 +282,12 @@ const WINDOWS_1252 = [
  *
  * @param {string} value
  */
-function decodeHtmlReferences(value) {
-  return value.replace(/&(?:#(\d+)|#[xX]([0-9A-Fa-f]+)|([A-Za-z]+));/g, (match, dec, hex, name) => {
+function decodeHtmlReferences(value, { attribute = false } = {}) {
+  // HTML attributes also accept a numeric reference without its semicolon; Markdown does not.
+  const pattern = attribute
+    ? /&(?:#(\d+);?|#[xX]([0-9A-Fa-f]+);?|([A-Za-z]+);)/g
+    : /&(?:#(\d+)|#[xX]([0-9A-Fa-f]+)|([A-Za-z]+));/g;
+  return value.replace(pattern, (match, dec, hex, name) => {
     if (dec !== undefined || hex !== undefined) {
       const code = dec !== undefined ? Number(dec) : Number.parseInt(hex, 16);
       const invalid = code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff);
@@ -1037,7 +1041,7 @@ export function rewriteSliceReferences(text, sourceFile, targetFile, map) {
     // the enclosing quote character, and an unquoted value that now needs
     // quotes gets double quotes.
     const value = text.slice(from, to);
-    const decoded = decodeHtmlReferences(value);
+    const decoded = decodeHtmlReferences(value, { attribute: true });
     const { found, split } = findReference(decoded, sourceFile, map);
     if (found && "retired" in found) retiredRefs.push(decoded);
     const next = rewrite(decoded, split);
@@ -1245,7 +1249,7 @@ export function checkLayoutLinks(
       check(unescapeDestination(raw).dest, true);
     }
     for (const { from, to } of htmlAttributeValues(tagText)) {
-      check(decodeHtmlReferences(text.slice(from, to)), true);
+      check(decodeHtmlReferences(text.slice(from, to), { attribute: true }), true);
     }
     for (const span of codeSpans(fenceMasked)) {
       // A span with spaces may be a command (`node run.mjs x.js --flag`): only
