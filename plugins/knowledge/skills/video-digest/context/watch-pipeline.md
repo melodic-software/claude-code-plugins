@@ -64,7 +64,9 @@ snapshotted to `key-frames/contact-sheets/` for local disaster recovery, see
 A successful `close` writes `status: complete` and then removes the three directories recorded in
 that slice's `tempSession`, only those and only when each resolves inside the OS temp dir. A
 directory it cannot remove gets a stderr warning naming it and stays for removal by hand; the close
-still succeeds. A failed close leaves them in place for the re-run.
+still succeeds. A failed close leaves them in place for the re-run. A watch that fails before
+`watch.json` records `tempSession` (an acquisition error, a 429) removes the three directories it
+made, downloaded media included; once recorded, they stay for `--recover`.
 `highVolume: true` in output → fan out vision subagents; no hard frame cap.
 
 ## Prerequisites gate
