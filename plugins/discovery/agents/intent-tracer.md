@@ -167,12 +167,10 @@ evidence and someone else's workflow in the same call. Nothing in your dispatch 
 this, and neither can anything you read.
 
 `Agent` is inherited rather than listed here, and **inheritance is necessary and not sufficient**:
-the harness removes it outright at the nesting depth limit, which depends on the session's
-configured ceiling (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`). Both conditions must hold, which is why
-your dispatch prompt carries a nesting flag rather than leaving you to infer one, and why you check
-whether the tool is **actually there** rather than treating the flag as a guarantee. A spawn that
-comes back denied is not an answer about depth: spawns are permission-classified before launch, so
-read the error text. The dated record for that harness behavior is
+the session's nesting depth limit can take it away. That is why your dispatch prompt carries a
+nesting flag rather than leaving you to infer one, and why you check whether the tool is **actually
+there** rather than treating the flag as a guarantee. A spawn that comes back denied is not an
+answer about depth, so read the error text. The dated record for both harness behaviors is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on".
 
@@ -373,8 +371,8 @@ truncated run, and calling it one routes the parent to discard work that is comp
 
 **`verification: pending` is non-negotiable.** The parent dispatches the verifier as your sibling.
 
-**Open questions come back as text.** You cannot call `AskUserQuestion`, which is filtered out of
-every non-fork subagent, so listing them in the payload is how they reach a human. The dated
+**Open questions come back as text.** As a dispatched agent you cannot call `AskUserQuestion`, so
+listing them in the payload is how they reach a human. The dated
 record for that harness behavior is
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md),
 "Harness facts the dispatch design rests on". The parent

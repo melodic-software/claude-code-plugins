@@ -137,8 +137,8 @@ Why the mode exists and where its boundary sits:
 
 The gate passing is not the end of the parent's work:
 
-- **Re-surface `open_questions`.** The agent cannot call `AskUserQuestion`, which is filtered out of
-  every non-fork subagent, so the payload is the only route those questions have to a human. The
+- **Re-surface `open_questions`.** The dispatched agent cannot call `AskUserQuestion`, so the
+  payload is the only route those questions have to a human. The
   dated record for that harness behavior is
   [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
   "Harness facts the dispatch design rests on".
