@@ -165,9 +165,8 @@ wit_resolve_repo() {
 
 # --- Assignee ops (REST) -----------------------------------------------------
 # These deliberately use `gh api` (REST) rather than `gh issue view/edit`. The
-# `gh issue` subcommands resolve assignees through GraphQL, and sandboxed
-# sessions (Claude Code on the web / remote execution) serve only a pinned set
-# of GraphQL operations, refusing the rest with HTTP 403 — which made the whole
+# `gh issue` subcommands resolve assignees through GraphQL, which cloud
+# sessions behind the GitHub proxy refuse with HTTP 403 — which made the whole
 # lease protocol unrunnable there. REST `…/issues/<n>/assignees` is served.
 # The <writer> argument keeps the identity routing intact: `read` = bare gh =
 # the session identity the claim carve-out requires (README "Edit labels /

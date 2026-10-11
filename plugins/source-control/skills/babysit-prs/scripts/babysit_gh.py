@@ -109,12 +109,14 @@ def gh_json(args: list[str]) -> Any:
 # 1 for every failure, so this is the only signal separating "the API answered
 # no" from "the call never landed".
 GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
-# Sandboxed sessions (Claude Code on the web and remote execution) serve only a
-# pinned set of GraphQL operations and refuse the rest with HTTP 403. The
-# refusal names the session rather than the credential, so it reads like an
-# expired token or a missing scope and is neither: re-authenticating never
-# clears it, and the only remedy is to source the same fact over REST.
-GRAPHQL_UNAVAILABLE_MARKERS = ("not enabled for this session",)
+# Cloud sessions behind the GitHub proxy are served no GraphQL and refuse every
+# GraphQL request with HTTP 403. The refusal names the session rather than the
+# credential, so it reads like an expired token or a missing scope and is
+# neither: re-authenticating never clears it, and the only remedy is to source
+# the same fact over REST. Marker: the refusal's opening words per
+# https://code.claude.com/docs/en/cloud-environments#github-proxy (as of
+# 2026-10-11; recheck when that section changes its GraphQL entry).
+GRAPHQL_UNAVAILABLE_MARKERS = ("graphql is not available from claude code sessions",)
 
 
 class GraphQLUnavailableError(RuntimeError):
@@ -150,7 +152,7 @@ def gh_http_status(text: str) -> int | None:
 def is_graphql_unavailable(failure: BaseException | str) -> bool:
     """Whether a failed GraphQL-backed `gh` call was refused the API itself.
 
-    Two signals, either sufficient: the pinned-operation refusal text, and a
+    Two signals, either sufficient: the proxy's refusal text, and a
     PARSED 403 status. Applied ONLY to GraphQL-backed calls, where both
     readings lead somewhere safe -- a REST re-source that either answers or
     fails loudly on its own, or a fail-closed verdict.
@@ -563,8 +565,7 @@ def view_pr_fields(
     """`gh pr view --json <fields>`, re-sourced over REST when GraphQL is refused.
 
     `gh pr view --json` is implemented entirely over GraphQL, so it is the first
-    read in this engine to fail where only a pinned set of GraphQL operations is
-    served. Returns the field bundle plus whether it came from GraphQL; a REST
+    read in this engine to fail where GraphQL is not served. Returns the field bundle plus whether it came from GraphQL; a REST
     bundle carries only the fields `rest_view_pr` can rebuild, so a caller that
     asked for a GraphQL-only field (`closingIssuesReferences`) gets it absent
     rather than fabricated, and must fail closed on the absence.

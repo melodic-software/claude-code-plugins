@@ -35,9 +35,8 @@
 # to this run's --stranded-days floor only after the section was read in full,
 # so a gap between runs never drops a merge out of the window.
 #
-# Transport. The gh subcommands ride GraphQL. When the host serves only a
-# pinned set of GraphQL operations (the HTTP 403 "not enabled for this session"
-# shape), sections 1-4 are re-read from repository-scoped REST endpoints and
+# Transport. The gh subcommands ride GraphQL. When the host serves no GraphQL
+# (the cloud GitHub proxy's HTTP 403 refusal), sections 1-4 are re-read from repository-scoped REST endpoints and
 # the header names the transport. The stranded-findings section needs
 # reviewThreads, which has no REST equivalent, so it renders UNREADABLE there.
 #
@@ -347,10 +346,10 @@ gh_read() {
   return 0
 }
 
-# The host serves only a pinned set of GraphQL operations. Every other GraphQL
-# query is refused with this message shape; REST stays available.
+# The host serves no GraphQL: every GraphQL request is refused with this
+# message shape; REST stays available.
 graphql_blocked() {
-  grep -qiE 'GraphQL query.*not enabled|pinned set of PR-review' <<<"$1"
+  grep -qi 'GraphQL is not available from Claude Code sessions' <<<"$1"
 }
 
 # gql_or_rest OUTFILE gql_fn rest_fn

@@ -339,7 +339,7 @@ classification gate. Let a safe iteration proceed when the engine is absent, rep
 merge-readiness as unchecked.
 
 **Sandboxed sessions: the engine reads over REST, and thread resolution fails closed.**
-Claude Code on the web and remote execution serve only part of the forge's GraphQL API, and the
+A cloud session behind the GitHub proxy is served none of the forge's GraphQL API, and the
 refusal reads like an expired token or a missing scope while being neither: take it as a signal to
 switch APIs rather than to re-authenticate (the signal and the REST routes: provider reference
 "Sandboxed sessions"). The engine re-sources its pull-request reads over REST by itself, so
