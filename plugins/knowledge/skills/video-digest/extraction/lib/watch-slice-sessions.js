@@ -27,6 +27,10 @@ export function parseBoundaryLine(boundaryLine) {
 }
 
 /**
+ * Every `## <n>.` section must carry a `**Boundary:**` line with a bracketed
+ * stamp; one that does not rejects the whole inventory (returns no session),
+ * so a gate cannot pass while skipping a session it failed to read.
+ *
  * @param {string} claimInventoryBody
  * @returns {{ name: string, startSec: number, endSec: number|null }[]}
  */
@@ -37,7 +41,7 @@ export function parseSessionsFromClaimInventory(claimInventoryBody) {
     const nameLine = section.split("\n")[0]?.trim();
     const boundaryMatch = section.match(/\*\*Boundary:\*\*\s*(.+)/);
     // A boundary with no bracketed stamp would span the whole video.
-    if (!nameLine || !boundaryMatch?.[1].match(BOUNDARY_STAMP)) continue;
+    if (!nameLine || !boundaryMatch?.[1].match(BOUNDARY_STAMP)) return [];
     const { startSec, endSec } = parseBoundaryLine(boundaryMatch[1]);
     sessions.push({ name: nameLine, startSec, endSec });
   }

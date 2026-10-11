@@ -51,6 +51,18 @@ describe("parseSessionsFromClaimInventory", () => {
     expect(parseSessionsFromClaimInventory(body)).toEqual([]);
   });
 
+  it("rejects the whole inventory when one numbered session cannot be parsed", () => {
+    const body = `## 1. Opening
+
+**Boundary:** [0:00] start → [10:00] break
+
+## 2. Main talk
+
+**Boundary:** 10:00 → 40:00
+`;
+    expect(parseSessionsFromClaimInventory(body)).toEqual([]);
+  });
+
   it("parses no session from a heading whose boundary has no bracketed stamp", () => {
     const body = `## 1. Opening
 
