@@ -340,7 +340,8 @@ recipe::docs_naming() { # <clean|violation>
 
 recipe::convention_yaml() { # <clean|violation>
   fixture_tree::build f --sut "$SELF_DIR/check-convention-yaml.sh" --git --label convention-yaml || return 2
-  mkdir -p "$f/docs/conventions" "$f/plugins/alpha/schemas"
+  mkdir -p "$f/docs/conventions" "$f/plugins/alpha/schemas" "$f/lib"
+  cp "$REPO_ROOT/lib/yaml-subset.awk" "$f/lib/yaml-subset.awk"
   printf 'mode: on\n' >"$f/docs/conventions/alpha.yaml"
   [[ "$1" == violation ]] || printf '{}\n' >"$f/plugins/alpha/schemas/alpha.schema.json"
   git_test_config "$f" add -A >/dev/null || return 2
