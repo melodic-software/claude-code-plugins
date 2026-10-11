@@ -15,6 +15,6 @@ makes it worth checking again. Nothing here asserts the command is present in an
 
 Both show what fills a context window. `/context` shows the current session, live, as a grid the
 person reads. This skill measures the fixed payload every session starts with, per item, by A/B
-differencing headless sessions, splits the tool pools `/context` reports as lump sums, and ledgers
+differencing headless sessions, splits the tool pools `/context` shows only as totals, and ledgers
 the measured delta of each lever. The model cannot run `/context`, so this skill offers it to the
 person instead of routing to it.

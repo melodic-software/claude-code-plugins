@@ -135,8 +135,9 @@ stays unconditioned until upstream matching reaches those paths.
   not offered.
 - **Honest degradation.** Exact mode uses the Agent SDK's structured context usage. Without the
   SDK, the engine parses headless `/context` output version-aware (display-rounded, and flagged
-  as resting on an undocumented surface). When neither works, it emits a structured error with a
-  remediation, never a wrong number.
+  as resting on a surface the docs do not list for `-p`; `skills/audit/reference/engine.md`
+  carries the record). When neither works, it emits a structured error with a remediation, never
+  a wrong number.
 
 ## Prerequisites
 

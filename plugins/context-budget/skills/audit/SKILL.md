@@ -55,7 +55,7 @@ session feels crowded:
   went, with one simple chart in plain language. The model and the person can both invoke it where
   it resolves.
 - **This skill (marketplace plugin).** Measures the fixed startup payload of a fresh headless
-  session per item, including the built-in tool pools `/context` reports as lump sums, and keeps a
+  session per item, including the built-in tool pools `/context` shows only as totals, and keeps a
   before/after ledger for every lever the operator toggles.
 
 **Routing.** When the bundled `explain-usage` skill resolves in this session, prefer it for a
@@ -77,7 +77,7 @@ Both show what fills a context window, so "what is eating my context" can land o
   what its argument does are read live at the pointer below. It is reserved for the person to run;
   the model does not invoke it.
 - **This skill (marketplace plugin).** Measures a fresh headless session's startup payload per
-  item, splits the built-in tool pools `/context` reports as lump sums, and ledgers before/after
+  item, splits the built-in tool pools `/context` shows only as totals, and ledgers before/after
   deltas.
 
 **Routing.** When the person wants a live look at the current session's window, offer it to the

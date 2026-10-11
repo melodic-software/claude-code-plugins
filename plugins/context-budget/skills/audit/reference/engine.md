@@ -23,7 +23,7 @@ emptied bucket) and a caveat names it with the binary version.
 - **Observation:** headless `/context` on Claude Code 2.1.289 printed a `System tools (deferred)`
   row and no `System tools` row. Whether every built-in tool is deferred in headless sessions or
   the format changed is not documented.
-- **Probe:** the engine's `cli-parse` rung, `<binary> -p "/context"` against 2.1.289.
+- **Probe:** the engine's `cli-parse` rung, `<binary> -p "/context"` against 2.1.289, 2026-10-04.
 - **Pointer:** the `/context` row in
   [commands § All commands](https://code.claude.com/docs/en/commands#all-commands), read for
   whether it lists `/context` as available with `-p`.
