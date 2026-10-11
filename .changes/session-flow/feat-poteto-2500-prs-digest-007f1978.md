@@ -4,6 +4,7 @@ bump: minor
 
 ### Fixed
 
+- **`scripts/transcript_dirs.sh` names a non-ASCII project directory as Claude Code does**: one `-` per UTF-16 code unit (`/home/José/r` is `-home-Jos--r`, an emoji is `--`), where it wrote one `-` per UTF-8 byte and so missed those directories.
 - **The shared `yaml-subset.awk` parser trims trailing blanks and strips ` #` comments in one pass**, where two regexes rescanned a long run of spaces from every start; a 200,000-space line now parses in well under a second with the same records.
 - **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.
 - **`scripts/transcript_dirs.sh` and the Python probe run inline Python with `-I`**, so a `json.py` planted in the working directory is never imported in place of the standard library.

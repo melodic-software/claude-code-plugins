@@ -2,8 +2,8 @@
 # Black-box test for transcript_dirs.sh, the scope-to-directory map behind
 # /session-flow:find-handoff's transcript scan.
 #
-# Expected directory names come from the sessions docs rule (every character
-# that is not a letter or digit becomes `-`; a name past 200 characters keeps
+# Expected directory names come from the sessions docs rule (every UTF-16 code unit
+# that is not an ASCII letter or digit becomes `-`; a name past 200 characters keeps
 # its first 200 and gains a hash), written out by hand for each fixture path.
 # On Linux and macOS the fixture lives under /tmp so its own prefix is known:
 # `/tmp/<x>` encodes to `-tmp-<x>`, macOS's `/private/tmp/<x>` to
@@ -31,7 +31,14 @@ trap 'rm -rf "$WORKROOT"' EXIT
 T="$(cd "$WORKROOT" && pwd -P)"
 if [[ "$WINHOST" -eq 1 ]]; then
   wT="$(cygpath -w "$T")"
-  base="$(LC_ALL=C && printf '%s' "${wT//[^A-Za-z0-9]/-}")"
+  # Per UTF-16 code unit, over UTF-8 bytes: continuation bytes vanish, a
+  # 4-byte lead is two units, any other non-[A-Za-z0-9] byte is one.
+  base="$(
+    LC_ALL=C
+    wT="${wT//[$'\x80'-$'\xbf']/}"
+    wT="${wT//[$'\xf0'-$'\xf7']/--}"
+    printf '%s' "${wT//[^A-Za-z0-9]/-}"
+  )"
 else
   case "$T" in
   /tmp/*) base="-tmp-${T#/tmp/}" ;;
@@ -240,6 +247,17 @@ assert_true 'without python the script exits 0' code_is 0
 assert_true 'without python only the exact-name match prints' out_is "$E1"
 assert_true 'without python stderr is one line' [ "$(wc -l <"$T/err")" -eq 1 ]
 assert_true 'that line is a gap line' [ "$(grep -c '^gap:' "$T/err")" -eq 1 ]
+
+# Non-ASCII roots. Claude Code replaces each UTF-16 code unit that is not an
+# ASCII letter or digit, so `é` is one `-` and an emoji (two code units) is two.
+for case in "José|Jos-" "a😀b|a--b"; do
+  dir="$T/${case%%|*}"
+  want="$S/${base}-${case#*|}"
+  mkdir -p "$dir" "$want"
+  git -C "$dir" init -q
+  run_in "$dir" --scope worktree
+  assert_true "a root named ${case%%|*} maps to ${base}-${case#*|}" out_is "$want"
+done
 
 # Usage.
 run_in "$R1" --scope wide
