@@ -1,8 +1,13 @@
 # Success criteria
 
-Distilled from Anthropic's "Define success criteria and build evaluations"
-(<https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>, fetched 2026-08-08).
-Re-fetch the source before treating any specific here as current.
+Distilled from Anthropic's "Define success criteria and build evaluations".
+
+- **Pointer**: when a specific here must be current, fetch
+  [Define your success criteria](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#define-your-success-criteria)
+  and [Common success criteria](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#common-success-criteria)
+  live.
+- **As of**: 2026-08-08 (distilled); pointer anchors verified 2026-10-11
+- **Recheck trigger**: either section is retitled, moves, or changes its criteria list.
 
 This repository's own defaults and source-conflict records: [local-decisions.md](local-decisions.md).
 

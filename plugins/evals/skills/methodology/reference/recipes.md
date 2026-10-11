@@ -1,10 +1,13 @@
 # Eval recipes: one per criteria dimension
 
-Distilled from Anthropic's "Define success criteria and build evaluations"
-(<https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>, fetched 2026-08-08). The
-source page carries full runnable code for every recipe in Python, TypeScript, C#, Go, Java, PHP,
-and Ruby. Fetch it for implementation; this file carries the design of each recipe. Re-fetch the
-source before treating any specific here as current.
+Distilled from Anthropic's "Define success criteria and build evaluations". This file carries the
+design of each recipe; the source page carries the runnable code.
+
+- **Pointer**: when implementing a recipe, or when a specific here must be current, fetch
+  [Example evals](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#example-evals)
+  live.
+- **As of**: 2026-08-08 (distilled); pointer anchor verified 2026-10-11
+- **Recheck trigger**: that section is retitled, moves, or adds, drops or renames a recipe.
 
 This repository's own defaults and source-conflict records: [local-decisions.md](local-decisions.md).
 
