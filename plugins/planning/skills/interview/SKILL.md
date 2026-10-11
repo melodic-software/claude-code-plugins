@@ -181,6 +181,7 @@ For EVERY question, propose an answer grounded in observed codebase state. User 
 When the task touches domain concepts, these behaviors activate during Q&A. The probing behaviors run in any session; the two that write repo artifacts, **inline vocabulary update** and **ADR**, are engineering-only (per the Step 1 domain classification), so a general session, gated to a shared-understanding summary, never mutates a project glossary or proposes an ADR:
 
 - **glossary challenge**. When the user uses a domain term two ways, or a term collides with an existing definition, probe it
+- **variation intent** *(engineering sessions only)*. When the work touches an external system or a domain category, ask the intent question: must this be generic, and is the next variant known? A variant the evidence already names is stated as a fact, not asked. The answer is a settled prerequisite for `/planning:design`'s variation-point pass, which owns the abstract-or-contain verdict; the interview records intent, never a verdict. Rule: [`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md); shape: [`context/loop.md`](context/loop.md) "Highest-value question shapes"
 - **domain scenario exploration**. Invent edge cases that probe concept boundaries ("what happens when a Customer cancels half an Order?")
 - **inline vocabulary update** *(engineering sessions only)*. When a term resolves, invoke
   `/domain-driven-design:curate-language` immediately (if that plugin is enabled; else

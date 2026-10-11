@@ -2,9 +2,9 @@
 
 The shared rule this plugin applies wherever a design picks one variant of something that has, or
 may have, others. `/planning:design` runs the pass and records a verdict per variation point, and
-`/planning:plan` audits that every external integration carries one. An intent answer already
-recorded in the Brief (must this be generic, is the next variant known?) is a settled input to
-the first question. This file states the principles in general terms and points at the
+`/planning:plan` audits that every external integration carries one. `/planning:interview`
+asks the intent question (must this be generic, is the next variant known?), and its answer in the
+Brief is a settled input to the first question. This file states the principles in general terms and points at the
 canonical sources for the patterns; it carries no worked code and no stack-specific recipe.
 Applying a pattern to the solution in hand is the design step's job, grounded in those sources
 and the solution's own conventions.

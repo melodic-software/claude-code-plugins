@@ -135,6 +135,7 @@ Targets that catch the most rework downstream:
 | Domain term used two ways | Will collide later | "When you say 'Order', do you mean the cart or the placed-and-paid order? Your vocabulary file doesn't have this term yet." |
 | Scope creep | One PR vs three | "Is X part of this task, or its own follow-up? I'd recommend splitting, since X touches a different module." |
 | NFRs missing | Functional vs non-functional unclear | "Beyond the feature: constraints on latency, reliability, cost? Your current p99 is 45ms per the middleware logs." |
+| Variation intent | A closed design for one provider or one member of a category costs a migration later | "Must this be generic, and is the next variant known? Your domain doc calls these 'notification channels' but names only email. I'd record the category as named and the next variant as not yet known, which leaves design at its contain default." |
 | Domain boundary unclear | Concept overlap between contexts | "What happens when a Customer cancels half an Order? Partial cancellation or two separate ones? Let's probe the edge case." |
 
 ## Relentless `me` mode mechanics

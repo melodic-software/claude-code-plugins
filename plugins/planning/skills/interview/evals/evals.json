@@ -415,6 +415,18 @@
         "Output says the change can be built directly and aligned on after the diff is reviewed",
         "Output does not treat the behavior change alone as a reason to interview"
       ]
+    },
+    {
+      "id": 30,
+      "name": "asks-variation-intent-for-external-integration",
+      "prompt": "/planning:interview me We need to start taking card payments at checkout through a payment gateway. Nothing in the repo or the tracker says whether other gateways are planned.",
+      "expected_output": "Because the work touches an external system, a round includes the variation-intent question (must this be generic, and is the next gateway variant known?) with a recommendation and basis, registered like any question. The skill does not decide on its own whether to build a generic payment abstraction.",
+      "files": [],
+      "expectations": [
+        "A round asks whether the payment integration must be generic and whether another gateway is known or expected",
+        "The question carries a recommendation and a Basis line, and is written to the open-question register",
+        "Output does not decide on the user's behalf to build a generic multi-gateway abstraction"
+      ]
     }
   ]
 }
