@@ -112,8 +112,8 @@ moves to its topic reference.
 - `transition-all`: a transition names its properties, never `all`.
 - `motion`: a transition that moves or scales sits inside `@media (prefers-reduced-motion: no-preference)`.
 - `duration`: a UI transition lasts no longer than its role in `animation.duration_ms`: `press` for
-  press feedback, `small` for tooltips and small popovers, `medium` for dropdowns and menus, `large`
-  for modals, dialogs, drawers and sheets.
+  press feedback, `small` for tooltips and small popovers, `medium` for dropdowns, menus and any
+  other UI transition (hover, color, focus), `large` for modals, dialogs, drawers, sheets and toasts.
 
 Details: `hover` and `outline` in interaction.md, `logical` and `color` in foundations.md, the rest
 in motion.md.

@@ -58,6 +58,12 @@ log() { printf '%s\n' "$*"; }
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 section() { printf '\n== %s ==\n' "$*"; }
 
+# Turn `git ls-tree -r` output on stdin into "<blob sha> <path>" lines. Fields split on the tab,
+# so a path containing spaces stays whole.
+parse_tree() {
+  awk -F"\t" '{ split($1, meta, " "); print meta[3], $2 }'
+}
+
 # Print "<blob sha> <path>" for every file on the upstream default branch;
 # return 1 when the tree cannot be read.
 fetch_tree() {
@@ -65,7 +71,7 @@ fetch_tree() {
   dir="$(mktemp -d)" || return 1
   if git clone --quiet --depth 1 --filter=blob:none --no-checkout --branch "$UPSTREAM_BRANCH" \
     "https://github.com/${UPSTREAM_REPO}.git" "$dir/repo" >/dev/null 2>&1; then
-    git -C "$dir/repo" ls-tree -r HEAD | awk '{ print $3, $4 }'
+    git -C "$dir/repo" ls-tree -r HEAD | parse_tree
     rc=$?
   else
     rc=1
@@ -87,7 +93,7 @@ run_check() {
   section "Upstream ${UPSTREAM_REPO}@${UPSTREAM_BRANCH} vs pin ${PIN:0:12}"
   for entry in "${PINNED[@]}"; do
     IFS='|' read -r path pinned <<<"$entry"
-    current="$(awk -v p="$path" '$2 == p { print $1; exit }' <<<"$tree")"
+    current="$(awk -v p="$path" 'substr($0, index($0, " ") + 1) == p { print $1; exit }' <<<"$tree")"
     if [[ -z "$current" ]]; then
       log "GONE       ${path}  (deleted or renamed upstream)"
       drift=1

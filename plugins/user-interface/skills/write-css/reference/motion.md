@@ -67,7 +67,8 @@ Rules:
 - `out` is for anything entering or leaving, `in_out` for something already on screen that moves
   or morphs, and `drawer` for a drawer or sheet.
 - Keep each transition within its role: `press` for press feedback, `small` for tooltips and small
-  popovers, `medium` for dropdowns and menus, `large` for modals, dialogs, drawers and sheets.
+  popovers, `medium` for dropdowns, menus and any other UI transition, `large` for modals, dialogs,
+  drawers, sheets and toasts.
   Small, frequent UI sits near the short end of its role.
 - Name the properties in a transition. Never write `transition: all`.
 - Other techniques write `var(--ease-out, ease-out)`, so their snippets work before these tokens

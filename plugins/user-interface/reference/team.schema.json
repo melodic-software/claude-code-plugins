@@ -76,8 +76,8 @@
           "properties": {
             "press": {"type": "integer", "minimum": 0, "description": "Press feedback."},
             "small": {"type": "integer", "minimum": 0, "description": "Tooltips and small popovers."},
-            "medium": {"type": "integer", "minimum": 0, "description": "Dropdowns, menus and selects."},
-            "large": {"type": "integer", "minimum": 0, "description": "Modals, dialogs, drawers and sheets."}
+            "medium": {"type": "integer", "minimum": 0, "description": "Dropdowns, menus, selects and any other UI transition."},
+            "large": {"type": "integer", "minimum": 0, "description": "Modals, dialogs, drawers, sheets and toasts."}
           }
         },
         "gesture": {

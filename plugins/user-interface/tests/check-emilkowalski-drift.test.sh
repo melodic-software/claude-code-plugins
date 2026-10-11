@@ -115,7 +115,28 @@ code=$?
 assert_eq "fetch failure: exit 2" 2 "$code"
 assert_contains "fetch failure: says unverifiable" "$out" "Unverifiable"
 
-# 8. Command line.
+# 8. parse_tree keeps a path containing spaces whole.
+parsed=$(printf '100644 blob abc123\tskills/animate/SKILL.md x\n' | parse_tree)
+assert_eq "parse_tree: spaced path kept whole" "abc123 skills/animate/SKILL.md x" "$parsed"
+
+# 9. A spaced name beside a pinned path is new, and the pinned path stays found.
+fetch_tree() { printf '%s\n' "$stub_tree"; }
+stub_tree="$PIN_TREE
+0123456789abcdef0123456789abcdef01234567 skills/animate/SKILL.md x"
+out=$(run_check 2>&1)
+code=$?
+assert_eq "spaced new file: exit 1" 1 "$code"
+assert_contains "spaced new file: reported whole" "$out" "NEW        skills/animate/SKILL.md x"
+assert_not_contains "spaced new file: pinned path not gone" "$out" "GONE       skills/animate/SKILL.md "
+
+# 10. A pinned path replaced by a spaced variant is gone, not unchanged.
+animate_sha=$(awk '$2 == "skills/animate/SKILL.md" { print $1 }' <<<"$PIN_TREE")
+stub_tree="$(grep -vF " skills/animate/SKILL.md" <<<"$PIN_TREE")
+$animate_sha skills/animate/SKILL.md x"
+out=$(run_check 2>&1)
+assert_contains "spaced rename: pinned path reported gone" "$out" "GONE       skills/animate/SKILL.md"
+
+# 11. Command line.
 bash "$SCRIPT" --help >/dev/null 2>&1
 assert_eq "--help: exit 0" 0 "$?"
 bash "$SCRIPT" --bogus >/dev/null 2>&1

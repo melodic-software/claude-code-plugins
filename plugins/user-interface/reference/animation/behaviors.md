@@ -91,8 +91,9 @@ Contents: `press`, `popover`, `tooltip`, `modal`, `drawer`, `toast`, `accordion`
 ## Drag to dismiss: `drag-to-dismiss`
 
 - The element follows the pointer 1:1 from where it was grabbed.
-- It dismisses when dragged past a distance threshold or released faster than
-  `animation.gesture.velocity_threshold` (px/ms), so a flick is enough.
+- It dismisses when dragged past a distance threshold or released fast enough, so a flick is
+  enough: faster than `animation.gesture.velocity_threshold` (px/ms) for a small element such as a
+  toast; a drawer or sheet needs a higher threshold (`gestures.md`, "Drag details").
 - Otherwise it springs back with the release velocity.
 - Pointer capture, multi-touch protection, resistance past the edge: `gestures.md`.
 

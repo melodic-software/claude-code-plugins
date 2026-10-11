@@ -121,7 +121,7 @@ allows, not a target.
 |---|---|
 | `press` | press feedback |
 | `small` | tooltips, small popovers |
-| `medium` | dropdowns, menus, selects |
+| `medium` | dropdowns, menus, selects, and any other UI transition (hover, color, focus) |
 | `large` | modals, dialogs, drawers, sheets, toasts |
 
 - Small, frequent interface motion sits near the short end of its role; a shorter dropdown feels

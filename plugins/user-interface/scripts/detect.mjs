@@ -280,7 +280,7 @@ function checkRouting(out) {
   // renamed concern, so a disable entry naming it silently stops disabling anything.
   const concerns = new Set([...bundled].map((k) => k.split("\0")[0]));
   const warnConcern = (errors, v, at) => {
-    if (errors.length === 0 && !concerns.has(v.concern)) fail([`${at}.concern: ${v.concern} names no bundled concern; kept, check for a renamed concern`]);
+    if (errors.length === 0 && !concerns.has(v.concern)) fail([`${at}.concern: ${v.concern} names no bundled concern; kept as a new concern (if it is an old id that was renamed, use the new one)`]);
     return errors;
   };
   filter("rows", (v, at) => warnConcern(validate(isMapping(v) && needsFull(strip(full.properties, v, at)) ? full : partial, v, at), v, at));
