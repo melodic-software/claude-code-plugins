@@ -150,8 +150,10 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `dispatcher-run-id` input with `dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml`
    and `dispatched-workflow: .github/workflows/pr-unblock.yml`, so a `workflow_dispatch` sent by
    `github-actions[bot]` proceeds only when it names a run of that dispatcher on the default branch
-   whose window holds this run's creation, and this run is `pr-unblock.yml`; every other
-   bot-sent dispatch stops with `untrusted-actor`. The checks are in the gate's README. Only
+   whose window holds this run's creation and whose `pr-unblock-dispatched-<id>[-<id>...]`
+   artifact lists this run's id, and this run is `pr-unblock.yml`; every other bot-sent dispatch
+   stops with `untrusted-actor`. The gate waits up to 2 minutes for that record while the
+   dispatcher run is still going. The checks are in the gate's README. Only
    with a `dispatcher-run-id` does the skill step pass claude-code-action
    `allowed_bots: github-actions`, which otherwise refuses a run a bot started.
 4. `check-trusted-base` asserts the PR targets the default branch and fails red otherwise. On `pull_request` the base
@@ -564,7 +566,9 @@ run it names passes the checks the trusted-trigger gate applies. That run must b
 started by a push or a listed human, with a re-run attempt started by a listed human. Its head
 must be an ancestor of the tip and no tag may be named `main`. This run must be a `pr-unblock.yml`
 `workflow_dispatch` created between the dispatcher run's `run_started_at` and the earlier of its
-`updated_at` and `run_started_at` plus 10 minutes. The client sends it once and never retries: the broker
+`updated_at` and `run_started_at` plus 10 minutes. The broker does not yet read the dispatcher
+run's record of the runs it dispatched; the trusted-trigger gate in step 3 does, before any
+token request. The client sends it once and never retries: the broker
 reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
 and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
 

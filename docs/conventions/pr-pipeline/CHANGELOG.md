@@ -1,5 +1,9 @@
 # Changelog for the PR pipeline convention
 
+## 1.9.2 - 2026-10-12
+
+`check-trusted-trigger` refuses a `pr-unblock.yml` run sent by `github-actions[bot]` with `untrusted-actor` unless the dispatcher run it names uploaded an unexpired `pr-unblock-dispatched-<id>[-<id>...]` artifact listing this run's id, waiting up to 2 minutes for it. `version` stays 1.
+
 ## 1.9.1 - 2026-10-12
 
 The lanes token broker denies a repository whose `CLAUDE_LANES_REPO_DISABLED` variable is absent,
