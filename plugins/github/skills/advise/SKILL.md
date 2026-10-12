@@ -74,9 +74,12 @@ full convention: `docs/conventions/recommendation-basis/README.md` in the market
 "Help me set up Claude in GitHub Actions" is a setup walkthrough this skill could give, and a
 built-in command performs it.
 
-- **`/install-github-app` (built-in command)**: installs the Claude GitHub App for one repository,
-  with an optional step that sets up the GitHub Actions workflows and secrets. It is reserved for
-  the person to run; the model does not invoke it.
+- **`/install-github-app` (built-in command)**: the person's own setup command for the Claude
+  GitHub App on one repository; the model does not invoke it. What it sets up is read live from
+  the pointer in the "What `/install-github-app` installs and sets up" row of
+  [reference/native-install-github-app.md](reference/native-install-github-app.md) (the file
+  has no section heading to anchor; as of 2026-10-11; recheck when that row's pointer or as-of
+  date changes).
 - **This skill (marketplace plugin).** Read-only design guidance across the GitHub settings plane,
   grounded in live `gh` state and the fetched GitHub docs; changes only through `--apply`.
 
@@ -85,8 +88,8 @@ repository, offer it to the person: you can run `/install-github-app` instead of
 skill. Keep this skill for the surrounding policy: Actions permissions, secrets scope, rulesets,
 and app access. An unattended run records the offer in its output instead of asking.
 
-**Mutation gate.** `/install-github-app` installs an app and may write workflow files and
-secrets. This skill never runs it on the person's behalf, and `--apply` never stands in for it.
+**Mutation gate.** `/install-github-app` changes the repository outside this skill's gate. This
+skill never runs it on the person's behalf, and `--apply` never stands in for it.
 
 **Availability is never assumed.** The command registers gated; this section states what to do
 when the person can run it, never that it is present. The four-part records live in

@@ -462,7 +462,9 @@ async page => {
     await page.goto(base);
     await page.waitForFunction(() => /Not listening/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
     const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent, line: document.getElementById("claudeLine").textContent}; });
-    ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", pill.text === "Not listening: type next" && pill.code === "next" && pill.cls === "pill idle" && /D1/.test(pill.line), JSON.stringify(pill));
+    ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", /type next$/.test(pill.text) && pill.code === "next" && pill.cls === "pill idle" && /D1/.test(pill.line), JSON.stringify(pill));
+    // No watcher has polled this server, as on a first wake held by a permission prompt: the pill names the prompt too.
+    ok("with no watcher ever polled, the pill says to approve any prompt in the terminal, or type next", pill.text === "Not listening: approve any prompt in the terminal, or type next" && /permission prompt/.test(await page.getAttribute("#pill", "title")), pill.text);
     // The ping-silence fallback: with nothing changing, this server sends only its 15 s ping, so a
     // page told to call a stream dead after 1 s drops it, polls, and opens a new one.
     await page.addInitScript(() => {

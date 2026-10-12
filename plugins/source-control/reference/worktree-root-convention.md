@@ -82,7 +82,12 @@ creations) and `hooks/worktree-add-containment-gate.sh` (a raw Bash
 `EnterWorktree(name:)` is not a Bash call and lands in the in-repo default;
 the skill is contractually forbidden from calling the name form, and
 harness-driven creation is covered by the `WorktreeCreate` hook. That pair
-is the documented handling of the `EnterWorktree(name:)` gap.
+is this plugin's handling of the `EnterWorktree(name:)` gap. Pointers:
+[worktrees: ask Claude to create a worktree](https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree)
+for where the name form lands, and
+[replace worktree creation with a hook](https://code.claude.com/docs/en/worktrees#replace-worktree-creation-with-a-hook)
+for the hook seam. As of 2026-10-11; recheck when either section changes where
+the name form lands or which creations the hook replaces.
 
 ## Per-identity and per-repository roots (#2612)
 

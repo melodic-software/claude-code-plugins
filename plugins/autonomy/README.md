@@ -11,12 +11,15 @@ skills produced a commit); see
 
 ## Requirements
 
-Node.js on PATH. Every hook row runs through `node hooks/exec-bash.mjs`, and Claude Code's native
-binary neither ships nor uses Node
-([setup](https://code.claude.com/docs/en/setup), fetched 2026-09-29; recheck when the setup page
-says the native binary ships or uses Node), so without `node` the hooks do not launch and the lane-stop gate is not enforced. The setup `check` reports whether `node`
-resolves. The hooks also use Bash (Git Bash on native Windows) and `jq`; without `jq` they fail open.
-`/autonomy:check` reports whether `node` and `jq` resolve.
+Node.js on PATH. Every hook row runs through `node hooks/exec-bash.mjs`, and this plugin does not
+count on Claude Code to supply Node, so without `node` the hooks do not launch and the lane-stop
+gate is not enforced. The setup `check` reports whether `node` resolves. The hooks also use Bash
+(Git Bash on native Windows) and `jq`; without `jq` they fail open. `/autonomy:check` reports
+whether `node` and `jq` resolve.
+
+- **Pointer**: when checking whether a Claude Code install brings Node, fetch
+  <https://code.claude.com/docs/en/setup#install-with-npm> live. **As of**: 2026-10-11.
+  **Recheck trigger**: the setup page says the native binary ships or uses Node.
 
 ## Shipped capability (0.7.0)
 
@@ -85,11 +88,11 @@ resolves. The hooks also use Bash (Git Bash on native Windows) and `jq`; without
   **Provenance.** The clause set is this repository's own wording of guidance in Anthropic's Claude
   Fable 5 prompting guide, section "Rare cases of early stopping", folded together with the
   companion checkpoint instruction that section asks to be paired with it
-  (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>,
+  (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#rare-cases-of-early-stopping>,
   fetched 2026-08-08). The evidence-before-a-state-changing-command sentence and the
   recover-instead-of-stopping sentence carry the two behaviors the Claude Fable 5.1 prompting guide
   adds in its section "Finish the whole task"
-  (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1>,
+  (<https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#finish-the-whole-task>,
   fetched 2026-09-06). Recheck a clause when its guide section is renamed or stops carrying the
   behavior. Both are authored locally rather than reproduced, per this repository's rule
   against hand-copying upstream content. The citation lives here rather than in the contract file
@@ -145,17 +148,15 @@ session, this gate for a standing lane.
 bare `CLAUDE_PLUGIN_OPTION_*` environment: for an unconfigured key, a watched repository's own
 `.claude/settings.json` `env` block populates that variable freely, and a gate whose enablement (or
 sentinel, or marker path) the watched repository controls is not a gate
-(`docs/conventions/hook-config-delivery`). Per-key precedence, mirroring Claude Code's own settings
-merge:
+(`docs/conventions/hook-config-delivery`). Per-key precedence, ordered after Claude Code's own
+settings precedence:
 
 1. **Managed settings** (fixed root-owned paths + `managed-settings.d/` drop-ins), an org can veto
-   with `lane_stop_gate_enabled: false`.
-   [Server-managed settings](https://code.claude.com/docs/en/server-managed-settings) are
-   deliberately excluded. Their only on-disk artifact is the user-writable cache
-   `~/.claude/remote-settings.json`, which fails the root-owned trust test (the page itself calls
-   the channel "a client-side control, not a security boundary"), so an org vetoing via the server
-   channel must also deliver an endpoint `managed-settings.json` to veto lanes (the gate reads that
-   file directly; Claude Code itself ignores endpoint sources when server keys arrive).
+   with `lane_stop_gate_enabled: false`. Server-managed settings are deliberately excluded. Their
+   only on-disk artifact is the user-writable cache `~/.claude/remote-settings.json`, which fails
+   the root-owned trust test, so an org vetoing via the server channel must also deliver an
+   endpoint `managed-settings.json` to veto lanes (the gate reads that file directly, whatever
+   Claude Code itself applies from it).
 2. **The per-session arm record**, the `harness-ops` lane launcher arms a lane at launch: give the
    lane a `settings` object requesting the gate in its lanes-config entry (see that skill's
    `context/config.md`), and the launcher runs this plugin's `hooks/lane-stop-gate-arm.sh` (writing
@@ -170,6 +171,15 @@ merge:
 3. **User `settings.json`**, located from the hook's own install path, a *persistent* enable that
    also gates interactive sessions, which defeats the default-OFF design; prefer the launcher.
 
+- **Pointer**: when re-checking the order this list follows, fetch
+  <https://code.claude.com/docs/en/settings#settings-precedence> live; when re-checking the server
+  channel's trust posture and how managed sources combine, fetch
+  <https://code.claude.com/docs/en/server-managed-settings#security-considerations> and
+  <https://code.claude.com/docs/en/server-managed-settings#settings-precedence> live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a Claude Code changelog entry changes managed-source precedence, the
+  server-managed cache location, or how the server channel is described in its security section.
+
 A `--settings`-only `lane_stop_gate_enabled=true` is **not honored**; arm a lane through the
 launcher instead. That value reaches the hook only as the forgeable env mirror. The gate says so with a visible
 notice to the user, once per session (none to the model: on Stop it would continue the conversation), instead of disengaging silently, which is also how a stale (pre-arming)
@@ -177,9 +187,14 @@ lane launcher surfaces. A `--plugin-dir` checkout install has no trusted user-se
 location, so only managed settings can enable the gate there.
 
 It is fail-open (unreadable stdin / missing `jq` / a `SubagentStop` never trips it) and bounded
-against runaway by the `stop_hook_active` one-nudge guard plus Claude Code's consecutive-block cap.
-It catches a graceful self-stop only: a closed laptop, a killed process, or `/loop` expiry emit no
-`Stop` event.
+against runaway by the `stop_hook_active` one-nudge guard plus Claude Code's own cap on
+consecutive Stop-hook continuations. It catches a graceful self-stop only: a closed laptop, a
+killed process, or `/loop` expiry emit no `Stop` event.
+
+- **Pointer**: when checking the Stop input field the guard reads and the continuation cap, fetch
+  <https://code.claude.com/docs/en/hooks#stop-input> live. **As of**: 2026-10-11. **Recheck
+  trigger**: a Claude Code changelog entry changes the Stop hook's input fields or its continuation
+  cap.
 
 When the consuming repo sets `HOOK_TELEMETRY_SINK`, the gate emits one fire-and-forget envelope per
 evaluated outcome (`hook: "lane-stop-gate"`; payload contract in the marketplace's hook-telemetry

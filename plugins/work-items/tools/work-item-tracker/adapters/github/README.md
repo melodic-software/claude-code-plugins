@@ -107,8 +107,9 @@ Search-qualifier reference:
 
 Multiple qualifiers AND-combine: `label:type:chore label:recurring no:assignee sort:created-asc`.
 
-**REST form (GraphQL returns HTTP 403).** `gh issue list --search` is GraphQL, and some sessions
-refuse GraphQL. `search/issues` is refused in cloud sessions too, so it is not the fallback. List the
+**REST form (cloud sessions).** `gh issue list --search` is GraphQL, which cloud
+sessions refuse (see "View item" below). We observed REST `search/issues` refused in cloud sessions
+too (the "View item" pointer does not cover search), so it is not the fallback. List the
 repo's issues over REST and filter client-side: `<terms>` are the query words, all of which must
 appear in the title, case-insensitively. Pull requests come back from the issues endpoint and are
 dropped.
@@ -138,13 +139,18 @@ gh issue view <N> --json assignees,labels \
 ```
 
 **Sandboxed sessions: read the item over REST.** `gh issue view --json` routes through GitHub's
-GraphQL API, so every `gh issue view --json` read in this document fails with `HTTP 403` in a
-cloud session behind the GitHub proxy, which serves no GraphQL
-([Configure cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy);
-as-of 2026-10-11; recheck when that section changes its GraphQL entry).
-It is the same restriction the lease protocol's assignee ops work around under "Edit labels /
-assignees" below. That 403 reads like an expired token or a missing scope and is neither, so take
-it as a signal to switch APIs rather than to re-authenticate. The REST issues endpoint carries
+GraphQL API, so in a cloud session (Claude Code on the web and remote execution) read the item with
+the REST recipe below. It is the same reason the lease protocol's assignee ops use REST under "Edit
+labels / assignees" below, and the note every other "sandboxed session" remark in this plugin
+cites. A 403 there is not an auth problem, so take it as a signal to switch APIs rather than to
+re-authenticate.
+
+- **Pointer**: when a `gh` call returns 403 in a cloud session, fetch the GraphQL restrictions in
+  [cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section's GraphQL bullet changes, or a
+  release note names the GitHub proxy.
+
+The REST issues endpoint carries
 the same fields under the same names. Use the object-array form when substituting
 the general `gh issue view --json number,title,body,labels,assignees,comments`
 shape (`.labels[].name` / `.assignees[].login` keep working). REST `comments` is
@@ -246,9 +252,8 @@ which owns this.
 
 **The lease protocol's own assignee ops are REST, not `gh issue`.** `claim` and `reclaim` do not
 use `gh issue edit --add-assignee` / `gh issue view --json assignees`: those route through
-GitHub's GraphQL API, which cloud sessions behind the GitHub proxy refuse with HTTP 403, and that
-made the lease
-protocol unrunnable there. They use `gh api` against `…/issues/<n>/assignees` instead, through the
+GitHub's GraphQL API, which made the lease protocol unrunnable in cloud sessions (see "View item"
+above). They use `gh api` against `…/issues/<n>/assignees` instead, through the
 `wit_read_assignees` / `wit_add_assignee` / `wit_remove_assignee` / `wit_try_remove_assignee`
 helpers in `common.sh`. Those helpers take the same `read`/`write` writer argument as
 `wit_run_gh`, so the carve-out above is preserved: `claim` passes `read` (bare `gh`) and resolves

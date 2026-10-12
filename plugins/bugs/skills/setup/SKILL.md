@@ -19,12 +19,14 @@ Confirm where `/bugs:write --file` writes reports, and manage the tracked projec
 
 This is the narrow-write setup shape: `apply` is bounded to the one writable artifact this plugin
 owns, and the unwritable surface beside it stays check-only. `output_dir` is a personal value that
-Claude Code prompts for when the plugin is enabled, stores in user settings, and ignores in
-`pluginConfigs` entries under project and local settings on current releases (≥ 2.1.207), so an
-`apply` could only write the `pluginConfigs` the uniform setup contract forbids, and reconfiguration
-routes through the native flow instead.
+Claude Code itself prompts for and stores, so an `apply` could only write the `pluginConfigs` the
+uniform setup contract forbids, and reconfiguration routes through the native flow instead.
 
-Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
+Pointer: where option values are stored and which settings files they are read from are read at
+[plugins manifest reference: user configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+and [settings reference: `pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs).
+As of: 2026-10-11. Recheck trigger: either section changes where option values are stored or which
+settings files they are read from.
 
 Keys, layers, merge semantics, the `output_dir` partition rule, and the file format live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md), their single home. Read it
