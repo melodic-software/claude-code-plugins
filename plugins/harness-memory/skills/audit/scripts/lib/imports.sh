@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # imports.sh — the `@path` import graph of a memory file, as Claude Code reads it.
-# One parser so every caller agrees on what an import is. Per the memory doc: paths
-# resolve against the importing file, four hops max, fences and code spans skipped.
+# One parser so every caller agrees on what an import is. Paths resolve against the
+# importing file, the walk stops at four hops, and fences and code spans are skipped;
+# those are this walker's firing values, set to match the docs.
+#   Pointer: https://code.claude.com/docs/en/memory#import-additional-files
+#   As of: 2026-10-11.
+#   Recheck trigger: that section changes path resolution, the recursion depth, or what
+#     import parsing skips; update the depth here and in il_reaches together.
 
 # Print the import targets of one file as absolute paths; `~/` expands against HOME.
 il_imports_of() {

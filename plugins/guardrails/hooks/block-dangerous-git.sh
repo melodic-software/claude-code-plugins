@@ -135,9 +135,11 @@ hook::require_jq_blocking "guardrails-block-dangerous-git" "block_dangerous_git_
 # toward an input it cannot parse (#2157). A MISSING jq can no longer reach this
 # line — hook::require_jq_blocking above has already denied the call (#2146).
 #
-# `.cwd` is the directory the TOOL CALL runs in, which is not the hook process's
-# own: Claude Code launches hooks from the session root while the Bash tool runs
-# the command wherever the session stands. Reading only the hook process's
+# `.cwd` is the directory the TOOL CALL runs in, which need not be the hook
+# process's own, so this guard reads the payload field. Pointer: what `cwd`
+# carries is in https://code.claude.com/docs/en/hooks#common-input-fields. As
+# of: 2026-10-11. Recheck trigger: that table changes what `cwd` holds, or the
+# section is renamed. Reading only the hook process's
 # directory measured the wrong repository's hash format whenever the two differed
 # — a payload cwd in a SHA-256 repository with the hook process in a SHA-1 one
 # cleared a 40-hex lease that is a movable REF NAME where the push actually runs.

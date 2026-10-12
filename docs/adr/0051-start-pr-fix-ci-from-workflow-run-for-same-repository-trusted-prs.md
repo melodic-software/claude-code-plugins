@@ -1,6 +1,7 @@
 # Start pr-fix-ci from workflow_run, for same-repository PRs from trusted actors
 
-- Status: accepted
+- Status: accepted; amended 2026-10-11 (`workflow_run` starts `pr-unblock`, with only its `fix-ci`
+  composite applying, see the amendment below)
 - Date: 2026-10-03
 
 ## Context
@@ -61,3 +62,25 @@ per-PR no-progress cap. The review-lane tripwire stays as it is.
 - The three-level chain limit caps how far lanes may chain from `workflow_run`. `pr-fix-ci` pushes
   a commit, and the next CI run starts from that push, not from a chained `workflow_run`. The push
   must use the App token: a push made with `GITHUB_TOKEN` starts no new workflow run.
+
+## Amendment (2026-10-11): `workflow_run` starts `pr-unblock`, and only `fix-ci` applies
+
+The `pr-fix-ci` lane folds into one lane, `pr-unblock`, whose activities are leaves grouped under
+composites; `fix-ci` is the composite that holds the CI-fixing leaves. A failed CI run now starts
+`pr-unblock` on `workflow_run` (`completed`, conclusion `failure`) for the CI workflows a
+repository names, in place of `pr-fix-ci`. On that trigger only the `fix-ci` composite applies.
+Every other `pr-unblock` activity, `resolve-conflicts` included, is skipped, so a failed check
+cannot start a conflict merge or any other write the lane makes from its other triggers.
+
+Conditions 1 to 5 hold unchanged for every run `workflow_run` starts, as do the App token, the
+no-progress cap and the review-lane tripwire. Where the Decision and Consequences name
+`pr-fix-ci`, read `pr-unblock` on its `workflow_run` trigger.
+
+Nothing runs on this trigger yet. `pr-unblock` first ships with its `resolve-conflicts` leaf, which
+runs the resolve-conflicts skill in its CI mode, and a `report-escalation` leaf that always hands
+an escalated PR to a person. Both start by `workflow_dispatch` only: `pr-unblock-dispatch.yml`
+dispatches one run per conflicting PR after each push to the default branch. `fix-ci` stays
+disabled until its split design lands,
+because its leaves run head code with a write effect
+([ADR 0055](0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md)). Adding the
+`workflow_run` trigger to `pr-unblock` is a lane-power change, and a human merges it.

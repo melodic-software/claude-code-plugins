@@ -100,6 +100,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line-strong);border-radius:6px;overflow:hidden;background:var(--panel)}
 .seg button{border:0;background:transparent;padding:6px 4px;font:500 12.5px var(--sans);cursor:pointer;color:var(--muted)}
 .seg button+button{border-left:1px solid var(--line-strong)}
+.seg button:focus-visible{outline-offset:-3px}
 .seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
 .trow{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12.5px;color:var(--muted)}
 .trow select{font:12.5px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--line-strong);border-radius:5px;padding:3px 4px}
@@ -483,6 +484,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600};
   const RESTART = "Restart the server to enable this.";
   const NOT_LISTENING = "No session is listening; type next in the terminal";
+  const FIRST_WAKE = "Not listening: approve any prompt in the terminal, or type next";
   const DEAF_AFTER = 30; // seconds with no watcher poll before the rung 5 message
   const LINE_CAP = 500; // the server's one-line cap, which a hedged condition must fit
   const FREEZE_MS = 10000; // longest wrap-up freeze on decision saves
@@ -650,7 +652,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const groupDone = gid => S.doc.questions.filter(q => q.group === gid && live(q)).every(q => isAnswered(stateOf(q)));
   const lockedBy = gid => ((groupById(gid) || {}).dependsOn || []).filter(p => groupById(p) && !groupDone(p));
   const groupTitle = gid => (groupById(gid) || {}).title || gid;
-  const eligible = q => stateOf(q) === "open" && !!q.recommendation && !(q.group && lockedBy(q.group).length) && upOf(q).every(p => parentMet(p) && !isStale(Q[p]));
+  const withheld = q => /^\s*Withheld:/.test(q.recommendation || ""); // no recommendation to accept: the field names the evidence that would settle it
+  const eligible = q => stateOf(q) === "open" && !!q.recommendation && !withheld(q) && !(q.group && lockedBy(q.group).length) && upOf(q).every(p => parentMet(p) && !isStale(Q[p]));
   function carryOver(){
     const max = {}, out = {};
     S.doc.questions.forEach(q => { const s = q.stage || ""; max[s] = Math.max(max[s] || 0, q.round || 1); });
@@ -820,11 +823,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return !!d && !!d.deliveredAt && Date.now() - Date.parse(d.deliveredAt) > 600000 && !((S.listener || {}).waiters > 0);
   }
   function unheard(){ return deaf() || stalled(); } // no session is listening for the user's events
+  const neverPolled = () => !!S.listener && S.listener.idleFor === null && !S.listener.lease; // no watcher has polled this server yet: the first wake may wait on a terminal prompt
+  const closed = () => !S.online || !!S.finished || S.restarted; // nothing the page sends would be saved: a restarted server rejects this page's token
+  const closedWhy = () => S.restarted ? "The server restarted. Reload this page to keep answering; your draft is kept." : S.finished ? "The interview is finished. Answers are no longer saved." : "Not connected. Your draft is kept; Save returns when the server is back.";
   function conn(){ // the connection dot's one word; offline says why
     if (S.restarted) return ["offline", "Server restarted: reload"];
     if (!S.online) return S.finished ? ["rest", "Interview finished: server stopped"] : ["offline", "Connection lost: check the terminal"];
     if (S.finished) return ["rest", "Finished"];
-    if (unheard()) return pending().length ? ["idle", "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
+    if (unheard()) return pending().length ? ["idle", neverPolled() ? FIRST_WAKE : "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
     return ["listening", "Live"];
   }
   function working(){ // what Claude is doing with the user's events, else ""
@@ -856,7 +862,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const [cls, word] = conn(), pill = $("pill");
     pill.className = "pill " + cls; pill.setAttribute("aria-live", cls === "listening" || cls === "rest" ? "off" : "polite");
     setHtml(pill, esc(word).replace(/next$/, "<code>next</code>"));
-    pill.title = S.restarted ? "The server restarted with a new key: reload this page to keep answering" : S.finished ? "The interview is finished: you can close this tab" : cls === "offline" ? "The page cannot reach the server: check the terminal" : cls === "idle" ? "Claude is not listening: type next in the terminal" : cls === "rest" ? "Nothing is waiting on Claude" : "";
+    pill.title = S.restarted ? "The server restarted with a new key: reload this page to keep answering" : S.finished ? "The interview is finished: you can close this tab" : cls === "offline" ? "The page cannot reach the server: check the terminal" : cls === "idle" ? (neverPolled() ? "No watcher has reached the server yet: the first wake may be waiting on a permission prompt in the terminal" : "Claude is not listening: type next in the terminal") : cls === "rest" ? "Nothing is waiting on Claude" : "";
     const [ct, age] = claudeLine(); // text and age update apart, so a new age is never announced
     $("claudeLine").hidden = !ct;
     if ($("clText").textContent !== ct) $("clText").textContent = ct;
@@ -1033,10 +1039,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return (q.alternatives || []).filter(a => !(/\(recommended\)/i.test(a.text) || (rec && normAlt(a.text) === rec)));
   }
   function choicesOf(q){
-    const r = reconfirmOf(q), c = r ? [r] : [];
-    c.push({kind: "accept", label: "Rec", text: firstLine(q.recommendation) || "the recommendation"}, {kind: "accept", wn: true, label: "Accept with note", text: "the recommendation, your note attached"});
+    const r = reconfirmOf(q), c = r ? [r] : [], w = withheld(q); // a withheld question has nothing to accept, with or without a note or condition
+    if (!w) c.push({kind: "accept", label: "Rec", text: firstLine(q.recommendation) || "the recommendation"}, {kind: "accept", wn: true, label: "Accept with note", text: "the recommendation, your note attached"});
     altsOf(q).forEach(a => c.push({kind: "alt", alt: a.key, label: "(" + a.key + ")", text: a.text}));
-    c.push({kind: "own", label: "Own answer", text: "uses your note"}, {kind: "defer", label: "Defer", text: "decide later"}, {kind: "hedged", label: "Hedged", text: "accept, the note is the condition"});
+    c.push({kind: "own", label: "Own answer", text: "uses your note"}, {kind: "defer", label: "Defer", text: "decide later"});
+    if (!w) c.push({kind: "hedged", label: "Hedged", text: "accept, the note is the condition"});
     return c.map((x, i) => Object.assign(x, {n: i + 1}));
   }
   function armedOf(cs){ // the armed choice by identity, never by the number it had when armed
@@ -1076,7 +1083,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q.claudeNote) h += '<div class="note"><b>Claude:</b> ' + inline(q.claudeNote) + "</div>";
     const lc = latestClaude(q);
     if (lc) h += '<div class="latest" id="latest"><span class="who">' + esc(whoLabel(lc)) + " &middot; " + esc(fmt(lc.at)) + "</span>" + md(lc.text) + "</div>";
-    if (q.recommendation) h += '<section class="blk"><h4>' + (marks ? "➡️ " : "") + 'Recommendation (Rec)</h4><div class="recbox">' + md(q.recommendation) +
+    if (q.recommendation) h += '<section class="blk"><h4>' + (withheld(q) ? "Recommendation withheld" : (marks ? "➡️ " : "") + "Recommendation (Rec)") + '</h4><div class="recbox">' + md(q.recommendation) +
       (q.basis ? '<details class="why"><summary>Why</summary>' + md(q.basis) + "</details>" : "") + "</div></section>";
     if (q.commits && q.commits.length) {
       const cf = confirmed(q), acc = accepted(q);
@@ -1112,7 +1119,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const q = Q[S.sel], note = $("note");
     if (!q) { $("cur").innerHTML = ""; $("choices").innerHTML = ""; $("decideRow").innerHTML = ""; $("talkRow").innerHTML = ""; note.disabled = true; renderToast(); return; }
     note.disabled = false;
-    const d = decisionOf(q), text = note.value.trim(), can = !S.busy;
+    const d = decisionOf(q), text = note.value.trim(), shut = closed(), can = !S.busy && !shut;
     const last = lastEventSeq(q.id);
     const st = stateOf(q);
     $("cur").innerHTML = d && d.decision && d.aside // one action: the earlier answer no longer counts
@@ -1132,7 +1139,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const needText = armed && needsNote(armed) && !text, frozen = wrapFreeze() > 0;
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + (armed.kind === "accept" && !armed.re && (armed.wn || withNote(q, armed)) ? "Accept with note" : armed.label) : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
-    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd">' + (frozen ? "Wrapping up" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : "Own answer needs a note") : "Ctrl+Enter") + "</span>" +
+    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (shut ? closedWhy() : frozen ? "Wrapping up" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : "Own answer needs a note") : "Ctrl+Enter") + "</span>" +
       (asks ? '<span class="nudge-q" id="askNudge">This reads as a question. Ask Claude instead?<button class="act soft" data-act="ask" data-submit="1"' + (can ? "" : " disabled") + ">Ask Claude</button></span>" : "") +
       (cut ? '<span class="nudge-q" id="cutNudge">This note looks cut off. Finish it before saving?</span>' : "") +
       (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
@@ -1440,7 +1447,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     body.innerHTML = '<div class="fscope">Free-text notes for Claude, not tied to a question. Each note wakes Claude. Notes never count as open items.</div>' +
       '<div class="nthread">' + (nt.length ? nt.map(n => '<div class="nmsg' + (n.by === "claude" ? " claude" : "") + '"><div class="hl"><span class="who">' + (n.by === "claude" ? (n.replyTo ? "Claude replied" : "Claude") : esc(who()) + " wrote") + '</span><span class="dot">&middot;</span><time>' + esc(fmt(n.at)) + "</time>" + (n.seq ? receipts(n.seq) : "") + "</div>" + md(n.text) + "</div>").join("") : '<p class="empty">No notes yet.</p>') + "</div>" +
       '<textarea id="noteText" rows="3" placeholder="A note for Claude. Enter adds a line; Ctrl+Enter sends."' + (S.api >= 2 ? "" : " disabled") + ">" + esc(draft) + "</textarea>" +
-      '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api >= 2 ? "Ctrl+Enter" : RESTART) + '</span></div><div class="toast" id="noteToast"></div>';
+      '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 && !closed() ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api < 2 ? RESTART : closed() ? closedWhy() : "Ctrl+Enter") + '</span></div><div class="toast" id="noteToast"></div>';
     const ta = $("noteText"); grow(ta);
     const th = body.querySelector(".nthread"); if (th.lastElementChild) th.lastElementChild.scrollIntoView({block: "nearest"});
   }
@@ -1562,11 +1569,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const cs = choicesOf(q), c = (kind === "accept" && cs.find(x => x.re)) || cs.find(x => x.kind === kind && !x.re);
     if (c) arm(c.n);
   }
-  function arm(n){
-    const q = Q[S.sel]; if (!q || S.busy) return;
+  function arm(n, onRadio){ // onRadio: picked by arrow keys or Space on the radios, so focus stays on the picked radio
+    const q = Q[S.sel]; if (!q || S.busy || closed()) return;
     const c = choicesOf(q).find(x => x.n === n); if (!c) return;
     S.armed = {kind: c.kind, alt: c.alt ?? null, re: !!c.re, wn: !!c.wn}; renderAnswer();
-    if (needsNote(c)) $("note").focus();
+    if (onRadio) { const r = document.querySelector('#choices input[value="' + n + '"]'); if (r) r.focus(); }
+    else if (needsNote(c)) $("note").focus();
   }
   const noteKind = k => k === "own" || k === "hedged"; // decisions whose note is the answer itself
   const needsNote = c => (noteKind(c.kind) || !!c.wn) && keptText(c) === undefined; // Accept with note is empty without a note
@@ -1687,12 +1695,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   async function send(kind, alt, force, keep, noted){
     const q = Q[S.sel]; if (!q || S.busy) return;
+    if (closed()) { toast(closedWhy(), true); return; }
     const typing = document.activeElement === $("note"), held = stateOf(q) === "wait";
     const text = keep !== undefined ? keep : $("note").value.trim(), isDec = DEC.has(kind);
     if (kind === "ask") { const r = await resolveRef(q, text, "Send as a question"); if (r === false) return; if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; } }
     if (isDec && wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
     const snap = S.snap[q.id] || snapOf(q), typed = $("note").value;
     S.busy = true; toast("Saving.");  renderAnswer();
+    let saved = false; // once the POST succeeds, a later failure is the refresh's and the answer is stored
     try {
       const body = {id: q.id, kind, alt: alt || null, text};
       if (isDec) body.contentRev = force != null ? force : snap.rev;
@@ -1702,7 +1712,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         toast("Not saved: the question changed. Review below.", true); renderAnswer(); return;
       }
       if (!res.ok) throw new Error(data.error || res.status);
-      S.conflict = null;
+      saved = true; S.conflict = null;
       lsSet("draft:" + q.id, null);
       await refresh();
       S.busy = false; S.snap[q.id] = snapOf(Q[q.id]);
@@ -1726,7 +1736,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       else if (done) { select(SUMMARY, {animate: true}); toast(msg + " All answered.", false, true); }
       else { toast(msg, false, true); fillNote(); renderAll(); }
     } catch (e) {
-      S.busy = false; if (!e.quiet) { toast("Not saved (" + e.message + "). Is the local server running?", true); renderAnswer(); }
+      S.busy = false; if (!e.quiet) { toast(saved ?"Saved, but the page could not refresh (" + e.message + "). Reload to see it." : e instanceof TypeError ? "Not saved: the page cannot reach the server. Your note is kept." : "Not saved (" + e.message + ").", true); renderAnswer(); } // a TypeError is the browser's network failure, whose text means nothing to the user
     }
   }
   async function doUndo(){
@@ -1744,6 +1754,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   async function sendFree(kind, text, extra){
     if (S.api < 2 || S.busy) return false;
+    if (closed()) { toast(closedWhy(), true); return false; }
     S.busy = true;
     try {
       const {res, data} = await post(Object.assign({kind, text: text || ""}, extra));
@@ -1920,7 +1931,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   // The server pings every 15 s; past two missed pings the stream counts as dead. A test may
   // shorten it with ?silentMs=<1000 to 35000>, never lengthen it.
   const SILENT_MS = (() => { const v = Number(new URLSearchParams(location.search).get("silentMs")); return Number.isInteger(v) && v >= 1000 && v <= 35000 ? v : 35000; })();
-  function setOnline(v){ if (S.online !== v) { S.online = v; renderHeader(); } }
+  function setOnline(v){
+    if (S.online === v) return;
+    S.online = v; renderHeader();
+    if (!S.loaded) return;
+    renderAnswer(); // answer controls follow the connection: off while nothing can be saved, back on reconnect
+    if (S.fly !== "notes") return;
+    if (document.activeElement !== $("noteText")) { renderFly(); return; }
+    const b = document.querySelector("[data-sendnote]"); if (!b || S.api < 2) return; // typing: update Send note in place so the draft keeps focus
+    b.disabled = closed(); b.nextElementSibling.textContent = closed() ? closedWhy() : "Ctrl+Enter";
+  }
   function connect(){ // every (re)opened stream re-fetches /api/state, so nothing that happened meanwhile is missed
     if (!window.EventSource) { startPoll(); return; }
     if (es) es.close();
@@ -1943,9 +1963,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   });
 
   // ---------- events ----------
+  let viaKeys = false; // the last input was a key, not a pointer: arrow keys on the radios fire click too
+  document.addEventListener("keydown", () => { viaKeys = true; }, true);
+  document.addEventListener("pointerdown", () => { viaKeys = false; }, true);
   document.addEventListener("click", e => {
     const t = e.target;
-    if (t.name === "choice") { arm(+t.value); return; } // click, not change: the pre-checked Your answer row fires no change
+    if (t.name === "choice") { arm(+t.value, viaKeys); return; } // click, not change: the pre-checked Your answer row fires no change
     const cb = t.closest("[data-confirm]"); if (cb) { e.preventDefault(); confirmCommit(cb.dataset.cq, cb.dataset.confirm); return; } // the next state render ticks it
     if (t.closest("[data-confirmall]")) { confirmAll(); return; }
     const un = t.closest("[data-understand]"); if (un) { confirmUnderstanding(un.dataset.understand); return; }
@@ -2018,6 +2041,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     else if (e.target.id === "noteText") { lsSet("noteDraft", e.target.value); grow(e.target); }
     else if (e.target.id === "offText") S.offDraft = e.target.value;
     else if (e.target.id === "looseReply") S.looseDraft = e.target.value;
+  });
+  document.addEventListener("paste", e => { // dictation tools insert by paste: text pasted with no text box focused lands in the current question's note
+    if (textFocused() || $("dlg").open || $("keysDlg").open || $("finDlg").open || !Q[S.sel]) return;
+    const note = $("note"), add = (e.clipboardData && e.clipboardData.getData("text/plain")) || "";
+    if (!add || note.disabled) return;
+    e.preventDefault();
+    note.value += (note.value && !/\s$/.test(note.value) ? " " : "") + add;
+    lsSet("draft:" + S.sel, note.value); grow(note);
+    note.focus(); note.setSelectionRange(note.value.length, note.value.length);
+    renderAnswer();
   });
   document.addEventListener("keydown", e => {
     if (e.isComposing || e.keyCode === 229) return; // IME composition, including Safari

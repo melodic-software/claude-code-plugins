@@ -282,17 +282,17 @@ Recheck when: the page drops or rewrites its "Describe your changes" guidance.
 
 ### Claude Code concise output style
 
-Claim: The built-in concise style leads with the result and skips preamble and
-narration, and still keeps the complete content of error reports, security
-warnings, and confirmations for destructive actions. A brevity mode in this
-product already treats those three classes as a floor.
+Our use: a brevity mode in Claude Code itself keeps some content in full rather
+than shortening it, which corroborates this skill's floor (never drop an error,
+warning or confirmation). Which content that style keeps is the page's to state;
+compare our floor against it live rather than from a copy here.
 
-Basis: https://code.claude.com/docs/en/output-styles
-
-As of: 2026-09-05
-
-Recheck when: the output-styles page changes what the concise style preserves,
-or the style is renamed or removed.
+- **Pointer**: when checking our floor against the Concise style, fetch
+  [Output styles, Concise](https://code.claude.com/docs/en/output-styles#concise)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes what the Concise style keeps in
+  full, or the style is renamed or removed.
 
 ## Evidence on the reader model
 

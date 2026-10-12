@@ -120,9 +120,13 @@ state of now).
 - Legacy (shape-1) predecessor entries arrive untagged; `new` tags them `[h1]`. A predecessor that
   itself failed validation has every carried entry prefixed
   `UNVERIFIED (predecessor failed validation):` after its tag.
-- **Size.** `validate` warns when the file passes 300 lines. The Read tool returns at most 25k
-  tokens per call and a measured chain ran about 70 tokens a line (425 lines, ~29.6k tokens), so 25k
-  tokens is about 355 lines and 300 leaves margin. The warning does not fail the file.
+- **Size.** `validate` warns when the file passes 300 lines, so one Read call returns the whole
+  file. A measured chain ran about 70 tokens a line (425 lines, ~29.6k tokens), and 300 lines
+  leaves margin under the Read tool's per-call cap. The warning does not fail the file.
+  - **Pointer**: [Tools reference § Read tool behavior](https://code.claude.com/docs/en/tools-reference#read-tool-behavior),
+    for the per-call cap.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes the per-call cap; re-derive the 300-line threshold.
 - **`UNVERIFIED (predecessor failed validation)` entries do not expire for now.** Each hop carries
   them forward until the writer re-verifies and re-tags them or moves them under `Superseded:`;
   automatic expiry is deferred.
@@ -625,22 +629,17 @@ checkout run), `new` refuses and asks for an explicit `--memory-dir`.
 
 **Verification record: plugin data dir.**
 
-- **Claim.** `${CLAUDE_PLUGIN_DATA}` is `~/.claude/plugins/data/<id>/`, with `<id>` the plugin
-  identifier with every character outside `[A-Za-z0-9_-]` replaced by `-`. It is substituted inline
-  in skill content and exported as an environment variable only to hook processes and MCP and LSP
-  server subprocesses, never to Bash-tool commands. The page does not say the substitution reaches
-  a file a skill reads with the Read tool, or the `${CLAUDE_PLUGIN_DATA:-default}` form, so this
-  plugin relies on neither: a SKILL.md body writes the plain `${CLAUDE_PLUGIN_DATA}` token, and a
-  script run through Bash derives the dir (`save_point.py` `_plugin_data_root`).
-- **Basis.** The Environment variables section of
-  <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables>: "`~/.claude/plugins/data/<id>/`
-  ... `<id>` is the plugin identifier with every character other than a letter, digit, `_`, or `-`
-  replaced by `-`"; the Skill, command, and agent content row resolves "Anywhere in the Markdown
-  body"; "The variables aren't present in the environment of commands Claude runs through the Bash
-  tool, in the main session or in a subagent."
-- **As of.** 2026-10-07.
-- **Recheck when.** A Claude Code release note or the manifest-reference page changes which
-  processes receive the plugin path variables, where they substitute, or the data-dir layout.
+- **Our decision.** We treat the plugin data dir as keyed to the plugin identifier and nothing else
+  (no project, checkout or session), and we rely only on the substitution the page documents: a
+  SKILL.md body writes the plain `${CLAUDE_PLUGIN_DATA}` token, and a script run through Bash
+  derives the dir itself (`save_point.py` `_plugin_data_root`), never reading the variable from
+  its environment or a `${CLAUDE_PLUGIN_DATA:-default}` form.
+- **Pointer**: [Plugin manifest reference § Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+  and [§ Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves),
+  for the data-dir layout and which processes receive the variable.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes the data-dir layout, where the variable
+  substitutes, or which processes receive it.
 
 `fill` prints nothing and exits 0 once every required slot is keyed and no key names a slot the
 file does not carry. It exits 1 when it refuses: a required slot absent from the JSON, a key
@@ -686,11 +685,19 @@ knows is a hard failure that says "read it, do not rewrite it" (exit 3), never a
 
 `session_id` captures the current session for downstream chain-walkers (the sibling `retro` skill's
 transcript parser, `find-handoff`'s chain validation) and is the id the below-rail
-`claude --resume` line reopens. It is `CLAUDE_CODE_SESSION_ID`, which the Bash tool subprocess sets
-(Claude Code v2.1.132+; resolve it via Bash, skill markdown does not template-expand env vars). It
-must be a UUID with a transcript to match: `new` refuses an unset value and a non-UUID (a bridge
-session's `cse_…` id, which `CLAUDE_CODE_BRIDGE_SESSION_ID` carries and is never read), and the
-literal `unknown` shape 1 allowed is no longer a value. `transcript` is the session's own on-disk
+`claude --resume` line reopens. It is `CLAUDE_CODE_SESSION_ID`, resolved via Bash (skill markdown
+does not template-expand env vars). It must be a UUID with a transcript to match: `new` refuses an
+unset value and a non-UUID (such as a Remote Control bridge id; `CLAUDE_CODE_BRIDGE_SESSION_ID` is
+never read), and the literal `unknown` shape 1 allowed is no longer a value. Which subprocesses
+carry each variable, and the form of its value, are upstream facts: read them live.
+
+- **Pointer**: [Environment variables § Variables](https://code.claude.com/docs/en/env-vars#variables),
+  the `CLAUDE_CODE_SESSION_ID` and `CLAUDE_CODE_BRIDGE_SESSION_ID` rows.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either row changes which subprocesses carry the variable or the form of its
+  value.
+
+`transcript` is the session's own on-disk
 record, resolved by the documented `~/.claude/projects/*/<session_id>.jsonl` glob and `stat`ed at
 write; when the glob misses, the honest `unresolved (…)` value is stored (WARN on validate, FAIL
 under `--strict-transcript`) and a later reader re-runs the same glob.

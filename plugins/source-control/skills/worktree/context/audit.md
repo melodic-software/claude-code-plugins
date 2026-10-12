@@ -10,9 +10,9 @@ Periodic health check for worktree infrastructure. Suitable as a recurring item 
 
 | Check | How | Expected |
 |-------|-----|----------|
-| `delete_branch_on_merge` | `gh api repos/{owner}/{repo} --jq '.delete_branch_on_merge'` | `true` recommended: remote branches auto-delete on merge, so cleanup only handles local branches |
+| `delete_branch_on_merge` | Read the repository's `delete_branch_on_merge` setting ([GitHub](../../../reference/providers/github/README.md#branch-rules)) | `true` recommended: remote branches auto-delete on merge, so cleanup only handles local branches |
 | Worktree root convention | `bash "<scripts-dir>/worktree-root-doctor.sh" --repo-dir <repo>` | Exit 0. The doctor makes the `worktreeroot.path` / `includeIf` silent-failure classes loud (misfiring conditions, missing include files, parse-order shadowing, a root inside a repository) and names which rule supplied this repository's root; report each `warn:`/`error:` line as a finding. Convention: `reference/worktree-root-convention.md` |
-| Gitignored-file propagation | Check whether a `.worktreeinclude` file exists at the repo root | Optional. Suggest when the project keeps local secrets/config in gitignored files (e.g. `.claude/settings.local.json`); Claude Code copies matching gitignored files into new worktrees |
+| Gitignored-file propagation | Check whether a `.worktreeinclude` file exists at the repo root | Optional. Suggest when the project keeps local secrets/config in gitignored files (e.g. `.claude/settings.local.json`). Under this plugin's `WorktreeCreate` hook the copy is the hook's job, and `worktree-create.sh` does it. Pointer: [worktrees: copy gitignored files into worktrees](https://code.claude.com/docs/en/worktrees#copy-gitignored-files-into-worktrees); as of 2026-10-11; recheck when that section changes who copies the files under a hook |
 | Project worktree hooks | If the project registers `WorktreeCreate` / SessionStart setup hooks in its settings, confirm they are present as its docs expect | Per project convention. Skip when the project has none |
 | Stale metadata | `bash "<scripts-dir>/lib/worktree-facts.sh" list <repo>` shows `prunable=no` on every row | Clean. Otherwise suggest `git worktree prune` via `/source-control:worktree cleanup` |
 | Claim liveness | `bash "<scripts-dir>/worktree-claim.sh" report --repo-dir <repo>` | Exit 0. Every linked worktree carries a lock reason (a claim other agents can read). Exit 1 lists each `UNCLAIMED` path: a plain `git worktree add` that bypassed `worktree-create.sh`. Claim with `worktree-claim.sh claim <path>` or leave it reported; do not rewrite an existing helper reason |
@@ -118,7 +118,9 @@ mkdir "<path>" &&
 **Substitute `<helper>` with the resolved absolute path** to
 `scripts/reap-project-plugin-records.sh` before presenting this. Do not emit
 `${CLAUDE_PLUGIN_ROOT}` here. That variable is set for the tooling that runs this skill, not in the
-user's own shell, so a pasted command carrying it expands to `/scripts/…` and exits 127. The `&&`
+user's own shell, so a pasted command carrying it expands to `/scripts/…` and exits 127. Pointer:
+[plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves);
+as of 2026-10-11; recheck when that section starts resolving the variable in the user's shell. The `&&`
 chain fails safe, but the remedy would simply never run while appearing to.
 
 Every step is chained with `&&` deliberately. If the reap exits non-zero, whether some record survived

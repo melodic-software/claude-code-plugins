@@ -9,6 +9,8 @@ Public interface:
   object), `incomplete` (an unterminated final line that does not parse: a session still being
   written, not a bad line) and `unknown` (records whose `record_kind` is `unknown`).
 - `record_kind(record)` is the record's `type` when it is one of `RECORD_TYPES`, else `unknown`.
+  `IGNORED_RECORD_TYPES`, a subset, is known only so drift checks stop reporting it: a caller
+  skips such a record before counting anything from it.
 - `UsageLedger` holds one usage per assistant message: streaming writes one message as several
   records, so usage is keyed by `message.id` (fallback: record `uuid`) and the last record wins.
   Summing per record double-counts tokens. `add(record)`, then `totals()` gives `TOKEN_FIELDS`
@@ -39,6 +41,8 @@ Public interface:
   `<session>/subagents/agent-*.jsonl` beside `<session>.jsonl`, in name order; `meta` is the
   parsed `agent-*.meta.json` object, or None when it is missing, unreadable or not an object.
   Stream each `path` through `iter_records`.
+- `first_cwd(path)` is the `cwd` of the first record that carries a non-empty string one, else None.
+  It stops reading at that record, so a long transcript costs one or two lines.
 
 Callers put this directory on `sys.path` and `import transcript_reader`. Stdlib only; Python 3.10+.
 """
@@ -93,8 +97,24 @@ HOOK_LABEL_RE = re.compile(r"^([a-z0-9][\w.-]{1,40}): ")
 INTERRUPT_RE = re.compile(r"^\[Request interrupted by user( for tool use)?\]")
 LEADING_REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>\s*", re.S)
 TYPED_PROMPT_SOURCES = {"typed", "queued"}
-RECORD_TYPES = frozenset(
+# Recognized but deliberately unread: each holds session or UI state that feeds no metric.
+IGNORED_RECORD_TYPES = frozenset(
     {
+        "atis-latch",  # a latched session flag
+        "mode",  # session mode, apart from permission-mode
+        "bridge-session",  # remote bridge id and sequence number
+        "relocated",  # the cwd a session moved to
+        "file-history-delta",  # one file backup for checkpoint rewind
+        "cost-state",  # running cost and duration totals
+        "fork-context-ref",  # pointer to a forked session's context
+        "frame-link",  # artifact links and their count
+        "artifact-comment-monitor",  # watched-artifact comment state
+        "artifact-autoreact-ledger",  # artifact auto-react state
+    }
+)
+RECORD_TYPES = IGNORED_RECORD_TYPES | frozenset(
+    {
+        "ai-title",  # used: `aiTitle`, the generated session title, a predecessor link key
         "user",
         "assistant",
         "system",
@@ -138,6 +158,18 @@ def iter_records(path: Path, stats: dict[str, int] | None = None) -> Iterator[di
             if record_kind(record) == "unknown":
                 counts["unknown"] += 1
             yield record
+
+
+def first_cwd(path: Path) -> str | None:
+    records = iter_records(path)
+    try:
+        for record in records:
+            cwd = record.get("cwd")
+            if isinstance(cwd, str) and cwd:
+                return cwd
+        return None
+    finally:
+        records.close()
 
 
 class Subagent(NamedTuple):

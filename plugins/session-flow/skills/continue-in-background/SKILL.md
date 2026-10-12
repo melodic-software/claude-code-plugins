@@ -1,6 +1,6 @@
 ---
-description: "Delegate the task to a fresh background agent that continues it NOW. Produce a save-point, then launch a detached claude --bg session seeded with the resume prompt. Use when: 'continue in the background', 'continue this in the background', 'keep working in the background', 'delegate to a background agent', or the user is going AFK and explicitly wants the work to keep moving. Launches only on the user's explicit request, never self-elected."
-argument-hint: "[file|prompt] [topic] [purpose...]"
+description: "Delegate the task to a fresh background agent that continues it NOW. Produce a save-point, then launch a detached claude --bg (or --cloud) session seeded with the resume prompt. Use when: 'continue in the background', 'continue this in the background', 'keep working in the background', 'delegate to a background agent', or the user is going AFK and explicitly wants the work to keep moving. Launches only on the user's explicit request, never self-elected."
+argument-hint: "[--cloud] [file|prompt] [topic] [purpose...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Delegate the task to a fresh background agent now
 ---
 
-**Arguments.** `[file|prompt] [topic] [purpose...]`. e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended
+**Arguments.** `[--cloud] [file|prompt] [topic] [purpose...]`. e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended, /continue-in-background --cloud prompt fix-flaky-test
 
 ## Context. Gather first
 
@@ -43,8 +43,9 @@ for the launch or run `/session-flow:continue-in-background` themselves.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[file|prompt] [topic] [purpose...]`, all optional and positional, with the
-same semantics as `handoff`: method (`file` | `prompt`) recognized only as the first token,
+`$ARGUMENTS` carries `[--cloud] [file|prompt] [topic] [purpose...]`, all optional and positional.
+A leading `--cloud` selects the cloud delivery below and is consumed before the rest parses. The
+rest has the same semantics as `handoff`: method (`file` | `prompt`) recognized only as the first token,
 otherwise auto-detect; topic is the kebab slug for the save-point filename, inferred when omitted;
 everything after the topic token is optional natural-language purpose text ("what will the next
 session be used for?"), no quoting, no new syntax, invocations without it parse exactly as
@@ -94,11 +95,13 @@ fallback), then:
 
    - Prints `true` → there is a work tree; inspect it with the gate below.
    - Fails *specifically* because this is not a git repository, AND no `WorktreeCreate` hook is
-     configured (<https://code.claude.com/docs/en/hooks>) → there is no uncommitted work to
-     protect and no worktree isolation to lose, since background sessions then write to the
-     working directory directly rather than moving into one
-     (<https://code.claude.com/docs/en/agent-view>) → launch, and state both in the launch
-     report. That hook is the isolation path for non-Git source control, so a configured one,
+     configured (<https://code.claude.com/docs/en/hooks#worktreecreate>; as of 2026-10-11;
+     recheck trigger: that section changes what the hook replaces or when it fires) → there is
+     no uncommitted work to protect and no worktree isolation to lose, since we treat
+     background sessions there as editing the working directory in place
+     (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of
+     2026-10-11; recheck trigger: that section changes when a session edits in place) →
+     launch, and state both in the launch report. That hook is the isolation path for non-Git source control, so a configured one,
      or an absence you cannot establish, puts the launched session in a workspace this
      checkout's local changes never reach: that is the default branch below, not this one.
    - **Anything else** → the tree's state is UNKNOWN, which is not the same as clean → do NOT
@@ -120,9 +123,11 @@ fallback), then:
    just-written one AND any prior sessions' (this skill never commits them; they are
    session-chain artifacts, part of the launch rather than disqualifying dirty state; the
    background session starts in this working directory, so it reads the handoff file before any
-   edit moves it into a worktree). Background sessions move into an isolated git worktree (a
-   fresh checkout) before editing files (<https://code.claude.com/docs/en/agent-view>), so OTHER
-   uncommitted changes in this checkout would NOT carry into the launched agent's edits. Any
+   edit moves it into a worktree). We treat a background session as editing in an isolated
+   worktree, a fresh checkout, so OTHER uncommitted changes in this checkout would NOT carry
+   into the launched agent's edits (pointer, for when isolation applies and when it is skipped:
+   <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of 2026-10-11;
+   recheck trigger: that section changes when a session is isolated). Any
    such changes → do NOT launch: report why and fall back to the standard `/clear`-then-paste
    instruction (same checkout, dirty state intact), noting the user can commit or stash and
    re-run `/session-flow:continue-in-background`. Exception: launch anyway when the current session already
@@ -145,9 +150,11 @@ fallback), then:
 
    `claude --bg` starts the session as a background agent and returns immediately; the user
    manages it with `claude agents`. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
-   because this launch runs from a Bash-tool subprocess, which carries
-   `CLAUDE_CODE_CHILD_SESSION=1`, and nested sessions are otherwise excluded from the
-   `claude agents` list (<https://code.claude.com/docs/en/env-vars>). Awareness note: the prompt
+   because this launch runs from a Bash-tool subprocess, a nested session the `claude agents`
+   list would otherwise leave out (pointer: the `CLAUDE_CODE_CHILD_SESSION` and
+   `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE` rows of
+   <https://code.claude.com/docs/en/env-vars#variables>; as of 2026-10-11; recheck trigger:
+   either row changes how nested sessions are listed). Awareness note: the prompt
    travels in the process argument list, so it is briefly visible to other local processes
    (`ps`), inherent to `claude --bg "<prompt>"`. The mandatory redaction pass has already
    scrubbed the prompt by this point; this exposure is one more reason secrets never belong in
@@ -165,10 +172,60 @@ fallback), then:
 5. **STOP.** The background agent is the continuation; this session terminates the task. Do not
    monitor, poll, or babysit the launched agent, and do not start new work items.
 
+## Delivery variant: `--cloud`
+
+Same hard gate, save-point, rails payload, prompt file, failure fallback and STOP, plus one more
+condition: the user's own words asked for a cloud session. A request for background work alone
+does not cover it; without that, drop `--cloud` and take the local delivery. Steps 1 to 3
+change, because this skill launches a cloud session only from a clean checkout whose branch
+matches its remote:
+
+1. **Only pushed work reaches it.** Launch only when `git status --porcelain -uall` lists nothing
+   but save-point files (the linked-worktree exception does not apply), `git fetch --quiet` then
+   succeeds, and `git rev-parse HEAD` equals `git rev-parse @{upstream}`; the fetch keeps a stale
+   tracking ref from passing the check. No upstream, a failed command, or any other result → no
+   launch; fall back as the dirty case does and name commit-and-push as the fix. Upstream can
+   also bundle a repo in some cases (Pointer below). This skill does not take that path, so the
+   cloud session starts from pushed state; a user who wants a bundle starts `claude --cloud`
+   themselves. A
+   handoff file in the memory tier never reaches the VM, and the full path's `Read @` names a
+   local path, so launch only on the prompt-only path. When the save-point takes the full path,
+   forced or by default, do not launch: tell the user to commit and push the handoff or plan,
+   then rerun as `--cloud prompt <topic> <purpose naming its repo-relative path>`. This skill
+   commits nothing.
+2. **Launch** from the project root with the prompt file:
+   `claude --cloud "$(cat "<prompt-file>")" && rm -f "<prompt-file>"`, with `--effort "<level>"`
+   before the prompt argument when "What the launched session inherits" calls for one. If the CLI
+   rejects `--effort` with `--cloud`, relaunch without it and have the report name the level and
+   tell the user to send `/effort <level>` in the session.
+3. **Report** the session id and link it prints, plus the return paths: `claude --teleport <id>`
+   or `/teleport` to continue it in a terminal (its requirements: Pointer below), which needs the
+   same account; `claude -p "<message>" --cloud <id>` to queue a follow-up. Name
+   the account the CLI is signed in to now: the session draws that account's limits, teleport and
+   follow-ups fail after the CLI switches accounts, and the repo's plugins load only when that
+   account's cloud environment runs the repo's setup script.
+
+- **Pointer**: <https://code.claude.com/docs/en/claude-code-on-the-web#start-a-cloud-session-from-your-terminal>,
+  <https://code.claude.com/docs/en/claude-code-on-the-web#send-local-repositories-without-github>,
+  <https://code.claude.com/docs/en/claude-code-on-the-web#manage-context> (`/effort` in a session),
+  <https://code.claude.com/docs/en/claude-code-on-the-web#continue-a-cloud-session-in-your-terminal>,
+  <https://code.claude.com/docs/en/claude-code-on-the-web#send-follow-ups-from-the-cli>; what the
+  session lacks: <https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup>.
+- **As of**: 2026-10-11
+- **Recheck trigger**: any of those sections changes what the VM clones or bundles, the `--cloud`,
+  `--teleport` or follow-up syntax, or teleport's requirements.
+
 ## What the launched session inherits (and what it does not)
 
-The launched agent is a NEW session, not a fork of this one
-(<https://code.claude.com/docs/en/agent-view>):
+The launched agent is a NEW session, not a fork of this one. What it inherits is upstream
+behavior; the rules below are ours, built on it.
+
+- **Pointer**: [Manage multiple agents with agent view § Settings and provider](https://code.claude.com/docs/en/agent-view#settings-and-provider)
+  and [§ Permission mode, model, and effort](https://code.claude.com/docs/en/agent-view#permission-mode-model-and-effort)
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes what a new background session inherits.
+
+Our rules:
 
 - **CLI configuration is NOT inherited.** It carries none of the current session's CLI flags
   (e.g. `--mcp-config`, `--settings`, `--add-dir`, `--plugin-dir`). Mirror onto the launch
@@ -230,6 +287,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
   whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts
   at its default level
+- [ ] `--cloud` only: clean tree, fetched branch matching its upstream, prompt-only payload,
+  `--effort` passed as for `--bg` (CLI rejects it → relaunched without, `/effort` advised); the
+  report names the session id, the teleport and follow-up commands, and the signed-in account
 - [ ] **EXECUTION STOPS HERE**, no monitoring, no babysitting, no new work items
 
 ## Boundary, native Claude Code surfaces
@@ -237,11 +297,13 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 Three built-in commands also keep work moving off this terminal, so "continue in the background"
 can mean any of them.
 
-- **`/subtask`, `/fork`, `/background` (built-in commands, alias `/bg`)**: `/subtask <task>` sends a
-  subagent off with the full conversation and returns its result here. `/fork` copies the
-  conversation into a new background session while this one keeps working. `/background [prompt]`
-  detaches this session itself and frees the terminal. None writes a save-point. All three are
-  reserved for the person to run; the model does not invoke them.
+- **`/subtask`, `/fork`, `/background` (built-in commands)**: `/subtask` hands a side task to a
+  subagent that reports back here, `/fork` copies the conversation into a background session,
+  and `/background` moves this session itself off the terminal. None writes a save-point. All
+  three are reserved for the person to run; the model does not invoke them. What each launches,
+  its alias and its gate: the records table in
+  [native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)
+  (as of 2026-10-11; recheck trigger: that table's rows or their recheck events change).
 - **This skill (marketplace plugin).** Writes a durable, redacted save-point, gates on a dirty
   tree, and launches a fresh `claude --bg` session seeded only with the rails resume prompt, so
   the continuation carries no conversation history and survives on disk.
@@ -255,10 +317,11 @@ records the offer in its output instead of asking.
 **Mutation gate.** This skill writes the save-point and launches one session, only on explicit
 request. It never runs a native command on the person's behalf.
 
-**Availability is never assumed.** All three are gated; `/subtask` is absent when agent view is
-turned off, and `/fork` then behaves differently. This section states what to do when they
-resolve, never that they are present. The four-part records live in
-[reference/native-surfaces.md](reference/native-surfaces.md).
+**Availability is never assumed.** All three are gated, and their behavior depends on the
+session's setup; read the gates live from the records table in
+[native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)
+(as of 2026-10-11; recheck trigger: that table's rows or their recheck events change). This
+section states what to do when they resolve, never that they are present.
 
 ## Gotchas
 

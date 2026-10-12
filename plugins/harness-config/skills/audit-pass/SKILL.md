@@ -46,10 +46,13 @@ Bare invocation reads and reports. `--fix` is the only mutation path, and it is 
 | User | **Routed as a recommendation, never edited in place.** A user-scope tree is commonly managed by a dotfiles manager, so an in-place edit is drift the operator's own sync path will fight. |
 | Project | The only editable scope, per-finding confirmed. |
 
-The frontmatter carries it mechanically too: `disallowed-tools: Edit, NotebookEdit` removes both
-editing tools from the pool while this skill is active, so the report-only contract is a property of
-the tool set, not of model obedience. `Write` is kept, since run state and the report persist under
-`${CLAUDE_PLUGIN_DATA}`.
+The frontmatter narrows the surface: `disallowed-tools: Edit, NotebookEdit` takes both editing
+tools away for a span the skills page bounds, so the read-and-report contract is instruction-held
+with a narrowed accident surface, never an enforced guarantee. `Write` is kept, since run state and
+the report persist under `${CLAUDE_PLUGIN_DATA}`, and it can mutate a file, so never describe the
+restriction to an operator as mechanical. `audit-instructions` states the same posture.
+
+- **Pointer**: when deciding how long the restriction lasts, fetch [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live. **As of**: 2026-10-11. **Recheck trigger**: that section changes what `disallowed-tools` removes or how long it lasts.
 
 **`scripts/run-state.sh` writes under that same plugin data directory and nowhere else**, never
 inside a target repository. It takes the data directory as an argument rather than discovering one,
@@ -186,13 +189,13 @@ Record, per scope, every surface found **and every surface skipped with its reas
 is a reported derived-tier artifact, so a surface that silently drops out of scope between two runs
 fails the determinism property rather than looking like an improvement.
 
-**Output styles are the case a walk alone cannot get right.** They modify the system prompt directly,
-a custom one drops the built-in software-engineering instructions unless
-`keep-coding-instructions: true`, and a
-plugin's `force-for-plugin` "overrides the user's `outputStyle` setting", so a walk plus settings
-reports a selection as live when it is not ([output styles](https://code.claude.com/docs/en/output-styles),
-verified 2026-08-04; recheck when the page stops saying a custom style drops the built-in
-instructions or `force-for-plugin` overrides `outputStyle`). Report the resolved live style and what resolved it.
+**Output styles are the case a walk alone cannot get right.** A style changes the instructions
+Claude receives, `keep-coding-instructions` changes what a custom one keeps, and a plugin's
+`force-for-plugin` style can be live without the user's `outputStyle` naming it, so a walk plus
+settings reports a selection as live when it is not. Report the resolved live style and what
+resolved it.
+
+- **Pointer**: when resolving the live style and what it changes, fetch [output styles: how output styles work](https://code.claude.com/docs/en/output-styles#how-output-styles-work) and [create a custom output style](https://code.claude.com/docs/en/output-styles#create-a-custom-output-style) live. **As of**: 2026-10-11. **Recheck trigger**: either section changes what `keep-coding-instructions` keeps or how `force-for-plugin` interacts with `outputStyle`.
 
 **Shadowed definitions fall out of this inventory, not out of a catalog.** Skills, subagents, and MCP
 servers override *by name*: where two share a name across scopes, exactly one is live. That is name
@@ -453,12 +456,6 @@ When it held, any derived-tier inequality is a defect, and judged-tier growth be
 instability finding against this skill**, naming the checks that moved, never absorbed by
 recalibration.
 
-**Recheck trigger:** re-verify the `output-styles` doc citation in Phase 1 above if the
-`keep-coding-instructions` default, the `force-for-plugin` override behavior, or the built-in
-software-engineering instructions it names change; re-verify the `memory` doc citation below if
-`code.claude.com/docs/en/memory` changes its claim that `@path` imports load at launch (and so
-splitting into imports does not defer or reduce context).
-
 ## Spoke paths
 
 The `reference/` files write this skill's directory as `<skill-dir>`, which is
@@ -479,11 +476,12 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   bug: a finding about a file *as a whole* must not be retired by editing a line inside it.
 - **A judged finding does not contribute to the determinism gate, which is the norm rather than a weakness.** Every
   delegated check passes through model refinement first; the gate belongs to the derived tier.
-- **Never propose an `@path` import as a context saving.** Splitting into imports "helps organization
-  but doesn't reduce context, since imported files load at launch"
-  ([memory](https://code.claude.com/docs/en/memory), verified 2026-08-10; recheck when the memory page says imported files load lazily). A split
-  remediation must
-  name a load-deferring destination and price what it costs.
+- **Never propose an `@path` import as a context saving.** An import does not defer loading, so a
+  split remediation must name a load-deferring destination and price what it costs. Pointer: when
+  judging whether a split saves context, fetch
+  [memory: import additional files](https://code.claude.com/docs/en/memory#import-additional-files)
+  and [memory: my CLAUDE.md is too large](https://code.claude.com/docs/en/memory#my-claude-md-is-too-large)
+  live. As of: 2026-10-11. Recheck trigger: either section says imported files load lazily.
 
 ## What this skill does NOT do
 

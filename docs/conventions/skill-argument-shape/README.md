@@ -62,8 +62,8 @@ The shape is the CLI consensus with the parser removed. POSIX Issue 8 puts optio
 options. Cobra's "Commands represent actions, Args are things and Flags are modifiers"
 (`APPNAME VERB NOUN --ADJECTIVE`) supplies the action slot. clig.dev's rule that "two or more
 arguments for different things" signals a mistake backs the single subject. Claude Code ships
-the same shape in its own bundled `/review`:
-`/review [low|medium|high|xhigh|max|ultra] [--fix] [--comment] [pr#|branch|path]`.
+the same shape in its own bundled `/review`: a mode slot, then flags, then one subject (its row in
+[commands § All commands](https://code.claude.com/docs/en/commands#all-commands); record below).
 
 ### The earned-flag test
 
@@ -128,7 +128,7 @@ pages were read through the raw `.md` channel, with the slug checked against
 | The four mechanisms, 0-based `$N`, shell-style quoting, the `ARGUMENTS:` append, the empty expansion of an unbound `$name`, the literal `$N` for a missing position, and the `\$` escape | <https://code.claude.com/docs/en/skills#available-string-substitutions> and [#pass-arguments-to-skills](https://code.claude.com/docs/en/skills#pass-arguments-to-skills) (`skills.md`, 120,554 bytes, SHA-256 `86137b6232cd54722549525729d1888717d5ee0eed6312a9a089097b2cadc181`) | 2026-09-28 | Either section changes, or a release note names skill argument substitution |
 | `argument-hint` is autocomplete display only; `arguments` names map to positions in order; no flag parser, validation, or completion is documented | [skills#frontmatter-reference](https://code.claude.com/docs/en/skills#frontmatter-reference), same fetch. The absence claim is scoped to `skills.md` and `commands.md` | 2026-09-28 | Either row changes, or either page adds argument validation or typed arguments |
 | Stacked skills each receive the trailing text | [skills#pass-arguments-to-skills](https://code.claude.com/docs/en/skills#pass-arguments-to-skills) and <https://code.claude.com/docs/en/commands> ("Up to six skills can be chained") | 2026-09-28 | The stacking paragraph changes |
-| `/review [low\|…\|ultra] [--fix] [--comment] [pr#\|branch\|path]`, and the `<arg>` required / `[arg]` optional legend | <https://code.claude.com/docs/en/commands> (`commands.md`, 202,541 bytes) | 2026-09-28 | The `/review` row or the legend changes |
+| The `/review` hint is a mode slot, then flags, then one subject slot | [commands § All commands](https://code.claude.com/docs/en/commands#all-commands); the legend and bracket notation are the [argument-hint convention](../argument-hint/README.md#notation)'s record | 2026-10-11 | The `/review` row drops its mode slot or takes more than one subject, or the argument-hint Notation record changes its legend claim |
 | The portable spec defines `name`, `description`, `license`, `compatibility`, `metadata`, `allowed-tools`, and no argument field; non-spec keys fail packaging with a hard error | <https://agentskills.io/specification> (`.md` channel, 8,157 bytes) and [skills#using-skill-frontmatter-outside-claude-code](https://code.claude.com/docs/en/skills#using-skill-frontmatter-outside-claude-code) | 2026-09-28 | The spec's frontmatter table changes |
 | Destructive operations should require explicit confirmation flags (`--confirm`, `--force`) | <https://agentskills.io/skill-creation/using-scripts> | 2026-09-28 | That guidance is removed or reversed |
 | Guidelines 9, 11 and 12 | POSIX.1-2024 (Issue 8) XBD Chapter 12, <https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap12.html> | 2026-09-28 | A later POSIX issue or a technical corrigendum amends Chapter 12 |

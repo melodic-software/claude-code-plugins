@@ -6,7 +6,7 @@ the work is reading it and routing to the tools that extend it.
 ## Read the project first
 
 - Tokens: the token files and theme objects detect reports, then CSS custom properties and the
-  Tailwind or CSS-in-JS theme config.
+  utility-class or CSS-in-JS theme config.
 - Components: the component library in `package.json`, a `components.json` (shadcn), and Storybook
   stories. Reuse an existing component before writing a new one.
 - Conventions: a design-system doc, the existing screens closest to the one being designed.
@@ -15,25 +15,32 @@ Name what you found before designing, so the user can correct it.
 
 ## Route
 
-Take the concern (visual direction, typography and color, motion, components, design system,
-accessibility, mockups, responsive testing, writing) to the highest-ranked route that is installed
-and reachable. Where the project defines the concern, a style-imposing tool such as frontend-design
+Take the concern (visual direction, typography and color, animation authoring, animation audit,
+components, design system, accessibility, mockups, CSS authoring, responsive testing, writing) to
+the highest-ranked route
+that is installed and reachable. Where the project defines the concern, a style-imposing tool such as frontend-design
 is not used for it; offer one only for a concern the project leaves open.
 
 ## When nothing covers the concern
+
+Writing or reviewing the CSS itself is the `css-authoring` concern: hand it to
+`/user-interface:write-css`, which ships with this plugin. The lines below cover design decisions.
 
 - Layout: content first, one primary action per view, a consistent spacing scale.
 - Type: the project's fonts; otherwise the platform's system font stack, a small modular scale, line
   length near 60-75 characters for body text.
 - States: design loading, empty, error and success for every view that fetches data.
-- Responsive: start narrow, add columns as width allows, test at phone and desktop widths.
+- Responsive: start narrow, add columns as width allows, test at phone and desktop widths. When
+  people will use it by touch or on a phone, also read `touch-web.md` in this folder.
+- Components: choose a library for dialogs, menus, toasts and the like with
+  `../component-libraries.md`, keeping one the project already uses.
 - Accessibility: the floor in `principles.md`, with WCAG contrast measured, labels on every input,
   and focus visible.
 
 ## Motion and interaction
 
-Design these in whichever motion route is taken; the project's own system still leads, and the
-review checklist below checks only what was built.
+Design these in whichever `animation-authoring` route is taken; the project's own system still
+leads, and the review checklist below checks only what was built.
 
 - **Interruptible motion.** When the target changes mid-animation, continue from the current value
   and velocity; never restart from zero. Sources:
@@ -54,7 +61,7 @@ review checklist below checks only what was built.
   [corner-smoothing-skill](https://github.com/gabrielobholz/corner-smoothing-skill) (MIT).
 - **Layout changes keep each element's identity.** Give items stable keys and tween position, size
   and radius; text moves with its box and never scales. For the library or view-transition API, take
-  the motion route in `routing.json`. Sources:
+  the `animation-authoring` route in `routing.json`. Sources:
   [post](https://x.com/gabriell_lab/status/2089016710745534571),
   [post](https://x.com/gabriell_lab/status/2091140734560669972).
 - **Brief motion in named terms and numbers, not adjectives.** Name the scroll effect

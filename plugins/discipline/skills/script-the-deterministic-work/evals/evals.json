@@ -60,6 +60,89 @@
         "Prefers a native mechanism (repo PR/issue template) when one exists",
         "Reserves model-authored output for the judgment slots, not the fixed structure"
       ]
+    },
+    {
+      "id": 6,
+      "name": "lever-check-user-option-only",
+      "narration": true,
+      "prompt": "/discipline:script-the-deterministic-work lever-check replace every hard-coded 'Europe/Vienna' timezone default in 14 scheduler job classes with the injected clock's zone; each class sets it differently, some in constructors and some in factory methods\n\n[My lever_scope option is non-trivial. The repository is a git checkout, not the home directory, with no docs/conventions/discipline.yaml.]",
+      "expected_output": "Resolves lever_scope to non-trivial from the user option and reports that layer in one line. The change needs judgment (the default is set in different places per class), so under non-trivial it answers build-a-lever with an established codemod or refactoring tool for the language, not a refactoring script written for this change, and tells the caller to edit the first class by hand and diff the tool's result on it before running the rest. It edits no file itself.",
+      "files": [],
+      "expectations": [
+        "Reports lever_scope: non-trivial with the user option as the supplying layer",
+        "Answers build-a-lever with a reason that names the per-class variation",
+        "Names an established codemod or refactoring tool as the lever and rules out a from-scratch refactoring script",
+        "States the pilot: one class edited by hand, then the tool's result on that class diffed against it",
+        "Does not edit any file itself"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "lever-check-docs-block-only",
+      "narration": true,
+      "prompt": "/discipline:script-the-deterministic-work lever-check convert 22 test fixtures from assertEquals(expected, actual) to assertThat(actual).isEqualTo(expected), some of which pass a failure message as a third argument that must move into .as(...)\n\n[My lever_scope option is unset (the placeholder is unexpanded). The repository is a git checkout, not the home directory, and docs/conventions/discipline.yaml holds `lever_scope: non-trivial`.]",
+      "expected_output": "Treats the unexpanded user placeholder as unset, resolves lever_scope to non-trivial from docs/conventions/discipline.yaml and reports that file as the supplying layer. Answers build-a-lever and names the pilot step on the first fixture before the rest.",
+      "files": [],
+      "expectations": [
+        "Treats the unexpanded ${user_config.lever_scope} placeholder as unset, not as a value",
+        "Reports lever_scope: non-trivial with docs/conventions/discipline.yaml as the supplying layer",
+        "Answers build-a-lever",
+        "States the pilot on the first fixture before the lever runs on the rest"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "lever-check-docs-block-wins",
+      "narration": true,
+      "prompt": "/discipline:script-the-deterministic-work lever-check in 9 HTTP handlers, decide per handler whether a 404 should become a 410 for retired resources, based on what each endpoint serves\n\n[My lever_scope option is non-trivial. The repository is a git checkout, not the home directory, and docs/conventions/discipline.yaml holds `lever_scope: deterministic`.]",
+      "expected_output": "Resolves lever_scope to deterministic from docs/conventions/discipline.yaml, which wins over the user's non-trivial option, and reports that file as the supplying layer. The change needs a per-handler decision, so under deterministic it answers edit-by-hand and names the per-endpoint judgment as the reason. It does not apply the user's non-trivial value.",
+      "files": [],
+      "expectations": [
+        "Reports lever_scope: deterministic with docs/conventions/discipline.yaml as the supplying layer",
+        "Answers edit-by-hand with the per-handler judgment as the reason",
+        "Does NOT answer build-a-lever on the strength of the user's non-trivial option"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "lever-check-neither-layer-default",
+      "narration": true,
+      "prompt": "/discipline:script-the-deterministic-work lever-check rename the config key `retryLimit` to `maxRetries` in 31 YAML files under deploy/\n\n[No lever_scope option is set and the repository, a git checkout that is not the home directory, has no docs/conventions/discipline.yaml.]",
+      "expected_output": "Resolves lever_scope to the default deterministic and reports the default as the supplying layer. A key rename follows from each file's text alone, so it answers build-a-lever (a throwaway script is enough) and tells the caller to rename the key in one file by hand, run the script on a clean copy of that file, and diff the two before running it on the other 30.",
+      "files": [],
+      "expectations": [
+        "Reports lever_scope: deterministic with the default as the supplying layer",
+        "Classifies the rename as mechanical and answers build-a-lever",
+        "States the pilot: one file by hand, the script's result on it diffed, before the other files",
+        "Does not edit the YAML files itself"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "lever-check-non-trivial-no-tool-fits",
+      "narration": true,
+      "prompt": "/discipline:script-the-deterministic-work lever-check rewrite 12 hand-written SQL strings in the billing module so each one uses the new partitioned invoice table, choosing the partition key from the query's date filter\n\n[My lever_scope option is non-trivial; no docs/conventions/discipline.yaml exists. The repository's language has no codemod or refactoring tool that understands SQL inside string literals.]",
+      "expected_output": "Resolves lever_scope to non-trivial from the user option. The change needs judgment, and no established codemod or refactoring tool covers SQL embedded in strings, so it answers edit-by-hand and says no tool fit, instead of writing a one-off refactoring script for the twelve strings.",
+      "files": [],
+      "expectations": [
+        "Reports lever_scope: non-trivial with the user option as the supplying layer",
+        "Answers edit-by-hand and says that no established tool covers the change",
+        "Does NOT propose a refactoring script written from scratch for this change"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "lever-check-invalid-repo-value-falls-back",
+      "narration": true,
+      "prompt": "/discipline:script-the-deterministic-work lever-check in 18 React components, move each inline style object into the component's CSS module, picking class names that fit each component\n\n[My lever_scope option is non-trivial. The repository is a git checkout, not the home directory, and docs/conventions/discipline.yaml holds `lever_scope: always`.]",
+      "expected_output": "Names docs/conventions/discipline.yaml, the key lever_scope and the value always as invalid and drops the repository layer. It does not fall through to the user's non-trivial value: it resolves the default deterministic and reports that. Choosing class names per component needs judgment, so under deterministic it answers edit-by-hand. The invalid value does not stop the check.",
+      "files": [],
+      "expectations": [
+        "Names docs/conventions/discipline.yaml, lever_scope and the value always as invalid",
+        "Resolves lever_scope to the default deterministic, NOT the user's non-trivial value",
+        "Answers edit-by-hand with the per-component naming judgment as the reason",
+        "Completes the check instead of stopping on the invalid value"
+      ]
     }
   ]
 }
