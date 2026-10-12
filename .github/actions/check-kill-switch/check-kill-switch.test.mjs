@@ -26,29 +26,43 @@ function runCli(env) {
   }
 }
 
-test("proceeds only when the switch reads exactly false", () => {
-  assert.deepEqual(checkKillSwitch("false"), { proceed: "true", reason: "ok" });
+test("proceeds only when the org and the repository switch both read exactly false", () => {
+  assert.deepEqual(checkKillSwitch("false", "false"), { proceed: "true", reason: "ok" });
 });
 
-for (const [label, value] of [
+const NOT_FALSE = [
   ["unset", undefined],
   ["empty", ""],
   ["true", "true"],
   ["FALSE in capitals", "FALSE"],
   ["false with whitespace", " false"],
-]) {
-  test(`stops when the switch is ${label}`, () => {
-    assert.deepEqual(checkKillSwitch(value), { proceed: "false", reason: "kill-switch" });
+];
+
+for (const [label, value] of NOT_FALSE) {
+  test(`stops when the org switch is ${label}, whatever the repository switch`, () => {
+    for (const repo of ["false", "true", undefined]) {
+      assert.deepEqual(checkKillSwitch(value, repo), { proceed: "false", reason: "kill-switch" });
+    }
+  });
+
+  test(`stops when the repository switch is ${label} and the org switch is false`, () => {
+    assert.deepEqual(checkKillSwitch("false", value), { proceed: "false", reason: "kill-switch" });
   });
 }
 
-test("CLI writes proceed=true for exactly false and exits 0", () => {
-  const { status, outputs } = runCli({ KILL_SWITCH_VALUE: "false" });
+test("CLI writes proceed=true when both switches are exactly false and exits 0", () => {
+  const { status, outputs } = runCli({ KILL_SWITCH_VALUE: "false", REPO_KILL_SWITCH_VALUE: "false" });
   assert.equal(status, 0);
   assert.deepEqual(outputs, { proceed: "true", reason: "ok" });
 });
 
-test("CLI writes proceed=false when the variable is unset and exits 0", () => {
+test("CLI writes proceed=false when the repository switch is unset and exits 0", () => {
+  const { status, outputs } = runCli({ KILL_SWITCH_VALUE: "false" });
+  assert.equal(status, 0);
+  assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch" });
+});
+
+test("CLI writes proceed=false when both variables are unset and exits 0", () => {
   const { status, outputs } = runCli({});
   assert.equal(status, 0);
   assert.deepEqual(outputs, { proceed: "false", reason: "kill-switch" });

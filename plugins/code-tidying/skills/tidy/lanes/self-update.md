@@ -61,5 +61,5 @@ python -c "import glob,sys; bad=[p for p in glob.glob('skills/*/SKILL.md') if (l
 
 ## Preferred research sources
 
-- **Anthropic skill-authoring best-practices guide** (`platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices`)
+- **Anthropic skill-authoring best-practices guide**: start at [Checklist for effective Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#checklist-for-effective-skills) and follow it to the section a candidate touches. As of: 2026-10-11. Recheck trigger: that section is renamed or removed
 - **Kent Beck, *Tidy First?***: when a candidate's structural-vs-behavioral classification is uncertain
