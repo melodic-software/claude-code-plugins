@@ -706,16 +706,117 @@ class MalformedInputTests(unittest.TestCase):
         result = score(_input(files=(_file("./scripts/x.sh"),)))
         self.assertIn("high-path:scripts/**", _codes(result))
 
-    def test_caller_globs_are_normalised(self):
-        for glob, path in (
-            ("/plugins/foo/x.md", "plugins/foo/x.md"),
-            ("./plugins/foo/x.md", "plugins/foo/x.md"),
-            ("plugins\\foo\\x.md", "plugins/foo/x.md"),
-            ("plugins/foo", "plugins/foo/deep/x.md"),
+    def test_caller_globs_are_read_exactly_as_written(self):
+        # Spec: a './' or '/' prefix, a backslash, a segment ending in '.', or
+        # a '.' or '..' segment fails closed, whatever the changed files are.
+        for glob in (
+            "/plugins/foo/x.md",
+            "./plugins/foo/x.md",
+            "plugins\\foo\\x.md",
+            "plugins/foo./x.md",
+            "plugins/./foo",
+            "plugins/../foo",
         ):
             with self.subTest(glob):
-                result = score(_input(files=(_file(path),), high_paths=(glob,)))
+                result = score(_input(high_paths=(glob,)))
                 self.assertEqual(result.score, Risk.HIGH)
+                self.assertIn("high-path:**", _codes(result))
+
+    def test_directory_glob_covers_everything_under_it(self):
+        result = score(
+            _input(files=(_file("plugins/foo/deep/x.md"),), high_paths=("plugins/foo",))
+        )
+        self.assertEqual(_codes(result), ("high-path:plugins/foo",))
+
+    def test_floor_directory_glob_matches_the_bare_entry(self):
+        # Spec: 'X/**' also matches X itself.
+        for path, code in (
+            (".github", "high-path:.github/**"),
+            ("scripts", "high-path:scripts/**"),
+            ("docs/conventions", "high-path:docs/conventions/**"),
+            ("plugins/foo/.claude", "high-path:**/.claude/**"),
+            ("plugins/foo/.claude-plugin", "high-path:**/.claude-plugin/**"),
+        ):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path),)))
+                self.assertEqual(result.score, Risk.HIGH)
+                self.assertIn(code, _codes(result))
+
+
+class NeverRaisesTests(unittest.TestCase):
+    def _assert_high_any_path(self, result):
+        self.assertEqual(result.score, Risk.HIGH)
+        self.assertEqual(_codes(result), ("high-path:**",))
+
+    def test_unreadable_input_is_high_any_path(self):
+        class Exploding:
+            def __getattr__(self, name):
+                raise RuntimeError(name)
+
+        for name, value in (
+            ("None", None),
+            ("object without fields", object()),
+            ("raising attributes", Exploding()),
+        ):
+            with self.subTest(name):
+                self._assert_high_any_path(score(value))
+
+    def test_deeply_nested_input_is_high_not_a_raise(self):
+        nested = []
+        for _ in range(100_000):
+            nested = [nested]
+        result = score(_input(files=(_file(nested),)))
+        self.assertEqual(result.score, Risk.HIGH)
+        self.assertIn("high-path:**", _codes(result))
+
+    def test_counts_past_the_limit_are_malformed_and_never_formatted(self):
+        huge = 10**5000
+        for name, changes in (
+            (
+                "additions over 10**9",
+                dict(files=(_file("plugins/foo/a.md", additions=10**9 + 1),)),
+            ),
+            (
+                "huge deletions",
+                dict(files=(_file("plugins/foo/a.md", deletions=huge),)),
+            ),
+            ("huge max_changed_lines", dict(max_changed_lines=huge)),
+            (
+                "huge open_findings",
+                dict(
+                    lanes=(
+                        _lane("claude-review", open_findings=huge),
+                        _lane("claude-security-review"),
+                    )
+                ),
+            ),
+            ("huge path", dict(files=(_file(huge),))),
+            (
+                "huge unbound_reason",
+                dict(
+                    lanes=(
+                        _lane("claude-review", bound=False, unbound_reason=huge),
+                        _lane("claude-security-review"),
+                    )
+                ),
+            ),
+        ):
+            with self.subTest(name):
+                result = score(_input(**changes))
+                self.assertGreaterEqual(result.score, Risk.MED)
+                self.assertNotIn(
+                    "scorer could not read", " ".join(r.detail for r in result.reasons)
+                )
+
+    def test_count_at_the_limit_is_read(self):
+        result = score(_input(max_changed_lines=10**9))
+        self.assertEqual(result.score, Risk.LOW)
+
+    def test_each_reason_code_appears_once(self):
+        result = score(_input(files=(_file("plugins/foo/a b.md"),), high_paths=("**",)))
+        codes = _codes(result)
+        self.assertEqual(len(codes), len(set(codes)))
+        self.assertIn("high-path:**", codes)
 
 
 if __name__ == "__main__":

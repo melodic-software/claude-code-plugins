@@ -5,7 +5,11 @@
 The caller reads the PR, its linked issue's class, the base-SHA config and the
 review-lane evidence, and hands them in; this module only judges them. Only a
 LOW score may merge unattended, so every doubtful input rates MED or HIGH:
-missing or unrecognised data is a miss, never a pass, and it never raises.
+missing or unrecognised data is a miss, never a pass, and it never raises: input
+it cannot read at all rates HIGH as `high-path:**`. Inputs are plain built-in
+types (str, int, bool, None, list, tuple) built from parsed JSON; subclasses
+that override their own behaviour are out of scope. A count outside
+0..10**9 is malformed. Each reason code appears once.
 
 The HIGH path floor and the lane table are fixed here on purpose. A weaker value
 could only come from a file a pull request can edit, and this module's own path
@@ -21,7 +25,7 @@ tracked path in this repository passes. Any other path rates HIGH as
 `high-path:**`, because it could alias any path: `..`, `:` (an NTFS stream),
 `~1` (an 8.3 short name), whitespace, control or non-ASCII characters. So does
 a rename or copy with no previous path. A configured glob outside the same set
-(plus `*`) makes the configured HIGH set unreadable.
+(plus `*`), read exactly as written, makes the configured HIGH set unreadable.
 Malformed values have no code of their own in the contract, so each maps to the
 nearest existing code: per-file data and the listing to `files-incomplete`, an
 unknown rung to `class-above-rung` (read as off), an unreadable line limit to
@@ -142,8 +146,27 @@ _LOW_BLAST = "low"
 _CLASS_RANK = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5}
 
 
+MAX_COUNT = 10**9
+
+
 def _is_count(value: Any) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and 0 <= value <= MAX_COUNT
+    )
+
+
+def _show(value: Any) -> str:
+    """repr() for a detail string; a value repr() rejects (an int past Python's
+    digit limit, say) is named by type, never formatted."""
+    if isinstance(value, int) and not isinstance(value, bool):
+        if not -MAX_COUNT <= value <= MAX_COUNT:
+            return "<int out of range>"
+    try:
+        return repr(value)
+    except Exception:
+        return f"<unprintable {type(value).__name__}>"
 
 
 def _sequence(value: Any) -> tuple[Any, ...] | None:
@@ -163,13 +186,13 @@ def normalize_path(path: Any) -> tuple[str, bool]:
 
 
 def _safe_glob(pattern: str) -> bool:
-    """A configured glob must name a path in the same character set."""
-    normalized = _normalize_glob(pattern)
-    if normalized.endswith("/"):
-        normalized = normalized[:-1]
+    """A configured glob must name a path in the same character set, exactly as
+    written: no `./` or `/` prefix, no `\\`, no segment ending in `.`."""
+    if pattern.endswith("/"):
+        pattern = pattern[:-1]
     return all(
-        _SAFE_GLOB_SEGMENT.fullmatch(segment) and segment not in (".", "..")
-        for segment in normalized.split("/")
+        _SAFE_GLOB_SEGMENT.fullmatch(segment) and not segment.endswith(".")
+        for segment in pattern.split("/")
     )
 
 
@@ -195,8 +218,8 @@ def _segment_regex(segment: str) -> str:
 def glob_regex(pattern: str) -> re.Pattern[str]:
     """Compile a path glob: `**` spans any number of segments, `*` and `?` stay
     within one. A pattern also covers everything under it, so `plugins/foo` and
-    `plugins/foo/` both match `plugins/foo/x.md`. Matching is on the case-folded
-    path."""
+    `plugins/foo/` both match `plugins/foo/x.md`, and `X/**` matches `X` itself.
+    Matching is on the case-folded path."""
     folded = _normalize_glob(pattern).casefold()
     if folded.endswith("/"):
         folded += "**"
@@ -204,7 +227,9 @@ def glob_regex(pattern: str) -> re.Pattern[str]:
     parts = []
     for index, segment in enumerate(segments):
         last = index == len(segments) - 1
-        if segment == "**":
+        if segment == "**" and last and parts and parts[-1].endswith("/"):
+            parts[-1] = parts[-1][:-1] + "(?:/.*)?"  # `X/**` also matches `X`
+        elif segment == "**":
             parts.append(".*" if last else "(?:[^/]+/)*")
         else:
             parts.append(_segment_regex(segment) + ("(?:/.*)?" if last else "/"))
@@ -233,27 +258,27 @@ def _check_file(changed: Any) -> _File:
         normalized, safe = normalize_path(raw)
         paths.append(normalized)
         if not safe:
-            unsafe.append(repr(raw))
+            unsafe.append(_show(raw))
     raw_status = getattr(changed, "status", None)
     # A non-string status (possibly unhashable) is unknown, never a raise.
     status = raw_status if isinstance(raw_status, str) else None
     if status in ("renamed", "copied") and previous is None:
-        unsafe.append(f"{raw_path!r} {status} with no previous path")
+        unsafe.append(f"{_show(raw_path)} {status} with no previous path")
     problems = []
     if status not in STATUSES:
-        problems.append(f"status {raw_status!r}")
+        problems.append(f"status {_show(raw_status)}")
     lines = 0
     for field in ("additions", "deletions"):
         value = getattr(changed, field, None)
         if _is_count(value):
             lines += value
         else:
-            problems.append(f"{field} {value!r}")
+            problems.append(f"{field} {_show(value)}")
     has_patch = getattr(changed, "has_patch", None)
     if not isinstance(has_patch, bool):
-        problems.append(f"has_patch {has_patch!r}")
+        problems.append(f"has_patch {_show(has_patch)}")
     if not isinstance(raw_path, str):
-        problems.append(f"path {raw_path!r}")
+        problems.append(f"path {_show(raw_path)}")
     return _File(
         path=paths[0],
         paths=tuple(paths),
@@ -271,7 +296,7 @@ def _high_path_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
     if configured is None or not all(
         isinstance(p, str) and _safe_glob(p) for p in configured
     ):
-        unsafe.append(f"configured HIGH set unreadable: {inp.high_paths!r}")
+        unsafe.append(f"configured HIGH set unreadable: {_show(inp.high_paths)}")
         configured = tuple(p for p in configured or () if isinstance(p, str))
     reasons = []
     if unsafe:
@@ -310,12 +335,14 @@ def _c2_contradictions(files: list[_File]) -> list[str]:
 def _class_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
     rank = _CLASS_RANK.get(inp.work_class) if isinstance(inp.work_class, str) else None
     if rank is None:
-        return [Reason("class-missing", Risk.MED, f"work class {inp.work_class!r}")]
+        return [
+            Reason("class-missing", Risk.MED, f"work class {_show(inp.work_class)}")
+        ]
     reasons = []
     rung = inp.rung
     known = isinstance(rung, int) and not isinstance(rung, bool) and rung in set(Rung)
     if not known or rung == Rung.OFF or rank > rung:
-        detail = f"{inp.work_class} above rung {rung!r}" + (
+        detail = f"{inp.work_class} above rung {_show(rung)}" + (
             "" if known else " (unknown)"
         )
         reasons.append(Reason("class-above-rung", Risk.MED, detail))
@@ -330,7 +357,7 @@ def _class_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
         isinstance(blast, str) and blast.casefold() == _LOW_BLAST
     ):
         rated = isinstance(blast, str) and blast.strip()
-        detail = f"rated {blast!r}, not LOW" if rated else "has no rating"
+        detail = f"rated {_show(blast)}, not LOW" if rated else "has no rating"
         reasons.append(
             Reason("blast-radius-missing", Risk.MED, f"{inp.work_class} {detail}")
         )
@@ -341,19 +368,21 @@ def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
     reasons = []
     incomplete = []
     if files is None:
-        incomplete.append(f"file listing unreadable: {inp.files!r}")
+        incomplete.append(f"file listing unreadable: {_show(inp.files)}")
         files = []
     elif not files:
         incomplete.append("file listing is empty")
     if inp.files_complete is not True:
-        incomplete.append(f"listing not read to its end ({inp.files_complete!r})")
+        incomplete.append(f"listing not read to its end ({_show(inp.files_complete)})")
     incomplete.extend(f"{f.path or '?'}: {p}" for f in files for p in f.problems)
     if incomplete:
         reasons.append(Reason("files-incomplete", Risk.MED, "; ".join(incomplete)))
     lines = sum(f.lines for f in files)
     limit = inp.max_changed_lines
     if not _is_count(limit):
-        reasons.append(Reason("lines-over", Risk.MED, f"limit unreadable: {limit!r}"))
+        reasons.append(
+            Reason("lines-over", Risk.MED, f"limit unreadable: {_show(limit)}")
+        )
     elif lines > limit:
         reasons.append(Reason("lines-over", Risk.MED, f"{lines} > {limit}"))
     if len(files) > MAX_FILES:
@@ -382,22 +411,54 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
             or unbound_reason is not None
             or not _is_count(count)
         ):
-            detail = getattr(lane, "unbound_reason", None) or "no bound finding count"
-            reasons.append(Reason(f"evidence-unbound:{name}", Risk.MED, str(detail)))
+            if isinstance(unbound_reason, str) and unbound_reason:
+                detail = unbound_reason
+            elif unbound_reason is not None:
+                detail = _show(unbound_reason)
+            else:
+                detail = "no bound finding count"
+            reasons.append(Reason(f"evidence-unbound:{name}", Risk.MED, detail))
         elif count > 0:
             reasons.append(Reason(finding_code, finding_severity, f"{count} open"))
     return reasons
 
 
-def score(inp: RiskInput) -> RiskResult:
+def _merge_by_code(reasons: list[Reason]) -> list[Reason]:
+    """One reason per code: the highest severity, distinct details joined."""
+    merged: dict[str, Reason] = {}
+    for reason in reasons:
+        seen = merged.get(reason.code)
+        if seen is None:
+            merged[reason.code] = reason
+        elif reason.detail not in seen.detail.split("; "):
+            merged[reason.code] = Reason(
+                reason.code,
+                max(seen.severity, reason.severity),
+                f"{seen.detail}; {reason.detail}",
+            )
+    return list(merged.values())
+
+
+def _score(inp: RiskInput) -> RiskResult:
     raw_files = _sequence(inp.files)
     files = None if raw_files is None else [_check_file(f) for f in raw_files]
-    reasons = [
-        *_class_reasons(inp, files or []),
-        *_size_reasons(inp, files),
-        *_lane_reasons(inp.lanes),
-        *_high_path_reasons(inp, files or []),
-    ]
+    reasons = _merge_by_code(
+        [
+            *_class_reasons(inp, files or []),
+            *_size_reasons(inp, files),
+            *_lane_reasons(inp.lanes),
+            *_high_path_reasons(inp, files or []),
+        ]
+    )
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
     return RiskResult(Risk(worst), tuple(reasons))
+
+
+def score(inp: RiskInput) -> RiskResult:
+    """Never raises: input the scorer cannot read at all is HIGH, any path."""
+    try:
+        return _score(inp)
+    except Exception as exc:  # noqa: BLE001 - fail closed, never raise
+        detail = f"scorer could not read its input: {type(exc).__name__}"
+        return RiskResult(Risk.HIGH, (Reason(UNSAFE_PATH_CODE, Risk.HIGH, detail),))
