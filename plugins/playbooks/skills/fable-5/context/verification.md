@@ -112,6 +112,15 @@ Switch roles from author to attacker, because the inputs you designed for pass b
 
 Failure mode prevented: the compounding lie, where one optimistic unverified claim becomes the foundation the next three claims stand on.
 
+## Rule out the test setup before raising a probe result
+
+**Trigger:** a sandbox, probe or experiment result is about to become a finding.
+
+- Check what the setup itself placed (seed commits, existing blobs, shared or repository-wide variables) and whether the result follows from that alone. If it does, the probe is confounded: report it as inconclusive and fix the setup before rerunning.
+
+> Weak: the lane skipped in both test cases → report that the lane ignores its trigger.
+> Strong: the setup left a disable variable set for the whole repository, which skips every case on its own; clear it, then rerun.
+
 ## A satisfied self-summary is not evidence
 
 **Trigger:** you produce a summary asserting the work went well, and it is about to stand in for inspecting the artifact.

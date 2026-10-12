@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## 1.10.3 - 2026-10-12
+
+README gains "Planning lane work": a one-page plan per sub-topic, design and stress tests only for
+trust-boundary changes, ADRs only for trust-boundary or irreversible choices, and stops limited to
+owner-reserved items when the owner pre-approved the recommendations. `version` stays 1.
+
 ## 1.10.2 - 2026-10-12
 
 `pr-run-activity.md` "The lane token broker": the broker now also requires the dispatcher run's `pr-unblock-dispatched-<ids>` record to list the requesting run, read once with no wait. `version` stays 1.
