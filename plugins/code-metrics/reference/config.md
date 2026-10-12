@@ -1,9 +1,10 @@
-# The `.claude/code-metrics.yaml` configuration surface
+# The code-metrics configuration surface
 
 Every tunable value in this plugin resolves through one consumer surface. This document is its
 contract: the layers, the merge form, the YAML subset, and every key with its default and
 provenance. `/code-metrics:setup` writes the team layer; every audit skill reads the resolved
-document at run time and prints the layer that supplied any value a personal layer changed.
+document at run time and prints the layer that supplied any value a personal layer changed. The
+JSON Schema for every layer's keys is [`schemas/code-metrics.schema.json`](../schemas/code-metrics.schema.json).
 
 ## Layers and merge form
 
@@ -13,8 +14,23 @@ resolved in this order over the bundled defaults (`scripts/config-defaults.json`
 | Order | Layer | Path | Belongs to |
 |---|---|---|---|
 | 1 | user-global | `~/.claude/code-metrics.yaml` | the operator, across repositories |
-| 2 | team | `<repo>/.claude/code-metrics.yaml` | the repository, tracked |
+| 2 | team | `<repo>/docs/conventions/code-metrics.yaml` | the repository, tracked |
 | 3 | local overlay | `<repo>/.claude/code-metrics.local.yaml` | one operator in one repository, gitignored |
+
+The team layer is one file. `<repo>/.claude/code-metrics.yaml`, the team file of earlier releases,
+is read in its place only while `docs/conventions/code-metrics.yaml` is absent; with both present
+the docs file is the whole team layer, the older file's keys are not merged in, and every run
+prints one warning that the older file is ignored and can be deleted once no older release reads
+it. `/code-metrics:setup apply` carries every declared key of the older file into the docs file in
+the same write, and drops and names any other key.
+
+**An invalid layer never stops the run.** A file outside the YAML subset is named with its line
+and read as absent. A value of the wrong shape is named with its file, key and value, and that
+layer's value is dropped: the key resolves from a valid higher layer, else the bundled default,
+never from a lower layer. The wrong shapes the resolver drops: a scalar or `null` where a mapping
+belongs, a scalar where a list belongs, a reference that is not a number or `null`, a key or value
+holding a newline, carriage return or tab, a `scope.exclude` glob the matcher cannot compile, and a
+`suppressions.correctness_rules` item that is not a string.
 
 **Merge form: per-key override**, declared here because every value is a scalar or a closed list.
 A later layer replaces an earlier layer's value key by key; a key absent from a later layer keeps
@@ -41,7 +57,7 @@ scalars (`str`, `int`, `float`, `true`/`false`, `null`), and `#` comments. Outsi
 with the file and line and never parsed partially: flow mappings (`{ a: 1 }`), anchors and
 aliases, tags, block scalars (`|`, `>`), document markers, tab indentation, and duplicate keys.
 Every reference value is a number or `null`; a quoted number (`reference: "20"`) is a string
-scalar, and the resolver refuses it by key and layer (exit 2, and a FAIL `config` row in
+scalar, and the resolver drops it by file, key and value (a WARN `config` row in
 `/code-metrics:setup check`) rather than letting an audit compare a number against it.
 
 ## Keys
@@ -78,6 +94,7 @@ The third column is written by hand and is not derived from anything. A row whos
 | `coverage.reference` | `null` | No default bar; ISO/IEC 25023 files coverage under Reliability and sets no value |
 | `coverage.crap.reference` | `null` | Savoia and Evans 2007; not a validated change-risk predictor |
 | `type_debt.reference` | `null` | No standard or CWE anchors the measure |
+| `suppressions.correctness_rules` | `[]` | Rule ids that guard correctness rather than style (for example `no-floating-promises`, `SC2086`, `CA2000`). `/code-metrics:audit-suppressions` marks every suppression that names one, compared case-insensitively, and counts them. A closed list, replaced whole. The plugin ships none: which rules guard correctness is the repository's call |
 | `lanes.<lane>.enabled` | `true` | Opts a lane out even under `--all`; lanes are `typescript`, `python`, `bash`, `go`, `dotnet`, and `other`, the catch-all for every text file no language lane claims, which the ladder serves with `file_lines` alone |
 | `lanes.<lane>.collectors.<measure>` | absent | Replaces the bundled ordered collector list for that lane and measure; names are validated against `scripts/collector-ladder.tsv` and an unknown name is dropped with a warning. An empty list is a closed value like any other: no collector runs for that lane and measure, and the run row says so |
 
@@ -92,7 +109,7 @@ still wins over both.
 ## Example
 
 ```yaml
-# .claude/code-metrics.yaml
+# docs/conventions/code-metrics.yaml
 complexity:
   cyclomatic:
     reference: 15

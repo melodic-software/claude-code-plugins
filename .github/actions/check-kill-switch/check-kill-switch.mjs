@@ -1,12 +1,13 @@
-// Kill-switch gate for CI lanes: proceed only when the switch reads exactly
-// `false`. Unset, empty and every other value stop the lane (fail closed).
+// Kill-switch gate for CI lanes: proceed only when the org switch and the
+// repository switch both read exactly `false`. Unset, empty and every other
+// value stop the lane (fail closed).
 import { randomUUID } from "node:crypto";
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-export function checkKillSwitch(value) {
-  return value === "false"
+export function checkKillSwitch(value, repoValue) {
+  return value === "false" && repoValue === "false"
     ? { proceed: "true", reason: "ok" }
     : { proceed: "false", reason: "kill-switch" };
 }
@@ -30,7 +31,7 @@ export function writeOutputs(outputs, outputPath = process.env.GITHUB_OUTPUT) {
 }
 
 function main() {
-  const result = checkKillSwitch(process.env.KILL_SWITCH_VALUE);
+  const result = checkKillSwitch(process.env.KILL_SWITCH_VALUE, process.env.REPO_KILL_SWITCH_VALUE);
   writeOutputs(result);
   console.log(`check-kill-switch: proceed=${result.proceed} reason=${result.reason}`);
 }
