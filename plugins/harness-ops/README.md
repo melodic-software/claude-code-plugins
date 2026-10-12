@@ -10,8 +10,8 @@
 - [Configuration](#configuration)
 - [License](#license)
 
-A Claude Code plugin for running Claude Code well over time. One cohesive
-capability across sixteen skills and a family of telemetry-emitter hooks, including diagnosing why
+A Claude Code plugin for running Claude Code well over time. It ships sixteen
+skills and a family of telemetry-emitter hooks, including a skill that diagnoses why
 most of an installed skill fleet never gets used.
 audit-native-overlap maps native Claude Code surfaces against the current
 repo's own components so a custom skill never silently duplicates what the
@@ -388,8 +388,8 @@ are settings hooks and run with mods off.
 
 `audit-install-state` needs **Python 3.11+ only**. No PowerShell, no third-party packages, no
 `jq`. Its inventory, surface classification, filename-scheme resolution, retention resolution and
-sampling are pure `os.walk` + `stat` + regex and behave identically on every platform. The single
-OS-specific seam is one function, `probe_pid()`, with a POSIX body (`os.kill(pid, 0)`) and a Windows
+sampling are pure `os.walk` + `stat` + regex and behave identically on every platform. The only
+OS-specific code is one function, `probe_pid()`, with a POSIX body (`os.kill(pid, 0)`) and a Windows
 body (`OpenProcess`); a probe that cannot run reports `unverified`, never `dead`.
 
 Core flows need only `git`, `jq`, `gh` (authenticated), and `python3`.
