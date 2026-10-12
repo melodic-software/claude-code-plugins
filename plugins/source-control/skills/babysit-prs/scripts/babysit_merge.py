@@ -2836,7 +2836,8 @@ def unattended_writes(
 
     A stop refusal (kill switch, post-merge, rung off) dequeues every entry
     the identity enqueued; otherwise each queued identity entry carrying a
-    hold (D3) leaves the queue. Then the reasons comment for an eligible
+    hold (D3) leaves the queue, as does this pull request's own entry when
+    this run found it ineligible. Then the reasons comment for an eligible
     MED or HIGH pull request on a path not stopped. Nothing is written before
     the identity and the credential chokepoint passed (`inputs["identity"]`)."""
     inputs = policy.inputs or {}
@@ -2853,8 +2854,21 @@ def unattended_writes(
             report["holds"] = {
                 n: hold
                 for n in queued
-                if (hold := merge_policy.entry_hold(repo, n, identity))
+                if (
+                    hold := merge_policy.entry_hold(
+                        repo,
+                        n,
+                        identity,
+                        self_logins=inputs.get("self_logins") or frozenset(),
+                        permission=inputs.get("permission"),
+                    )
+                )
             }
+            # This run's own eligibility read of a queued entry also counts:
+            # the pull request it just found ineligible leaves the queue.
+            eligible = inputs.get("eligibility")
+            if number in queued and eligible is not None and not eligible.eligible:
+                report["holds"].setdefault(number, f"ineligible:{eligible.reason}")
             numbers = set(report["holds"])
         if numbers is None or numbers:
             unknown = postmerge.dequeue_identity_entries(
@@ -2987,6 +3001,19 @@ def unattended_enqueue(
     result["enqueued"] = record["success"] and record["status"] == "enqueued"
     if pending_path is not None:
         _record_pending(pending_path, repo, number, record, pin, result)
+    if record["success"] and record["status"] == "merged":
+        # The queue landed it before the poll ended and `async_merge` read it
+        # back at the pin: dispatch the verifying full run now, as a later run
+        # does after its read-back.
+        result["merged"] = True
+        try:
+            postmerge.dispatch_full_run(repo, ref=branch)
+            result["unattended"]["dispatched"] = True
+        except postmerge.PostMergeWriteError as exc:
+            result["unattended"]["dispatched"] = False
+            result["unattended"]["dispatchError"] = str(exc)
+        print(json.dumps(result, indent=2))
+        return 0
     if not result["enqueued"]:
         print(json.dumps(result, indent=2))
         return 10

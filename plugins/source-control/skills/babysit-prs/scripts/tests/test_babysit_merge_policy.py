@@ -1326,6 +1326,66 @@ class EntryHold(unittest.TestCase):
         ]
         self.assertEqual(self.hold(), "opt-in-label-removed")
 
+    def relabeled(self, actor: dict[str, Any], via_app: Any = None) -> str | None:
+        # A human opts in, the entry is queued (10:00), the human revokes the
+        # opt-in (10:30), then `actor` puts the label back (10:45).
+        gh = self.fake(
+            labels={"totalCount": 1, "nodes": [{"name": policy.OPT_IN_LABEL}]}
+        )
+        label = {"name": policy.OPT_IN_LABEL}
+        human = {"login": OPERATOR, "type": "User"}
+        gh.rest[f"repos/{REPO}/issues/5/timeline?per_page=100"] = [
+            {
+                "event": "labeled",
+                "label": label,
+                "actor": human,
+                "created_at": "2026-10-12T09:00:00Z",
+            },
+            {
+                "event": "unlabeled",
+                "label": label,
+                "actor": human,
+                "created_at": "2026-10-12T10:30:00Z",
+            },
+            {
+                "event": "labeled",
+                "label": label,
+                "actor": actor,
+                "performed_via_github_app": via_app,
+                "created_at": "2026-10-12T10:45:00Z",
+            },
+        ]
+        return policy.entry_hold(REPO, 5, IDENTITY, permission=HUMANS)
+
+    def test_a_revoked_opt_in_restored_by_a_non_human_is_a_hold(self) -> None:
+        # The claude-security-review finding on #7335: presence alone let a bot
+        # silently restore a consent the human had withdrawn.
+        for name, actor, via_app, hold in (
+            (
+                "a bot",
+                {"login": "some-app[bot]", "type": "Bot"},
+                None,
+                "opt-in-label:labeler-not-human",
+            ),
+            (
+                "the identity",
+                {"login": IDENTITY, "type": "Bot"},
+                None,
+                "opt-in-label:labeler-not-human",
+            ),
+            (
+                "a human's token through an App",
+                {"login": OPERATOR, "type": "User"},
+                {"slug": "some-app"},
+                "opt-in-label:labeler-via-app",
+            ),
+        ):
+            with self.subTest(name):
+                self.assertEqual(self.relabeled(actor, via_app), hold)
+
+    def test_a_revoked_opt_in_restored_by_a_human_is_no_hold(self) -> None:
+        self.assertIsNone(self.relabeled({"login": "maintainer", "type": "User"}))
+
     def test_an_unreadable_entry_is_a_hold(self) -> None:
         self.fake(timelineItems={"nodes": []})
         self.assertEqual(self.hold(), "unreadable")
@@ -1476,6 +1536,16 @@ class InFlight(unittest.TestCase):
         reads = [c for c in gh.calls if any("PolicyRecentMerges" in a for a in c)]
         self.assertEqual(len(reads), 2)
 
+    def test_a_merge_before_the_floor_updated_after_it_is_not_judged(self) -> None:
+        # Codex P1 on #7335: a comment on an old bot-queued merge moves its
+        # updatedAt past the floor, but it merged before the path was enabled,
+        # so the post-merge verdict never judges it and in_flight must not.
+        old = merged(2, bot("agent-lanes"), None, "2025-12-01T09:00:00Z")
+        old["updatedAt"] = "2026-10-12T09:00:00Z"
+        queue_fake(self, [], [old])
+        result = self.flight()
+        self.assertTrue(result.clear, result.reason)
+
     def test_an_unreadable_queue_is_not_clear(self) -> None:
         gh = queue_fake(self, [], [])
         gh.graphql["PolicyMergeQueue"] = 502
@@ -1520,6 +1590,7 @@ class Assess(unittest.TestCase):
             "base": {"ref": "trunk", "sha": SHA},
             "head": {"ref": "feat", "sha": "e" * 40},
         }
+        gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
         return gh
 
     def readable(self) -> GhFake:
@@ -1628,6 +1699,25 @@ class Assess(unittest.TestCase):
         self.assertEqual(result.reason, "post-merge:failure:#7")
         self.assertIs(result.enabled, False)
         flight.assert_not_called()
+
+    def test_a_base_other_than_the_default_branch_refuses_before_any_write(
+        self,
+    ) -> None:
+        # Codex P1 on #7335: the post-merge check, its dispatch and the
+        # scheduled full run all judge the default branch, so a merge into any
+        # other base would go unjudged. The path refuses it before the identity
+        # is accepted, so nothing is dequeued or commented.
+        for name, answer, reason in (
+            ("another branch", {"default_branch": "main"}, "base-not-default:trunk"),
+            ("unreadable", 502, "base-not-default:default-branch-unreadable"),
+        ):
+            with self.subTest(name):
+                gh = self.readable()
+                gh.rest[f"repos/{REPO}"] = answer
+                result = self.assess(post_merge=mock.Mock(side_effect=AssertionError))
+                self.assertEqual(result.reason, reason)
+                self.assertIs(result.enabled, False)
+                self.assertNotIn("identity", result.inputs)
 
     def test_without_a_post_merge_check_the_path_refuses(self) -> None:
         self.readable()

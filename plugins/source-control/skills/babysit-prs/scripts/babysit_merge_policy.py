@@ -1183,10 +1183,11 @@ RECENT_MERGES_QUERY = (
 def _merged_since(
     owner: str, name: str, branch: str, since: datetime
 ) -> list[dict[str, Any]] | None:
-    """Merged pull requests on `branch`, newest update first, read until one was
-    last updated before `since` (a merge updates the PR, so every PR merged
-    since then comes first) or the history ends. None when the page limit is
-    reached first."""
+    """Pull requests merged into `branch` at or after `since`, as the post-merge
+    check counts them. Read newest update first until one was last updated
+    before `since` (a merge updates the PR, so every PR merged since then comes
+    first) or the history ends; a PR merged earlier and updated since is
+    skipped. None when the page limit is reached first."""
     found: list[dict[str, Any]] = []
     cursor: str | None = None
     for _ in range(MERGED_PAGE_LIMIT):
@@ -1205,7 +1206,8 @@ def _merged_since(
         for pr in map(json_object, page["nodes"]):
             if _time(pr.get("updatedAt")) < since:
                 return found
-            found.append(pr)
+            if _time(pr.get("mergedAt")) >= since:
+                found.append(pr)
         if not _has_next_page(info, "merged pull requests"):
             return found
         cursor = info.get("endCursor")
@@ -1382,24 +1384,27 @@ def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[s
     return sorted(found)
 
 
-def _opt_in_removed(
-    owner: str, name: str, pr: dict[str, Any], enqueued_at: Any
-) -> bool:
-    """The opt-in label was on the pull request at enqueue and is gone now."""
+def _opt_in_hold(
+    owner: str,
+    name: str,
+    pr: dict[str, Any],
+    enqueued_at: Any,
+    human: Callable[[Any], bool],
+) -> str | None:
+    """Why the opt-in label no longer stands as it did at enqueue: it was on
+    the pull request then and is gone now, or it changed since and its latest
+    application is not a human's in person (`_label_provenance`), so a
+    non-human cannot restore an opt-in a human revoked."""
     labels = _label_names(pr)
     if labels is None:
         raise PolicyReadError(f"#{pr.get('number')}: labels unreadable")
-    if OPT_IN_LABEL in labels:
-        return False
+    number = int(pr.get("number") or 0)
     at = _time(enqueued_at)
-    timeline = _paginated(
-        f"repos/{owner}/{name}/issues/{pr.get('number')}/timeline?per_page=100",
-        f"#{pr.get('number')} timeline",
-    )
+    timelines: dict[int, list[dict[str, Any]]] = {}
     events = sorted(
         (
             e
-            for e in timeline
+            for e in _timeline(owner, name, number, timelines)
             if e.get("event") in ("labeled", "unlabeled")
             and json_object(e.get("label")).get("name") == OPT_IN_LABEL
         ),
@@ -1410,16 +1415,39 @@ def _opt_in_removed(
         if _time(event.get("created_at")) > at:
             break
         present = event.get("event") == "labeled"
-    return present
+    if OPT_IN_LABEL not in labels:
+        return "opt-in-label-removed" if present else None
+    if not any(_time(e.get("created_at")) > at for e in events):
+        return None
+    untrusted = _label_provenance(
+        owner, name, number, OPT_IN_LABEL, None, human, timelines
+    )
+    return f"opt-in-label:{untrusted}" if untrusted else None
 
 
-def entry_hold(repo: str, number: int, identity: str) -> str | None:
+def entry_hold(
+    repo: str,
+    number: int,
+    identity: str,
+    *,
+    self_logins: Collection[str] = frozenset(),
+    permission: Permission | None = None,
+) -> str | None:
     """Why a queued entry of the agent identity must leave the queue (D3): the
     `do-not-merge` label, a body hold, a human blocking comment, or the opt-in
-    label removed since the enqueue. An unreadable entry is a hold."""
+    label removed since the enqueue or put back by a non-human. An unreadable
+    entry is a hold."""
     from babysit_merge import BODY_MERGE_HOLD_RE, MERGE_HOLD_LABEL  # noqa: PLC0415
 
     owner, name = _split_repo(repo)
+    permission = permission or permission_reader(repo)
+    human = lambda actor: is_human(  # noqa: E731
+        actor,
+        repo=repo,
+        agent_identity=identity,
+        self_logins=self_logins,
+        permission=permission,
+    )
     try:
         data = _graphql(ENTRY_HOLD_QUERY, f"#{number}", o=owner, r=name, n=number)
         pr = json_object(json_object(data.get("repository")).get("pullRequest"))
@@ -1434,8 +1462,11 @@ def entry_hold(repo: str, number: int, identity: str) -> str | None:
         blockers = _human_blockers(owner, name, number, identity)
         if blockers:
             return f"human-blocking-comment:{','.join(blockers)}"
-        if _opt_in_removed(owner, name, pr, json_object(events[-1]).get("createdAt")):
-            return "opt-in-label-removed"
+        opt_in = _opt_in_hold(
+            owner, name, pr, json_object(events[-1]).get("createdAt"), human
+        )
+        if opt_in:
+            return opt_in
     except PolicyReadError as exc:
         return f"unreadable: {exc}"
     return None
@@ -1799,7 +1830,8 @@ def assess(
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
-    Config at the pull request's base SHA, then authority, identity, the
+    Config at the pull request's base SHA, then authority, a base that is the
+    default branch, identity, the
     credential chokepoint, the kill switch and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
     later read can lead to a write. Then the rung (demotion and cap), the
@@ -1829,6 +1861,17 @@ def assess(
     )
     if (config.authority or "pr-merge") != "local-babysit":
         return stopped
+    # The post-merge check, its dispatch and the scheduled full run judge the
+    # default branch only, so a merge into any other base would go unjudged.
+    try:
+        default = _default_branch(repo)
+    except PolicyReadError:
+        default = None
+    if base_ref != default:
+        return replace(
+            stopped,
+            reason=f"base-not-default:{base_ref if default else 'default-branch-unreadable'}",
+        )
     if acting_login is None:
         try:
             acting_login = read_acting_login()
@@ -1856,7 +1899,7 @@ def assess(
         "self_logins": self_logins,
         "permission": permission,
     }
-    inputs["permission"] = permission
+    inputs.update(permission=permission, self_logins=self_logins)
     demotion = read_demotion(repo, **readers)
     details["demotion"] = {
         "active": demotion.active,

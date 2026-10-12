@@ -397,6 +397,7 @@ class Unattended(unittest.TestCase):
         patches = [
             mock.patch.object(sys, "argv", argv),
             mock.patch.object(policy, "pull_request", return_value=pr_record),
+            mock.patch.object(policy, "_default_branch", return_value="main"),
             mock.patch.object(policy, "read_config_at", return_value=self.config),
             mock.patch.object(policy, "read_acting_login", return_value=self.acting),
             mock.patch.object(
@@ -421,7 +422,9 @@ class Unattended(unittest.TestCase):
             mock.patch.object(policy, "eligibility", return_value=self.eligible),
             mock.patch.object(policy, "changed_files", return_value=self.files),
             mock.patch.object(
-                policy, "entry_hold", side_effect=lambda r, n, i: self.holds.get(n)
+                policy,
+                "entry_hold",
+                side_effect=lambda r, n, i, **_: self.holds.get(n),
             ),
             mock.patch.object(
                 merge, "_lane_evidence", return_value=(self.lanes, self.comments)
@@ -556,6 +559,41 @@ class AllInputsGood(Unattended):
         self.assertIs(out["merged"], True)
         self.assertIs(out["unattended"]["dispatched"], False)
         self.assertEqual(out["unattended"]["dispatchError"], "HTTP 500")
+        self.assertEqual(code, 10)
+
+    def merged_on_enqueue(self, landed_head: str) -> tuple[int, dict[str, Any]]:
+        # The queue landed the entry before async_merge stopped polling, so the
+        # enqueue itself returns `merged` with the read-back already done.
+        record = {
+            **ENQUEUED,
+            "status": "merged",
+            "verifiedMerged": True,
+            "mergedHead": landed_head,
+            "success": landed_head == HEAD,
+        }
+
+        def landed(repo: str, number: int, **kwargs: Any) -> dict[str, Any]:
+            self.log.append(f"enqueue:{kwargs['sha']}:{kwargs['merge_action']}")
+            return dict(record)
+
+        self._async_merge = landed  # type: ignore[method-assign]
+        with tempfile.TemporaryDirectory() as state:
+            return self.run_main("--state-dir", state)
+
+    def test_an_enqueue_that_returns_merged_dispatches_the_full_run(self) -> None:
+        # Codex P1 on #7335: without this the merge had no verifying dispatch.
+        code, out = self.merged_on_enqueue(HEAD)
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue", "dispatch"])
+        self.dispatch.assert_called_once_with("owner/repo", ref="main")
+        self.assertIs(out["merged"], True)
+        self.assertIs(out["unattended"]["dispatched"], True)
+        self.assertEqual(code, 0)
+
+    def test_an_enqueue_merged_at_another_head_dispatches_nothing(self) -> None:
+        # The read-back did not hold: as on a later run, no dispatch, exit 10.
+        code, out = self.merged_on_enqueue("f" * 40)
+        self.dispatch.assert_not_called()
+        self.assertNotIn("dispatched", out["unattended"])
         self.assertEqual(code, 10)
 
     def test_a_read_back_that_did_not_hold_dispatches_nothing(self) -> None:
@@ -743,6 +781,22 @@ class OneUnattendedMergeInFlight(Unattended):
         self.assert_no_merge(code)
         self.assertEqual(self.log, ["dequeue:[5]"])
         self.assertEqual(out["unattended"]["writes"]["holds"], {"5": "do-not-merge"})
+
+    def test_a_queued_entry_this_run_finds_ineligible_dequeues_itself(self) -> None:
+        # claude-security-review on #7335: the fresh eligibility read of the
+        # queued pull request itself refuses (a non-human restored its opt-in
+        # label), so its own entry leaves the queue even though no entry hold
+        # fired.
+        self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
+        self.queued = [PR]
+        self.eligible = policy.Eligibility(False, "opt-in-label:labeler-not-human")
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [f"dequeue:[{PR}]"])
+        self.assertEqual(
+            out["unattended"]["writes"]["holds"],
+            {str(PR): "ineligible:opt-in-label:labeler-not-human"},
+        )
 
 
 class GateReviewFixes(Unattended):
