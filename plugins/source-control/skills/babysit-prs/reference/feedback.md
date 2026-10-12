@@ -45,6 +45,26 @@ replaces, the structural check.
 Do not treat bare words such as `bug`, `failed`, or `not present` as blockers. Respect structured
 approval state and negation before text heuristics.
 
+## Repository Triage Rubric
+
+A target repository may keep a review-bot triage rubric: the `## Review-bot triage rubric` section of
+its `docs/conventions/source-control.md`, read at the PR's base branch once per pass. Its format,
+matching, confidence levels and limits are defined once in
+`<plugin-root>/reference/config-resolution.md` ("Review-bot triage rubric"); apply it as written there.
+A matching row sets the expected classification of a bot finding before the D1-D7 gates run; it never
+dismisses a security or data finding, never changes Human Feedback below, and never overrides
+structured `CHANGES_REQUESTED` state. Babysit runs with no one to answer, so an `ask` row never
+prompts: classify the finding UNCERTAIN, reply that the repository's rubric routes it to a person,
+leave the thread unresolved, and report it as material feedback.
+
+A disposition covers a whole feedback item, and one bot comment often packs several findings. Split
+the item into its findings first ([review-discipline.md](../../../reference/review-discipline.md) §2),
+match each finding on its own, and record `--reason rubric` for a blocking item only when every
+finding in it matched a `dismiss` row. When any finding matched no row, or matched a `fix` or `ask`
+row, record no rubric disposition: the item stays blocking and each finding takes the D1-D7 path,
+with the rows that did match applied to their own findings. The worker's report names the deciding
+row for each finding.
+
 ## Feedback Dispositions
 
 After triaging a blocking bot feedback item as an approval, stale, or non-actionable, the

@@ -27,7 +27,7 @@ Use it for every transition or animation that moves or scales something.
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .box { transition: transform 300ms var(--ease-out, ease-out); }
+  .box { transition: transform 200ms var(--ease-out, ease-out); }
 }
 ```
 
@@ -40,33 +40,41 @@ Rules:
 
 ## Motion tokens: `motion-tokens`
 
-Why: two easing curves defined once and a duration rule make every transition feel like one
+Why: easing curves defined once and a duration per role make every transition feel like one
 system.
 
 Baseline: [`cubic-bezier()`](https://developer.mozilla.org/en-US/docs/Web/CSS/easing-function#browser_compatibility),
 widely available. As of 2026-10-11, recheck on a status change.
 
-Use them in every transition and animation.
+Use them in every transition and animation. The values come from the resolved config, never from
+this file: `config.values.animation.easing` holds each curve as four control points, written as the
+arguments of `cubic-bezier()`, and `config.values.animation.duration_ms` holds the longest duration
+for each role. The project's own easing and duration tokens beat both.
 
 ```css
 :root {
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-out: cubic-bezier(<animation.easing.out>);
+  --ease-in-out: cubic-bezier(<animation.easing.in_out>);
+  --duration-medium: <animation.duration_ms.medium>ms;
 }
 
-.dropdown { transition: opacity 180ms var(--ease-out); }
+.dropdown { transition: opacity var(--duration-medium) var(--ease-out); }
 ```
 
 Rules:
 
 - Never use `ease-in` on UI. It starts slow and reads as lag.
-- Keep a UI transition at 300ms or less. Press feedback takes 100 to 160ms, tooltips and small
-  popovers 125 to 200ms, dropdowns 150 to 250ms. The exception is a modal or drawer: 200 to 500ms.
+- `out` is for anything entering or leaving, `in_out` for something already on screen that moves
+  or morphs, and `drawer` for a drawer or sheet.
+- Keep each transition within its role: `press` for press feedback, `small` for tooltips and small
+  popovers, `medium` for dropdowns, menus and any other UI transition, `large` for modals, dialogs,
+  drawers, sheets and toasts.
+  Small, frequent UI sits near the short end of its role.
 - Name the properties in a transition. Never write `transition: all`.
 - Other techniques write `var(--ease-out, ease-out)`, so their snippets work before these tokens
   exist.
 - Whether something should animate at all is a design question, not a CSS one; add no motion
-  beyond what the task calls for.
+  beyond what the task calls for. `/user-interface:write-animation` owns that question.
 
 ## Transition a custom property with `@property`: `transition-a-custom-property-with-property`
 
@@ -107,7 +115,7 @@ pointer position or progress into CSS.
 .card .more { opacity: var(--progress); }
 
 @media (prefers-reduced-motion: no-preference) {
-  .card { transition: --progress 0.3s var(--ease-out, ease-out); }
+  .card { transition: --progress 0.25s var(--ease-out, ease-out); }
 }
 ```
 
@@ -162,7 +170,7 @@ Use it on cards that lift on hover, most of all in a grid of many cards or with 
 
 @media (prefers-reduced-motion: no-preference) {
   .card::before,
-  .card::after { transition: opacity 0.3s var(--ease-out, ease-out); }
+  .card::after { transition: opacity 0.25s var(--ease-out, ease-out); }
 }
 ```
 

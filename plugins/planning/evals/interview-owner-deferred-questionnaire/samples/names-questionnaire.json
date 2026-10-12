@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Next: /planning:plan for the export change. In parallel, run /planning:questionnaire to send the SSH key question to the partner's ops lead.",
+      "why": "names the questionnaire skill with its slash"
+    },
+    {
+      "answer": "Run planning:questionnaire for the deferred key-type question.",
+      "why": "names the skill without the slash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Next: /planning:plan. The SSH key type stays in Deferred questions until the partner replies.",
+      "why": "no questionnaire hand-off"
+    },
+    {
+      "answer": "Email the partner's ops lead and ask which key type they accept, then run /planning:plan.",
+      "why": "advises asking but never names the skill"
+    }
+  ]
+}

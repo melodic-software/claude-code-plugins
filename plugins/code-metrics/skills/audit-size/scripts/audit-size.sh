@@ -56,7 +56,7 @@ if [[ -z "$CM_CONFIG" ]]; then
   CM_CONFIG="$WORK/config.json"
   cm_resolve_config "$CM_CONFIG" || exit 2
 fi
-MODE="$("${PY[@]}" -c 'import json,sys; print((json.load(open(sys.argv[1])).get("size") or {}).get("mode") or "file-lines")' "$CM_CONFIG")"
+MODE="$("${PY[@]}" -I -c 'import json,sys; print((json.load(open(sys.argv[1])).get("size") or {}).get("mode") or "file-lines")' "$CM_CONFIG")"
 case "$MODE" in
 file-lines) MEASURES="file_lines" ;;
 iso-8.2.115) MEASURES="file_lines,function_lines" ;;

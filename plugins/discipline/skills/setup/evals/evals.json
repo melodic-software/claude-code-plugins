@@ -5,12 +5,12 @@
       "id": 1,
       "name": "check-reports-overlay-and-routes-reconfig-natively",
       "prompt": "discipline setup",
-      "expected_output": "The check action reads the three rendered ${user_config.batch_*} values and reports the effective posture-batch overlay (excluded / promoted / demoted correctors and the net effect, or that the tiers run as declared when all unset). It routes any reconfiguration to /plugin configure discipline@<marketplace> and never edits settings.json or pluginConfigs. No apply action is offered.",
+      "expected_output": "The check action reads the three rendered ${user_config.batch_*} values and reports the effective posture-batch overlay (excluded / promoted / demoted correctors and the net effect, or that the tiers run as declared when all unset). It routes any reconfiguration to /plugin configure discipline@<marketplace> and never edits settings.json or pluginConfigs. It writes no file: check is read-only.",
       "files": [],
       "expectations": [
         "Reports the effective batch overlay from the userConfig values, read-only",
         "Routes reconfiguration to the native /plugin configure discipline@<marketplace> flow, never hand-editing pluginConfigs",
-        "Offers no apply action (userConfig-only carve-out)"
+        "Writes no file and does not run the apply action"
       ]
     },
     {
@@ -35,6 +35,47 @@
         "Validates overlay names against the globbed installed correctors",
         "Flags an unknown exclude/demote name as a FAIL with native-reconfiguration remediation",
         "Warns on non-situational batch_promote entries (never/core/unknown) and does not treat them as successful promotes"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "apply-writes-a-new-discipline-yaml",
+      "narration": true,
+      "prompt": "/discipline:setup apply lever_scope=non-trivial\n\n[This repository, a git checkout that is not the home directory, has no docs/conventions/discipline.yaml yet.]",
+      "expected_output": "Runs check first (lever_scope's repository row is INFO: absent), then calls setup-apply.mjs lever_scope=non-trivial, which creates docs/conventions/discipline.yaml holding lever_scope: non-trivial. It re-runs check and reports PASS lever_scope: non-trivial from that report, then runs the tracked-file pair and says the new file is written but untracked and must be committed to reach the team. It writes no other file and does not touch pluginConfigs or settings.json.",
+      "files": [],
+      "expectations": [
+        "Runs check before writing and reports the repository file as absent (INFO)",
+        "Writes docs/conventions/discipline.yaml through setup-apply.mjs with lever_scope=non-trivial",
+        "Reports the value from the re-run check, not from the write",
+        "Says the file is written but untracked and must be committed",
+        "Does not write pluginConfigs, settings.json or any other file"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "apply-shows-the-diff-before-changing-an-existing-file",
+      "narration": true,
+      "prompt": "/discipline:setup apply lever_scope=deterministic\n\n[docs/conventions/discipline.yaml already holds `lever_scope: non-trivial` under a comment line naming the owning team.]",
+      "expected_output": "setup-apply.mjs exits 3 and prints a unified diff changing lever_scope from non-trivial to deterministic without writing. The skill shows that diff and asks whether to write it, and re-runs with --yes only after an explicit yes; until then the file, comment included, is unchanged.",
+      "files": [],
+      "expectations": [
+        "Shows the diff from lever_scope: non-trivial to lever_scope: deterministic before any write",
+        "Asks the operator to confirm the diff",
+        "Does not pass --yes or change the file before an explicit yes, and does not read the apply request as that yes"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "check-warns-on-an-invalid-lever-scope",
+      "narration": true,
+      "prompt": "/discipline:setup check\n\n[docs/conventions/discipline.yaml holds `lever_scope: always`; the user's lever_scope option is non-trivial.]",
+      "expected_output": "The lever_scope repository row is a WARN quoting docs/conventions/discipline.yaml, the key lever_scope and the value always, naming deterministic and non-trivial as the allowed values and pointing at apply as the fix. The effective value it reports is the default deterministic, not the user's non-trivial, because the invalid layer is dropped rather than falling through to a lower one. It is not a FAIL, and check writes nothing.",
+      "files": [],
+      "expectations": [
+        "Reports a WARN that names docs/conventions/discipline.yaml, lever_scope and always",
+        "Reports the effective lever_scope as deterministic, not the user's non-trivial value",
+        "Does not report a FAIL and writes nothing"
       ]
     }
   ]

@@ -34,6 +34,13 @@ inputs:
     description: The gated PR number; sent as `pr_number` when set. `token` mode only.
     required: false
     default: ""
+  dispatcher-run-id:
+    description: >-
+      The pr-unblock-dispatch.yml run that dispatched this run; sent as
+      `dispatcher_run_id` when set, which the broker needs for a run sent by
+      github-actions[bot]. `token` mode only.
+    required: false
+    default: ""
   effect:
     description: The effect resolve-config resolved for this activity. Required in `token` mode, empty in `check` mode.
     required: false
@@ -75,6 +82,7 @@ runs:
         LANE: ${{ inputs.lane }}
         ACTIVITY: ${{ inputs.activity }}
         PR_NUMBER: ${{ inputs.pr-number }}
+        DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         EFFECT: ${{ inputs.effect }}
         CONTENTS: ${{ inputs.contents }}
         PULL_REQUESTS: ${{ inputs.pull-requests }}
@@ -106,12 +114,15 @@ runs:
               fail "the resolved grant must be read or write for contents, pull-requests and issues"
           done
           [[ -z ${PR_NUMBER:-} || $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || fail "the PR number is malformed"
+          # At most 15 digits keeps it a safe JSON integer for the broker.
+          [[ -z ${DISPATCHER_RUN_ID:-} || $DISPATCHER_RUN_ID =~ ^[1-9][0-9]{0,14}$ ]] ||
+            fail "the dispatcher run id is malformed"
           ;;
         check)
           # The check job resolves no grant and gates no PR, and the broker's
           # check endpoint answers 400 to any body field but lane and activity.
-          [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES$PR_NUMBER ]] ||
-            fail "check mode takes no effect, grant or PR number"
+          [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES$PR_NUMBER$DISPATCHER_RUN_ID ]] ||
+            fail "check mode takes no effect, grant, PR number or dispatcher run id"
           [[ $BROKER_URL =~ ^https://[^/]+/(.+/)?token$ ]] ||
             fail "lane-token-unconfigured: LANES_BROKER_URL does not end in a /token path segment, so it names no check endpoint"
           BROKER_URL="${BROKER_URL%/token}/check"
@@ -148,7 +159,10 @@ runs:
         echo "::add-mask::$oidc"
 
         body=$(jq -cn --arg lane "$LANE" --arg activity "$ACTIVITY" --arg pr "$PR_NUMBER" \
-          '{lane: $lane, activity: $activity} + (if $pr == "" then {} else {pr_number: ($pr | tonumber)} end)')
+          --arg dispatcher "$DISPATCHER_RUN_ID" \
+          '{lane: $lane, activity: $activity}
+            + (if $pr == "" then {} else {pr_number: ($pr | tonumber)} end)
+            + (if $dispatcher == "" then {} else {dispatcher_run_id: ($dispatcher | tonumber)} end)')
 
         # Exactly one request, with no retry: the broker spends this job's one
         # mint when it answers, and a 200 lost in transit is revoked by nobody,
