@@ -270,9 +270,8 @@ The `userConfig` options:
 
 A threshold or approach mark outside 1 to 100, or line data with an unknown item, reads as that
 option's default with one transcript line naming it. The thresholds declare no range because a
-value outside a declared range would cost the whole module, not just that option (what Claude Code
-does with such a value is at the pointer below), so the module judges a value outside 1 to 100
-itself. A value of the wrong type (text for a number, a number for
+value outside a declared range would cost the whole module, not just that option, so the module
+judges a value outside 1 to 100 itself. A value of the wrong type (text for a number, a number for
 a switch) is Claude Code's to handle before the module sees it.
 
 - **Pointer**: when deciding what Claude Code does with an option value that does not fit
