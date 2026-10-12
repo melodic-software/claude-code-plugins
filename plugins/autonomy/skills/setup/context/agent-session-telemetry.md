@@ -46,7 +46,7 @@ sessions were not probed.
 - **Pointer**: when a binding needs to know which session kinds read inbound context, from which
   version, and which span ID a record carries, fetch
   <https://code.claude.com/docs/en/monitoring-usage#traces-beta> live. The probe's evidence is in
-  [pull request 4414](https://github.com/melodic-software/claude-code-plugins/pull/4414).
+  pull request #4414 of the repository that ships this plugin.
 - **As of**: 2026-10-11 (page); 2026-09-23 (probe)
 - **Recheck trigger**: a Claude Code changelog entry touching inbound `TRACEPARENT` or event trace
   correlation, or that section is renamed or removed.
