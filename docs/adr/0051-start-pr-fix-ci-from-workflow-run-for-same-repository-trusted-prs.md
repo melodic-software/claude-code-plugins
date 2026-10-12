@@ -76,8 +76,11 @@ Conditions 1 to 5 hold unchanged for every run `workflow_run` starts, as do the 
 no-progress cap and the review-lane tripwire. Where the Decision and Consequences name
 `pr-fix-ci`, read `pr-unblock` on its `workflow_run` trigger.
 
-Nothing runs on this trigger yet. `pr-unblock` first ships with its `resolve-conflicts` leaf,
-started by `workflow_dispatch` only, and `fix-ci` stays disabled until its split design lands,
+Nothing runs on this trigger yet. `pr-unblock` first ships with its `resolve-conflicts` leaf, which
+runs the resolve-conflicts skill in its CI mode, and a `report-escalation` leaf that always hands
+an escalated PR to a person. Both start by `workflow_dispatch` only: `pr-unblock-dispatch.yml`
+dispatches one run per conflicting PR after each push to the default branch. `fix-ci` stays
+disabled until its split design lands,
 because its leaves run head code with a write effect
 ([ADR 0055](0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md)). Adding the
 `workflow_run` trigger to `pr-unblock` is a lane-power change, and a human merges it.
