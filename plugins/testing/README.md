@@ -3,7 +3,7 @@
 A Claude Code plugin for the **test stage** of a disciplined dev workflow. Plan
 what needs testing, author tests at the right level, verify the running app
 end-to-end, diagnose failures to root cause, and catch tests that cannot fail, then clean them up. Twelve
-skills, one concern: proving behavior with tests.
+skills cover it.
 
 | Skill | What it does |
 |---|---|
