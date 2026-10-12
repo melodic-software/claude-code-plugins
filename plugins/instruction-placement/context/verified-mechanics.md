@@ -272,7 +272,8 @@ claim's confidence:
   version named after `measured` inside a citation marker, such as `*(measured 2.1.268)*`, and
   the `audit` and `realign` headers print `Mechanics record: STALE` when the CLI is newer. A
   measurement recorded without a version in its marker is invisible to that check, so stamp
-  every new one there, and keep a stamped marker on one line: the check reads line by line.
+  every new one there, and keep a stamped marker on one line with no parenthesis inside it: the
+  check reads line by line and ends a marker at its first closing parenthesis.
 - A finding here contradicts observed behavior in a real session.
 - The official memory documentation changes its wording on deferral, imports, or subagent scope.
 

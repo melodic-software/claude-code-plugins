@@ -129,9 +129,6 @@ Then four checks before the first edit, because acting on a stale artifact edits
    `pending` and is presented again.
 4. **Version drift.** The artifact's `claude_code_version` against the running one. On a material
    difference, re-verify the mechanics before trusting destination choices that depend on them.
-   When the Pre-computed context's `Mechanics record` line reads `STALE` or `unchecked`, quote it
-   to the operator before the first finding: the record those destinations were priced on has not
-   been measured on this CLI.
 
 ## Execution
 

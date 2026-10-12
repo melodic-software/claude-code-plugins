@@ -191,9 +191,6 @@ table and the two rules that keep routing from becoming silent dropping.
 
 ## Reporting honestly
 
-- **Lead with a stale mechanics record.** When the Pre-computed context's `Mechanics record` line
-  reads `STALE` or `unchecked`, the report opens with that line: the costs below were priced on
-  measurements this CLI has not been checked against.
 - **Say what was not swept.** The detector's `SKIP` records and `SUMMARY` are the source. Report
   them rather than recounting by hand. A run that covered 200 of 2,000 files while reading like a
   full audit is the failure this rule exists to prevent.
