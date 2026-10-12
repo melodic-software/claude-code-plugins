@@ -91,6 +91,8 @@ SHARED_BOTS = frozenset({"github-actions", "dependabot"})
 USER_LOGIN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}$")
 AUTOMATION_LOGINS = frozenset({"github-actions"})
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+# C0 and C1 controls and the Unicode line and paragraph separators.
+_SEPARATOR = re.compile(r"[\x00-\x1f\x7f-\x9f  ]")
 WRITE_PERMISSIONS = frozenset({"admin", "write"})
 # The merged-PR read for the in-flight rule: pages of 100, at most 10 pages.
 # A history it cannot read to its end (or to the merged-since floor) is not clear.
@@ -239,7 +241,12 @@ def _concern_values(
                 raise PolicyReadError(
                     f"the shared YAML reader exited {proc.returncode}: {proc.stderr.strip()}"
                 )
-            values[key] = [line for line in proc.stdout.splitlines() if line]
+            # One value per "\n": splitlines() would also cut a value at U+0085
+            # or U+2028, and a value carrying any such character is refused.
+            found = [line for line in proc.stdout.split("\n") if line]
+            if any(_SEPARATOR.search(line) for line in found):
+                return None
+            values[key] = found
     return values
 
 
@@ -463,12 +470,15 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
         notes.append(f"merge.rung {rung!r} is not off, C2 or C3")
         rung = "off"
     lines = scalar("merge.diff-check.max-changed-lines")
+    if lines is not None and not re.fullmatch(r"[0-9]+", lines):
+        notes.append(f"merge.diff-check.max-changed-lines {lines!r} is not a count")
+        rung, lines = "off", None
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
         authority=scalar("merge.authority"),
         agent_identity=scalar("merge.agent-identity"),
-        max_changed_lines=int(lines) if lines and lines.isdigit() else None,
+        max_changed_lines=int(lines) if lines else None,
         denied_paths=tuple(values["merge.diff-check.denied-paths"]),
         loop_merge=loop_merge,
         notes=tuple(notes),
@@ -742,12 +752,13 @@ def read_demotion(
     """
     owner, name = _split_repo(repo)
     filers = [DEMOTION_FILER, *([agent_identity.strip()] if agent_identity else [])]
+    permission = permission or permission_reader(repo)
     human = lambda actor: is_human(  # noqa: E731
         actor,
         repo=repo,
         agent_identity=agent_identity,
         self_logins=self_logins,
-        permission=permission or permission_reader(repo),
+        permission=permission,
     )
     records: list[int] = []
     try:
@@ -768,7 +779,12 @@ def read_demotion(
                 )
             ]
             texts = [issue.get("body"), *revisions]
-            if not any(t is None or DEMOTION_MARKER in str(t) for t in texts):
+            edits = json_object(issue.get("userContentEdits"))
+            # A truncated history may hide the marker in an older revision.
+            truncated = edits.get("totalCount") != len(json_array(edits.get("nodes")))
+            if not truncated and not any(
+                t is None or DEMOTION_MARKER in str(t) for t in texts
+            ):
                 continue
             records.append(number)
             hold = _record_hold(issue, human)
@@ -931,12 +947,13 @@ def eligibility(
     identity's claim on that issue predating the PR.
     """
     owner, name = _split_repo(repo)
+    permission = permission or permission_reader(repo)
     human = lambda actor: is_human(  # noqa: E731
         actor,
         repo=repo,
         agent_identity=agent_identity,
         self_logins=self_logins,
-        permission=permission or permission_reader(repo),
+        permission=permission,
     )
     try:
         data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
@@ -1111,12 +1128,13 @@ def in_flight(
         return InFlight(False, "merged-since-unset")
     if merged_since.utcoffset() is None:
         return InFlight(False, "merged-since-not-timezone-aware")
+    permission = permission or permission_reader(repo)
     human = lambda actor: is_human(  # noqa: E731
         actor,
         repo=repo,
         agent_identity=agent_identity,
         self_logins=self_logins,
-        permission=permission or permission_reader(repo),
+        permission=permission,
     )
     try:
         data = _graphql(MERGE_QUEUE, "merge queue", o=owner, r=name, b=branch)

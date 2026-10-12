@@ -243,6 +243,26 @@ class ReadConfigAt(unittest.TestCase):
         config_fake(self, "merge:\n  rung: C4\n")
         self.assertEqual(policy.read_config_at(REPO, SHA).rung, "off")
 
+    def test_a_value_with_a_line_separator_is_a_parse_error(self) -> None:
+        for char in ("\u0085", " ", "\x0b", "\x1c"):
+            with self.subTest(char=repr(char)):
+                config_fake(
+                    self, f'merge:\n  rung: C2\n  authority: "pr-merge{char}x"\n'
+                )
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual(
+                    (config.rung, config.error), ("off", "config-parse-error")
+                )
+
+    def test_a_max_changed_lines_that_is_not_a_count_is_off(self) -> None:
+        for value in ("lots", "²", "-5"):
+            with self.subTest(value=value):
+                text = f"merge:\n  rung: C2\n  diff-check:\n    max-changed-lines: {value}\n"
+                config_fake(self, text)
+                config = policy.read_config_at(REPO, SHA)
+                self.assertEqual((config.rung, config.max_changed_lines), ("off", None))
+                self.assertTrue(config.notes)
+
     def test_a_hidden_file_raises(self) -> None:
         gh = config_fake(self, None)
         gh.rest[f"repos/{REPO}/contents?ref={SHA}"] = 404
@@ -498,6 +518,22 @@ class ReadDemotion(unittest.TestCase):
             },
         )
         self.assertTrue(read_demotion().active)
+
+    def test_marker_beyond_a_truncated_edit_history_is_off(self) -> None:
+        # Only the newest 100 revisions are read; the marker may sit in an older one.
+        edit = {"editedAt": "2026-10-12T11:00:00Z", "deletedAt": None}
+        edit |= {"editor": bot("agent-lanes"), "diff": "scrubbed"}
+        demotion_fake(
+            self,
+            state="OPEN",
+            body="scrubbed",
+            lastEditedAt="2026-10-12T11:00:00Z",
+            userContentEdits={"totalCount": 150, "nodes": [edit] * 100},
+            timelineItems={"nodes": []},
+        )
+        result = read_demotion()
+        self.assertTrue(result.active)
+        self.assertEqual(result.reason, "#9 edit-history-incomplete")
 
     def test_marker_edited_away_by_the_identity_is_still_found_and_off(self) -> None:
         edits = {
@@ -1107,9 +1143,7 @@ class Assess(unittest.TestCase):
 class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
     """`babysit_merge.py --merge` with the token acting as the configured
     `merge.agent-identity`, read from a real pipeline file through the config
-    reader and the shared YAML reader, exits 10 before any evaluation or write.
-    `resolve` is pointed at `assess` so the test holds before and after the
-    two are wired together."""
+    reader and the shared YAML reader, exits 10 before any evaluation or write."""
 
     def run_main(self, login: str) -> tuple[int, dict[str, Any]]:
         import contextlib
@@ -1126,7 +1160,6 @@ class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
         out = io.StringIO()
         with (
             mock.patch.object(sys, "argv", argv),
-            mock.patch.object(policy, "resolve", policy.assess),
             mock.patch.object(merge, "resolve_author", return_value=login),
             mock.patch.object(merge, "evaluate", never),
             mock.patch.object(merge, "gh_capture", never),

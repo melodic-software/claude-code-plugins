@@ -136,7 +136,7 @@ failing_gh="$(mktemp -d)" || exit 1
 trap 'rm -rf "$failing_gh"' EXIT
 printf '#!/usr/bin/env bash\necho "gh: offline in engine.test.sh" >&2\nexit 1\n' >"$failing_gh/gh"
 chmod +x "$failing_gh/gh"
-check_exit "merge wrapper refuses --unattended --merge with no config" 10 \
+check_exit "merge wrapper refuses --unattended --merge when the policy is unreadable" 10 \
   env PATH="$failing_gh:$PATH" bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners owner \
   --unattended --merge --expected-head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
