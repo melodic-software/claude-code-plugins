@@ -356,7 +356,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 .flash{animation:flash 1.8s ease-out}
 @keyframes flash{0%{box-shadow:0 0 0 3px var(--chg);background-color:var(--chg-soft)}100%{box-shadow:0 0 0 0 transparent}}
 
-@media (max-width:900px){ .agrid{grid-template-columns:minmax(0,1fr);grid-template-rows:none;flex:none} .choices{overflow:visible} }
+@media (max-width:900px){ .agrid{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto} }
 @media (max-width:820px){
   body{overflow:auto}
   .app{height:auto;min-height:100vh}
@@ -367,6 +367,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   nav.rail{order:1}
   main.detail{grid-template-rows:auto auto}
   section.answer{overflow:visible}
+  .agrid{grid-template-rows:none;flex:none}
+  .choices{overflow:visible}
   h1{font-size:20px;margin-top:2px}
   header.top{gap:4px;padding-bottom:4px}
   .cline{white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
@@ -1037,8 +1039,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const a = (q.alternatives || []).find(x => x.key === d.alt);
     if (k === "alt" && a && !altsOf(q).includes(a)) return {re: true, kind: "accept", alt: null, keep: d.text || "", label: "Reconfirm", text: "the recommendation"};
     if (k === "alt" && !a) return null; // a revise removed the kept alternative: nothing to reconfirm
-    const text = k === "accept" ? "the recommendation" : k === "alt" ? "alternative (" + d.alt + "): " + a.text : k === "own" ? "your own answer" : k === "hedged" ? "hedged: " + (d.text || "") : "deferred";
-    return {re: true, kind: k, alt: k === "alt" ? d.alt : null, keep: d.text || "", label: "Reconfirm", text};
+    const text = k === "accept" ? "the recommendation" : k === "alt" ? "alternative (" + d.alt + "): " + a.text : k === "own" ? "your own answer" : k === "hedged" ? "hedged: " + (d.text || "") : personOf(d) ? d.text : "deferred";
+    return {re: true, kind: k, alt: k === "alt" ? d.alt : null, keep: d.text || "", label: "Reconfirm", text, who: personOf(d)}; // who: a new name typed over the kept one stays person-held
   }
   const normAlt = t => String(t).toLowerCase().replace(/\(recommended\)/g, " ").split(/\s+/).filter(Boolean).join(" ").replace(/[.,;:!?)]+$/, "").trim();
   function altsOf(q){ // alternatives minus any that restate the recommendation: those fold into Accept
@@ -1309,7 +1311,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (open.length) h += '<section class="blk"><h4>Still open</h4><p>' + open.map(q => refHtml(q.id)).join(" ") + "</p></section>";
     if (waits.length) h += '<section class="blk"><h4>Pending research</h4><p>' + waits.map(q => refHtml(q.id)).join(" ") + "</p></section>";
     const held = l.filter(q => stateOf(q) === "defer" && personOf(decisionOf(q)));
-    if (held.length) h += '<section class="blk" id="personHeld"><h4>Someone else decides</h4><p>' + held.map(q => refHtml(q.id) + " " + esc(trunc(decisionOf(q).text.slice(PERSON.length), 80))).join("; ") + '</p><p class="kbd">At wrap-up Claude can turn these into a questionnaire for that person to fill in.</p></section>';
+    if (held.length) h += '<section class="blk" id="personHeld"><h4>Someone else decides</h4><p>' + held.map(q => refHtml(q.id) + " " + esc(trunc(decisionOf(q).text.slice(PERSON.length), 80))).join("; ") + '</p><p class="kbd">At wrap-up Claude may suggest a questionnaire for that person to fill in.</p></section>';
     setHtml($("sumTop"), h); setHtml($("uBox"), uBoxHtml()); setHtml($("cBox"), cBoxHtml());
     const ta = $("offText"); if (ta && document.activeElement !== ta && ta.value !== (S.offDraft || "")) ta.value = S.offDraft || "";
     h = '<section class="blk"><h4>Decisions</h4><div class="sumwrap"><table class="sum"><thead><tr><th>Question</th><th>Decision</th><th>Decided</th></tr></thead><tbody>' +
@@ -1670,7 +1672,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       const r = await resolveRef(q, note, "Save as own answer"); if (r === false) return;
       if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; }
     }
-    await send(c.kind, c.alt, undefined, c.who && !note.startsWith(PERSON) ? PERSON + note : keep, withNote(q, c));
+    await send(c.kind, c.alt, undefined, c.who ? PERSON + note.replace(/^someone else decides:\s*/i, "") : keep, withNote(q, c));
   }
   function confirmAccept(){ // Claude has not answered your ask yet, so the recommendation may still change
     const dlg = $("dlg");

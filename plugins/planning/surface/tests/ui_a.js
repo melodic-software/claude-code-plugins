@@ -142,7 +142,7 @@ async page => {
 
   // medium widths: the agrid stays two columns down to 900 px, the rail cut is marked, nothing widens the page
   await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);
-  for (const [w, h] of [[1440, 900], [1000, 800], [1000, 640]]) { // the dock never starves the question, Save sits in a footer, and no choice renders behind or below it
+  for (const [w, h] of [[1440, 900], [1000, 800], [1000, 640], [860, 640]]) { // the dock never starves the question, Save sits in a footer, and no choice renders behind or below it
     await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(250);
     const m = await page.evaluate(() => { const c = document.getElementById("choices"), d = document.getElementById("dscroll"), main = document.querySelector("main.detail"), save = document.querySelector("[data-save]").getBoundingClientRect(), dock = document.getElementById("answer").getBoundingClientRect();
       return {choicesScroll: c.scrollHeight > c.clientHeight + 1, detail: d.clientHeight, main: main.clientHeight, saveShown: save.top >= dock.top && save.bottom <= dock.bottom + 1}; });
