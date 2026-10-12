@@ -314,5 +314,79 @@ class BlastRadiusTests(unittest.TestCase):
         self.assertEqual(_codes(result), ("blast-radius-missing",))
 
 
+class MalformedInputTests(unittest.TestCase):
+    """Missing or unrecognised data is a miss: never LOW, and never a raise."""
+
+    CASES = [
+        ("empty file list", dict(files=()), Risk.MED, "files-incomplete"),
+        ("files None", dict(files=None), Risk.MED, "files-incomplete"),
+        ("unknown status", dict(files=(_file("plugins/foo/a.md", status="deleted"),)),
+         Risk.MED, "files-incomplete"),
+        ("status None", dict(files=(_file("plugins/foo/a.md", status=None),)),
+         Risk.MED, "files-incomplete"),
+        ("copied is structural", dict(files=(
+            _file("plugins/foo/b.md", status="copied",
+                  previous_path="plugins/foo/a.md"),)),
+         Risk.MED, "class-contradicted"),
+        ("changed is structural", dict(files=(
+            _file("plugins/foo/a.md", status="changed"),)),
+         Risk.MED, "class-contradicted"),
+        ("negative additions", dict(files=(_file("plugins/foo/a.md", additions=-500),)),
+         Risk.MED, "files-incomplete"),
+        ("string additions", dict(files=(_file("plugins/foo/a.md", additions="3"),)),
+         Risk.MED, "files-incomplete"),
+        ("additions None", dict(files=(_file("plugins/foo/a.md", additions=None),)),
+         Risk.MED, "files-incomplete"),
+        ("float deletions", dict(files=(_file("plugins/foo/a.md", deletions=1.5),)),
+         Risk.MED, "files-incomplete"),
+        ("files_complete string", dict(files_complete="false"),
+         Risk.MED, "files-incomplete"),
+        ("files_complete None", dict(files_complete=None),
+         Risk.MED, "files-incomplete"),
+        ("has_patch string", dict(files=(_file("plugins/foo/a.md", has_patch="false"),)),
+         Risk.MED, "files-incomplete"),
+        ("has_patch None", dict(files=(_file("plugins/foo/a.md", has_patch=None),)),
+         Risk.MED, "files-incomplete"),
+        ("rung out of range", dict(rung=9), Risk.MED, "class-above-rung"),
+        ("rung None", dict(rung=None), Risk.MED, "class-above-rung"),
+        ("max_changed_lines None", dict(max_changed_lines=None),
+         Risk.MED, "lines-over"),
+        ("lanes None", dict(lanes=None), Risk.MED, "evidence-unbound:claude-review"),
+        ("high_paths None", dict(high_paths=None), Risk.HIGH, "high-path:**"),
+        ("path None", dict(files=(_file(None),)), Risk.HIGH, "high-path:**"),
+    ]
+
+    def test_malformed_inputs_never_score_low(self):
+        for name, changes, severity, code in self.CASES:
+            with self.subTest(name):
+                result = score(_input(**changes))
+                self.assertEqual(result.score, severity)
+                self.assertIn(code, _codes(result))
+
+    def test_paths_that_could_hide_a_floor_path_are_high(self):
+        for path in ("../.github/x.yml", "plugins/foo/../../.github/x.yml",
+                     "./.github/x.yml", "/.github/x.yml",
+                     ".github\\workflows\\x.yml", "plugins\\foo\\AGENTS.md",
+                     "docs\\conventions\\x.yaml", "docs//conventions/x.yaml",
+                     "AGENTS.md.", ".github./x.yml", "plugins/foo /x.md", "",
+                     "../plugins/foo/x.md", "AGENTS.MD", "plugins/foo/Claude.md",
+                     "LIB/x.sh"):
+            with self.subTest(path):
+                self.assertEqual(score(_input(files=(_file(path),))).score, Risk.HIGH)
+
+    def test_dot_slash_prefix_matches_the_floor_glob(self):
+        result = score(_input(files=(_file("./scripts/x.sh"),)))
+        self.assertIn("high-path:scripts/**", _codes(result))
+
+    def test_caller_globs_are_normalised(self):
+        for glob, path in (("/plugins/foo/x.md", "plugins/foo/x.md"),
+                           ("./plugins/foo/x.md", "plugins/foo/x.md"),
+                           ("plugins\\foo\\x.md", "plugins/foo/x.md"),
+                           ("plugins/foo", "plugins/foo/deep/x.md")):
+            with self.subTest(glob):
+                result = score(_input(files=(_file(path),), high_paths=(glob,)))
+                self.assertEqual(result.score, Risk.HIGH)
+
+
 if __name__ == "__main__":
     unittest.main()
