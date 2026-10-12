@@ -2,7 +2,7 @@
 
 A Claude Code plugin for the **test stage** of a disciplined dev workflow. Plan
 what needs testing, author tests at the right level, verify the running app
-end-to-end, diagnose failures to root cause, and catch tests that cannot fail, then clean them up. Nine
+end-to-end, diagnose failures to root cause, and catch tests that cannot fail, then clean them up. Twelve
 skills, one concern: proving behavior with tests.
 
 | Skill | What it does |
@@ -10,6 +10,9 @@ skills, one concern: proving behavior with tests.
 | `/testing:plan` | Coverage-gap analysis. Classify changed files by required test type, identify gaps, prioritize by regression risk. |
 | `/testing:write` | Test authoring discipline. Vertical-slice TDD, test-type selection, naming, placement, fixture patterns, four-pillars assessment. |
 | `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
+| `/testing:map-features` | User-invoked. Writes a feature map for one app: a project skill (default `.claude/skills/feature-map/`) whose index names the launch recipe, the recorded driver and a doctor command, with a file for each feature listing its parts, entry points, drive steps and traps. Refuses a location inside a `run-<name>` or `verify` skill. Reports done only after one mapped feature passes through `/testing:run-e2e`. Format: `reference/feature-map.md`. |
+| `/testing:refresh-feature-map` | Model-invocable. Keeps an existing feature map accurate: read-only source checks per feature, then one live pass through `/testing:run-e2e`. Edits stay in the map directory; a behavior the app lost goes to `/bugs:write` or the report, never into the map. A clean pass records its commit under the plugin data directory and the next pass skips until HEAD moves. Map corrections go to one fixed branch per map, `feature-map-upkeep/<map slug>`, and one pull request, updated rather than duplicated, opened only when unattended or after you confirm. An unattended pass refuses a `chrome` map. |
+| `/testing:check-visual-parity` | Model-invocable; implement's refactor mode calls it for a plan phase with a `**Parity contract:**` line. `baseline` captures PNG screenshots of the listed states before the first edit and records their sha256, OS, browser, viewport and scale in a manifest; `compare` captures them again at each green checkpoint and counts differing pixels per image with pixelmatch against `pixel_tolerance`. It captures only through a driver that writes PNG files, launches through `/testing:run-e2e`'s launch path, runs the repository's own visual suite first, and never edits or re-captures a baseline. pixelmatch and pngjs install on first use from the committed lockfile (`npm` required). |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 | `/testing:audit` | Can't-fail test detection: a deterministic script runs thirteen rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other eight only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
 | `/testing:cleanup` | Clean up low-value tests in one folder. Reads `/testing:audit` findings, test-judge FLAG verdicts and the tests you name as flaky; a fresh-context classifier picks quarantine, rewrite, delete, merge or keep per test. It rewrites by default and deletes or merges only with a stated no-contract reason and your yes on each item. `/mutation-testing:audit --record-mutants` records the mutants the tests kill before any edit, and `--replay-mutants` blocks the batch when a kill is lost. Nothing is committed until you approve the batch. Needs the `mutation-testing` plugin set up with a `test-command`; without one, `--cannot-fail-only` deletes only tests that cannot fail, each cleared by a fresh-context skeptic and your yes. |
@@ -182,37 +185,64 @@ glob added only through the consumer settings entry `/testing:setup check` print
 (`test-scan.sh --enabled`) is recorded in the same state, so with both options on the Stop hook
 judges those tests at the task end, again with no background job ahead of it.
 
-`/testing:run-e2e` reads one optional consumer-project config surface,
-`.claude/testing/e2e.md`: `recording` (`video | gif | off`, default `off`) and
-`browser_mode` (`headed | headless`, default `headless`). Both defaults preserve current
-behavior, so the file is optional. Its keys, defaults, and precedence are documented in
-the skill's bundled `run-e2e/context/e2e-config.md`; it layers per the marketplace
-config-cascade convention.
+`/testing:run-e2e` reads four optional keys. `recording` (`video | gif | off`, default `off`) and
+`browser_mode` (`headed | headless`, default `headless`) live on `.claude/testing/e2e.md`.
+`e2e_driver` (`auto | harness | run | playwright | chrome`) and `reuse_running_instance`
+(`auto | true | false`), both default `auto`, live in `docs/conventions/testing.yaml`, its personal
+layers, or the `userConfig` options below; `scripts/resolve-config.sh e2e` resolves them and names
+an invalid value instead of stopping. When an app already answers and the default branch declares a
+Workspace environment entry, `reuse_running_instance: false`, and `auto` on an unattended run,
+start the run's own instance through the entry's `up` and `info` and never drive the answering app;
+with no entry, unattended `auto` reuses the app with labeled evidence and `false` stops, as
+before. Under `auto` a run now drives through the repository's own
+harness when a spec covers the changed flow, and otherwise through the path it used before. A fifth
+key, `feature_map_dir` (default `.claude/skills/feature-map`), says where `/testing:map-features`
+writes the feature map and where run-e2e reads it; it is a repository path, set only in
+`docs/conventions/testing.yaml` or `.claude/testing.local.yaml`, with no `userConfig` option. Keys,
+defaults and precedence are in the skill's bundled `run-e2e/context/e2e-config.md`.
+
+`pixel_tolerance` is a map in `docs/conventions/testing.yaml`: `pixels`, the differing pixels per
+image `/testing:check-visual-parity` accepts (a whole number, default 0), and `reason`, required when
+`pixels` is above 0. Quote a reason that holds a colon followed by a space. The team value is read
+from origin's default branch (the working tree only when there is no `origin`). The user-global
+`~/.claude/testing.yaml`, `.claude/testing.local.yaml` and the `pixel_tolerance` option can only
+lower it: the lowest valid value wins, a raise is reported as ignored, and an invalid layer is
+named and dropped. A testing release without this key stops its test scan on `pixel_tolerance` in
+`testing.yaml`, so add the map once every member runs this release.
+
+**Upgrade note.** A testing release older than these keys never reads
+`docs/conventions/testing.yaml`, and refuses an unknown key in the files it does read, which stops
+its test scan. Keep the team's scan config where it is (the `docs/conventions/testing.md` block or
+`.claude/testing.yaml`) until every member has upgraded, and put `e2e_driver` and
+`reuse_running_instance` only in `docs/conventions/testing.yaml`, or in a personal layer on a
+machine that runs this release.
+
+Its `worst-case` action also reads an optional `.claude/testing/worst-case.md`, after the bundled
+catalog in `run-e2e/context/worst-case.md`: the project's own worst-case values, field limits and
+data formats, read as data. The action renders a target with that data, reverts what it injected
+(proven with `cmp` snapshots), and reports what breaks without editing component code.
 
 `/testing:audit` and the `test-scan` hook read the testing config through the same cascade
 (`~/.claude/testing.yaml`, the team layer, `.claude/testing.local.yaml`): adapters to turn off or
 allow, path globs to exclude or include, extra adapter globs, consumer adapters, and a level per
 rule (`off`, `warn`, `error`). `/testing:setup` documents the keys and writes the team layer.
 
-The team layer is the `yaml config` block in `docs/conventions/testing.md`, the file that also holds
-the team's prose testing rules. A fence line that opens at column 0 with three backticks and the
-words `yaml config` starts the block, and the first line of three backticks closes it. The keys are
-the ones `.claude/testing.yaml` takes, and an error in the block names the `.md` file and its own
-line. A docs file with no block does not supply the team layer; `<root>/.claude/testing.yaml` is
-read instead. When both exist the docs block wins and the resolver prints one warning naming both
-paths. The user-global and `.claude/testing.local.yaml` layers do not change.
+The team layer is `docs/conventions/testing.yaml`, validated by
+[`schemas/testing.schema.json`](schemas/testing.schema.json). It takes the keys `.claude/testing.yaml`
+takes, plus the two run-e2e keys above. Without it, the team layer is the `yaml config` block in
+`docs/conventions/testing.md` (read for one more release), else `<root>/.claude/testing.yaml`. The
+first of the three present wins, and the resolver prints one warning for each other one present.
+The prose testing rules stay in `docs/conventions/testing.md`. The user-global and
+`.claude/testing.local.yaml` layers do not change.
 
-#### Move `.claude/testing.yaml` into the docs file
+#### Move the team layer to `docs/conventions/testing.yaml`
 
-1. Open `docs/conventions/testing.md`, or create it with the team's prose testing rules.
-2. Paste the whole content of `.claude/testing.yaml` between a line of three backticks followed by
-   `yaml config` at column 0 and a closing line of three backticks. The keys do not change.
-3. Add a pointer line to `CLAUDE.md` or `AGENTS.md` so the file loads on demand, for example
-   `Testing rules and config: docs/conventions/testing.md`.
-4. Run `/testing:setup check`: it prints the resolved config and must show the docs file as the
-   team layer.
-5. Delete `.claude/testing.yaml`. While both exist the docs block wins and every run prints a
-   warning naming both paths.
+1. Create `docs/conventions/testing.yaml` with the content of the docs block (the lines between the
+   fences) or of `.claude/testing.yaml`. The keys do not change; use plain or single-quoted values.
+2. Run `/testing:setup check`: it prints the resolved config and must show
+   `docs/conventions/testing.yaml` as the team layer.
+3. Once every member runs this release, delete the old block or file. Until then every run prints a
+   warning naming both; an older release keeps reading the old one.
 
 `~/.claude/testing.yaml` and `.claude/testing.local.yaml` stay where they are; only the team layer
 moves. Reading the block costs the same as reading the file; the measured p50 and p95 are in the
@@ -273,6 +303,9 @@ reads it from.
 | `test_judge_fallback_model` | string | `"opus"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL` | Model class the judge uses when the main class wrote the tests: fable, opus (default), sonnet or haiku. |
 | `test_judge_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT` | Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that has no effort levels. |
 | `test_judge_session_runs` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS` | Most judge runs one session may start (one run judges one file). Unset means no limit. |
+| `e2e_driver` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_E2E_DRIVER` | Who drives /testing:run-e2e: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended runs only). A repository's docs/conventions/testing.yaml wins. |
+| `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | true, or auto (default) when attended: /testing:run-e2e drives an app that already answers. With a Workspace environment entry, false and unattended auto start the run's own instance; without one, unattended auto reuses it with labeled evidence and false stops. docs/conventions/testing.yaml wins. |
+| `pixel_tolerance` | number<br>*min 0* | `0` | `CLAUDE_PLUGIN_OPTION_PIXEL_TOLERANCE` | Differing pixels per image /testing:check-visual-parity accepts. It can only lower the repository's pixel_tolerance in docs/conventions/testing.yaml, never raise it. 0 by default. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 
 ### How to set these

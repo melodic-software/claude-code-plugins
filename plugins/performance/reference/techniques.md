@@ -464,6 +464,34 @@ checklist.
 Used by: `/performance:target` (candidate mechanisms) and `/implementation:implement`. Each pattern
 still needs a measured baseline; the catalog names mechanisms, not wins.
 
+### Match the evidence to a change
+
+When the profile or trace already in hand matches a row's first column, try that row's change.
+When it matches none, capture more evidence before changing code: working down the table without a
+match spends attempts on changes that no measurement pointed at.
+
+| The profile shows | Change to try | Counter | Catalog rows |
+|---|---|---|---|
+| A network call whose p99 sits far above its median, traced to one backend replica | Hedge: when one replica has not replied after a short delay, send the request to a second, take whichever answers first and cancel the other | p99 latency of the call; extra requests sent | none yet |
+| A single task holding the thread for a whole frame, or cost that grows with input length | Split the work into chunks | Longest single task | Progressive reveal; Cut re-renders |
+| Work that must happen but lands while input is blocked | Move it ahead of the interaction, after it, or onto another thread | Main-thread blocking during the interaction | Move growing work off the main thread; Static interactive shell; Intent-driven prefetch |
+| A fixed cost per call multiplied by a high call count, for example a hook process spawned for every tool call | Batch many items into one call | Calls per user action | none yet |
+| The same lookup, parse or render run again on input that has not changed | Cache or memoize the first result | Repeats per operation | Deduplicate repeated lookups; Memoize finished work; Precompiled code cache; Keep expensive components mounted |
+| A costly match run on inputs that mostly fail it, or a linear scan answering a keyed question | Put a cheap prefilter or an index in front | Items examined per answer | Cheap prefilter before an expensive match; Normalize before the hot loop |
+| Output produced before anyone opens it, like a panel that starts closed | Build it lazily, on first use | Work before first use | none yet |
+| A path that dominates the profile and looks necessary | Remove it, after reading its callers first (below) | Executions of that path | Duplicate persistence on the main thread |
+
+**Before deleting a hot path, list who reads its output.** Cost is all a profile ranks; whether
+anything consumes the result is a question only that list of readers answers, and it is the only
+evidence that the path can go, so the removal row applies once the list is empty. Paths that have
+turned out removable this way: a write that repeats the previous one unchanged (the catalog row in
+the table), a hook registered for an event no plugin emits any more, and a startup cache rebuild
+that no command reads.
+
+**Score a moved task on main-thread blocking during the interaction.** Shifting work ahead of the
+interaction, after it or onto another thread leaves its size unchanged, so a process total that
+stays flat or rises does not count against the change.
+
 ### Perceived performance
 
 | Pattern | Idea | When | Counter | Fails when |
@@ -731,8 +759,10 @@ by: no skill step; the human steering the push.
 **Widen scope only behind guardrails.** Ask the agent for larger changes only when the guardrails
 in [G](#g-protect-the-win) are in place. When the agent holds back a change because merging or
 deploying is slow, **remove the latency excuse**: the human commits to merging and deploying it
-promptly. A met target does not close a workstream that still has measured candidates; the human,
-not an automated nudge, asks it to continue, within the human's own `/goal` or `/loop` condition.
+promptly. Inside one goal, `/performance:climb` keeps attempting after the target is met until the
+goal's `min_attempts` is reached. Past that goal, a met target does not close a workstream that
+still has measured candidates; the human, not an automated nudge, starts the next goal, within the
+human's own `/goal` or `/loop` condition.
 When: guardrails from [G](#g-protect-the-win) are in place. Counter: none. Fails when: wider scope
 is pushed without them. Used by: no skill step; the human steering the push.
 

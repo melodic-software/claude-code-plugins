@@ -55,7 +55,8 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
   the manifest declares (same probe record as above).
 - **Layers.** Each layer's `state`. `invalid`, and every entry in a layer's `errors`, is a FAIL
   naming the file and key: the lower layer kept that key. A `routing` key outside the team layer is
-  one of these; routing is team-only.
+  one of these; routing is team-only. Every entry in a layer's `warnings` is a WARN: the value was
+  kept, and the note says what to check (such as a routing concern no bundled row has).
 - **Convention home.** When `config.home_error` is set, FAIL quoting it: the convention home did
   not resolve, so the team and personal layers were not read. A `FAIL:` line in it means the
   pointer line is broken and the fix is that line; any other cause (a missing `bash`, a timeout)

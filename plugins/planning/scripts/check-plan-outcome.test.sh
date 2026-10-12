@@ -240,6 +240,53 @@ approval_run "a TBD value fails" 1 "$TMP/ap-tbd.md" '^criterion=approval status=
 { good_plan; printf '\n```\nApproval: approved by Kyle on 2026-09-29\n```\n'; } >"$TMP/ap-fenced.md"
 approval_run "an Approval line inside a code fence does not count" 1 "$TMP/ap-fenced.md" '^criterion=approval status=fail'
 
+# planned-breakage: a `**Planned breakage:**` line declares a span of red builds,
+# tests or lint that a later phase closes.
+run "a plan with no declaration passes planned-breakage" 0 "$TMP/good.md" '^criterion=planned-breakage status=pass declarations=0$'
+
+# declare <phase heading prefix> <declaration text>: insert the line under that heading.
+declare_in() { good_plan | sed "/^### Phase $1:/a\\
+$2"; }
+
+declare_in 1 '- **Planned breakage:** tests red until Phase 2 for tests/shell/*.bats: the loader moves in Phase 2' >"$TMP/pb-valid.md"
+run "a declaration naming a later existing phase passes" 0 "$TMP/pb-valid.md" '^criterion=planned-breakage status=pass declarations=1$'
+
+declare_in 2 '**Planned breakage:** lint red until Phase 3 for -k shellcheck: the docs phase rewrites the sourced paths' >"$TMP/pb-bare.md"
+run "a declaration without a list marker passes" 0 "$TMP/pb-bare.md" '^criterion=planned-breakage status=pass declarations=1$'
+
+good_plan | sed 's/^### Phase 1:/### Phase I:/; s/^### Phase 2:/### Phase 2.5:/; s/^### Phase 3:/### Phase 3a:/' |
+  sed '/^### Phase I:/a\
+- **Planned breakage:** build red until Phase 3a for src/loader/: stubs land before callers' >"$TMP/pb-ids.md"
+run "until Phase 3a compares by heading order, not by number" 0 "$TMP/pb-ids.md" '^criterion=planned-breakage status=pass declarations=1$'
+
+{ good_plan; printf '\n```markdown\n**Planned breakage:** compile red until Phase 9 for x: quoted\n```\n'; } >"$TMP/pb-fenced.md"
+run "a declaration inside a code fence is ignored" 0 "$TMP/pb-fenced.md" '^criterion=planned-breakage status=pass declarations=0$'
+
+declare_in 1 '- **Planned breakage:** compile red until Phase 2 for src/: unknown kind' >"$TMP/pb-kind.md"
+run "an unknown kind fails" 1 "$TMP/pb-kind.md" '^criterion=planned-breakage status=fail invalid=[0-9]+:kind$'
+
+declare_in 1 '- **Planned breakage:** tests red until Phase 2: no paths named' >"$TMP/pb-nofor.md"
+run "a declaration with no for clause fails" 1 "$TMP/pb-nofor.md" '^criterion=planned-breakage status=fail invalid=[0-9]+:for$'
+
+declare_in 1 '- **Planned breakage:** tests red for tests/shell/: no end phase' >"$TMP/pb-nountil.md"
+run "a declaration with no until Phase fails" 1 "$TMP/pb-nountil.md" '^criterion=planned-breakage status=fail invalid=[0-9]+:until$'
+
+declare_in 1 '- **Planned breakage:** build red until Phase 7 for src/: target does not exist' >"$TMP/pb-missing.md"
+run "a declaration naming a missing phase fails" 1 "$TMP/pb-missing.md" '^criterion=planned-breakage status=fail invalid=[0-9]+:missing-phase$'
+
+declare_in 2 '- **Planned breakage:** build red until Phase 2 for src/: same phase' >"$TMP/pb-same.md"
+run "a declaration naming its own phase fails" 1 "$TMP/pb-same.md" '^criterion=planned-breakage status=fail invalid=[0-9]+:not-later$'
+
+declare_in 2 '- **Planned breakage:** build red until Phase 1 for src/: earlier phase' >"$TMP/pb-earlier.md"
+run "a declaration naming an earlier phase fails" 1 "$TMP/pb-earlier.md" '^criterion=planned-breakage status=fail invalid=[0-9]+:not-later$'
+
+declare_in 3 '- **Planned breakage:** tests red until Phase 2 for tests/: nothing comes after' >"$TMP/pb-last.md"
+run "a declaration in the last phase fails" 1 "$TMP/pb-last.md" '^criterion=planned-breakage status=fail invalid=[0-9]+:last-phase$'
+
+good_plan | sed '/^## Brief$/a\
+**Planned breakage:** build red until Phase 2 for src/: before any phase' >"$TMP/pb-outside.md"
+run "a declaration outside any phase section fails" 1 "$TMP/pb-outside.md" '^criterion=planned-breakage status=fail invalid=[0-9]+:outside-phase$'
+
 run "the default run does not require an Approval line" 0 "$TMP/good.md" '^phases=3 status=ok$'
 run "the default run ignores an unapproved placeholder line" 0 "$TMP/ap-template.md" '^phases=3 status=ok$'
 
