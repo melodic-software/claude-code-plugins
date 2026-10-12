@@ -698,10 +698,14 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   cannot leak a secret the check never loaded. The check never writes: no `Set-Item`,
   `Set-ItemProperty`, `SetEnvironmentVariable`, or Path rewrite.
 
-- **Notes:** `DISABLE_AUTOUPDATER` is the Claude Code / Electron auto-update kill switch. A
-  truthy User-scope value silently freezes the installed binary at whatever version it holds,
-  with no error and no prompt, which is why a set value is a WARN. Duplicate and missing PATH
-  entries are INFO because presence is a shape, not a verdict that the entry should be removed.
+- **Notes:** a truthy persisted `DISABLE_AUTOUPDATER` turns off Claude Code's background
+  updates for every session that inherits it, with no error and no prompt, which is why a set
+  value is a WARN. What the variable does and does not block (manual updates, the separate
+  variable that blocks every update path) is stated in
+  [Disable auto-updates](https://code.claude.com/docs/en/setup#disable-auto-updates); fetch it
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes which update paths
+  `DISABLE_AUTOUPDATER` stops. Duplicate and missing PATH entries are INFO because presence is a
+  shape, not a verdict that the entry should be removed.
 
 ---
 
