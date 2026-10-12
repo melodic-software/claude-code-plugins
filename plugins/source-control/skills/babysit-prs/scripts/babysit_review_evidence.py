@@ -98,7 +98,13 @@ def bind(
     *,
     is_human: Callable[[Any], bool],
 ) -> tuple[LaneEvidence, ...]:
-    """Evidence for every lane in `LANES`, in that order."""
+    """Evidence for every lane in `LANES`, in that order.
+
+    Caller contract: list each lane workflow's runs by branch, with no
+    `head_sha` filter, and keep those whose `pull_requests` name this pull
+    request, so the earlier whole reviews an incremental chain leads back to
+    are included. Pass `babysit_merge_policy.is_human` as `is_human`.
+    """
     try:
         if not isinstance(head_sha, str) or not SHA_RE.match(head_sha):
             raise Unbound("bad-head")
@@ -210,6 +216,9 @@ def _bound_record(lane: str, sha: str, lane_runs: list[Mapping[str, Any]]) -> _R
     latest = attempts.get(latest_n)
     if latest is None:
         raise Unbound("evidence-missing")
+    if max(attempts) != latest_n:
+        # The listing predates a re-run the attempts already show.
+        raise Unbound("evidence-error")
     if (
         latest.get("status") != "completed"
         or latest.get("conclusion") != "success"

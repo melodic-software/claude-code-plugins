@@ -363,6 +363,36 @@ class AttemptRuleTests(Base):
         result = self.bind([item])
         self.assertUnbound(result["claude-review"], "evidence-missing")
 
+    def test_attempt_newer_than_the_listing_is_an_evidence_error(self) -> None:
+        # The listing was read before a re-run, the attempts after it.
+        rerun = attempt("claude-review", S, 2, [], "failure")
+        rerun.update(status="in_progress", conclusion=None)
+        item = self.lane_run(self.ok(1), rerun)
+        item.update(status="completed", conclusion="success", run_attempt=1)
+        result = self.bind([item])
+        self.assertUnbound(result["claude-review"], "evidence-error")
+
+    def test_stale_listing_on_an_earlier_link_is_an_evidence_error(self) -> None:
+        base = run(
+            "claude-review",
+            S0,
+            attempts=[
+                attempt(
+                    "claude-review",
+                    S0,
+                    1,
+                    [record("claude-review", S0, "findings=0 inline=0 scope=whole")],
+                ),
+                attempt("claude-review", S0, 2, [], "failure"),
+            ],
+        )
+        base.update(status="completed", conclusion="success", run_attempt=1)
+        head = run(
+            "claude-review", S, f"findings=0 inline=0 scope=incremental since={S0}"
+        )
+        result = self.bind([base, head])
+        self.assertUnbound(result["claude-review"], "evidence-error")
+
 
 class RecordTests(Base):
     def test_no_completion_record(self) -> None:
