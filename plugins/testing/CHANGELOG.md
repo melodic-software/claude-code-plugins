@@ -3,6 +3,30 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.5] - 2026-10-11
+
+### Changed
+
+- **Shared `exec-bash.mjs` launcher synced; no change to this plugin's hooks.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once.
+
+## [0.25.4] - 2026-10-11
+
+### Changed
+
+- `/testing:run-e2e`'s browser-tool rubric routes the user's signed-in Windows browser from WSL to `claude --chrome`, outside documented support, and points at the live-test record in ADR 0056 (Claude Code 2.1.296) for the steps; rechecked on each release.
+
+## [0.25.3] - 2026-10-11
+
+### Changed
+
+- `/testing:run-e2e`'s render checks say no per-check catch rate is measured yet (measured browser evals are tracked in #7137) and that a quoted catch rate names the harness path it measured, CLI or MCP. The browser-tool rubric rows are unchanged.
+
+### Fixed
+
+- evals: the `cli-resolves` (browser-probe) and `echo-printed` (sandbox-probe) graders now match a Bash `tool_result` whose content starts with the expected output and may carry stderr after a newline, the way Claude Code joins stdout and stderr, instead of requiring the output to be the whole content; Claude's own text naming the value no longer passes.
+
+- evals: the `cli-resolves` (browser-probe) and `echo-printed` (sandbox-probe) graders now match the expected output at the start of any line of a Bash `tool_result`, so the `.bashrc: Permission denied` lines the eval sandbox prints first no longer hide it; a result that begins with `Exit code` (a failed call) still does not match.
+
 ## [0.25.2] - 2026-10-11
 
 ### Added

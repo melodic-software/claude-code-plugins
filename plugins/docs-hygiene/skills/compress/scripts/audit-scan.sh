@@ -12,19 +12,33 @@ usage() {
 audit-scan.sh — classify markdown targets SKIP/COMPRESS/UNCERTAIN.
 
 Usage:
-  audit-scan.sh <file.md>...
+  audit-scan.sh [--articles keep|cut] <file.md>...
   audit-scan.sh --help
+
+  --articles  the run's resolved compress_articles value; default keep. Under
+              keep the COMPRESS reason names no article cuts.
 
 Exit: 0 on scan, 2 on unknown arguments.
 EOF
 }
 
 TARGETS=()
+ARTICLES=keep
 while [[ $# -gt 0 ]]; do
   case "$1" in
   -h | --help)
     usage
     exit 0
+    ;;
+  --articles)
+    case "${2:-}" in
+    keep | cut) ARTICLES="$2" ;;
+    *)
+      echo "audit-scan.sh: --articles takes keep or cut" >&2
+      exit 2
+      ;;
+    esac
+    shift 2
     ;;
   -*)
     echo "audit-scan.sh: unknown arg '$1'" >&2
@@ -113,7 +127,11 @@ classify_file() {
     emit_row "$file" '3-7%' 'UNCERTAIN' "inline-code density $tick_dens/kw AND/OR cross-ref density $path_dens/kw; flavor band narrow"
     return 0
   fi
-  emit_row "$file" '5-15%' 'COMPRESS' 'verbose-prose baseline; expected flavor cuts on filler/hedging/articles'
+  if [[ "$ARTICLES" == cut ]]; then
+    emit_row "$file" '5-15%' 'COMPRESS' 'verbose-prose baseline; expected flavor cuts on filler/hedging/articles'
+  else
+    emit_row "$file" '5-15%' 'COMPRESS' 'verbose-prose baseline; expected flavor cuts on filler/hedging; articles kept (compress_articles: keep)'
+  fi
 }
 
 printf '| target | expected_yield_pct | classify | reason |\n'

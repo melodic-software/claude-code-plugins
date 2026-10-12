@@ -47,13 +47,13 @@ second copy of that fact set.
 
 There is no provider search syntax. Listing and frontier selection are dispatcher
 verbs only: `work-item-tracker.sh list-items` (raw candidates; `--state
-open|closed|all`; `--repo` is accepted for interface parity and does not
-re-target the single-namespace store) and the core-derived
-`work-item-tracker.sh list-frontier`. Filter, search, and aggregation stay on
-those verbs; do not invent a query language against the markdown files.
-`--label`, `--assignee`, `--search`, and `stats` projections that need item
-bodies or timestamps are **unsupported** on this adapter. `list-items`
-implements `--state` only.
+open|closed|all`; `--label <name>`, filtered before the ceiling counts; `--repo`
+is accepted for interface parity and does not re-target the single-namespace
+store) and the core-derived `work-item-tracker.sh list-frontier`. Filter,
+search, and aggregation stay on those verbs; do not invent a query language
+against the markdown files. `--assignee`, `--search`, and `stats` projections
+that need item bodies or update times are **unsupported** on this adapter.
+`create-item` records `created_at`; items created before it read `null`.
 
 ## Auth
 

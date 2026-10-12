@@ -138,8 +138,10 @@ gh issue view <N> --json assignees,labels \
 ```
 
 **Sandboxed sessions: read the item over REST.** `gh issue view --json` routes through GitHub's
-GraphQL API, so every `gh issue view --json` read in this document fails with `HTTP 403` wherever
-only a pinned set of GraphQL operations is served (Claude Code on the web and remote execution).
+GraphQL API, so every `gh issue view --json` read in this document fails with `HTTP 403` in a
+cloud session behind the GitHub proxy, which serves no GraphQL
+([Configure cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy);
+as-of 2026-10-11; recheck when that section changes its GraphQL entry).
 It is the same restriction the lease protocol's assignee ops work around under "Edit labels /
 assignees" below. That 403 reads like an expired token or a missing scope and is neither, so take
 it as a signal to switch APIs rather than to re-authenticate. The REST issues endpoint carries
@@ -244,8 +246,8 @@ which owns this.
 
 **The lease protocol's own assignee ops are REST, not `gh issue`.** `claim` and `reclaim` do not
 use `gh issue edit --add-assignee` / `gh issue view --json assignees`: those route through
-GitHub's GraphQL API, and sandboxed sessions (Claude Code on the web and remote execution) serve
-only a pinned set of GraphQL operations, refusing the rest with HTTP 403, which made the lease
+GitHub's GraphQL API, which cloud sessions behind the GitHub proxy refuse with HTTP 403, and that
+made the lease
 protocol unrunnable there. They use `gh api` against `…/issues/<n>/assignees` instead, through the
 `wit_read_assignees` / `wit_add_assignee` / `wit_remove_assignee` / `wit_try_remove_assignee`
 helpers in `common.sh`. Those helpers take the same `read`/`write` writer argument as
