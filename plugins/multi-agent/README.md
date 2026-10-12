@@ -90,8 +90,7 @@ passes once per agent run. `docs-raw.sh` fetches with `--public-only`, so the
 host must resolve only to global addresses and curl connects to the checked
 one alone. The gate fails open when `node` is missing or the hook times out
 (see Node.js below, and the hook-failure record in
-[check: purpose](skills/check/SKILL.md#purpose), as of 2026-10-11, recheck when that
-section moves or drops its hook-failure record); a stdin error or a crash inside it denies. Every other
+[check: purpose](skills/check/SKILL.md#purpose)); a stdin error or a crash inside it denies. Every other
 agent and the main thread pass through. The row is always-on: it fires on every
 `Bash` call, at a budget of one process (`node`) per call, ratcheted in
 `.performance/ratchets.json` as `multi-agent-pretooluse-bash-docs-fetcher-gate-spawns`.
