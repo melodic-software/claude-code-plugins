@@ -124,6 +124,14 @@ wants Realistic targets stated by hand says so in its own CLAUDE.md or AGENTS.md
 Including whether merge is in scope and whether a behavior change disqualifies the result. A
 correctness regression outranks any speedup and is reported separately from the performance claim.
 
+### 5. Minimum attempts, only when a loop is planned
+
+A single planned edit leaves this out. Work that will run as `/performance:climb`'s keep-or-revert
+loop needs `min_attempts`, the count of logged attempts required before a met target may end the
+loop. The person chooses it; never pick the number for them. Without it the first kept attempt can
+end the run, and the report then presents what one change happened to achieve as the most the code
+can reach.
+
 ## Percentiles and sample count
 
 Default: **p50 and p95 over at least 20 samples**, alongside the counter. The goal records its
@@ -164,6 +172,7 @@ Realistic:  <value> [estimate / stated]    Ideal: <value>   [event-level realist
 Percentiles: <list, default p50, p95> over N>=20   [house convention; floor 1/(1-p) enforced]
 Scaling:    <growing input, sizes, per-arm results, bound> | n/a: subject reads no growing state
 Done when:  <criteria, including whether merge is in scope and any scaling bound on growing state>
+Min attempts: <n, when a loop is planned> | n/a: no loop planned
 Target (from /performance:target): <candidate> @ <E1..E4>
 ```
 

@@ -27,6 +27,8 @@ MATCHER='startup|resume|clear|fork'
 rows_checked=0
 for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
   plugin="$(basename "$(dirname "$(dirname "$hooks")")")"
+  # A modules-only hooks.json launches nothing through node, so it carries no row.
+  jq -e 'has("hooks")' "$hooks" >/dev/null || continue
   mapfile -t rows < <(jq -r '[.hooks.SessionStart[]? | . as $g | .hooks[]? | select((.command // "") | contains("prerequisites.sh")) | "\($g.matcher // "")\t\(.command)"] | .[]' "$hooks")
   rows=("${rows[@]%$'\r'}")
   if ((${#rows[@]} != 1)); then

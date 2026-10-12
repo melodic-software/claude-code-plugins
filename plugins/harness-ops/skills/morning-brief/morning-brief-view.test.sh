@@ -49,10 +49,12 @@ jq -n --arg t "$HOSTILE" '[{number: 10, title: $t, url: "http://x/10", isDraft: 
 printf '{"10": 0}\n' >"$TMP/behind.json"
 jq -n --arg t "$HOSTILE" '[{number: 100, title: $t, url: "http://x/i/100", body: ("RECOMMENDED: " + $t), comments: []}]' >"$TMP/decisions.json"
 printf '[]\n' >"$TMP/empty.json"
+# A merged-PR read always carries a page document; a bare [] is UNREADABLE.
+printf '[{"data": {"repository": {"pullRequests": {"pageInfo": {"hasNextPage": false}, "nodes": []}}}}]\n' >"$TMP/merged.json"
 
 if bash "$BRIEF" --now "2026-07-20T08:00Z" --counts-json "$TMP/counts.json" --pr-json "$TMP/pr.json" \
   --behind-json "$TMP/behind.json" --decisions-json "$TMP/decisions.json" \
-  --telemetry-json "$TMP/empty.json" --merged-json "$TMP/empty.json" >"$TMP/brief.txt" 2>&1; then
+  --telemetry-json "$TMP/empty.json" --merged-json "$TMP/merged.json" >"$TMP/brief.txt" 2>&1; then
   pass "the fixture brief renders"
 else
   fail "the fixture brief renders"
