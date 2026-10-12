@@ -26,11 +26,8 @@ cat > scripts/gate.sh <<'SH'
 echo "$1" >> .gate-ran
 echo "gate $1: ok"
 SH
-cat > Makefile <<'MK'
-.PHONY: build test lint
-build test lint:
-	sh scripts/gate.sh $@
-MK
+# printf writes the recipe's tab, so this file stays space-indented.
+printf '.PHONY: build test lint\nbuild test lint:\n\tsh scripts/gate.sh $@\n' > Makefile
 cat > src/http/retry.ts <<'TS'
 export interface RetryOptions {
   maxRetries: number;
