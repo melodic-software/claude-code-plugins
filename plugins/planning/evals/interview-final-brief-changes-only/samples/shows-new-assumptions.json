@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "New assumptions from the sweep:\n- Exports run synchronously in the request.\n- The export respects the user's row-level permissions.",
+      "why": "both assumptions"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "New assumption: exports run synchronously in the request.",
+      "why": "missing the permissions assumption"
+    },
+    {
+      "answer": "New assumption: the export respects row-level permissions.",
+      "why": "missing the synchronous assumption"
+    }
+  ]
+}

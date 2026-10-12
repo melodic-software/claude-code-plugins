@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "review:ratchet", "args": "the count of type: ignore comments"}}],
+      "why": "the ratchet skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "performance:protect", "args": "the count of type: ignore comments"}}],
+      "why": "protect is not the skill under test"
+    }
+  ]
+}

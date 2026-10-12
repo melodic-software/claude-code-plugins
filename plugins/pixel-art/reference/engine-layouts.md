@@ -162,9 +162,10 @@ recheck trigger: the store page showing a release date or U2U publishing its own
 - Customizable screen, 16-color palette (extensible), 3 image banks of 256x256, 8 tilemaps of
   256x256. Images load from palette-ready PNG/GIF/JPEG or `Image.set` string lists.
 - Spec: any frame size whose sheet fits 256x256 per bank; keep the palette to the target's colors.
-- Verification record: basis = [Pyxel user guide](https://github.com/kitao/pyxel/blob/main/docs/user-guide.md)
-  at v2.9.9; as-of 2026-09-23; recheck trigger: a Pyxel release past 2.9.9 on
-  [releases](https://github.com/kitao/pyxel/releases).
+- Verification record: basis = the Pyxel user guide (`docs/user-guide.md` in `kitao/pyxel`, whose
+  GitHub repository no longer resolves and has no archived copy of the guide) at v2.9.9; as-of
+  2026-09-23; recheck trigger: a Pyxel release past 2.9.9 on its
+  [PyPI project page](https://pypi.org/project/pyxel/).
 
 ## Unity
 

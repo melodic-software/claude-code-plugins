@@ -3,8 +3,11 @@ description: >
   Gate a CI lane on its trigger: the PR must come from this repository, and
   both the event actor and the PR author must be on the trusted-actor list,
   matched by numeric user id. Handles pull_request, workflow_dispatch (with a
-  PR number) and workflow_run. Always exits 0 with proceed and reason; any
-  read, parse or API failure emits proceed=false.
+  PR number) and workflow_run. A workflow_dispatch sent by
+  github-actions[bot] proceeds only through a checked dispatcher run. With
+  require-pr false it checks the actors only and reads no PR. Always exits 0
+  with proceed and reason; any read, parse or API failure emits
+  proceed=false.
 
 inputs:
   event-name:
@@ -28,7 +31,8 @@ inputs:
   github-token:
     description: >
       Token that can read the PR, used on workflow_dispatch and workflow_run
-      to fetch it.
+      to fetch it, and on a dispatcher-sent run to read both run records and
+      compare commits.
     required: false
     default: ${{ github.token }}
   denied-actor-ids:
@@ -44,6 +48,40 @@ inputs:
       actor on a re-run. Must be on the list; empty stops the lane.
     required: false
     default: ${{ github.triggering_actor }}
+  dispatcher-run-id:
+    description: >
+      On a workflow_dispatch sent by github-actions[bot] (id 41898282), the
+      id of the dispatcher run that sent it. Empty keeps the bot unlisted, so
+      such a dispatch stops with untrusted-actor.
+    required: false
+    default: ""
+  dispatcher-workflow:
+    description: >
+      The workflow path the dispatcher run must have, such as
+      .github/workflows/<name>.yml. Empty stops every dispatcher-sent run.
+    required: false
+    default: ""
+  dispatched-workflow:
+    description: >
+      The workflow path this run must have when a dispatcher run sent it, and
+      it must be a workflow_dispatch run on the default branch. Empty stops
+      every dispatcher-sent run.
+    required: false
+    default: ""
+  require-kind:
+    description: >
+      Empty accepts any listed actor. `human` narrows the actor-only checks
+      (require-pr false) to actors listed with kind human, matched by id.
+    required: false
+    default: ""
+  require-pr:
+    description: >
+      `true` gates a PR as described above. `false` checks only the actors
+      of a push or workflow_dispatch: the sender on workflow_dispatch and the
+      triggering actor on both; any other event stops; no PR is read and the
+      PR outputs stay empty.
+    required: false
+    default: "true"
 
 outputs:
   proceed:
@@ -79,5 +117,10 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         DENIED_ACTOR_IDS: ${{ inputs.denied-actor-ids }}
         TRIGGERING_ACTOR: ${{ inputs.triggering-actor }}
+        DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
+        DISPATCHER_WORKFLOW: ${{ inputs.dispatcher-workflow }}
+        DISPATCHED_WORKFLOW: ${{ inputs.dispatched-workflow }}
+        REQUIRE_KIND: ${{ inputs.require-kind }}
+        REQUIRE_PR: ${{ inputs.require-pr }}
         REPOSITORY: ${{ github.repository }}
       run: node "$GITHUB_ACTION_PATH/check-trusted-trigger.mjs"
