@@ -107,7 +107,7 @@ Search-qualifier reference:
 
 Multiple qualifiers AND-combine: `label:type:chore label:recurring no:assignee sort:created-asc`.
 
-**REST form (GraphQL returns HTTP 403).** `gh issue list --search` is GraphQL, which cloud
+**REST form (cloud sessions).** `gh issue list --search` is GraphQL, which cloud
 sessions refuse (see "View item" below). We observed REST `search/issues` refused in cloud sessions
 too (the "View item" pointer does not cover search), so it is not the fallback. List the
 repo's issues over REST and filter client-side: `<terms>` are the query words, all of which must

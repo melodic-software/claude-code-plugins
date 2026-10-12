@@ -228,8 +228,8 @@ worktrees (lifecycle owned by `source-control:worktree`), so every edit in a wor
 out-of-workspace write that prompts unless the worktree root is registered as a trusted directory
 via `permissions.additionalDirectories`.
 
-The fleet convention is a dedicated worktree root **sibling to the repo**, not the OS temp dir: a
-`.worktrees/`-style directory (`source-control:worktree` places worktrees under its configured external root rather than Claude
+The fleet convention is a dedicated worktree root **outside the repo**, not the OS temp dir
+(`source-control:worktree` places worktrees under its configured external root rather than Claude
 Code's default worktree location; `babysit-prs` defaults its `babysit_worktree_root` to the
 `worktrees` subdirectory of the plugin data directory).
 
