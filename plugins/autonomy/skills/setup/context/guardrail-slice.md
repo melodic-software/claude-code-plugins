@@ -140,7 +140,7 @@ that posts to an endpoint, and its push leg to the agent's own push-notification
   section is renamed or removed.
 
 **Pause and resume.** The escalation leaf's deferred mid-run interrupt would build on Claude Code's
-permission-prompt pause and on resuming a stopped run with its history.
+permission modes and on session and subagent resume, as the sections below define them.
 
 - **Pointer**: when adopting the interrupt shape, fetch
   <https://code.claude.com/docs/en/permission-modes#available-modes>,
