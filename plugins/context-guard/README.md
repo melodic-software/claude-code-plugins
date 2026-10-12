@@ -8,7 +8,11 @@ degraded context **before** quality slips, instead of guessing. Four parts:
   It shows the person a toast when the session crosses into a worse context zone, tells Claude the
   same when the operator turns on `model_notices` (off by default), answers `/context-guard` and the
   `mcp__context-guard__status` tool, draws an optional band row, and writes the snapshot file. It
-  needs Claude Code 2.1.287 or later; older builds are unsupported. See [The module](#the-module).
+  needs a Claude Code build that can run mods; older builds are unsupported. **Pointer**: when
+  deciding which build that is, fetch
+  [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+  live. **As of**: 2026-10-11. **Recheck trigger**: the terminal version that section names for
+  mods changes. See [The module](#the-module).
 - **Zone resolver** (`scripts/context-zone.sh`). `context-zone.sh <session_id>` prints exactly one
   word: `smart` / `acceptable` / `dumb` / `unknown`. Two band shapes, combined conservatively (the
   worse computable zone wins): percentage bands over `used_percentage` (shipped defaults
@@ -119,8 +123,8 @@ the next turn no person started (a `--bg` launch turn reads as typed, so its sug
 unseen); the next typed turn instead drops it unsent. Claude Code offers no way to withdraw a
 shown suggestion, so it stays in the box after that hand-off.
 
-Upstream's render-sites table lists the band's site, `AbovePrompt`, as drawn in the terminal and
-the Desktop app. No probe of this plugin ran in the Desktop app or VS Code.
+Which apps draw the band's site, `AbovePrompt`, is upstream's render-sites table to say. No probe
+of this plugin ran in the Desktop app or VS Code.
 
 - **Pointer**: [mods reference: render sites](https://code.claude.com/docs/en/plugins/mods/reference#render-sites).
 - **As of**: 2026-10-03, Claude Code 2.1.288.
@@ -232,13 +236,21 @@ they change only with a major version and a changelog entry. They are written wh
 
 ### Where mods are off
 
-Below Claude Code 2.1.287, under `disableAllHooks` or an organization's `allowManagedModsOnly`,
-with `--bare` or `--safe-mode`, when mods are switched off remotely, or after the hooks worker
-crashes, the module does not run: no lines, no band, no status tool, no module writes. The PostCompact marker, a settings
-hook, still runs wherever settings hooks do (`disableAllHooks` stops those too),
-and readers fall back as the reader contract says. `/context-guard:check` and
+Wherever mods are off for a session, whether the build is too old for mods or a setting, flag, policy or Claude Code itself turned them off, the
+module does not run: no lines, no band, no status tool, no
+module writes. The PostCompact marker, a settings hook, still runs wherever settings hooks do, and
+readers fall back as the reader contract says. `/context-guard:check` and
 `/context-guard:setup check` report "mods off" in that case. A hook that throws passes its event
 through unchanged.
+
+- **Pointer**: when deciding what turns mods off, and which of those also stops settings hooks,
+  fetch
+  [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+  and [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
+  live.
+- **As of**: 2026-10-11.
+- **Recheck trigger**: either section adds or drops a way mods get turned off, or changes which
+  of them stop settings hooks.
 
 ## Behavior
 
@@ -249,19 +261,27 @@ through unchanged.
 - **Path containment.** `session_id` becomes a filename, so the module writes only for an id of
   `[A-Za-z0-9_-]` and skips the snapshot for anything else.
 - **Fail-open zone resolution.** Absent, stale, or unparsable snapshots, null or out-of-range
-  `used_percentage`, null `current_usage` (the states before the first response and right after
-  `/compact`), a non-ISO `captured_at`, a snapshot whose embedded `session_id` differs from the
+  `used_percentage`, null `current_usage`, a non-ISO `captured_at`, a snapshot whose embedded `session_id` differs from the
   requested one, or missing `jq` all resolve `unknown`. Consumers take their conservative path on
   data they cannot trust, never a fabricated zone. The shipped bands are declared judgment
-  defaults. `zones.json` is the tuning path. The reader contract points at the model-config page's
-  default auto-compact thresholds and records how they relate to the bands. The trigger itself is
+  defaults. `zones.json` is the tuning path.
+  [The reader contract](reference/reader-contract.md#zone-is-not-a-compaction-indicator) records
+  how the default auto-compact thresholds relate to the bands (relayed 2026-10-11; recheck when
+  that section is renamed or stops relating them). **Pointer**: when deciding what those defaults
+  are, fetch
+  [model config: default auto-compact thresholds](https://code.claude.com/docs/en/model-config#default-auto-compact-thresholds)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that table changes, or its section is renamed
+  or removed. The trigger itself is
   operator-tunable, per model as well as globally; the reader contract's tunable
   table records which surfaces we rely on and where to read the rest. Bands
   belong **below** whatever it resolves to, normalized into the percentage shape, so the session
-  reaches a boundary decision before the harness compacts for it. `used_percentage` always
-  measures against the model's *full* window, so a lowered auto-compact window no longer shows up
-  in the percentage. The reader contract owns those surfaces, their verification dates,
-  and the rationale.
+  reaches a boundary decision before the harness compacts for it. After the auto-compact window is
+  lowered, we never read `used_percentage` as a forecast of when compaction will run. **Pointer**:
+  when deciding what the percentage is measured against, fetch
+  [environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live.
+  **As of**: 2026-10-11. **Recheck trigger**: the `CLAUDE_CODE_AUTO_COMPACT_WINDOW` row changes
+  what the percentage is measured against. The reader contract owns those surfaces, their
+  verification dates, and the rationale.
 - **Integrity boundary.** The snapshot directory is owner-only where POSIX
   modes work; on Windows ACL volumes it keeps the inherited ACLs and other local users could forge
   snapshots. Zones are routing hints. Consumers must never attach security or egress decisions
@@ -319,17 +339,27 @@ when you want a file to tune.
 
 ## Requirements
 
-The module needs Claude Code 2.1.287 or later (older builds are unsupported). Its snapshot writes
-and the PostCompact marker row need [Node.js](https://nodejs.org/en/download) on `PATH`: Claude
-Code's native binary neither ships nor uses Node ([setup](https://code.claude.com/docs/en/setup)).
-The marker and the zone resolver run on Bash (Git Bash on native Windows, so install
+The module needs a Claude Code build at or above the terminal version mods need (older builds are
+unsupported). `prerequisites.json` holds the floor as data, in `detect.version.min` of the entry
+with `"id": "claude"`, which the check skill compares against (relayed 2026-10-11; recheck when
+that key moves); the pointer below is where to re-derive it. Its snapshot writes and the PostCompact marker row need
+[Node.js](https://nodejs.org/en/download) on `PATH`, installed on its own: we never count on Claude
+Code's install to provide it. The marker and the zone resolver run on Bash (Git Bash on native Windows, so install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)). The zone resolver,
 which `/context-guard:setup check` runs, and `setup apply`'s merge into an existing `zones.json`
 need [`jq`](https://jqlang.org/download/) on `PATH`; the module and the marker do not. The optional
 prompt-cache status-line segment runs on Node.js too.
 `/context-guard:setup check` reports these prerequisites; `/context-guard:check` reports whether
-`node` and `jq` resolve. `context_window` fields can be `null` before the first response and right
-after `/compact`; readers own null handling.
+`node` and `jq` resolve. Readers own null handling for `context_window` fields.
+
+- **Pointer**: when deciding which Claude Code version mods need, fetch
+  [mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+  live; when deciding whether a Claude Code install brings a Node.js the plugin could use, fetch
+  [advanced setup: install with npm](https://code.claude.com/docs/en/setup#install-with-npm)
+  live.
+- **As of**: 2026-10-11.
+- **Recheck trigger**: the terminal version that section names for mods changes, or the setup
+  page says the installed binary runs on Node.js.
 
 ## Configuration
 
@@ -357,17 +387,23 @@ The module reads its options when it loads. Claude Code reloads a module when it
 so a change takes effect from the next event, with no restart. The PostCompact marker hook reads
 `context_guard_hooks_enabled` at session start.
 
-A bad option value does not switch the module off: a `zone_line_data` item it does not know reads
-as that option's default, with one transcript line naming it, and a choice outside its list reads
-as its default with Claude Code's own line. An option the module does not declare, such as a
-setting left from an older version, is ignored. A value of the wrong type (text in an on/off option)
-is still refused by Claude Code, which then loads none of the module.
-
 - **Pointer**: the doc comment on `Register` in the `claude-code/index.d.ts` types Claude Code
   writes for its build (see
   [create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build)).
 - **As of**: 2026-10-03, Claude Code 2.1.288.
 - **Recheck trigger**: that doc comment stops saying an options change reloads the plugin.
+
+A bad option value does not switch the module off: a `zone_line_data` item it does not know reads
+as that option's default, with one transcript line naming it. An option the module does not
+declare, such as a setting left from an older version, is ignored. A choice outside its list, or a
+value of the wrong type, is Claude Code's to handle before the module sees it.
+
+- **Pointer**: when deciding what Claude Code does with an option value that does not fit
+  `userConfig`, fetch
+  [troubleshoot: options do not fit plugin.json userConfig](https://code.claude.com/docs/en/plugins/mods/troubleshoot#options-do-not-fit-plugin-json-userconfig)
+  live.
+- **As of**: 2026-10-11.
+- **Recheck trigger**: that section changes what Claude Code does with a refused option value.
 
 Per-zone actions, their wording, the approach margin and extra thresholds live in
 `~/.claude/context-guard/zones.json` beside the bands (shape in the

@@ -92,26 +92,21 @@ The managed scope is four surfaces. Two are the **portable core**, read on every
 `managed-settings.json` and its `managed-settings.d/` drop-in directory. Their merge order is
 documented rather than guessed, so the reader implements it instead of reporting an inventory:
 
-The reader merges drop-in files by their own rule, not as a blanket "arrays concatenated, objects
-deep-merged". `managed-settings.json` is the base; `*.json` files in the drop-in directory follow in
-alphabetical order. The reader lets a later scalar overwrite an earlier one, unions arrays and
-drops repeats, merges objects per key, and swaps in `fallbackModel`, `modelPicker`, and a
-same-named `extraKnownMarketplaces` or `managedMcpServers` entry whole. It skips dotfiles.
+The reader merges drop-in files by the documented rule, never as a blanket "arrays concatenated,
+objects deep-merged", and combines sources under `managedSourcesBehavior: "merge"` by the documented
+key kinds. This file restates neither rule: read both from the pointers, and treat a change to
+either section as a change the reader's scripts owe.
 
-- **Pointer**: [Split a file-based policy across teams](https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams).
-- **As of**: 2026-09-28
-- **Recheck trigger**: that section changes how two drop-in files combine a key.
-
-The reader combines sources under `managedSourcesBehavior: "merge"` by key kind. Lists union. Locks
-take the strictest value. Restriction allowlists and values taken whole come from the highest source
-that sets them. `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are values taken whole since
-v2.1.257. Provided MCP server names union, and the higher source's entry wins on a name clash. A
-named set of keys is read from the highest source only. `env` merges per variable.
-
-- **Pointer**: [`managedSourcesBehavior`](https://code.claude.com/docs/en/settings-reference#managedsourcesbehavior)
-  and [Compose every managed source](https://code.claude.com/docs/en/managed-settings#compose-every-managed-source).
-- **As of**: 2026-09-28
-- **Recheck trigger**: that table gains or drops a key kind.
+- **Pointer**: when checking or changing how the reader combines drop-in files, fetch
+  [managed settings: split a file-based policy across teams](https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams)
+  live; when checking how it combines sources, fetch
+  [settings reference: managedSourcesBehavior](https://code.claude.com/docs/en/settings-reference#managedsourcesbehavior)
+  and
+  [managed settings: compose every managed source](https://code.claude.com/docs/en/managed-settings#compose-every-managed-source)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the drop-in section changes how two drop-in files combine a key, or the
+  compose table gains, drops or reclassifies a key kind.
 
 Two are **declared optional platform integrations**: the Windows policy registry keys and the macOS managed-preferences
 domain. Each is read where it is native and readable; where its tool is missing the surface reports
@@ -196,13 +191,13 @@ Neither is a limitation to apologize for; both change what a finding means.
 - **The command-line scope has no file.** Without `allowManagedPermissionRulesOnly`, `--settings`,
   `--allowedTools`, and `--disallowedTools` rank above local, project, and user settings, and no file
   reader can see them. The merge is the effective set the settings **files** define. With the lock
-  set in managed settings, the merge drops `--allowedTools` and every rule the user, project, local
-  and `--settings` files carry, of all three kinds. It keeps `--disallowedTools` and deny or ask
-  rules added during the session, also across a settings reload (v2.1.257+; earlier versions lost
-  those command-line and session rules on the first reload). The merge applies the lock only
-  when a managed `conf` record carries `allowManagedPermissionRulesOnly true`. Pointer:
-  [`allowManagedPermissionRulesOnly`](https://code.claude.com/docs/en/settings-reference#allowmanagedpermissionrulesonly).
-  As of: 2026-09-28. Recheck trigger: that entry changes what the lock ignores.
+  set in managed settings, the merge drops every rule the user, project, local and `--settings`
+  files carry, of all three kinds; the command-line and session rules the lock keeps are outside any
+  file, so outside the merge, and which ones it keeps is the entry's to say. The merge applies the
+  lock only when a managed `conf` record carries
+  `allowManagedPermissionRulesOnly true`. Pointer: when deciding what the lock drops, fetch
+  [settings reference: allowManagedPermissionRulesOnly](https://code.claude.com/docs/en/settings-reference#allowmanagedpermissionrulesonly)
+  live. As of: 2026-10-11. Recheck trigger: that entry changes what the lock ignores or keeps.
 - **Rules are compared by exact text, and the error direction is known.** A deny like
   `Bash(aws *)` wins over each call it covers, a call that a narrower allow like `Bash(aws s3 ls)`
   also covers included (pointer: [Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions)).
@@ -265,15 +260,21 @@ to share, so the diff driver tests them on the tool token instead.
   version before acting on a `monitor` verdict.
 
 - **Only allow rules are in scope.** Deny and ask are evaluated before the classifier in every mode.
-- **`autoMode.classifyAllShell` (v2.1.193+) inverts the carry-over answer.** When true, the diff
-  treats every Bash and PowerShell allow rule as suspended while auto mode is active, so a narrow
+- **`autoMode.classifyAllShell` inverts the carry-over answer.** When true, the diff treats every
+  Bash and PowerShell allow rule as suspended while auto mode is active, so a narrow
   `Bash(npm test)` does **not** carry over. A diff that cannot see this key can be exactly wrong,
-  which is why the reader inventories it as a `conf` record. Pointer:
-  [Route all shell commands through the classifier](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier).
-- **The key is resolved only from scopes the classifier reads**: user settings, managed settings, and
-  inline `--settings`/SDK JSON, never `.claude/settings.json` or `.claude/settings.local.json`. A
-  project- or local-scope occurrence is reported as having no effect, never obeyed. Pointer:
-  [Where the classifier reads configuration](https://code.claude.com/docs/en/auto-mode-config#where-the-classifier-reads-configuration).
+  which is why the reader inventories it as a `conf` record. Pointer: when deciding what the key
+  does and from which version, fetch
+  [auto mode config: route all shell commands through the classifier](https://code.claude.com/docs/en/auto-mode-config#route-all-shell-commands-through-the-classifier)
+  live. As of: 2026-10-11. Recheck trigger: that section changes what the key suspends or its
+  version floor.
+- **The key is resolved only from scopes the classifier reads**, and the reader implements that set:
+  user settings, managed settings, and inline `--settings`/SDK JSON, never `.claude/settings.json` or
+  `.claude/settings.local.json`. A project- or local-scope occurrence is reported as having no
+  effect, never obeyed. Pointer: when checking that set, fetch
+  [auto mode config: where the classifier reads configuration](https://code.claude.com/docs/en/auto-mode-config#where-the-classifier-reads-configuration)
+  live. As of: 2026-10-11. Recheck trigger: that section adds or removes a scope the classifier
+  reads.
 - **A bare tool name is the broadest shell grant, not a surviving one.** `Bash` with no parentheses
   is strictly broader than `Bash(*)`, so it drops as `blanket`, the same treatment `Agent`'s bare
   form already had. Reporting it as kept would tell an operator their widest grant survives.
@@ -335,8 +336,15 @@ fixed all three.
 | `C6-colonStar` | Fires on a mid-pattern `:*`, as in `Bash(git:* push)`, since we treat `:*` as prefix syntax only at the end of a pattern: mid-pattern, the colon is a literal and the `*` a wildcard, so `Bash(git:* push)` matches `git:<anything> push` and none of the git commands its author meant. We saw no startup warning for such a rule in a `-p` run, so the lint reports it. **Pointer**: when the mid-pattern colon matters, fetch [Wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns) live. **As of** 2026-10-10. **Recheck when** that section changes how a mid-pattern `:*` matches, or a release makes it prefix syntax. **Probe**: probed on Claude Code 2.1.296, 2026-10-10; evidence in the pull request that carries this change. The mechanic is about **command-prefix** patterns, so a documented parameter form is exempt: WebFetch's `domain:` prefix takes `*` wildcards ([WebFetch](https://code.claude.com/docs/en/permissions#webfetch)), and firing on `WebFetch(domain:*.example.com)` called a documented, working rule broken. **Known gap:** in a deny or ask rule a mid-pattern `:*` with NO space after it, as in `Bash(git:*push)`, is not reported. It is structurally identical to the parameter form `Agent(model:*-haiku)`, so once the space is gone nothing in the rule text distinguishes them; the space was the only signal. The documented example is the space form, and the pages show no no-space mid-pattern rule anywhere. The exemption is by **grammar**, where in a deny or ask rule an `identifier:value` body is the parameter form, not by a list of parameter names: we treat parameter matching as working for any scalar parameter on any tool ([Match by input parameter](https://code.claude.com/docs/en/permissions#match-by-input-parameter)), so an allowlist could only ever chase it and would flag documented forms such as `Agent(model:*-haiku)` |
 | `C6-malformed` | We accept two rule shapes, a bare tool name or a tool name with one parenthesized specifier; a parenthesis within the specifier counts as an ordinary character, which makes `Edit(./Finance (2024)/**)` one rule. Text after the closing parenthesis, as in `Bash(ls) x`, is a malformed Tool(content) rule: Claude Code reports it as invalid settings instead of matching it. An unclosed specifier is the same check. The lint used to keep only the token and treat `Bash(ls) x` as `Bash(ls)` |
 | `C6-literalPath` | A Read or Edit path that is not a usable gitignore pattern, such as an unclosed `[`. As a deny or ask rule it protects only that literal path; as an allow rule it grants nothing. One such deny used to fail every file edit; that is not the current behavior |
-| `C6-malformed` | We accept two rule shapes, a bare tool name or a tool name with one parenthesized specifier; a parenthesis within the specifier counts as an ordinary character, which makes `Edit(./Finance (2024)/**)` one rule. Text after the closing parenthesis, as in `Bash(ls) x`, is a malformed Tool(content) rule: Claude Code reports it as invalid settings instead of matching it. An unclosed specifier is the same check. The lint used to keep only the token and treat `Bash(ls) x` as `Bash(ls)` |
-| `C6-literalPath` | A Read or Edit path that is not a usable gitignore pattern, such as an unclosed `[`. As a deny or ask rule it protects only that literal path; as an allow rule it grants nothing. One such deny used to fail every file edit; that is not the current behavior |
+
+The version boundaries and field lists a row names are the ones its script emits; before acting
+on one, read it at the row's pointer.
+
+- **Pointer**: when a lint row's version boundary or field list decides a finding, fetch the
+  section that row links live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a linked section changes which files honor a key, which fields it names, or
+  the version it states.
 
 **`C5-disableType` is the highest-consequence check here.** A boolean is valid JSON, is accepted, and
 does nothing, so the operator believes auto mode is locked out and it is not.
@@ -408,8 +416,8 @@ matches always reaches a human prompt in auto mode and never gets a classifier a
 
 That mechanic is documented on the auto mode config page, not the permissions page. The permissions
 page covers the related case of an ask rule matching one subcommand of a compound command or a
-subshell, which still prompts in auto mode; that compound and subshell path was fixed in v2.1.257.
-It is not a claim that every ask-rule miss is fixed.
+subshell, including the version that fixed it; read it there. It is not a claim that every ask-rule
+miss is fixed.
 
 Upstream issue **#42797**, about auto mode ignoring `permissions.ask`, is closed. **#83766** remains
 open and still reports `permissions.ask` patterns auto-approved under `defaultMode: "auto"`. This
@@ -422,7 +430,7 @@ surviving auto mode. Treat `ask` as a prompt you *expect*, not a guarantee you *
 
 - **Pointer**: [Add a human checkpoint](https://code.claude.com/docs/en/auto-mode-config#add-a-human-checkpoint)
   and [Compound commands](https://code.claude.com/docs/en/permissions#compound-commands).
-- **As of**: 2026-09-28
+- **As of**: 2026-10-11
 - **Recheck trigger**: #83766 closes, or the auto-mode config page changes whether a content-scoped
   ask rule always prompts.
 
@@ -446,7 +454,7 @@ any scope**. So a lower-scope deny changes the outcome of a managed allow withou
 | `enforced deny` | a managed deny, which no other level can allow. The strongest thing an administrator can write |
 | `enforced allow` / `enforced ask` | the managed rule is highest and nothing beneath it outranks its kind |
 | `loosenable rule` | a lower scope carries an earlier-evaluated kind for the same rule text |
-| `loosenable autoMode` | a managed `autoMode` block, which we treat as additive, not a policy boundary: developers may add their own entries to any of the four sections without being able to delete managed ones, and a developer's `allow` entry beats a managed `soft_deny` entry (pointer: [Where the classifier reads configuration](https://code.claude.com/docs/en/auto-mode-config#where-the-classifier-reads-configuration)). Permissions, hooks, MCP, sandbox-filesystem and sandbox-network each have an exclusivity lock; auto mode has none |
+| `loosenable autoMode` | a managed `autoMode` block, which we treat as additive, not a policy boundary: lower scopes can add to it and can outweigh some of its entries, and auto mode has no exclusivity lock of the kind other surfaces have. How the scopes layer is read live (pointer: when grading a managed `autoMode` block, fetch [auto mode config: where the classifier reads configuration](https://code.claude.com/docs/en/auto-mode-config#where-the-classifier-reads-configuration); as of 2026-10-11; recheck when that section changes how scopes combine or adds an exclusivity lock for auto mode) |
 | `enforced` / `loosenable lockout` | `disableAutoMode` is a real lock only when it carries the documented string `"disable"` |
 
 The remedy the `autoMode` finding names is `permissions.deny` in managed settings, for an action that

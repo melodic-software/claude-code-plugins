@@ -49,6 +49,25 @@ is.
    the snapshot failure and its stderr reason and a fresh `heartbeat_at`, then schedule the next
    wakeup at the current backoff. The drain exit and
    the open-PR and open-issue counts every later step uses come only from an exit-0 snapshot.
+   **Post-merge check (every cycle, before any merge).** When the target's
+   `docs/conventions/pr-pipeline.yaml` names a `merge.agent-identity`, run
+   `bash <plugin-root>/skills/babysit-prs/scripts/babysit-postmerge.sh --repo <owner/repo>
+   --agent-identity <merge.agent-identity>`. With no `--since` it computes the merge gate's floor:
+   the commit that enabled the unattended path, or the newest human close of a demotion record
+   when later. It judges every merge since the floor that a human did not
+   enqueue or merge (Dependabot and sync-App merges included) and prints a JSON verdict. Add `--remediate`
+   only when the lane's acting GitHub login is that identity: it then triggers the one attribution
+   re-run, dispatches one full run on the branch tip when an unverified merge has no identity
+   dispatch run covering it, dequeues the identity's queue entries, and files or comments on the
+   demotion issue.
+   Only exit 0 (no failure, every auto-merge verified) lets the cycle merge. Exit 5 means an
+   auto-merge still awaits its runs: the merge-eligible set of step 3 is empty this cycle, with
+   nothing to escalate. On any other exit (1 a failure, 2 a refused identity, 3 unreadable, 4 a write failed)
+   the merge-eligible set of step 3 is empty this cycle; report the verdict and escalate each
+   failure per Escalation below, and under a credential other than the identity escalate instead
+   of remediating. The cycle report carries `demotion_events` (the verdict's
+   `remediation.telemetry.demotion_events`, new demotion issues filed this cycle) and lists its
+   `flakes`.
 2. **Grace-window overlay.** From the snapshot, mark every PR whose head moved or that received
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a
    work-in-progress title marker, a do-not-merge label, or non-green checks). Marked PRs are
@@ -85,15 +104,15 @@ is.
    work-class comparison, once per cycle, resolve each cell through the trusted seam. When the
    effective rung is merge-capable and step 0's bootstrap check found no problem, run
    `node <plugin-root>/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` with
-   `--binding`, `--probe-evidence-root`, `--evidence` and `--checker` set to the
-   `promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source` and
-   `promotion_evidence_checker` values from the substituted block in [`../SKILL.md`](../SKILL.md)
-   (never the `CLAUDE_PLUGIN_OPTION_*` mirror, and never a path the lane found or chose: the lane
-   does not look for the autonomy plugin's install), `--checkout` the target checkout, and one
-   `--worktree-root` per worktree root step 0 names. The helper refuses a path inside the checkout
-   or a worktree root, or containing one; it cannot tell an operator's value from one the lane
-   chose, so only the substituted values are passed. It prints `{source, failClosedReason, cells}`
-   and exits 0. Decide each cell from `cells` with the resolution table: it is effective-promoted
+   `--checkout` the target checkout and one `--worktree-root` per worktree root step 0 names, and
+   nothing else. The helper reads the four `promotion_evidence_*` values from the operator's
+   managed and user settings itself (channel F,
+   [the contract](promotion-evidence-bootstrap.md#allowed-source-class)), so the lane passes no
+   surface or checker path; it rejects the retired `--binding`, `--probe-evidence-root`,
+   `--evidence` and `--checker` arguments as a usage error. It refuses a path inside the checkout
+   or a worktree root, or containing one. It prints `{source, failClosedReason, options, cells}`,
+   `options` naming the settings file each value came from, and exits 0. Decide each cell from
+   `cells` with the resolution table: it is effective-promoted
    only when `failClosedReason` is null and its `effective` is `promoted`. A fail-closed reason, a
    skipped invocation (`human-only`, a non-merge-capable tier, a step 0 problem, which includes an
    unset checker option), or a helper failure (non-zero exit, unparsable output) leaves every cell

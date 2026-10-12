@@ -8,16 +8,20 @@ gives the activity and valid for at most one hour. No workflow holds the App key
 decision; the run job contract is in
 [`pr-run-activity.md`](../../../docs/conventions/pr-pipeline/pr-run-activity.md), run job step 6.
 
+`mode: check` is the read file's use: it asks the broker's check endpoint whether the read lane may
+run, and mints nothing ([Check mode](#check-mode)).
+
 ## Inputs
 
 | Input | Meaning |
 |---|---|
+| `mode` | `token` (default) or `check` |
 | `broker-url` | The token endpoint, `${{ vars.LANES_BROKER_URL }}`. Empty or not `https://` fails red |
 | `audience` | The OIDC audience, `${{ vars.LANES_BROKER_AUDIENCE }}`. Empty fails red |
 | `lane`, `activity` | Sent to the broker; the lane must be the caller workflow's file stem |
-| `pr-number` | The gated PR; sent as `pr_number` when set, which the broker needs off `pull_request` |
-| `dispatcher-run-id` | The `pr-unblock-dispatch.yml` run that dispatched this one; sent as `dispatcher_run_id` when set. The broker needs it to trust a run sent by `github-actions[bot]` |
-| `effect`, `contents`, `pull-requests`, `issues` | This job's own `resolve-config` outputs, compared with the broker's answer |
+| `pr-number` | `token` mode: the gated PR; sent as `pr_number` when set, which the broker needs off `pull_request` |
+| `dispatcher-run-id` | `token` mode: the `pr-unblock-dispatch.yml` run that dispatched this one; sent as `dispatcher_run_id` when set. The broker needs it to trust a run sent by `github-actions[bot]` |
+| `effect`, `contents`, `pull-requests`, `issues` | `token` mode: this job's own `resolve-config` outputs, compared with the broker's answer |
 
 ## Outputs
 
@@ -70,3 +74,24 @@ Run it from the base checkout before any head checkout, after `resolve-config`:
 ```
 
 The job needs `permissions: id-token: write`, and so does the caller job that grants it.
+
+## Check mode
+
+With `mode: check` the action takes only `broker-url`, `audience`, `lane` and `activity`; a
+`pr-number`, effect or grant fails it red, so the read file's check job never carries the write
+path's inputs. It posts once to `broker-url` with its final `/token` replaced by `/check` (a URL
+that does not match `^https://[^/]+/(.+/)?token$` fails red), with the body `{"lane", "activity"}`, and passes only on a 200
+whose `decision` is `allow` and whose `lane` and `activity` are its own. Any other answer fails red
+with `lane-check-denied`; no response is `broker-unreachable`. It sets no output.
+
+```yaml
+- name: Ask the broker whether the lane may run
+  if: steps.kill.outputs.proceed == 'true'
+  uses: ./.base/.github/actions/request-lane-token
+  with:
+    mode: check
+    broker-url: ${{ vars.LANES_BROKER_URL }}
+    audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+    lane: ${{ inputs.lane }}
+    activity: ${{ inputs.activity }}
+```
