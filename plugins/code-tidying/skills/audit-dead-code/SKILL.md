@@ -111,7 +111,10 @@ Bounded by design. Evidence catalogue: [context/adjudication.md](context/adjudic
    `unreferenced-file` a computed path or glob could load is `uncertain`, not `dead`.
 4. **Every `alive` cites the evidence that saved it.** An unevidenced `alive` is a guess.
 5. Fan out to fresh-context subagents in batches when the set is large; if spawn depth is
-   exhausted, say so and adjudicate inline at the same cap rather than silently shrinking the set.
+   exhausted, say so and adjudicate inline at the same cap rather than silently shrinking the set
+   (the depth-limit pointer record is in
+   [context/adjudication.md, Bounding the pass](context/adjudication.md#bounding-the-pass); relay
+   as of 2026-10-11, recheck when that record's pointer moves out of that section).
 6. **Optional LSP assist**, never required and never a lane: when Claude Code's `LSP` tool is
    available, `findReferences` on one candidate is one more evidence source. `includeDeclaration`
    is hard-coded true, so the dead threshold is `resultCount == 1`; imports count as references,

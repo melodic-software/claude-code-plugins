@@ -21,8 +21,15 @@ Every skill except `setup` is model-invoked.
 
 The `evaluator` agent ([`agents/evaluator.md`](agents/evaluator.md)) reviews a flow, journey or
 synthesis written earlier in the same session, in a fresh context that never sees the reasoning
-behind it. It holds only Read, Grep and Glob. `/user-experience:evaluate` dispatches it; it is not
-for direct use. A flow ready for screens goes to
+behind it. It holds only Read, Grep and Glob, and its frontmatter pins its model, effort and turn
+cap. `/user-experience:evaluate` dispatches it; it is not for direct use.
+
+- **Pointer**: when changing those frontmatter values, fetch
+  [Supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes what `model`, `effort` or
+  `maxTurns` does.
+
+A flow ready for screens goes to
 `/user-interface:design` when that plugin is installed. The plugin writes research instruments but
 never recruits or runs sessions, and selects measures but never instruments analytics.
 

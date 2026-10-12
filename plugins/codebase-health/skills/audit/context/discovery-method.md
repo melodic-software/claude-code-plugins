@@ -74,9 +74,12 @@ a file outside its allowed surface. Use repo-relative paths only (never absolute
 Each agent owns one file, so there is no shared context to thin out and dimension order does not
 matter.
 
-**Background / unattended variant:** the same per-file fan-out can run as a saved workflow
-(background execution, same-session resume, rerunnable script) instead of in-session subagents.
-Same discovery, different executor. This applies only when your environment provides a
+**Background / unattended variant:** the same per-file fan-out can run as a saved workflow instead
+of in-session subagents. Same discovery, different executor. Pointers for what a workflow run
+offers: [How a workflow runs](https://code.claude.com/docs/en/workflows#how-a-workflow-runs) and
+[Save the workflow for reuse](https://code.claude.com/docs/en/workflows#save-the-workflow-for-reuse).
+As of: 2026-10-11. Recheck trigger: either section changes how a run executes, resumes, or is
+saved. This applies only when your environment provides a
 background/saved-workflow execution surface; the in-session fan-out above is the default. Reach for
 the workflow form only when you want a fire-and-forget periodic audit you can walk away from. An
 interactive audit you are actively driving stays with the in-session fan-out.

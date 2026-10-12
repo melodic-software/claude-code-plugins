@@ -1,0 +1,63 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git restore shipping/cutoff.py"
+          }
+        }
+      ],
+      "why": "the non-moving block is discarded back to the last green commit"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git checkout -- shipping/cutoff.py"
+          }
+        }
+      ],
+      "why": "the same revert in the older spelling"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "shipping/cutoff.py",
+            "old_string": "return local.time() < CUTOFF",
+            "new_string": "return local.time() <= CUTOFF"
+          }
+        }
+      ],
+      "why": "patched forward on top of the block"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff shipping/cutoff.py"
+          }
+        }
+      ],
+      "why": "looked at the block but never reverted it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git checkout -b fix/cutoff-retry"
+          }
+        }
+      ],
+      "why": "a branch switch is not a revert"
+    }
+  ]
+}

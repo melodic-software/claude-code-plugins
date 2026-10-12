@@ -51,7 +51,7 @@ Path resolution rules every action MUST follow:
 - **`<mode>`**. Literally `topic` or `codebase`, matching the action that created the workspace. This level keeps the two modes independent: `/education:teach topic auth-flow` and `/education:teach codebase auth-flow` in the same project resolve to separate workspaces (`.../topic/auth-flow/` vs `.../codebase/auth-flow/`) instead of one seeding over the other's `MISSION.md` / `RESOURCES.md`.
 - **`<topic>`** and **`<concept>`**. Content-named kebab slugs (lowercase alphanumerics and hyphens only; strip `/`, `\`, `..`), NOT sequence-numbered. A deictic subject ("this repo") is first resolved to a stable content name per the Smart default rules. Never slug the deixis itself. `"Domain-Driven Design"` → `domain-driven-design`; `"Rust Ownership"` → `rust-ownership`. **Record the exact raw subject/concept name** (`MISSION.md`'s `# Mission: {Topic}` title for a topic; for a concept, the lesson's `**Concept:**` line in `lesson.md` or its `<meta name="concept" content="…">` in `lesson.html`. The lesson carries the raw name in whichever of the two formats it is written, so the guard below never depends on the extension) so it is the source of truth for collision checks. **Guard against slug collisions**. Distinct subjects can normalize to the same slug (`C++` and `C#` → `c`; `Node.js` and `Node JS` → `node-js`), which would silently share one workspace. Before creating a workspace whose slug directory already exists, read that existing workspace's recorded raw name; if it names a DIFFERENT subject, append `-` plus the first 4 hex chars of `printf '%s' '<raw-name>' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-4` to the new slug, keeping per-subject state isolated while leaving non-colliding slugs readable.
 - **`learning-records/NNNN-<slug>.md`** keeps `NNNN-` numbering (sanctioned ADR-style append-only log). Scan the directory for the highest existing `NNNN` and increment.
-- `${CLAUDE_PLUGIN_DATA}` is created automatically the first time it is referenced and persists across plugin updates, so workspaces survive between sessions. A user-chosen root (Documents home, configured root) gets its `Claude Learning/`-style home created only at first workspace creation there, the platform Documents directory itself is NEVER created by this skill.
+- We keep plugin-data workspaces under `${CLAUDE_PLUGIN_DATA}` so they outlive the session (**Pointer**: when deciding whether that directory exists yet or will still be there, fetch <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables> live. **As of**: 2026-10-11. **Recheck trigger**: that section changes when the directory is created, kept or deleted). A user-chosen root (Documents home, configured root) gets its `Claude Learning/`-style home created only at first workspace creation there, the platform Documents directory itself is NEVER created by this skill.
 
 Lessons default to interactive, self-contained `lesson.html` where the learner's host can render it; on headless hosts, and where interactivity pays nothing, the lesson is `lesson.md` (one lesson file per concept, never both. The platform-aware format decision, identity/meta, and replacement rules live in [context/lessons.md](context/lessons.md)). The durable trio. `reference.md`, learning records, `GLOSSARY.md`. Stays markdown, the diffable source of truth; `exercise.md` stays markdown too, and only the workspace-less `primer` renders to a temp path.
 
@@ -85,7 +85,7 @@ Resolve `<workspace-root>` by the first rung that answers. Cross-root semantics:
 
 ## Pre-computed Context
 
-Gather with one Bash call (worktree-isolated agents refuse `$`-expansion in pre-compute blocks. And `${user_config.*}` tokens must NEVER appear on this line: a surviving literal is a bash `bad substitution` that kills the whole call before any fallback):
+Gather with one Bash call. Keep `$`-expansion off this line: a worktree-isolated agent refused it here (probe: [#1687](https://github.com/melodic-software/claude-code-plugins/issues/1687), as of 2026-08-12; recheck trigger: a worktree-isolated session loads a pre-compute line that expands a variable). And `${user_config.*}` tokens must NEVER appear on this line: we do not rely on one being substituted, and a surviving literal is a bash `bad substitution` that kills the whole call before any fallback (**Pointer**: when deciding whether a saved value is substituted in skill content, fetch <https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value> and <https://code.claude.com/docs/en/skills#inject-dynamic-context> live. **As of**: 2026-10-11. **Recheck trigger**: either section changes where `${user_config.*}` is substituted or how an injected command runs):
 
 - Plugin-data workspaces, `bash "${CLAUDE_PLUGIN_ROOT}/skills/teach/scripts/list-workspaces.sh" "${CLAUDE_PROJECT_DIR}" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "none"`
 
@@ -211,11 +211,14 @@ Learning artifacts persist for months; durable teaching content (references, glo
 
 The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
 Put that path in place of the placeholder before running a command or writing it into a brief. Those
-files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
-tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
-Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+files arrive through the Read tool, and we do not rely on a `${…}` token in them being substituted
+or expanded on the way to the Bash tool.
+
+- **Pointer**: when deciding whether a `${…}` token in a Read-delivered file resolves, fetch
+  <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that table adds supporting files read through the Read tool, or the Bash
+  tool's environment, to where a `${…}` reference resolves.
 
 ## What This Skill Does NOT Do
 

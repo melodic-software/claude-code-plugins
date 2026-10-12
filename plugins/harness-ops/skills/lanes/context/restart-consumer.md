@@ -38,8 +38,13 @@ The discriminating question is *what survives the failure it remediates*:
   if Stop-hook input gains a session discriminator or lane bodies mandate
   `ScheduleWakeup(stop: true)`, and then only as a latency layer on top of the OS
   schedule, never a replacement.
-- Cloud `/schedule` routines are rejected for lane work: they cannot reach a local
-  checkout.
+- Cloud `/schedule` routines are rejected as the restart consumer: it relaunches lanes
+  from the local checkout, which a routine cannot reach. Where a lane's own stage runs
+  is a separate choice, the execution-target convention
+  (`docs/conventions/execution-target/` in the marketplace repository), applied by
+  `start` and `restart` (see `context/config.md`, "Execution target"). No lane stage
+  runs as a cloud routine until a stage is marked trusted (`ET_TRUSTED_STAGES` in
+  `lane-launcher.sh` is empty, so every stage is refused every cloud host).
 
 **The polling tick is not lane pacing.** Lanes remain self-paced via
 `ScheduleWakeup`; the consumer never sets, nudges, or replaces a lane's cadence.
