@@ -7,8 +7,10 @@ name: post-merge-demotion-alert
 # check files under the agent identity and the merge-policy reader holds the
 # rung off on: first body line `<!-- babysit-merge-demotion sha=<S>
 # signal=<name> -->`, labeled needs-human, one per (signal, SHA). A record
-# that already exists gets a comment naming the run instead. This workflow
-# merges, reverts and dequeues nothing.
+# that already exists gets a comment naming the run attempt instead. Records
+# the agent identity filed are not read here, so one (signal, SHA) can hold a
+# record from each filer; both hold the rung off. This workflow merges,
+# reverts and dequeues nothing.
 #
 # Test: scripts/post-merge-demotion-alert.test.sh runs the step body.
 
@@ -84,23 +86,34 @@ jobs:
             echo "::error::head SHA '$RUN_SHA' is not a full commit SHA"
             exit 1
           fi
+          if [[ ! "$RUN_ATTEMPT" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::run attempt '$RUN_ATTEMPT' is not a positive integer"
+            exit 1
+          fi
+          # A run's URL names no attempt, so every sighting names its attempt:
+          # a later failing attempt of a recorded run is a new sighting.
+          sighting="$RUN_URL/attempts/$RUN_ATTEMPT"
+          again='The post-merge check found this failure again: '
 
           marker="<!-- babysit-merge-demotion sha=$RUN_SHA signal=$signal -->"
-          # Records are read by their filer only, so an issue someone else
-          # opens with the marker cannot stand in for this one.
+          # Records are read by their filer, github-actions[bot], which is any
+          # workflow's GITHUB_TOKEN: an issue a user opens with the marker
+          # cannot stand in for this one.
           records="$(gh api --paginate \
             "repos/$GITHUB_REPOSITORY/issues?state=all&creator=github-actions%5Bbot%5D&per_page=100" \
-            --jq '.[] | select(.pull_request == null)
-              | [.number, .state, ((.body // "") | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")), (.body // "")]
+            --jq '.[] | select(.pull_request == null) | [.number, .state, (.body // "")]
+              | [.[0], .[1], (.[2] | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")),
+                 ([.[2] | split("\n")[] | select(startswith("- Failing run: "))][0] // ""
+                  | ltrimstr("- Failing run: ") | sub("\\s+$"; ""))]
               | @tsv')"
           number=''
           state=''
-          body=''
-          while IFS=$'\t' read -r n s first rest; do
+          filed=''
+          while IFS=$'\t' read -r n s first failing; do
             if [[ "$first" == "$marker" ]]; then
               number="$n"
               state="$s"
-              body="$rest"
+              filed="$failing"
               break
             fi
           done <<<"$records"
@@ -110,18 +123,24 @@ jobs:
             exit 0
           fi
           if [[ -n "$number" ]]; then
-            if [[ -n "$passed" ]]; then
-              note="re-run passed: $RUN_URL"
-            else
-              note="The post-merge check found this failure again: $RUN_URL"
-            fi
             comments="$(gh api --paginate \
               "repos/$GITHUB_REPOSITORY/issues/$number/comments?per_page=100" \
               --jq '.[] | select(.user.login == "github-actions[bot]") | .body')"
-            # Only this mode's own note counts, so a passing re-run's note
-            # cannot hide a later failing attempt of the same run.
-            if [[ "$comments" == *"$note"* || (-z "$passed" && "$body" == *"$RUN_URL"*) ]]; then
-              echo "#$number already records $RUN_URL"
+            if [[ -n "$passed" ]]; then
+              note="re-run passed: $sighting"
+              # A pass is noted only on a record of this run's failure.
+              if [[ "$filed" != "$RUN_URL/attempts/"* ]] &&
+                ! grep -Fq -- "$again$RUN_URL/attempts/" <<<"$comments"; then
+                echo "#$number records no failure of $RUN_URL: nothing to note"
+                exit 0
+              fi
+            else
+              note="$again$sighting"
+            fi
+            # Whole-line matches, so attempt 1 is not attempt 10 and a pass
+            # note cannot hide a later failing attempt.
+            if grep -Fxq -- "$note" <<<"$comments" || [[ -z "$passed" && "$filed" == "$sighting" ]]; then
+              echo "#$number already records $sighting"
               exit 0
             fi
             # A new failure on a closed record demotes again.
@@ -141,9 +160,9 @@ jobs:
             pr="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull/${BASH_REMATCH[1]}"
             title="Post-merge $signal failure after #${BASH_REMATCH[1]}: unattended merging demoted"
           fi
-          sha_label='Merge commit'
-          if [[ "$signal" == schedule ]]; then
-            sha_label='Main at the failing run'
+          sha_label='Main at the failing run'
+          if [[ "$signal" == canary ]]; then
+            sha_label='Merge commit'
           fi
           fence='```'
           body="$marker
@@ -153,7 +172,7 @@ jobs:
 
           - Pull request: $pr
           - $sha_label: \`$RUN_SHA\`
-          - Failing run: $RUN_URL
+          - Failing run: $sighting
 
           To revert the merge, a human runs:
 

@@ -144,15 +144,15 @@ files() {
     fail "$label: body's first line is not the marker: '${body%%$'\n'*}'"
   elif [[ "$body" != *"git revert $SHA"* || "$body" == *"revert -m"* ]]; then
     fail "$label: body lacks 'git revert $SHA'"
-  elif [[ "$body" != *"$RUN_URL"* ]]; then
-    fail "$label: body lacks the failing run link"
+  elif [[ "$body" != *"- Failing run: $RUN_URL/attempts/${ATTEMPT:-1}"$'\n'* ]]; then
+    fail "$label: body lacks the failing attempt's link"
   elif [[ "$body" != *"https://github.com/o/r/pull/1234"* ]]; then
     fail "$label: body lacks the pull request link"
   elif ! grep -qx 'labels\[\]=needs-human' <<<"$fields"; then
     fail "$label: issue is not labeled needs-human: '$fields'"
-  elif [[ "$signal" == schedule && ("$body" != *"- Main at the failing run: \`$SHA\`"* || "$body" == *"Merge commit"*) ]]; then
-    fail "$label: a schedule record must name the SHA as main at the failing run"
-  elif [[ "$signal" != schedule && "$body" != *"- Merge commit: \`$SHA\`"* ]]; then
+  elif [[ "$signal" != canary && ("$body" != *"- Main at the failing run: \`$SHA\`"* || "$body" == *"Merge commit"*) ]]; then
+    fail "$label: a $signal record must name the SHA as main at the failing run"
+  elif [[ "$signal" == canary && "$body" != *"- Merge commit: \`$SHA\`"* ]]; then
     fail "$label: body does not name the merge commit"
   else
     ok "$label"
@@ -187,8 +187,8 @@ files "a pull request carrying the marker is not a record" schedule "$FULL" sche
 
 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 3 "x"), $(issue 41 "$MARKER"$'\n\nbody')]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG" &&
-  [[ "$(post_fields)" == *"$RUN_URL"* ]]; then
-  ok "an existing record gets a comment with the run link, not a second issue"
+  [[ "$(post_fields)" == "body=The post-merge check found this failure again: $RUN_URL/attempts/1" ]]; then
+  ok "an existing record gets a comment with the attempt link, not a second issue"
 else
   fail "existing record: rc=$RC log='$LOG' out='$OUT'"
 fi
@@ -200,11 +200,20 @@ else
   fail "whitespace around the marker: rc=$RC log='$LOG'"
 fi
 
-run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$MARKER"$'\n'"- Failing run: $RUN_URL")]"
+FILED="$MARKER"$'\n\n'"- Failing run: $RUN_URL/attempts/1"$'\n'
+run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$FILED")]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 0 ]]; then
-  ok "a record that already names this run gets no comment"
+  ok "a record that already names this attempt gets no comment"
 else
-  fail "record already naming the run: rc=$RC log='$LOG'"
+  fail "record already naming the attempt: rc=$RC log='$LOG'"
+fi
+
+ATTEMPT=10 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$FILED" '' closed)]"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'PATCH repos/o/r/issues/41' <<<"$LOG" &&
+  [[ "$(post_fields)" == *"$RUN_URL/attempts/10" ]]; then
+  ok "a later failing attempt of the filed run reopens and comments (attempt 10 is not attempt 1)"
+else
+  fail "later failing attempt of the filed run: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 # comment <login> <body> -> one REST issue comment object
@@ -213,7 +222,7 @@ comment() {
 }
 
 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$MARKER")]" \
-  "[$(comment someone "$RUN_URL"), $(comment 'github-actions[bot]' "The post-merge check found this failure again: $RUN_URL")]"
+  "[$(comment someone "$RUN_URL"), $(comment 'github-actions[bot]' "The post-merge check found this failure again: $RUN_URL/attempts/1")]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 0 ]]; then
   ok "a record whose own comments already name this run gets no comment"
 else
@@ -244,29 +253,46 @@ else
   fail "open record patched: log='$LOG'"
 fi
 
-ATTEMPT=2 run_step "$FULL" schedule success main o/r "$SHA" "[$(issue 41 "$MARKER" '' closed)]"
+ATTEMPT=2 run_step "$FULL" schedule success main o/r "$SHA" "[$(issue 41 "$FILED" '' closed)]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG" &&
-  [[ "$(post_fields)" == "body=re-run passed: $RUN_URL" ]] && ! grep -q '^PATCH' <<<"$LOG"; then
+  [[ "$(post_fields)" == "body=re-run passed: $RUN_URL/attempts/2" ]] && ! grep -q '^PATCH' <<<"$LOG"; then
   ok "a re-run that passes comments on the record without reopening it"
 else
   fail "re-run passed: rc=$RC log='$LOG' out='$OUT'"
 fi
 
-ATTEMPT=2 run_step "$FULL" schedule success main o/r "$SHA" "[$(issue 41 "$MARKER")]" \
-  "[$(comment 'github-actions[bot]' "re-run passed: $RUN_URL")]"
+ATTEMPT=2 run_step "$FULL" schedule success main o/r "$SHA" "[$(issue 41 "$FILED")]" \
+  "[$(comment 'github-actions[bot]' "re-run passed: $RUN_URL/attempts/2")]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 0 ]]; then
   ok "a re-run pass already recorded is not commented twice"
 else
   fail "duplicate re-run pass: rc=$RC log='$LOG'"
 fi
 
-ATTEMPT=3 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$MARKER" '' closed)]" \
-  "[$(comment 'github-actions[bot]' "re-run passed: $RUN_URL")]"
+ATTEMPT=3 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$FILED" '' closed)]" \
+  "[$(comment 'github-actions[bot]' "re-run passed: $RUN_URL/attempts/2")]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'PATCH repos/o/r/issues/41' <<<"$LOG" &&
   grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG"; then
   ok "a failure after a passing re-run of the same run reopens and comments"
 else
   fail "failure after re-run passed: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+ATTEMPT=2 run_step "$FULL" schedule success main o/r "$SHA" \
+  "[$(issue 41 "$MARKER"$'\n\n'"- Failing run: https://github.com/o/r/actions/runs/42421/attempts/1")]"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 ]]; then
+  ok "a re-run pass is not noted on a record that names no failure of this run"
+else
+  fail "re-run pass on an unrelated record: rc=$RC log='$LOG'"
+fi
+
+ATTEMPT=2 run_step "$FULL" schedule success main o/r "$SHA" \
+  "[$(issue 41 "$MARKER"$'\n\n'"- Failing run: https://github.com/o/r/actions/runs/1/attempts/1")]" \
+  "[$(comment 'github-actions[bot]' "The post-merge check found this failure again: $RUN_URL/attempts/1")]"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && [[ "$(post_fields)" == "body=re-run passed: $RUN_URL/attempts/2" ]]; then
+  ok "a re-run pass is noted when a filer comment recorded this run's failure"
+else
+  fail "re-run pass after a commented failure: rc=$RC log='$LOG'"
 fi
 
 ATTEMPT=2 run_step "$CANARY" push success main o/r "$SHA" '[]'
@@ -312,6 +338,13 @@ if [[ "$RC" -ne 0 && -z "$LOG" ]]; then
   ok "a head SHA that is not 40 hex characters fails without a call"
 else
   fail "short sha: rc=$RC log='$LOG'"
+fi
+
+ATTEMPT=x run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -ne 0 && -z "$LOG" ]]; then
+  ok "a run attempt that is not a positive integer fails without a call"
+else
+  fail "bad attempt: rc=$RC log='$LOG'"
 fi
 
 test_harness::report
