@@ -8,6 +8,7 @@ bump: patch
 - `/harness-ops:audit-install-state` routes `~/.claude.json` growth to `claude purge` in Phase 5, matching its own reference, and its engine now classifies `uploads/`, `dev-mods/` and `usage-data/` as swept and `jobs/` as kept instead of unclassified; the new and changed table notes are short labels with a docs pointer.
 - The `plugins` scope reference quotes the current `/plugin` install-summary line for a needed reload, and no longer says the summary's version is read from a pointer that names none.
 - `reference/surfaces.md` stops claiming that the absence of `image-cache/` or `feedback-bundles/` proves the sweep ran, and stops stating that `history.jsonl` is never trimmed.
+- The `plugins` gotchas no longer quote a sentence about the previous-version orphan sweep that the plugin loading page does not contain; they point at its cleanup section instead. `behavior-probes` anchors its authoritative-denial gotcha, and `observability` drops a restated raw-API-body truncation limit beside its pointer.
 - The `plugins` scope reference re-derives its "nothing reaps project-scope records" claim now that the swept-path list names paths under `~/.claude/plugins/`.
 
 ### Changed

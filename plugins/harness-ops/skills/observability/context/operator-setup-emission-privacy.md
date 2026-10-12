@@ -77,8 +77,8 @@ configuration variables](https://code.claude.com/docs/en/monitoring-usage#common
 - **As of**: 2026-10-10
 - **Recheck trigger**: either section changes what the flag adds.
 
-- `OTEL_LOG_RAW_API_BODIES=1` is inline mode, with bodies truncated at 60 KB. For untruncated
-  bodies use `file:<dir>`, which writes a **separate** directory that must ALSO be gitignored.
+- `OTEL_LOG_RAW_API_BODIES` inline versus on-disk modes are in the common configuration variables
+  page linked above. The on-disk mode writes a **separate** directory that must ALSO be gitignored.
 - **Traces** persist to `cc-traces.json` (query via `cc_spans` / `cc_traces`) and optionally
   fan out to the Aspire dashboard for live UI. Historical queries:
   [`otel-queries.md`](otel-queries.md).
