@@ -49,6 +49,22 @@ is.
    the snapshot failure and its stderr reason and a fresh `heartbeat_at`, then schedule the next
    wakeup at the current backoff. The drain exit and
    the open-PR and open-issue counts every later step uses come only from an exit-0 snapshot.
+   **Post-merge check (every cycle, before any merge).** When the target's
+   `docs/conventions/pr-pipeline.yaml` names a `merge.agent-identity`, run
+   `bash <plugin-root>/skills/babysit-prs/scripts/babysit-postmerge.sh --repo <owner/repo>
+   --agent-identity <merge.agent-identity> --since <floor>`, where the floor is the time the change
+   enabling the unattended path merged. It judges every merge since the floor that a human did not
+   enqueue (Dependabot and sync-App merges included) and prints a JSON verdict. Add `--remediate`
+   only when the lane's acting GitHub login is that identity: it then triggers the one attribution
+   re-run, dispatches one full run on the branch tip when an unverified merge has no identity
+   dispatch run covering it, dequeues the identity's queue entries, and files or comments on the
+   demotion issue.
+   Exit 0 lets the cycle continue. On any other exit (1 a failure, 3 unreadable, 4 a write failed)
+   the merge-eligible set of step 3 is empty this cycle; report the verdict and escalate each
+   failure per Escalation below, and under a credential other than the identity escalate instead
+   of remediating. The cycle report carries `demotion_events` (the verdict's
+   `remediation.telemetry.demotion_events`, new demotion issues filed this cycle) and lists its
+   `flakes`.
 2. **Grace-window overlay.** From the snapshot, mark every PR whose head moved or that received
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a
    work-in-progress title marker, a do-not-merge label, or non-green checks). Marked PRs are

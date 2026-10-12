@@ -42,6 +42,7 @@ LEASE_CLI = "skills/babysit-prs/scripts/manage_babysit_lease.py"
 LEDGER_CLI = "skills/babysit-prs/scripts/manage_feedback_ledger.py"
 PRUNE_CLI = "skills/babysit-prs/scripts/prune_babysit_worktrees.py"
 REFRESH_CLI = "skills/babysit-prs/scripts/refresh_pr_branch.py"
+POSTMERGE_CLI = "skills/babysit-prs/scripts/babysit_postmerge.py"
 REVIEW_CLI = "skills/babysit-prs/scripts/request_review.py"
 SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
@@ -1314,6 +1315,26 @@ MECHANISMS: tuple[Mechanism, ...] = (
         must_contain=("babysit_python",),
         must_not_contain=('for arg in "$@"',),
     ),
+    Mechanism(
+        id="postmerge.remediate-gates-every-write",
+        claim=(
+            "babysit_postmerge.py calls its writers (the attribution re-run, the "
+            "full-run dispatch, the dequeue and the demotion issue) only inside one "
+            "branch of main() that needs --remediate and a readable verdict. Without "
+            "the flag it reads GitHub and prints the verdict, whatever the verdict says."
+        ),
+        entry_point=POSTMERGE_CLI,
+        must_contain=("if args.remediate and verdict.readable:",),
+    ),
+    Mechanism(
+        id="postmerge.parser-refuses-abbreviation",
+        claim=(
+            "babysit_postmerge.py sets allow_abbrev=False, so a permission rule written "
+            "against the exact spelling --remediate also covers every prefix of it."
+        ),
+        entry_point=POSTMERGE_CLI,
+        must_contain=("allow_abbrev=False",),
+    ),
 )
 
 
@@ -1419,6 +1440,22 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "cannot sweep a directory the caller did not name."
         ),
         backed_by=("prune.root-is-required", "prune.removes-worktrees-via-git"),
+    ),
+    EntryPoint(
+        path=POSTMERGE_CLI,
+        wrapper=None,
+        mutation=CONDITIONAL,
+        mutates_what=(
+            "re-runs failed jobs of a red full run; dispatches a full run when none "
+            "covers an unverified auto-merge; dequeues the agent identity's "
+            "merge-queue entries; files or comments on the demotion issue"
+        ),
+        gate="--remediate",
+        claim="Read-only without --remediate.",
+        backed_by=(
+            "postmerge.remediate-gates-every-write",
+            "postmerge.parser-refuses-abbreviation",
+        ),
     ),
     EntryPoint(
         path=REFRESH_CLI,
