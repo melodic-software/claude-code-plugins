@@ -1,0 +1,23 @@
+// expect: rule-inert-assertion
+// A Reqnroll [Then] step is judged as a test. Assert.True(true) passes
+// whatever the login did: the literal is the whole oracle.
+using Reqnroll;
+using Xunit;
+
+[Binding]
+public class LoginStepDefinitions
+{
+    private LoginResult _result;
+
+    [When(@"the user logs in")]
+    public void WhenTheUserLogsIn()
+    {
+        _result = Login.Run("ada", "secret");
+    }
+
+    [Then(@"the user is signed in")]
+    public void ThenTheUserIsSignedIn()
+    {
+        Assert.True(true);
+    }
+}
