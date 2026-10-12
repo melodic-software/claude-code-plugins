@@ -419,10 +419,10 @@ advisor pairing is a settings value fixed at launch.
 
 - **Claim:** decline `/advisor` in unattended lane prompts, including the
   headless text form.
-- **Basis:** <https://code.claude.com/docs/en/advisor#use-the-advisor-command>.
+- **Basis:** <https://code.claude.com/docs/en/advisor#use-the-/advisor-command>.
   The text form sets or clears the advisor where there is no picker, and Fable
   as advisor can require one-time usage-credit consent the lane cannot give.
-- **As of:** 2026-09-28.
+- **As of:** 2026-10-11.
 - **Recheck:** the advisor page stops offering a text form, or a lane launch
   grows an attended step that can accept Fable usage-credit consent.
 
@@ -460,19 +460,20 @@ launches on changes.
 ## Concurrent workers on one repository
 
 Two worker lanes can run on one repository. Each launch line passes its own
-`--shard`, `--ordering`, and `--instance`. Flag grammar and validation live in
+`--shard`, `--ordering`, and `--instance`, plus a stop mode (`--standing` or
+`--drain`), without which a headless launch stops. Flag grammar and validation live in
 [`invocation-argv.md`](../../plugins/work-items/skills/work-loop/reference/invocation-argv.md).
 
 Lane A keeps issue numbers where `number % 2 == 0` and fills cap slots oldest first:
 
 ```text
-/loop /work-items:work-loop --shard 0/2 --ordering oldest-first --instance worker-a
+/loop /work-items:work-loop --standing --shard 0/2 --ordering oldest-first --instance worker-a
 ```
 
 Lane B keeps issue numbers where `number % 2 == 1` and fills cap slots newest first:
 
 ```text
-/loop /work-items:work-loop --shard 1/2 --ordering newest-first --instance worker-b
+/loop /work-items:work-loop --standing --shard 1/2 --ordering newest-first --instance worker-b
 ```
 
 `--shard <i>/<n>` keeps items whose issue number satisfies `number % n == i`
@@ -507,7 +508,7 @@ variable that sets it).
 
 > **=== COPY FROM HERE ===**
 >
-> /loop /work-items:work-loop
+> /loop /work-items:work-loop --standing
 >
 > Repository: `{{REPO}}`
 > Runtime surfaces in this repo: `{{RUNTIME_SURFACES}}`
@@ -1176,8 +1177,10 @@ with the operator's signature on them.
 > provenance: the `rate-limit-guard` reader contract):
 >
 > - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-> - **Pause threshold (fixed):** pause when **either** window reports
->   `used_percentage >= 95`
+> - **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose
+>   session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read
+>   it at lane start with `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it
+>   pauses when **either** window reports `used_percentage >= 95`
 > - **Pause end:** the **tripped** window's `resets_at`; when **both**
 >   windows trip, the **later** `resets_at`
 > - **Staleness rule:** a snapshot whose `captured_at` is older than
@@ -1190,9 +1193,16 @@ with the operator's signature on them.
 >   **`account.email` field when the writer could attribute the
 >   observation**, so a write is still the signal that the windows
 >   changed under you (account switch, another session's refresh).
-> - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming
->   new work, pause until the pause end, and report; a hard stop happens
->   only on explicit user request.
+> - **Drain-then-pause:** for an opted-in lane, on a trip, finish
+>   in-flight work, stop claiming new work, pause until the pause end, and
+>   report; a hard stop happens only on explicit user request. Without
+>   the opt-in, a window at or above 95 never pauses, slows, or stops the
+>   lane and never lowers its model, effort, or review depth: it keeps
+>   working and reports the window, its `used_percentage` and `resets_at`,
+>   and the operator's options: continue, switch accounts (a human action
+>   a lane never performs or scripts;
+>   https://github.com/melodic-software/claude-code-account-rotation), or
+>   opt in to pausing.
 > - **Account switch:** while paused, a consumer **MUST** read
 >   `.oauthAccount.emailAddress` directly from
 >   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot

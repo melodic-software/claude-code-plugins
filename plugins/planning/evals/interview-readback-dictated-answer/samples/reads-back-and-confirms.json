@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: following the OS setting, accepted.\nQ2: I took \"fee chair flag\" to mean a feature flag: off by default, on for staff first, then everyone. Right?\nQ3: you want the choice kept in the browser's local storage for now rather than on the profile, so it will not follow users across devices. Confirm, or tell me what to change.",
+      "why": "own-words read-back of Q2 and Q3 with an explicit confirm request"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Recorded: Q1 yes, Q2 fee chair flag with staff first, Q3 local storage. Round 2 next.",
+      "why": "records the dictation error and asks nothing"
+    },
+    {
+      "answer": "Q2: feature flag, staff first. Q3: local storage. Moving on to round 2:\nQ4: Which pages get dark mode first?",
+      "why": "restates but treats Q2 and Q3 as settled without asking"
+    }
+  ]
+}
