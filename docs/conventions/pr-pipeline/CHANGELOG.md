@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## 1.9.1 - 2026-10-12
+
+The lanes token broker denies a repository whose `CLAUDE_LANES_REPO_DISABLED` variable is absent,
+on both its token and check endpoints (`kill-switch`, `not-false: the repository switch
+CLAUDE_LANES_REPO_DISABLED is not set`; azure-iac#24). `version` stays 1. Every repository on the
+broker's allowlist must declare the variable as `false`.
+
 ## 1.9.0 - 2026-10-11
 
 The read runner asks the lanes token broker before its model step. `version` stays 1; callers of
