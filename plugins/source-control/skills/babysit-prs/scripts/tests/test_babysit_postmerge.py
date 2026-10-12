@@ -719,13 +719,78 @@ class Remediation(CheckCase):
     def test_an_entry_with_an_unknown_enqueuer_is_a_remediation_error(self) -> None:
         verdict = self.failing_verdict()
         self.gh.queue = [
-            {"enqueuer": None, "pullRequest": {"id": "PR_c", "number": 7012}}
+            {"enqueuer": None, "pullRequest": {"id": "PR_c", "number": 7012}},
+            {
+                "enqueuer": {"__typename": "Bot", "login": "agent-lanes"},
+                "pullRequest": {"id": "PR_a", "number": 7010},
+            },
         ]
         report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
         self.assertTrue(any("enqueuer" in e for e in report["errors"]))
-        self.assertNotIn(
-            "dequeuePullRequest", " ".join(" ".join(w) for w in self.gh.writes())
+        # The unknown entry is never dequeued; the identity's own still is.
+        self.assertEqual(report["dequeued"], [7010])
+        dequeues = [w for w in self.gh.writes() if "dequeuePullRequest" in " ".join(w)]
+        self.assertEqual(len(dequeues), 1)
+        self.assertIn("id=PR_a", dequeues[0])
+
+    def test_a_second_sighting_under_one_marker_reopens_a_closed_record(
+        self,
+    ) -> None:
+        # Two red canary runs on one merge share the marker (sha, canary); the
+        # closed record names only the first, so the second reopens it.
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(21, conclusion="failure"),
+            canary_run(
+                22,
+                conclusion="failure",
+                head_sha=LATER_SHA,
+                created_at="2026-10-12T10:20:00Z",
+            ),
         )
+        marker = f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=canary -->"
+        self.gh.issues = [
+            {
+                "number": 8004,
+                "state": "closed",
+                "body": f"{marker}\n- Failing run: {RUN_URL}/21/attempts/1",
+                "user": {"login": "github-actions[bot]"},
+            }
+        ]
+        pm.remediate(REPO, self.check(), agent_identity=IDENTITY)
+        writes = [
+            w for w in self.gh.writes() if "dequeuePullRequest" not in " ".join(w)
+        ]
+        self.assertEqual(writes[0][2:4], ["PATCH", f"repos/{REPO}/issues/8004"])
+        self.assertEqual(writes[1][-1], f"body={AGAIN}{RUN_URL}/22/attempts/1")
+        self.assertEqual(len(writes), 2)
+
+    def test_a_second_sighting_after_filing_comments_on_the_new_record(
+        self,
+    ) -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(21, conclusion="failure"),
+            canary_run(
+                22,
+                conclusion="failure",
+                head_sha=LATER_SHA,
+                created_at="2026-10-12T10:20:00Z",
+            ),
+        )
+        report = pm.remediate(REPO, self.check(), agent_identity=IDENTITY)
+        writes = [
+            w for w in self.gh.writes() if "dequeuePullRequest" not in " ".join(w)
+        ]
+        self.assertIn(f"repos/{REPO}/issues", writes[0])
+        self.assertIn(f"repos/{REPO}/issues/9001/comments", writes[1])
+        self.assertEqual(writes[1][-1], f"body={AGAIN}{RUN_URL}/22/attempts/1")
+        self.assertEqual(len(writes), 2)
+        self.assertEqual(report["telemetry"], {"demotion_events": 1})
 
     def test_issue_body_carries_marker_links_and_git_revert(self) -> None:
         verdict = self.failing_verdict()

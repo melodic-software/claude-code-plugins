@@ -1320,11 +1320,12 @@ MECHANISMS: tuple[Mechanism, ...] = (
         claim=(
             "babysit_postmerge.py calls its writers (the attribution re-run, the "
             "full-run dispatch, the dequeue and the demotion issue) only inside one "
-            "branch of main() that needs --remediate and a readable verdict. Without "
-            "the flag it reads GitHub and prints the verdict, whatever the verdict says."
+            "branch of main() that needs --remediate, a readable verdict and a known "
+            "branch. Without the flag it reads GitHub and prints the verdict, whatever "
+            "the verdict says."
         ),
         entry_point=POSTMERGE_CLI,
-        must_contain=("if args.remediate and verdict.readable:",),
+        must_contain=("elif args.remediate and verdict.readable and branch:",),
     ),
     Mechanism(
         id="postmerge.parser-refuses-abbreviation",

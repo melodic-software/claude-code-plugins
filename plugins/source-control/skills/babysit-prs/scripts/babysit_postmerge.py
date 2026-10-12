@@ -808,7 +808,10 @@ def _role_label(owner: str, name: str) -> str:
 
 def _identity_entries(
     owner: str, name: str, branch: str, identity: str
-) -> list[tuple[str, int]]:
+) -> tuple[list[tuple[str, int]], int]:
+    """The identity's entries (node id, PR number), and how many entries have
+    an unknown enqueuer: those cannot be judged the identity's, so the caller
+    dequeues the known ones and still reports the unknown ones as an error."""
     data = _graphql(QUEUE_QUERY, "merge queue", o=owner, r=name, b=branch)
     queue = json_object(json_object(data.get("repository")).get("mergeQueue"))
     entries = json_object(queue.get("entries"))
@@ -818,13 +821,15 @@ def _identity_entries(
             "merge queue: the entries read are not the whole queue"
         )
     found = []
+    unknown = 0
     for entry in nodes:
-        if not _actor_key(entry.get("enqueuer")):
-            raise PostMergeReadError("merge queue: an entry's enqueuer is unknown")
-        if _actor_key(entry.get("enqueuer")) == _login_key(identity):
+        enqueuer = _actor_key(entry.get("enqueuer"))
+        if not enqueuer:
+            unknown += 1
+        elif enqueuer == _login_key(identity):
             pr = json_object(entry.get("pullRequest"))
             found.append((str(pr.get("id")), pr.get("number")))
-    return found
+    return found, unknown
 
 
 def _demotion_issues(
@@ -926,13 +931,16 @@ def remediate(
         queue_branch = branch or verdict.branch
         if not queue_branch:
             raise PostMergeReadError("no branch to read the merge queue of")
-        for pr_id, number in _identity_entries(
-            owner, name, queue_branch, agent_identity
-        ):
+        entries, unknown = _identity_entries(owner, name, queue_branch, agent_identity)
+        for pr_id, number in entries:
             _graphql(
                 DEQUEUE_MUTATION, f"dequeue #{number}", PostMergeWriteError, id=pr_id
             )
             report["dequeued"].append(number)
+        if unknown:
+            raise PostMergeReadError(
+                f"merge queue: {unknown} entries have an unknown enqueuer"
+            )
     except (PostMergeReadError, PostMergeWriteError) as exc:
         report["errors"].append(f"dequeue: {exc}")
 
@@ -941,12 +949,17 @@ def remediate(
         filers = {_login_key(f) for f in (agent_identity, *DEMOTION_FILERS)}
         existing = _demotion_issues(owner, name, (agent_identity, *DEMOTION_FILERS))
         role_label = label or _role_label(owner, name)
-        seen: set[str] = set()
+        # One record per marker (signal, SHA); every distinct sighting under it
+        # is checked against that record, so a second red run on a closed
+        # record reopens it.
+        records: dict[str, dict[str, Any]] = {}
+        notes_by_issue: dict[Any, list[Any]] = {}
+        seen: set[tuple[str, str]] = set()
         for failure in verdict.failures:
-            if failure.marker in seen:
+            if (failure.marker, _sighting(failure)) in seen:
                 continue
-            seen.add(failure.marker)
-            match = next(
+            seen.add((failure.marker, _sighting(failure)))
+            match = records.get(failure.marker) or next(
                 (i for i in existing if _first_line(i.get("body")) == failure.marker),
                 None,
             )
@@ -967,18 +980,30 @@ def remediate(
                     "file the demotion issue",
                 )
                 created += 1
-                report["issues"].append(json_object(issue).get("number"))
+                filed = json_object(issue).get("number")
+                report["issues"].append(filed)
+                if not isinstance(filed, int):
+                    raise PostMergeWriteError("the filed issue carried no number")
+                records[failure.marker] = {
+                    "number": filed,
+                    "state": "open",
+                    "body": _issue_body(failure),
+                }
+                notes_by_issue[filed] = []
                 continue
+            records[failure.marker] = match
             number = match.get("number")
-            comments = _paginated(
-                f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
-                f"#{number} comments",
-            )
-            notes = [
-                c.get("body")
-                for c in comments
-                if _login_key(json_object(c.get("user")).get("login")) in filers
-            ]
+            if number not in notes_by_issue:
+                comments = _paginated(
+                    f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
+                    f"#{number} comments",
+                )
+                notes_by_issue[number] = [
+                    c.get("body")
+                    for c in comments
+                    if _login_key(json_object(c.get("user")).get("login")) in filers
+                ]
+            notes = notes_by_issue[number]
             if _recorded(failure, match, notes):
                 continue
             if match.get("state") != "open":
@@ -996,6 +1021,7 @@ def remediate(
                     f"reopen #{number}",
                 )
                 report["reopened"].append(number)
+                records[failure.marker] = {**match, "state": "open"}
             _write(
                 [
                     "api",
@@ -1008,6 +1034,7 @@ def remediate(
                 f"comment on #{number}",
             )
             report["comments"].append(number)
+            notes.append(f"{FAILURE_NOTE}{_sighting(failure)}")
     except (PostMergeReadError, PostMergeWriteError) as exc:
         report["errors"].append(f"demotion issue: {exc}")
 
