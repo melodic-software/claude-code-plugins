@@ -169,15 +169,19 @@ never/core/unknown promote warning in that report, never silently drop them.
   specify one.
 - **Do not pass `isolation: "worktree"` on the audit forks.** The audit must
   read the working tree as it is now, uncommitted work included, so the forks
-  run in this checkout. A worktree also would not bound a write addressed by an
-  absolute path, and inherited history is full of absolute paths. It trades a
-  real loss of audit fidelity for partial containment.
+  run in this checkout. Inherited history is full of absolute paths into this
+  checkout, and a worktree bounds only some writes to them, so it trades a real
+  loss of audit fidelity for partial containment.
   - **Pointer**: when deciding whether a subagent worktree would show the
     uncommitted work, fetch
-    <https://code.claude.com/docs/en/worktrees#choose-the-base-branch> live.
+    <https://code.claude.com/docs/en/worktrees#choose-the-base-branch> live;
+    for which writes into this checkout a worktree refuses, fetch
+    <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation>
+    live.
   - **As of**: 2026-10-11
   - **Recheck trigger**: that section starts carrying uncommitted changes into
-    a subagent worktree.
+    a subagent worktree, or the enforcement section starts refusing shell
+    commands that write into the main checkout.
 - **The preflight is the guard, not an optimization.** Skipping it does not
   make the sweep cheaper. It makes every ledger unfalsifiable, and the
   batched pass's step 4 writes those ledgers' remedies to the working tree.
