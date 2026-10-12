@@ -10,13 +10,15 @@ indexes the other operations.
 The spoke's Checkout And Push Invariants:
 
 - The true PR head is `gh pr view <N> --json headRefOid`.
-- The PR checkout is `gh pr checkout`. It configures the remote the branch pushes to, and a
-  coincidental same-tip match on another local branch heals by running it.
-- Same-repo or fork comes from `gh pr view --json isCrossRepository`.
-- The head repository's own URL is `gh api repos/<nameWithOwner> --jq .html_url`;
-  `gh pr view --json headRepository` exposes no URL.
-- Git's push-time URL rewrites (`url.<base>.pushInsteadOf` and similar) do not arise from the
-  documented `gh pr checkout` flow.
+- The PR checkout is `gh pr checkout`, and a coincidental same-tip match on another local branch
+  heals by running it. The remote it configures is never pushed to.
+- Same-repo or fork comes from `gh pr view --json isCrossRepository`, and a fork head's owner from
+  `gh pr view --json headRepositoryOwner`.
+- The push is `push-branch.sh --dir <checkout> --pr <N>`. In a lane its destination is
+  `lane-push.sh`'s own read, `gh pr view <N> -R <owner/repo> --json headRepository,headRefName`,
+  from which it builds `https://github.com/<nameWithOwner>.git`; attended, it is the resolved push
+  remote, whose push URLs must each be the PR's head repository on github.com (`gh pr view <N> --json
+  headRepository,headRepositoryOwner`).
 
 ## CLI merge
 
@@ -40,11 +42,6 @@ the queue fields read back (`isInMergeQueue`, `isMergeQueueEnabled`, `mergeQueue
 [`PullRequest` GraphQL object](https://docs.github.com/en/graphql/reference/objects#pullrequest);
 why a PR leaves the queue, the first page's removal section; 2026-10-04. Recheck when a `gh`
 release changes how `gh pr merge` treats a queue base, or the GraphQL schema changes a queue field.
-
-## Merge-lane auto-merge arm
-
-The arm the spoke's Merge-lane auto-merge section allows, in place of a hold:
-`gh pr merge <N> --auto --squash --match-head-commit <pin>`.
 
 ## Rerun a rate-limited review
 

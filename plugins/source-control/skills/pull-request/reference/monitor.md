@@ -189,7 +189,7 @@ the values you mean, never on the complement:
 
 **When NO other open PRs found:** report `No other open PRs need attention.` and let the session idle.
 
-**Monitor does the work; it does not report and wait.** Evaluate comments (explore, research, classify), react, reply, fix VALID findings, and push. Pause for user input only at explicit decision gates: a CI fix with multiple viable approaches, and merge confirmation. Do not ask whether to start evaluating; the invocation already answered that. Run the full 3.1-3.4 workflow on every iteration with state changes.
+**Monitor does the work; it does not report and wait.** Evaluate comments (explore, research, classify), react, reply, fix VALID findings, and push. Every push in this phase is `bash "<skill-dir>/scripts/push-branch.sh" --pr <pr_number>` (plus `--dir <checkout>` for a fork head in a lane), never a bare `git push`, so a lane's push goes through `lane-push.sh` ([ready-for-review.md](ready-for-review.md) 2.5.4). Pause for user input only at explicit decision gates: a CI fix with multiple viable approaches, and merge confirmation. Do not ask whether to start evaluating; the invocation already answered that. Run the full 3.1-3.4 workflow on every iteration with state changes.
 
 ## 3.1 Monitoring loop (per-push)
 
