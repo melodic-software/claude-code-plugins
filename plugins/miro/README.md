@@ -116,12 +116,14 @@ old prefix.
 
 - **Pointer**: when the two servers both run, or a permission rule stops matching, fetch
   [MCP: Plugin-provided MCP servers](https://code.claude.com/docs/en/mcp#plugin-provided-mcp-servers)
-  (tool-name prefixes) and
+  (tool-name prefixes),
   [MCP: Scope hierarchy and precedence](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence)
-  (when servers are deduplicated, and where a disabled server is recorded) live.
+  (when servers are deduplicated) and
+  [MCP: Disable a server without removing it](https://code.claude.com/docs/en/mcp#disable-a-server-without-removing-it)
+  (where `/mcp` records a disabled server, which is why the step repeats per project) live.
 - **As of**: 2026-10-11
-- **Recheck trigger**: either section changes the plugin tool-name prefix, the deduplication
-  rule, or the scope of a disabled-server choice.
+- **Recheck trigger**: any of those sections changes the plugin tool-name prefix, the
+  deduplication rule, or the scope of a disabled-server choice.
 
 `event-storming` 0.6.14 and later detect Miro under either prefix, so its live-board path keeps
 working with this override. Earlier versions probe only `mcp__plugin_miro_miro__*` and fall back

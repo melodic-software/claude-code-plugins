@@ -26,7 +26,7 @@ against those sources before relying on a time-sensitive detail; the platform mo
   `<pre class="mermaid">` block.
 - **Bundled mermaid runtime: 11.16.1** (probed behavior; no docs page names the
   runtime). Our read of the installed Claude Code 2.1.260 binary found the publish
-  path injecting a mermaid 11.16.1 runtime into the page. Re-read the installed
+  path injecting `/_runtime/mermaid-11.16.1.min.js` into the page. Re-read the installed
   binary before relying on the number.
   - **Pointer**: probe: the binary string read recorded in pull request #3729.
   - **As of**: 2026-09-04
