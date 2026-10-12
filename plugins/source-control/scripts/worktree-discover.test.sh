@@ -63,7 +63,7 @@ run_disc() {
   local global="$1" ghq="$2"
   shift 2
   OUT="$(cd "$UNRELATED" && HOME="$T/home" GIT_CONFIG_GLOBAL="$global" REPO_FLEET_GHQ_BIN="$ghq" \
-    bash "$DISCOVER" "$@" 2>"$T/err")"
+    CLAUDE_PROJECT_DIR="${PROJ:-}" bash "$DISCOVER" "$@" 2>"$T/err")"
   RC=$?
   ERR="$(cat "$T/err")"
 }
@@ -109,7 +109,51 @@ mkdir -p "$T/home/.claude"
 git config --file "$T/home/.claude/repo-fleet-hygiene.conf" fleet.repo "$C"
 run_disc "$GLOBAL" "$T/bin/no-ghq"
 assert_eq "user-global fleet config names a repository" $'repo\t'"$C"$'\t0' "$(rows repo "$C")"
+run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
+assert_eq "named repositories replace the configured scope" "" "$(rows repo "$C")"
+
+# The project-scoped config outranks the user-global one, as in the fleet audit.
+mkrepo "$FLEET/github.com/o/e"
+E="$(top "$FLEET/github.com/o/e")"
+mkdir -p "$T/proj/.claude"
+git config --file "$T/proj/.claude/repo-fleet-hygiene.conf" fleet.repo "$E"
+PROJ="$T/proj"
+run_disc "$GLOBAL" "$T/bin/no-ghq"
+assert_eq "project fleet config names a repository" $'repo\t'"$E"$'\t0' "$(rows repo "$E")"
+assert_eq "project fleet config shadows the user-global one" "" "$(rows repo "$C")"
+# shellcheck disable=SC2016
+PROJ='${CLAUDE_PROJECT_DIR}'
+run_disc "$GLOBAL" "$T/bin/no-ghq"
+assert_eq "an unexpanded project directory falls to the user-global config" \
+  $'repo\t'"$C"$'\t0' "$(rows repo "$C")"
+PROJ=""
 rm -f "$T/home/.claude/repo-fleet-hygiene.conf"
+
+# A repository found only by the root scan has its own root resolved and scanned.
+mkrepo "$FLEET/github.com/o/d"
+D="$(top "$FLEET/github.com/o/d")"
+ROOT3="$T/root3"
+mkdir -p "$ROOT3"
+git -C "$D" worktree add -q -b wd "$ROOT/d-wt" >/dev/null 2>&1
+git -C "$D" worktree add -q -b wd3 "$ROOT3/d-wt3" >/dev/null 2>&1
+git -C "$D" config worktreeroot.path "$ROOT3"
+run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
+assert_eq "an owner found by the scan contributes its root" $'root\t'"$ROOT3"$'\tgit-config' \
+  "$(rows root "$ROOT3")"
+assert_eq "that root is scanned" $'worktree\t'"$ROOT3/d-wt3"$'\t'"$D" "$(rows worktree "$ROOT3/d-wt3")"
+git -C "$D" worktree remove --force "$ROOT/d-wt" >/dev/null 2>&1
+
+# A path holding a tab cannot be a TSV field: skipped, with a warning.
+TABBED="$ROOT/tab"$'\t'"wt"
+if git -C "$A" worktree add -q -b wtab "$TABBED" >/dev/null 2>&1; then
+  run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
+  assert_eq "every row keeps three fields" "" \
+    "$(printf '%s\n' "$OUT" | awk -F'\t' 'NF != 3')"
+  assert_contains "the skipped path is named on stderr" "$ERR" "tab or newline"
+  git -C "$A" worktree remove --force "$TABBED" >/dev/null 2>&1
+else
+  skip_case "a directory name holding a tab is not creatable on this host"
+fi
 
 # Rungs below the git key: the plugin option, then the plugin data directory.
 printf '%s' "$T/opt-root" >"$T/fallback"

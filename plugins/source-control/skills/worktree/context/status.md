@@ -46,7 +46,7 @@ rm -rf "<root_dir>"
 exit "$status"
 ```
 
-It resolves every worktree root with the chain `worktree-create.sh` uses, discovers repositories the way `/repo-fleet-hygiene:audit` does when given no scope, and prints tab-separated rows: `root <path> <rung>`, `repo <path> <linked-count>`, and `worktree <path> <owning-repo>` (`-` when git cannot resolve an owner). Exit 3 means no root resolved: report it, then continue with the `repo` rows, since worktrees outside a root still count. Pass `--repo-dir <path>` (repeatable) to limit discovery to repositories the user named.
+It resolves every worktree root with the chain `worktree-create.sh` uses, discovers repositories the way `/repo-fleet-hygiene:audit` does when given no scope, and prints tab-separated rows: `root <path> <rung>`, `repo <path> <linked-count>`, and `worktree <path> <owning-repo>` (`-` when git cannot resolve an owner). Exit 3 means no root resolved: report it, then continue with the `repo` rows, since worktrees outside a root still count. Pass `--repo-dir <path>` (repeatable) when the user named repositories: they replace the configured and discovered scope, though a repository owning a worktree under a resolved root is still listed, because the root scan needs it.
 
 Run the data collection above once per `repo` row whose linked count is above 0, passing the repository explicitly to every command (`git -C <repo> log ...`, the PR list against that repository), and present one table per repository under a `### <repo>` heading. List each `worktree` row with owner `-` under its own heading; the audit root scan classifies it.
 

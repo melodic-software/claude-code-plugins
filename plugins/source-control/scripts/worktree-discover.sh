@@ -6,11 +6,13 @@
 # Usage:
 #   worktree-discover.sh [--repo-dir REPO]... [--fallback-root-file PATH]
 #                        [--data-root-file PATH]
-#     --repo-dir            a repository to include (repeatable); with none, and
-#                           no fleet.root/fleet.repo in the user-global
-#                           ~/.claude/repo-fleet-hygiene.conf, repositories come
-#                           from the same no-scope ladder the fleet audit uses
-#                           (ghq roots, then an ancestor holding 2+ repositories)
+#     --repo-dir            a repository to inventory (repeatable). When given,
+#                           only these repositories are discovered. Otherwise the
+#                           fleet audit's scope applies: fleet.root/fleet.repo
+#                           from $CLAUDE_PROJECT_DIR/.claude/repo-fleet-hygiene.conf,
+#                           else ~/.claude/repo-fleet-hygiene.conf, else its
+#                           no-scope ladder (ghq roots, then an ancestor holding
+#                           2+ repositories)
 #     --fallback-root-file  the worktree_root plugin option, as worktree-create.sh
 #     --data-root-file      the plugin data directory, as worktree-create.sh
 #
@@ -26,7 +28,9 @@
 #                                   git cannot resolve one (worktree-root-scan.sh
 #                                   classifies those)
 # A repository that owns a worktree under a root is listed even when discovery
-# did not reach it.
+# did not reach it, and its own root is resolved and scanned in turn. A path
+# holding a tab or newline cannot be a TSV field: it is skipped with a warning
+# on stderr.
 #
 # Exit codes:
 #   0  inventory printed
@@ -103,13 +107,21 @@ SKIP_NAMES=()
 SKIP_APPEND_NAMES=()
 FLEET_CONFIG_ROOTS=()
 FLEET_CONFIG_REPOS=()
-conf="${HOME:-${USERPROFILE:-}}/.claude/repo-fleet-hygiene.conf"
-if [[ -f "$conf" ]]; then
+# The fleet audit's config ladder: the project-scoped file, then the user-global
+# one. A literal ${...} that survived substitution is no project directory.
+project_dir="${CLAUDE_PROJECT_DIR:-}"
+# shellcheck disable=SC2016  # the literal token, not an expansion
+[[ "$project_dir" == '${'* ]] && project_dir=""
+conf=""
+for f in ${project_dir:+"$project_dir/.claude/repo-fleet-hygiene.conf"} \
+  "${HOME:-${USERPROFILE:-}}/.claude/repo-fleet-hygiene.conf"; do
+  [[ -f "$f" ]] && conf="$f" && break
+done
+if [[ -n "$conf" ]]; then
   git config --file "$conf" --list >/dev/null 2>&1 || fail "invalid Git config: $conf"
-  fleet_load_config_scope "$conf" "${conf%/*}"
   fleet_load_config_skip "$conf"
-else
-  conf=""
+  # Named repositories replace the configured scope rather than adding to it.
+  [[ ${#named[@]} -gt 0 ]] || fleet_load_config_scope "$conf" "${conf%/*}"
 fi
 fleet_finalize_skip_names
 fleet_resolve_max_depth "" "$conf"
@@ -117,13 +129,14 @@ fleet_resolve_max_depth "" "$conf"
 candidates=(${named[@]+"${named[@]}"} ${FLEET_CONFIG_REPOS[@]+"${FLEET_CONFIG_REPOS[@]}"})
 search_roots=(${FLEET_CONFIG_ROOTS[@]+"${FLEET_CONFIG_ROOTS[@]}"})
 if [[ ${#candidates[@]} -eq 0 && ${#search_roots[@]} -eq 0 ]]; then
+  # shellcheck disable=SC2119  # no named paths reach this branch
   while IFS=$'\t' read -r kind value; do
     case "$kind" in
     repo) candidates+=("$value") ;;
     root) search_roots+=("$value") ;;
     *) ;;
     esac
-  done < <(scope_resolve_fallback ${named[@]+"${named[@]}"} || true)
+  done < <(scope_resolve_fallback || true)
 fi
 
 fleet_on_repo() { candidates+=("$1"); }
@@ -148,8 +161,15 @@ owner_of() {
     printf '%s' "$common"
   fi
 }
+# tsv_safe <path>: false, with a warning, when <path> cannot be a TSV field.
+tsv_safe() {
+  [[ "$1" != *$'\t'* && "$1" != *$'\n'* ]] && return 0
+  printf '%s: skipped a path holding a tab or newline: %q\n' "$PROG" "$1" >&2
+  return 1
+}
 add_repo() {
   local r
+  tsv_safe "$1" || return 0
   for r in ${repos[@]+"${repos[@]}"}; do
     [[ "$r" == "$1" ]] && return 0
   done
@@ -165,6 +185,7 @@ rungs=()
 add_root() {
   local p="${1//\\//}" i
   while [[ ${#p} -gt 1 && "$p" == */ ]]; do p="${p%/}"; done
+  tsv_safe "$p" || return 0
   for i in ${roots[@]+"${!roots[@]}"}; do
     [[ "${roots[$i]}" == "$p" ]] && return 0
   done
@@ -184,25 +205,35 @@ rest_of_chain() {
   fi
 }
 if [[ -n "$machine_key" ]]; then add_root "$machine_key" git-config; else rest_of_chain; fi
-for r in ${repos[@]+"${repos[@]}"}; do
-  # shellcheck disable=SC2310  # unset is an answer, handled by the else arm
-  if worktree_root_resolve "$r"; then
-    add_root "$WORKTREE_ROOT_VALUE" git-config
-  else
-    rest_of_chain
-  fi
-done
 
-# --- Worktrees under each root -----------------------------------------------
+# --- Resolve each repository's root and scan each root, until neither grows --
+# A root scan can find an owner discovery missed, whose own root may differ.
 wt_rows=""
-for root in ${roots[@]+"${roots[@]}"}; do
-  [[ -d "$root" ]] || continue
-  for d in "$root"/* "$root"/.[!.]* "$root"/..?*; do
-    [[ -d "$d" && ! -L "$d" ]] || continue
-    [[ -e "$d/.git" ]] || continue
-    owner="$(GIT_CEILING_DIRECTORIES="$root" owner_of "$d")" || owner="-"
-    [[ "$owner" == - ]] || add_repo "$owner"
-    wt_rows+="worktree"$'\t'"$d"$'\t'"$owner"$'\n'
+resolved=0
+scanned=0
+while [[ $resolved -lt ${#repos[@]} || $scanned -lt ${#roots[@]} ]]; do
+  while [[ $resolved -lt ${#repos[@]} ]]; do
+    # shellcheck disable=SC2310  # unset is an answer, handled by the else arm
+    if worktree_root_resolve "${repos[$resolved]}"; then
+      add_root "$WORKTREE_ROOT_VALUE" git-config
+    else
+      rest_of_chain
+    fi
+    resolved=$((resolved + 1))
+  done
+  while [[ $scanned -lt ${#roots[@]} ]]; do
+    root="${roots[$scanned]}"
+    scanned=$((scanned + 1))
+    [[ -d "$root" ]] || continue
+    for d in "$root"/* "$root"/.[!.]* "$root"/..?*; do
+      [[ -d "$d" && ! -L "$d" ]] || continue
+      [[ -e "$d/.git" ]] || continue
+      tsv_safe "$d" || continue
+      owner="$(GIT_CEILING_DIRECTORIES="$root" owner_of "$d")" || owner="-"
+      if [[ "$owner" != - ]] && ! tsv_safe "$owner"; then owner="-"; fi
+      [[ "$owner" == - ]] || add_repo "$owner"
+      wt_rows+="worktree"$'\t'"$d"$'\t'"$owner"$'\n'
+    done
   done
 done
 
