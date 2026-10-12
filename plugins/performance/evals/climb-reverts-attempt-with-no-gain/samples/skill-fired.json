@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "performance:climb", "args": "template-parses"}}],
+      "why": "the climb skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "performance:snapshot", "args": "post"}}],
+      "why": "a different performance skill"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 ---
-description: "Delegate the task to a fresh background agent that continues it NOW. Produce a save-point, then launch a detached claude --bg session seeded with the resume prompt. Use when: 'continue in the background', 'continue this in the background', 'keep working in the background', 'delegate to a background agent', or the user is going AFK and explicitly wants the work to keep moving. Launches only on the user's explicit request, never self-elected."
-argument-hint: "[file|prompt] [topic] [purpose...]"
+description: "Delegate the task to a fresh background agent that continues it NOW. Produce a save-point, then launch a detached claude --bg (or --cloud) session seeded with the resume prompt. Use when: 'continue in the background', 'continue this in the background', 'keep working in the background', 'delegate to a background agent', or the user is going AFK and explicitly wants the work to keep moving. Launches only on the user's explicit request, never self-elected."
+argument-hint: "[--cloud] [file|prompt] [topic] [purpose...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Delegate the task to a fresh background agent now
 ---
 
-**Arguments.** `[file|prompt] [topic] [purpose...]`. e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended
+**Arguments.** `[--cloud] [file|prompt] [topic] [purpose...]`. e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended, /continue-in-background --cloud prompt fix-flaky-test
 
 ## Context. Gather first
 
@@ -43,8 +43,9 @@ for the launch or run `/session-flow:continue-in-background` themselves.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[file|prompt] [topic] [purpose...]`, all optional and positional, with the
-same semantics as `handoff`: method (`file` | `prompt`) recognized only as the first token,
+`$ARGUMENTS` carries `[--cloud] [file|prompt] [topic] [purpose...]`, all optional and positional.
+A leading `--cloud` selects the cloud delivery below and is consumed before the rest parses. The
+rest has the same semantics as `handoff`: method (`file` | `prompt`) recognized only as the first token,
 otherwise auto-detect; topic is the kebab slug for the save-point filename, inferred when omitted;
 everything after the topic token is optional natural-language purpose text ("what will the next
 session be used for?"), no quoting, no new syntax, invocations without it parse exactly as
@@ -171,6 +172,49 @@ fallback), then:
 5. **STOP.** The background agent is the continuation; this session terminates the task. Do not
    monitor, poll, or babysit the launched agent, and do not start new work items.
 
+## Delivery variant: `--cloud`
+
+Same hard gate, save-point, rails payload, prompt file, failure fallback and STOP, plus one more
+condition: the user's own words asked for a cloud session. A request for background work alone
+does not cover it; without that, drop `--cloud` and take the local delivery. Steps 1 to 3
+change, because this skill launches a cloud session only from a clean checkout whose branch
+matches its remote:
+
+1. **Only pushed work reaches it.** Launch only when `git status --porcelain -uall` lists nothing
+   but save-point files (the linked-worktree exception does not apply), `git fetch --quiet` then
+   succeeds, and `git rev-parse HEAD` equals `git rev-parse @{upstream}`; the fetch keeps a stale
+   tracking ref from passing the check. No upstream, a failed command, or any other result → no
+   launch; fall back as the dirty case does and name commit-and-push as the fix. Upstream can
+   also bundle a repo in some cases (Pointer below). This skill does not take that path, so the
+   cloud session starts from pushed state; a user who wants a bundle starts `claude --cloud`
+   themselves. A
+   handoff file in the memory tier never reaches the VM, and the full path's `Read @` names a
+   local path, so launch only on the prompt-only path. When the save-point takes the full path,
+   forced or by default, do not launch: tell the user to commit and push the handoff or plan,
+   then rerun as `--cloud prompt <topic> <purpose naming its repo-relative path>`. This skill
+   commits nothing.
+2. **Launch** from the project root with the prompt file:
+   `claude --cloud "$(cat "<prompt-file>")" && rm -f "<prompt-file>"`, with `--effort "<level>"`
+   before the prompt argument when "What the launched session inherits" calls for one. If the CLI
+   rejects `--effort` with `--cloud`, relaunch without it and have the report name the level and
+   tell the user to send `/effort <level>` in the session.
+3. **Report** the session id and link it prints, plus the return paths: `claude --teleport <id>`
+   or `/teleport` to continue it in a terminal (its requirements: Pointer below), which needs the
+   same account; `claude -p "<message>" --cloud <id>` to queue a follow-up. Name
+   the account the CLI is signed in to now: the session draws that account's limits, teleport and
+   follow-ups fail after the CLI switches accounts, and the repo's plugins load only when that
+   account's cloud environment runs the repo's setup script.
+
+- **Pointer**: <https://code.claude.com/docs/en/claude-code-on-the-web#start-a-cloud-session-from-your-terminal>,
+  <https://code.claude.com/docs/en/claude-code-on-the-web#send-local-repositories-without-github>,
+  <https://code.claude.com/docs/en/claude-code-on-the-web#manage-context> (`/effort` in a session),
+  <https://code.claude.com/docs/en/claude-code-on-the-web#continue-a-cloud-session-in-your-terminal>,
+  <https://code.claude.com/docs/en/claude-code-on-the-web#send-follow-ups-from-the-cli>; what the
+  session lacks: <https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup>.
+- **As of**: 2026-10-11
+- **Recheck trigger**: any of those sections changes what the VM clones or bundles, the `--cloud`,
+  `--teleport` or follow-up syntax, or teleport's requirements.
+
 ## What the launched session inherits (and what it does not)
 
 The launched agent is a NEW session, not a fork of this one. What it inherits is upstream
@@ -243,6 +287,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
   whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts
   at its default level
+- [ ] `--cloud` only: clean tree, fetched branch matching its upstream, prompt-only payload,
+  `--effort` passed as for `--bg` (CLI rejects it → relaunched without, `/effort` advised); the
+  report names the session id, the teleport and follow-up commands, and the signed-in account
 - [ ] **EXECUTION STOPS HERE**, no monitoring, no babysitting, no new work items
 
 ## Boundary, native Claude Code surfaces

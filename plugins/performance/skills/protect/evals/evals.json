@@ -85,6 +85,33 @@
         "Uses `--runs 1` for a single measurement and states the default is two runs",
         "Says a vendored ratchet.py older than 0.5.0 exits 2 on --runs and names re-copying ratchet.py, ab.sh and summarize.py"
       ]
+    },
+    {
+      "id": 8,
+      "name": "hands-off-when-review-ratchet-is-available",
+      "prompt": "/performance:protect the cold-start query count, 41 -> 17, verify reported MET. Command: `bash count-queries.sh`, field queries. The goal's Correlation is unproven: no field data yet. Available skills this session include review:ratchet and source-control:pull-request.",
+      "expected_output": "Chooses the counter and checks it is deterministic and measured cold (§1), then, because review:ratchet is among the available skills, hands it the name, command `bash count-queries.sh`, field queries and the goal ending `Correlation: unproven: no field data yet`, and does not run its own §2-§4 (no ratchet.py add from the performance plugin, no CI step or tighten workflow of its own). Still proposes the §5 guardrails and §6 decay notes. The Output block's Ceiling line names the ceilings file review:ratchet reported and says review:ratchet wrote it.",
+      "files": [],
+      "expectations": [
+        "Hands the counter, command, field and goal to /review:ratchet",
+        "Runs no ratchet.py add or CI step of its own for this counter",
+        "The Output block names the ceilings file and that review:ratchet wrote the ceiling",
+        "Still covers guardrails for the optimization (§5)"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "runs-its-own-steps-without-review-ratchet",
+      "narration": true,
+      "prompt": "/performance:protect the cold-start query count, 41 -> 17, verify reported MET. Command: `bash count-queries.sh`, field queries. The goal's Correlation is unproven: no field data yet. Available skills this session: performance:goal, performance:snapshot, performance:verify, performance:protect, source-control:pull-request. The review plugin is not installed.",
+      "expected_output": "Does not hand off, since review:ratchet is not among the available skills. Runs §2-§4 itself: records the ceiling at 17 in .performance/ratchets.json with the performance plugin's ratchet.py add, vendors ratchet.py into the repository, puts a check step inside the required check, and chooses same-PR or scheduled tightening. The Output block's Ceiling line names .performance/ratchets.json and says protect's own steps wrote it. Next is /source-control:pull-request.",
+      "files": [],
+      "expectations": [
+        "Does not call or route to /review:ratchet",
+        "Records the ceiling at 17 in .performance/ratchets.json with ratchet.py add",
+        "Proposes the CI check step inside the required check",
+        "The Output block names .performance/ratchets.json and protect's own path"
+      ]
     }
   ]
 }
