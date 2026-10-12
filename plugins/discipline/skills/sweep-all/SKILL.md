@@ -170,8 +170,8 @@ never/core/unknown promote warning in that report, never silently drop them.
 - **Do not pass `isolation: "worktree"` on the audit forks.** The audit must
   read the working tree as it is now, uncommitted work included, so the forks
   run in this checkout. Inherited history is full of absolute paths into this
-  checkout, and a worktree bounds only some writes to them, so it trades a real
-  loss of audit fidelity for partial containment.
+  checkout; how much of that a worktree would contain is the second pointer's to
+  say, while the loss of audit fidelity is certain, so the forks stay here.
   - **Pointer**: when deciding whether a subagent worktree would show the
     uncommitted work, fetch
     <https://code.claude.com/docs/en/worktrees#choose-the-base-branch> live;
