@@ -142,14 +142,29 @@ async page => {
 
   // medium widths: the agrid stays two columns down to 900 px, the rail cut is marked, nothing widens the page
   await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);
-  for (const [w, h] of [[1440, 900], [1000, 800]]) { // the dock never starves the question, and the choices never scroll inside it
+  for (const [w, h] of [[1440, 900], [1000, 800], [1000, 640]]) { // the dock never starves the question, Save sits in a footer, and no choice renders behind or below it
     await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(250);
     const m = await page.evaluate(() => { const c = document.getElementById("choices"), d = document.getElementById("dscroll"), main = document.querySelector("main.detail"), save = document.querySelector("[data-save]").getBoundingClientRect(), dock = document.getElementById("answer").getBoundingClientRect();
       return {choicesScroll: c.scrollHeight > c.clientHeight + 1, detail: d.clientHeight, main: main.clientHeight, saveShown: save.top >= dock.top && save.bottom <= dock.bottom + 1}; });
-    ok("at " + w + "x" + h + " the question keeps at least 40% of the pane, every choice shows without its own scroller, and Save is in view", !m.choicesScroll && m.detail >= 0.4 * m.main && m.saveShown, JSON.stringify(m));
-    const clr = await page.evaluate(() => { const a = document.getElementById("answer"); a.scrollTop = a.scrollHeight; const cs = document.querySelectorAll("#choices .choice"), l = cs[cs.length - 1].getBoundingClientRect(), s = document.getElementById("decideRow").getBoundingClientRect(), dock = a.getBoundingClientRect(); a.scrollTop = 0;
-      return {last: [Math.round(l.top), Math.round(l.bottom)], save: [Math.round(s.top), Math.round(s.bottom)], dock: [Math.round(dock.top), Math.round(dock.bottom)], clear: l.bottom <= s.top + 0.5 && l.top >= dock.top - 0.5}; });
-    ok("at " + w + "x" + h + " scrolled to the end, the last choice sits fully clear of the pinned Save bar", clr.clear, JSON.stringify(clr));
+    ok("at " + w + "x" + h + " the question keeps at least 40% of the pane and Save is in view" + (w === 1440 ? ", with every choice shown unscrolled" : ""), (w !== 1440 || !m.choicesScroll) && m.detail >= 0.4 * m.main && m.saveShown, JSON.stringify(m));
+    const bad = await page.evaluate(() => { // each choice's rect clipped to every scroll container above it, at rest and scrolled to the end
+      const a = document.getElementById("answer"), c = document.getElementById("choices"), out = [];
+      const check = when => {
+        const s = document.getElementById("decideRow").getBoundingClientRect();
+        document.querySelectorAll("#choices .choice").forEach((el, i) => {
+          let r = el.getBoundingClientRect(), top = r.top, bot = r.bottom;
+          for (const p of [c, a]) { const b = p.getBoundingClientRect(); top = Math.max(top, b.top); bot = Math.min(bot, b.bottom); }
+          if (bot - top <= 0.5) return;
+          if (top < s.bottom - 0.5 && bot > s.top + 0.5) out.push(when + " #" + (i + 1) + " behind Save [" + Math.round(top) + "," + Math.round(bot) + "] vs [" + Math.round(s.top) + "," + Math.round(s.bottom) + "]");
+          else if (top >= s.bottom - 0.5) out.push(when + " #" + (i + 1) + " below Save at " + Math.round(top));
+        });
+      };
+      a.scrollTop = 0; c.scrollTop = 0; check("rest");
+      a.scrollTop = a.scrollHeight; c.scrollTop = c.scrollHeight; check("end");
+      a.scrollTop = 0; c.scrollTop = 0;
+      return out;
+    });
+    ok("at " + w + "x" + h + " no choice renders behind or below Save, at rest or scrolled to the end", bad.length === 0, bad.join("; "));
   }
   for (const w of [1024, 820]) {
     await page.setViewportSize({width: w, height: 860}); await page.waitForTimeout(250);

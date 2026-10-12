@@ -238,7 +238,7 @@ ol.hist li.undone .hb{text-decoration:line-through;color:var(--faint)}
 .rcpt span.no{color:var(--chg)}
 .empty{color:var(--faint);font-size:14px}
 
-section.answer{border-top:1px solid var(--line-strong);background:var(--panel);padding:10px var(--pad) 10px;display:grid;align-content:start;gap:8px;min-height:0;overflow-y:auto;overscroll-behavior:contain;box-shadow:0 -6px 14px -12px rgba(0,0,0,.25)}
+section.answer{border-top:1px solid var(--line-strong);background:var(--panel);padding:10px var(--pad) 10px;display:flex;flex-direction:column;gap:8px;min-height:0;overflow-y:auto;overscroll-behavior:contain;box-shadow:0 -6px 14px -12px rgba(0,0,0,.25)}
 section.answer[hidden]{display:none}
 .cur{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13.5px;min-height:22px}
 .cur q{color:var(--muted)}
@@ -246,11 +246,13 @@ section.answer[hidden]{display:none}
 .cur .earlier{flex:1 0 100%;display:grid;gap:2px;max-height:9em;overflow-y:auto;overflow-wrap:anywhere}
 .cur .earlier q{white-space:pre-wrap;color:var(--ink)}
 .cur .aside-why{flex:1 1 20em}
-.agrid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px;align-items:start}
+.agrid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:14px;flex:1 1 auto;min-height:0}
+.compose{align-content:start}
+fieldset.decide{display:flex;flex-direction:column;min-height:0}
 fieldset{border:1px solid var(--line);border-radius:6px;margin:0;padding:6px 10px 8px;min-width:0}
 legend{font:500 11.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:0 4px}
-.choices{display:grid;gap:4px;padding:2px}
-#decideRow{position:sticky;bottom:0;background:var(--panel);padding:6px 0;margin-top:2px;z-index:1;box-shadow:0 -1px 0 var(--line),0 -8px 10px -8px rgba(0,0,0,.2)}
+.choices{display:grid;align-content:start;gap:4px;padding:2px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+#decideRow{flex:none}
 .choice{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;padding:4px 8px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:13.5px}
 .choice:hover{border-color:var(--line-strong)}
 .choice input{margin:0;accent-color:var(--accent)}
@@ -353,7 +355,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 .flash{animation:flash 1.8s ease-out}
 @keyframes flash{0%{box-shadow:0 0 0 3px var(--chg);background-color:var(--chg-soft)}100%{box-shadow:0 0 0 0 transparent}}
 
-@media (max-width:900px){ .agrid{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:900px){ .agrid{grid-template-columns:minmax(0,1fr);grid-template-rows:none;flex:none} .choices{overflow:visible} }
 @media (max-width:820px){
   body{overflow:auto}
   .app{height:auto;min-height:100vh}
