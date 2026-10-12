@@ -2816,7 +2816,17 @@ jobs:
   # queue. That is still safe. A non-human entry ahead that edits the policy or
   # its config fails its own recheck on the HIGH floor, and ALLGREEN rebuilds
   # the groups behind it without it; a human-enqueued one is a human changing
-  # the rule. A base older than the recheck has no rule yet and passes. An
+  # the rule. The human test needs the configured identity, so an unreadable
+  # pr-pipeline.yaml at the base fails a human entry too.
+  #
+  # The merge-group GITHUB_TOKEN gets 403 from the Actions-variables API, so
+  # the rung cap and both kill switches come from the vars context
+  # (`--vars-context`); unset fails closed (cap off, switch refuses). That
+  # context merges organization and repository variables, the repository's
+  # winning, so CI cannot see a repository CLAUDE_LANES_DISABLED shadowing the
+  # organization switch; the local wrapper reads the API and refuses a shadow.
+  #
+  # A base older than the recheck has no rule yet and passes. An
   # unreadable answer (exit 2) is retried up to three runs, a failure (exit 1)
   # never. Every other event skips the job, and `ci-status` passes that skip
   # only off the merge queue. Pinned by scripts/ci-unattended-recheck.test.sh,
@@ -2843,6 +2853,8 @@ jobs:
           BASE_SHA: ${{ github.event.merge_group.base_sha }}
           BASE_REF: ${{ github.event.merge_group.base_ref }}
           LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}
+          REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
         run: |
           pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
           if [ -z "$pr" ]; then
@@ -2858,6 +2870,7 @@ jobs:
             rc=0
             python3 "$policy" recheck --repo "$GITHUB_REPOSITORY" --pr "$pr" \
               --base-sha "$BASE_SHA" --base-ref "${BASE_REF#refs/heads/}" \
+              --vars-context --rung-cap "$RUNG_CAP" --repo-disabled "$REPO_DISABLED" \
               --lanes-disabled "$LANES_DISABLED" || rc=$?
             if [ "$rc" -ne 2 ] || [ "$attempt" -eq 3 ]; then
               exit "$rc"

@@ -1540,6 +1540,33 @@ def _dependabot_exception(
     return _file_at(owner, name, DEPENDABOT_ENQUEUERS[enqueuer], base_sha) is not None
 
 
+@dataclass(frozen=True)
+class VarsContext:
+    """The rung cap and kill switches as a workflow's `vars` context carries
+    them: `CLAUDE_LANES_MERGE_RUNG_CAP`, `CLAUDE_LANES_REPO_DISABLED` and
+    `CLAUDE_LANES_DISABLED` (organization and repository merged, the
+    repository's winning, so a repository shadow cannot be told apart). A
+    merge-group GITHUB_TOKEN cannot read the Actions-variables API. An unset
+    variable is the empty string and fails closed: the cap is off, a switch
+    refuses."""
+
+    rung_cap: str
+    repo_disabled: str
+    lanes_disabled: str
+
+    def cap(self) -> RungCap:
+        if self.rung_cap in RUNG_RANK:
+            return RungCap(self.rung_cap, "cap-set")
+        return RungCap("off", "cap-invalid" if self.rung_cap else "cap-unset")
+
+    def kill_switch(self) -> KillSwitch:
+        if self.lanes_disabled != "false":
+            return KillSwitch(False, "org-switch-not-false")
+        if self.repo_disabled != "false":
+            return KillSwitch(False, "repo-switch-not-false")
+        return KillSwitch(True, "proceed")
+
+
 def recheck(
     repo: str,
     number: int,
@@ -1547,6 +1574,7 @@ def recheck(
     *,
     base_ref: str | None = None,
     lanes_disabled: str | None = None,
+    vars_context: VarsContext | None = None,
 ) -> Recheck:
     """The merge-group backstop for one queued pull request.
 
@@ -1559,10 +1587,12 @@ def recheck(
     comment and an opt-in label removed since enqueue. Config is read at
     `base_sha`; nothing is read from the merge group's tree. `lanes_disabled`,
     when given, is `vars.CLAUDE_LANES_DISABLED` and must be exactly `false`.
+    With `vars_context` the rung cap and both kill switches come from it
+    instead of the Actions-variables API, and `lanes_disabled` is unused.
     A read failure is `RECHECK_UNREADABLE`.
     """
     try:
-        return _recheck(repo, number, base_sha, base_ref, lanes_disabled)
+        return _recheck(repo, number, base_sha, base_ref, lanes_disabled, vars_context)
     except PolicyReadError as exc:
         return Recheck(RECHECK_UNREADABLE, (f"unreadable: {exc}",))
 
@@ -1573,6 +1603,7 @@ def _recheck(
     base_sha: str,
     base_ref: str | None,
     lanes_disabled: str | None,
+    vars_context: VarsContext | None,
 ) -> Recheck:
     owner, name = _split_repo(repo)
     config = read_config_at(repo, base_sha)
@@ -1596,7 +1627,7 @@ def _recheck(
     def fail(reason: str) -> Recheck:
         return Recheck(RECHECK_FAIL, (reason,))
 
-    cap = read_rung_cap(repo)
+    cap = vars_context.cap() if vars_context else read_rung_cap(repo)
     demotion = read_demotion(repo, **readers)
     rung = effective_rung(
         config_rung=config.rung,
@@ -1608,10 +1639,10 @@ def _recheck(
         return fail("rung-off:authority")
     if rung.rung == "off":
         return fail(f"rung-off:{rung.limited_by}")
-    kill = read_kill_switch(repo)
+    kill = vars_context.kill_switch() if vars_context else read_kill_switch(repo)
     if not kill.proceed:
         return fail(f"kill-switch:{kill.reason}")
-    if lanes_disabled is not None and lanes_disabled != "false":
+    if not vars_context and lanes_disabled is not None and lanes_disabled != "false":
         return fail("kill-switch:vars.CLAUDE_LANES_DISABLED")
     if not identity or not IDENTITY_RE.fullmatch(identity):
         return fail("agent-identity-unconfigured")
@@ -1682,13 +1713,35 @@ def main(argv: list[str] | None = None) -> int:
     parse.add_argument(
         "--lanes-disabled", help="vars.CLAUDE_LANES_DISABLED; must be exactly 'false'"
     )
+    parse.add_argument(
+        "--vars-context",
+        action="store_true",
+        help="take the rung cap and kill switches from --rung-cap, --repo-disabled "
+        "and --lanes-disabled (a workflow's vars context), not the variables API",
+    )
+    parse.add_argument("--rung-cap", help="vars.CLAUDE_LANES_MERGE_RUNG_CAP")
+    parse.add_argument("--repo-disabled", help="vars.CLAUDE_LANES_REPO_DISABLED")
     args = parser.parse_args(argv)
+    if not args.vars_context and (
+        args.rung_cap is not None or args.repo_disabled is not None
+    ):
+        parse.error("--rung-cap and --repo-disabled need --vars-context")
+    vars_context = (
+        VarsContext(
+            rung_cap=args.rung_cap or "",
+            repo_disabled=args.repo_disabled or "",
+            lanes_disabled=args.lanes_disabled or "",
+        )
+        if args.vars_context
+        else None
+    )
     result = recheck(
         args.repo,
         args.pr,
         args.base_sha,
         base_ref=args.base_ref,
         lanes_disabled=args.lanes_disabled,
+        vars_context=vars_context,
     )
     for reason in result.reasons:
         # A reason can carry a path or login; no control character may start a

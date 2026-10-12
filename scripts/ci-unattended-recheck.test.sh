@@ -196,12 +196,10 @@ EOF
     put issues_7_timeline_per_page_100
   printf '{"permission":"admin"}' | put collaborators_alice_permission
   printf '{"permission":"admin"}' | put collaborators_agent-lanes_permission
-  printf '{"total_count":0,"variables":[]}' | put actions_variables_per_page_1
-  printf '[{"total_count":1,"variables":[{"name":"CLAUDE_LANES_DISABLED","value":"false"}]}]' |
-    put actions_organization-variables_per_page_100
-  printf '{"name":"CLAUDE_LANES_REPO_DISABLED","value":"false"}' | put actions_variables_CLAUDE_LANES_REPO_DISABLED
-  http actions_variables_CLAUDE_LANES_DISABLED 404
-  http actions_variables_CLAUDE_LANES_MERGE_RUNG_CAP 404
+  # The step's vars context. The Actions-variables API answers 403 to a
+  # merge-group GITHUB_TOKEN, so the step reads these instead.
+  CASE_CAP=C2 CASE_REPO=false
+  http actions_variables_per_page_1 403
   local filer
   for filer in github-actions_bot_ agent-lanes_bot_; do
     printf '{"data":{"repository":{"issues":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}}}}' |
@@ -227,7 +225,12 @@ expect() {
   : >"$TMP_ROOT/log"
   out="$(cd "${6:-$TMP_ROOT/ws}" && PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" FIX="$FIX" \
     GITHUB_REF="${4:-$QUEUE}" GITHUB_REPOSITORY=acme/widgets BASE_SHA="$BASE" BASE_REF=refs/heads/main \
-    LANES_DISABLED="${5-false}" GH_TOKEN=stub bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    LANES_DISABLED="${5-false}" RUNG_CAP="$CASE_CAP" REPO_DISABLED="$CASE_REPO" \
+    GH_TOKEN=stub bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+  verdict "$label" "$want_rc" "$want_out" "$rc" "$out"
+}
+verdict() { # verdict <label> <want-rc> <want-out|-> <rc> <out>
+  local label="$1" want_rc="$2" want_out="$3" rc="$4" out="$5"
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ "$want_out" != - && "$out" != *"$want_out"* ]]; then
@@ -240,7 +243,7 @@ called() { grep -q -- "$1" "$TMP_ROOT/log"; }
 # read_terms <label> <yes|no>: whether the run read past the enqueuer.
 read_terms() {
   local read=no
-  if called 'actions/variables'; then read=yes; fi
+  if called PolicyIssuesByAuthor; then read=yes; fi
   if [[ "$read" == "$2" ]]; then ok "$1"; else fail "$1: policy terms read: $read"; fi
 }
 not_called() {
@@ -253,6 +256,13 @@ baseline
 patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.timelineItems.nodes[0] |= (.actor = {"__typename":"User","login":"alice"} | .enqueuer = {"__typename":"User","login":"alice"})'
 expect "a human-enqueued entry passes" 0 "human-enqueued"
 read_terms "a human-enqueued entry reads no policy term" no
+
+# The human test needs the configured identity, so pr-pipeline.yaml at the base
+# is read first; an unreadable one fails a human entry too (fail closed).
+baseline
+patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.timelineItems.nodes[0] |= (.actor = {"__typename":"User","login":"alice"} | .enqueuer = {"__typename":"User","login":"alice"})'
+http "contents_docs_conventions_pr-pipeline.yaml_ref_$BASE" 502
+expect "a human entry fails when the config at the base is unreadable" 2 "unreadable"
 
 baseline
 patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.timelineItems.nodes[0] |= (.actor = {"__typename":"User","login":"agent-lanes"} | .enqueuer = {"__typename":"User","login":"agent-lanes"})'
@@ -307,10 +317,16 @@ baseline
 config "${PIPELINE/local-babysit/pr-merge}"
 first_fail "authority other than local-babysit fails" "rung-off:authority"
 
+# In the step, the rung cap and both kill switches come from the vars context.
 baseline
-printf '{"name":"CLAUDE_LANES_MERGE_RUNG_CAP","value":"off"}' | put actions_variables_CLAUDE_LANES_MERGE_RUNG_CAP
-rm -f "$FIX/actions_variables_CLAUDE_LANES_MERGE_RUNG_CAP.status"
-first_fail "a rung cap of off fails" "rung-off:rungCap"
+expect "the rung cap and switches are read from the vars context" 0 "meets every term"
+not_called actions/variables "the step reads no Actions variable through the API"
+
+for cap in off "" C4; do
+  baseline
+  CASE_CAP="$cap"
+  first_fail "a rung cap of '$cap' fails" "rung-off:rungCap"
+done
 
 baseline
 file_payload $'## babysit_loop_merge\n\nhuman-only\n' | put "contents_.claude_source-control.md_ref_$BASE"
@@ -323,30 +339,70 @@ printf '{"data":{"repository":{"issue":{"number":5,"state":"OPEN","body":"<!-- b
   put graphql-PolicyDemotionRecord-5
 first_fail "an open demotion issue fails" "rung-off:demotion"
 
-baseline
-printf '{"name":"CLAUDE_LANES_REPO_DISABLED","value":"true"}' | put actions_variables_CLAUDE_LANES_REPO_DISABLED
-first_fail "CLAUDE_LANES_REPO_DISABLED not false fails" "kill-switch:repo-switch-not-false"
+for value in true "" False; do
+  baseline
+  CASE_REPO="$value"
+  first_fail "vars.CLAUDE_LANES_REPO_DISABLED '$value' fails" "kill-switch:repo-switch-not-false"
+  baseline
+  expect "vars.CLAUDE_LANES_DISABLED '$value' fails" 1 "kill-switch:org-switch-not-false" "" "$value"
+  not_called PolicyEligibility "vars.CLAUDE_LANES_DISABLED '$value' fails before any other term"
+done
+
+# Run locally (no --vars-context), the recheck keeps the Actions-variables API
+# path and its repository-shadow check.
+api_vars() {
+  rm -f "$FIX/actions_variables_per_page_1.status"
+  printf '{"total_count":0,"variables":[]}' | put actions_variables_per_page_1
+  printf '[{"total_count":1,"variables":[{"name":"CLAUDE_LANES_DISABLED","value":"false"}]}]' |
+    put actions_organization-variables_per_page_100
+  printf '{"name":"CLAUDE_LANES_REPO_DISABLED","value":"false"}' | put actions_variables_CLAUDE_LANES_REPO_DISABLED
+  http actions_variables_CLAUDE_LANES_DISABLED 404
+  http actions_variables_CLAUDE_LANES_MERGE_RUNG_CAP 404
+}
+local_recheck() { # local_recheck <label> <want-rc> <want-out|->
+  local out rc
+  : >"$TMP_ROOT/log"
+  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" FIX="$FIX" GH_TOKEN=stub \
+    python3 "$ROOT/plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py" recheck \
+    --repo acme/widgets --pr 7 --base-sha "$BASE" --base-ref main 2>&1)" && rc=0 || rc=$?
+  verdict "$1" "$2" "$3" "$rc" "$out"
+}
 
 baseline
+api_vars
+local_recheck "locally, the variables API proceeding passes" 0 "meets every term"
+if called actions/variables/CLAUDE_LANES_REPO_DISABLED; then
+  ok "locally, the switches are read through the API"
+else
+  fail "locally, the switches were not read through the API"
+fi
+
+baseline
+api_vars
+printf '{"name":"CLAUDE_LANES_MERGE_RUNG_CAP","value":"off"}' | put actions_variables_CLAUDE_LANES_MERGE_RUNG_CAP
+rm -f "$FIX/actions_variables_CLAUDE_LANES_MERGE_RUNG_CAP.status"
+local_recheck "locally, an API rung cap of off fails" 1 "rung-off:rungCap"
+
+baseline
+api_vars
+printf '{"name":"CLAUDE_LANES_REPO_DISABLED","value":"true"}' | put actions_variables_CLAUDE_LANES_REPO_DISABLED
+local_recheck "locally, CLAUDE_LANES_REPO_DISABLED not false fails" 1 "kill-switch:repo-switch-not-false"
+
+baseline
+api_vars
 printf '[{"total_count":1,"variables":[{"name":"CLAUDE_LANES_DISABLED","value":"true"}]}]' |
   put actions_organization-variables_per_page_100
-first_fail "the org switch not false fails" "kill-switch:org-switch-not-false"
+local_recheck "locally, the org switch not false fails" 1 "kill-switch:org-switch-not-false"
 
 baseline
+api_vars
 rm -f "$FIX/actions_variables_CLAUDE_LANES_DISABLED.status"
 printf '{"name":"CLAUDE_LANES_DISABLED","value":"false"}' | put actions_variables_CLAUDE_LANES_DISABLED
-first_fail "a repository shadow of the org switch fails" "kill-switch:repo-shadow-present"
+local_recheck "locally, a repository shadow of the org switch fails" 1 "kill-switch:repo-shadow-present"
 
 baseline
-http actions_variables_per_page_1 403
-# The rung cap is read first, from the same surface.
-first_fail "unreadable variables fail" "rung-off:rungCap"
-
-baseline
-expect "vars.CLAUDE_LANES_DISABLED true fails" 1 "kill-switch:vars.CLAUDE_LANES_DISABLED" "" true
-not_called PolicyEligibility "vars.CLAUDE_LANES_DISABLED fails before any other term"
-baseline
-expect "vars.CLAUDE_LANES_DISABLED unset fails" 1 "kill-switch:vars.CLAUDE_LANES_DISABLED" "" ""
+# The rung cap is read first, from the same surface the sandbox saw answer 403.
+local_recheck "locally, unreadable variables fail" 1 "rung-off:rungCap"
 
 # --- Class, in flight, grouping -----------------------------------------------
 
