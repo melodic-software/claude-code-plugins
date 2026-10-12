@@ -469,6 +469,13 @@ def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
 def _lane_reasons(raw_lanes: Any) -> list[Reason]:
     lanes = _sequence(raw_lanes) or ()
     reasons = []
+    unknown = [
+        _show(getattr(lane, "lane", None))
+        for lane in lanes
+        if getattr(lane, "lane", None) not in LANES
+    ]
+    if unknown:
+        reasons.append(Reason("evidence-unbound:unknown", Risk.MED, ", ".join(unknown)))
     for name, (finding_code, finding_severity) in LANES.items():
         entries = [lane for lane in lanes if getattr(lane, "lane", None) == name]
         if len(entries) != 1:

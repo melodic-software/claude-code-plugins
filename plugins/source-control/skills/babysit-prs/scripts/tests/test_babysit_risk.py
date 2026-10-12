@@ -997,6 +997,15 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
         self.assertEqual(reason.code, "evidence-unbound:claude-review")
         self.assertEqual(reason.detail, "not bound")
 
+    def test_lane_evidence_naming_no_known_lane_is_a_miss(self):
+        # Spec: unrecognized data is a miss, never a pass.
+        clean = (_lane("claude-review"), _lane("claude-security-review"))
+        for extra in ("claude-docs-review", "", None, 7):
+            with self.subTest(extra):
+                result = score(_input(lanes=(*clean, _lane(extra))))
+                self.assertEqual(result.score, Risk.MED)
+                self.assertIn("evidence-unbound:unknown", _codes(result))
+
     def test_class_contradicted_names_the_files(self):
         files = (_file("plugins/foo/old.md", status="removed", additions=0),)
         reason = score(_input(files=files)).reasons[0]
