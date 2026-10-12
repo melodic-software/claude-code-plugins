@@ -11,7 +11,7 @@
 - [Review-Settle Hold](#review-settle-hold)
 - [Guarded Mutation Wrappers](#guarded-mutation-wrappers)
 - [Autopilot Merge Tier: Enabled-Path Mechanics](#autopilot-merge-tier-enabled-path-mechanics)
-- [Unattended Merge Path (Inert)](#unattended-merge-path-inert)
+- [Unattended Merge Path](#unattended-merge-path)
 - [Harness Permission Layer](#harness-permission-layer)
 - [Never Do Automatically](#never-do-automatically)
 - [Human Comments](#human-comments)
@@ -987,14 +987,41 @@ announced operator step.
   one governs whether its verdicts have earned the authority to stand in for a human approval, and
   like requiredness it is an operator enabling precondition the merge gate cannot self-enforce.
 
-## Unattended Merge Path (Inert)
+## Unattended Merge Path
 
-`--unattended` on the merge gate runs it under the unattended merge policy, which nothing enables
-yet. Check-only reports the blocker `unattended merge inert: <reason>` and
-`unattended.enabled: false`; with `--merge` the gate refuses at exit 10 before any write.
-It refuses `--allow-dependency` and `--auto`. No tier passes the flag. Separately, plain `--merge`
-refuses at exit 10 when the token's login is the repository's configured `merge.agent-identity`:
-that identity may merge only through `--unattended`.
+`--unattended` on the merge gate runs it under the unattended merge policy. It stays off unless
+the repository's `docs/conventions/pr-pipeline.yaml`, read at the pull request's base SHA, sets
+`merge.authority: local-babysit` and a `merge.agent-identity`. The gate decides in this order, and
+any refusal is the blocker `unattended merge refused: <reason>`:
+
+1. Identity: the token acts as `merge.agent-identity`. Then the credential chokepoint:
+   `gh auth status` lists no other account on any host. A session holding only the identity
+   cannot act as a human anywhere, thread resolution included.
+2. The kill switch, then the post-merge check (`babysit_postmerge`) from the floor (the enabling
+   config commit, or the newest human close of a demotion record when later). A refusal here or
+   above leaves `unattended.enabled: false` and stops every later read.
+3. The rung (demotion record and `CLAUDE_LANES_MERGE_RUNG_CAP`), one merge in flight, the
+   promotion evidence (`unattended.promoted`, read from managed settings or the executor-owned
+   `--promotion-settings` file, never from arguments or the environment), and eligibility.
+4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.
+   Only LOW merges.
+
+Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
+`--merge`, under the identity only: a kill-switch, post-merge or rung refusal dequeues every entry
+the identity enqueued; a queued identity entry that gained a hold (`do-not-merge`, a body hold, a
+human blocking comment, the opt-in label removed) leaves the queue; an eligible MED or HIGH pull
+request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
+head change. A ready LOW pull request on a merge-queue base is enqueued at the pinned head after a
+second kill-switch read, after an armed auto-merge is disarmed and refused instead, and after a
+`<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When an
+earlier identity entry sits in the queue, the new one dequeues itself. A later run with
+`--state-dir` that reads the entry back merged at its pin dispatches the full `pr-require-checks`
+run.
+
+It refuses `--allow-dependency`, `--auto`, `--allow-unpinned-head`, `--stacked-prs` and a merge
+without `--expected-head`. No tier passes the flag. Separately, plain `--merge` refuses at exit 10
+when the token's login is the repository's configured `merge.agent-identity`: that identity may
+merge only through `--unattended`.
 
 ## Harness Permission Layer
 

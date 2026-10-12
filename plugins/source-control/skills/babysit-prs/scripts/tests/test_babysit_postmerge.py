@@ -1450,7 +1450,7 @@ class ExitCodes(CheckCase):
 
 
 class SharedHumanTest(unittest.TestCase):
-    def test_the_cli_judges_actors_with_the_policys_human_test(self) -> None:
+    def test_the_cli_judges_actors_with_the_shared_human_test(self) -> None:
         # F5: the post-merge check and the merge gate share one "Human".
         with mock.patch.object(pm.policy, "is_human", return_value=True) as shared:
             judged = pm._default_is_human(REPO, IDENTITY, ["lane[bot]"])(HUMAN)

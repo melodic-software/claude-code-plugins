@@ -52,16 +52,17 @@ is.
    **Post-merge check (every cycle, before any merge).** When the target's
    `docs/conventions/pr-pipeline.yaml` names a `merge.agent-identity`, run
    `bash <plugin-root>/skills/babysit-prs/scripts/babysit-postmerge.sh --repo <owner/repo>
-   --agent-identity <merge.agent-identity> --since <floor>`, where the floor is the time the change
-   enabling the unattended path merged. It judges every merge since the floor that a human did not
-   enqueue (Dependabot and sync-App merges included) and prints a JSON verdict. Add `--remediate`
+   --agent-identity <merge.agent-identity>`. With no `--since` it computes the merge gate's floor:
+   the commit that enabled the unattended path, or the newest human close of a demotion record
+   when later. It judges every merge since the floor that a human did not
+   enqueue or merge (Dependabot and sync-App merges included) and prints a JSON verdict. Add `--remediate`
    only when the lane's acting GitHub login is that identity: it then triggers the one attribution
    re-run, dispatches one full run on the branch tip when an unverified merge has no identity
    dispatch run covering it, dequeues the identity's queue entries, and files or comments on the
    demotion issue.
-   Exit 0 lets the cycle continue only when every `autoMerges[].verified` is true: exit 0 can
-   carry an auto-merge still awaiting its runs, and while any is unverified the merge-eligible set
-   of step 3 is empty this cycle too. On any other exit (1 a failure, 2 a refused identity, 3 unreadable, 4 a write failed)
+   Only exit 0 (no failure, every auto-merge verified) lets the cycle merge. Exit 5 means an
+   auto-merge still awaits its runs: the merge-eligible set of step 3 is empty this cycle, with
+   nothing to escalate. On any other exit (1 a failure, 2 a refused identity, 3 unreadable, 4 a write failed)
    the merge-eligible set of step 3 is empty this cycle; report the verdict and escalate each
    failure per Escalation below, and under a credential other than the identity escalate instead
    of remediating. The cycle report carries `demotion_events` (the verdict's
