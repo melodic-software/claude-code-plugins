@@ -489,7 +489,7 @@
       "reason": "Both produce a browser page with switchable controls, which is why the pair needs a recorded boundary: explore-directions varies YOUR PROJECT'S own UI (real header, real data, real routes) so you can pick a direction and throw the rest away, while a playground explores an arbitrary parameter space and hands back a prompt. Its description now routes the explorer shape to the playground skill via the playgrounds wrapper.",
       "evidence": [
         "upstream SKILL.md read at commit ed404106fcd80ba98ecb7c851e531dcb626d13b7: 'especially when the input space is large, visual, or structural and hard to express as plain text'",
-        "our description: builds throwaway UI variations, several radically different visual layouts on one route, switchable from a floating control bar",
+        "our description: builds throwaway UI variations, a few structurally different layouts (three by default) behind one route, toggled from a floating switcher",
         "the baked routing clause carries the marketplace parity token so fleet parity traces it to this row",
         "corpus slice: 27-resource verified map (2026-08-31)"
       ],

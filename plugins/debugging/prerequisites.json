@@ -1,0 +1,196 @@
+{
+  "requires": [
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "required",
+      "for": ["skill:analyze-profile"],
+      "detect": {
+        "any": ["python3", "python", "py"],
+        "version": { "args": ["--version"], "pattern": "Python ([0-9.]+)", "min": "3.10" }
+      },
+      "degrade": "Without Python 3.10 or later, analyze-profile cannot convert or query a profile, so it stops and says so; debug is unaffected.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": ["plugin", "skill:debug", "skill:analyze-profile"],
+      "detect": { "any": ["node"] },
+      "degrade": "Without node, the prerequisites checker and debug's post-mortem view do not run, and analyze-profile cannot record a Node.js CPU profile or heap snapshot; reading an existing artifact still works.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "py-spy",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["py-spy"] },
+      "degrade": "Without py-spy, analyze-profile cannot record a CPU profile or stack dump of a Python process; it names the capture and stops.",
+      "install": { "docs": "https://github.com/benfred/py-spy", "pip": "py-spy", "brew": "py-spy" },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "memray",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["memray"] },
+      "degrade": "Without memray, analyze-profile cannot record or summarize Python memory allocations; it names the capture and stops.",
+      "install": { "docs": "https://bloomberg.github.io/memray/", "pip": "memray" },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "jcmd",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["jcmd"] },
+      "degrade": "Without jcmd, analyze-profile cannot take a JVM heap dump or thread dump; it names the capture and stops.",
+      "install": { "docs": "https://docs.oracle.com/en/java/javase/21/docs/specs/man/jcmd.html" },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "jfr",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["jfr"] },
+      "degrade": "Without jfr, analyze-profile cannot print a JVM flight recording; it reports the file and stops.",
+      "install": { "docs": "https://docs.oracle.com/en/java/javase/21/docs/specs/man/jfr.html" },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "dotnet-trace",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["dotnet-trace"] },
+      "degrade": "Without dotnet-trace, analyze-profile cannot record or convert a .NET trace; it names the capture and stops.",
+      "install": {
+        "docs": "https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-trace",
+        "dotnet-tool": "dotnet-trace"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "dotnet-gcdump",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["dotnet-gcdump"] },
+      "degrade": "Without dotnet-gcdump, analyze-profile cannot record or report a .NET heap dump; it names the capture and stops.",
+      "install": {
+        "docs": "https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-gcdump",
+        "dotnet-tool": "dotnet-gcdump"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "dotnet-stack",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["dotnet-stack"] },
+      "degrade": "Without dotnet-stack, analyze-profile cannot sample the stacks of a hung .NET process; it names the capture and stops.",
+      "install": {
+        "docs": "https://learn.microsoft.com/en-us/dotnet/core/diagnostics/dotnet-stack",
+        "dotnet-tool": "dotnet-stack"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "go",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["go"] },
+      "degrade": "Without go, analyze-profile cannot read a pprof profile with go tool pprof; it reports the file and stops.",
+      "install": { "docs": "https://go.dev/dl/", "brew": "go", "winget": "GoLang.Go", "apt": "golang-go" },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "perf",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["perf"] },
+      "degrade": "Without perf, analyze-profile cannot record or report a native Linux CPU profile; it names the capture and stops.",
+      "install": { "docs": "https://man7.org/linux/man-pages/man1/perf-record.1.html", "apt": "linux-tools-generic" },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "heaptrack",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["heaptrack"] },
+      "degrade": "Without heaptrack, analyze-profile cannot record native heap growth on Linux; it names the capture and stops.",
+      "install": { "docs": "https://github.com/KDE/heaptrack", "apt": "heaptrack" },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "gdb",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["gdb"] },
+      "degrade": "Without gdb, analyze-profile cannot take thread backtraces of a hung native process on Linux; it names the capture and stops.",
+      "install": { "docs": "https://sourceware.org/gdb/documentation/", "apt": "gdb", "brew": "gdb" },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "addr2line",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["addr2line"] },
+      "degrade": "Without addr2line, analyze-profile cannot map a native address to a file and line; it reports the address as unresolved.",
+      "install": { "docs": "https://sourceware.org/binutils/docs/binutils/addr2line.html", "apt": "binutils", "brew": "binutils" },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "sample",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["sample"] },
+      "degrade": "Without sample (macOS only), analyze-profile cannot take a call-tree sample of a macOS process; it names the capture and stops.",
+      "install": { "docs": "man sample (ships with macOS)" },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "spindump",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["spindump"] },
+      "degrade": "Without spindump (macOS only), analyze-profile cannot record a system-wide hang report; it names the capture and stops.",
+      "install": { "docs": "man spindump (ships with macOS)" },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "leaks",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["skill:analyze-profile"],
+      "detect": { "any": ["leaks"] },
+      "degrade": "Without leaks (macOS only), analyze-profile cannot list leaked native allocations of a macOS process; it names the capture and stops.",
+      "install": { "docs": "man leaks (ships with macOS)" },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

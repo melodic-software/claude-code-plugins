@@ -10,7 +10,7 @@ Full detail for the `/source-control:worktree status` action. SKILL.md carries t
 
    `git worktree list --porcelain` emits correct absolute paths for every layout (standard clone, bare-clone hub, `.claude/worktrees/`), so `status` and `audit` need no layout-specific detection here, unlike Smart Default / `create` / `cleanup`, which resolve the hub root (`git rev-parse --git-common-dir` ending in `.bare`) for path construction.
 
-2. **PR cross-reference**: Run `gh pr list --state all --json number,title,state,headRefName` once (not per-branch, since batch is more efficient). Match each worktree's branch name against `headRefName`. Graceful degradation: if `gh` fails, skip PR info and note "GitHub API unavailable."
+2. **PR cross-reference**: List every PR with its number, title, state and `headRefName` once ([GitHub](../../../reference/providers/github/README.md#resolve-a-pull-request)) (not per-branch, since batch is more efficient). Match each worktree's branch name against `headRefName`. Graceful degradation: if `gh` fails, skip PR info and note "GitHub API unavailable."
 
 3. **Last commit date**: For each worktree branch, get date of last commit:
 

@@ -1,5 +1,6 @@
 {
-  "description": "Asks before a file-editing tool writes a Claude Code settings file, where an unreviewed edit changes the harness itself. Shell writes and files rendered into place by other programs are not seen.",
+  "description": "Asks before a file-editing tool writes a Claude Code settings file, where an unreviewed edit changes the harness itself. Shell writes and files rendered into place by other programs are not seen. The register.tsx module draws the live per-category context breakdown as a pane or a band above the prompt.",
+  "modules": ["./register.tsx"],
   "hooks": {
     "SessionStart": [
       {
