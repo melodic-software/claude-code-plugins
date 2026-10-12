@@ -59,7 +59,9 @@ is.
    re-run, dispatches one full run on the branch tip when an unverified merge has no identity
    dispatch run covering it, dequeues the identity's queue entries, and files or comments on the
    demotion issue.
-   Exit 0 lets the cycle continue. On any other exit (1 a failure, 3 unreadable, 4 a write failed)
+   Exit 0 lets the cycle continue only when every `autoMerges[].verified` is true: exit 0 can
+   carry an auto-merge still awaiting its runs, and while any is unverified the merge-eligible set
+   of step 3 is empty this cycle too. On any other exit (1 a failure, 3 unreadable, 4 a write failed)
    the merge-eligible set of step 3 is empty this cycle; report the verdict and escalate each
    failure per Escalation below, and under a credential other than the identity escalate instead
    of remediating. The cycle report carries `demotion_events` (the verdict's

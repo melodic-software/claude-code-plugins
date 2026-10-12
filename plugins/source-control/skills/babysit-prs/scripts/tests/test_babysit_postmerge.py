@@ -149,6 +149,7 @@ class FakeGh:
         self.issues: list[dict[str, Any]] = []
         self.comments: dict[int, list[dict[str, Any]]] = {}
         self.fail_reads: set[str] = set()
+        self.merged_pages: list[dict[str, Any]] = []
 
     def add_runs(self, workflow: str, event: str, *runs: dict[str, Any]) -> None:
         self.runs.setdefault((workflow, event), []).extend(runs)
@@ -232,6 +233,12 @@ class FakeGh:
             entries = {"totalCount": len(self.queue), "nodes": self.queue}
             return completed(
                 {"data": {"repository": {"mergeQueue": {"entries": entries}}}}
+            )
+        if "PostMergeMerged" in joined and self.merged_pages:
+            # Served in order, one page per read, to model a history that
+            # changes between page reads.
+            return completed(
+                {"data": {"repository": {"pullRequests": self.merged_pages.pop(0)}}}
             )
         if "PostMergeMerged" in joined:
             page = {
@@ -319,6 +326,46 @@ class AutoMergeDerivation(CheckCase):
         ]
         self.assertEqual(self.numbers(self.check()), [])
 
+    def test_pr_moved_onto_page_one_mid_read_makes_the_history_unreadable(
+        self,
+    ) -> None:
+        # #7002 sat on page 2; an update while page 1 was being read moved it
+        # to page 1, so page 2 no longer has it and the walk would miss it.
+        moved = merged_pr(
+            number=7002,
+            mergedAt="2026-10-12T09:00:00Z",
+            updatedAt="2026-10-12T10:30:00Z",
+        )
+        self.gh.merged_pages = [
+            {
+                "pageInfo": {"hasNextPage": True, "endCursor": "c1"},
+                "nodes": [merged_pr()],
+            },
+            {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": []},
+            {
+                "pageInfo": {"hasNextPage": True, "endCursor": "c1"},
+                "nodes": [moved, merged_pr()],
+            },
+        ]
+        verdict = self.check()
+        self.assertFalse(verdict.readable)
+        self.assertFalse(verdict.ok)
+
+    def test_stable_history_across_the_reread_is_readable(self) -> None:
+        page = {
+            "pageInfo": {"hasNextPage": False, "endCursor": None},
+            "nodes": [merged_pr(timelineItems=enqueued_by(HUMAN, HUMAN))],
+        }
+        self.gh.merged_pages = [page, page]
+        self.assertTrue(self.check().readable)
+
+    def test_merged_pr_without_a_merge_commit_is_unreadable(self) -> None:
+        self.gh.merged = [merged_pr(mergeCommit=None)]
+        verdict = self.check()
+        self.assertFalse(verdict.readable)
+        self.assertFalse(verdict.needs_dispatch)
+        self.assertIn("merge commit unknown", verdict.reason)
+
     def test_unreadable_history_is_not_ok(self) -> None:
         self.gh.fail_reads.add("PostMergeMerged")
         verdict = self.check()
@@ -385,6 +432,48 @@ class Verification(CheckCase):
         )
         self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
         self.assertFalse(self.check().merges[0].verified)
+
+    def test_dispatch_run_by_a_user_named_like_the_app_slug_does_not_verify(
+        self,
+    ) -> None:
+        # A User may hold the login `agent-lanes`; only `agent-lanes[bot]` is the App.
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(
+                11, actor=by("agent-lanes"), triggering_actor=by("agent-lanes")
+            ),
+        )
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        verdict = self.check()
+        self.assertFalse(verdict.merges[0].verified)
+        self.assertTrue(verdict.needs_dispatch)
+
+    def test_rerun_by_a_user_named_like_the_app_slug_does_not_clear_a_red_run(
+        self,
+    ) -> None:
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(
+                11,
+                run_attempt=2,
+                conclusion="success",
+                triggering_actor=by("agent-lanes"),
+            ),
+        )
+        self.gh.attempts[(11, 1)] = dispatch_run(11, conclusion="failure")
+        verdict = self.check()
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+        self.assertFalse(verdict.merges[0].verified)
+
+    def test_user_enqueuer_named_like_the_app_slug_needs_no_read_back(self) -> None:
+        # Not the identity's enqueue, so no pin exists and none is required.
+        slug_user = {"__typename": "User", "login": "agent-lanes"}
+        self.gh.merged = [merged_pr(timelineItems=enqueued_by(slug_user, slug_user))]
+        self.all_green()
+        self.assertFalse(self.check(pinned=OTHER_SHA).failures)
 
     def test_dispatch_run_on_a_sha_without_the_merge_does_not_verify(self) -> None:
         self.gh.add_runs(

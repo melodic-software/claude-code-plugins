@@ -118,7 +118,7 @@ class MergeState:
     verified: bool
     pending: tuple[str, ...]
     # An identity dispatch run, in any state, exists on a SHA containing it.
-    dispatch_covered: bool = True
+    dispatch_covered: bool
 
 
 @dataclass(frozen=True)
@@ -202,8 +202,19 @@ def _split_repo(repo: str) -> tuple[str, str]:
 
 
 def _login_key(login: Any) -> str:
-    """A login compared across REST (`app[bot]`) and GraphQL (`app`) spellings."""
-    return str(login or "").strip().casefold().removesuffix("[bot]")
+    """A REST login (an App is `app[bot]`), compared exactly: a User may own the
+    bare slug `app`, so the suffix is never stripped."""
+    return str(login or "").strip().casefold()
+
+
+def _actor_key(actor: Any) -> str:
+    """A GraphQL actor in REST spelling: a `Bot` login gains the `[bot]` suffix
+    GraphQL omits; any other type keeps its login as is."""
+    item = json_object(actor)
+    login = _login_key(item.get("login"))
+    if login and item.get("__typename") == "Bot" and not login.endswith("[bot]"):
+        login += "[bot]"
+    return login
 
 
 def _time(value: Any) -> datetime:
@@ -288,18 +299,42 @@ def _merged_since(
 ) -> list[dict[str, Any]]:
     """Pull requests merged into `branch` at or after `since`. A merge updates
     the PR, so reading newest-updated first can stop at the first PR last
-    updated before the floor."""
+    updated before the floor. A PR updated mid-read jumps to page 1 and can
+    slip past the walk, so page 1 is read again afterwards: any merge there
+    the walk missed makes the history unreadable."""
+    found = _walk_merged(owner, name, branch, since)
+    numbers = {pr.get("number") for pr in found}
+    for pr in _merged_page(owner, name, branch, None)[0]:
+        if _time(pr.get("updatedAt")) < since:
+            break
+        if _time(pr.get("mergedAt")) >= since and pr.get("number") not in numbers:
+            raise PostMergeReadError(
+                "merged pull requests: the history changed while it was read"
+            )
+    return found
+
+
+def _merged_page(
+    owner: str, name: str, branch: str, cursor: str | None
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    data = _graphql(
+        MERGED_QUERY, "merged pull requests", o=owner, r=name, b=branch, c=cursor
+    )
+    page = json_object(json_object(data.get("repository")).get("pullRequests"))
+    info = page.get("pageInfo")
+    if not is_json_array(page.get("nodes")) or not is_json_object(info):
+        raise PostMergeReadError("merged pull requests: no page")
+    return [json_object(pr) for pr in page["nodes"]], info
+
+
+def _walk_merged(
+    owner: str, name: str, branch: str, since: datetime
+) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
     cursor: str | None = None
     for _ in range(MERGED_PAGE_LIMIT):
-        data = _graphql(
-            MERGED_QUERY, "merged pull requests", o=owner, r=name, b=branch, c=cursor
-        )
-        page = json_object(json_object(data.get("repository")).get("pullRequests"))
-        info = page.get("pageInfo")
-        if not is_json_array(page.get("nodes")) or not is_json_object(info):
-            raise PostMergeReadError("merged pull requests: no page")
-        for pr in map(json_object, page["nodes"]):
+        nodes, info = _merged_page(owner, name, branch, cursor)
+        for pr in nodes:
             if _time(pr.get("updatedAt")) < since:
                 return found
             if _time(pr.get("mergedAt")) >= since:
@@ -482,7 +517,8 @@ def _judge(
     pending: list[str] = []
     failures: list[Failure] = []
     if not merge.merge_commit or not merge.merged_at:
-        return MergeState(merge, False, ("merge-commit-unknown",))
+        # No dispatch can ever cover it, so it would hold the lane forever.
+        raise PostMergeReadError(f"#{merge.number}: merge commit unknown")
     merged_at = _time(merge.merged_at)
     commit = merge.merge_commit
 
@@ -589,10 +625,7 @@ def _auto_merge(
         head_ref_oid=pr.get("headRefOid"),
         merged_at=pr.get("mergedAt"),
         url=pr.get("url"),
-        by_identity=any(
-            _login_key(json_object(who).get("login")) == identity
-            for who in (actor, enqueuer)
-        ),
+        by_identity=identity in (_actor_key(actor), _actor_key(enqueuer)),
     )
 
 
@@ -751,9 +784,7 @@ def _identity_entries(
         )
     found = []
     for entry in nodes:
-        if _login_key(json_object(entry.get("enqueuer")).get("login")) == _login_key(
-            identity
-        ):
+        if _actor_key(entry.get("enqueuer")) == _login_key(identity):
             pr = json_object(entry.get("pullRequest"))
             found.append((str(pr.get("id")), pr.get("number")))
     return found
