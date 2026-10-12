@@ -422,8 +422,9 @@ ticked. Emit the rails block before ending the turn, always.
 - [ ] Self-contained resume prompt between dashed rails. Remaining-work bullets inline
 - [ ] Copy instruction above each region's rails; a goal region under its own `Type /goal`
   instruction line when a goal applies, ordered by what the user asked for (engine doc, the Goal
-  region bullet under "Emit the copy/paste resume prompt"); a below-the-rails note re-arming EVERY
-  surviving loop, one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine doc, "Emit the copy/paste resume prompt")
+  region bullet under "Emit the copy/paste resume prompt"); a below-the-rails note covering EVERY
+  surviving loop that has the resumed session list its scheduled tasks first and re-arm only the
+  loops missing from that list, one `/loop [<interval>] <original prompt>` line per loop, each its own follow-up message (engine doc, "Emit the copy/paste resume prompt")
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
   names the previous handoff recorded as deliberately left running. For each one, read its
   actual output or transcript per
