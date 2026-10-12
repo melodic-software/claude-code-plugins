@@ -74,17 +74,16 @@ from any workflow in the repository holding `actions: write`.
 
 ## Consequences
 
-- Accepted residual: any workflow on any branch of this repository can get a `GITHUB_TOKEN` with
-  `actions: write`. With one, a forger can dispatch `pr-unblock.yml` on `main` naming a real
-  dispatcher run, inside that run's window, with any `pr-number`. Since `allowed_bots` admits
-  `github-actions` for such a run, the forged dispatch can reach the model. The PR author check
-  and the lane's `applies-when` (a conflicting, non-draft PR without a hold label) still apply.
-  A forged dispatch skips the dispatcher's existing-check skip and its cap of 3, so it can repeat
-  runs on one head; the per-PR write queue and the `needs-human` label after an escalation limit
-  that (judgment, untested). The owner has decided to build run-id membership: the dispatcher
-  records the run ids it dispatched in an artifact, and the gate and the broker require
-  membership. It is not built yet. Basis: check-trusted-trigger README, residual paragraph;
-  `pr-run-activity-write.yml:546-549`; `dispatch.mjs:60-110`.
+- Any workflow on any branch of this repository can get a `GITHUB_TOKEN` with `actions: write`
+  and dispatch `pr-unblock.yml` on `main` naming a real dispatcher run inside its window. Run-id
+  membership refuses that dispatch: the dispatcher uploads a `pr-unblock-dispatched-<ids>`
+  artifact naming every run it started (#7311), and both the gate (#7315) and the broker
+  (melodic-software/azure-iac#25) refuse a dispatched run whose own id is not in that dispatcher
+  run's record. Remaining residual: anything that runs inside the dispatcher run itself (main's
+  dispatcher workflow and script, and its pinned actions) can write the record. Basis: sandbox
+  case S2, where a forged dispatch inside the window passed before the change and was refused
+  after it (pr-pipeline-sandbox run 38268688883); live run 38287004007, which passed the gate and
+  the broker.
 - One runner per conflicting PR per push, capped at 3 per dispatcher run. The cap is judgment
   until the lane's per-run cost is measured. Basis: `dispatch.mjs:23-24`.
 - A merge-queue merge raises one push for a batch, so the dispatcher lists PRs against `main` as
