@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "pixel-art:animate"
+          }
+        }
+      ],
+      "why": "a pixel-art skill may fire"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:write-animation"
+          }
+        }
+      ],
+      "why": "write-animation fired"
+    }
+  ]
+}

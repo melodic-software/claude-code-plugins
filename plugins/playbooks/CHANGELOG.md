@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.22.1] - 2026-10-11
+
+### Fixed
+
+- Correct a released entry's link to the Opus 5 note on disabling thinking: the page was retired upstream, so the link now points at an archived copy.
+
 ## [0.22.0] - 2026-10-11
 
 ### Added
@@ -2070,7 +2076,7 @@ They record what shipped at the time and are correct as written.
   `max` and `ultracode` "are not accepted here"), matching what §72 of `boris` records above, and
   the API disable literal is written the way upstream writes it, `thinking: {"type": "disabled"}`
   ([what's new in Opus 5: disabling thinking requires effort `high` or
-  below](https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5#disabling-thinking-requires-effort-high-or-below)),
+  below](https://web.archive.org/web/20260814082927/https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5#disabling-thinking-requires-effort-high-or-below)),
   since a rule whose whole claim is that the hazard is readable off configuration literals cannot
   ship an invalid one as its example. Both re-verified 2026-08-02.
 

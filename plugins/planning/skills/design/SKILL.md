@@ -97,6 +97,8 @@ Break the domain into capabilities or concerns. For each one:
 - Storage needs (stateless? persistent? app-specific?)
 - Cross-app reuse potential. Decide shared-library-worthy vs app-specific per capability, following the consuming project's own library-organization and dependency-preference conventions when it declares them
 
+When the work adds a requirement to code that already exists, ask one question before Phase 3: had this requirement been known when the code was first written, which types and boundaries would it have? Take that answer as the target shape, rather than the current shape with the requirement attached to its side.
+
 Produce: `capability-matrix.md` (library scope) or equivalent per scope.
 
 Survey-then-deep: broad scan of the problem space before diving into any single capability.
@@ -111,17 +113,27 @@ Identify cross-cutting design decisions that affect multiple capabilities. For e
 
 Track resolution status: **resolved** (decision made), **directional** (direction agreed, details deferred), **deferred** (needs research).
 
+**Two-candidate step.** A thread takes this step when the codebase has nothing to copy for it, more than one approach is workable, and the decision is hard to reverse later (a public contract, a stored format, a boundary other modules will build on):
+
+1. Write the criteria the candidates will be judged by into the thread before drafting any candidate.
+2. Draft at least two candidates that differ in structure: who owns the state, where the module split falls, or what shape the contract takes. A copy of the first candidate with renamed or reordered parts is not a second candidate.
+3. Judge each candidate against the written criteria, and record the rejected ones with the reason in `design-threads.md`.
+
+When the thread is about how a screen or interaction looks or feels, invoke `/prototype:explore-directions` via the Skill tool when it is among the available skills, after confirming the scope of the throwaway with the user; otherwise run the three steps here, describing each candidate in prose.
+
+When a type can be read and changed by more than one concurrent actor (threads, processes, overlapping requests, background jobs), open a **shared-state** thread: which actors write it, what a reader sees halfway through an update, and whether the type is confined to one owner, made immutable, or guarded.
+
 For SaaS or B2B org-scoped products, open a **tenancy posture** thread early: single- vs multi-tenant, isolation model, shared vs tenant-scoped data catalog.
 
 When exploration surfaces high coupling, large types, or multi-responsibility files (refactor or strangler scope), open a **refactoring posture** thread: characterization-test strategy, seam map, incremental extract order, change budget.
 
-For any feature with a testable surface, open a **test-seam posture** thread: sketch the seams the feature will be tested at. Prefer existing seams over new ones; place any new seam at the highest level possible; drive toward the fewest seams that cover the surface. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table. When the `testing` plugin is enabled, cite it rather than restating; otherwise apply standard test-design judgment for the seam-altitude call. Confirm the seam sketch with the user before design output is finalized.
+For any feature with a testable surface, open a **test-seam posture** thread: sketch where the feature's tests will attach. Reuse a seam that already exists before adding one; put any new seam as high in the stack as it can go; aim for the smallest set of seams that covers the surface. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table. When the `testing` plugin is enabled, cite it rather than restating; otherwise apply standard test-design judgment for the seam-altitude call. Confirm the seam sketch with the user before design output is finalized.
 
 Produce: `design-threads.md`
 
 ### Phase 3: Type Modeling
 
-Derive types from capabilities:
+This phase ends with a `type-inventory.md` in which every type traces back to a call site that needs it, and each type's shape is set by the operations its busiest paths run on it. Two checks prove that outcome. First, call sites exist before types do: from consumer code, sketch two or three brief calls into the new contract, written as its users will write them, before any type has a name; when the contract is a library or API, at least one of those calls sits inside the importing package. A type enters the inventory only if those calls need it, given the capabilities. Second, each entry carries its operations (lookup by key, ordered walk, append, bulk replace) with the ones on the busiest paths flagged, and the structure chosen for that type is the one the flagged operations favor. Apply the rules in [`reference/type-discipline.md`](reference/type-discipline.md). When the repository has a `tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files, also read [`reference/type-discipline/typescript.md`](reference/type-discipline/typescript.md).
 
 - Records, enums, strongly-typed IDs, value objects
 - Contracts: interfaces with method signatures
@@ -133,6 +145,12 @@ Derive types from capabilities:
   the design artifacts directly
 
 Produce: `type-inventory.md`
+
+Close Phase 3 by auditing the inventory: take each type in turn and follow one of its values from where it is made to where it is read. A fault found at any stop sends that type back to the design threads.
+
+1. **Where it is made.** When a schema, spec or migration already describes the shape, the entry derives from it instead of drawing it again. When the value comes from outside the program, it becomes this type at the place it arrives, and nothing further in validates that input again.
+2. **What it holds.** Try to write a mix of field values the domain forbids; a type that accepts it is too loose. For each type the design strengthened, name the function that would fail on part of its input without the extra strength. With no such function, the strength guards nothing that can go wrong, and that is a fault too.
+3. **Where it is read.** Picture one more variant: every site that reads the type must then fail to compile, not keep running silently. On the same path, every cast, assertion or suppression has a check in front of it.
 
 Once type modeling stabilizes, run the `terminology` action for the cross-cutting naming review of the full inventory. Per-type naming during modeling is not a substitute for the whole-inventory pass.
 
@@ -175,6 +193,10 @@ A cross-cutting naming review of the full type inventory, run once type modeling
 ## Handoff gate (`handoff` action)
 
 The in-session shortcut to the design→plan gate. Invoke `/planning:design-handoff` via the Skill tool. The single canonical gate implementation: it applies the binary check against `design-threads.md` (or the `design-resolution.md` early-exit artifact), and on PASS emits the plan-ready summary and resume prompt. This skill carries no gate criteria of its own; criteria changes land in `/planning:design-handoff` only.
+
+**Stub files (`scaffold_stubs`)**. Before invoking the gate, resolve `scaffold_stubs`, lowest layer first: the default `false`; the plugin's user config (`${user_config.scaffold_stubs}`, where a literal unexpanded value means unset); then the `scaffold_stubs` key of the repository's `docs/conventions/planning.yaml`, which wins when set, read only when the working directory's git root is neither `$HOME` nor an ancestor of it. Only the bare booleans `true` and `false` are valid: any other value, a quoted `"true"` included, is named with its file (or user config), key and value, and that layer is dropped, so a valid higher layer still wins and otherwise the key is `false`. Report one line naming the value and its layer, e.g. `scaffold_stubs: true (docs/conventions/planning.yaml)`. Keys and layers: [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
+
+With `true`, add a `## Stub scaffold` section to `design-threads.md` (or to `design-resolution.md` on an early exit) listing every new file the design introduces, each with the signatures it will declare (types, function and method signatures, exported constants), taken from the resolved type inventory and contracts. Each stub body is the language's ordinary not-implemented form (for example `raise NotImplementedError` in Python or `todo!()` in Rust); pick it from the language at hand, with no per-language reference file. After the gate passes, the handoff output names those files and signatures so `/planning:plan` can place the stub phase. With `false`, write no such section and name no stubs.
 
 ## Scope-specific artifacts
 

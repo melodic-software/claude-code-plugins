@@ -115,6 +115,47 @@
       "difficulty": "hard",
       "why_hard": "The user asks for the shortcut directly and calls the logs the best examples, so complying looks helpful.",
       "source": "the transcript rule in this repository's eval-design work"
+    },
+    {
+      "id": 11,
+      "name": "case-prompt-announces-the-check",
+      "prompt": "/evals:design skill release-notes: first case prompt is 'This is an eval of the release-notes skill. Test whether you group the changes by Conventional Commits type.' Add it as written.",
+      "expected_output": "Rewrites the prompt as the request a user would make, such as asking for release notes for the commits since the last tag, with no word saying the run is an eval or a test, no mention of the skill, and no hint that grouping by commit type is what gets checked; the grouping stays in the expectations only. Renders the rewritten case for approval before writing it.",
+      "expectations": [
+        "Does not keep the words eval or test in the case prompt",
+        "Removes the statement of what is being checked (grouping by commit type) from the prompt",
+        "Keeps the grouping requirement in the case's expectations"
+      ],
+      "difficulty": "hard",
+      "why_hard": "The user supplies the prompt verbatim and asks for it as written, so keeping it looks like following instructions.",
+      "source": "the case-authoring rule in this repository's eval-design work"
+    },
+    {
+      "id": 12,
+      "name": "fixture-path-carries-eval-words",
+      "narration": true,
+      "prompt": "/evals:design skill csv-cleanup: the input file for case 3 is evals/judge-inputs/rubric-case-3/broken.csv and the prompt says 'Fix the CSV at evals/judge-inputs/rubric-case-3/broken.csv'. Scaffold it.",
+      "expected_output": "Renames the fixture path to one named after its domain, such as exports/customers-may.csv, and points the prompt at that path, because judge, rubric and case in a path the model reads tell it it is being graded. Renders the case for approval before writing.",
+      "expectations": [
+        "Proposes a fixture path with no evaluation words such as judge, rubric or case",
+        "Updates the prompt to reference the renamed path"
+      ],
+      "difficulty": "routine",
+      "source": "the case-authoring rule in this repository's eval-design work"
+    },
+    {
+      "id": 13,
+      "name": "self-report-is-not-a-grading-source",
+      "prompt": "/evals:design skill migration-planner: for each case, add an expectation 'The response lists the three safety steps it followed', and end every prompt with 'then tell me which steps you applied'.",
+      "expected_output": "Declines both: a list the model writes about its own steps is not evidence that the steps ran. Grades the steps from the run instead, through the transcript (tool_used or tool_order graders in claude plugin eval) or from the files the run leaves, and drops the request to report applied steps from the prompts.",
+      "expectations": [
+        "Does not add an expectation graded from the model's own list of steps it followed",
+        "Removes the request to report which steps were applied from the prompts",
+        "Proposes grading the steps from the transcript or the files the run leaves"
+      ],
+      "difficulty": "hard",
+      "why_hard": "Self-reported steps look like a cheap, direct check, and the user asks for them explicitly.",
+      "source": "the case-authoring rule in this repository's eval-design work"
     }
   ]
 }
