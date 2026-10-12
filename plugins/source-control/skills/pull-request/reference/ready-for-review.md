@@ -100,7 +100,8 @@ replaces that push's draft run within seconds instead of after it ran to the end
 `push-branch.sh`, as [create.md](create.md) does: it pushes to the remote `resolve-remote.sh
 --push` resolves, so a fork or triangular checkout never pushes to the wrong remote. `--pr` pushes
 the pull request's head branch even when the session runs in another worktree, and exits non-zero
-when that branch has no local ref or its push remote is not the PR's head repository. Inside a lane
+when that branch has no local ref or a push URL of its push remote is not the PR's head repository
+on github.com (an SSH host alias or an enterprise host refuses). Inside a lane
 (the acting gh login is a GitHub App `[bot]` login), it hands the push to the plugin's
 `lane-push.sh` instead, as the `merge.agent-identity` the repository configures, and refuses when
 the session does not act as it (loop-lane convention, "Lane write identity").

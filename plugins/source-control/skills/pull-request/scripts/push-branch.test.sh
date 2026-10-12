@@ -46,8 +46,9 @@ BRANCH="feat/x"
 # A gh stand-in. The acting-login read push-branch.sh makes to tell a lane from
 # an operator answers an operator login unless PB_LOGIN says otherwise, and
 # fails when PB_LOGIN_FAIL is set. `repo view` names the base repository, and
-# `pr view` the PR's head branch and repository: push-branch.sh's own read
-# (`-q`, one line) and lane-push.sh's (`-R`, two lines). Lane cases add a git
+# `pr view` the PR's head branch and repository (PB_PR_HEAD_REPO, else the
+# base): push-branch.sh's own read (`-q`, one line) and lane-push.sh's (`-R`,
+# two lines). `api repos/...` is lane-push.sh's default-branch read. Lane cases add a git
 # stand-in that records a push instead of sending it. With PB_GITHUB_ROOT set,
 # the git stand-in sends a push for https://github.com/<path> to
 # $PB_GITHUB_ROOT/<path>, so a remote can carry a github.com URL (what
@@ -64,11 +65,12 @@ case "$1 $2" in
     echo "${PB_LOGIN:-example-user}"
     ;;
   "repo view") echo "example-org/app" ;;
+  "api repos/"*) echo main ;;
   "pr view")
     if [[ " $* " == *" -R "* ]]; then
-      printf '%s\n' example-org/app feat/b
+      printf '%s\n' "${PB_PR_HEAD_REPO:-example-org/app}" feat/b
     else
-      echo "feat/b example-org/app"
+      echo "feat/b ${PB_PR_HEAD_REPO:-example-org/app}"
     fi
     ;;
   *) exit 99 ;;
@@ -83,7 +85,9 @@ for a in "\$@"; do
     exit 0
   fi
   if [[ \$a == push && -n \${PB_GITHUB_ROOT:-} ]]; then
-    exec "$REAL_GIT" -c "url.\$PB_GITHUB_ROOT/.insteadOf=https://github.com/" "\$@"
+    exec "$REAL_GIT" -c "url.\$PB_GITHUB_ROOT/.insteadOf=https://github.com/" \
+      -c "url.\$PB_GITHUB_ROOT/.insteadOf=ssh://git@github.com/" \
+      -c "url.\$PB_GITHUB_ROOT/.insteadOf=git@github.com:" "\$@"
   fi
 done
 exec "$REAL_GIT" "\$@"
@@ -300,6 +304,22 @@ check "pr-worktree: --dir --pr exits 0" "$?" "0"
 check "pr-worktree: --dir pushed that checkout's detached HEAD to the PR head branch" \
   "$(git -C "$WORKDIR/pr-worktree/origin.git" rev-parse --verify --quiet refs/heads/feat/b)" \
   "$(git -C "$wt_d" rev-parse HEAD)"
+# --dir after --pr is the same call, and an argument the script does not take
+# refuses instead of being dropped.
+git -C "$wt_d" commit -q --allow-empty -m "second fix on a detached head"
+(cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 42 --dir "$wt_d") >/dev/null 2>&1
+check "pr-worktree: --pr --dir exits 0" "$?" "0"
+check "pr-worktree: --pr --dir pushed that checkout's HEAD to the PR head branch" \
+  "$(git -C "$WORKDIR/pr-worktree/origin.git" rev-parse --verify --quiet refs/heads/feat/b)" \
+  "$(git -C "$wt_d" rev-parse HEAD)"
+for args in "--pr 42 extra" "--pr 42 --bogus" "feat/b extra" "--pr 42 feat/b" "--pr 42 --pr 43" "--dir"; do
+  extra_exit=zero
+  # shellcheck disable=SC2086 # word-split on purpose: each entry is an argv.
+  extra_err=$(cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" $args 2>&1 >/dev/null) || extra_exit=nonzero
+  check "pr-worktree: '$args' exits non-zero" "$extra_exit" "nonzero"
+  check "pr-worktree: '$args' is refused before any push" \
+    "$([[ $extra_err == *"push-branch.sh: "*"; not pushing"* ]] && echo refused || echo "$extra_err")" "refused"
+done
 # The head-repository check reads the URL the push goes to: a push URL that is
 # not the PR's head repository refuses even when the fetch URL is.
 git init -q --bare "$WORKDIR/pr-worktree/other.git"
@@ -321,6 +341,16 @@ for url in "$WORKDIR/elsewhere/pr-worktree/origin.git" \
     "$host_exit" "nonzero"
   check "pr-worktree: push URL $url did not receive the branch" \
     "$(git -C "$WORKDIR/elsewhere/pr-worktree/origin.git" rev-parse --verify --quiet refs/heads/feat/b || echo none)" "none"
+done
+# The ssh:// and scp-style github.com forms of the head repository push.
+for url in ssh://git@github.com/pr-worktree/origin.git git@github.com:pr-worktree/origin.git; do
+  git -C "$wt_d" commit -q --allow-empty -m "push over $url"
+  git -C "$wc" remote set-url --push origin "$url"
+  (cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --dir "$wt_d" --pr 42) >/dev/null 2>&1
+  check "pr-worktree: push URL $url exits 0" "$?" "0"
+  check "pr-worktree: push URL $url pushed the PR head branch" \
+    "$(git -C "$WORKDIR/pr-worktree/origin.git" rev-parse --verify --quiet refs/heads/feat/b)" \
+    "$(git -C "$wt_d" rev-parse HEAD)"
 done
 unset PB_GITHUB_ROOT
 
@@ -388,6 +418,17 @@ check "lane --dir: exit 0" "$RC" "0"
 check "lane --dir: pushes from that checkout" "$(cat "$LOG/push.cwd" 2>/dev/null)" "$(cd "$wt_ld" && pwd -P)"
 check "lane --dir: pushes the PR's head branch" "$(lane_dest)" \
   "https://github.com/example-org/app.git HEAD:refs/heads/feat/b"
+
+# A fork PR's head name can match a local in-repo branch, so in a lane --pr
+# without --dir refuses for a fork head instead of pushing that branch to the
+# fork; with --dir it pushes that checkout to the fork's head.
+PB_PR_HEAD_REPO=someone/fork PB_IDENTITY="$LANE" lane_run "$wc" --pr 46
+check "lane --pr, fork head without --dir: exits non-zero" "$(nonzero)" "nonzero"
+check "lane --pr, fork head without --dir: nothing pushed" "$(lane_dest)" "NONE"
+PB_PR_HEAD_REPO=someone/fork PB_IDENTITY="$LANE" lane_run "$wc" --dir "$wt_ld" --pr 46
+check "lane --dir --pr, fork head: exit 0" "$RC" "0"
+check "lane --dir --pr, fork head: pushes to the fork's head" "$(lane_dest)" \
+  "https://github.com/someone/fork.git HEAD:refs/heads/feat/b"
 
 # A branch checked out in no worktree has no HEAD for lane-push.sh: refused.
 wc=$(make_clone lane-idle)

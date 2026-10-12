@@ -22,7 +22,8 @@ as it stops and writes nothing. With none configured, no lane behaves differentl
   every `GIT_*` variable, ignores global and system config, forces gh as the only credential
   helper and https as the only transport, refuses on local `url.*`, `include*`, `credential.*`,
   `http.*` and unsafe `remote.*` keys, sets `NETRC=/dev/null`, takes git and gh only at absolute
-  paths, and pushes only when gh's acting login is the identity. §1 lists every refusal. Named
+  paths, refuses the base repository's default branch, and pushes only when gh's acting login is
+  the identity. §1 lists every refusal. Named
   residuals: interactive sessions stay under the operator, and their label writes count as human
   provenance; a lane holds the operator's token for the rest of the cycle in which the config
   lands; whoever controls the lane host's gh or git binary, the script or the checkout's `.git`
@@ -32,7 +33,7 @@ as it stops and writes nothing. With none configured, no lane behaves differentl
   also goes through, keeps the operator's remote for interactive and attended pushes and, inside a
   lane (a GitHub App `[bot]` acting login), runs the identity preflight for the base repository
   and hands the push to `lane-push.sh` as the `merge.agent-identity` it configures, refusing when
-  none is configured. Residuals R1-R6: two paths to maintain; the interactive path trusts the
+  none is configured and refusing `--pr` for a fork head without `--dir`. Residuals R1-R6: two paths to maintain; the interactive path trusts the
   operator's git setup; a lane on an operator host with SSH keys reachable can push as the operator
   until lane hosts hold only the identity's credentials, and whether today's launcher strips
   `SSH_AUTH_SOCK` is an open question; the lane check is advisory; `NETRC` needs a libcurl that

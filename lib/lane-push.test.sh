@@ -62,6 +62,10 @@ case "$1 $2" in
     printf '%s\n' "$LP_LOGIN"
     ;;
   "pr view") printf '%s\n%s\n' "$LP_HEAD_REPO" "$LP_HEAD_REF" ;;
+  "api repos/"*)
+    [[ -z ${LP_DEFAULT_FAIL:-} ]] || exit 1
+    printf '%s\n' "${LP_DEFAULT_BRANCH-trunk}"
+    ;;
   "auth git-credential")
     printf 'helper HOME=%s\n' "$HOME" >>"$LP_LOG/gh.home"
     printf 'username=x-access-token\npassword=gh-token\n'
@@ -326,6 +330,27 @@ else
   pass "case 14: the relative git never ran"
 fi
 rm -rf "$REPO_DIR/planted"
+
+# 15. A lane never pushes the base repository's default branch, by --branch or
+# by an in-repository pull request whose head is that branch. A fork's own
+# default branch is a fork PR's head, so it pushes.
+run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch trunk
+expect_refused "case 15: --branch on the default branch is refused" default-branch
+assert_eq "case 15: the default branch is read from the repository" \
+  1 "$(grep -cxF "api repos/example-org/example-repo --jq .default_branch" "$LOG/gh.calls" 2>/dev/null)"
+LP_HEAD_REPO="example-org/example-repo" LP_HEAD_REF="trunk" \
+  run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --pr 12
+expect_refused "case 15: an in-repository head on the default branch is refused" default-branch
+LP_HEAD_REPO="Example-Org/Example-Repo" LP_HEAD_REF="trunk" \
+  run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --pr 12
+expect_refused "case 15: the repository comparison ignores case" default-branch
+LP_HEAD_REPO="someone/example-fork" LP_HEAD_REF="trunk" \
+  run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --pr 12
+assert_eq "case 15: a fork head on the fork's default branch pushes" 0 "$RC"
+LP_DEFAULT_FAIL=1 run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
+expect_refused "case 15: an unreadable default branch is refused" default-branch-unreadable
+LP_DEFAULT_BRANCH="" run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
+expect_refused "case 15: an empty default branch is refused" default-branch-unreadable
 
 if ((FAILED)); then
   printf '%d failure(s)\n' "$FAILED" >&2

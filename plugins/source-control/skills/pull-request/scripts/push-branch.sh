@@ -63,10 +63,11 @@
 #
 # Inside a lane (the acting gh login is a GitHub App `[bot]` login) none of the
 # above runs: the push goes to the plugin's scripts/lane-push.sh (see the lane
-# block below).
+# block below), and --pr for a fork head needs --dir.
 #
 # Usage: push-branch.sh [--dir <checkout>] [branch-name | --pr <number>]
-#   (defaults to the current branch)
+#   (options in any order; defaults to the current branch; any other argument
+#   refuses)
 set -uo pipefail
 
 # portability-scope: --pr resolves the pull request's head branch and head repository through gh, and a lane its base repository and identity.
@@ -75,19 +76,49 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="${SCRIPT_DIR}/resolve-remote.sh"
 
 DIR=""
-if [[ "${1:-}" == "--dir" ]]; then
-  DIR="${2:-}"
-  if [[ -z "$DIR" ]] || ! cd -- "$DIR" 2>/dev/null; then
-    echo "push-branch.sh: --dir needs a checkout directory, got '$DIR'; not pushing" >&2
-    exit 1
-  fi
-  shift 2
+BRANCH=""
+PR=""
+HAS_DIR=""
+HAS_PR=""
+while (($#)); do
+  case "$1" in
+    --dir | --pr)
+      if [[ $# -lt 2 || ("$1" == --dir && -n "$HAS_DIR") || ("$1" == --pr && -n "$HAS_PR") ]]; then
+        echo "push-branch.sh: $1 needs one value and is given once; not pushing" >&2
+        exit 1
+      fi
+      if [[ "$1" == --dir ]]; then
+        HAS_DIR=1 DIR="$2"
+      else
+        HAS_PR=1 PR="$2"
+      fi
+      shift 2
+      ;;
+    -*)
+      echo "push-branch.sh: unexpected argument '$1'; not pushing" >&2
+      exit 1
+      ;;
+    *)
+      if [[ -n "$BRANCH" ]]; then
+        echo "push-branch.sh: unexpected argument '$1'; not pushing" >&2
+        exit 1
+      fi
+      BRANCH="$1"
+      shift
+      ;;
+  esac
+done
+if [[ -n "$HAS_PR" && -n "$BRANCH" ]]; then
+  echo "push-branch.sh: unexpected argument '$BRANCH' beside --pr; not pushing" >&2
+  exit 1
 fi
 
-BRANCH="${1:-}"
-PR=""
-if [[ "$BRANCH" == "--pr" ]]; then
-  PR="${2:-}"
+if [[ -n "$HAS_DIR" ]] && { [[ -z "$DIR" ]] || ! cd -- "$DIR" 2>/dev/null; }; then
+  echo "push-branch.sh: --dir needs a checkout directory, got '$DIR'; not pushing" >&2
+  exit 1
+fi
+
+if [[ -n "$HAS_PR" ]]; then
   if [[ ! "$PR" =~ ^[0-9]+$ ]]; then
     echo "push-branch.sh: --pr needs a pull request number, got '$PR'; not pushing" >&2
     exit 1
@@ -136,6 +167,12 @@ if [[ "$ACTING" == *"[bot]" ]]; then
     echo "$PREFLIGHT" >&2
     exit 1
   fi
+  # A fork head's name can match a local branch of the base repository, which
+  # is not the PR's head: a fork PR pushes only the checkout --dir names.
+  if [[ -n "$PR" && -z "$DIR" && "${HEAD_REPO,,}" != "${BASE_REPO,,}" ]]; then
+    echo "push-branch.sh: PR '$PR' head repository '$HEAD_REPO' is not '$BASE_REPO'; a lane pushes a fork head only with --dir; not pushing" >&2
+    exit 1
+  fi
   SRC_DIR=""
   if [[ -n "$DIR" ]]; then
     SRC_DIR=$(pwd -P)
@@ -180,7 +217,7 @@ if [[ -n "${HEAD_REPO:-}" ]]; then
       *) ;;
     esac
     if [[ -z "$URL_REPO" || "${URL_REPO,,}" != "${HEAD_REPO,,}" ]]; then
-      echo "push-branch.sh: '$BRANCH' pushes to '$PUSH_REMOTE' ($URL), not PR '$PR' head repository '$HEAD_REPO'; not pushing" >&2
+      echo "push-branch.sh: '$BRANCH' pushes to '$PUSH_REMOTE' ($URL), not PR '$PR' head repository '$HEAD_REPO' on github.com (https://github.com/, ssh://git@github.com/ or git@github.com:); not pushing" >&2
       exit 1
     fi
   done <<<"$URLS"

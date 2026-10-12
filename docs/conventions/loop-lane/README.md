@@ -219,6 +219,9 @@ App installed on that repository only: a machine user is a `User` and would pass
     name is not a plain remote name. These survive the global and system scrub and can redirect
     or re-credential an https push, so any of them fails closed.
   - `head-unreadable`: the pull request's head repository and branch could not be read.
+  - `default-branch`, `default-branch-unreadable`: the target is the base repository's default
+    branch, by `--branch` or as an in-repository pull request's head (a fork's own default branch
+    pushes), or that default branch could not be read.
   - `login-unreadable`, `login-mismatch`: the `viewer` read failed or returned another login.
 
   `--check` runs every refusal but the push. Named residual: whoever can replace the gh or git
@@ -232,8 +235,9 @@ App installed on that repository only: a machine user is a `User` and would pass
   `--agent-identity` reads `merge.agent-identity` from the base repository's default branch) and
   passes the identity it prints as `--login`, so `lane-push.sh` refuses unless the token acts as
   that identity at push time. It refuses when the preflight refuses (no identity configured
-  included) or the branch is checked out in no worktree and no `--dir` names one, and with `--pr`
-  `lane-push.sh` reads the destination from the pull request, never a remote. It detects a lane by
+  included), the branch is checked out in no worktree and no `--dir` names one, or `--pr` names a
+  fork head without `--dir` (a fork head's name can match a local branch of the base repository).
+  With `--pr`, `lane-push.sh` reads the destination from the pull request, never a remote. It detects a lane by
   the acting gh login: a GitHub App `<slug>[bot]` login, which the identity contract above
   requires of a lane and an operator never holds. No launcher sets a lane marker, so a lane
   running on an operator token keeps the operator path (the "No identity configured" residual).
@@ -264,7 +268,9 @@ App installed on that repository only: a machine user is a `User` and would pass
   session. Named residual.
 - **Lane pushes need workflow-file permission.** `lane-push.sh` pushes with gh's token over https,
   so a lane whose identity lacks the Workflows repository permission cannot push changes to
-  workflow files. Attended runs, babysit-prs' included, push through `push-branch.sh` on the
+  workflow files. That includes a work lane on a target that names no identity: it pushes with
+  the operator's gh token, which lacks the `workflow` scope unless the operator granted it
+  (`gh auth login` requests `repo`, `read:org` and `gist`). Attended runs, babysit-prs' included, push through `push-branch.sh` on the
   operator's own transport and are not affected. Accepted: the script has no fallback to another
   transport or credential. Named residual.
 

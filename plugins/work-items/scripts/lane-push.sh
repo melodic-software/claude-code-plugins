@@ -55,6 +55,9 @@
 #   - Reads the acting login (GraphQL viewer, github.com) with the same gh in
 #     the same environment the helper runs in, and refuses unless it is the
 #     identity, compared case-insensitively.
+#   - Refuses the base repository's default branch (read with gh), named by
+#     --branch or as an in-repository PR's head; a fork's default branch can be
+#     a fork PR's head and pushes.
 #   - Pushes HEAD:refs/heads/<branch>, fast-forward only; it never forces.
 #
 # Not closed here: whoever can replace the gh or git binary, edit this
@@ -171,6 +174,7 @@ if [[ $("$git_bin" config --local --bool --get extensions.worktreeConfig 2>/dev/
   check_keys --worktree
 fi
 
+base=$repo
 if [[ -n $pr ]]; then
   head=$("$gh_bin" pr view "$pr" -R "github.com/$repo" --json headRepository,headRefName \
     --jq '.headRepository.nameWithOwner, .headRefName') || refuse head-unreadable
@@ -178,6 +182,14 @@ if [[ -n $pr ]]; then
   [[ $head == *$'\n'* && $branch != *$'\n'* ]] || refuse head-unreadable
   require_repo "$repo"
   require_branch "$branch"
+fi
+
+# The base repository's default branch is never a lane's push target; a
+# fork's own default branch can be a fork PR's head.
+if [[ -n $repo && -n $branch && ${repo,,} == "${base,,}" ]]; then
+  default=$("$gh_bin" api "repos/$repo" --jq .default_branch) || refuse default-branch-unreadable
+  [[ -n $default ]] || refuse default-branch-unreadable
+  [[ $branch != "$default" ]] || refuse default-branch
 fi
 
 acting=$("$gh_bin" api --hostname github.com graphql -f 'query=query{viewer{login}}' \
