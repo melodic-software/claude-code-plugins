@@ -17,24 +17,29 @@
 # only pushes tags, or is a dry run; a push after a `cd`/`pushd` in the same
 # command, whose directory this parser does not track; a push from any working
 # tree other than the session's project directory, including another worktree
-# of the same clone; a branch that changes check tooling (trust model below),
-# with a notice; a tree with no scripts/check-affected.sh; a payload it
-# cannot read; and a check-affected run that could not start (exit 2), since an
-# unreadable state is not a finding.
+# of the same clone; no origin/main to compare against, with a notice; a tree
+# with no scripts/check-affected.sh; a payload it cannot read; and a
+# check-affected run that could not start (exit 2), since an unreadable state is
+# not a finding.
 #
-# Trust model: it runs scripts/check-affected.sh only from the working tree that
-# holds the .claude/settings.json registering this hook, and only when the code
-# the checks run there matches origin/main. Claude Code reads that settings file
-# once the folder is trusted
-# (https://code.claude.com/docs/en/hooks#workspace-trust), but the scripts run
-# at push time from whatever branch is checked out then, so a contributor
-# branch checked out later in the same tree (to review or fix it) would run its
-# own check code. So before running anything this script diffs the working tree
-# and untracked files against the merge-base with origin/main; a change to any
-# TOOLING path skips the run with one notice, and CI checks that branch. No
-# origin/main to compare against skips it too. This script and lib/hook-utils.sh
-# run before that diff, so the settings command first requires both to match
-# the merge-base.
+# Trust model: it runs check code only from the working tree that holds the
+# .claude/settings.json registering this hook, and only code that matches the
+# merge-base with origin/main. Claude Code reads that settings file once the
+# folder is trusted (https://code.claude.com/docs/en/hooks#workspace-trust), but
+# the scripts run at push time from whatever branch is checked out then, so a
+# contributor branch checked out later in the same tree (to review or fix it)
+# could carry its own check code. So this script diffs the working tree and
+# untracked files against that merge-base. When no TOOLING path changed, the
+# tree's own scripts/check-affected.sh is the merge-base's and runs in place.
+# Otherwise the TOOLING files are extracted from the merge-base into a temporary
+# directory and that copy runs against the branch, reading the branch's files as
+# data only; scripts/check-affected.sh names each check that skips because it
+# would run branch code. This script and lib/hook-utils.sh run before that diff,
+# so the settings command first requires both to match the merge-base.
+#
+# The checks judge what a push sends, HEAD. When a file the branch changed has
+# uncommitted edits, they run against a detached checkout of HEAD instead of the
+# working tree, made with hooks disabled.
 #
 # It checks the checked-out HEAD, not a ref the push names: `git push origin
 # other-branch` from another branch, or a tag pushed by bare name, is judged by
@@ -198,31 +203,36 @@ segment_push_dir() {
 # Paths the checks execute or load code from, per what scripts/check-affected.sh
 # runs without --tests: its scripts and their shell, Node and Python libraries,
 # the plugin scripts and mods scripts/validate-plugins.sh runs, and the configs a
-# linter loads code from or installs from.
+# linter loads code from or installs from. A change to any of them moves the run
+# to the merge-base copy.
 TOOLING=(
   'scripts/*' 'lib/*' '.claude/*' 'package.json' 'package-lock.json'
-  '.markdownlint*' 'ruff.toml' 'pyproject.toml' '.github/requirements-ci.txt'
+  '.markdownlint*' '*/.markdownlint*' 'ruff.toml' 'pyproject.toml' 'uv.toml'
+  '.github/requirements-ci.txt'
   'plugins/*/hooks/*' 'plugins/autonomy/skills/setup/scripts/*'
   'plugins/harness-ops/skills/audit-native-overlap/scripts/*'
 )
 
-# tooling_change_to <out-var> <top>: assigns why the run must skip and returns 0
-# when the tree changes a TOOLING path against its merge-base with origin/main,
-# or no merge-base can be read; returns 1 when the tooling is unchanged.
+# The files a merge-base copy needs: the scripts check-affected.sh runs and their
+# libraries, and every config a check reads its rules from.
+TOOLS_EXTRACT=(
+  scripts .shellcheckrc ruff.toml pyproject.toml .github/requirements-ci.txt
+)
+
+# tooling_change_to <out-var> <top> <mb>: assigns the first TOOLING path HEAD,
+# the working tree or an untracked file changes against <mb> and returns 0; returns 1 when the tooling is
+# unchanged, and 2 when the diff cannot be read.
 tooling_change_to() {
   local -n __tc_out="$1"
-  local top="$2" mb changed f p
-  if ! mb="$(git -C "$top" merge-base HEAD refs/remotes/origin/main 2>/dev/null)" ||
-    ! changed="$(git -C "$top" diff --no-renames --name-only "$mb" -- &&
-      git -C "$top" ls-files --others --exclude-standard)"; then
-    __tc_out="no origin/main merge-base to compare check tooling against"
-    return 0
-  fi
+  local top="$2" mb="$3" changed f p
+  changed="$(git -C "$top" diff --no-renames --name-only "$mb" -- &&
+    git -C "$top" diff --no-renames --name-only "$mb" HEAD -- &&
+    git -C "$top" ls-files --others --exclude-standard)" || return 2
   while IFS= read -r f; do
     for p in "${TOOLING[@]}"; do
       # shellcheck disable=SC2053 # $p is a glob on purpose.
       if [[ "$f" == $p ]]; then
-        __tc_out="branch changes check tooling ($f)"
+        __tc_out="$f"
         return 0
       fi
     done
@@ -230,8 +240,53 @@ tooling_change_to() {
   return 1
 }
 
+# head_is_dirty <top> <mb>: 0 when a file changed in <mb>..HEAD has uncommitted
+# edits, so the working tree is not what the push sends.
+head_is_dirty() {
+  local -a changed
+  mapfile -t changed < <(git -C "$1" diff --name-only --diff-filter=d "$2" HEAD)
+  [[ -n "${changed[0]-}" ]] || return 1
+  ! git -C "$1" diff --quiet HEAD -- "${changed[@]}"
+}
+
+# extract_tools <top> <mb> <dir>: writes <mb>'s TOOLS_EXTRACT paths and every
+# markdownlint config into <dir>.
+extract_tools() {
+  local -a paths
+  mapfile -t paths < <(
+    git -C "$1" ls-tree --name-only "$2" -- "${TOOLS_EXTRACT[@]}"
+    git -C "$1" ls-tree -r --name-only "$2" | grep -E '(^|/)\.markdownlint[^/]*$'
+  )
+  ((${#paths[@]})) || return 1
+  mkdir -p "$3" && git -C "$1" archive "$2" -- "${paths[@]}" | tar -x -C "$3"
+}
+
+# run_checks <top> <mb> <tooling-changed> <dirty>: prints the output of
+# scripts/check-affected.sh run against the tree the push sends, a detached HEAD
+# checkout when <dirty> is 1, with the script taken from <mb> when
+# <tooling-changed> is 1; exits with its exit. A subshell, so the trap removes
+# the checkout and temporary files however the run ends.
+run_checks() (
+  top="$1" mb="$2" data="$1" rc=0
+  tmp="$(mktemp -d)" || exit 2
+  trap '[[ "$data" == "$top" ]] || git -C "$top" worktree remove --force "$data" >/dev/null 2>&1; rm -rf "$tmp"' EXIT
+  trap 'exit 143' INT TERM HUP
+  if [[ "$4" == 1 ]]; then
+    data="$tmp/head"
+    git -C "$top" -c core.hooksPath=/dev/null worktree add -q --detach "$data" HEAD >/dev/null 2>&1 || exit 2
+  fi
+  script="$data/scripts/check-affected.sh"
+  if [[ "$3" == 1 ]]; then
+    script="$tmp/tools/scripts/check-affected.sh"
+    extract_tools "$top" "$mb" "$tmp/tools" || exit 2
+  fi
+  [[ -x "$script" ]] || exit 2
+  (cd "$data" && bash "$script" 2>&1) || rc=$?
+  exit "$rc"
+)
+
 main() {
-  local input cmd cwd dir top out rc why
+  local input cmd cwd dir top out rc mb changed_tool tooling=0 dirty=0
   hook::buffer_stdin_to input '.tool_input.command' '.cwd' || exit 0
   cmd="${HOOK_JQ_FIELDS[0]-}"
   cwd="${HOOK_JQ_FIELDS[1]-}"
@@ -244,12 +299,22 @@ main() {
   [[ -n "${CLAUDE_PROJECT_DIR-}" ]] || exit 0
   [[ "$top" == "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --show-toplevel 2>/dev/null)" ]] || exit 0
   [[ -x "$top/scripts/check-affected.sh" ]] || exit 0
-  if tooling_change_to why "$top"; then
-    printf 'check-affected pre-push: skipped, %s; CI checks it.\n' "$why" >&2
+  if ! mb="$(git -C "$top" merge-base HEAD refs/remotes/origin/main 2>/dev/null)"; then
+    printf 'check-affected pre-push: skipped, no origin/main merge-base to take check tooling from; CI checks it.\n' >&2
     exit 0
   fi
   rc=0
-  out="$(cd "$top" && bash scripts/check-affected.sh 2>&1)" || rc=$?
+  tooling_change_to changed_tool "$top" "$mb" || rc=$?
+  ((rc == 2)) && exit 0
+  ((rc == 0)) && tooling=1
+  head_is_dirty "$top" "$mb" && dirty=1
+  rc=0
+  out="$(run_checks "$top" "$mb" "$tooling" "$dirty")" || rc=$?
+  if ((rc != 1 && tooling)); then
+    printf 'check-affected pre-push: the branch changes check tooling (%s), so the checks ran from the merge-base copy of it.\n' \
+      "$changed_tool" >&2
+    grep '^check-affected: SKIP' <<<"$out" >&2
+  fi
   ((rc == 1)) || exit 0
   printf 'Push blocked: scripts/check-affected.sh found failing checks on this branch. Fix them, commit, and push again.\n%s\n' "$out" >&2
   exit 2

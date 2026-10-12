@@ -1,0 +1,2 @@
+# Eval fixture: a review.yaml that keeps the downstream probe to a report.
+downstream_probe: report

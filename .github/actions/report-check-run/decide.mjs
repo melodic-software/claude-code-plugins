@@ -122,9 +122,12 @@ export function decide(verdict, inputs) {
   if (verdict["dirty-tree"] === true) {
     return failure("A read activity left the working tree dirty.");
   }
-  // A skip reason counts only in a run job that succeeded, after a script
-  // exited 0 with one (success) or when the act step never ran, so no head
-  // code wrote the verdict (skipped).
+  // A skip reason counts only in a run job that succeeded, with an act
+  // outcome of success or skipped: a script that exited 0 with one, a
+  // prepare: merge-base escalation after the model turn (post.sh's
+  // awaiting-human), or a skip before the act step ran. The verdict is still
+  // written after head code may have run, so a forged reason can only turn a
+  // success neutral; the act outcome and run result come from the runner.
   if (verdict["skip-reason"] != null) {
     return runResult === "success" &&
       (actOutcome === "success" || actOutcome === "skipped")

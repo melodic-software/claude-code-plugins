@@ -79,10 +79,9 @@ self-verification, but installing the companion plugins restores the full former
 
 Artifact placement is fixed by the artifact protocol (see above), so nothing needs configuring.
 
-`implement_dispatch_wave_cap` sets how many worker rows
+`implement_dispatch_wave_cap` sets how many worker rows of one plan phase
 `/implementation:implement-dispatch` runs at once. Unset, the skill keeps its internal 3–5
-wave default. The cap bounds all worker rows in flight in a wave, whichever plan phases and worktrees
-they come from; phases the approved plan marks independent share a wave by default. Rows that
+wave default. The cap bounds all worker rows in flight in a phase, whichever worktrees they use. Rows that
 share a worktree under the default worker authority are further serialized to one at a time,
 whatever the cap allows. A `--wave-cap` argument from a chaining caller, such as `/work-items:work`
 threading its own `work_dispatch_concurrency_cap`, takes precedence for that invocation. The
@@ -138,11 +137,29 @@ touches subagent tool restrictions or Bash permission-rule matching.
 
 **`implement_dispatch_wave_cap`.** The cap is the size of one dispatch wave. Give a whole number of
 rows; a fractional value is floored since a row is discrete. The cap bounds all worker rows in
-flight in a wave, whichever plan phases and worktrees they come from. Rows that share a worktree under the default
+flight in a phase, whichever worktrees they use. Rows that share a worktree under the default
 worker authority are further serialized to one at a time, whatever the cap allows. A chaining
 caller that passes `--wave-cap` is, for example, `/work-items:work` threading its
 `work_dispatch_concurrency_cap`. This key declares no default, so an unset value stays
 distinguishable from a configured one.
+
+**`verify_mechanical_phases`.** A repository sets it for everyone with
+`verify_mechanical_phases: true` in `docs/conventions/implementation.yaml` (schema:
+`schemas/implementation.schema.json`). `true` in either layer wins, so neither layer can switch off
+the other's `true`. Resolution and the root rule: [`reference/config.md`](reference/config.md).
+
+**`integration_posture`.** `day-one` and `minimal` apply to features, fixes and config changes; a
+refactor never changes behavior under any value. A repository's
+`docs/conventions/implementation.yaml` `integration_posture` key overrides this option.
+
+**`refactor_compat`.** `same-wave` never deletes a shape that external consumers (a public API, a
+published package) depend on. A repository's `docs/conventions/implementation.yaml`
+`refactor_compat` key overrides this option.
+
+**`competing_attempts` and `competing_attempt_count`.** They act only on a phase `/planning:plan`
+marks `multi-shape`; every other phase gets one attempt. Attempts count against the dispatch wave
+cap. A repository's `docs/conventions/implementation.yaml` keys of the same names override these
+options. Resolution and the root rule: [`reference/config.md`](reference/config.md).
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -155,6 +172,14 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `implement_dispatch_wave_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_IMPLEMENT_DISPATCH_WAVE_CAP` | Maximum worker rows /implementation:implement-dispatch runs at once in one wave, counting rows from every plan phase in it. Leave unset to keep the internal 3-5 wave default. A fractional value is floored. A --wave-cap argument from a chaining caller takes precedence for that invocation. |
+| `verify_mechanical_phases` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_VERIFY_MECHANICAL_PHASES` | When on, /implementation:implement and /implementation:implement-dispatch send every phase, mechanical ones included, to a fresh-context verifier. Off (default) keeps the mechanical carve-out. True here or in a repository's docs/conventions/implementation.yaml wins. |
+| `drain_cadence` | string | `"on-arrival"` | `CLAUDE_PLUGIN_OPTION_DRAIN_CADENCE` | When /implementation:implement-dispatch reads worker returns. on-arrival (default): each return as it comes in. batched: held until the orchestrator step in progress finishes, for long multi-wave runs. A repository's docs/conventions/implementation.yaml drain_cadence key overrides this value. |
+| `code_writing` | string | `"inline"` | `CLAUDE_PLUGIN_OPTION_CODE_WRITING` | Who writes the code in /implementation:implement. inline (default): this session edits, unless the run is autonomous or the plan routes phases to workers. dispatch: implement-dispatch workers write every plan phase. A repository's docs/conventions/implementation.yaml code_writing key overrides it. |
+| `per_unit_check` | string | `"pilot"` | `CLAUDE_PLUGIN_OPTION_PER_UNIT_CHECK` | How /implementation:implement checks a change applied at three or more sites. pilot (default): apply it to a few units, check them, then apply the rest with one check at the end. every: check after each unit. A repository's docs/conventions/implementation.yaml per_unit_check key overrides it. |
+| `integration_posture` | string | `"by-kind"` | `CLAUDE_PLUGIN_OPTION_INTEGRATION_POSTURE` | How far /implementation:implement reshapes surrounding code without an approved plan. by-kind (default): a feature redesigns the code it lands in as if built in from the start, a fix or config change stays minimal, a refactor keeps the plan's scope. day-one: all redesign. minimal: all stay minimal. |
+| `refactor_compat` | string | `"same-wave"` | `CLAUDE_PLUGIN_OPTION_REFACTOR_COMPAT` | What an /implementation:implement refactor does with the old shape. same-wave (default): update all call sites and remove it in that same change, unless code outside the repository relies on it. deprecate: keep an adapter with a removal condition. A repository's implementation.yaml overrides it. |
+| `competing_attempts` | string | `"suggest"` | `CLAUDE_PLUGIN_OPTION_COMPETING_ATTEMPTS` | What /implementation:implement-dispatch does with a plan phase marked multi-shape. suggest (default): offer several attempts with a cost line. auto: run them without asking. off: one attempt, as for any phase. A repository's docs/conventions/implementation.yaml key overrides it. |
+| `competing_attempt_count` | number<br>*min 2, max 5* | `3` | `CLAUDE_PLUGIN_OPTION_COMPETING_ATTEMPT_COUNT` | How many attempts /implementation:implement-dispatch runs for a multi-shape phase when competing attempts run: a whole number from 2 to 5, default 3. A repository's docs/conventions/implementation.yaml key overrides it. |
 
 ### How to set these
 

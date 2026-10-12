@@ -83,3 +83,15 @@ D/audit-sessions/
 - New fields are added within v1, and readers treat a missing field as null.
 - A breaking change moves the store to `store/v2/` and ships a v1-to-v2 migrator in `collect.py`.
   The store cannot be rebuilt from transcripts after Claude Code has swept them.
+
+## Sweep report
+
+- `sweep.py --format json` prints one envelope: `schema` (`audit-sessions.sweep/v1`, the `SCHEMA`
+  constant in `scripts/sweep.py`), `status` (`pass`, `warning` or `error`), `summary`, and `data`,
+  which `build_data` in `scripts/sweep.py` builds. Every session over a threshold stays in `data`;
+  the markdown report is a rendering of it and is not a contract.
+- New fields are added within v1, and a consumer treats a missing field as null and ignores one it
+  does not know. Removing or renaming a field, or changing what one means, moves the schema to
+  `audit-sessions.sweep/v2`.
+- Exit codes: 0 pass, 1 warning (a metric degraded by drift), 2 error, 3 no store under the data
+  directory. Exit 3 writes nothing; any other exit writes only what `--write-report` asks for.
