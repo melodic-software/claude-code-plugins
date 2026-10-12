@@ -15,9 +15,8 @@ metadata:
 
 Consume the machine-readable action-plan JSON emitted by `/repo-fleet-hygiene:audit` and drive
 cleanup for N repositories behind **one** confirmation gate. This is the executing verb for the
-fleet cleanup contract. It is a separate skill from `:audit` on purpose: the audit's
-`allowed-tools` grant is a prefix rule on `audit-fleet.sh`, so an execute flag there would widen
-mutation authority silently.
+fleet cleanup contract. It is a separate skill from `:audit` on purpose: keeping execution out of
+`audit-fleet.sh` keeps the audit's `allowed-tools` grant from ever covering a mutation.
 
 - **Pointer**: how a prefix rule matches the arguments after it is in
   [Permission rule syntax](https://code.claude.com/docs/en/permissions#permission-rule-syntax).

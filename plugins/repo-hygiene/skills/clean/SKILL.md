@@ -39,14 +39,8 @@ hooks:
       hooks:
         # Exec form. `command` is `node`. exec-bash.mjs finds Git Bash and
         # never System32\bash.exe, then runs destructive-guard.sh. `args`
-        # names only ${CLAUDE_PLUGIN_ROOT}: a skill-frontmatter hook given
-        # ${CLAUDE_PLUGIN_DATA} was observed to refuse launch.
-        # Basis: the disk-hygiene plugin's README, "Security posture" section
-        # (README.md#security-posture), which records that refusal for its
-        # own skill-frontmatter hook. The hooks page does not state it.
-        # As of: 2026-10-11.
-        # Recheck trigger: that section stops recording the refusal, or a
-        # skill hook here given ${CLAUDE_PLUGIN_DATA} launches.
+        # names only ${CLAUDE_PLUGIN_ROOT}, by design; whether a
+        # skill-frontmatter hook receives ${CLAUDE_PLUGIN_DATA} is untested.
         # Pointer: https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
         # and https://code.claude.com/docs/en/hooks#reference-scripts-by-path.
         # As of: 2026-10-11.
