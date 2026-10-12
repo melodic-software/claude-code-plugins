@@ -61,6 +61,8 @@ Structure the draft to the shape Step 1 read off the live page. That page is the
 
 Avoid conditions the transcript cannot show (subjective quality, external state Claude never surfaces).
 
+**The condition holds steady through a stall.** Runs do stall: the same failures come back turn after turn, or a count stops climbing. That is a cue to try another approach, not to stop, and never a reason to lower a threshold, loosen the wording or drop an element so the evaluator can say yes. A user who asks mid-run for an easier condition hears the same thing. If no approach gets there, the run ends by laying out the dead end with its evidence (what was tried and what blocked each attempt) and handing the decision to the user.
+
 ### When the outcome is not quantifiable
 
 Most goals are not `npm test`. When the intent has no honest metric, do **not** manufacture one. A made-up number aims the evaluator at the wrong thing and lets a run pass on the wrong evidence. Three moves give the shape Step 1 read off the live page something demonstrable to be built out of; they feed that shape rather than replace it:

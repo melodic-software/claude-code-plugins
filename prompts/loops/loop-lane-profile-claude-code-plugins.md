@@ -140,7 +140,7 @@ machines; neither on the attended box.
 
 > **=== COPY FROM HERE ===**
 >
-> /loop /work-items:work-loop
+> /loop /work-items:work-loop --standing
 >
 > Repository: `melodic-software/claude-code-plugins`
 > Runtime surfaces in this repo: **every tracked markdown file**
@@ -761,8 +761,10 @@ to the template re-renders here too.
 > provenance: the `rate-limit-guard` reader contract):
 >
 > - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-> - **Pause threshold (fixed):** pause when **either** window reports
->   `used_percentage >= 95`
+> - **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose
+>   session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read
+>   it at lane start with `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it
+>   pauses when **either** window reports `used_percentage >= 95`
 > - **Pause end:** the **tripped** window's `resets_at`; when **both**
 >   windows trip, the **later** `resets_at`
 > - **Staleness rule:** a snapshot whose `captured_at` is older than
@@ -775,9 +777,16 @@ to the template re-renders here too.
 >   **`account.email` field when the writer could attribute the
 >   observation**, so a write is still the signal that the windows
 >   changed under you (account switch, another session's refresh).
-> - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming
->   new work, pause until the pause end, and report; a hard stop happens
->   only on explicit user request.
+> - **Drain-then-pause:** for an opted-in lane, on a trip, finish
+>   in-flight work, stop claiming new work, pause until the pause end, and
+>   report; a hard stop happens only on explicit user request. Without
+>   the opt-in, a window at or above 95 never pauses, slows, or stops the
+>   lane and never lowers its model, effort, or review depth: it keeps
+>   working and reports the window, its `used_percentage` and `resets_at`,
+>   and the operator's options: continue, switch accounts (a human action
+>   a lane never performs or scripts;
+>   https://github.com/melodic-software/claude-code-account-rotation), or
+>   opt in to pausing.
 > - **Account switch:** while paused, a consumer **MUST** read
 >   `.oauthAccount.emailAddress` directly from
 >   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot
