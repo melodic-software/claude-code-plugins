@@ -11,6 +11,7 @@ from __future__ import annotations
 import dataclasses
 import pathlib
 import sys
+import time
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
@@ -21,7 +22,6 @@ from babysit_risk import (
     Risk,
     RiskInput,
     Rung,
-    glob_regex,
     normalize_path,
     score,
 )
@@ -428,6 +428,41 @@ class EvidenceAndPluginTests(unittest.TestCase):
         result = score(_input(files=files))
         self.assertEqual(_codes(result), ("class-contradicted",))
 
+    def test_plugins_segment_is_folded_when_counting_plugins(self):
+        files = (_file("Plugins/foo/a.md"), _file("plugins/bar/b.md"))
+        result = score(_input(files=files))
+        self.assertEqual(_codes(result), ("class-contradicted",))
+
+
+class GlobTimingTests(unittest.TestCase):
+    """Spec: each configured glob is judged in under 0.5s, however many stars."""
+
+    CASES = (
+        ("plugins/foo/" + "*" * 10 + "z", "plugins/foo/" + "a" * 40 + ".md"),
+        ("plugins/foo/" + "*" * 20 + "z", "plugins/foo/" + "a" * 40 + ".md"),
+        ("**/" * 9 + "z", "/".join(["a"] * 30) + "/b.md"),
+        ("**/a/" * 9 + "z", "/".join(["a"] * 30) + "/b.md"),
+        ("plugins/foo/" + "*a" * 20 + "z", "plugins/foo/" + "a" * 60 + ".md"),
+    )
+
+    def test_star_heavy_globs_finish_fast(self):
+        for glob, path in self.CASES:
+            with self.subTest(glob):
+                start = time.perf_counter()
+                result = score(_input(files=(_file(path),), high_paths=(glob,)))
+                self.assertLess(time.perf_counter() - start, 0.5)
+                self.assertEqual(result.score, Risk.LOW)
+
+    def test_star_globs_still_match(self):
+        for glob, path in (
+            ("plugins/foo/" + "*" * 10 + ".md", "plugins/foo/" + "a" * 40 + ".md"),
+            ("**/" * 9 + "b.md", "/".join(["a"] * 30) + "/b.md"),
+            ("plugins/*o*/a*.md", "plugins/foo/abc.md"),
+        ):
+            with self.subTest(glob):
+                result = score(_input(files=(_file(path),), high_paths=(glob,)))
+                self.assertIn(f"high-path:{glob}", _codes(result))
+
 
 class BlastRadiusTests(unittest.TestCase):
     def test_blast_radius_ignored_for_c2(self):
@@ -631,7 +666,8 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertEqual(normalize_path(path), (path, True))
 
     def test_double_star_spans_any_character(self):
-        self.assertTrue(glob_regex(".github/**").fullmatch(".github/a\nb"))
+        result = score(_input(files=(_file(".github/a\nb"),)))
+        self.assertIn("high-path:.github/**", _codes(result))
 
     def test_rename_or_copy_without_a_previous_path_is_high_at_every_class(self):
         for status in ("renamed", "copied"):

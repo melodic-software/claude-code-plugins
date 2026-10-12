@@ -203,37 +203,58 @@ def _normalize_glob(pattern: str) -> str:
     return pattern
 
 
-def _segment_regex(segment: str) -> str:
-    out = []
-    for char in segment:
-        if char == "*":
-            out.append("[^/]*")
-        elif char == "?":
-            out.append("[^/]")
+def _segment_match(pattern: str, name: str) -> bool:
+    """`*` and `?` within one segment. Greedy with one backtrack point, so the
+    cost is at most len(pattern) * len(name) however many stars there are."""
+    p = n = 0
+    star, mark = -1, 0
+    while n < len(name):
+        if p < len(pattern) and pattern[p] == "*":
+            star, mark, p = p, n, p + 1
+        elif p < len(pattern) and pattern[p] in ("?", name[n]):
+            p, n = p + 1, n + 1
+        elif star >= 0:
+            mark += 1
+            p, n = star + 1, mark
         else:
-            out.append(re.escape(char))
-    return "".join(out)
+            return False
+    return all(char == "*" for char in pattern[p:])
 
 
-def glob_regex(pattern: str) -> re.Pattern[str]:
-    """Compile a path glob: `**` spans any number of segments, `*` and `?` stay
+def glob_match(pattern: str, path: str) -> bool:
+    """Match a path glob: `**` spans any number of segments, `*` and `?` stay
     within one. A pattern also covers everything under it, so `plugins/foo` and
     `plugins/foo/` both match `plugins/foo/x.md`, and `X/**` matches `X` itself.
-    Matching is on the case-folded path."""
+    Matching is case-folded and segment by segment, memoised on (pattern
+    segment, path segment), so no glob can backtrack exponentially."""
     folded = _normalize_glob(pattern).casefold()
     if folded.endswith("/"):
         folded += "**"
-    segments = folded.split("/")
-    parts = []
-    for index, segment in enumerate(segments):
-        last = index == len(segments) - 1
-        if segment == "**" and last and parts and parts[-1].endswith("/"):
-            parts[-1] = parts[-1][:-1] + "(?:/.*)?"  # `X/**` also matches `X`
-        elif segment == "**":
-            parts.append(".*" if last else "(?:[^/]+/)*")
-        else:
-            parts.append(_segment_regex(segment) + ("(?:/.*)?" if last else "/"))
-    return re.compile("".join(parts), re.DOTALL)
+    globs: list[str] = []
+    for segment in folded.split("/"):
+        if segment != "**":
+            segment = re.sub(r"\*+", "*", segment)
+        if not (segment == "**" and globs and globs[-1] == "**"):
+            globs.append(segment)
+    names = path.casefold().split("/")
+    memo: dict[tuple[int, int], bool] = {}
+
+    def match(i: int, j: int) -> bool:
+        if i == len(globs):
+            return True  # the rest of the path sits under what matched
+        key = (i, j)
+        if key not in memo:
+            if globs[i] == "**":
+                memo[key] = any(match(i + 1, k) for k in range(j, len(names) + 1))
+            else:
+                memo[key] = (
+                    j < len(names)
+                    and _segment_match(globs[i], names[j])
+                    and match(i + 1, j + 1)
+                )
+        return memo[key]
+
+    return match(0, 0)
 
 
 @dataclass(frozen=True)
@@ -303,8 +324,7 @@ def _high_path_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
     paths = [path for f in files for path in f.paths if path]
     for pattern in dict.fromkeys((*HIGH_FLOOR, *configured)):
-        regex = glob_regex(pattern)
-        hits = [path for path in paths if regex.fullmatch(path.casefold())]
+        hits = [path for path in paths if glob_match(pattern, path)]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
     return reasons
@@ -321,11 +341,11 @@ def _c2_contradictions(files: list[_File]) -> list[str]:
     paths = [path for f in files for path in f.paths]
     if any(path.casefold().endswith(".schema.json") for path in paths):
         found.append("*.schema.json changed")
-    # Not case-folded: plugins/Foo and plugins/foo are two directories in git.
+    # Only `plugins` is folded: plugins/Foo and plugins/foo are two plugins.
     plugins = {
         parts[1]
         for parts in (path.split("/") for path in paths)
-        if len(parts) >= 3 and parts[0] == "plugins"
+        if len(parts) >= 3 and parts[0].casefold() == "plugins"
     }
     if len(plugins) > 1:
         found.append(f"more than one plugin: {', '.join(sorted(plugins))}")
