@@ -140,18 +140,31 @@ async page => {
   ok("Esc closes full screen", await page.evaluate(() => document.getElementById("fs").hidden));
   await page.keyboard.press("Escape");
 
-  // medium widths: the agrid is one column, the rail cut is marked, nothing widens the page
+  // medium widths: the agrid stays two columns down to 900 px, the rail cut is marked, nothing widens the page
   await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);
+  for (const [w, h] of [[1440, 900], [1000, 800]]) { // the dock never starves the question, and the choices never scroll inside it
+    await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(250);
+    const m = await page.evaluate(() => { const c = document.getElementById("choices"), d = document.getElementById("dscroll"), main = document.querySelector("main.detail"), save = document.querySelector("[data-save]").getBoundingClientRect(), dock = document.getElementById("answer").getBoundingClientRect();
+      return {choicesScroll: c.scrollHeight > c.clientHeight + 1, detail: d.clientHeight, main: main.clientHeight, saveShown: save.top >= dock.top && save.bottom <= dock.bottom + 1}; });
+    ok("at " + w + "x" + h + " the question keeps at least 40% of the pane, every choice shows without its own scroller, and Save is in view", !m.choicesScroll && m.detail >= 0.4 * m.main && m.saveShown, JSON.stringify(m));
+  }
   for (const w of [1024, 820]) {
     await page.setViewportSize({width: w, height: 860}); await page.waitForTimeout(250);
     const m = await page.evaluate(() => ({cols: getComputedStyle(document.querySelector(".agrid")).gridTemplateColumns.split(" ").length, wide: document.scrollingElement.scrollWidth - innerWidth, railB: getComputedStyle(document.querySelector("nav.rail")).borderBottomWidth, choice: getComputedStyle(document.querySelector(".choice .t")).webkitLineClamp}));
-    ok("at " + w + " px the answer grid is one column and the page does not widen", m.cols === 1 && m.wide <= 1, JSON.stringify(m));
+    ok("at " + w + " px the answer grid is " + (w > 900 ? "two columns" : "one column") + " and the page does not widen", m.cols === (w > 900 ? 2 : 1) && m.wide <= 1, JSON.stringify(m));
     if (w === 820) ok("at 820 px the rail ends in a border", m.railB === "1px", m.railB);
     ok("an option title may take two lines at " + w + " px", m.choice === "2", m.choice);
     await page.click(".sumbtn"); await page.waitForTimeout(250);
     ok("the summary does not widen the page at " + w + " px", await page.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1));
     await page.click('.qbtn[data-q="N2"]').catch(() => {}); await page.waitForTimeout(150);
   }
+  await page.setViewportSize({width: 390, height: 844}); await page.waitForTimeout(250);
+  const ph = await page.evaluate(() => ({main: Math.round(document.querySelector("main.detail").getBoundingClientRect().top + scrollY), rail: Math.round(document.querySelector("nav.rail").getBoundingClientRect().top + scrollY)}));
+  ok("at 390 px the current question comes before the question list", ph.main < ph.rail, JSON.stringify(ph));
+  await page.click('.rail-list .qbtn[data-q="N1"]'); await page.waitForTimeout(300);
+  const pt = await page.evaluate(() => ({sel: (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q, top: Math.round(document.querySelector("main.detail").getBoundingClientRect().top)}));
+  ok("at 390 px a pick from the list scrolls its question into view", pt.sel === "N1" && pt.top >= -1 && pt.top < 200, JSON.stringify(pt));
+  await page.evaluate(() => scrollTo(0, 0)); await page.click('.qbtn[data-q="N2"]').catch(() => {});
   await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(250);
   ok("the meter title states the archived count", /\d+ archived/.test(await page.getAttribute("#meterText", "title")), await page.getAttribute("#meterText", "title"));
   await page.selectOption("#filter", "pending"); await page.waitForTimeout(200);

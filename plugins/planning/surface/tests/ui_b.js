@@ -26,8 +26,8 @@ async page => {
   await page.waitForTimeout(900);
   ok("Claude line reads 'Claude is working on ...'", /^Claude is working on /.test(await page.textContent("#claudeLine")), await page.textContent("#claudeLine"));
   await page.setViewportSize({width: 1280, height: 720}); await page.waitForTimeout(200);
-  const dh = await page.evaluate(() => ({h: document.querySelector("fieldset.decide").getBoundingClientRect().height, vh: innerHeight}));
-  ok("at 1280x720 the decide fieldset is at most 40% of the viewport", dh.h <= dh.vh * 0.4 + 1, JSON.stringify(dh));
+  const dh = await page.evaluate(() => { const c = document.getElementById("choices"); return {detail: document.getElementById("dscroll").clientHeight, main: document.querySelector("main.detail").clientHeight, choicesScroll: c.scrollHeight > c.clientHeight + 1}; });
+  ok("at 1280x720 the question keeps at least 40% of the pane and the choices have no scroller of their own", dh.detail >= dh.main * 0.4 && !dh.choicesScroll, JSON.stringify(dh));
   await page.setViewportSize({width: 390, height: 844}); await page.waitForTimeout(200);
   const ph = await page.evaluate(() => { const c = document.getElementById("claudeLine"); return {hs: document.documentElement.scrollWidth - innerWidth, cut: c.scrollWidth > c.clientWidth + 1 || c.scrollHeight > c.clientHeight + 1, shown: !c.hidden}; });
   ok("at 390x844 there is no horizontal page scroll and the status line is not truncated", ph.hs <= 0 && ph.shown && !ph.cut, JSON.stringify(ph));

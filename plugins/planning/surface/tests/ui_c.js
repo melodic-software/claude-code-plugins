@@ -123,6 +123,17 @@ async page => {
     s = await state();
     ok("a hedged question's commitments count in To confirm", (await counter()) === (openAssumptions(s) ? open(openAssumptions(s)) : ""), (await counter()) + " vs " + openAssumptions(s));
     await page.click("main.detail h3"); await page.keyboard.press("r"); await page.waitForTimeout(600);
+    // Someone else decides: a defer that names the person who holds the decision
+    await pick("Q3"); await page.click('.choice:has-text("Someone else decides")'); await page.waitForTimeout(150);
+    ok("Someone else decides needs a note naming who before it saves", /Someone else decides/.test(await armed()) && await page.$eval("[data-save]", el => el.disabled) && /Name who decides/.test(await page.textContent("#decideRow")), await armed());
+    await page.click("#note"); await page.keyboard.type("Dana, the DBA"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(700);
+    const ep = await events(), pd = ep[ep.length - 1];
+    ok("Someone else decides posts a defer whose text names the person", pd.id === "Q3" && pd.kind === "defer" && pd.text === "someone else decides: Dana, the DBA", JSON.stringify(pd));
+    await pick("Q3");
+    ok("the person-held deferral shows as Someone else decides, not plain Defer", /Someone else decides/.test(await page.textContent(".choice.current").catch(() => "")), await page.textContent(".choice.current").catch(() => ""));
+    await page.click(".sumbtn"); await page.waitForTimeout(300);
+    ok("the summary lists the person-held deferral and the questionnaire hand-off", /Q3/.test(await page.textContent("#personHeld").catch(() => "")) && /Dana, the DBA/.test(await page.textContent("#personHeld").catch(() => "")) && /questionnaire/.test(await page.textContent("#personHeld").catch(() => "")), await page.textContent("#personHeld").catch(() => "none"));
+    await pick("Q3"); await page.click("main.detail h3"); await page.keyboard.press("r"); await page.waitForTimeout(600);
     await pick("Q1"); await page.click("main.detail h3");
     const nBeforeReopen = (await events()).length;
     await page.keyboard.press("r"); await page.waitForTimeout(700);
@@ -374,8 +385,8 @@ async page => {
 
     // SPEC 4.1: mobile stacks, no horizontal scroll at 800 px
     await page.setViewportSize({width: 800, height: 900}); await page.waitForTimeout(300);
-    const mob = await page.evaluate(() => { const r = document.querySelector("nav.rail").getBoundingClientRect(), d = document.querySelector("main.detail").getBoundingClientRect(), a = document.getElementById("answer"); a.scrollIntoView(); const ar = a.getBoundingClientRect(); return {hscroll: document.scrollingElement.scrollWidth > innerWidth, stacked: r.bottom <= d.top + 1, answer: ar.height > 0 && ar.top < innerHeight && ar.bottom > 0}; });
-    ok("mobile: panes stack, no horizontal scroll, answer pane reachable", !mob.hscroll && mob.stacked && mob.answer, JSON.stringify(mob));
+    const mob = await page.evaluate(() => { const r = document.querySelector("nav.rail").getBoundingClientRect(), d = document.querySelector("main.detail").getBoundingClientRect(), a = document.getElementById("answer"); a.scrollIntoView(); const ar = a.getBoundingClientRect(); return {hscroll: document.scrollingElement.scrollWidth > innerWidth, stacked: d.bottom <= r.top + 1, answer: ar.height > 0 && ar.top < innerHeight && ar.bottom > 0}; });
+    ok("mobile: panes stack with the question first, no horizontal scroll, answer pane reachable", !mob.hscroll && mob.stacked && mob.answer, JSON.stringify(mob));
     await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(300);
     ok("AC36: page never scrolls at 1400 by 860", await page.evaluate(() => document.scrollingElement.scrollHeight <= innerHeight + 1 && document.scrollingElement.scrollWidth <= innerWidth));
 

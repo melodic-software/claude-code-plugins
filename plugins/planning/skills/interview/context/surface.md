@@ -198,7 +198,7 @@ Rules R-A to R-K:
 | # | Rule | Enforced by |
 |---|---|---|
 | R-A | Frontier gating: prerequisites first; write later questions after the answers that shape them | skill, group gating on the page |
-| R-B | Size, not a count, signals decomposition: growth in branching or open items prompts the offer below | skill |
+| R-B | Size, not a count, signals decomposition: growth in branching or open items prompts, mid-session, the routing SKILL.md's Stance and Step 5 give | skill |
 | R-C | Decomposition runs locally: a split-level session, then one smaller interview per piece; tracker writes only when the user says so | skill |
 | R-D | Read back a long or unclear dictated answer in one line ("Understood as: ...") | skill |
 | R-E | Flag a note that ends mid-sentence and ask the user to finish it | skill, finished-screen loose ends |
@@ -216,7 +216,8 @@ Every question states its decision in plain words. Before `add-round`, scan each
 ## Offers
 
 - **Dedicated session.** When a page session starts in a heavy context, offer once, in one line, to run the interview in a small dedicated session so each wake is cheap. Never force it.
-- **Decomposition at wrap-up (R6).** Name `/planning:wayfind` and, when enabled, `/work-items:decompose` as steps the user runs; never run them. The local outputs are `export-brief` and `export-report`.
+- **Decomposition at wrap-up (R6).** When enabled, name `/work-items:decompose` as a step the user runs; never run it. The local outputs are `export-brief` and `export-report`. `/planning:wayfind` is not a wrap-up offer: it is named only where SKILL.md's Stance and Step 5 name it, for an effort too big and still too foggy to phrase as questions.
+- **Someone else decides.** The page's `Someone else decides` choice records a `defer` whose `text` starts `someone else decides: ` and names who holds the decision; the summary lists these under the same heading. They are the person-held deferrals SKILL.md Step 5 routes to `/planning:questionnaire`, so name it in the `finish` op's `next` when any exist.
 
 ## Wrap-up
 
