@@ -48,6 +48,17 @@ on:
         required: false
         type: boolean
         default: false
+      env-scrub:
+        description: >-
+          Strip credentials from Bash subprocesses in the eval
+          (CLAUDE_CODE_SUBPROCESS_ENV_SCRUB). Turning it off lets Bash
+          subprocesses in the eval see the Claude credentials; turn it off only
+          for cases whose allowed tools cannot exfiltrate, such as Bash(echo *).
+          What those tools print lands in the public results artifact and, with
+          debug-errors, the public job log.
+        required: false
+        type: boolean
+        default: true
 
 permissions: {}
 
@@ -69,7 +80,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .base/.node-version
           package-manager-cache: false
@@ -79,6 +90,7 @@ jobs:
         uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
       - name: Stop when the kill switch is on
         if: steps.kill.outputs.proceed != 'true'
@@ -179,12 +191,20 @@ jobs:
           fi
           echo "playwright-cli inside bwrap: $out"
 
+      - name: Record that env scrub is off
+        if: ${{ !inputs.env-scrub }}
+        env:
+          DISPATCHER: ${{ github.actor }}
+        run: echo "::warning::CLAUDE_CODE_SUBPROCESS_ENV_SCRUB is off for this run; Bash subprocesses can see the Claude credentials. Dispatched by ${DISPATCHER}."
+
       - name: Run the plugin eval
         working-directory: .base
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Strips credentials from Bash subprocesses inside each eval run.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          # The env-scrub input set false gives "0", the opt-out value Claude
+          # Code's own messages name.
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: ${{ inputs.env-scrub && '1' || '0' }}
           TARGET: ${{ inputs.target }}
           TAGS: ${{ inputs.tag }}
           RUNS: ${{ inputs.runs }}
@@ -232,8 +252,13 @@ jobs:
 
       # Opt-in because the job log of this public repository is public. Prints,
       # per run, at most 20 Bash calls whose tool_result has is_error true: the
-      # command and the result text, each cut to 300 characters and JSON-quoted
-      # onto one line. Nothing else from the trace is printed. Trace text is
+      # command cut to 300 characters, and the result text cut to its first 120
+      # and last 2500 characters when longer than 2620 (the end holds the daemon
+      # log), each JSON-quoted onto one line. A second line, `key:`, holds the lines of the
+      # full result that match FATAL, Check failed, ERROR:, sandbox, permission or errno
+      # patterns (the cause line that a long crash stack pushes out of the tail), minus the
+      # known .bashrc noise, de-duplicated, at most 15, each cut to 300 characters; it is
+      # omitted when nothing matches. Nothing else from the trace is printed. Trace text is
       # tool output, so workflow commands are off while it prints.
       - name: Print Bash error excerpts
         if: always() && inputs.debug-errors
@@ -257,6 +282,14 @@ jobs:
                 continue
               fi
               jq -nrR '
+                def tail_cut: if length > 2620 then .[:120] + " … " + .[-2500:] else . end;
+                def key_lines:
+                  [split("\n")[]
+                    | select(test("FATAL|Check failed|ERROR:|No usable sandbox|Permission denied|Operation not permitted|EACCES|EPERM|ENOENT|errno")
+                             and (contains(".bashrc: Permission denied") | not))
+                    | .[:300]]
+                  | reduce .[] as $l ([]; if index([$l]) then . else . + [$l] end)
+                  | .[:15] | join("\n");
                 [inputs | fromjson? | objects] as $m
                 | ([$m[] | select(.type == "assistant") | .message.content[]? | objects
                     | select(.type == "tool_use" and .name == "Bash" and (.id | type) == "string")
@@ -268,14 +301,14 @@ jobs:
                     | {cmd: $bash[$id],
                        out: (.content | if type == "array" then map(objects | select(.type == "text") | .text | tostring) | join("\n") else tostring end)}]
                 | "   \(length) Bash error(s), showing up to 20",
-                  (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out[:300] | tojson)")
+                  (.[:20][] | "   $ \(.cmd[:300] | tojson)\n     -> \(.out | tail_cut | tojson)\(.out | key_lines | if . == "" then "" else "\n     key: \(tojson)" end)")
               ' "$trace" || echo "   could not read the trace"
             done || echo "could not read results.json"
           echo "::$token::"
 
       - name: Upload the eval results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: eval-browser-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/eval-results/

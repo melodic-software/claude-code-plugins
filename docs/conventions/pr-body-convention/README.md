@@ -16,7 +16,7 @@ user-global, team-tracked, and a gitignored personal overlay, per
 [`source-control/reference/config-resolution.md`](../../../plugins/source-control/reference/config-resolution.md).
 When the team layer declares a `convention_source` neutral file (the
 [commit-convention seam](../commit-convention/README.md)'s tool-agnostic SSOT), that file may carry
-this key as a flat YAML list (or the keyword `none`) and is then authoritative for the team layer,
+this key as a flat YAML list (or one of the keywords `briefing`, `summary-test-plan` and `none`) and is then authoritative for the team layer,
 same per-key semantics.
 That document owns the **resolution mechanics**: the value grammar, the three-layer read order, and
 the per-key (whole-list) override semantics. This doc never restates them. It owns the concern's
@@ -35,22 +35,31 @@ the per-key (whole-list) override semantics. This doc never restates them. It ow
   commit-subject / PR-title convention. No such consumer exists yet in this fleet; this doc reserves
   the concern so the second adopter reads the same key instead of inventing a parallel one.
 
-## Portable default: `Summary` and `Test plan` only
+## Portable default: the `briefing` preset
 
-When no layer sets `pr_body_required_sections`, the plugin's built-in scaffold requires exactly two
-sections: `Summary` and `Test plan`. This is a deliberate **lane-1 default**
-([`docs/plugin-philosophy.md`](../../plugin-philosophy.md) "Two-lane convention posture"), a
-good-practice value that cannot conflict in any repo the plugin drops into, because it presumes
-nothing about the consumer.
+When no layer sets `pr_body_required_sections`, the plugin drafts the `briefing` preset: `Why`,
+`What changed`, `Scope`, `Tradeoffs`, `Risk` and `Verification`, in that order, with `Why`,
+`What changed`, `Scope` and `Verification` required and the other two written only when they have
+content. The section rules live in `/source-control:pull-request`'s `create` reference; this doc
+records why the preset is the default. It is a deliberate **lane-1 default**
+([`docs/plugin-philosophy.md`](../../plugin-philosophy.md) "Two-lane convention posture"): it
+presumes nothing about the consumer, so it cannot conflict in any repo the plugin drops into.
 
-Research basis (GitHub's own PR-description guidance, Google's engineering-practices CL-description
-doc, GitLab's dogfooded default merge-request template, and a cross-section of OSS project PR
-templates, weighed against anti-heavy-template falsification cases): **what/why the change does,
-plus evidence it was verified**, is the near-universal core of a reviewable PR description across
-ecosystems and org sizes. A third common section, a linked-issue or "Related" reference, is
-**not** part of the portable default: it presumes the consuming repo runs an issue tracker and links
-PRs to it, which is an org-specific choice, not a property every repo shares. That choice belongs in
-configuration, not in the plugin's shipped default.
+Why this shape. **What and why the change does, plus evidence it was verified**, is the
+near-universal core of a reviewable PR description (GitHub's own PR-description guidance, Google's
+engineering-practices CL-description doc, GitLab's dogfooded default merge-request template, and a
+cross-section of OSS project PR templates, weighed against anti-heavy-template falsification cases).
+The earlier two-section default met that core but had no place for excluded work or for the callers
+a change affects. `briefing` adds `Scope` and `Risk` for those, caps each section at a few sentences
+or bullets, and drops the two optional sections when they are empty.
+
+A consumer that wants the earlier default declares the keyword `summary-test-plan` (`Summary` and
+`Test plan`, both required). The keyword `briefing` states the default explicitly, for a layer that
+must override a lower layer's list.
+
+A linked-issue or "Related" section is **not** part of either preset: it presumes the consuming repo
+runs an issue tracker and links PRs to it, which is an org-specific choice, not a property every
+repo shares. That choice belongs in configuration, not in the plugin's shipped default.
 
 **`## Related` is never dropped by the mechanism.** A consumer whose convention includes it
 declares `Related` in its own `pr_body_required_sections` list (team-tracked, local overlay, or

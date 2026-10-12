@@ -88,7 +88,8 @@ required `<owner/repo>` argument may name a repository other than the current ch
 lane may launch from a neutral directory), and the config resolver's ambient team layer reads the
 current git root, so for every policy key that can raise behavior (the merge rung and its
 tracked-adoption activation above all), the lane reads the TARGET repository's tracked
-`.claude/source-control.md` from its default branch (`gh api` contents) whenever the current
+`.claude/source-control.md` from its default branch (the forge's contents read; provider
+reference: [GitHub](../../reference/providers/github/README.md)) whenever the current
 checkout is not that repository. Unreadable or absent = no tracked adoption = merges stay
 human-only (fail closed); a caller-side tracked file can never enable merges for a target that did
 not adopt the lane. Full precedence mechanics are owned by the config reference above. Report the
@@ -168,7 +169,7 @@ this lane's and any sibling's) are excluded from the 0-open-issues evaluation, e
 work-items lanes exclude them. The **drain-terminal state** (per the convention) also ends the
 loop: every remaining open item human-gated, escalated, or `C5` on the issue-author provenance
 test (`work-classes.md`) and no PR in flight. Report and stop cleanly rather than idling forever.
-Untrusted intake counts as human-gated for that exit even without a role label. Exit uses the cycle-start snapshot; mid-cycle intake is reported, never chased.
+Untrusted intake counts as human-gated for that exit even without a role label. Exit uses the cycle-start snapshot, only when confirmed complete ([cycle-shape](reference/cycle-shape.md) step 1; a failed or partial read is never an empty queue); mid-cycle intake is reported, never chased.
 
 ## Cycle shape
 
@@ -292,7 +293,7 @@ stalled, the threshold key, and the stall-escalation shape are owned in full by
 
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
 config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match), created with
-`gh issue create` when absent (announce the creation). Maintain exactly ONE status comment on it
+the forge's issue creation when absent (announce the creation). Maintain exactly ONE status comment on it
 **per lane instance**, sentinel-identified and edited in place (the `harness-ops` lane-telemetry
 contract; one writer identity owns a marker). The upsert itself, lane-instance resolution and
 validation, the singleton lookup, the POST/PATCH, the creation-race reconcile, and the
@@ -355,7 +356,10 @@ contract's floor); provenance is the `rate-limit-guard` plugin's reader contract
 provenance only, since an installed plugin cannot read a sibling plugin's files at runtime.
 
 - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 95`
+- **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose session environment sets
+  `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read it at lane start with
+  `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it pauses when **either** window reports
+  `used_percentage >= 95`
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
@@ -365,8 +369,13 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
   snapshot file and re-evaluate on every write: the file carries an **`account.email` field when the
   writer could attribute the observation**, so a write is still the signal that the windows changed
   under you (account switch, another session's refresh).
-- **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
-  pause end, and report; a hard stop happens only on explicit user request.
+- **Drain-then-pause:** for an opted-in lane, on a trip, finish in-flight work, stop claiming new
+  work, pause until the pause end, and report; a hard stop happens only on explicit user request.
+  Without the opt-in, a window at or above 95 never pauses, slows, or stops the lane and never
+  lowers its model, effort, or review depth: it keeps working and reports the window, its
+  `used_percentage` and `resets_at`, and the operator's options: continue, switch accounts (a
+  human action a lane never performs or scripts;
+  https://github.com/melodic-software/claude-code-account-rotation), or opt in to pausing.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
   from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: it names an account only as of
   a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it
@@ -399,9 +408,11 @@ Two further reader-contract rules apply alongside the floor (outside the byte-au
   `session_name`, any future account field) are user/AI-influenced. Parse them only with a JSON
   parser; never string-interpolate them into a shell command, another interpreter, or a prompt.
 
-A trip additionally latches `rate_limit_latch` in durable state: while it is set the lane schedules
+A trip of an opted-in lane (the floor's **Pause threshold**) additionally latches `rate_limit_latch` in durable state: while it is set the lane schedules
 at the idle ceiling and starts no new mutating work; clear it on a fresh healthy snapshot after the
-pause end, or on an account switch that resumes the lane.
+pause end, or on an account switch that resumes the lane. A lane not opted in clears
+`rate_limit_latch`, `paused_until`, and `latched_account` together at cycle start when its block
+carries them (left by the former default-on pause).
 
 While paused, apply the floor's **Account switch** bullet at pause entry, on every wake, and on every
 Monitor tick. The steps, the `latched_account` fingerprint written at pause entry, and the telemetry

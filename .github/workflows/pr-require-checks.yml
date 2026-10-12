@@ -611,6 +611,15 @@ jobs:
         continue-on-error: true
         run: scripts/check-adr-numbers.sh --check
 
+      # Each tracked docs/conventions/<concern>.yaml against its JSON Schema
+      # (ADR 0064 Decisions 6 and 7). Ungated: a change that edits only a
+      # convention YAML is docs-only, and that is the edit this gate reads.
+      # check-jsonschema comes from the hash-locked requirements install above.
+      - name: Validate docs/conventions YAML against its schemas
+        id: convention_yaml_schema
+        continue-on-error: true
+        run: scripts/check-convention-yaml.sh --check
+
       # The config-cascade "Semantics at a glance" table is generated from the
       # Implementers rows, so the failure this catches is a row edited without
       # regenerating the table, or a table hand-edited away from its rows. The
@@ -847,6 +856,22 @@ jobs:
           config: .gitleaks.toml
           scan-mode: git
 
+      # Offline links and anchors: local files and #fragments only, no
+      # network. Ungated like the other whole-repo scanners, because a
+      # docs-only diff is exactly what can break a link. The excludes are test
+      # data whose links are meant not to resolve here: the attribution audit's
+      # golden fixtures, and a verbatim copy of an upstream table with a
+      # site-root-relative link.
+      - name: Check local links and anchors
+        id: lychee
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        with:
+          config: lychee.toml
+          exclude: >-
+            (^|/)plugins/attribution/skills/audit/evals/fixtures/golden/
+            (^|/)scripts/fixtures/hooks-lifecycle-table\.md$
+
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
@@ -941,9 +966,13 @@ jobs:
           # bans (TODO/FIXME, PR/issue refs) as test corpus and as the documented
           # TODO(#issue) sanctioned-exemption. Exempt that skill's scripts + evals
           # (its SKILL.md is markdown, already outside the scan's extension set).
+          # The implementation eval scaffolds write a PLAN.md whose `### Phase N:
+          # ... [TODO]` heading is the phase status tag the skill under test reads,
+          # not a comment; the scan sees the heredoc line as a shell comment.
           exclude: >-
             :(exclude)plugins/code-tidying/skills/audit-comment-residue/scripts/**
             :(exclude)plugins/code-tidying/skills/audit-comment-residue/evals/**
+            :(exclude)plugins/implementation/evals/*/scaffold.sh
 
       - name: Check repo-local hooks are wired in settings.json
         id: hook_wiring
@@ -1017,7 +1046,7 @@ jobs:
       # not enforce the policy does not pay for its toolchain either.
       - name: Set up Node
         if: needs.select-tests.outputs.run_workflows == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -1086,6 +1115,7 @@ jobs:
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
+            convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
@@ -1101,6 +1131,7 @@ jobs:
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
+            lychee-offline=${{ steps.lychee.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
             actionlint=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.actionlint.outcome }}
             dependabot-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.dependabot_schema.outcome }}
@@ -1750,7 +1781,7 @@ jobs:
       # so a docs-only diff does not pay for it.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2311,7 +2342,7 @@ jobs:
       # hosted and local runs exercise the same contract suites instead of
       # inheriting different image tool inventories.
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2319,7 +2350,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json') }}
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json', 'plugins/testing/skills/check-visual-parity/scripts/package-lock.json') }}
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -2400,6 +2431,11 @@ jobs:
           if [[ "$leg_needs" == *inventory* ]]; then
             python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
           fi
+          # check-visual-parity's pixelmatch and pngjs, installed the way its
+          # first compare installs them, into .work/visual-compare/<lock hash>/.
+          if [[ "$leg_needs" == *visualcheck* ]]; then
+            bash plugins/testing/skills/check-visual-parity/scripts/visual-compare.sh install --deps-dir .work
+          fi
       - name: Save the npm cache
         if: github.ref == 'refs/heads/main' && steps.npm_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -2451,6 +2487,9 @@ jobs:
           INVENTORY_REQUIRE_ACORN: '1'
           # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
           CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
+          # The check-visual-parity pixel cases fail on a missing pixelmatch or pngjs here instead of skipping green.
+          VISUAL_COMPARE_REQUIRE: '1'
+          VISUAL_COMPARE_DEPS_DIR: .work
         run: |
           jq -r --arg leg "$LEG" '.[$leg] // [] | .[]' <<<"$PLAN" >"$RUNNER_TEMP/leg-suites.txt"
           if [ ! -s "$RUNNER_TEMP/leg-suites.txt" ]; then
@@ -2491,7 +2530,7 @@ jobs:
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2584,7 +2623,7 @@ jobs:
       # from, so a change to any one of them invalidates the cache the others
       # share.
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache

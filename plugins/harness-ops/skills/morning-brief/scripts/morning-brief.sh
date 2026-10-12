@@ -21,13 +21,22 @@
 # Degraded-mode contract. Every section is one of three states: data, empty,
 # or UNREADABLE. A section whose data source failed (a non-zero gh exit, or an
 # error document in the body) renders as UNREADABLE with the error's first
-# line, never with empty-state wording. The header counts the unreadable
-# sections. When every section is unreadable the script exits 5, so a caller
-# can tell "nothing to report" from "could not read"; a partial brief exits 0.
+# line, never with empty-state wording. A response the script cannot parse is
+# a failed source too. The header counts the unreadable sections. The exit code
+# tells "nothing to report" from "could not read": 5 when every section was
+# unreadable, 6 when some were, 0 when none was.
 #
-# Transport. The gh subcommands ride GraphQL. When the host serves only a
-# pinned set of GraphQL operations (the HTTP 403 "not enabled for this session"
-# shape), sections 1-4 are re-read from repository-scoped REST endpoints and
+# Caps. Every list read that carries a result cap prints a PARTIAL line when
+# the result reaches the cap, so a truncated list never reads as the whole set.
+#
+# Stranded window. The stranded-findings read pages merged PRs newest-updated
+# first and stops at the cutoff. The cutoff is the older of --stranded-days
+# before now and a per-repo bookmark under the data dir; the bookmark advances
+# to this run's --stranded-days floor only after the section was read in full,
+# so a gap between runs never drops a merge out of the window.
+#
+# Transport. The gh subcommands ride GraphQL. When a GraphQL call is refused
+# (the cloud GitHub proxy's HTTP 403 refusal), sections 1-4 are re-read from repository-scoped REST endpoints and
 # the header names the transport. The stranded-findings section needs
 # reviewThreads, which has no REST equivalent, so it renders UNREADABLE there.
 #
@@ -38,7 +47,10 @@
 #   morning-brief.sh --queue-labels A,B,C     pin the queue-label set (comma-separated)
 #   morning-brief.sh --decision-label L       pin the parked-decision label
 #   morning-brief.sh --stale-hours N          age past which a lane is STALE (default 6)
-#   morning-brief.sh --stranded-days N        age window for stranded review findings (default 3)
+#   morning-brief.sh --stranded-days N        floor of the stranded-findings window, in days (default 3)
+#   morning-brief.sh --data-dir DIR           base dir for the stranded bookmark (default $CLAUDE_PLUGIN_DATA
+#                                             when it names harness-ops, else ~/.claude/plugins/data/harness-ops);
+#                                             absolute, with no .. segment or control character
 #   morning-brief.sh --rec-maxlen N           truncate RECOMMENDED previews (default 240; 0 = full)
 #   morning-brief.sh --pr-limit N             cap on per-PR reads: REST merge state, and base freshness of clean PRs (default 50)
 #   morning-brief.sh --help
@@ -58,10 +70,11 @@
 #                             stranded-findings section)
 #
 # Exit codes:
-#   0  brief rendered (at least one section carries data or a real empty state)
+#   0  brief rendered, every section read
 #   3  invalid argument
 #   4  prerequisite missing (gh or jq), or repo could not be resolved
 #   5  every section was unreadable; the brief carries no data
+#   6  brief rendered, but at least one section was unreadable
 
 # shellcheck disable=SC2329  # the per-section fetch functions are dispatched by name through gql_or_rest, which ShellCheck cannot follow
 set -uo pipefail
@@ -93,10 +106,18 @@ BEHIND_JSON=""
 DECISIONS_JSON=""
 TELEMETRY_JSON=""
 MERGED_JSON=""
-# How far back to look for merged PRs still carrying unresolved review threads.
-# Wide enough to cover a bot that reviews well after a merge lands, and the
-# operator-absent stretch (a weekend) during which nobody would look.
+# The floor of the window for merged PRs still carrying unresolved review
+# threads: wide enough to cover a bot that reviews well after a merge lands. A
+# gap between runs is covered by the bookmark, not by this number.
 STRANDED_DAYS="3"
+DATA_DIR_ARG=""
+
+# Result caps on the gh list reads. A result that reaches its cap prints PARTIAL.
+LABEL_LIMIT=500
+COUNT_LIMIT=1000
+PR_LIST_LIMIT=200
+DECISION_LIMIT=200
+TELEMETRY_SEARCH_LIMIT=100
 
 # Telemetry-issue discovery. The lanes skill's consumer posts to the issue this
 # search finds, so the literal is shared verbatim with that script rather than
@@ -187,6 +208,18 @@ while (($# > 0)); do
     require_value "$1" "${2:-}"
     require_uint "$1" "$2"
     STRANDED_DAYS="$((10#$2))"
+    shift 2
+    ;;
+  --data-dir)
+    require_value "$1" "${2:-}"
+    # The skill pre-approves this script with any arguments, so the one path it
+    # writes under must be absolute and literal.
+    abs_re='^(/|[A-Za-z]:[/\\])' dotdot_re='(^|[/\\])\.\.([/\\]|$)'
+    [[ "$2" =~ $abs_re && ! "$2" =~ $dotdot_re && "$2" != *[[:cntrl:]]* ]] || {
+      printf 'morning-brief: --data-dir must be an absolute path with no .. segment or control character\n' >&2
+      exit 3
+    }
+    DATA_DIR_ARG="$2"
     shift 2
     ;;
   --pr-limit)
@@ -313,10 +346,10 @@ gh_read() {
   return 0
 }
 
-# The host serves only a pinned set of GraphQL operations. Every other GraphQL
-# query is refused with this message shape; REST stays available.
+# The cloud GitHub proxy's GraphQL refusal (see the record in SKILL.md);
+# REST is the fallback.
 graphql_blocked() {
-  grep -qiE 'GraphQL query.*not enabled|pinned set of PR-review' <<<"$1"
+  grep -qi 'GraphQL is not available from Claude Code sessions' <<<"$1"
 }
 
 # gql_or_rest OUTFILE gql_fn rest_fn
@@ -361,9 +394,22 @@ NEEDS_LIVE_MERGED=0
 [[ -z "$MERGED_JSON" ]] && NEEDS_LIVE_MERGED=1
 
 # --- Repo label inventory -------------------------------------------------------
+# An inventory that reached its cap cannot prove a label absent, so it is
+# reported as unavailable: the callers then show every configured label instead
+# of dropping one that sits past the cap.
+LABELS_CAPPED=0
 fetch_repo_labels_gql() {
-  gh_read "$WORK/labels.raw" label list "${REPO_ARGS[@]}" --limit 500 --json name -q '.[].name' || return 1
-  tr -d '\r' <"$WORK/labels.raw" | jq -R -s 'split("\n") | map(select(length > 0)) | unique' >"$1"
+  gh_read "$WORK/labels.raw" label list "${REPO_ARGS[@]}" --limit "$LABEL_LIMIT" --json name -q '.[].name' || return 1
+  tr -d '\r' <"$WORK/labels.raw" | jq -R -s 'split("\n") | map(select(length > 0))' >"$WORK/labels.all" || {
+    LAST_ERR="could not parse the label list"
+    return 1
+  }
+  if (($(jq 'length' "$WORK/labels.all") >= LABEL_LIMIT)); then
+    LABELS_CAPPED=1
+    LAST_ERR="label inventory reached its $LABEL_LIMIT-label cap"
+    return 1
+  fi
+  jq 'unique' "$WORK/labels.all" >"$1"
 }
 
 fetch_repo_labels_rest() {
@@ -574,7 +620,7 @@ unreadable() {
 count_label_gql() {
   # count_label_gql OUTFILE label
   gh_read "$WORK/count.raw" issue list "${REPO_ARGS[@]}" --state open --label "$2" \
-    --limit 1000 --json number -q 'length' || return 1
+    --limit "$COUNT_LIMIT" --json number -q 'length' || return 1
   tr -d '\r' <"$WORK/count.raw" >"$1"
 }
 
@@ -613,19 +659,20 @@ print_queues() {
   else
     labels_to_show=("${QUEUE_LABELS[@]}")
   fi
-  local rows=()
+  local rows=() capped=() via_list
   for label in "${labels_to_show[@]}"; do
+    via_list=0
     if [[ -n "$COUNTS_JSON" ]]; then
       n="$(jq -r --arg l "$label" 'if type == "object" then (.[$l] // 0) else 0 end' "$COUNTS_JSON" 2>/dev/null)"
     else
       if [[ "$TRANSPORT" == "gh" ]]; then
-        if ! count_label_gql "$WORK/count" "$label"; then
-          if graphql_blocked "$LAST_ERR"; then
-            TRANSPORT="rest"
-          else
-            unreadable queues "$label: $LAST_ERR"
-            return
-          fi
+        if count_label_gql "$WORK/count" "$label"; then
+          via_list=1
+        elif graphql_blocked "$LAST_ERR"; then
+          TRANSPORT="rest"
+        else
+          unreadable queues "$label: $LAST_ERR"
+          return
         fi
       fi
       if [[ "$TRANSPORT" == "rest" ]]; then
@@ -640,21 +687,37 @@ print_queues() {
       unreadable queues "$label: count not numeric"
       return
     }
+    if ((via_list && n >= COUNT_LIMIT)); then
+      capped+=("$label")
+      n="$n+"
+    fi
     rows+=("$(printf '  %-24s %s' "$label" "$n")")
   done
   printf '%s\n' "${rows[@]}"
+  ((LABELS_CAPPED)) && echo "  PARTIAL: the label inventory reached its $LABEL_LIMIT-label cap; rows are not filtered to labels that exist"
+  if ((${#capped[@]} > 0)); then
+    label="$(printf '%s, ' "${capped[@]}")"
+    echo "  PARTIAL: ${label%, }: count reached the $COUNT_LIMIT-issue read cap; the true count may be higher"
+  fi
   echo
 }
 
 # =============================================================================
 # Section 2 — merge-ready PRs (gh-native: non-draft + mergeStateStatus CLEAN)
 # =============================================================================
+PR_PARTIAL=()
 fetch_prs_gql() {
-  gh_read "$1" pr list "${REPO_ARGS[@]}" --state open --limit 200 \
-    --json number,title,url,isDraft,mergeStateStatus,reviewDecision,baseRefName,headRefOid
+  gh_read "$1" pr list "${REPO_ARGS[@]}" --state open --limit "$PR_LIST_LIMIT" \
+    --json number,title,url,isDraft,mergeStateStatus,reviewDecision,baseRefName,headRefOid || return 1
+  local n
+  n="$(jq -e 'length' "$1" 2>/dev/null)" || {
+    LAST_ERR="could not parse the PR list"
+    return 1
+  }
+  ((n >= PR_LIST_LIMIT)) && PR_PARTIAL+=("the open-PR list reached its $PR_LIST_LIMIT-PR read cap; a clean PR past it is not shown")
+  return 0
 }
 
-PR_PARTIAL=()
 # A REST pull carries `mergeable: null` (and `mergeable_state: "unknown"`) while
 # GitHub is still computing mergeability in the background; the documented
 # remedy is to resubmit the request after giving the job time. One retry per
@@ -744,6 +807,10 @@ print_merge_ready() {
       return
     }
   fi
+  jq -e 'type == "array"' "$prs_file" >/dev/null 2>&1 || {
+    unreadable merge-ready "could not parse the PR list"
+    return
+  }
   local clean='[ .[] | select(.isDraft == false and .mergeStateStatus == "CLEAN") ] | sort_by(.number) | .[]'
   local notes='{}' number base sha note ready read=0
   # One compare GET per clean PR, so the reads share the --pr-limit cap; a PR
@@ -762,7 +829,10 @@ print_merge_ready() {
   ready="$(jq -r --argjson notes "$notes" "$clean"'
     | "  #\(.number) \(.title)\n    \(.url)  review=\(.reviewDecision // "" | if . == "" then "none" else . end)"
       + ($notes[.number | tostring] | if . then "\n    UNVERIFIED: \(.)" else "" end)
-  ' "$prs_file" 2>/dev/null)"
+  ' "$prs_file" 2>/dev/null)" || {
+    unreadable merge-ready "could not parse the PR list"
+    return
+  }
   if [[ -n "$ready" ]]; then
     echo "$ready"
   else
@@ -783,14 +853,24 @@ fetch_decisions_gql() {
   # One call returns body + comments for every decision issue -- no N+1
   # hydration loop (which also avoids `gh` draining a while-read loop's stdin).
   gh_read "$1" issue list "${REPO_ARGS[@]}" --state open --label "$DECISION_LABEL" \
-    --limit 200 --json number,title,url,body,comments
+    --limit "$DECISION_LIMIT" --json number,title,url,body,comments || return 1
+  local n
+  n="$(jq -e 'length' "$1" 2>/dev/null)" || {
+    LAST_ERR="could not parse the decision issues"
+    return 1
+  }
+  ((n >= DECISION_LIMIT)) && DECISIONS_PARTIAL=1
+  return 0
 }
 
+DECISIONS_PARTIAL=0
 fetch_decisions_rest() {
   local out="$1" total i number
   rest_paginate_array "$WORK/dec.rest" \
     "repos/$REPO/issues?state=open&per_page=100&labels=$(urlencode "$DECISION_LABEL")" || return 1
-  jq '[ .[] | select(has("pull_request") | not) ] | .[:200]' "$WORK/dec.rest" >"$WORK/dec.issues"
+  jq '[ .[] | select(has("pull_request") | not) ]' "$WORK/dec.rest" >"$WORK/dec.all"
+  (($(jq 'length' "$WORK/dec.all") > DECISION_LIMIT)) && DECISIONS_PARTIAL=1
+  jq --argjson lim "$DECISION_LIMIT" '.[:$lim]' "$WORK/dec.all" >"$WORK/dec.issues"
   total="$(jq 'length' "$WORK/dec.issues")"
   : >"$WORK/dec.detail"
   for ((i = 0; i < total; i++)); do
@@ -825,8 +905,11 @@ print_decisions() {
   fi
 
   local count
-  count="$(jq -r 'length' "$decisions_file" 2>/dev/null || echo 0)"
-  if [[ "${count:-0}" -eq 0 ]]; then
+  count="$(jq -r 'if type == "array" then length else error("not a list") end' "$decisions_file" 2>/dev/null)" || {
+    unreadable decisions "could not parse the decision issues"
+    return
+  }
+  if ((count == 0)); then
     echo "  (none parked)"
     echo
     return
@@ -877,17 +960,24 @@ print_decisions() {
       printf '    (no RECOMMENDED line found)\n'
     fi
   done
+  ((DECISIONS_PARTIAL)) && echo "  PARTIAL: the decision list reached its $DECISION_LIMIT-issue read cap; an issue past it is not shown"
   echo
 }
 
 # =============================================================================
 # Section 4 — loop-lane telemetry freshness (per-lane telemetry-issue comments)
 # =============================================================================
+TELEMETRY_PARTIAL=0
 find_telemetry_issue_gql() {
   gh_read "$WORK/tel.raw" issue list "${REPO_ARGS[@]}" --state open \
-    --search "$TELEMETRY_SEARCH" \
-    --json number -q 'sort_by(.number) | .[0].number // empty' || return 1
-  tr -d '\r' <"$WORK/tel.raw" >"$1"
+    --search "$TELEMETRY_SEARCH" --limit "$TELEMETRY_SEARCH_LIMIT" --json number || return 1
+  local n
+  n="$(jq -e 'length' "$WORK/tel.raw" 2>/dev/null)" || {
+    LAST_ERR="could not parse the issue search"
+    return 1
+  }
+  ((n >= TELEMETRY_SEARCH_LIMIT)) && TELEMETRY_PARTIAL=1
+  jq -r 'sort_by(.number) | .[0].number // empty' "$WORK/tel.raw" >"$1"
 }
 
 find_telemetry_issue_rest() {
@@ -947,7 +1037,11 @@ print_telemetry() {
   # A lane comment opens with the lane-telemetry sentinel and carries a `lane:`
   # field. For each, pull lane, last-cycle, flags.
   local n
-  n="$(jq -r 'length' <<<"$comments" 2>/dev/null || echo 0)"
+  n="$(jq -r 'if type == "array" then length else error("not a list") end' <<<"$comments" 2>/dev/null)" || {
+    unreadable telemetry "could not parse the telemetry comments"
+    return
+  }
+  ((TELEMETRY_PARTIAL)) && echo "  PARTIAL: the telemetry issue search reached its $TELEMETRY_SEARCH_LIMIT-issue cap; the oldest match may lie past it"
   local i body lane last flags any=0
   for ((i = 0; i < n; i++)); do
     body="$(jq -r ".[$i].body // \"\"" <<<"$comments" 2>/dev/null)"
@@ -995,18 +1089,49 @@ print_telemetry() {
 # Only threads whose FIRST comment postdates the merge are reported. A thread
 # that predates it was visible to the gate, so its being open is an ordinary
 # unresolved-thread matter and not this failure mode.
+# fetch_merged_gql OUTFILE CUTOFF_EPOCH
+# Writes one GraphQL page document per page, the shape `gh api --paginate`
+# emits. Pages run newest-updated first and the walk stops after the first page
+# whose oldest PR was last updated before the cutoff: a PR merged after the
+# cutoff was also updated after it, so no later page can hold one.
 fetch_merged_gql() {
-  # `search/issues` dates the merge; reviewThreads needs GraphQL. One paged
-  # GraphQL query does both, so this stays a single call rather than N+1.
-  # shellcheck disable=SC2016  # $owner/$name/$endCursor are GraphQL variables bound by -F, and MUST reach the server unexpanded
-  gh_read "$1" api graphql --paginate -F owner="${REPO%%/*}" -F name="${REPO##*/}" -f query='
+  local out="$1" cutoff="$2" cursor="" args
+  : >"$out"
+  while :; do
+    args=(api graphql -F owner="${REPO%%/*}" -F name="${REPO##*/}" -f query="$MERGED_QUERY")
+    [[ -n "$cursor" ]] && args+=(-f endCursor="$cursor")
+    gh_read "$WORK/merged.page" "${args[@]}" || return 1
+    cat "$WORK/merged.page" >>"$out"
+    cursor="$(jq -r --argjson cutoff "$cutoff" '
+      .data.repository.pullRequests
+      | if .pageInfo.hasNextPage != true then ""
+        elif (.nodes | length) == 0 or .pageInfo.endCursor == null then "!"
+        elif ((.nodes | last | .updatedAt // null) == null)
+          or ((.nodes | last | .updatedAt | fromdateiso8601) < $cutoff)
+        then "" else .pageInfo.endCursor end
+    ' "$WORK/merged.page" 2>/dev/null)" || {
+      LAST_ERR="could not parse a merged-PR page"
+      return 1
+    }
+    [[ "$cursor" != "!" ]] || {
+      LAST_ERR="a merged-PR page reported more results but no cursor to them"
+      return 1
+    }
+    [[ -n "$cursor" ]] || return 0
+  done
+}
+
+# `search/issues` dates the merge; reviewThreads needs GraphQL. One paged
+# GraphQL query does both, so this stays one call per page rather than N+1.
+# shellcheck disable=SC2016  # $owner/$name/$endCursor are GraphQL variables bound by -F/-f, and MUST reach the server unexpanded
+MERGED_QUERY='
     query($owner:String!, $name:String!, $endCursor:String) {
       repository(owner:$owner, name:$name) {
         pullRequests(states:MERGED, first:25, orderBy:{field:UPDATED_AT, direction:DESC}, after:$endCursor) {
           pageInfo { hasNextPage endCursor }
           nodes {
-            number title url mergedAt
-            # 100 is the GraphQL page maximum. --paginate follows only the
+            number title url mergedAt updatedAt
+            # 100 is the GraphQL page maximum. The walk follows only the
             # OUTER cursor, so a PR with more threads than this would be
             # truncated with no signal. hasNextPage is read below and
             # reported, because a partial read must never render as an
@@ -1022,10 +1147,57 @@ fetch_merged_gql() {
         }
       }
     }'
+
+# The bookmark: one file per repo under the data dir, holding the cutoff the
+# next run must read back to. Empty when no usable path resolves.
+stranded_bookmark_path() {
+  local base="$DATA_DIR_ARG" seg="${CLAUDE_PLUGIN_DATA:-}" key
+  if [[ -z "$base" ]]; then
+    seg="${seg%[/\\]}"
+    seg="${seg##*[/\\]}"
+    if [[ "$seg" == harness-ops || "$seg" == harness-ops-* ]]; then
+      base="$CLAUDE_PLUGIN_DATA"
+    else
+      base="${HOME:-}/.claude/plugins/data/harness-ops"
+    fi
+  fi
+  key="$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')"
+  [[ "$key" =~ ^[a-z0-9._-]+/[a-z0-9._-]+$ && "$key" != *..* ]] || return 0
+  printf '%s/morning-brief/%s/stranded-cutoff' "${base%/}" "$key"
+}
+
+# Refuses a symlinked bookmark, and writes through a fresh mktemp file so a
+# link planted at the temp path is never followed.
+save_bookmark() {
+  local file="$1" value="$2" tmp
+  [[ ! -L "$file" ]] && mkdir -p "${file%/*}" 2>/dev/null &&
+    tmp="$(mktemp "$file.XXXXXX" 2>/dev/null)" || return 1
+  if ! { printf '%s\n' "$value" >"$tmp" && mv -f "$tmp" "$file"; } 2>/dev/null; then
+    rm -f "$tmp"
+    return 1
+  fi
 }
 
 print_stranded() {
-  echo "== Findings stranded on merged PRs (last ${STRANDED_DAYS}d) =="
+  local floor=$((NOW_EPOCH - STRANDED_DAYS * 86400)) cutoff bookmark="" mark mark_epoch window
+  cutoff=$floor
+  window="last ${STRANDED_DAYS}d"
+  # The bookmark belongs to a live read of the repo; a fixture run neither
+  # reads nor moves it.
+  if [[ -z "$MERGED_JSON" && -n "$REPO" ]]; then
+    bookmark="$(stranded_bookmark_path)"
+    if [[ -n "$bookmark" && -f "$bookmark" ]]; then
+      mark="$(tr -d '[:space:]' <"$bookmark")"
+      mark_epoch="$(to_epoch "$mark")"
+      if [[ -z "$mark_epoch" ]]; then
+        window="$window; bookmark unparsable, ignored"
+      elif ((mark_epoch < floor)); then
+        cutoff=$mark_epoch
+        window="$window, widened to the last full read's bookmark"
+      fi
+    fi
+  fi
+  echo "== Findings stranded on merged PRs (merged since $(from_epoch "$cutoff"): $window) =="
   local merged_file="$WORK/merged.json"
   if [[ -n "$MERGED_JSON" ]]; then
     merged_file="$MERGED_JSON"
@@ -1047,17 +1219,23 @@ print_stranded() {
     unreadable stranded "review threads need GraphQL, which this session does not serve"
     return
   else
-    if ! fetch_merged_gql "$merged_file"; then
+    if ! fetch_merged_gql "$merged_file" "$cutoff"; then
       graphql_blocked "$LAST_ERR" && TRANSPORT="rest"
       unreadable stranded "$LAST_ERR"
       return
     fi
   fi
 
-  local cutoff stranded
-  cutoff="$((NOW_EPOCH - STRANDED_DAYS * 86400))"
-  # `--paginate` concatenates one JSON document per page, so slurp and walk every
-  # page's nodes rather than assuming a single top-level object.
+  # A response with no page document is not a clean window.
+  jq -s -e '[ .. | objects | select(has("data")) | .data.repository.pullRequests | objects ] | length > 0' \
+    "$merged_file" >/dev/null 2>&1 || {
+    unreadable stranded "could not parse the merged-PR pages"
+    return
+  }
+
+  local stranded
+  # The pages are a sequence of JSON documents, one per page, so slurp and walk
+  # every page's nodes rather than assuming a single top-level object.
   stranded="$(jq -s -r --argjson cutoff "$cutoff" '
     # `jq -s` wraps the input in one more array, and `gh --paginate` emits a
     # bare sequence of page objects while a fixture file is already an array of
@@ -1118,7 +1296,10 @@ print_stranded() {
     | sort_by(if .sev == "--" then 99 else (.sev[1:] | tonumber) end, .pr)
     | .[]
     | "  [\(.sev)] #\(.pr) \(.title)  (\(.n) finding\(if .n == 1 then "" else "s" end))\n    \(.url)  by \(.author)"
-  ' "$merged_file" 2>/dev/null)"
+  ' "$merged_file" 2>/dev/null)" || {
+    unreadable stranded "could not parse the merged-PR pages"
+    return
+  }
 
   # A truncated thread page means the read was PARTIAL, so neither a finding
   # list nor an all-clear below can be trusted to be complete. Say so.
@@ -1127,7 +1308,10 @@ print_stranded() {
     [ .. | objects | select(has("data")) | .data.repository.pullRequests.nodes[]?
       | select(.reviewThreads.pageInfo.hasNextPage == true) | .number ]
     | unique | map("#\(.)") | join(", ")
-  ' "$merged_file" 2>/dev/null)"
+  ' "$merged_file" 2>/dev/null)" || {
+    unreadable stranded "could not parse the merged-PR pages"
+    return
+  }
   if [[ -n "$truncated" ]]; then
     echo "  WARNING: more than 100 review threads on $truncated — this read is PARTIAL, not an all-clear"
   fi
@@ -1137,6 +1321,15 @@ print_stranded() {
     echo "  these merged with the finding unread — the merge gate could not see it"
   else
     echo "  (none — every merged PR in the window is clear)"
+  fi
+  # Advance the bookmark only past a full read: the next run then reads back
+  # to this run's floor, so every merge since then is read at least once more.
+  if [[ -n "$bookmark" ]]; then
+    if [[ -n "$truncated" ]]; then
+      echo "  bookmark not advanced: this read is PARTIAL"
+    elif ! save_bookmark "$bookmark" "$(from_epoch "$floor")"; then
+      echo "  bookmark not saved under the data dir; the next run reads back to its floor or an older bookmark"
+    fi
   fi
   echo
 }
@@ -1161,9 +1354,11 @@ fi
 echo
 cat "$WORK/s1" "$WORK/s2" "$WORK/s3" "$WORK/s4" "$WORK/s5"
 
-# Exit 5 only when the brief carries no data at all. A partial brief, one or
-# more sections unreadable beside others that rendered, is still a brief.
+# Exit 5 when the brief carries no data at all; 6 when some sections rendered
+# beside unreadable ones, so a caller never takes a partial brief for a full one.
 if ((UNREADABLE >= SECTIONS_TOTAL)); then
   exit 5
+elif ((UNREADABLE > 0)); then
+  exit 6
 fi
 exit 0
