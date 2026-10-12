@@ -1335,6 +1335,7 @@ RECHECK_PASS, RECHECK_FAIL, RECHECK_UNREADABLE = 0, 1, 2
 RECHECK_PULL_REQUEST = (
     "query RecheckPullRequest($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
     "pullRequest(number:$n){number body headRefOid changedFiles "
+    "author{__typename login} commits{totalCount} "
     "labels(first:100){totalCount nodes{name}} "
     "timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
     "... on AddedToMergeQueueEvent{createdAt actor{__typename login} "
@@ -1343,6 +1344,20 @@ RECHECK_PULL_REQUEST = (
 # Scorer reasons that come from the review lanes' evidence. The wrapper binds
 # that evidence to the head before it enqueues; a merge group has none to bind.
 LANE_REASON_CODES = ("evidence-unbound:", "findings:claude-review", "security-finding")
+
+
+# The Dependabot auto-merge exception: a Dependabot pull request queued by one
+# of these Bot logins passes without reading terms, while the named workflow,
+# the one that enqueues as that Bot, exists at the queue base. GITHUB_TOKEN's
+# Bot is `github-actions`; pr-automerge-dependabot.yml arms auto-merge with it.
+DEPENDABOT_ENQUEUERS = {
+    "github-actions": ".github/workflows/pr-automerge-dependabot.yml"
+}
+# Who may author a commit on such a pull request: Dependabot, and the
+# `github-actions[bot]` version bump of pr-bump-plugin-version.yml.
+DEPENDABOT_COMMIT_AUTHORS = frozenset({"dependabot[bot]", "github-actions[bot]"})
+# GitHub's own committer for commits made through its API.
+GITHUB_COMMITTER = "web-flow"
 
 
 @dataclass(frozen=True)
@@ -1480,6 +1495,51 @@ def _opt_in_removed(
     return present
 
 
+def _dependabot_exception(
+    owner: str, name: str, pr: dict[str, Any], event: dict[str, Any], base_sha: str
+) -> bool:
+    """A Dependabot pull request queued by an allowed workflow Bot: author the
+    Bot `dependabot`; event actor and enqueuer the same Bot in
+    `DEPENDABOT_ENQUEUERS`; every commit authored by a Bot in
+    `DEPENDABOT_COMMIT_AUTHORS`, committed by GitHub or that same Bot, and
+    verified; and the enqueuing workflow present at `base_sha`."""
+    author = json_object(pr.get("author"))
+    if author.get("__typename") != "Bot" or _login_key(author.get("login")) != (
+        "dependabot"
+    ):
+        return False
+    sides = [json_object(event.get(side)) for side in ("actor", "enqueuer")]
+    if any(side.get("__typename") != "Bot" for side in sides):
+        return False
+    keys = {_login_key(side.get("login")) for side in sides}
+    enqueuer = keys.pop() if len(keys) == 1 else None
+    if enqueuer not in DEPENDABOT_ENQUEUERS:
+        return False
+    number = pr.get("number")
+    commits = _paginated(
+        f"repos/{owner}/{name}/pulls/{number}/commits?per_page=100",
+        f"#{number} commits",
+    )
+    if not commits or json_object(pr.get("commits")).get("totalCount") != len(commits):
+        return False
+    for commit in commits:
+        made_by = json_object(commit.get("author"))
+        committer = json_object(commit.get("committer"))
+        verified = json_object(json_object(commit.get("commit")).get("verification"))
+        if (
+            made_by.get("type") != "Bot"
+            or made_by.get("login") not in DEPENDABOT_COMMIT_AUTHORS
+            or verified.get("verified") is not True
+        ):
+            return False
+        if committer.get("login") != GITHUB_COMMITTER and not (
+            committer.get("type") == "Bot"
+            and committer.get("login") == made_by.get("login")
+        ):
+            return False
+    return _file_at(owner, name, DEPENDABOT_ENQUEUERS[enqueuer], base_sha) is not None
+
+
 def recheck(
     repo: str,
     number: int,
@@ -1530,6 +1590,8 @@ def _recheck(
 
     if human(event.get("actor")) and human(event.get("enqueuer")):
         return Recheck(RECHECK_PASS, ("human-enqueued",))
+    if _dependabot_exception(owner, name, pr, event, base_sha):
+        return Recheck(RECHECK_PASS, ("dependabot-auto-merge",))
 
     def fail(reason: str) -> Recheck:
         return Recheck(RECHECK_FAIL, (reason,))

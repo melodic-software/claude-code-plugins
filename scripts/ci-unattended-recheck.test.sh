@@ -444,6 +444,87 @@ printf '[[%s,%s]]' "$(labeled labeled 'merge: agent-allowed' alice User 2026-10-
   put issues_7_timeline_per_page_100
 expect "an opt-in label removed before enqueue does not hold" 0 -
 
+# --- The Dependabot auto-merge exception ----------------------------------------
+# A Dependabot pull request that pr-automerge-dependabot.yml queued (GITHUB_TOKEN,
+# so the Bot github-actions) passes without reading terms, but only while every
+# commit is Dependabot's or github-actions', committed by GitHub (web-flow) and
+# verified, and that workflow exists at the queue base. Each case runs with the
+# rung off, so anything the exception does not cover fails on it.
+
+commit() { # commit <author> <author-type> <committer> <committer-type> <verified>
+  printf '{"author":{"login":"%s","type":"%s"},"committer":{"login":"%s","type":"%s"},"commit":{"verification":{"verified":%s}}}' "$@"
+}
+dependabot_pr() {
+  config "${PIPELINE/rung: C2/rung: off}"
+  patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest |= (.author = {"__typename":"Bot","login":"dependabot"} | .commits = {"totalCount":1} | .timelineItems.nodes[0] |= (.actor = {"__typename":"Bot","login":"github-actions"} | .enqueuer = {"__typename":"Bot","login":"github-actions"}))'
+  printf '[[%s]]' "$(commit 'dependabot[bot]' Bot web-flow User true)" | put pulls_7_commits_per_page_100
+  file_payload 'name: pr-automerge-dependabot' | put "contents_.github_workflows_pr-automerge-dependabot.yml_ref_$BASE"
+}
+
+baseline
+dependabot_pr
+expect "a Dependabot PR queued by github-actions passes" 0 "dependabot-auto-merge"
+read_terms "the Dependabot exception reads no policy term" no
+
+baseline
+dependabot_pr
+patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.commits.totalCount = 2'
+printf '[[%s,%s]]' "$(commit 'dependabot[bot]' Bot web-flow User true)" "$(commit 'github-actions[bot]' Bot web-flow User true)" |
+  put pulls_7_commits_per_page_100
+expect "a github-actions version-bump commit keeps the exception" 0 "dependabot-auto-merge"
+
+for who in "alice User web-flow User" "agent-lanes[bot] Bot web-flow User" "dependabot[bot] Bot alice User"; do
+  baseline
+  dependabot_pr
+  patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.commits.totalCount = 2'
+  read -r a at c ct <<<"$who"
+  printf '[[%s,%s]]' "$(commit 'dependabot[bot]' Bot web-flow User true)" "$(commit "$a" "$at" "$c" "$ct" true)" |
+    put pulls_7_commits_per_page_100
+  expect "a commit by $a committed by $c ends the exception" 1 "rung-off"
+done
+
+baseline
+dependabot_pr
+printf '[[%s]]' "$(commit 'dependabot[bot]' Bot web-flow User false)" | put pulls_7_commits_per_page_100
+expect "an unverified Dependabot commit ends the exception" 1 "rung-off"
+
+baseline
+dependabot_pr
+patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.commits.totalCount = 2'
+expect "a commit listing short of the total ends the exception" 1 "rung-off"
+
+baseline
+dependabot_pr
+patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.author = {"__typename":"User","login":"alice"}'
+expect "a non-Dependabot PR queued by github-actions is checked" 1 "rung-off"
+
+baseline
+dependabot_pr
+patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.author = {"__typename":"User","login":"dependabot"}'
+expect "a User named dependabot is not Dependabot" 1 "rung-off"
+
+baseline
+dependabot_pr
+patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.timelineItems.nodes[0] |= (.actor = {"__typename":"User","login":"github-actions"} | .enqueuer = {"__typename":"User","login":"github-actions"})'
+expect "a User named github-actions is not the workflow" 1 "rung-off"
+
+baseline
+dependabot_pr
+patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.timelineItems.nodes[0] |= (.actor = {"__typename":"Bot","login":"other-app"} | .enqueuer = {"__typename":"Bot","login":"other-app"})'
+expect "a Dependabot PR queued by an unlisted App is checked" 1 "rung-off"
+
+baseline
+dependabot_pr
+patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.timelineItems.nodes[0].enqueuer = null'
+expect "a Dependabot PR with a null enqueuer is checked" 1 "rung-off"
+
+baseline
+dependabot_pr
+rm "$FIX/contents_.github_workflows_pr-automerge-dependabot.yml_ref_$BASE"
+printf '[]' | put "contents_ref_$BASE"
+http "contents_.github_workflows_pr-automerge-dependabot.yml_ref_$BASE" 404
+expect "the exception needs pr-automerge-dependabot.yml at the queue base" 1 "rung-off"
+
 # --- The step around the recheck ----------------------------------------------
 
 # reads <label> <want>: how many times the run read the queued pull request.
