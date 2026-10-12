@@ -49,10 +49,11 @@ from any workflow in the repository holding `actions: write`.
    [README](../../.github/actions/check-trusted-trigger/README.md). The ten-minute cap is
    judgment (`check-trusted-trigger.mjs:25-27`).
 4. **The broker repeats the check.** The request carries `dispatcher_run_id`; when the OIDC actor
-   is `github-actions[bot]`, the broker mints only after the same dispatcher checks and a
-   byte-equal check of the dispatcher file against the tip (`workflow-modified`). Basis:
-   [pr-run-activity.md, "The lane token broker"](../conventions/pr-pipeline/pr-run-activity.md#the-lane-token-broker)
-   (lines 559-596); `melodic-software/azure-iac` `src/lanes-token-broker/src/dispatcher.mjs:7-51`.
+   is `github-actions[bot]`, the broker mints only after the same dispatcher checks, a
+   byte-equal check of the dispatcher file against the tip (`workflow-modified`), and one read of
+   the dispatcher run's record of the runs it dispatched. Basis:
+   [pr-run-activity.md, "The lane token broker"](../conventions/pr-pipeline/pr-run-activity.md#the-lane-token-broker);
+   `melodic-software/azure-iac` `src/lanes-token-broker/src/dispatcher.mjs:40-77`.
 5. **The skill step admits the bot only then.** claude-code-action gets
    `allowed_bots: github-actions` only when `dispatcher-run-id` is set. Basis:
    [`pr-run-activity-write.yml:546-549`](../../.github/workflows/pr-run-activity-write.yml).
