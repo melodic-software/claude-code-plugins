@@ -63,7 +63,7 @@ run_disc() {
   local global="$1" ghq="$2"
   shift 2
   OUT="$(cd "$UNRELATED" && HOME="$T/home" GIT_CONFIG_GLOBAL="$global" REPO_FLEET_GHQ_BIN="$ghq" \
-    CLAUDE_PROJECT_DIR="${PROJ:-}" bash "$DISCOVER" "$@" 2>"$T/err")"
+    CLAUDE_PROJECT_DIR="${PROJ_ENV:-}" bash "$DISCOVER" "$@" 2>"$T/err")"
   RC=$?
   ERR="$(cat "$T/err")"
 }
@@ -117,16 +117,24 @@ mkrepo "$FLEET/github.com/o/e"
 E="$(top "$FLEET/github.com/o/e")"
 mkdir -p "$T/proj/.claude"
 git config --file "$T/proj/.claude/repo-fleet-hygiene.conf" fleet.repo "$E"
-PROJ="$T/proj"
-run_disc "$GLOBAL" "$T/bin/no-ghq"
+# The skill passes the project directory as a flag: the Bash tool's environment
+# carries no CLAUDE_PROJECT_DIR, which run_disc reproduces.
+run_disc "$GLOBAL" "$T/bin/no-ghq" --project-dir "$T/proj"
 assert_eq "project fleet config names a repository" $'repo\t'"$E"$'\t0' "$(rows repo "$E")"
 assert_eq "project fleet config shadows the user-global one" "" "$(rows repo "$C")"
 # shellcheck disable=SC2016
-PROJ='${CLAUDE_PROJECT_DIR}'
-run_disc "$GLOBAL" "$T/bin/no-ghq"
+run_disc "$GLOBAL" "$T/bin/no-ghq" --project-dir '${CLAUDE_PROJECT_DIR}'
 assert_eq "an unexpanded project directory falls to the user-global config" \
   $'repo\t'"$C"$'\t0' "$(rows repo "$C")"
-PROJ=""
+PROJ_ENV="$T/proj"
+run_disc "$GLOBAL" "$T/bin/no-ghq"
+assert_eq "without the flag, CLAUDE_PROJECT_DIR from the environment is read" \
+  $'repo\t'"$E"$'\t0' "$(rows repo "$E")"
+run_disc "$GLOBAL" "$T/bin/no-ghq" --project-dir "$T/no-such-project"
+assert_eq "the flag outranks the environment" $'repo\t'"$C"$'\t0' "$(rows repo "$C")"
+PROJ_ENV=""
+run_disc "$GLOBAL" "$T/bin/no-ghq" --project-dir
+assert_exit "--project-dir without a value is a usage error" 2 "$RC"
 rm -f "$T/home/.claude/repo-fleet-hygiene.conf"
 
 # A repository found only by the root scan has its own root resolved and scanned.

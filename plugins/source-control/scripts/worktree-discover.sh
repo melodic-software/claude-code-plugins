@@ -5,14 +5,19 @@
 #
 # Usage:
 #   worktree-discover.sh [--repo-dir REPO]... [--fallback-root-file PATH]
-#                        [--data-root-file PATH]
+#                        [--data-root-file PATH] [--project-dir DIR]
 #     --repo-dir            a repository to inventory (repeatable). When given,
 #                           only these repositories are discovered. Otherwise the
 #                           fleet audit's scope applies: fleet.root/fleet.repo
-#                           from $CLAUDE_PROJECT_DIR/.claude/repo-fleet-hygiene.conf,
+#                           from <project-dir>/.claude/repo-fleet-hygiene.conf,
 #                           else ~/.claude/repo-fleet-hygiene.conf, else its
 #                           no-scope ladder (ghq roots, then an ancestor holding
 #                           2+ repositories)
+#     --project-dir         the session's project directory. A skill passes the
+#                           value its own body substituted for CLAUDE_PROJECT_DIR,
+#                           which the Bash tool's environment does not carry;
+#                           without the flag the environment variable is read, for
+#                           callers that have it
 #     --fallback-root-file  the worktree_root plugin option, as worktree-create.sh
 #     --data-root-file      the plugin data directory, as worktree-create.sh
 #
@@ -58,7 +63,7 @@ source "$SCRIPT_DIR/scope-resolve.sh"
 source "$SCRIPT_DIR/fleet-discovery.sh"
 
 usage() {
-  printf 'Usage: %s [--repo-dir REPO]... [--fallback-root-file PATH] [--data-root-file PATH]\n' "$PROG" >&2
+  printf 'Usage: %s [--repo-dir REPO]... [--fallback-root-file PATH] [--data-root-file PATH] [--project-dir DIR]\n' "$PROG" >&2
   exit 2
 }
 
@@ -81,6 +86,7 @@ read_root_file() {
 named=()
 fallback_root=""
 data_root=""
+project_dir="${CLAUDE_PROJECT_DIR:-}"
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --repo-dir)
@@ -98,6 +104,11 @@ while [[ $# -gt 0 ]]; do
     data_root="$(read_root_file "$2")" || exit 2
     shift 2
     ;;
+  --project-dir)
+    [[ $# -ge 2 ]] || usage
+    project_dir="$2"
+    shift 2
+    ;;
   *) usage ;;
   esac
 done
@@ -109,7 +120,6 @@ FLEET_CONFIG_ROOTS=()
 FLEET_CONFIG_REPOS=()
 # The fleet audit's config ladder: the project-scoped file, then the user-global
 # one. A literal ${...} that survived substitution is no project directory.
-project_dir="${CLAUDE_PROJECT_DIR:-}"
 # shellcheck disable=SC2016  # the literal token, not an expansion
 [[ "$project_dir" == '${'* ]] && project_dir=""
 conf=""
