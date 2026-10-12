@@ -1445,7 +1445,7 @@ def cmd_apply(d, a):
             if op["op"] not in ("add", "add-round", "meta"):
                 warn_bare_issue_refs(doc, f"{op['op']} op", op)
         save(d, doc, touched)
-    Path(a.file).unlink(missing_ok=True)
+        Path(a.file).unlink(missing_ok=True)
     for line in lines:
         print(line)
     print(f"applied {len(lines)} ops (rev {doc['rev']})")

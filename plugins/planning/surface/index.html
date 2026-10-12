@@ -1702,6 +1702,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (isDec && wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
     const snap = S.snap[q.id] || snapOf(q), typed = $("note").value;
     S.busy = true; toast("Saving.");  renderAnswer();
+    let saved = false; // once the POST succeeds, a later failure is the refresh's and the answer is stored
     try {
       const body = {id: q.id, kind, alt: alt || null, text};
       if (isDec) body.contentRev = force != null ? force : snap.rev;
@@ -1711,7 +1712,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         toast("Not saved: the question changed. Review below.", true); renderAnswer(); return;
       }
       if (!res.ok) throw new Error(data.error || res.status);
-      S.conflict = null;
+      saved = true; S.conflict = null;
       lsSet("draft:" + q.id, null);
       await refresh();
       S.busy = false; S.snap[q.id] = snapOf(Q[q.id]);
@@ -1735,7 +1736,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       else if (done) { select(SUMMARY, {animate: true}); toast(msg + " All answered.", false, true); }
       else { toast(msg, false, true); fillNote(); renderAll(); }
     } catch (e) {
-      S.busy = false; if (!e.quiet) { toast(e instanceof TypeError ? "Not saved: the page cannot reach the server. Your note is kept." : "Not saved (" + e.message + ").", true); renderAnswer(); } // a TypeError is the browser's network failure, whose text means nothing to the user
+      S.busy = false; if (!e.quiet) { toast(saved ?"Saved, but the page could not refresh (" + e.message + "). Reload to see it." : e instanceof TypeError ? "Not saved: the page cannot reach the server. Your note is kept." : "Not saved (" + e.message + ").", true); renderAnswer(); } // a TypeError is the browser's network failure, whose text means nothing to the user
     }
   }
   async function doUndo(){
@@ -1935,7 +1936,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     S.online = v; renderHeader();
     if (!S.loaded) return;
     renderAnswer(); // answer controls follow the connection: off while nothing can be saved, back on reconnect
-    if (S.fly === "notes" && document.activeElement !== $("noteText")) renderFly();
+    if (S.fly !== "notes") return;
+    if (document.activeElement !== $("noteText")) { renderFly(); return; }
+    const b = document.querySelector("[data-sendnote]"); if (!b || S.api < 2) return; // typing: update Send note in place so the draft keeps focus
+    b.disabled = closed(); b.nextElementSibling.textContent = closed() ? closedWhy() : "Ctrl+Enter";
   }
   function connect(){ // every (re)opened stream re-fetches /api/state, so nothing that happened meanwhile is missed
     if (!window.EventSource) { startPoll(); return; }
