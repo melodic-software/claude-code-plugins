@@ -7,31 +7,36 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 
 ## Behavior
 
-- **Fires on attention prompts.** Only the `permission_prompt` and `idle_prompt`
-  notification types trigger it; every other notification is a silent no-op.
-- **Advisory, never blocking.** The hook always exits `0` (Notification hooks
-  cannot block).
+- **Fires on attention prompts.** We match only the `permission_prompt` and
+  `idle_prompt` notification types; every other notification is a silent no-op.
+- **Advisory, never blocking.** The hook always exits `0`; a Notification hook is
+  not a gate.
+- **Pointer**: the notification types and what a Notification hook can return are
+  in [Notification](https://code.claude.com/docs/en/hooks#notification). **As of**:
+  2026-10-11. **Recheck trigger**: that section renames either type, lets a
+  Notification hook block, stops discarding its `systemMessage`, or is renamed.
 - **Three additive channels**, each default on and independently mutable:
 
 | Channel | Option | What it does |
 |---|---|---|
 | `bell` | `desktop_notification_bell_enabled` | Audible terminal bell (bare `BEL`). |
-| `terminal_notify` | `desktop_notification_terminal_notify_enabled` | OSC 9 desktop notification, emitted via the hook's `terminalSequence` output (Claude Code v2.1.141+ writes it through its own terminal path). |
+| `terminal_notify` | `desktop_notification_terminal_notify_enabled` | OSC 9 desktop notification, emitted via the hook's `terminalSequence` output, which Claude Code writes through its own terminal path. |
 | `os_toast` | `desktop_notification_os_toast_enabled` | OS-native toast (see per-OS table). |
 
-Platform facts verified 2026-07-18: hook `terminalSequence` output landed in Claude Code
-v2.1.141 per the [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md);
-channel semantics per the [hooks reference](https://code.claude.com/docs/en/hooks). Recheck when
-the hooks reference changes how `terminalSequence` output is written or documents a Windows toast
-path.
+- **Pointer**: how `terminalSequence` output is written and which terminals handle
+  OSC 9 are in
+  [Emit terminal notifications](https://code.claude.com/docs/en/hooks#emit-terminal-notifications).
+  **As of**: 2026-10-11. **Recheck trigger**: that section changes how
+  `terminalSequence` output is written, documents a Windows toast path, or is
+  renamed.
 
 ### Per-OS `os_toast` behavior
 
 | OS | Tool | Requirement |
 |---|---|---|
 | macOS | [`osascript … display notification`](https://code-maven.com/display-notification-from-the-mac-command-line) | Built-in. No dependency. First run prompts to allow notifications for the terminal app. |
-| Linux | [`notify-send`](https://man.archlinux.org/man/notify-send.1.en) (libnotify) | Install `libnotify-bin` (Debian/Ubuntu) or `libnotify` (Fedora). Absent → the `os_toast` channel is a silent no-op. |
-| Windows / other | none | No OS-toast branch: a fire-and-forget hook process leaves no live activator host for a WinRT toast to render into, so it would never reliably surface. The `terminal_notify` channel (OSC 9) carries Windows attention. [Windows Terminal handles OSC 9](https://code.claude.com/docs/en/hooks). |
+| Linux | [`notify-send`](https://man.archlinux.org/man/notify-send.1.en) (libnotify) | Install `libnotify-bin` (Debian/Ubuntu) or `libnotify` (Fedora). Without it, the `os_toast` channel is a silent no-op. |
+| Windows / other | none | No OS-toast branch: a fire-and-forget hook process leaves no live activator host for a WinRT toast to render into, so it would never reliably surface. The `terminal_notify` channel (OSC 9) carries Windows attention; which Windows terminals handle OSC 9 is read at the Emit terminal notifications pointer record above, which carries this cell's as-of date and recheck trigger. |
 
 The OS toast body includes the current git branch when the project is a git
 repository (e.g. `Waiting for your input — feat/my-branch`); outside a repo it is
@@ -42,19 +47,23 @@ just the message.
 The hook runs on Bash 3.2+. On native Windows, install
 [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so Git Bash is
 available. It needs Node.js on `PATH`: the hook launches through `node hooks/exec-bash.mjs`, and
-Claude Code's native binary neither ships nor uses Node, so without it the hook does not launch and
+a Claude Code install does not guarantee Node, so without it the hook does not launch and
 notifications do not fire ([install Node.js](https://nodejs.org/en/download)). It also needs [`jq`](https://jqlang.github.io/jq/) on `PATH`; without jq, notifications
-are disabled and `/desktop-notification:check` reports it (a Notification hook cannot show a notice:
-Claude Code [discards its `systemMessage`](https://code.claude.com/docs/en/hooks#notification)). macOS needs nothing
+are disabled and `/desktop-notification:check` reports it, because a Notification hook has no notice
+channel of its own. Relay: what it can return is in the Notification pointer record under
+[Behavior](#behavior). **As of**: 2026-10-11. **Recheck trigger**: that record leaves Behavior,
+or its own recheck trigger fires. macOS needs nothing
 further; Linux needs `libnotify` only for the `os_toast` channel; Windows needs
 nothing (terminal channels only). Telemetry
 timing uses `EPOCHREALTIME` (Bash 5.0+); on older bash the telemetry envelope is
 skipped while notifications still fire.
 
-Node.js claim verified 2026-09-29 per the
-[Claude Code setup page](https://code.claude.com/docs/en/setup) ("The installed `claude` binary
-does not itself invoke Node") and the [hooks reference](https://code.claude.com/docs/en/hooks)
-("Exec form and shell form"). Recheck when either page changes those statements.
+- **Pointer**: whether an install brings Node is in
+  [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm), and how the hook's
+  `node` command is launched is in
+  [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form).
+  **As of**: 2026-10-11. **Recheck trigger**: the first section changes whether the native binary
+  ships or uses Node, the second changes how exec form launches `command`, or either is renamed.
 
 ## Install
 
@@ -171,7 +180,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 When the consumer sets `HOOK_TELEMETRY_SINK` to an executable, the hook emits one
 [telemetry envelope](../../docs/conventions/hook-telemetry/README.md) per run.
 `hook: "desktop-notification"`, `hook_event: "Notification"`, and a `data` payload
-of `notification_type` plus the `channels` that fired. Unset → exact no-op.
+of `notification_type` plus the `channels` that fired. When it is unset, the hook is an exact no-op.
 
 ## License
 

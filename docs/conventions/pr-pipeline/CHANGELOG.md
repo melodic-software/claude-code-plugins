@@ -1,5 +1,67 @@
 # Changelog for the PR pipeline convention
 
+## 1.9.1 - 2026-10-12
+
+The lanes token broker denies a repository whose `CLAUDE_LANES_REPO_DISABLED` variable is absent,
+on both its token and check endpoints, with reason `kill-switch` (the detail reads
+`not-false: the repository switch CLAUDE_LANES_REPO_DISABLED is not set`; azure-iac#24). `version` stays 1. Every repository on the
+broker's allowlist must declare the variable as `false`.
+
+## 1.9.0 - 2026-10-11
+
+The read runner asks the lanes token broker before its model step. `version` stays 1; callers of
+the read file must grant `id-token: write`.
+
+- `pr-run-activity-read.yml` gains a `broker-check` job that the run job `needs`. It holds
+  `contents: read` and `id-token: write`, runs only default-branch-tip actions, and never checks
+  out the PR head. After a local kill-switch stop it ends green without a broker call, so the run
+  job stops the lane neutral as before. Otherwise it posts once to the broker's check endpoint
+  (`LANES_BROKER_URL` with `/token` replaced by `/check`), which mints nothing, and fails on any
+  answer but an allow (`lane-check-denied`) or on none (`broker-unreachable`). The report job
+  reads that failure as the run result, so the check is a failure, not neutral. The run job still
+  holds no OIDC token, and fails red with `kill-switch` unless the broker-check job allowed its own
+  run attempt, so "Re-run failed jobs" cannot reuse an earlier allow.
+- `request-lane-token` gains `mode: check`, which takes only the broker variables, lane and
+  activity and fails red on any write-path input.
+- `scripts/check-read-caller-keys.sh` allows `id-token` in the read file only inside its
+  `broker-check` job, and fails when that job is a reusable call or checks out anything but this
+  repository's default branch tip, when the read file's top level is not `permissions: {}` or a
+  job has no permissions map, and on `permissions: write-all` in any file of a read run.
+- Callers of either file grant `id-token: write` on the calling job.
+- The broker's check endpoint sees a repository variable named `CLAUDE_LANES_DISABLED` that
+  shadows the org value, so a shadow no longer lets a read lane run.
+
+## 1.8.0 - 2026-10-11
+
+The `pr-unblock` dispatcher lands, and the write runner trusts its dispatches. `version` stays 1.
+
+- New workflow `.github/workflows/pr-unblock-dispatch.yml` (script
+  `.github/scripts/pr-unblock/dispatch.mjs`) runs on each push to `main` and dispatches
+  `pr-unblock.yml` for the open, non-draft, same-repository PRs GitHub reports as conflicting, at
+  most 3 per run, skipping a head that already carries a `pr-unblock` check run.
+- `pr-run-activity-write.yml` passes `check-trusted-trigger` its `dispatcher-run-id` with the
+  `pr-unblock-dispatch.yml` and `pr-unblock.yml` paths, so a `github-actions[bot]` dispatch runs
+  only through a checked dispatcher run instead of always stopping `untrusted-actor`.
+
+## 1.7.0 - 2026-10-11
+
+The `pr-unblock` lane gets its caller and live config. `version` stays 1.
+
+- New caller `.github/workflows/pr-unblock.yml`, `workflow_dispatch` only (inputs `pr-number`,
+  `dispatcher-run-id`): job `resolve-conflicts`, then job `report-escalation` only when the first
+  job's `escalation-reason` output is set, which it passes on as that job's `escalation-reason`.
+  Both jobs pass `dispatcher-run-id` and `trusted-base: default-tip`.
+- Every write caller job, `pr-refine`'s included, queues in one per-PR job group
+  `pr-pipeline-write-<n>` (`queue: max`); `pr-unblock` also has the workflow group
+  `pr-unblock-<n>`. `pr-refine`'s caller job now also skips the lanes App's own `pull_request`
+  events, so a lane push never waits in that group. README: new [Concurrency](README.md#concurrency)
+  section.
+- The live config adds the leaves `resolve-conflicts` (applies only to a conflicting, non-draft
+  PR without `do-not-merge` or `needs-human`) and `report-escalation`, and the lane `pr-unblock`;
+  `pr-refine / fix-docs` also skips while `do-not-merge` or `needs-human` is on the PR.
+- README: a base merge escalates only on a conflicted `.github/workflows/` path or a model-staged
+  change under it; a workflow change that merges cleanly from the base is pushed.
+
 ## 1.6.0 - 2026-10-11
 
 The write runner performs `prepare: merge-base` and takes the pr-unblock lane's inputs. `version`

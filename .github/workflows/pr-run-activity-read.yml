@@ -1,14 +1,16 @@
 name: pr-run-activity-read
 
 # Runs one read activity of one PR pipeline lane and reports it as the check
-# run `<lane> / <activity>`. The run job gates, resolves the base-SHA config,
-# fails red on any effect but `read` before the PR head is checked out, and
-# runs a skill or a script with the job's read-only GITHUB_TOKEN; the report
-# job writes the check from the run job's runner-computed outputs.
-# Secrets are scrubbed per workflow run, so this file references no App key
-# and requests no OIDC token: a caller that passes neither keeps both off the
-# runner that runs PR head code. Write activities run in
-# pr-run-activity-write.yml.
+# run `<lane> / <activity>`. The broker-check job asks the lanes token broker's
+# check endpoint whether the lane may run, and fails closed. The run job gates,
+# resolves the base-SHA config, fails red on any effect but `read` before the
+# PR head is checked out, and runs a skill or a script with the job's
+# read-only GITHUB_TOKEN; the report job writes the check from the run job's
+# runner-computed outputs.
+# Secrets are scrubbed per workflow run, so this file references no App key.
+# Only the broker-check job, which runs no PR head code, requests an OIDC
+# token; the run job that runs head code holds neither. Write activities run
+# in pr-run-activity-write.yml.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
 #
 # Every action runs from the base-SHA checkout at ./.base. zizmor's
@@ -64,7 +66,71 @@ defaults:
     shell: bash
 
 jobs:
+  # The only job in this file that may hold id-token: write
+  # (scripts/check-read-caller-keys.sh). It runs only default-branch-tip code
+  # and never checks out the PR head. A local kill-switch stop skips the broker
+  # call and ends green, so the run job's own kill-switch step stops the lane
+  # neutral; any broker answer but an allow, or none, fails this job, which
+  # skips the run job and fails the check.
+  broker-check:
+    if: >-
+      !(github.event_name == 'pull_request'
+      && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    # "Re-run failed jobs" reuses a successful broker-check and its outputs,
+    # so the run job also checks that the allow came from its own attempt.
+    outputs:
+      allowed: ${{ steps.broker.outcome == 'success' }}
+      attempt: ${{ github.run_attempt }}
+    steps:
+      - name: Assert the default branch is set
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::the event names no default branch"
+            exit 1
+          fi
+
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # The broker repeats the kill switch, including the repository-variable
+      # shadow this job cannot see, and checks the job's OIDC claims.
+      - name: Ask the broker whether the lane may run
+        id: broker
+        if: steps.kill.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          mode: check
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: ${{ inputs.lane }}
+          activity: ${{ inputs.activity }}
+
   run:
+    needs: broker-check
     # The lanes App's own pull_request events never start a lane.
     if: >-
       !(github.event_name == 'pull_request'
@@ -138,6 +204,22 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # A broker-check allow from an earlier attempt, reused by "Re-run failed
+      # jobs", or a broker-check that skipped the broker because its own kill
+      # switch read stopped, is not an allow for this attempt: fail red as a
+      # kill-switch stop. Re-running all jobs asks the broker again.
+      - name: Assert the broker allowed this attempt
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          ALLOWED: ${{ needs.broker-check.outputs.allowed }}
+          ALLOWED_ATTEMPT: ${{ needs.broker-check.outputs.attempt }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if [ "$ALLOWED" != true ] || [ "$ALLOWED_ATTEMPT" != "$RUN_ATTEMPT" ]; then
+            echo "::error::kill-switch: the broker did not allow run attempt $RUN_ATTEMPT (allowed=$ALLOWED on attempt $ALLOWED_ATTEMPT); re-run all jobs"
+            exit 1
+          fi
 
       # No actor is denied, so a workflow_run read lane still runs after a
       # lanes App bot push (the job if: above already skips the bot's own
@@ -516,7 +598,7 @@ jobs:
           if-no-files-found: error
 
   report:
-    needs: run
+    needs: [broker-check, run]
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
     # lanes App's own pull_request events skip the run job.
     if: >-
@@ -625,7 +707,11 @@ jobs:
         with:
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
-          run-result: ${{ needs.run.result }}
+          # A broker-check failure skips the run job and leaves no verdict, so
+          # the check fails; a cancelled broker-check reads as cancelled.
+          run-result: >-
+            ${{ needs.broker-check.result != 'success' && needs.broker-check.result
+            || needs.run.result }}
           act-outcome: ${{ needs.run.outputs.act-outcome }}
           gate-reason: ${{ needs.run.outputs.gate-reason }}
           head-sha: ${{ needs.run.outputs.head-sha }}

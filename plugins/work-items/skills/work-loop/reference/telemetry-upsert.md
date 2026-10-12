@@ -101,13 +101,14 @@ records it there, a lane without one carries it in the cycle's own summary.
 
 The gate order lives inside the script, so the invocation is one simple command rather than the
 compound shape (variable assignment, a lookup function, an `if/elif/else`, a `for` loop, and
-several `gh api` calls in one Bash invocation) a permission rule may not cover. Verified 2026-09-06
-against Claude Code 2.1.263 and the permissions page at
-`https://code.claude.com/docs/en/permissions#compound-commands`, which states that an allow rule must
-match each subcommand independently, and that a deny or ask rule applies when any subcommand matches,
-including one nested in a subshell or a control-flow body. Recheck when that page stops carrying the
-per-subcommand matching rule, or when a release note names compound-command permission matching. When the
-invocation is blocked anyway, retry it rather than hand-transcribing the upsert: reproducing the
+several `gh api` calls in one Bash invocation) a permission rule may not cover.
+
+- **Pointer**: when an allow rule fails to cover the upsert invocation, fetch
+  [permissions § Compound commands](https://code.claude.com/docs/en/permissions#compound-commands)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes how rules match
+  compound commands, or a release note names compound-command permission matching.
+
+When the invocation is blocked anyway, retry it rather than hand-transcribing the upsert: reproducing the
 gates in isolated calls loses the distinct exit codes the lane reads its own outcome from.
 
 ## Instance-collision check (cycle start, before any write)
@@ -127,8 +128,10 @@ re-reading the block:
   after a budget or expiry stop starts immediately instead of waiting out the staleness window.
 - Nonce differs **and** the block is stale (`heartbeat_at` over **2 hours** old, and past
   `paused_until` when set) → an earlier session of this same instance restarted or died. Adopt the
-  block, write my nonce, continue, the ordinary restart path; two hours is twice the one-hour
-  `ScheduleWakeup` ceiling, so a healthy lane at maximum idle backoff never reads as stale.
+  block, write my nonce, continue, the ordinary restart path; two hours is set at twice the
+  longest `ScheduleWakeup` delay, so a healthy lane at maximum idle backoff never reads as stale.
+  The pointer record in [`mode-standing.md`](mode-standing.md) says where to read that delay; when
+  it changes, recheck this threshold.
 - Nonce differs **and** the block is fresh with no pending `restart_request` → **another live lane
   holds my instance id.** Write nothing, escalate per the convention's escalation contract, and
   stop the loop cleanly.

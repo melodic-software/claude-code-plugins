@@ -89,10 +89,8 @@ repository's tracker, never in-place edits; absent such a declaration, no exclus
 One native surface audits prompts for the same anti-pattern families this catalog names, and the
 two are routinely conflated:
 
-- **`claude-api` (bundled skill), `prompt-audit` subcommand**: audits the whole prompt surface of
-  the working directory, application code that calls the Claude API included, against the current
-  model's documented anti-patterns, and produces a report with a proposed diff that it applies when asked. Its catalog is the
-  vendor's own migration guidance, refreshed with the model.
+- **`claude-api` (bundled skill), `prompt-audit` subcommand**: the vendor's prompt audit, reaching
+  application code too; its scope, output and apply step: [reference/bundled-claude-api.md](reference/bundled-claude-api.md).
 - **This skill (marketplace plugin).** A standing, report-only audit of locally-owned Claude Code
   instruction surfaces against the versioned I-catalog in [reference/criteria.md](reference/criteria.md):
   target-model scoping, deterministic pre-scans, the cross-surface conflict pass, and harness-claim
@@ -117,8 +115,8 @@ set, distribution facts, recheck triggers: [reference/bundled-claude-api.md](ref
 
 `/doctor prompt-audit` and this skill both audit instruction files and are easily conflated.
 
-- **`doctor` (bundled skill, alias `checkup`)**: its `prompt-audit` subcommand is the vendor's
-  audit of instruction files. The person runs it; the model does not invoke it.
+- **`doctor` (bundled skill)**: its `prompt-audit` subcommand is the vendor's audit of instruction
+  files. The person runs it, never this skill ([reference/native-doctor.md](reference/native-doctor.md)).
 - **This skill (marketplace plugin).** Report-only catalog audit that adds over-prescription with
   target-model scope, stale Claude Code behavior claims, and the cross-surface conflict pass.
 
@@ -256,8 +254,9 @@ Non-ASCII text runs more bytes per character, so the estimate errs toward smalle
 the budget as a line count: the line figure is derived per run from the bytes per line measured over the in-scope files.
 
 We size a lane by the context window of the model the lane runs on, never the parent's (Pointer:
-[subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model). As of:
-2026-09-29. Recheck trigger: that section changes how a subagent's model or window is set).
+when deciding whose window sizes a lane, fetch
+[subagents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
+live. As of: 2026-10-11. Recheck trigger: that section changes how a subagent's window is sized).
 
 `<lane model window>` is the `--window-tokens` value: the context window in tokens of the model the
 lane runs on. When the lane's model resolves to no documented window, pass 200000, our setting for
@@ -378,7 +377,7 @@ gate fails, dropped for that named reason.
 ### When dispatch is unavailable
 
 Phases B and C **require** fresh-context, non-fork subagent dispatch. When the Agent tool is
-blocked, unavailable, or the session cannot spawn subagents:
+blocked, unavailable, or the session cannot spawn subagents (including a nested session at the spawn-depth limit; Pointer: when this skill runs inside a subagent, fetch [subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents) live. As of: 2026-10-11. Recheck trigger: that section changes the depth limit or what a subagent at it can spawn):
 
 1. **Disclose in the report header** which phases ran inline, which were skipped, and why dispatch
    was unavailable, so a run that skipped verification is distinguishable from a verified one.

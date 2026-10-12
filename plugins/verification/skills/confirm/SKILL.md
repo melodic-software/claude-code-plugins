@@ -141,14 +141,14 @@ Stage 1 delegates by invoking the `toolchain` plugin's `/toolchain:check` and `/
 
 1. **Build + test + lint per ecosystem**, when changed files span multiple ecosystems or the mechanical pass spans more than a handful of commands, dispatch a subagent with the changed-file paths and `/toolchain:check`'s command tables, and verify its summary against the actual command output: a command result counts as evidence only when this session ran it or the harness recorded it, never on an agent's say-so (the evidence ranking in `/implementation:implement-dispatch`'s command-evidence reference); otherwise invoke `/toolchain:check` via the Skill tool. `/toolchain:check` remains SSOT for ecosystem detection, CLI commands, and gotchas. Pass through the ecosystem filter from `$ARGUMENTS` if given; else `/toolchain:check` auto-detects from changed files.
 2. **Architecture tests**, when changed files match the `arch-test-triggers` globs above and the project has an architecture-test suite, ensure it is included in the test step.
-3. **Cross-cutting checks**. Invoke `/toolchain:lint cross-cutting` via the Skill tool. `/toolchain:lint` owns the cross-cutting tools with the presence-gated graceful-degradation pattern (missing tool → `skip`, never `FAIL`). Do **not** inline that bash here. `/toolchain:lint` is the SSOT.
+3. **Cross-cutting checks**. Invoke `/toolchain:lint cross-cutting` via the Skill tool. `/toolchain:lint` owns the cross-cutting tools with the presence-gated graceful-degradation pattern (missing tool → `skip (tool missing: <tool>)`, never `FAIL`; with nothing failed, its Overall line reads `INCOMPLETE`). Do **not** inline that bash here. `/toolchain:lint` is the SSOT.
 
 **Gate result**, decided in this order:
 
 1. Any FAIL from `/toolchain:check` or `/toolchain:lint cross-cutting`: stop and surface the failing command's key error lines. Fix mechanical failures before outcome verification proceeds.
 2. A `STOPPED` run (a dependency install changed the tree): stop and report the changed paths.
 3. No check ran because every one hit an environment skip (tool missing or too old, dependencies missing): stop. The verdict is `NOT VERIFIED`, listing each skip with its reason; Stage 2 does not run on a change nothing has exercised.
-4. Otherwise proceed to Stage 2. Opt-in-unmet skips and not-applicable cells never hold the gate. An environment skip that remains (an `INCOMPLETE` run) carries into the verdict: the change can be `NOT VERIFIED` or `NEEDS WORK`, never `CONFIRMED`, until the skipped check runs. An ecosystem reported as `no real check ran (syntax only)` is not an environment skip and does not hold the verdict by itself, but the report names it and never counts it as a mechanical pass.
+4. Otherwise proceed to Stage 2. Opt-in-unmet skips and not-applicable cells never hold the gate. An environment skip that remains (an `INCOMPLETE` run from `/toolchain:check` or `/toolchain:lint`, a lint-only one included) carries into the verdict: the change can be `NOT VERIFIED` or `NEEDS WORK`, never `CONFIRMED`, until the skipped check runs. An ecosystem reported as `no real check ran (syntax only)` is not an environment skip and does not hold the verdict by itself, but the report names it and never counts it as a mechanical pass.
 
 ## Stage 2. Outcome verification (the core)
 

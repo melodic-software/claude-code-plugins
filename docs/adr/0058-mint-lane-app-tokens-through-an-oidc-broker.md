@@ -53,7 +53,7 @@ No workflow holds the App key. A write activity gets its token from a broker:
    up, not a control against a hostile one: the activity holds the token and can write the
    runner's files.
 6. `pr-run-activity-read.yml` is unchanged: no key, no `id-token`, no broker call. Its guarantee is
-   structural, so it stays.
+   structural, so it stays. (Amended 2026-10-11 below: a separate job now calls the broker.)
 
 The contract, including every deny reason, is in
 [`pr-run-activity.md`](../conventions/pr-pipeline/pr-run-activity.md#the-lane-token-broker).
@@ -129,3 +129,16 @@ into another.
 - Re-derive this record when GitHub ships a native OIDC exchange for installation tokens, when
   `create-github-app-token` or the installation-token API changes how revocation works, or when an
   OIDC trust is added in the organization.
+
+## Amendment (2026-10-11): the read file asks the broker in a job that runs no head code
+
+Point 6 kept the read file off the broker, so the broker's kill-switch read, including a repository
+variable named `CLAUDE_LANES_DISABLED` that shadows the org value, never stopped a read lane
+([#6720](https://github.com/melodic-software/claude-code-plugins/issues/6720)). The read file now
+has a `broker-check` job with `contents: read` and `id-token: write` that runs only
+default-branch-tip actions, never checks out the PR head, and posts once to the broker's check
+endpoint, which mints and reserves nothing. The run job `needs` it, fails red unless the allow came
+from its own run attempt, and still holds no key and no OIDC token, so the structural guarantee of
+point 6 holds for the job that runs head code. Any broker answer but an allow fails the check.
+`scripts/check-read-caller-keys.sh` allows `id-token` in the read file only in that job and checks
+its shape. The contract is in `pr-run-activity.md`, "The broker-check job".

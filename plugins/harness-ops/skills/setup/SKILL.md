@@ -152,10 +152,10 @@ The options live in Claude Code's native config surface, which setup must not ha
   inspecting the consumer's declared artifact conventions. Same for `skill_usage_dir` (default
   `.claude/observability`) and `session_event_log_dir` (default `.observability/claude`, a root the
   guard keeps out of `git status`). State the tradeoff and let the reader pick. Do not prompt.
-- **Turning hook logging on:** `session_event_log_enabled` is off by default; the consumer who has
-  not turned it on pays the kill-switch read and nothing else. Turning it on adds one producer row
-  per observable hook event and the `SessionEnd` retention hook; the README's Options reference
-  carries the measured cost.
+- **Turning hook logging on:** `session_event_log_enabled` is off by default, and while off the
+  plugin's hooks module hooks no event, so the log starts no process. Turning it on makes the module
+  start one process per observable hook event plus `SessionEnd` retention, and only where mods load;
+  the README's per-session hook event log section carries the measured cost and where it does not run.
 - **Reconfiguring a personal option:** through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,

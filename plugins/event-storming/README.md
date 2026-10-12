@@ -44,8 +44,8 @@ Both optional surfaces degrade gracefully:
 
 - **Miro.** The live-board path uses the first-party **`miro` plugin**: a bundled local-stdio MCP
   server that a fresh consumer must **install from an available marketplace and then enable**
-  (select the `miro` plugin in `/plugin`, then enable it) with a Miro API token stored by Claude
-  Code's secure credential mechanism. Its tools are namespaced `mcp__plugin_miro_miro__*`, or
+  (select the `miro` plugin in `/plugin`, then enable it) with a Miro API token, entered when
+  Claude Code asks for it. Its tools are namespaced `mcp__plugin_miro_miro__*`, or
   `mcp__miro__*` under the miro README's user-scope override; the gates accept either. With the
   plugin absent (or its tools unavailable), `simulation` detects it at preflight and runs in structured-markdown mode
   instead of failing. Miro's official hosted server (`mcp.miro.com`) was evaluated and **rejected**
