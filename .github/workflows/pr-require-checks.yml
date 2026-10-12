@@ -199,7 +199,9 @@ jobs:
     # answered and `ci-status` carries that answer forward instead.
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    # Planning lanes for a diff across about 70 plugins takes about 2.5-3
+    # minutes, so 3 cancelled such PRs before any lane ran.
+    timeout-minutes: 6
     # The detect-changes action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
     # and nowhere else. `statuses: write` is for the in-flight marker below.
