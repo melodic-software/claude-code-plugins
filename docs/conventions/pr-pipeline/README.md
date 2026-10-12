@@ -316,8 +316,8 @@ highest work class that authority merges without a human. Work classes are defin
 ### The local babysit lane
 
 The babysit wrapper (`babysit_merge.py` in the source-control plugin) may merge without a human
-only when every read below allows it. Each read happens at one captured base SHA, and any read that fails counts as
-a refusal.
+only when every read below allows it. Each read happens at one captured base SHA, and any read
+that fails counts as a refusal.
 
 - **Authority and identity.** `merge.authority` reads `local-babysit` and `merge.agent-identity`
   names the login the lane acts as. The schema rejects `local-babysit` without an identity. The
