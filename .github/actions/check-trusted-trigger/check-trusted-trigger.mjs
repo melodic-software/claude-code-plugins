@@ -229,7 +229,8 @@ async function isRecorded(github, runPath, dispatcherRunId, runId) {
 // the two is not refused. While the run is still going, an absent record is
 // re-read after RECORD_WAIT_MS, at most RECORD_MAX_SLEEPS times. At the first
 // completed status one more read follows the same wait, for any lag between
-// the run and its artifact list, and then the gate refuses.
+// the run and its artifact list, and then the gate refuses. That wait counts
+// toward the cap, so the whole wait stays within 2 min.
 async function requireRecorded({ github, repository, dispatcherRunId, runId, sleep }) {
   const runPath = `/repos/${repository}/actions/runs/${dispatcherRunId}`;
   for (let sleeps = 0; ; sleeps += 1) {

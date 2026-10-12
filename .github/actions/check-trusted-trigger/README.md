@@ -65,7 +65,8 @@ condition 1 and the actor and author parts of condition 2).
   dispatcher run's `status` first, then its artifacts, so an upload between the two reads is not
   refused. While the dispatcher run is not `completed`, an absent record is read again every 5 s,
   at most 24 times (2 min). At the first `completed` with the record absent, the gate waits 5 s
-  more, reads the artifacts once more, and then refuses. Each wait logs
+  more, reads the artifacts once more, and then refuses; that extra wait counts toward the 24, so
+  a first `completed` seen after the 24th wait refuses at once. Each wait logs
   `dispatcher record: absent, re-read N` with the two run ids.
 
   A failed read, a missing or unparseable field, or any failed condition stops with
