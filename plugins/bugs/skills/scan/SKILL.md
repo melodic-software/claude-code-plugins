@@ -22,9 +22,8 @@ invocation:
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: a worktree-isolated session refuses a
 compound command that contains git. The dated record for how the pre-compute block is composed is
-the worktree skill's
-[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
-"The pre-compute block runs as one shell invocation"; how injected commands run is read at
+owned by `/source-control:worktree` (its gather-block record, "The pre-compute block runs as one
+shell invocation"); how injected commands run is read at
 [skills: how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
 As of: 2026-10-11. Recheck triggers: the gather-block section moves, is renamed, or changes how the
 block is composed; the skills section changes how a block's commands are run.

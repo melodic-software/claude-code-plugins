@@ -25,8 +25,8 @@ routinely conflated; they are distinct:
 
 **Pointer record for the three surfaces above.** Pointer: the managed service's enablement at
 [code-review: set up Code Review](https://code.claude.com/docs/en/code-review#set-up-code-review),
-and its availability (plans, preview status, excluded configurations) in the note that opens the
-same page, above its first section, which carries no anchor of its own; its triggers at
+and its availability (plans, preview status, excluded configurations) in the note that opens
+[the page](https://code.claude.com/docs/en/code-review), above its first section; its triggers at
 [code-review: manually trigger reviews](https://code.claude.com/docs/en/code-review#manually-trigger-reviews),
 its check-run behavior at
 [code-review: check run output](https://code.claude.com/docs/en/code-review#check-run-output); the
