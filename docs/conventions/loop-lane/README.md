@@ -229,6 +229,10 @@ App installed on that repository only: a machine user is a `User` and would pass
 - **Interactive sessions,** the attended queue included, keep the operator's credential, so their
   label writes count as human provenance. That is accurate only while the user directs the
   session. Named residual.
+- **Interactive pushes need the `workflow` scope.** Interactive babysit-prs runs also push through
+  `lane-push.sh`, with the session's gh token over https, so a gh token without the `workflow`
+  scope cannot push changes to workflow files. Accepted, not exempted: the script has no fallback
+  to another transport or credential. Named residual.
 
 ## 2. Escalation contract
 

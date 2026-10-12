@@ -25,7 +25,9 @@ as it stops and writes nothing. With none configured, no lane behaves differentl
   lists every refusal. Named residuals: interactive sessions stay under the operator, and their
   label writes count as human provenance; a lane holds the operator's token for the rest of the
   cycle in which the config lands; whoever controls the lane host's gh or git binary, the script
-  or the checkout's `.git` directory already runs code as the lane.
+  or the checkout's `.git` directory already runs code as the lane; interactive babysit-prs runs
+  push through the script with the session's gh token over https, so a token without the
+  `workflow` scope cannot push changes to workflow files (accepted, not exempted).
 
 ## [11.0.1] - 2026-10-11
 
