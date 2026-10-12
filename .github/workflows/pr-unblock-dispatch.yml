@@ -99,3 +99,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node .base/.github/scripts/pr-unblock/dispatch.mjs
+
+      # Throwaway: stages a conflict for the live mint check.
