@@ -101,7 +101,7 @@ shell environment variable to export.
 marketplace-scoped (`dometrain@<marketplace>` and `dometrain@dometrain` are distinct,
 coexistable install identities), but skill and MCP-tool namespacing is driven by `plugin.json`
 `name` alone, and Claude Code's behavior for two enabled plugins sharing an
-identical name is genuinely undocumented. Pick one.
+identical name is undocumented. Pick one.
 
 ## Grounding skill
 

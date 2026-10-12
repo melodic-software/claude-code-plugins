@@ -63,7 +63,7 @@ The plugin's `offer_browser_automation` setting (boolean, default `true`) is a s
 consumer opt-out of the offer itself: when `false`, no browser-automation offer is extended at
 all. The ladder reports the UI-only status and moves straight to the guided-manual fallback.
 
-Honest framing: this gate is **advisory**. Its value is substituted into skill prose and
+This gate is **advisory**. Its value is substituted into skill prose and
 honored by the model, not enforced by the runtime. The hard gate is, and remains, the
 per-action user confirm above. The three layers: the routing precondition selects the channel,
 the advisory gate suppresses the *offer*, the confirm gate protects every *action*.
