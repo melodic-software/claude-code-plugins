@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 1.7.0 - 2026-10-11
+## 1.9.0 - 2026-10-11
 
 The read runner asks the lanes token broker before its model step. `version` stays 1; callers of
 the read file must grant `id-token: write`.
@@ -23,6 +23,25 @@ the read file must grant `id-token: write`.
 - Callers of either file grant `id-token: write` on the calling job.
 - The broker's check endpoint sees a repository variable named `CLAUDE_LANES_DISABLED` that
   shadows the org value, so a shadow no longer lets a read lane run.
+
+## 1.7.0 - 2026-10-11
+
+The `pr-unblock` lane gets its caller and live config. `version` stays 1.
+
+- New caller `.github/workflows/pr-unblock.yml`, `workflow_dispatch` only (inputs `pr-number`,
+  `dispatcher-run-id`): job `resolve-conflicts`, then job `report-escalation` only when the first
+  job's `escalation-reason` output is set, which it passes on as that job's `escalation-reason`.
+  Both jobs pass `dispatcher-run-id` and `trusted-base: default-tip`.
+- Every write caller job, `pr-refine`'s included, queues in one per-PR job group
+  `pr-pipeline-write-<n>` (`queue: max`); `pr-unblock` also has the workflow group
+  `pr-unblock-<n>`. `pr-refine`'s caller job now also skips the lanes App's own `pull_request`
+  events, so a lane push never waits in that group. README: new [Concurrency](README.md#concurrency)
+  section.
+- The live config adds the leaves `resolve-conflicts` (applies only to a conflicting, non-draft
+  PR without `do-not-merge` or `needs-human`) and `report-escalation`, and the lane `pr-unblock`;
+  `pr-refine / fix-docs` also skips while `do-not-merge` or `needs-human` is on the PR.
+- README: a base merge escalates only on a conflicted `.github/workflows/` path or a model-staged
+  change under it; a workflow change that merges cleanly from the base is pushed.
 
 ## 1.6.0 - 2026-10-11
 
