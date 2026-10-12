@@ -31,6 +31,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 # Lane id -> (caller workflow path, lane job name suffix). Fixed in code: a
@@ -363,11 +364,14 @@ def _open_findings(
 ) -> int:
     """Summary findings over every completed attempt of the lane on this pull
     request, plus inline threads still open or closed by a non-human, plus
-    inline findings whose thread is gone."""
+    inline findings whose thread is gone. A thread stands for a recorded
+    inline finding only when it was opened inside that lane job's run, so a
+    Claude thread from an unrecorded review never hides a missing one."""
     if threads is None:
         raise Unbound("threads-unread")
     summary = 0
-    inline_posted = 0
+    # (job started, job completed, inline findings) per recorded attempt.
+    windows: list[tuple[datetime | None, datetime | None, int]] = []
     for item in lane_runs:
         for attempt in _attempts(item).values():
             # A draft-skipped run has only the caller job and reviewed nothing.
@@ -376,28 +380,51 @@ def _open_findings(
                 or attempt.get("conclusion") == "skipped"
             ):
                 continue
-            rec = _record(lane, item["head_sha"], _lane_job(lane, item["id"], attempt))
+            job = _lane_job(lane, item["id"], attempt)
+            rec = _record(lane, item["head_sha"], job)
             if rec is None or rec.findings is None:
                 continue
             if rec.findings < rec.inline:  # type: ignore[operator]
                 raise Unbound("count-inconsistent")
             summary += rec.findings - rec.inline  # type: ignore[operator]
-            inline_posted += rec.inline  # type: ignore[operator]
+            windows.append(
+                (
+                    _time(job.get("started_at")),
+                    _time(job.get("completed_at")),
+                    rec.inline,  # type: ignore[arg-type]
+                )
+            )
     if not isinstance(threads, list | tuple):
         raise Unbound("evidence-error")
-    lane_threads = 0
+    covered = [0] * len(windows)
     open_threads = 0
     for thread in threads:
         if not isinstance(thread, Mapping):
             raise Unbound("evidence-error")
         if not _lane_thread(lane, thread):
             continue
-        lane_threads += 1
+        created = _time(thread["comments"][0].get("createdAt"))
+        for i, (start, end, _) in enumerate(windows):
+            if created and start and end and start <= created <= end:
+                covered[i] += 1
+                break
         if thread.get("isResolved") is not True or not is_human(
             thread.get("resolvedBy")
         ):
             open_threads += 1
-    return summary + open_threads + max(inline_posted - lane_threads, 0)
+    missing = sum(max(k - n, 0) for (_, _, k), n in zip(windows, covered))
+    return summary + open_threads + missing
+
+
+def _time(value: Any) -> datetime | None:
+    """An aware timestamp, or None when absent or unreadable."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else None
 
 
 def _lane_thread(lane: str, thread: Mapping[str, Any]) -> bool:

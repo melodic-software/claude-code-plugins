@@ -89,6 +89,8 @@ def attempt(
                 "status": "completed",
                 "conclusion": conclusion,
                 "head_sha": sha,
+                "started_at": "2026-01-01T00:00:00Z",
+                "completed_at": "2026-01-01T01:00:00Z",
                 "annotations": annotations,
             }
         ],
@@ -141,6 +143,7 @@ def thread(
     resolved: bool = False,
     resolved_by: Any = None,
     author: dict[str, Any] | None = None,
+    created: str = "2026-01-01T00:30:00Z",
 ) -> dict[str, Any]:
     return {
         "id": f"t{next(_ids)}",
@@ -148,7 +151,11 @@ def thread(
         "isOutdated": False,
         "resolvedBy": resolved_by,
         "comments": [
-            {"author": author or {"__typename": "Bot", "login": "claude"}, "body": body}
+            {
+                "author": author or {"__typename": "Bot", "login": "claude"},
+                "body": body,
+                "createdAt": created,
+            }
         ],
     }
 
@@ -652,6 +659,35 @@ class CountTests(Base):
         result = self.bind([whole("claude-review", S, n=3, k=3)], threads=threads)
         # Two of the three inline findings have no thread left to read.
         self.assertEqual(result["claude-review"].open_findings, 2)
+
+    def test_thread_outside_every_lane_job_does_not_cover_a_missing_one(
+        self,
+    ) -> None:
+        # A human-resolved Claude thread from an unrecorded review, while the
+        # recorded inline finding's thread is gone.
+        stray = thread(
+            resolved=True, resolved_by=MAINTAINER, created="2025-12-31T00:00:00Z"
+        )
+        result = self.bind([whole("claude-review", S, n=1, k=1)], threads=[stray])
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_job_without_a_time_window_matches_no_thread(self) -> None:
+        item = whole("claude-review", S, n=1, k=1)
+        del item["attempts"][0]["jobs"][0]["started_at"]
+        threads = [thread(resolved=True, resolved_by=MAINTAINER)]
+        result = self.bind([item], threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_one_thread_covers_one_finding_only(self) -> None:
+        runs = [
+            run("claude-review", S0, "findings=1 inline=1 scope=whole"),
+            run(
+                "claude-review", S, f"findings=1 inline=1 scope=incremental since={S0}"
+            ),
+        ]
+        threads = [thread(resolved=True, resolved_by=MAINTAINER)]
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 1)
 
     def test_unread_threads_unbind(self) -> None:
         result = self.bind([whole("claude-review", S)], threads=None)
