@@ -46,8 +46,8 @@ const after = steps.slice(checkout + 1);
 const updates = steps.flatMap((s) => body(s).match(/updateRef\([^)]*\)/g) ?? []);
 say(updates.length >= 2, `the run job updates refs through updateRef (${updates.length} calls)`);
 say(updates.every((u) => /force: false/.test(u)), "every updateRef call passes force: false");
-say(!steps.some((s) => /git\s+push|--force|\+refs\//.test(body(s))), "no step runs git push or a forced refspec");
-say(!steps.some((s) => /(update|create)Ref\(/.test(body(s)) && /Ref\([^)]*force:\s*true/.test(body(s))),
+say(!steps.some((s) => /git\s+push|--force|\+refs\//.test(body(s))), "no step runs git push or a forced refspec"); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+say(!steps.some((s) => /(update|create)Ref\(/.test(body(s)) && /Ref\([^)]*force:\s*true/.test(body(s))), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "no ref update sets force: true");
 
 // Clause 2: no .github/workflows change is pushed by the runner.
@@ -87,11 +87,11 @@ for (const [id, scripts] of [["prepare", ["prepare", "resolve-version-bump-confl
   }
 }
 const cs = commit.with?.script ?? "";
-const treeCheck = cs.search(/createHash\('sha256'\)\.update\(readFileSync\(script\)\)\.digest\('hex'\) !== TREE_ENTRIES_SHA256\) \{\n[^\n]*setFailed[^\n]*\n\s*return;/);
+const treeCheck = cs.search(/createHash\('sha256'\)\.update\(readFileSync\(script\)\)\.digest\('hex'\) !== TREE_ENTRIES_SHA256\) \{\n[^\n]*setFailed[^\n]*\n\s*return;/); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 say(treeCheck >= 0 && treeCheck < cs.indexOf("execFileSync('/usr/bin/bash'"),
   "the commit step checks tree-entries.sh's SHA-256 before running it");
 // No step after the head checkout runs a program the head supplies.
-const headRun = /(^|[\s;&|(])(\.\/|npm |npx |yarn |pnpm |make\b|pytest|python |node \.|bash \.|sh \.)/m;
+const headRun = /(^|[\s;&|(])(\.\/|npm |npx |yarn |pnpm |make\b|pytest|python |node \.|bash \.|sh \.)/m; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 const offenders = after.filter((s) => s.run && headRun.test(s.run)).map((s) => s.name);
 say(offenders.length === 0, `no run step after the head checkout runs head code (${offenders.join(", ") || "none"})`);
 const script = byId("act-script").run ?? "";
@@ -116,7 +116,7 @@ say(tracker >= 0 && tracker < checkout && /\.base\/\.work-item-tracker\.json/.te
 say(/sha256/.test(byId("tracker-config").run ?? ""), "the tracker config copy records its SHA-256");
 const scriptEnv = byId("act-script").env ?? {};
 say(/base-script/.test(String(scriptEnv.TRACKER_CONFIG ?? "")), "the script step gets TRACKER_CONFIG from the base copy");
-const trackerCheck = script.search(/sum=\$\(sha256sum <"\$TRACKER_CONFIG"\)\n\s*if \[ "\$\{sum%% \*\}" != "\$TRACKER_SHA256" \]; then\n[^\n]*\n\s*exit 1/);
+const trackerCheck = script.search(/sum=\$\(sha256sum <"\$TRACKER_CONFIG"\)\n\s*if \[ "\$\{sum%% \*\}" != "\$TRACKER_SHA256" \]; then\n[^\n]*\n\s*exit 1/); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 say(trackerCheck >= 0 && trackerCheck < script.indexOf('"$RUNNER_TEMP/base-script/$(basename'),
   "the script step fails on a tracker config whose SHA-256 differs, before running the script");
 
@@ -124,7 +124,7 @@ say(trackerCheck >= 0 && trackerCheck < script.indexOf('"$RUNNER_TEMP/base-scrip
 const prepRun = byId("prepare").run ?? "";
 say(/check\(\) \{[^}]*sum=\$\(sha256sum <"\$1"\)[^}]*if \[ "\$\{sum%% \*\}" != "\$2" \]; then[^}]*exit 1/s.test(prepRun),
   "the prepare step's hash check fails on a differing SHA-256");
-say(/if \[ "\$\{sum%% \*\}" != "\$POST_SHA256" \]; then\n[^\n]*\n\s*exit 1/.test(post.run ?? ""),
+say(/if \[ "\$\{sum%% \*\}" != "\$POST_SHA256" \]; then\n[^\n]*\n\s*exit 1/.test(post.run ?? ""), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "the post step fails on a post.sh whose SHA-256 differs");
 
 // Head file names reach git's output: workflow commands are stopped while a
@@ -137,7 +137,7 @@ for (const [id, name] of [["prepare", "prepare"], ["post", "post"]]) {
   const firstError = run.indexOf("::error::", call);
   say(stop >= 0 && stop < call && resume > call && (firstError < 0 || resume < firstError),
     `step ${id} stops workflow commands around ${name}.sh`);
-  say(/^\s*echo "skip-reason=\$skip"( >>"\$GITHUB_OUTPUT")?$/m.test(run) && !/skip-reason=awaiting-human/.test(run),
+  say(/^\s*echo "skip-reason=\$skip"( >>"\$GITHUB_OUTPUT")?$/m.test(run) && !/skip-reason=awaiting-human/.test(run), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
     `step ${id} writes skip-reason unconditionally`);
   say(String(byId(id).env?.GIT_NO_REPLACE_OBJECTS) === "1", `step ${id} sets GIT_NO_REPLACE_OBJECTS=1`);
 }
@@ -150,11 +150,11 @@ say(/'\/usr\/bin\/git'/.test(cs) && /'\/usr\/bin\/bash'/.test(cs) && !/execFileS
   "the commit step calls /usr/bin/git and /usr/bin/bash");
 
 // Holds placed mid-run stop the commit.
-const labels = cs.search(/fetch\(\s*`\$\{process\.env\.GITHUB_API_URL\}\/repos\/[^`]*\/issues\/\$\{Number\(PR_NUMBER\)\}\/labels/);
+const labels = cs.search(/fetch\(\s*`\$\{process\.env\.GITHUB_API_URL\}\/repos\/[^`]*\/issues\/\$\{Number\(PR_NUMBER\)\}\/labels/); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 say(/Authorization: `Bearer \$\{READ_TOKEN\}`/.test(cs) && /if \(!labelsResponse\.ok\) \{\n[^\n]*setFailed/.test(cs),
   "the label re-read uses the read-only token and fails the step when the read fails");
 // Only page 1 is read, so a PR with more labels fails rather than missing a hold.
-const nextPage = cs.search(/if \(\/rel="next"\/\.test\(labelsResponse\.headers\.get\('link'\)[^\n]*\) \{\n[^\n]*setFailed[^\n]*\n\s*return;/);
+const nextPage = cs.search(/if \(\/rel="next"\/\.test\(labelsResponse\.headers\.get\('link'\)[^\n]*\) \{\n[^\n]*setFailed[^\n]*\n\s*return;/); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 say(nextPage >= 0 && nextPage < cs.indexOf("createCommit"), "the label re-read fails the step when the labels span a second page");
 // actions/github-script v8.0.0 passes no getOctokit to the script.
 const octokitCallers = steps.filter((s) => /getOctokit/.test(s.with?.script ?? "")).map((s) => s.name);

@@ -30,9 +30,9 @@ stays 1.
   then a two-parent merge commit through the Git Data API, promoted onto the PR branch.
   `collect-base-activity` takes a `prepare` input that leaves out the commit tool and the
   instruction to commit. Paths and checks: `pr-run-activity.md`, "prepare: merge-base".
-- New inputs `dispatcher-run-id` (passed to `check-trusted-trigger` with the
-  `pr-unblock-dispatch.yml` and `pr-unblock.yml` paths, so a `github-actions[bot]` dispatch runs
-  only through a checked dispatcher run), `trusted-base` (`pr-base` or `default-tip`, passed to
+- New inputs `dispatcher-run-id` (passed to `check-trusted-trigger` with no dispatcher or
+  dispatched workflow named, so every `github-actions[bot]` dispatch stops `untrusted-actor` until
+  the dispatcher change names both), `trusted-base` (`pr-base` or `default-tip`, passed to
   `check-trusted-base` as `mode`; `default-tip` trusts the default branch tip for config, actions
   and the merge's second parent) and `escalation-reason` (enum-checked, exported to a script as
   `ESCALATION_REASON`). New `workflow_call` output `escalation-reason`.

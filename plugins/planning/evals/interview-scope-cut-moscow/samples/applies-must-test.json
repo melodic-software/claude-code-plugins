@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "For each item: if it is not delivered this quarter, is the portal cancelled, or do you work around it? Only the cancel answers are Must.",
+      "why": "Must with the cancel or work-around test"
+    },
+    {
+      "answer": "Must test (would you cancel the portal without it?): service catalog yes.",
+      "why": "Must and cancel"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "This is too big and still foggy. I recommend /planning:wayfind to chart it.",
+      "why": "no Must test"
+    },
+    {
+      "answer": "Which of these must ship this quarter?",
+      "why": "must without the cancel or work-around test"
+    }
+  ]
+}
