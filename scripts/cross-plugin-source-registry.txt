@@ -148,6 +148,13 @@ lib/check-retirements.sh -> plugins/*/lib/check-retirements.sh
 # plugins/repo-fleet-hygiene/scripts/ to fix a drift failure.
 scripts/worktree-root-resolve.sh
 
+# No dedicated check: repository discovery (no-scope ladder and walker), used by
+# the fleet audit and by the worktree skill's cross-repository mode. Canonical
+# copies: plugins/repo-fleet-hygiene/scripts/; copy them into
+# plugins/source-control/scripts/ to fix a drift failure.
+scripts/fleet-discovery.sh
+scripts/scope-resolve.sh
+
 # No dedicated check: retired worktree-root alias peel, sourced by the
 # resolver. Delete both copies after 2026-12-31. Canonical copy:
 # plugins/source-control/scripts/worktree-root-legacy.sh.

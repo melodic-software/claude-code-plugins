@@ -81,7 +81,7 @@ This skill is self-contained, every action runs on plain `git`, plus the forge C
 
 Detect current state and guide user to the right action.
 
-1. **Check git repo**: `git rev-parse --is-inside-work-tree`. If not in a repo → "Not in a git repository."
+1. **Check git repo**: `git rev-parse --is-inside-work-tree`. If not in a repo → "Not in a git repository. `status` and `audit` still work here."
 
 2. **Detect current branch**: `git rev-parse --abbrev-ref HEAD`
 
@@ -131,7 +131,7 @@ Exit 4 prints `FOREIGN CLAIM: <reason>`. Stop; another session holds a live clai
 
 ## Action: `status`
 
-Inventory all worktrees with PR association, staleness detection, and a **stranded-work axis**. Collect Tier-0 facts with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` (do not parse porcelain by hand) plus one batched forge PR list and last-commit dates, and one run of `${CLAUDE_PLUGIN_ROOT}/scripts/landed-work.sh` per repository. Then apply the two-axis classification, staleness threshold (14-day default; the configured override is `${user_config.worktree_stale_days}`), the reap-age hours `cleanup` reads (48 default; `${user_config.worktree_reap_after_hours}`), and presentation schema per [context/status.md](context/status.md). `audit` Step 1 invokes this logic internally.
+Inventory all worktrees with PR association, staleness detection, and a **stranded-work axis**. Collect Tier-0 facts with `bash "${CLAUDE_PLUGIN_ROOT}/scripts/lib/worktree-facts.sh" list <repo>` (do not parse porcelain by hand) plus one batched forge PR list and last-commit dates, and one run of `${CLAUDE_PLUGIN_ROOT}/scripts/landed-work.sh` per repository. Then apply the two-axis classification, staleness threshold (14-day default; the configured override is `${user_config.worktree_stale_days}`), the reap-age hours `cleanup` reads (48 default; `${user_config.worktree_reap_after_hours}`), and presentation schema per [context/status.md](context/status.md). `audit` Step 1 invokes this logic internally. Outside a repository it covers every repository: [context/status.md](context/status.md#outside-a-repository-cross-repository-mode).
 
 The **Work** axis answers a question age and PR state cannot: whether removing a worktree would destroy a commit. It is classified first and outranks the rest, so a worktree holding unpushed unlanded commits is `stranded`, never merely `stale`. An unprovable verdict reports `unknown` and is treated exactly as `stranded`, the engine reports `?` rather than `no` so that an ambiguity is never read as safe.
 
@@ -243,7 +243,7 @@ This skill complements other workflow components. It does not duplicate their lo
 ## Graceful Degradation
 
 - **Forge CLI unavailable or fails**: `status` and `cleanup` work with git-only data. PR cross-reference and the delete-branch-on-merge check are skipped with note: "Forge API unavailable. PR status unknown."
-- **Not in a git repo**: All actions exit immediately with "Not in a git repository."
+- **Not in a git repo**: `status` and `audit` run across repositories: `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-discover.sh` resolves the worktree roots, discovers repositories and maps each worktree to its owner ([context/status.md](context/status.md#outside-a-repository-cross-repository-mode)). `cleanup` reports candidates grouped by owning repository and removes nothing; run it from that repository to act. `create` exits with "Not in a git repository."
 - **`worktree_stale_days` invalid or unexpanded**: Falls back to 14-day default silently (treat a literal `${user_config.worktree_stale_days}` token as unset).
 - **`worktree_reap_after_hours` invalid or unexpanded**: Falls back to 48 hours silently (treat a literal `${user_config.worktree_reap_after_hours}` token as unset).
 - **No worktrees exist**: `status` reports "No linked worktrees found." `cleanup` reports "Nothing to clean up."
