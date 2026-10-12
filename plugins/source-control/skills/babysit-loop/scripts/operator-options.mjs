@@ -95,14 +95,15 @@ function optionsIn(file, install) {
   if (settings === null || typeof settings !== "object" || Array.isArray(settings)) {
     throw new OptionsError(`settings file ${file} is not a JSON object`);
   }
+  // A malformed pluginConfigs or matching entry fails closed rather than contributing no verdict,
+  // so a broken managed file cannot let the user scope decide.
+  const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+  if (!Object.hasOwn(settings, "pluginConfigs")) return [];
   const configs = settings.pluginConfigs;
-  if (configs === null || typeof configs !== "object") return [];
+  if (!isObject(configs)) throw new OptionsError(`pluginConfigs in ${file} is not an object`);
   const matches = (key) =>
     install.pluginId !== null ? key === install.pluginId : key === install.name || key.startsWith(`${install.name}@`);
   if (install.pluginId === null && install.name === null) return [];
-  // A matching entry that is malformed fails closed rather than contributing no verdict, so a
-  // broken managed entry cannot let the user scope decide.
-  const isObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
   return Object.keys(configs)
     .filter(matches)
     .sort()
@@ -116,8 +117,9 @@ function optionsIn(file, install) {
 }
 
 // Resolves every option key to {value, scope, file}; a key no source configures is absent.
-// Throws OptionsError when a source that could hold a value cannot be read, this plugin's entry or
-// its options is not an object, or a configured value is not a string (null included): either way
+// Throws OptionsError when a source that could hold a value cannot be read, its pluginConfigs,
+// this plugin's entry or its options is not an object, or a configured value is not a string
+// (null included): either way
 // the operator's value is not known, and the caller fails closed.
 export function readOperatorOptions(install, managedFiles) {
   const user = {};

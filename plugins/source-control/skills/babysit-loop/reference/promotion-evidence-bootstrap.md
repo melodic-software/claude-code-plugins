@@ -233,7 +233,8 @@ absent. A set value is compliant only when it is:
 - **Claim:** the helper takes no bootstrap value as an argument or from the environment. It reads
   the four options from the managed settings files and the install-anchored user `settings.json`,
   managed winning per option, and fails closed when an option is unset there, a source exists but
-  cannot be read or parsed, this plugin's entry or its `options` is not an object, or a value is
+  cannot be read or parsed, its `pluginConfigs`, this plugin's entry or its `options` is not an
+  object, or a value is
   not a string (`null` included). A lane-chosen checker or binding passed as
   an argument, or offered through the `CLAUDE_PLUGIN_OPTION_*` mirror, a checkout
   `.claude/settings.json`, `.claude/source-control.md`, `CLAUDE_CONFIG_DIR` or `HOME`, does not

@@ -11,7 +11,7 @@ import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CELLS = ["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"];
 
-const base = realpathSync(mkdtempSync(join(tmpdir(), "resolve-promotion-evidence-")));
+const base = realpathSync.native(mkdtempSync(join(tmpdir(), "resolve-promotion-evidence-")));
 after(() => rmSync(base, { recursive: true, force: true }));
 const checkout = join(base, "checkout");
 const ops = join(base, "ops");
@@ -245,7 +245,13 @@ test("a malformed managed entry or a null managed value fails closed instead of 
     writeFileSync(managed, JSON.stringify({ pluginConfigs: { "source-control@mkt": entry } }));
     assert.throws(() => readOperatorOptions(install, [managed]), OptionsError, JSON.stringify(entry));
   }
+  for (const pluginConfigs of ["oops", [], null]) {
+    writeFileSync(managed, JSON.stringify({ pluginConfigs }));
+    assert.throws(() => readOperatorOptions(install, [managed]), OptionsError, JSON.stringify(pluginConfigs));
+  }
   writeFileSync(managed, JSON.stringify({ pluginConfigs: { "source-control@mkt": {} } }));
+  assert.equal(readOperatorOptions(install, [managed]).promotion_evidence_checker.value, "/user/checker");
+  writeFileSync(managed, JSON.stringify({}));
   assert.equal(readOperatorOptions(install, [managed]).promotion_evidence_checker.value, "/user/checker");
 });
 
