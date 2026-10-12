@@ -56,6 +56,9 @@ DISPATCH_DEADLINE = timedelta(hours=6)
 DEMOTION_FILERS = ("github-actions[bot]",)
 DEFAULT_ROLE_LABEL = "needs-human"
 TRACKER_CONFIG = ".work-item-tracker.json"
+# The follow-up note on an existing record; the demotion-alert workflow writes
+# the same prefix, so either filer's note is a sighting to the other.
+FAILURE_NOTE = "The post-merge check found this failure again: "
 MERGED_PAGE_SIZE = 100
 MERGED_PAGE_LIMIT = 10
 
@@ -442,6 +445,8 @@ class _Context:
     identity: str
     contains_cache: dict[tuple[str, str], bool] = field(default_factory=dict)
     outcome_cache: dict[tuple[int, str], tuple[str, str]] = field(default_factory=dict)
+    # Full runs whose red verdict came from the wrapper's re-run (attempt 2).
+    red_on_rerun: set[int] = field(default_factory=set)
 
     def contains(self, ancestor: str, sha: str) -> bool:
         """Whether `sha` is `ancestor` or has it in its history."""
@@ -497,7 +502,13 @@ class _Context:
             return PENDING, "re-run-in-progress"
         if second.conclusion == "success":
             return FLAKE, "attempt 1 failed, the wrapper's re-run passed"
+        self.red_on_rerun.add(run.id)
         return RED, f"attempt 1 {first.conclusion}; re-run {second.conclusion}"
+
+    def sighting(self, run: Run) -> str:
+        """The failing attempt's URL, in the demotion workflow's form: a run's
+        URL names no attempt, and a later failing attempt is a new sighting."""
+        return f"{run.url}/attempts/{2 if run.id in self.red_on_rerun else 1}"
 
 
 @dataclass
@@ -575,7 +586,7 @@ def _judge(
             continue
         state, detail = ctx.outcome(run, attributable=True)
         if state == RED:
-            failures.append(Failure(signal, merge, run.url, detail))
+            failures.append(Failure(signal, merge, ctx.sighting(run), detail))
         elif state == RERUN:
             tally.reruns[run.id] = Rerun(run.id, run.url, signal)
             pending.append(f"attribution-pending:{run.id}")
@@ -589,7 +600,7 @@ def _judge(
                 Failure(
                     SIGNAL_CANARY,
                     merge,
-                    run.url,
+                    ctx.sighting(run),
                     ctx.outcome(run, attributable=False)[1],
                 )
             )
@@ -842,6 +853,27 @@ def _sighting(failure: Failure) -> str:
     return failure.run_url or failure.detail
 
 
+def _body_line(failure: Failure) -> str:
+    """The record body line naming the sighting, as `_issue_body` writes it."""
+    if failure.run_url:
+        return f"- Failing run: {failure.run_url}"
+    return f"- Detail: {failure.detail}"
+
+
+def _lines(text: Any) -> set[str]:
+    return {line.rstrip() for line in str(text or "").split("\n")}
+
+
+def _recorded(failure: Failure, record: dict[str, Any], notes: Iterable[Any]) -> bool:
+    """Whether the record already names this sighting: its body line, or a
+    filer's failure note, each matched as a whole line, so attempt 1 is not
+    attempt 10. A "re-run passed" note never counts."""
+    if _body_line(failure) in _lines(record.get("body")):
+        return True
+    note = f"{FAILURE_NOTE}{_sighting(failure)}"
+    return any(note in _lines(body) for body in notes)
+
+
 def remediate(
     repo: str,
     verdict: PostMergeVerdict,
@@ -916,12 +948,12 @@ def remediate(
                 f"repos/{owner}/{name}/issues/{number}/comments?per_page=100",
                 f"#{number} comments",
             )
-            key = _sighting(failure)
-            if key in str(match.get("body") or "") or any(
-                key in str(c.get("body") or "")
+            notes = [
+                c.get("body")
                 for c in comments
                 if _login_key(json_object(c.get("user")).get("login")) in filers
-            ):
+            ]
+            if _recorded(failure, match, notes):
                 continue
             if match.get("state") != "open":
                 # A record a human closed must hold the rung again on a new
@@ -945,7 +977,7 @@ def remediate(
                     "POST",
                     f"repos/{owner}/{name}/issues/{number}/comments",
                     "-f",
-                    f"body=The post-merge check found this failure again: {key}",
+                    f"body={FAILURE_NOTE}{_sighting(failure)}",
                 ],
                 f"comment on #{number}",
             )

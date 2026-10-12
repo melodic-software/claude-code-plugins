@@ -41,6 +41,9 @@ MERGE_SHA = "3" * 40
 HEAD_SHA = "2" * 40
 LATER_SHA = "4" * 40
 OTHER_SHA = "5" * 40
+RUN_URL = f"https://github.com/{REPO}/actions/runs"
+# Phase 12's failure note (post-merge-demotion-alert.yml `again=`).
+AGAIN = "The post-merge check found this failure again: "
 
 
 def human(actor: Any) -> bool:
@@ -554,6 +557,8 @@ class Attribution(CheckCase):
         self.assertEqual(
             [(f.signal, f.merge.number) for f in verdict.failures], [("schedule", 7001)]
         )
+        # The re-run is the failing attempt the sighting names.
+        self.assertEqual(verdict.failures[0].run_url, f"{RUN_URL}/31/attempts/2")
 
     def test_green_on_the_rerun_records_a_flake_and_no_failure(self) -> None:
         self.gh.add_runs(
@@ -732,9 +737,62 @@ class Remediation(CheckCase):
         )
         pm.remediate(REPO, self.check(), agent_identity=IDENTITY)
         create = next(w for w in self.gh.writes() if f"repos/{REPO}/issues" in w)
-        self.assertTrue(
-            any(f"https://github.com/{REPO}/actions/runs/21" in a for a in create)
+        body = next(a for a in create if a.startswith("body="))
+        # Phase 12's record shape: the sighting names the failing attempt.
+        self.assertIn(f"- Failing run: {RUN_URL}/21/attempts/1", body.splitlines())
+
+    def canary_failure_on_closed_record(self, *comments: str, body: str = "") -> None:
+        self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(21, conclusion="failure"),
         )
+        marker = f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=canary -->"
+        self.gh.issues = [
+            {
+                "number": 8003,
+                "state": "closed",
+                "body": f"{marker}\n{body}",
+                "user": {"login": "github-actions[bot]"},
+            }
+        ]
+        self.gh.comments[8003] = [
+            {"body": c, "user": {"login": "github-actions[bot]"}} for c in comments
+        ]
+        pm.remediate(REPO, self.check(), agent_identity=IDENTITY)
+
+    def record_writes(self) -> list[list[str]]:
+        return [w for w in self.gh.writes() if "dequeuePullRequest" not in " ".join(w)]
+
+    def test_a_pass_note_is_not_a_sighting_so_a_failing_attempt_reopens(
+        self,
+    ) -> None:
+        self.canary_failure_on_closed_record(f"re-run passed: {RUN_URL}/21/attempts/1")
+        writes = self.record_writes()
+        self.assertEqual(writes[0][2:4], ["PATCH", f"repos/{REPO}/issues/8003"])
+        self.assertEqual(writes[1][-1], f"body={AGAIN}{RUN_URL}/21/attempts/1")
+
+    def test_a_recorded_attempt_10_does_not_suppress_attempt_1(self) -> None:
+        self.canary_failure_on_closed_record(
+            f"{AGAIN}{RUN_URL}/21/attempts/10",
+            body=f"- Failing run: {RUN_URL}/21/attempts/10",
+        )
+        self.assertEqual(len(self.record_writes()), 2)
+
+    def test_a_note_without_the_attempt_does_not_suppress(self) -> None:
+        self.canary_failure_on_closed_record(f"{AGAIN}{RUN_URL}/21")
+        self.assertEqual(len(self.record_writes()), 2)
+
+    def test_the_failing_run_line_of_the_body_is_a_sighting(self) -> None:
+        self.canary_failure_on_closed_record(
+            body=f"- Failing run: {RUN_URL}/21/attempts/1"
+        )
+        self.assertEqual(self.record_writes(), [])
+
+    def test_a_filer_failure_note_is_a_sighting(self) -> None:
+        self.canary_failure_on_closed_record(f"{AGAIN}{RUN_URL}/21/attempts/1")
+        self.assertEqual(self.record_writes(), [])
 
     def test_existing_marker_issue_is_commented_not_duplicated(self) -> None:
         verdict = self.failing_verdict()
@@ -765,7 +823,7 @@ class Remediation(CheckCase):
         self.gh.issues = [{"number": 8001, "body": marker, "user": {"login": IDENTITY}}]
         detail = verdict.failures[0].detail
         self.gh.comments[8001] = [
-            {"body": f"seen: {detail}", "user": {"login": "github-actions[bot]"}}
+            {"body": AGAIN + detail, "user": {"login": "github-actions[bot]"}}
         ]
         pm.remediate(REPO, verdict, agent_identity=IDENTITY)
         self.assertEqual(self.gh.writes(), [])
@@ -778,7 +836,7 @@ class Remediation(CheckCase):
         self.gh.issues = [{"number": 8001, "body": marker, "user": {"login": IDENTITY}}]
         detail = verdict.failures[0].detail
         self.gh.comments[8001] = [
-            {"body": f"seen: {detail}", "user": {"login": "drive-by"}}
+            {"body": AGAIN + detail, "user": {"login": "drive-by"}}
         ]
         pm.remediate(REPO, verdict, agent_identity=IDENTITY)
         self.assertTrue(
