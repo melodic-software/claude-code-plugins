@@ -60,8 +60,7 @@ Arguments: `$ARGUMENTS`
 ### Effort, the mutant cap of last resort
 
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that still reads as a literal placeholder (a dollar sign and braces around
-the variable name) rather than an effort level, this body was read directly instead of
-skill-loaded, so the substitution never ran: treat the run as `high` and leave the cap to the config.
+the variable name) rather than an effort level, this body was read directly instead of skill-loaded, so the substitution never ran: treat the run as `high` and leave the cap to the config.
 The substitution and the levels it yields are [Extend Claude with skills § Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions) (as of 2026-10-11; recheck when that section renames the effort substitution or changes its levels).
 
 Effort supplies a **default cap only when nothing else sets one**. The precedence is `--max` first,
