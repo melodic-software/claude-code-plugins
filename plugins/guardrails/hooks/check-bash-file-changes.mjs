@@ -487,8 +487,8 @@ async function main() {
   const mode = process.argv[2];
   if (!enabled(process.env) || (mode !== "snapshot" && mode !== "check")) return;
   if (!snapshotDir(process.env)) return;
-  const input = await readStdin(stdinIdleMs(process.env));
-  if (input === null) return;
+  const { input, stalled } = await readStdin(stdinIdleMs(process.env));
+  if (stalled) return;
   let payload;
   try {
     payload = JSON.parse(input.toString("utf8"));

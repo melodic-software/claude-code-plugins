@@ -33,7 +33,10 @@ keeps its latch.
 ## Operable floor (consumers inline these values verbatim)
 
 - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 95`
+- **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose session environment sets
+  `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read it at lane start with
+  `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it pauses when **either** window reports
+  `used_percentage >= 95`
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
@@ -43,8 +46,13 @@ keeps its latch.
   snapshot file and re-evaluate on every write: the file carries an **`account.email` field when the
   writer could attribute the observation**, so a write is still the signal that the windows changed
   under you (account switch, another session's refresh).
-- **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
-  pause end, and report; a hard stop happens only on explicit user request.
+- **Drain-then-pause:** for an opted-in lane, on a trip, finish in-flight work, stop claiming new
+  work, pause until the pause end, and report; a hard stop happens only on explicit user request.
+  Without the opt-in, a window at or above 95 never pauses, slows, or stops the lane and never
+  lowers its model, effort, or review depth: it keeps working and reports the window, its
+  `used_percentage` and `resets_at`, and the operator's options: continue, switch accounts (a
+  human action a lane never performs or scripts;
+  https://github.com/melodic-software/claude-code-account-rotation), or opt in to pausing.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
   from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: it names an account only as of
   a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it
@@ -196,22 +204,15 @@ what fail-open forbids.
 2. **Sibling automation 429s visible to the session**: machine-readable infra comments or CI
    annotations on PRs/issues this session is already reading (for example review-lane comments that
    classify `api_error_status: 429` as `rate-limit`). Treat a live cluster of sibling 429s as thin
-   headroom: shrink concurrency further; restore width only after those signals stop, never on a
+   headroom: shrink concurrency; restore width only after those signals stop, never on a
    guessed recovery.
 3. **`stop-events.jsonl` when present**: same read cadence as the reactive fallback below. In a
    typical cloud container the file is absent; absence is not evidence of healthy windows.
 
-**Orchestration fallback when headroom is unobservable.** Sessions that size fan-out width from
-rate-limit headroom (notably `session-flow`'s `/session-flow:orchestrate` imperative 7) treat
-unobservable headroom as **thin by default**: start at a small conservative concurrent-worker cap,
-prefer shorter waves over a wide tree, and scale only on the reactive signals above, never on the
-missing snapshot file. The orchestrate skill owns the imperative wording; this contract owns the
-classification that makes the fallback mandatory rather than optional.
-
 **Documented residual (not closed here):** no producer is known to write the snapshot file where a cloud
 / remote consumer can read it today. Shipping or verifying one, whether fleet `cloud-environment` wiring, a synced
-snapshot, or a harness/API exposure, is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only plus the
-orchestration fallback above is the complete honest contract. Do not open a tracking issue solely
+snapshot, or a harness/API exposure, is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only is the complete honest
+contract. Do not open a tracking issue solely
 to restate this residual; the residual is this paragraph.
 
 ## Detection records (reactive fallback)

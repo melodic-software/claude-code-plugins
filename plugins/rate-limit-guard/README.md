@@ -2,12 +2,12 @@
 
 A Claude Code plugin that tells Claude, and every session on the machine that reads its file, where
 the account's shared subscription rate-limit windows stand, so Claude can plan around a limit
-before it hits one and autonomous loop lanes can pause **before** a limit and resume on their own
+before it hits one, and so autonomous loop lanes can report it and, where the operator opted in, pause **before** a limit and resume on their own
 after the reset. Three parts:
 
-- **Hooks module** (`hooks/register.tsx`), a mod that Claude Code runs in its own process. It tells
-  Claude at boundaries when a window approaches or reaches the pause edge and when it resets, shows
-  you a toast when that happens, can draw the figures in a band row (off by default), answers a
+- **Hooks module** (`hooks/register.tsx`), a mod that Claude Code runs in its own process. It shows
+  you a toast when a window approaches or reaches the line threshold and when it resets, tells
+  Claude the same at those boundaries when you turn on `model_notices` (off by default), can draw the figures in a band row (off by default), answers a
   status tool, and writes the windows to the fixed machine-scope file
   `~/.claude/rate-limit-guard/rate-limits.json` in interactive and headless sessions alike. It needs
   a Claude Code build that can run mods; older builds are unsupported. **Pointer**: when deciding
@@ -23,7 +23,7 @@ after the reset. Three parts:
   [hooks: StopFailure](https://code.claude.com/docs/en/hooks#stopfailure) live. **As of**:
   2026-10-11. **Recheck trigger**: the StopFailure section gives the event decision control.
 - **Reader contract** (`reference/reader-contract.md`), the authoritative consumer contract: the
-  fixed file path, the 95%-of-either-window pause threshold, the staleness rule, pause-end
+  fixed file path, the opt-in 95%-of-either-window pause threshold, the staleness rule, pause-end
   semantics, capability-detect fail-open, and drain-then-pause.
 
 ## The module
@@ -36,7 +36,9 @@ mods-off session, and native Windows. The Desktop app and VS Code were not run.
 
 ### Lines to Claude
 
-A line goes to Claude only at a boundary, appended to the context of a main-thread tool result or
+Lines go to Claude only with `model_notices` set to `true`; it is off by default, and then nothing
+from this plugin enters Claude's context. Claude can still read the windows from the status tool.
+With it on, a line goes to Claude only at a boundary, appended to the context of a main-thread tool result or
 of a prompt; a crossing seen when a turn ends reaches Claude with the next prompt. Per window
 (5-hour and 7-day), with the default options:
 
@@ -51,23 +53,31 @@ of a prompt; a crossing seen when a turn ends reaches Claude with the next promp
 Use only rises within a window, so a reading that dips below a mark sends nothing and does not
 re-arm that mark's line. No other tool call or prompt carries a line. Each window gets its own
 line, for example `rate-limit-guard: 5-hour window at or above 95% (96% used), resets at 2026-10-03 21:00 UTC`.
-A line states facts only (the window, the threshold crossed, and the use and reset time the line
-data selects) and never tells Claude what to do; Claude decides. Every line carries its verdict; `rate_limit_line_data` chooses what
+A line states the window, the threshold crossed, and the use and reset time the line data selects.
+After the approach and threshold lines at a carrier comes one options line:
+
+```text
+rate-limit-guard: options: continue at the same model, effort and review depth; the user can switch accounts (https://github.com/melodic-software/claude-code-account-rotation); or schedule work for after the reset. Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor.
+```
+
+Facts alone led Claude to stop launching agents and to move work to a smaller model
+([#7118](https://github.com/melodic-software/claude-code-plugins/issues/7118)), so the line names the
+options and rules out trading quality for usage. A reset line carries no options line. Every line carries its verdict; `rate_limit_line_data` chooses what
 goes with it: the window's name (`window`), its use (`percent`) and its reset time (`reset`). Without `window` the line says "a
 rate-limit window". A line never carries the account email or the session name. Subagents get no
 line. Each line sent to Claude is also written as sent to the debug log (`claude --debug`). The
-line threshold is a line setting only: the loop lanes' pause edge stays 95% (see the
+line threshold is a line setting only: an opted-in loop lane's pause threshold stays 95% (see the
 [reader contract](reference/reader-contract.md)).
 
 ### Window changes shown to you
 
 When a window rises from an earlier reading to the approach mark or the line threshold, or resets
-after reaching the threshold, the module shows a toast for 4 seconds, such as `5h at the 95% pause
-edge · resets 21:00 UTC`, and writes one transcript line Claude does not read, ending
+after reaching the threshold, the module shows a toast for 4 seconds, such as `5h at the 95% line
+threshold · resets 21:00 UTC`, and writes one transcript line Claude does not read, ending
 `· more: /rate-limit-guard`. A window's first reading since the module loaded or the window reset is
 never toasted, and neither is a restatement after a compaction, a resume, `/clear` or a reload:
 those only restate the verdict to Claude. Windows belong to the account, so a rise across `/clear`
-or a resume is a change and is toasted. The toast does not depend on `rate_limit_lines_enabled`. `rate_limit_guard_toast` set to
+or a resume is a change and is toasted. The toast does not depend on `model_notices`. `rate_limit_guard_toast` set to
 `false` drops the toast and keeps the transcript line. Outside the terminal (the Desktop app, VS
 Code, mobile), where toast drawing is unverified, the change also shows as a single row above the
 prompt, covering every window that changed, until your next prompt.
@@ -260,13 +270,20 @@ The `userConfig` options:
 | Option | What it controls |
 |---|---|
 | `rate_limit_guard_enabled` | Kill switch for the StopFailure detection hook **and** the module's snapshot writes (default `true`). It does not stop the module's lines. |
-| `rate_limit_lines_enabled` | The module's lines to Claude, and the operator-mode suggestions (default `true`). |
-| `rate_limit_report_mode` | `automatic` (default) or `operator`; see [Operator mode](#operator-mode). |
+| `model_notices` | The module's lines to Claude, and the operator-mode suggestions (default `false`). Off, nothing from this plugin enters Claude's context; the toast, transcript line, band row, status tool and snapshot are unchanged. |
+| `rate_limit_report_mode` | `automatic` (default) or `operator`, only with `model_notices` on; see [Operator mode](#operator-mode). |
 | `rate_limit_line_threshold` | Window use for the threshold line (default `95`). |
 | `rate_limit_approach_pct` | Window use for the one approach line (default `90`). |
 | `rate_limit_line_data` | What a line carries beside its verdict: `percent`, `window`, `reset` (default `verdict,percent,window,reset`). |
 | `rate_limit_guard_band` | The band row (default `false`). |
 | `rate_limit_guard_toast` | The toast when a window nears or reaches the threshold or resets (default `true`); the transcript line stays either way. |
+
+Two settings live outside `userConfig`:
+
+| Setting | Where | Default | What it controls |
+|---|---|---|---|
+| Snapshot file a status line can read | `~/.claude/rate-limit-guard/rate-limits.json`, written under `rate_limit_guard_enabled` | on | A status-line command that reads this file keeps working with every other option at its default. |
+| `LOOP_LANE_RATE_LIMIT_PAUSE` | the loop lane session's environment | unset (off) | `1` makes an unattended loop lane pause at 95% of either window; see the [reader contract](reference/reader-contract.md). |
 
 A threshold or approach mark outside 1 to 100, or line data with an unknown item, reads as that
 option's default with one transcript line naming it. The thresholds declare no range because a
@@ -299,7 +316,7 @@ uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry and 
 option to its manifest default. The verified-version record lives in the
 [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
-The file path and the 95% pause threshold are deliberately **not** configurable: they are contract
+The file path and the 95% pause threshold an opted-in lane applies are deliberately **not** configurable: they are contract
 constants that cross-plugin consumers inline from the
 [reader contract](reference/reader-contract.md); a per-user override would silently split the
 writer from its readers. The kill switch stops this plugin's writes and records; turning the
@@ -316,9 +333,9 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `rate_limit_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` | Turns on the StopFailure detection hook and the module's snapshot writes to the machine-scope rate-limit file. Lines to Claude have their own option. On by default. Read from managed settings first, then user settings. |
-| `rate_limit_lines_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINES_ENABLED` | Sends Claude one line when a rate-limit window approaches or reaches the line threshold, when it resets, and after a compaction, a resume or a /clear at the threshold. On by default. |
-| `rate_limit_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_REPORT_MODE` | automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row above the prompt when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
-| `rate_limit_line_threshold` | number | `95` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_THRESHOLD` | Window use at which Claude gets the threshold line, 1 to 100; any other value reads as the default. Default 95, the loop lanes' pause edge, which stays 95 whatever this is set to. |
+| `model_notices` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_MODEL_NOTICES` | Sends Claude one line when a rate-limit window approaches or reaches the line threshold, when it resets, and after a compaction, a resume or a /clear at the threshold. Off by default; the toast, transcript line, band row, status tool and snapshot work either way. |
+| `rate_limit_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_REPORT_MODE` | Acts only with model_notices on. automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row above the prompt when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
+| `rate_limit_line_threshold` | number | `95` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_THRESHOLD` | Window use at which Claude gets the threshold line, 1 to 100; any other value reads as the default. Default 95, the pause threshold of a loop lane that opted in to pausing, which stays 95 whatever this is set to. |
 | `rate_limit_approach_pct` | number | `90` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_APPROACH_PCT` | Window use at which Claude gets one approach line before the threshold, 1 to 100; any other value reads as the default. Default 90; at or above the threshold, no approach line is sent. |
 | `rate_limit_line_data` | string | `"verdict,percent,window,reset"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_DATA` | Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,percent,window,reset; a list with an unknown item reads as the default. Never the account email or the session name. |
 | `rate_limit_guard_band` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_BAND` | Draws the 5-hour and 7-day window figures in a row above the prompt. Off by default. Turn it on in /config, or for one session with /rate-limit-guard band on. |

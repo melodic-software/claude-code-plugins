@@ -40,8 +40,8 @@ contention when the snapshot or a jobs-API read supplies it: the job's `runs-on`
 it has been queued, and occupancy (`N/M busy`) when the token can list runners. Queued-versus-running
 calls for different operator action on a capacity-constrained pool: a running job is the change's
 own time, a queued job behind a busy pool is fleet capacity, and a queued job with no online runner
-for its label is the unmatched-label case this class already names. Never wait on it with
-`gh pr checks --watch`; a long wait is a REST poll per the pull-request
+for its label is the unmatched-label case this class already names. Never wait on it with a
+blocking checks watch ([GitHub](../../../reference/providers/github/README.md#checks-and-ci-logs)); a long wait is a REST poll per the pull-request
 [monitor reference](../../pull-request/reference/monitor.md) "Waiting on a pending check".
 
 The age threshold is `--stuck-check-age-seconds` (default 30 minutes), so normal in-flight CI and
@@ -119,7 +119,7 @@ changes which side it lands on.
 the guarded merge wrapper's own read rather than inferring it: [`../scripts/babysit_merge.py`](../scripts/babysit_merge.py)
 emits a `requiredChecks` field in its snapshot JSON. Only once required checks are green is a stuck
 non-required check the sole thing holding `UNSTABLE`, and even then the merge gate correctly
-refuses `UNSTABLE` and forbids any `--admin` / `gh pr merge` bypass. This auditor is the clean path
+refuses `UNSTABLE` and forbids any `--admin` / raw-merge-command bypass. This auditor is the clean path
 to escalate that state, not a route around the gate.
 
 ## Routing: Never Auto-Fix

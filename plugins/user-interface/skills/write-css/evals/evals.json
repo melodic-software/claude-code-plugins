@@ -5,12 +5,12 @@
       "id": 1,
       "name": "writes-css-with-always-on-rules",
       "prompt": "Write the CSS for a product card that lifts slightly on hover, with a focus style for its link and a short transition.",
-      "expected_output": "The skill runs its stack discovery, finds no project convention covering these rules, and writes CSS where every :hover rule sits inside @media (hover: hover) and (pointer: fine), focus uses :focus-visible with an outline, the movement transition sits inside @media (prefers-reduced-motion: no-preference), names its properties, avoids ease-in and stays at 300ms or less.",
+      "expected_output": "The skill runs its stack discovery, finds no project convention covering these rules, and writes CSS where every :hover rule sits inside @media (hover: hover) and (pointer: fine), focus uses :focus-visible with an outline, the movement transition sits inside @media (prefers-reduced-motion: no-preference), names its properties, avoids ease-in and stays within the resolved animation.duration_ms for its role, 250ms or less at the defaults.",
       "files": [],
       "expectations": [
         "Every :hover rule in the CSS is inside @media (hover: hover)",
         "Focus is styled with :focus-visible and an outline, and the CSS never writes outline: none",
-        "The transform transition is inside @media (prefers-reduced-motion: no-preference), names its properties instead of all, uses no ease-in, and lasts 300ms or less"
+        "The transform transition is inside @media (prefers-reduced-motion: no-preference), names its properties instead of all, uses no ease-in, and lasts 250ms or less (the default medium role in animation.duration_ms)"
       ],
       "difficulty": "routine",
       "source": "the skill's always-on rules, written for this suite"

@@ -97,6 +97,225 @@
         "Does not claim or quantify an improvement from this skill's own evidence",
         "Notes the baseline is captured at planning time and compared by /verification:measure"
       ]
+    },
+    {
+      "id": 11,
+      "name": "check-matches-parser-and-storage-change",
+      "prompt": "/verification:confirm outcome. The diff rewrites the CSV import parser and changes how imported contacts are written to the contacts table. Unit tests pass.",
+      "expected_output": "Uses the check-to-change table in context/outcome.md: the parser change is proven by replaying a saved input (a captured real CSV file) through the changed parser, and the storage change by reading the written contact rows back from the table after the import. Passing unit tests and a success response from the import are not enough on their own.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Maps the parser change to replaying a saved input through the changed parser",
+        "Maps the storage change to reading the written rows back from the table",
+        "Does not treat the import's success response as proof the rows were stored"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "failed-check-doubts-observation-first",
+      "prompt": "/verification:confirm fix. After the fix, the browser still shows the old wrong total on the cart page, although the diff clearly changes the total calculation.",
+      "expected_output": "Before concluding the fix failed, the skill rules out the observation: a stale build, a cached page, the wrong port or instance. It observes again by a second route (a fresh build, a hard reload, the API response) and only counts the result against the fix if it survives that.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Checks for a stale build, cached page or wrong instance before calling the fix failed",
+        "Observes the total again by a second route before rendering the verdict"
+      ]
+    },
+    {
+      "id": "proof-level-01",
+      "name": "proof-level-unset-behaves-as-path",
+      "prompt": "/verification:confirm outcome. The user option proof_level is unset and the repository has no docs/conventions/verification.yaml on origin's default branch. The diff refactors an internal date-formatting helper in a library; no changed file matches a runtime-affecting path.",
+      "expected_output": "Resolves proof_level to path from the default and reports `proof_level: path (default)`. Applies the runtime-path rule as before the setting existed: no live run is required for this internal library change, E2E is noted as not applicable, and no proof boxes are required.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the proof level as path with the default as its source",
+        "Does not require a live run for a change that matches no runtime-affecting path",
+        "Does not ask for unit, live and perf proof boxes"
+      ]
+    },
+    {
+      "id": "proof-level-02",
+      "name": "proof-level-repo-live-raises-user-path",
+      "prompt": "/verification:confirm outcome. The user option proof_level is path. origin/main's docs/conventions/verification.yaml says `proof_level: live`. The diff changes the wording of a CLI tool's --help output in a file outside every runtime-affecting path.",
+      "expected_output": "Resolves live: the stricter of the two layers wins, so the repository file raises the user's path. The report line names live and the repository file at origin/main with its commit, and notes the user option said path. The CLI change has a runnable surface, so it is run as a user would invoke it (the real command with --help) even though no runtime-affecting path matched.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves proof_level to live, not path",
+        "Names the repository file at the default branch as the supplying layer",
+        "Runs the real CLI command because live requires it for any runnable surface"
+      ]
+    },
+    {
+      "id": "proof-level-03",
+      "name": "proof-level-user-strict-over-repo-path",
+      "prompt": "/verification:confirm outcome. The user option proof_level is strict. origin/main's docs/conventions/verification.yaml says `proof_level: path`. The approved plan has two phases: a new invoice-total calculation and its export endpoint.",
+      "expected_output": "Resolves strict: the user option is stricter than the repository's path and wins. The report line names strict from userConfig and says the repository file says path. The report carries a proof-box table with unit, live and perf boxes for each of the two phases, each holding evidence or a reasoned not-applicable line.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves proof_level to strict with userConfig as the supplying layer",
+        "Does not let the repository's path lower the user's strict",
+        "Fills unit, live and perf boxes for each of the two plan phases"
+      ]
+    },
+    {
+      "id": "proof-level-04",
+      "name": "proof-level-branch-cannot-lower-default-branch",
+      "prompt": "/verification:confirm outcome. origin/main's docs/conventions/verification.yaml says `proof_level: strict`. The branch under verification edits its own copy of that file to `proof_level: path`. The user option is unset.",
+      "expected_output": "Reads the repository layer from origin's default branch with setup-apply.mjs --check --ref origin/main after a fetch, so the level stays strict. The report names both values: strict from the default branch copy (with the commit read) applied, and path from the branch's working-tree copy not applied. The proof boxes are required.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Verifies at strict, the default branch's level, not the branch's path",
+        "Names both the default-branch value and the branch's own value in the report",
+        "Reads the repository value from origin's default branch, not the working tree"
+      ]
+    },
+    {
+      "id": "proof-level-05",
+      "name": "proof-level-strict-merge-base-ab-with-performance",
+      "prompt": "/verification:confirm outcome. proof_level resolves to strict. The diff rewrites the search index's tokenizer loop, a runtime code path. No /verification:measure baseline was captured at planning time. The performance plugin is enabled.",
+      "expected_output": "Fills the perf box with an interleaved A/B run of the merge base against the head through /performance:snapshot's harness: the merge base is checked out in a second worktree outside the repository, both arms run interleaved, and the worktree is removed afterwards. The perf box cites that result rather than a single timing taken after the change.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Uses an interleaved merge-base versus head run because no planning-time baseline exists",
+        "Checks out the merge base in a second worktree and runs through /performance:snapshot",
+        "Does not accept a single after-change timing as perf evidence"
+      ]
+    },
+    {
+      "id": "proof-level-06",
+      "name": "proof-level-strict-no-baseline-not-verified",
+      "prompt": "/verification:confirm outcome. proof_level resolves to strict. The diff rewrites the search index's tokenizer loop, a runtime code path. No /verification:measure baseline was captured at planning time, and the performance plugin is not enabled. Unit tests and a live drive both pass.",
+      "expected_output": "The perf box reads NOT VERIFIED: no baseline, naming the gap: no planning-time baseline and the performance plugin is not enabled. The verdict is NOT VERIFIED, not CONFIRMED, even though the unit and live boxes hold evidence, and the report names the phase and the perf box.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Marks the perf box NOT VERIFIED and names the missing baseline",
+        "Renders NOT VERIFIED rather than CONFIRMED",
+        "Does not invent a performance number or skip the perf box silently"
+      ]
+    },
+    {
+      "id": "proof-level-07",
+      "name": "proof-level-strict-docs-only-perf-not-applicable",
+      "prompt": "/verification:confirm outcome. proof_level resolves to strict. The diff changes only docs/onboarding.md.",
+      "expected_output": "The perf box holds a reasoned not-applicable line the verifier can check against the diff (the change touches only docs/onboarding.md and no runtime code path), and the fresh-context verifier confirms the diff has no runtime change before accepting it. A bare 'not needed' would not fill the box.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes a perf not-applicable line that names why, in terms checkable against the diff",
+        "Has the fresh-context verifier check that line against the diff",
+        "Does not treat 'not needed' or 'small change' as a reason"
+      ]
+    },
+    {
+      "id": "proof-level-08",
+      "name": "proof-level-invalid-value-named-and-dropped",
+      "prompt": "/verification:confirm outcome. origin/main's docs/conventions/verification.yaml says `proof_level: thorough`. The user option proof_level is live. The run is unattended, started by a pipeline lane.",
+      "expected_output": "Does not stop and does not ask. Names the file docs/conventions/verification.yaml, the key proof_level and the value thorough, drops the repository layer as absent, and resolves the user's live, because an invalid layer counts as absent and neither layer can lower the other. The report line says so, and Stage 2 continues at live.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Names the file, the key proof_level and the value thorough",
+        "Continues the run without stopping or prompting",
+        "Resolves the user's live, not the default path"
+      ]
+    },
+    {
+      "id": "feature-map-01",
+      "name": "missing-entry-point-holds-verdict",
+      "prompt": "/verification:confirm outcome. The change edits the timer start handler. /testing:run-e2e ran against the repository's feature map, whose Start a timer feature lists three entry points; its per-entry-point report has passing lines for the dashboard button and the keyboard shortcut, and no line for the API entry point. Build, tests and lint pass.",
+      "expected_output": "The API entry point the map lists is missing from run-e2e's per-entry-point report, so the verdict stays below CONFIRMED (NEEDS WORK or NOT VERIFIED), and the report names the missing entry point.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not render CONFIRMED",
+        "Names the API entry point as missing from run-e2e's report"
+      ]
+    },
+    {
+      "id": "live-workers-01",
+      "name": "no-live-workers-setting-runs-one-worker",
+      "prompt": "/verification:confirm outcome. The change edits the recipe search box. The user option live_workers renders as the literal text ${user_config.live_workers}, and origin/main's docs/conventions/verification.yaml sets only `proof_level: live`. The repository has a feature map whose Search recipes feature lists four entry points. Build, tests and lint pass.",
+      "expected_output": "live_workers resolves to 1 from the default: the unrendered placeholder reads as unset and the repository file has no live_workers key. One worker drives all four entry points through /testing:run-e2e as before, and the report's worker line says live_workers: 1 (default).",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves live_workers to 1 with the default as the supplying layer",
+        "Treats the unrendered ${user_config.live_workers} placeholder as unset, not as an invalid value",
+        "Runs the live drive as a single worker covering every entry point"
+      ]
+    },
+    {
+      "id": "live-workers-02",
+      "name": "two-workers-split-by-entry-point-with-workspace-entry",
+      "prompt": "/verification:confirm outcome. origin/main's docs/conventions/verification.yaml sets `live_workers: 2`, and origin/main's docs/conventions/workspace-environment.md declares a Workspace environment entry with up and info commands. The change edits the shipping-rate calculator; the feature map's Quote shipping feature lists four entry points: the cart widget, the checkout step, the admin preview and the public API. This session runs on the developer's own machine. Build, tests and lint pass.",
+      "expected_output": "live_workers resolves to 2 from the repository file on origin/main. The drive is split by feature-map entry point into two workers with disjoint entry points (for example two each), each in its own workspace so its up and info run under its own WORKSPACE_ID, each with its own browser session names. The missing-entry-point check reads the merged report of both workers. The report lists, per worker, its entry points, its result and its measured usage: tokens and wall time as measured, with no price or cost figure.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves live_workers to 2 from docs/conventions/verification.yaml on origin/main",
+        "Splits the four entry points across two workers with no entry point given to both",
+        "Gives each worker distinct session names",
+        "Reports measured tokens and wall time per worker and states no price or cost",
+        "Checks for a missing entry point against the merged report of both workers"
+      ]
+    },
+    {
+      "id": "live-workers-03",
+      "name": "no-workspace-entry-runs-one-worker-and-says-why",
+      "prompt": "/verification:confirm outcome. The user option live_workers is 3, origin/main's docs/conventions/verification.yaml has no live_workers key, and origin/main has no docs/conventions/workspace-environment.md. The change edits the profile avatar upload; the feature map's Edit profile feature lists three entry points. This session runs on the developer's own machine. Build, tests and lint pass.",
+      "expected_output": "live_workers resolves to 3 from userConfig, but more than one worker on this machine needs a Workspace environment entry on origin's default branch and there is none, so one worker drives all three entry points. The report says live_workers 3 was asked for, one worker ran, and why: without the entry, parallel workers would share ports, containers and databases.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves live_workers to 3 from userConfig",
+        "Runs one worker, not three",
+        "States that no Workspace environment entry exists on origin's default branch as the reason"
+      ]
+    },
+    {
+      "id": "live-workers-05",
+      "name": "untrusted-stage-runs-one-worker-despite-workspace-entry",
+      "prompt": "/verification:confirm outcome. The change comes from a fork pull request. The user option live_workers is 3, and origin/main declares a Workspace environment entry in docs/conventions/workspace-environment.md. The change edits the shopping-list sharing dialog; the feature map's Share list feature lists three entry points. This session runs on the developer's own machine, not a cloud host. Build, tests and lint pass.",
+      "expected_output": "live_workers resolves to 3 from userConfig and the entry exists, but the stage reads untrusted input (a fork pull request) and the session is not on a cloud host whose stage-start probe passed, so /testing:run-e2e runs neither the entry's up nor its info and the entry gives no isolation. One worker drives all three entry points. The report says live_workers 3 was asked for, one worker ran, and that the untrusted stage is the reason.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs one worker, not three, although the Workspace environment entry exists",
+        "Names the fork pull request (untrusted input outside a passed cloud-host probe) as the reason one worker ran",
+        "The report states that 3 workers were asked for"
+      ]
+    },
+    {
+      "id": "live-workers-04",
+      "name": "cloud-execution-target-adds-unverified-line",
+      "prompt": "/verification:confirm outcome. This session is a Claude cloud session: CLAUDE_CODE_REMOTE is true, and the stage's execution_target in origin/main's docs/conventions/execution-target.yaml is cloud-session. The change edits the invoice PDF preview page. proof_level resolves to live. Build, tests and lint pass.",
+      "expected_output": "The run recognizes it is on a cloud execution target, and the report adds the line \"live-UI step unverified on this host\" for the live drive.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Recognizes the run is on a cloud execution target",
+        "The report contains the line live-UI step unverified on this host"
+      ]
+    },
+    {
+      "id": "refactor-equivalence-01",
+      "name": "large-reshape-asks-output-diff-or-replay",
+      "prompt": "/verification:confirm refactor. The change splits the payroll module into three packages (gross pay, deductions, payslip rendering), moving 38 files and rewiring the two command-line entry points that produce payslips. No behavior change was intended. Build, tests and lint pass.",
+      "expected_output": "Refactor criterion. Splitting payroll across 38 files and rewiring both payslip entry points is a high-risk Restructure, and part of what moved lies outside what the tests touch directly, so a green suite does not settle it. Beside the test results it asks for equivalence evidence of either kind: payslips recorded from the old code and checked against what the new code produces for the same calls, or a differential run that feeds the same payroll inputs to both versions and compares the payslips. Until one of those exists, the verdict stays short of CONFIRMED.",
+      "files": [],
+      "expectations": [
+        "It rates the change high risk and names its type as Restructure",
+        "Beside the test results, it asks for either payslips recorded from the old code and checked against the new code's output, or a run of both versions on the same inputs with their payslips compared",
+        "While passing tests are the only evidence and no equivalence evidence has been supplied, it withholds CONFIRMED"
+      ]
     }
   ]
 }

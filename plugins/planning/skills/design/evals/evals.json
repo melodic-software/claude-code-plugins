@@ -74,6 +74,126 @@
         "Records the terminology decision in the design artifact as well as routing the glossary update",
         "Continues the design workflow after ubiquitous-language returns"
       ]
+    },
+    {
+      "id": 7,
+      "name": "typescript-repo-loads-typescript-reference",
+      "prompt": "/planning:design module for a Billing module. The repository root has a tsconfig.json and package.json, and the code is .ts files. Threads are settled; move on to type modeling.",
+      "expected_output": "During Phase 3 the skill reads reference/type-discipline.md and, because a tsconfig.json exists, also reads reference/type-discipline/typescript.md, and the proposed types follow it: tagged unions for variant state, unknown for outside input parsed into named domain types, no unproven casts, and a never-typed default branch for exhaustiveness.",
+      "files": [],
+      "expectations": [
+        "The run reads reference/type-discipline.md during Phase 3",
+        "The run reads reference/type-discipline/typescript.md during Phase 3 and names tsconfig.json or the .ts files as the reason",
+        "Proposed TypeScript types model variant state as a union with a literal tag field rather than a record of optional fields",
+        "Outside input is typed unknown and parsed into a named domain type at the boundary, with no `as` cast that no check has proven"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "python-repo-skips-typescript-reference",
+      "prompt": "/planning:design data for an ingestion service. The repository is Python only: pyproject.toml, .py files, no tsconfig.json and no TypeScript files. Move on to type modeling.",
+      "expected_output": "During Phase 3 the skill applies reference/type-discipline.md (sum types over optional-field records, parse at the boundary, exhaustive matching) in Python terms and does not read reference/type-discipline/typescript.md, because neither a tsconfig.json nor TypeScript files are present.",
+      "files": [],
+      "expectations": [
+        "The run reads reference/type-discipline.md during Phase 3",
+        "The run does NOT read reference/type-discipline/typescript.md",
+        "Proposed types use Python constructs, with no TypeScript syntax such as satisfies or never-typed defaults",
+        "Outside input is parsed into a domain type where it enters the service rather than checked again in inner code"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "declared-schema-library-is-reused",
+      "prompt": "/planning:design integration for a webhook receiver. tsconfig.json exists and package.json already lists valibot under dependencies. Design how incoming webhook payloads become domain types.",
+      "expected_output": "The skill reads the TypeScript reference, finds the schema library the manifest declares, and designs each payload as a schema in that library with the TypeScript type taken from the library's inference helper (or, for a type written first, a schema typed against that type). It proposes no second schema library and no hand-written property-by-property guard.",
+      "files": [],
+      "expectations": [
+        "The design parses webhook payloads through the schema library package.json already declares",
+        "The TypeScript type is derived from the schema, or the schema is typed against an existing type so a weaker schema fails to compile",
+        "The run does NOT propose adding a different schema library",
+        "The run does NOT propose a hand-written property-by-property type guard as the parse mechanism"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "no-schema-library-hand-written-parse",
+      "prompt": "/planning:design integration for a CSV import endpoint. tsconfig.json exists; package.json has no runtime schema or validation library. Design how the uploaded rows become domain types.",
+      "expected_output": "The skill reads the TypeScript reference, finds no schema library in the manifest, and designs a hand-written parse function that takes unknown and returns either the domain type or a failure naming the bad field. It adds no dependency; if a library seems worth having, it raises that as a separate design thread for the user rather than adding one.",
+      "files": [],
+      "expectations": [
+        "The design uses a hand-written parse function from unknown to a named domain type, returning a failure that names the bad field",
+        "The run does NOT add a schema or validation library to package.json",
+        "Any suggestion of a schema library is raised as an open design thread for the user, not decided",
+        "Rows are parsed once at the endpoint and inner code takes the domain type without re-checking"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "scaffold-stubs-handoff-names-files",
+      "narration": true,
+      "prompt": "/planning:design module for a library-loan service in Go: a loans package with a Loan type, a RenewalPolicy interface and a DueDateCalculator. The design threads are all resolved and I want to hand off. The repository's docs/conventions/planning.yaml contains `scaffold_stubs: true`; I never set the plugin's scaffold_stubs option.",
+      "expected_output": "The skill reports scaffold_stubs true from docs/conventions/planning.yaml, writes a Stub scaffold section into design-threads.md listing each new Go file with the type and function signatures it declares, gives each stub body Go's ordinary not-implemented form (such as a panic naming the function), runs the handoff gate, and its handoff output names those files and signatures for /planning:plan.",
+      "files": [],
+      "expectations": [
+        "Reports scaffold_stubs true and names docs/conventions/planning.yaml as the supplying layer",
+        "design-threads.md gains a Stub scaffold section listing each new file path in the loans package",
+        "Each listed file carries the signatures it will declare, covering Loan, RenewalPolicy and DueDateCalculator",
+        "Stub bodies use an ordinary Go not-implemented form, not a working implementation",
+        "The handoff output names the stub files and their signatures"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "scaffold-stubs-off-default",
+      "narration": true,
+      "prompt": "/planning:design module for a library-loan service in Go: a loans package with a Loan type, a RenewalPolicy interface and a DueDateCalculator. The design threads are all resolved and I want to hand off. I never set the planning plugin's scaffold_stubs option and the repository has no docs/conventions/planning.yaml.",
+      "expected_output": "The skill reports scaffold_stubs false from the default, writes no Stub scaffold section, runs the handoff gate, and the handoff output lists no stub files.",
+      "files": [],
+      "expectations": [
+        "Reports scaffold_stubs false and names the default as the supplying layer",
+        "design-threads.md gets no Stub scaffold section",
+        "The handoff output does not list stub files or stub signatures"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "no-precedent-contract-gets-two-structural-candidates",
+      "prompt": "/planning:design data for saving and reloading simulation snapshots in our physics engine. Nothing in the repository persists engine state today, and once users have saved snapshots we must keep loading them across releases. I could store one flat binary blob per snapshot or something else; I have not decided. Open the snapshot format thread.",
+      "expected_output": "The skill treats the snapshot format as a hard-to-reverse thread the repository has nothing to copy for. It writes the judging criteria into the thread first (for example load compatibility across releases, partial reads, size), then drafts at least two candidates that differ in structure, such as one flat blob versus a versioned header with per-body sections, judges each against the written criteria, and records the rejected candidate with its reason in design-threads.md. It presents a recommendation for the user to confirm rather than settling the format alone.",
+      "files": [],
+      "expectations": [
+        "The judging criteria are written into the thread before any candidate is drafted",
+        "At least two candidates are drafted, and they differ in structure (layout, ownership or contract shape), not only in names or field order",
+        "Each candidate is judged against the written criteria",
+        "design-threads.md records the rejected candidate with the reason it lost",
+        "The format is presented for the user to confirm, not decided alone"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "look-and-feel-thread-goes-to-explore-directions",
+      "prompt": "/planning:design module for seat selection in a theater ticketing app. One thread is how the seat map should look and behave when a patron picks seats on a phone: zoom, tapping a seat, showing held seats. The prototype plugin is enabled and /prototype:explore-directions is among the available skills.",
+      "expected_output": "The skill identifies the seat-map thread as a look-and-feel question, confirms the scope of a throwaway with the user, and invokes /prototype:explore-directions through the Skill tool for that thread instead of drafting the layouts itself. The other threads (seat hold types, contracts) stay in the design session.",
+      "files": [],
+      "expectations": [
+        "The seat-map interaction thread is identified as a look-and-feel question",
+        "The run confirms the throwaway's scope with the user before handing off",
+        "The run invokes /prototype:explore-directions via the Skill tool for that thread",
+        "Non-visual threads such as seat-hold types stay in the design session"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "library-types-follow-written-call-sites",
+      "prompt": "/planning:design library for a units-of-measure package that other teams will import to convert and add lengths, masses and temperatures. Threads are settled; move on to type modeling.",
+      "expected_output": "Phase 3 opens by writing two or three short call sites, at least one from an importing package's side (for example converting a recipe's grams to ounces), and only then derives the types those call sites need. For each type it lists how code reads and changes it and picks structures for the most frequent paths. type-inventory.md follows from those call sites.",
+      "files": [],
+      "expectations": [
+        "Two or three call sites are written before any type is proposed",
+        "At least one call site is written from the importing package's side",
+        "The proposed types are the ones the written call sites need, with no type that no call site uses",
+        "Each type lists its read and change paths, and the chosen structure is tied to the most frequent ones"
+      ]
     }
   ]
 }
