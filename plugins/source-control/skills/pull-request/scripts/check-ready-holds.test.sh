@@ -107,10 +107,14 @@ assert_contains "the refusal names the closed issue" "$out" "acme/app#11"
 assert_not_contains "an open linked issue is not reported" "$out" "acme/app#10"
 
 pr "test(x): WIP: thing" "do not merge" '[{"name":"do-not-merge"}]' "[$(ref 11)]"
+echo closed >"$TEST_TMPDIR/issue-11"
 out=$(run 7)
 assert_eq "every hold is reported, one per line" "4" "$(grep -c . <<<"$out")"
 
 assert_contains "a github.com issue names its host" "$(cat "$TEST_TMPDIR/calls")" "--hostname github.com"
+
+pr "feat(x): add a thing" $'   Hold: wait'
+assert_eq "every leading space is trimmed from the quoted line" "body: Hold: wait" "$(run 7)"
 
 pr "feat(x): add a thing" $'Hold: until \e[2Jlater'
 out=$(run 7)

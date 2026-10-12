@@ -63,7 +63,7 @@ facts=$(gh pr view "$PR" ${repo_args[@]+"${repo_args[@]}"} --json title,body,lab
 reasons=$(jq -r '
   ([.labels[]?.name | select(ascii_downcase == "do-not-merge")] | if length > 0 then "label: the pull request carries do-not-merge" else empty end),
   (.body // "" | if test("\\bdo(?:n['"'"'\u2019]?t| not)\\s+merge\\b"; "i") then "body: it says do not merge" else empty end),
-  (.body // "" | split("\n")[] | sub("\r$"; "") | select(test("^\\s*hold:"; "i")) | "body: \(ltrimstr(" ") | gsub("[[:cntrl:]]"; ""))"),
+  (.body // "" | split("\n")[] | sub("\r$"; "") | select(test("^\\s*hold:"; "i")) | "body: \(sub("^\\s+"; "") | gsub("[[:cntrl:]]"; ""))"),
   (.title // "" | if test("\\bwip\\b"; "i") then "title: a WIP marker in \"\(.)\"" else empty end)
 ' <<<"$facts") || die 2 "cannot parse the pull request facts"
 
