@@ -412,6 +412,11 @@ jobs:
       - name: Run shared lib tests on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'lib/hook-utils.test.sh')
         run: bash lib/hook-utils.test.sh
+      # Git for Windows names the repository root C:/... while the shell's own
+      # paths are /c/..., which the --added-since target matching must survive.
+      - name: Test audit-comment-residue detect on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/code-tidying/skills/audit-comment-residue/scripts/detect.test.sh')
+        run: bash plugins/code-tidying/skills/audit-comment-residue/scripts/detect.test.sh
       # pwsh directly, not the .test.sh wrapper: the wrapper SKIPs with exit 0
       # when pwsh is missing, which would read as green here. The selftest's
       # exit code is its failure count.

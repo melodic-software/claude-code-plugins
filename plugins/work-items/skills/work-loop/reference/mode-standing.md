@@ -9,7 +9,9 @@ an expiry hit is handled exactly like a budget hit (restart-request + clean stop
 
 A standing invocation **does not** stop when the drain snapshot is satisfied or when the
 drain-terminal state is reached. On the first cycle where the drain snapshot would be satisfied,
-set `first_drain_complete` in durable state (the earn-trust ratification gate), report the outcome,
+on a snapshot `SKILL.md` step 1 counts as complete and never on an errored, truncated, or
+unknown-completeness one, propose first-drain completion per
+[first-drain-ratification.md](first-drain-ratification.md) (a person ends the earn-trust period), report the outcome,
 and **continue** with `ScheduleWakeup`. New intake arriving on a later cycle is swept on that
 cycle, not left for a relaunch.
 

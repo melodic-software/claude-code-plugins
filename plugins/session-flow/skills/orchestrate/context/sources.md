@@ -9,6 +9,7 @@
 - [Imperative 5: NESTED SUBAGENTS](#imperative-5-nested-subagents)
 - [Priming addendum: surface reachability](#priming-addendum-surface-reachability)
 - [Priming addendum: model and effort routing](#priming-addendum-model-and-effort-routing)
+- [Priming addendum: worker_continuation](#priming-addendum-worker_continuation)
 - [Imperative 6: SURFACE DRIFT](#imperative-6-surface-drift)
 - [Imperative 7: CALIBRATE TO CONDITIONS](#imperative-7-calibrate-to-conditions)
 
@@ -219,6 +220,24 @@ any plugin. Without them, the session reads the upstream model-selection order d
 - **Recheck trigger**: that section changes how a subagent's model is chosen, or the multi-agent
   skills are renamed.
 
+## Priming addendum: worker_continuation
+
+Backs the addendum's `worker_continuation` setting. A resumed worker keeps its whole earlier
+conversation, so `resume` is a real continuation, not a fresh start under the old name. A worker
+the user stopped refuses later messages, one reason imperative 4 respawns after an interrupt under
+either value. A worker stopped with `TaskStop` can be resumed once its run has exited; outside an
+interrupt, the setting decides whether it is.
+
+- **Pointer**: for what a resumed worker keeps, see
+  <https://code.claude.com/docs/en/sub-agents#resume-subagents>; for a user-stopped worker
+  refusing messages, see
+  <https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background>; for
+  resuming after `TaskStop`, see
+  <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>.
+- **As of**: 2026-10-04
+- **Recheck trigger**: any of those sections changes what a resumed worker keeps, how a stopped
+  worker answers a message, or whether a `TaskStop`-ed worker can be resumed.
+
 ## Imperative 6: SURFACE DRIFT
 
 Authoring convention, NOT canonical Anthropic orchestration guidance (it appears in none of the
@@ -244,15 +263,10 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   They scale the same underlying trade-offs (a fresh-context verifier is worth leaning on when one
   is on hand; a filling window is itself the context-protection trigger imperative 1 names; thin
   rate-limit headroom is a hard ceiling on parallel workers).
-- **Unobservable headroom → thin-by-default.** The rate-limit-guard reader contract classifies a
-  missing, stale, or `rate_limits`-less snapshot as **unknown → reactive-only**. The guard's mod
-  writes that snapshot in interactive and headless sessions and serves the same reading through
-  the `mcp__rate-limit-guard__status` pull tool. Headroom is unobservable whenever no live reading
-  is obtainable: mods off, the guard not installed, the tool's registration refused by policy, or
-  a tool answer with no windows (`verdict: "unknown"`, as under API-key or enterprise auth).
-  Imperative 7's thin-by-default concurrent cap, sibling-429 backoff, and
-  "never invent window percentages" clauses are the orchestration consumption of that
-  classification, not a second contract. Pointer:
+- **Unobservable headroom → reactive-only.** The rate-limit-guard reader contract classifies a
+  missing, stale, or `rate_limits`-less snapshot as **unknown → reactive-only**. Imperative 7's
+  sibling-429 backoff and "never invent window percentages" clauses are the orchestration
+  consumption of that classification, not a second contract. Pointer:
   `plugins/rate-limit-guard/reference/reader-contract.md` ("Capability detection (fail-open)",
   "Cloud / remote sessions").
 - **Per-worker model tier is an explicit spawn decision.** Every spawn names a model tier,

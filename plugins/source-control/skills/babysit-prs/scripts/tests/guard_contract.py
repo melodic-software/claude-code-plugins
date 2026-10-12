@@ -750,6 +750,81 @@ REFUSALS: tuple[Refusal, ...] = (
         enforced_at="manage_feedback_ledger.py::main",
     ),
     Refusal(
+        id="ledger.rerun-requires-check-id",
+        claim=(
+            "A check rerun is recorded against one identified check: record-rerun "
+            "without --check-id refuses at exit 2. The flake cap counts reruns per PR, "
+            "head and check, so a rerun recorded with no check would count against "
+            "nothing and the cap could never fire."
+        ),
+        entry_point=LEDGER_CLI,
+        argv=(
+            "record-rerun",
+            "--pr",
+            "owner/repo#1",
+            "--expected-head-sha",
+            "0123456789abcdef0123456789abcdef01234567",
+            "--state-dir",
+            "{state_dir}",
+            "--lease-token",
+            "contract-row",
+            "--apply",
+        ),
+        exit_code=2,
+        error_contains=("--check-id",),
+        refused_by=PYTHON_CLI,
+        enforced_at="manage_feedback_ledger.py::main",
+    ),
+    Refusal(
+        id="ledger.check-id-must-be-hex",
+        claim=(
+            "--check-id accepts only the snapshot's lowercase hex rerun id and refuses "
+            "anything else at exit 2. Check and workflow names are attacker text on a "
+            "fork PR, so the command names a check by an id with no shell "
+            "metacharacters and the helper resolves the name from stored state."
+        ),
+        entry_point=LEDGER_CLI,
+        argv=(
+            "record-rerun",
+            "--pr",
+            "owner/repo#1",
+            "--expected-head-sha",
+            "0123456789abcdef0123456789abcdef01234567",
+            "--state-dir",
+            "{state_dir}",
+            "--check-id",
+            "build",
+        ),
+        exit_code=2,
+        error_contains=("--check-id must be",),
+        refused_by=PYTHON_CLI,
+        enforced_at="manage_feedback_ledger.py::main",
+    ),
+    Refusal(
+        id="ledger.check-id-requires-a-rerun",
+        claim=(
+            "--check-id is refused at exit 2 on any other action rather than "
+            "accepted and ignored, so a caller cannot believe it recorded a rerun "
+            "when it recorded a check-in."
+        ),
+        entry_point=LEDGER_CLI,
+        argv=(
+            "record-worker-checkin",
+            "--pr",
+            "owner/repo#1",
+            "--expected-head-sha",
+            "0123456789abcdef0123456789abcdef01234567",
+            "--state-dir",
+            "{state_dir}",
+            "--check-id",
+            "0123456789abcdef0123456789abcdef",
+        ),
+        exit_code=2,
+        error_contains=("--check-id is only valid",),
+        refused_by=PYTHON_CLI,
+        enforced_at="manage_feedback_ledger.py::main",
+    ),
+    Refusal(
         id="prune.root-is-required",
         claim=(
             "prune_babysit_worktrees.py has no default root: omitting --root is a usage "
@@ -1316,7 +1391,9 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         path=LEDGER_CLI,
         wrapper=None,
         mutation=CONDITIONAL,
-        mutates_what="records feedback dispositions and fix rounds in queue state",
+        mutates_what=(
+            "records feedback dispositions, fix rounds, and check reruns in queue state"
+        ),
         gate="--apply, additionally requiring --lease-token",
         claim=(
             "Local state only, no GitHub write. The lease token requirement means an "
@@ -1326,6 +1403,9 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "ledger.apply-requires-lease-token",
             "ledger.advisory-round-requires-finding-class",
             "ledger.finding-class-requires-an-advisory-round",
+            "ledger.rerun-requires-check-id",
+            "ledger.check-id-must-be-hex",
+            "ledger.check-id-requires-a-rerun",
         ),
     ),
     EntryPoint(

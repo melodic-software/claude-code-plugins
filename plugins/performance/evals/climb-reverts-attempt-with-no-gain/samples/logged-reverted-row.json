@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "id\thypothesis\tchange\tbefore\tafter\tdelta\ttests\tverdict\tnote\na1\tnav is parsed for pages that never show it\tskip nav for pages without a menu\t15\t15\t0\tpass\treverted\tdropped 0f3c2aa\na2\treading templates in name order lets later pages reuse the parse\tread templates in name order\t15\t15\t0\tpass\treverted\tdropped 9e41d0b77c3f\n",
+      "why": "an a2 row, tests pass, reverted, with the dropped SHA"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "id\thypothesis\tchange\tbefore\tafter\tdelta\ttests\tverdict\tnote\na1\tnav is parsed for pages that never show it\tskip nav for pages without a menu\t15\t15\t0\tpass\treverted\tdropped 0f3c2aa\n",
+      "why": "no a2 row was logged"
+    },
+    {
+      "answer": "id\thypothesis\tchange\tbefore\tafter\tdelta\ttests\tverdict\tnote\na2\treading templates in name order lets later pages reuse the parse\tread templates in name order\t15\t15\t0\tpass\tkept\tbaseline moved\n",
+      "why": "a2 logged as kept"
+    },
+    {
+      "answer": "id\thypothesis\tchange\tbefore\tafter\tdelta\ttests\tverdict\tnote\na2\treading templates in name order lets later pages reuse the parse\tread templates in name order\t15\t15\t0\tpass\treverted\tno gain\n",
+      "why": "reverted, but the dropped SHA is missing"
+    }
+  ]
+}
