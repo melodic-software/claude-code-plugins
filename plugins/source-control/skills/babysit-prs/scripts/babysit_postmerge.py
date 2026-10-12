@@ -8,8 +8,10 @@ read-back that the merged head equals the SHA the wrapper pinned. Nothing is
 stored on the host, so every host reaches the same verdict.
 
 An auto-merge is any merge whose `AddedToMergeQueueEvent` `actor` or
-`enqueuer` is null or not a human; a merge on the branch with no queue event
-is reported as the warning `unqueued-merge`. It is verified when a green
+`enqueuer` is null or not a human, or that bypassed the queue with a null or
+non-human `mergedBy` (`babysit_merge_policy.derive_auto_merge`, which
+`in_flight` shares); a queue-bypassing merge by a human is reported as the
+warning `unqueued-merge`. It is verified when a green
 dispatch run by the identity on a SHA containing the merge, a green canary
 run on such a SHA, and a matching read-back all exist, and no red full run or
 canary run counted against it first. Only an enqueue by the identity has a
@@ -80,21 +82,10 @@ class PostMergeWriteError(RuntimeError):
     """A remediation write failed."""
 
 
-@dataclass(frozen=True)
-class AutoMerge:
-    """A merged pull request whose merge-queue enqueue was not a human's.
-
-    Carries the fields `babysit_merge_policy.in_flight` passes its `verified`
-    callable, so `PostMergeVerdict.is_verified` can serve as that callable."""
-
-    number: int
-    merge_commit: str | None
-    head_ref_oid: str | None
-    merged_at: str | None
-    url: str | None = None
-    # The agent identity enqueued it, so the wrapper pinned its head; any other
-    # enqueue has no pin and verifies on the dispatch and canary runs alone.
-    by_identity: bool = False
+# One type and one derivation with `babysit_merge_policy.in_flight`, so both
+# judge the same merges and `PostMergeVerdict.is_verified` serves as its
+# `verified` callable.
+AutoMerge = policy.AutoMerge
 
 
 @dataclass(frozen=True)
@@ -216,14 +207,7 @@ def _login_key(login: Any) -> str:
     return str(login or "").strip().casefold()
 
 
-def _actor_key(actor: Any) -> str:
-    """A GraphQL actor in REST spelling: a `Bot` login gains the `[bot]` suffix
-    GraphQL omits; any other type keeps its login as is."""
-    item = json_object(actor)
-    login = _login_key(item.get("login"))
-    if login and item.get("__typename") == "Bot" and not login.endswith("[bot]"):
-        login += "[bot]"
-    return login
+_actor_key = policy.actor_key
 
 
 def _time(value: Any) -> datetime:
@@ -292,6 +276,7 @@ MERGED_QUERY = (
     "repository(owner:$o,name:$r){pullRequests(baseRefName:$b,states:MERGED,"
     f"first:{MERGED_PAGE_SIZE},after:$c,orderBy:{{field:UPDATED_AT,direction:DESC}}){{"
     "pageInfo{hasNextPage endCursor} nodes{number url mergedAt updatedAt headRefOid "
+    "mergedBy{__typename login} "
     "mergeCommit{oid} timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
     "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}}}}}}"
 )
@@ -635,31 +620,6 @@ def _judge(
     return MergeState(merge, verified, tuple(pending), dispatch_covered=bool(own))
 
 
-def _auto_merge(
-    pr: dict[str, Any], is_human: IsHuman, identity: str
-) -> AutoMerge | None | str:
-    """The pull request as an AutoMerge, None for a human enqueue, or the
-    warning for a merge with no queue event."""
-    events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
-    if not events:
-        return f"unqueued-merge:#{pr.get('number')}"
-    event = json_object(events[-1])
-    actor, enqueuer = event.get("actor"), event.get("enqueuer")
-    if is_human(actor) and is_human(enqueuer):
-        return None
-    number = pr.get("number")
-    if not isinstance(number, int) or isinstance(number, bool):
-        raise PostMergeReadError(f"merged pull request: no number {number!r}")
-    return AutoMerge(
-        number=number,
-        merge_commit=json_object(pr.get("mergeCommit")).get("oid"),
-        head_ref_oid=pr.get("headRefOid"),
-        merged_at=pr.get("mergedAt"),
-        url=pr.get("url"),
-        by_identity=identity in (_actor_key(actor), _actor_key(enqueuer)),
-    )
-
-
 def check(
     repo: str,
     *,
@@ -691,7 +651,7 @@ def check(
         warnings: list[str] = []
         identity = _login_key(agent_identity)
         for pr in _merged_since(owner, name, branch, merged_since):
-            derived = _auto_merge(pr, is_human, identity)
+            derived = policy.derive_auto_merge(pr, is_human, identity)
             if isinstance(derived, str):
                 warnings.append(derived)
             elif derived is not None:
@@ -732,7 +692,7 @@ def check(
             )
             for merge in merges
         )
-    except PostMergeReadError as exc:
+    except (PostMergeReadError, policy.PolicyReadError) as exc:
         return PostMergeVerdict(False, f"unreadable: {exc}")
     return PostMergeVerdict(
         True,

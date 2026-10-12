@@ -1057,6 +1057,18 @@ class InFlight(unittest.TestCase):
                 self.assertEqual(self.flight().reason, "unverified-auto-merge:#2")
                 self.assertTrue(self.flight(verified=lambda m: m.number == 2).clear)
 
+    def test_a_queue_bypassing_merge_counts_by_merged_by(self) -> None:
+        bypass = merged(2, None, None)
+        bypass["timelineItems"] = {"nodes": []}
+        for merged_by, reason in (
+            (user(OPERATOR), None),
+            (None, "unverified-auto-merge:#2"),
+            (bot("agent-lanes"), "unverified-auto-merge:#2"),
+        ):
+            with self.subTest(merged_by=merged_by):
+                queue_fake(self, [], [{**bypass, "mergedBy": merged_by}])
+                self.assertEqual(self.flight().reason, reason)
+
     def test_an_auto_merge_past_the_first_page_is_found(self) -> None:
         gh = queue_fake(self, [], [])
         human = merged(2, user(OPERATOR), user(OPERATOR))

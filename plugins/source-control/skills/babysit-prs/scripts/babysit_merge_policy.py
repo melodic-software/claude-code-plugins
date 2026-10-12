@@ -1054,8 +1054,9 @@ RECENT_MERGES_QUERY = (
     "query PolicyRecentMerges($o:String!,$r:String!,$b:String!,$c:String){"
     "repository(owner:$o,name:$r){pullRequests(baseRefName:$b,states:MERGED,"
     f"first:{MERGED_PAGE_SIZE},after:$c,orderBy:{{field:UPDATED_AT,direction:DESC}}){{"
-    "pageInfo{hasNextPage endCursor} nodes{number mergedAt updatedAt headRefOid "
-    "mergeCommit{oid} timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
+    "pageInfo{hasNextPage endCursor} nodes{number url mergedAt updatedAt headRefOid "
+    "mergedBy{__typename login} mergeCommit{oid} "
+    "timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
     "... on AddedToMergeQueueEvent{actor{__typename login} enqueuer{__typename login}}}}}}}}"
 )
 
@@ -1096,12 +1097,63 @@ def _merged_since(
 
 @dataclass(frozen=True)
 class AutoMerge:
-    """A merged pull request whose merge-queue enqueue was not a human's."""
+    """A merged pull request a human did not land: its merge-queue enqueue was
+    not a human's, or it bypassed the queue and its `mergedBy` is not human."""
 
     number: int
     merge_commit: str | None
     head_ref_oid: str | None
     merged_at: str | None
+    url: str | None = None
+    # The agent identity landed it, so the wrapper pinned its head; any other
+    # actor has no pin and verifies on the dispatch and canary runs alone.
+    by_identity: bool = False
+    queued: bool = True
+
+
+def actor_key(actor: Any) -> str:
+    """A GraphQL actor in REST spelling, compared exactly: a `Bot` login gains
+    the `[bot]` suffix GraphQL omits, and any other type keeps its login, so a
+    User who owns the bare slug `app` is never the App `app[bot]`."""
+    item = json_object(actor)
+    login = str(item.get("login") or "").strip().casefold()
+    if login and item.get("__typename") == "Bot" and not login.endswith("[bot]"):
+        login += "[bot]"
+    return login
+
+
+def derive_auto_merge(
+    pr: Mapping[str, Any], human: Callable[[Any], bool], identity: str
+) -> AutoMerge | str | None:
+    """The one derivation `in_flight` and the post-merge check share.
+
+    A merge whose latest `AddedToMergeQueueEvent` has a null or non-human
+    `actor` or `enqueuer` is an AutoMerge. A merge with no queue event bypassed
+    the queue: it is the warning `unqueued-merge:#N` when its `mergedBy` is
+    human, and an AutoMerge (`queued` False) when that is null or non-human.
+    A human enqueue is None."""
+    number = pr.get("number")
+    events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
+    if events:
+        event = json_object(events[-1])
+        actors = (event.get("actor"), event.get("enqueuer"))
+        if all(human(a) for a in actors):
+            return None
+    else:
+        actors = (pr.get("mergedBy"),)
+        if human(actors[0]):
+            return f"unqueued-merge:#{number}"
+    if not isinstance(number, int) or isinstance(number, bool):
+        raise PolicyReadError(f"merged pull request: no number {number!r}")
+    return AutoMerge(
+        number=number,
+        merge_commit=json_object(pr.get("mergeCommit")).get("oid"),
+        head_ref_oid=pr.get("headRefOid"),
+        merged_at=pr.get("mergedAt"),
+        url=pr.get("url"),
+        by_identity=identity.strip().casefold() in {actor_key(a) for a in actors},
+        queued=bool(events),
+    )
 
 
 @dataclass(frozen=True)
@@ -1121,8 +1173,8 @@ def in_flight(
     merged_since: datetime | None = None,
 ) -> InFlight:
     """Clear only when no merge-queue entry is the agent identity's and every
-    auto-merge (an enqueue whose event `actor` or `enqueuer` is null or
-    non-human) merged into `branch` since `merged_since` is verified. With no
+    auto-merge (`derive_auto_merge`: a non-human enqueue, or a queue-bypassing
+    merge by a non-human) merged into `branch` since `merged_since` is verified. With no
     floor it is not clear and reads nothing; a history the read cannot reach
     the floor or end of is not clear. `verified` judges one auto-merge;
     without it none is, so any auto-merge keeps the path not clear."""
@@ -1159,18 +1211,9 @@ def in_flight(
         if merges is None:
             return InFlight(False, "merged-history-truncated")
         for pr in merges:
-            events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
-            if not events:
+            merge = derive_auto_merge(pr, human, agent_identity)
+            if not isinstance(merge, AutoMerge):
                 continue
-            event = json_object(events[-1])
-            if human(event.get("actor")) and human(event.get("enqueuer")):
-                continue
-            merge = AutoMerge(
-                number=pr.get("number"),
-                merge_commit=json_object(pr.get("mergeCommit")).get("oid"),
-                head_ref_oid=pr.get("headRefOid"),
-                merged_at=pr.get("mergedAt"),
-            )
             if verified is None or not verified(merge):
                 return InFlight(False, f"unverified-auto-merge:#{merge.number}")
     except PolicyReadError as exc:

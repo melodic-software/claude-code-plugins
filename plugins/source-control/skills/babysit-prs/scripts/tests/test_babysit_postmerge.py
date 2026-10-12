@@ -336,12 +336,51 @@ class AutoMergeDerivation(CheckCase):
         self.assertEqual(self.numbers(verdict), [7001])
         self.assertFalse(verdict.is_verified(verdict.merges[0].merge))
 
-    def test_merge_without_a_queue_event_is_an_unqueued_merge_warning(self) -> None:
-        self.gh.merged = [merged_pr(timelineItems={"nodes": []})]
+    def test_a_human_merge_without_a_queue_event_is_an_unqueued_merge_warning(
+        self,
+    ) -> None:
+        self.gh.merged = [merged_pr(timelineItems={"nodes": []}, mergedBy=HUMAN)]
         verdict = self.check()
         self.assertEqual(verdict.warnings, ("unqueued-merge:#7001",))
         self.assertEqual(self.numbers(verdict), [])
         self.assertTrue(verdict.ok)
+
+    def test_a_queue_bypassing_merge_by_a_non_human_is_an_auto_merge(self) -> None:
+        # Design "Enqueuer": an unqueued merge is judged on mergedBy.
+        for merged_by in (None, APP_ACTOR, {"__typename": "Bot", "login": "x"}):
+            with self.subTest(merged_by=merged_by):
+                self.gh.merged = [
+                    merged_pr(timelineItems={"nodes": []}, mergedBy=merged_by)
+                ]
+                verdict = self.check()
+                self.assertEqual(self.numbers(verdict), [7001])
+                self.assertEqual(verdict.warnings, ())
+                self.assertFalse(verdict.merges[0].merge.queued)
+
+    def test_an_identity_merge_bypassing_the_queue_needs_its_pin(self) -> None:
+        self.all_green()
+        self.gh.merged = [merged_pr(timelineItems={"nodes": []}, mergedBy=APP_ACTOR)]
+        verdict = self.check(pinned=None)
+        self.assertTrue(verdict.merges[0].merge.by_identity)
+        self.assertEqual(verdict.merges[0].pending, ("read-back-unrecorded",))
+
+    def test_in_flight_and_the_check_derive_the_same_auto_merges(self) -> None:
+        # One derivation: the identity's REST spelling and a slug-named User.
+        slug_user = {"__typename": "User", "login": "agent-lanes"}
+        cases = [
+            merged_pr(number=1, timelineItems=enqueued_by(HUMAN, HUMAN)),
+            merged_pr(number=2, timelineItems=enqueued_by(APP_ACTOR, None)),
+            merged_pr(number=3, timelineItems={"nodes": []}, mergedBy=HUMAN),
+            merged_pr(number=4, timelineItems={"nodes": []}, mergedBy=None),
+            merged_pr(number=5, timelineItems=enqueued_by(slug_user, slug_user)),
+        ]
+        derived = [pm.policy.derive_auto_merge(pr, human, IDENTITY) for pr in cases]
+        self.assertIsNone(derived[0])
+        self.assertEqual(derived[2], "unqueued-merge:#3")
+        self.assertEqual(
+            [(d.number, d.by_identity) for d in derived if isinstance(d, pm.AutoMerge)],
+            [(2, True), (4, False), (5, False)],
+        )
 
     def test_merge_before_the_floor_is_not_read(self) -> None:
         self.gh.merged = [
