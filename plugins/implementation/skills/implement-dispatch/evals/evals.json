@@ -728,7 +728,7 @@
       ]
     },
     {
-      "id": 22,
+      "id": 55,
       "name": "independent-phases-share-one-wave",
       "narration": true,
       "prompt": "/implementation:implement-dispatch - autonomous run, commit authority orchestrator in one assigned worktree. The approved plan has phase 1 (one row, src/api/*.py) and phase 2 (one row, docs/api.md). Its dependency graph has no edge between them, its file-overlap matrix shows no overlap, and its Recommended shape is 'Wave A (parallel sub-agents, single message): 1, 2'. Nobody asked for parallel dispatch. Plan the first wave.",
@@ -742,7 +742,7 @@
       ]
     },
     {
-      "id": 23,
+      "id": 56,
       "name": "dependent-phases-still-run-in-order",
       "narration": true,
       "prompt": "/implementation:implement-dispatch - autonomous run. The approved plan has phase 1 (adds a function to src/core/parse.py) and phase 2 (edits src/cli/main.py to call it). Its dependency graph says 'Phase 1 → Phase 2 because 2 calls 1's new function', and its Recommended shape is fully sequential. The two phases touch disjoint files. Plan the first wave.",
@@ -755,7 +755,7 @@
       ]
     },
     {
-      "id": 24,
+      "id": 57,
       "name": "team-routed-phase-falls-back-without-agent-teams",
       "prompt": "/implementation:implement-dispatch phase-3 - interactive session. The approved plan routes phase 3 (three rows with disjoint fences) to an agent team because its workers must message each other. Agent teams are not enabled in this session. Dispatch phase 3.",
       "expected_output": "Agent teams are not enabled, so phase 3 is not run as a team: its three rows go out as sub-agent workers one at a time rather than in a parallel wave, since the team route existed for messaging between them, each later row's brief carrying the earlier rows' returns, and the run summary says the team routing fell back to sub-agents. No team is formed and no teammate is spawned.",
@@ -764,6 +764,19 @@
         "Does NOT form an agent team or spawn teammates for phase 3",
         "Dispatches phase 3's rows as sub-agent workers one at a time, not in one parallel wave, each later brief carrying the earlier rows' returns",
         "States in its output that the team-routed phase fell back to sub-agent workers"
+      ]
+    },
+    {
+      "id": 58,
+      "name": "competing-attempts-phase-runs-alone-in-its-waves",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch - autonomous run, competing_attempts resolves auto, competing_attempt_count 2. The approved plan has phase 1 (marked multi-shape, src/cache/*.py) and phase 2 (one row, docs/cache.md). Its dependency graph has no edge between them, its file-overlap matrix shows no overlap, and its Recommended shape is 'Wave A (parallel sub-agents, single message): 1, 2'. Plan the waves.",
+      "expected_output": "Phases 1 and 2 are independent, but phase 1 runs competing attempts, so it runs alone in its waves: its two attempts go out without phase 2's row, because the chosen attempt lands on the phase branch by fast-forward from the commit phase 1 started at. Phase 2 runs in a separate wave, before or after phase 1.",
+      "files": [],
+      "expectations": [
+        "Does NOT put phase 2's row in the same wave as phase 1's attempts",
+        "Runs phase 1's two attempts as rows of a wave holding only phase 1",
+        "Dispatches phase 2 in a separate wave, before or after phase 1"
       ]
     }
   ]

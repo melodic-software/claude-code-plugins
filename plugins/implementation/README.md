@@ -79,9 +79,10 @@ self-verification, but installing the companion plugins restores the full former
 
 Artifact placement is fixed by the artifact protocol (see above), so nothing needs configuring.
 
-`implement_dispatch_wave_cap` sets how many worker rows of one plan phase
+`implement_dispatch_wave_cap` sets how many worker rows
 `/implementation:implement-dispatch` runs at once. Unset, the skill keeps its internal 3–5
-wave default. The cap bounds all worker rows in flight in a phase, whichever worktrees they use. Rows that
+wave default. The cap bounds all worker rows in flight in a wave, whichever plan phases and worktrees
+they come from; phases the approved plan marks independent share a wave by default. Rows that
 share a worktree under the default worker authority are further serialized to one at a time,
 whatever the cap allows. A `--wave-cap` argument from a chaining caller, such as `/work-items:work`
 threading its own `work_dispatch_concurrency_cap`, takes precedence for that invocation. The
@@ -137,7 +138,7 @@ touches subagent tool restrictions or Bash permission-rule matching.
 
 **`implement_dispatch_wave_cap`.** The cap is the size of one dispatch wave. Give a whole number of
 rows; a fractional value is floored since a row is discrete. The cap bounds all worker rows in
-flight in a phase, whichever worktrees they use. Rows that share a worktree under the default
+flight in a wave, whichever plan phases and worktrees they come from. Rows that share a worktree under the default
 worker authority are further serialized to one at a time, whatever the cap allows. A chaining
 caller that passes `--wave-cap` is, for example, `/work-items:work` threading its
 `work_dispatch_concurrency_cap`. This key declares no default, so an unset value stays
