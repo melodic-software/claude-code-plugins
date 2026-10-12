@@ -11,6 +11,7 @@
 - [Review-Settle Hold](#review-settle-hold)
 - [Guarded Mutation Wrappers](#guarded-mutation-wrappers)
 - [Autopilot Merge Tier: Enabled-Path Mechanics](#autopilot-merge-tier-enabled-path-mechanics)
+- [Unattended Merge Path (Inert)](#unattended-merge-path-inert)
 - [Harness Permission Layer](#harness-permission-layer)
 - [Never Do Automatically](#never-do-automatically)
 - [Human Comments](#human-comments)
@@ -985,6 +986,15 @@ announced operator step.
   enable the tier. The requiredness precondition above governs whether the review workflow ran; this
   one governs whether its verdicts have earned the authority to stand in for a human approval, and
   like requiredness it is an operator enabling precondition the merge gate cannot self-enforce.
+
+## Unattended Merge Path (Inert)
+
+`--unattended` on the merge gate runs it under the unattended merge policy, which nothing enables
+yet. Check-only reports the blocker `unattended merge inert: <reason>` and
+`unattended.enabled: false`; with `--merge` the gate refuses at exit 10 before any network call.
+It refuses `--allow-dependency` and `--auto`. No tier passes the flag. Separately, plain `--merge`
+refuses at exit 10 when the token's login is the repository's configured `merge.agent-identity`:
+that identity may merge only through `--unattended`.
 
 ## Harness Permission Layer
 
