@@ -129,7 +129,7 @@ Thirteen subcommands. One-line purpose below; **full flag detail + examples in `
 | `agent "<p>"` | Hosted NL web-research task (Spark models) |
 | `monitor` | Server-side scheduled scrapes + change alerts (use sparingly, a local scheduler such as the built-in `/schedule` may fit better) |
 | `developer "<q>"` | Search repositories, GitHub issues, merged PRs, and curated docs for coding questions |
-| `research <sub>` | Scientific paper index with citation expansion, plus GitHub issue and PR history |
+| `research <sub>` | Scientific paper index with citation expansion |
 | `doctor [job-id]` | Environment health check, or why a specific job failed |
 | `search-feedback <id>` | Refund a credit on a bad `search` result |
 | `credit-usage` | Remaining quota (pre-computed in the context block above) |
@@ -148,7 +148,7 @@ npm install -g firecrawl-cli
 
 Authenticate via the `FIRECRAWL_API_KEY` environment variable (OS user scope); the CLI reads it automatically. Avoid `firecrawl login`. It writes a separate user-level config that diverges from the env-var flow.
 
-Do not run `firecrawl init --all --browser`. That command installs upstream's CLI skills and workflow skills globally, for every detected agent, a parallel install that shadows nothing but duplicates this plugin's capability and drifts from it. It registers no MCP server. This plugin is the maintained integration; updates arrive through `/plugin marketplace update`.
+Do not run `firecrawl init --all --browser`. That command installs upstream's CLI skills globally for every detected agent, and its workflow skills too when selected, a parallel install that shadows nothing but duplicates this plugin's capability and drifts from it. What `init` installs is in the [firecrawl-cli README](https://www.npmjs.com/package/firecrawl-cli) (as of 2026-10-12, CLI 1.26.3; recheck when `/firecrawl:update` reports a CLI release). This plugin is the maintained integration; updates arrive through `/plugin marketplace update`.
 
 ## Updating the skill and CLI
 

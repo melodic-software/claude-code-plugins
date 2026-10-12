@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- **`developer`, `research` and `doctor` in `/firecrawl:firecrawl`.** The commands table and `context/commands.md` cover the coding-agent index search, the paper index and GitHub history search, and `doctor <job-id>` for a failed job, with flags read from `firecrawl-cli` 1.26.3 `--help`. A new gotcha says to run `doctor` before retrying a failed job with guessed flags.
+- **`developer`, `research` and `doctor` in `/firecrawl:firecrawl`.** The commands table and `context/commands.md` cover the coding-agent index search, the paper index (GitHub history goes through `developer`, since the research GitHub endpoint is deprecated), and `doctor <job-id>` for a failed job, with flags read from `firecrawl-cli` 1.26.3 `--help`. A new gotcha says to run `doctor` before retrying a failed job with guessed flags.
 
 ### Changed
 
@@ -12,4 +12,4 @@ bump: minor
 
 ### Fixed
 
-- **The `firecrawl init` warning matches what it does now.** It installs upstream's CLI and workflow skills globally for every detected agent and registers no MCP server, which the old text said it did.
+- **The `firecrawl init` warning matches what it does now.** It installs upstream's CLI skills globally for every detected agent, plus workflow skills when selected, and registers no MCP server, which the old text said it did. Eval case 4 checks the corrected contract.

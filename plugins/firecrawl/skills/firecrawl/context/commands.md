@@ -130,17 +130,16 @@ firecrawl developer "<question or search phrase>" --limit <N> --json -o <path>
 
 Searches public repositories, GitHub issues, merged pull requests, READMEs, and curated documentation sites. Put every scoping intent (repository, language, topic) in the query text; the command takes no filter flags beyond `--limit`.
 
-## research: paper index and GitHub history
+## research: paper index
 
 ```bash
 firecrawl research search-papers "<natural-language topic>" --limit <N> -o <path>
 firecrawl research inspect-paper <paperId>
 firecrawl research related-papers <seedId>... --intent "<what you want>" -o <path>
 firecrawl research read-paper <paperId> --question "<question>" -o <path>
-firecrawl research search-github "<query>" --limit <N> -o <path>
 ```
 
-A scientific paper index (mostly biomedical, plus arXiv) with citation expansion, and a GitHub issue, PR, and README search. Use it instead of scraping PubMed, bioRxiv, or Google Scholar. Paper ids take `pmid:`, `pmcid:`, `doi:`, or `arxiv:` forms. `firecrawl research <sub> --help` lists each subcommand's filters.
+A scientific paper index (mostly biomedical, plus arXiv) with citation expansion. For GitHub issue, PR, and README history use `developer`: the research GitHub endpoint behind `research search-github` is deprecated with a shutdown date ([Firecrawl SDK README](https://github.com/firecrawl/firecrawl/blob/main/apps/python-sdk/README.md), as of 2026-10-12; recheck when `/firecrawl:update` reports a CLI release). Use `research` instead of scraping PubMed, bioRxiv, or Google Scholar. Paper ids take `pmid:`, `pmcid:`, `doi:`, or `arxiv:` forms. `firecrawl research <sub> --help` lists each subcommand's filters.
 
 ## doctor: diagnose a failed job
 
