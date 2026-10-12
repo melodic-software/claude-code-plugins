@@ -663,6 +663,15 @@ class CountTests(Base):
         result = self.bind([earlier, whole("claude-review", S)])
         self.assertUnbound(result["claude-review"], "evidence-missing")
 
+    def test_draft_skipped_run_is_ignored(self) -> None:
+        # Recorded shape: a draft-skipped run holds only the caller job.
+        skipped = attempt("claude-review", S0, 1, [], conclusion="skipped")
+        skipped["jobs"][0]["name"] = "pr-review"
+        earlier = run("claude-review", S0, attempts=[skipped])
+        result = self.bind([earlier, whole("claude-review", S)])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+
 
 class FailClosedTests(Base):
     def test_garbage_input_never_raises(self) -> None:

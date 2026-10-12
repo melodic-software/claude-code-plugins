@@ -103,7 +103,11 @@ def bind(
     Caller contract: list each lane workflow's runs by branch, with no
     `head_sha` filter, and keep those whose `pull_requests` name this pull
     request, so the earlier whole reviews an incremental chain leads back to
-    are included. Pass `babysit_merge_policy.is_human` as `is_human`.
+    are included. Read each run's attempt numbers from a fresh
+    `GET actions/runs/{id}` taken after the listing, not from the listing's
+    `run_attempt`, so a re-run that starts in between is seen. `is_human`
+    takes one actor: bind the merge policy's keyword arguments first (for
+    example with `functools.partial`).
     """
     try:
         if not isinstance(head_sha, str) or not SHA_RE.match(head_sha):
@@ -366,7 +370,11 @@ def _open_findings(
     inline_posted = 0
     for item in lane_runs:
         for attempt in _attempts(item).values():
-            if attempt.get("status") != "completed":
+            # A draft-skipped run has only the caller job and reviewed nothing.
+            if (
+                attempt.get("status") != "completed"
+                or attempt.get("conclusion") == "skipped"
+            ):
                 continue
             rec = _record(lane, item["head_sha"], _lane_job(lane, item["id"], attempt))
             if rec is None or rec.findings is None:
