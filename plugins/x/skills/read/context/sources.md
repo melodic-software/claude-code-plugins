@@ -22,7 +22,9 @@ Every service here gets the same treatment as the ladder:
   URL single-quoted, `--proto '=https'`, no `-L`, the same `--max-time` and `--max-filesize`
   bounds as step 1, and `-o` to a nonce-named file in the plugin data directory. Check curl's exit
   status first, then the HTTP code, read the file in bounded slices, and delete it on every exit
-  path. Use `WebFetch` only for a summary, because it paraphrases.
+  path. Use `WebFetch` only for a summary, never for the post's exact text (why: fetch
+  [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
+  live; as of 2026-10-11; recheck when that section changes what the tool returns).
 - **One budget per invocation.** Expand replies one level deep only (a reply's own replies, never
   theirs), at most 10 reply-id requests, and at most 256 KB read across all responses in the
   invocation together. When the budget stops you, say the result is partial and where it stopped.

@@ -424,7 +424,7 @@ that it is present. The four-part records live in [reference/native-commit.md](r
 - **No branch creation**, that's the project's branch-naming / branch-protection mechanisms (or
   `/source-control:worktree create`).
 - **No PR body composition**, that's `/source-control:pull-request create`.
-- **No `git merge` / `gh pr merge`**, that's `/source-control:pull-request merge`.
+- **No `git merge` or forge merge**, that's `/source-control:pull-request merge`.
 - **No rebase**, that's `/source-control:pull-request create`.
 - **No `--no-verify` or hook bypass**, if the project's `commit-msg` hook rejects the message,
   surface the error and re-draft; never bypass.

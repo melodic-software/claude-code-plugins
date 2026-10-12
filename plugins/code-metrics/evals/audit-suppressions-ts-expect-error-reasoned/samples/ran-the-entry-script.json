@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "\"/plugins/code-metrics/skills/audit-suppressions/scripts/audit-suppressions.sh\" invoice.ts"}}],
+      "why": "the entry script on the named file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -n '@ts-' invoice.ts"}}],
+      "why": "a grep instead of the script"
+    }
+  ]
+}

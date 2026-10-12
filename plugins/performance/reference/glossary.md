@@ -52,7 +52,8 @@ that catalog entry carries the context-glue record pointing at it.
 - **Hidden work.** Cost that falls outside every headline metric's window, such as a reload after
   the load metric has ended. See [E](techniques.md#e-diagnose).
 - **Hill climbing.** Repeatedly changing the code and keeping each change that moves a re-runnable
-  number the right way. It needs a number first. See [A](techniques.md#a-choose-the-target).
+  number the right way. It needs a number first. See [A](techniques.md#a-choose-the-target);
+  `/performance:climb` runs it against one goal's frozen harness.
 - **Hot path.** Code that runs on every instance of a frequent operation (startup, each keystroke,
   each tool call), where small costs multiply. See [A](techniques.md#a-choose-the-target).
 - **Hydration.** A client framework attaching to server- or statically-rendered markup and taking

@@ -93,5 +93,8 @@ Run `validate` and `dry-run`, then a live run of the new case and its control, a
 - A model rewrite such as `git -C <dir> push` escapes a literal `input_match` and a literal permission
   rule alike. Prompts ask for the command character for character, and a rewrite reads as
   inconclusive.
-- `system/permission_denied` events are best-effort; `result.permission_denials` is authoritative. A
-  denial seen only there reports `reason_type` `unknown`.
+- Which stream carries the authoritative denial record: fetch
+  <https://code.claude.com/docs/en/agent-sdk/typescript#sdkpermissiondeniedmessage> live. **As of**:
+  2026-10-11. **Recheck trigger**: that section stops naming `permission_denials` on the result
+  message as the authoritative record. A denial seen only in `result.permission_denials` reports
+  `reason_type` `unknown`.

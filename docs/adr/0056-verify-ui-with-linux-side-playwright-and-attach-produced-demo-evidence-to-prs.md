@@ -29,7 +29,7 @@ decisions rest on:
 
 - **Claude in Chrome and WSL.** Anthropic's docs state Chrome integration "isn't supported in
   Windows Subsystem for Linux (WSL)" ([chrome](https://code.claude.com/docs/en/chrome), fetched
-  2026-10-04). Two comments on
+  2026-10-04; still stated as of 2026-10-11). Two comments on
   [anthropics/claude-code#79655](https://github.com/anthropics/claude-code/issues/79655) report
   `claude --chrome` from WSL pairing with Windows Chrome on 2.1.269 and 2.1.278; both say the
   `/chrome` dialog still refuses under WSL. From Chrome 136 the remote-debugging switches are ignored
@@ -91,8 +91,8 @@ produced video and screenshots on the PR from the user's own gh login.
    | Situation | Tool |
    |---|---|
    | Default UI self-check from WSL2 | `/playwright:playwright` (`@playwright/cli`) on Linux-side Chromium, headless by default, headed through WSLg on request; NAT stays |
-   | Needs a logged-in session | playwright-cli saved auth state or a persistent profile after one login; for the user's real Windows profile, run Claude Code from a Windows shell with Claude in Chrome |
-   | Claude in Chrome from WSL | Unsupported until the live test below passes |
+   | Needs a logged-in session | playwright-cli saved auth state or a persistent profile after one login; for the user's real Windows profile, run Claude Code from a Windows shell with Claude in Chrome, or from WSL start `claude --chrome` (next row) |
+   | Claude in Chrome from WSL | Works on 2.1.296 via `claude --chrome` through Anthropic's account bridge to a Windows browser, not via `/chrome`; outside documented support; recheck on each release |
    | Deep performance or network debugging | chrome-devtools-mcp against Chrome inside WSL, when configured; playwright-cli console and network for basics |
    | Durable regression | A committed `@playwright/test` spec run in CI |
    | Long-running autonomous exploration | Playwright MCP holding browser state |
@@ -103,7 +103,8 @@ produced video and screenshots on the PR from the user's own gh login.
    probes, 2026-10-04; four practitioner articles for CLI first; the Microsoft README, Better Stack
    and webfuse for MCP in long sessions; the chrome-devtools-mcp README ("Key features") and its
    troubleshooting page's WSL section for the debugging row (fetched 2026-10-04); user decision 8
-   for the Claude-in-Chrome-from-WSL row; user decisions 2, 3 and 7. The real-browser row is an inference from the two primaries; the durable
+   and the live test of 2026-10-11 (Findings) for the Claude-in-Chrome-from-WSL row; user decisions
+   2, 3 and 7. The real-browser row is an inference from the two primaries; the durable
    regression row is judgment.
 
 2. **Visual verification layers**, cheapest deterministic signal first:
@@ -169,7 +170,8 @@ produced video and screenshots on the PR from the user's own gh login.
 ## Alternatives considered
 
 - **Claude in Chrome as the default browser tool.** Rejected for WSL2: Anthropic documents it as
-  unsupported there, and only the user's live test can show the reported bridge works.
+  unsupported there. The user's live test on 2026-10-11 showed the bridge working on one version,
+  which does not make an undocumented path the default.
 - **Playwright MCP as the default.** Rejected for short self-checks: all four practitioner sources
   favor the CLI for terminal agents. MCP keeps the long-running row.
 - **vercel-labs/agent-browser as the default self-check and logged-in-session tool.** Not adopted
@@ -213,12 +215,66 @@ produced video and screenshots on the PR from the user's own gh login.
 - Vision review stays a source of leads until the planted-defect eval measures it; the layer order
   stays judgment until then.
 
+## Findings, 2026-10-11
+
+Probes of the planted-defect eval on the `eval-browser-dispatch` lane (Claude Code 2.1.296,
+GitHub-hosted ubuntu-24.04) leave the decision unchanged but constrain how it is measured. Runs are
+in `melodic-software/claude-code-plugins` Actions.
+
+- **The eval hides a case's own files from the agent.** `Read` of the case's canary file is refused
+  and the browser cannot load it; the `evals-hidden-from-read` and `evals-hidden-from-browser`
+  graders pass (runs 38146517909, 38151389439).
+- **Narrow Bash grants match as written.** An `--allow-tools` grant such as
+  `Bash(playwright-cli -s=* goto *)` produced no permission refusal (run 38146517909).
+- **`playwright-cli` cannot run inside `claude plugin eval` Bash on Linux.** Chromium aborts with
+  `FATAL:chrome/browser/process_singleton_posix.cc:297] Check failed: . socket() failed: Operation not permitted (1)`
+  (run 38150050988): the sandbox's seccomp filter blocks `socket(AF_UNIX)`, and
+  the CLI's own daemon also uses a Unix socket on Linux. The eval writes its own sandbox settings;
+  plugin evals expose no case key or CLI flag for sandbox network options (plugin-evals docs, as of
+  2026-10-11), and a managed `sandbox.network.allowAllUnixSockets: true` policy did not lift the
+  block (run 38151389439). Pointers:
+  [plugin evals](https://code.claude.com/docs/en/plugin-evals) and the `allowAllUnixSockets` entry
+  in the [settings reference](https://code.claude.com/docs/en/settings-reference). As of:
+  2026-10-11. Recheck trigger: a Claude Code release that exposes sandbox network options to eval
+  runs.
+- **`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` breaks every eval Bash call.** With it set, a one-command
+  `echo` case fails with
+  `bwrap: Can't create file at <tmp>/home/cwd/.eval-artifacts: Read-only file system`; with it `0`, the same case runs (runs 38114987035 and 38118268413). Observed on the
+  versions above and not filed upstream.
+
+Consequences: a measured browser eval needs an MCP-driven harness
+([#7137](https://github.com/melodic-software/claude-code-plugins/issues/7137)). The rubric's tool
+choices stand, and any catch rate or other measured figure states which path, CLI or MCP, it
+covers. These runs did not touch Claude in Chrome; the live test below did.
+
+### Claude in Chrome from WSL, live test
+
+Run with the user present on Claude Code 2.1.296, WSL2 kernel 6.18.33.2-microsoft-standard-WSL2
+with NAT networking, and Windows Microsoft Edge with the Claude extension signed in to the same
+claude.ai account (extension and Edge versions not recorded). Steps 1-6 passed; steps 7 (reconnect
+after restart) and 8 (tools absent without `--chrome`) were not run.
+
+- `/chrome` in a plain `claude` session still refuses: "Claude in Chrome is not supported in WSL at
+  this time."
+- `claude --chrome` opens the setup dialog with no WSL refusal. Its debug log shows native-messaging
+  host manifests installed only into Linux-side browser config directories and "Extension not found
+  in any browser": the local native-host path finds nothing on WSL.
+- No pairing prompt appeared, yet `list_connected_browsers` returned one browser, platform Windows,
+  not local: the session reached it through the account-keyed bridge.
+- A new tab opened `https://github.com/notifications` in the user's real Windows profile: first the
+  login page, then, after the user signed in and Claude reloaded, the "Notifications" page with the
+  signed-in avatar.
+- A screenshot saved to disk landed inside WSL under `/tmp/claude-chrome-screenshots-*/`, and the
+  files exist. Console messages were read (none logged); recording starts at the first request, so
+  load-time messages need a reload.
+
+The rubric row now records the path as working on 2.1.296 outside documented support.
+
 ## Open items
 
-- **Claude in Chrome from WSL.** A live test of `claude --chrome` from WSL pairing with the user's
-  signed-in Windows Chrome is pending and needs the user present. The rubric row stays
-  "unsupported" until it passes; a pass shows that one version works and does not lift Anthropic's
-  documented block. Recheck when the chrome docs page drops its WSL note.
+- **Claude in Chrome from WSL.** Closed 2026-10-11 by the live test above. A pass shows that one
+  version works and does not lift Anthropic's documented block, so the rubric row is rechecked on
+  each Claude Code release and when the chrome docs page drops its WSL note.
 - **Fine-grained PAT with `--attach`.** Untested. gh's client passes fine-grained PATs through to the
   endpoint, while GitHub's changelog names only the OAuth token and classic PAT. Settle with one
   probe on a scratch repository before recommending any token beyond the user's login.
@@ -226,5 +282,5 @@ produced video and screenshots on the PR from the user's own gh login.
   decision, and a probe; the docs cover it for VMs, not WSL.
 
 Recheck this record when cli/cli#14309 closes or gh's attachment token allowlist changes, when
-`@playwright/cli` or Playwright releases zoom or idle trimming, or when Anthropic's chrome page
-changes its WSL note.
+`@playwright/cli` or Playwright releases zoom or idle trimming, when Anthropic's chrome page
+changes its WSL note, on each Claude Code release for the Claude-in-Chrome-from-WSL row, or when `claude plugin eval` lets a run open Unix sockets.

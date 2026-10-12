@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "audit-suppressions.sh --all"}}],
+      "why": "report only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "log.js", "old_string": "// eslint-disable-line no-console", "new_string": ""}}],
+      "why": "removed a suppression"
+    }
+  ]
+}

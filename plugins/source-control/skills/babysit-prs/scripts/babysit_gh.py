@@ -109,12 +109,20 @@ def gh_json(args: list[str]) -> Any:
 # 1 for every failure, so this is the only signal separating "the API answered
 # no" from "the call never landed".
 GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
-# Sandboxed sessions (Claude Code on the web and remote execution) serve only a
-# pinned set of GraphQL operations and refuse the rest with HTTP 403. The
-# refusal names the session rather than the credential, so it reads like an
-# expired token or a missing scope and is neither: re-authenticating never
-# clears it, and the only remedy is to source the same fact over REST.
-GRAPHQL_UNAVAILABLE_MARKERS = ("not enabled for this session",)
+# Sandboxed sessions (Claude Code on the web and remote execution) route GitHub
+# through a proxy that refuses GraphQL requests with HTTP 403, whatever the
+# credential. The refusal reads like an expired token or a missing scope and is
+# neither: re-authenticating never clears it, and the only remedy is to source
+# the same fact over REST. The marker is the casefolded GraphQL refusal wording
+# from the section below, matched with or without its leading "GitHub"; its repository-scope refusal is a different failure
+# and deliberately not a marker.
+#   Pointer: <https://code.claude.com/docs/en/cloud-environments#github-proxy>
+#   As-of: 2026-10-11.
+#   Recheck trigger: that section stops rejecting GraphQL outright, or changes
+#   the refusal's message prefix.
+GRAPHQL_UNAVAILABLE_MARKERS = (
+    "graphql is not available from claude code sessions",
+)
 
 
 class GraphQLUnavailableError(RuntimeError):
@@ -150,10 +158,11 @@ def gh_http_status(text: str) -> int | None:
 def is_graphql_unavailable(failure: BaseException | str) -> bool:
     """Whether a failed GraphQL-backed `gh` call was refused the API itself.
 
-    Two signals, either sufficient: the pinned-operation refusal text, and a
-    PARSED 403 status. Applied ONLY to GraphQL-backed calls, where both
-    readings lead somewhere safe -- a REST re-source that either answers or
-    fails loudly on its own, or a fail-closed verdict.
+    Two signals, either sufficient: a refusal wording from
+    `GRAPHQL_UNAVAILABLE_MARKERS`, and a PARSED 403 status. Applied ONLY to
+    GraphQL-backed calls, where both readings lead somewhere safe -- a REST
+    re-source that either answers or fails loudly on its own, or a
+    fail-closed verdict.
 
     Neither signal may be a bare substring scan of the failure text. That text
     is `run_command`'s, which embeds the whole argv, and every GraphQL call
@@ -240,7 +249,7 @@ def parse_repo(value: str) -> str:
 
 
 def rest_list_repos_for_owner(owner: str) -> list[str]:
-    """`gh repo list` rebuilt from REST, for a session served no GraphQL.
+    """`gh repo list` rebuilt from REST, for a session whose GraphQL calls are refused.
 
     `gh repo list --json` is a GraphQL `RepositoryList` query, so it 403s
     alongside `gh pr view` and takes owner-mode discovery with it. REST spells
@@ -387,8 +396,8 @@ def rest_list_prs_for_repo(
     """`gh pr list --json` rebuilt from REST, in the shape discovery reads.
 
     `gh pr list --json` is a GraphQL `PullRequestList` query -- confirmed
-    against a restricted session, which answers it with the same pinned-
-    operation 403 that takes out `gh pr view`. Queue discovery is the FIRST
+    against a restricted session, which answers it with the proxy's GraphQL
+    403 that takes out `gh pr view`. Queue discovery is the FIRST
     call in the fleet loop, so without this substitution the loop finds no PRs
     and every REST hydration path downstream is never reached.
 
@@ -563,8 +572,8 @@ def view_pr_fields(
     """`gh pr view --json <fields>`, re-sourced over REST when GraphQL is refused.
 
     `gh pr view --json` is implemented entirely over GraphQL, so it is the first
-    read in this engine to fail where only a pinned set of GraphQL operations is
-    served. Returns the field bundle plus whether it came from GraphQL; a REST
+    read in this engine to fail where the session's GitHub proxy refuses
+    GraphQL. Returns the field bundle plus whether it came from GraphQL; a REST
     bundle carries only the fields `rest_view_pr` can rebuild, so a caller that
     asked for a GraphQL-only field (`closingIssuesReferences`) gets it absent
     rather than fabricated, and must fail closed on the absence.

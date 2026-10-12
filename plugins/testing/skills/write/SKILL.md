@@ -17,15 +17,17 @@ invocation:
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+comes too late for whatever the command has already returned inline. What a result returns inline,
+and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
+(as of 2026-10-11; recheck when that section changes what a valid result returns inline).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the worktree skill's
-[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
-"The pre-compute block runs as one shell invocation".
+separate body Bash calls rather than pre-compute lines, one command per call. The dated record for
+why is the worktree skill's
+[reference/gather-block.md § The pre-compute block runs as one shell invocation](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/worktree/reference/gather-block.md#the-pre-compute-block-runs-as-one-shell-invocation)
+(as of 2026-10-11; recheck when that section's record changes). How injected commands run is
+[Extend Claude with skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
+(as of 2026-10-11; recheck when that section changes the per-command shell, timeout, or output-handling behavior it documents).
 
 ## Purpose
 

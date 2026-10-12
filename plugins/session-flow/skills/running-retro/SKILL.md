@@ -68,8 +68,10 @@ exists for this session, record that too. It outranks a healthy-feeling self-rea
 
 ### 2. Resolve inputs for the subagent
 
-The analysis runs in a **fresh subagent** (own context window; it sees none of this conversation,
-the skills invoked, or files read, per the sub-agents doc "what loads at startup"). So resolve
+The analysis runs in a **fresh subagent**, which we treat as seeing none of this conversation,
+the skills invoked, or files read (pointer: [Create custom subagents § What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup);
+as of 2026-10-11; recheck trigger: that section adds parent conversation to what a subagent
+loads). So resolve
 every input to a concrete value and pass it in the delegation prompt, a `${CLAUDE_PLUGIN_ROOT}`
 token will NOT expand there:
 
@@ -170,7 +172,10 @@ it, do not restate it. To arm the current session, resolve the inputs and run th
 
 First resolve these into shell variables the block below reads. A skill runs **in-session**, so read
 config from the **rendered `${user_config.observer_*}` values** (an unexpanded token or empty = the
-default), the `CLAUDE_PLUGIN_OPTION_*` env vars the hook uses are NOT set in a skill's Bash context:
+default), never from the `CLAUDE_PLUGIN_OPTION_*` env vars the hook uses (where each form resolves:
+[Plugin manifest reference § User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+and [§ Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves);
+as of 2026-10-11; recheck trigger: either section changes where a saved option reaches):
 
 - `OBS_MODEL` ← `${user_config.observer_analysis_model}`; `OBS_EFFORT` ←
   `${user_config.observer_analysis_effort}`. Leave either empty for its default: the observer reads
