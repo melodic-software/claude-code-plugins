@@ -2794,18 +2794,19 @@ jobs:
   # decides an unattended merge before it enqueues, but anything holding a
   # token can enqueue directly. This job re-tests, at merge-group time, every
   # entry whose AddedToMergeQueueEvent actor or enqueuer is null or not a human
-  # (the Design's "Human": a write-permission User that is not the configured
-  # agent identity): first the rung and the kill switches, then the fixed rules
+  # (`is_human`: a write-permission User that is not the configured agent
+  # identity): first the rung and the kill switches, then the fixed rules
   # (HIGH paths, 200 lines and 8 files, label provenance, demotion record, body
   # hold, human blocking comment, another identity entry queued, ALLGREEN). A
   # human-enqueued entry passes without reading them. Under ALLGREEN a failed
   # group removes only the pull request it was built for.
   #
-  # The rule runs from a checkout of the queue's base, never the group's tree,
-  # so a pull request cannot change the rule it is judged by; a base older than
-  # the recheck has no rule yet and passes. Every other event skips the job, and
-  # `ci-status` passes that skip only off the merge queue. Pinned by
-  # scripts/ci-unattended-recheck.test.sh, which runs the step body.
+  # The rule, `babysit_merge_policy.py recheck`, runs from a checkout of the
+  # queue's base, never the group's tree, so a pull request cannot change the
+  # rule it is judged by; a base older than the recheck has no rule yet and
+  # passes. Every other event skips the job, and `ci-status` passes that skip
+  # only off the merge queue. Pinned by scripts/ci-unattended-recheck.test.sh,
+  # which runs the step body.
   unattended-recheck:
     if: github.event_name == 'merge_group'
     runs-on: ubuntu-24.04
