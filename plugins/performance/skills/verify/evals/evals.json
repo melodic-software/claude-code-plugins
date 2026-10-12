@@ -202,6 +202,33 @@
         "Says the field read is taken before the release and again after it",
         "Routes a field read showing no gain to turning the flag off and /performance:target"
       ]
+    },
+    {
+      "id": 17,
+      "name": "names-a-limiter-outside-the-change",
+      "prompt": "/performance:verify the thumbnail resize rewrite. Target was 400 images/s; the verifier measured 310 images/s before and 312 after over 12 interleaved pairs. During an extra profiled run the resize worker sat at 35% CPU while the object-store upload client used all 8 of its connection-pool slots and every upload waited on a free slot. The error and work counts match in both arms. Write the report.",
+      "expected_output": "Fills Limiter: before the verdict and names the upload client's 8-slot connection pool as what holds throughput, from the profiled run, not the resize code the change touched. Says the number is limited by something other than the change, so the flat result is not evidence that the rewrite is useless. Fills Ruled out: with at least one alternative and its evidence, for example failed or skipped work excluded by the matching error and work counts. Reports the target as NOT MET.",
+      "files": [],
+      "expectations": [
+        "The report carries a Limiter: line naming the upload connection pool, with the profiled run as its evidence",
+        "States that the number is limited by something other than the resize change",
+        "Does not conclude the rewrite had no effect from the flat number alone",
+        "The report carries a Ruled out: line with at least one alternative explanation and the evidence that excludes it",
+        "Reports the verdict as NOT MET"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "a-gain-past-the-changed-code-share-is-not-met",
+      "prompt": "/performance:verify the config-loader cache. A profile of the before arm put config loading at 12% of a 2,000 ms CLI startup; after the change startup measures 900 ms. Nobody profiled the after arm. Call it MET.",
+      "expected_output": "Does not report MET. Does the bound arithmetic: removing code that took 12% of a 2,000 ms run saves at most about 240 ms, so 900 ms is past what the change can explain. Names likely alternatives (the after arm skipped work, served results from a warm cache, or ran with different flags or data) and asks for the error and work counts and a profiled after run to rule them out. With no limiter named, writes Limiter: unknown, lists the gap under Not covered:, and the verdict is not MET.",
+      "files": [],
+      "expectations": [
+        "Does not report the target as MET",
+        "Computes that the change can save at most about 240 ms of the 2,000 ms run",
+        "Names at least one alternative explanation such as skipped work or a warm cache",
+        "Writes Limiter: unknown or otherwise states no limiter was named, and lists the gap under Not covered:"
+      ]
     }
   ]
 }

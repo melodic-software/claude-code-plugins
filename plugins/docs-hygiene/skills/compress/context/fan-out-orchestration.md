@@ -10,13 +10,14 @@ Read this when batch-compressing N markdown files via parallel subagents. Codifi
 
 Each subagent compresses exactly ONE file via the Edit tool. **NO `/docs-hygiene:compress` slash invocation, NO self-audit, NO re-review.** Returns a diff stat. Latitude follows this skill's flavor-vs-content taxonomy (`context/flavor-vs-content-matrix.md`): full mechanical drops plus prose-quality moves (passive → active, nominalization collapse).
 
-Canonical Phase A prompt template (compose verbatim, substitute `<ABSOLUTE-PATH>`):
+Canonical Phase A prompt template (compose verbatim, substitute `<ABSOLUTE-PATH>` and `<ARTICLES>`). The main session resolves `compress_articles` once per batch (SKILL.md "Articles") and substitutes `<ARTICLES>`: under `keep` (the default), `Keep every article (the/a/an); dropping one is a content change.`; under `cut`, `Articles (the/a/an) before clear nouns are flavor and may be dropped.`
 
 ```text
 Compress exactly ONE file: <ABSOLUTE-PATH>
 
 LATITUDE:
-- Mechanical drops: articles (the/a/an) before clear nouns, filler (just/really/basically/actually/simply), hedging (perhaps/somewhat/might in factually-direct statements), pleasantries, verbose verb phrases (in order to → to, due to the fact that → because, make use of → use)
+- <ARTICLES>
+- Mechanical drops: filler (just/really/basically/actually/simply), hedging (perhaps/somewhat/might in factually-direct statements), pleasantries, verbose verb phrases (in order to → to, due to the fact that → because, make use of → use)
 - Prose playbook: passive → active voice, nominalization collapse ("performs analysis of" → "analyzes", "is responsible for" → "owns")
 - Batch fan-out does NOT delete sentence-level restatements (that latitude is Edit-fallback / single-file only; see SKILL.md Purpose).
 
@@ -46,7 +47,7 @@ Main session preparation per subagent:
 
 - ORIGINAL content via `git show HEAD:<file>` (free, no disk overhead; requires the user pre-staged the baseline)
 - CONDENSED content via the current file body
-- Prompt body: the semantic-diff prompt owned by this skill (`context/semantic-diff-prompt.md`, which substitutes `{ORIG}` / `{COND}` placeholders into a FINDING-block + TOTAL-summary contract)
+- Prompt body: the semantic-diff prompt owned by this skill (`context/semantic-diff-prompt.md`, which substitutes `{ORIG}` / `{COND}` / `{ARTICLES}` placeholders into a FINDING-block + TOTAL-summary contract); `{ARTICLES}` is the same `compress_articles` value Phase A used
 
 Subagent returns FINDING blocks + a TOTAL summary line per the semantic-diff-prompt contract. Forbidden citation tokens (training-recall markers) invalidate the dispatch, so revert that file's candidate.
 
@@ -55,7 +56,7 @@ Subagent returns FINDING blocks + a TOTAL summary line per the semantic-diff-pro
 Per FINDING block returned in Phase B:
 
 - `SEMANTIC LOSS` / `AMBIGUITY` / `UNCERTAIN` → main session reverts that specific CONDENSED line back to ORIGINAL (per-finding revert via the Edit tool, not whole-file revert)
-- `FALSE POSITIVE` → keep the compression
+- `FALSE POSITIVE` → keep the compression. An article drop counts here only under `compress_articles: cut`; under `keep` the auditor classes it SEMANTIC LOSS, and the main session also restores any dropped article a finding misclassed, since no `keep` run ships one
 - Markdownlint each file post-reconcile; non-zero exit → whole-file revert (per-finding revert produced malformed state)
 - Update any batch-tracking artifact your workflow maintains, main session only; subagents never write shared state
 

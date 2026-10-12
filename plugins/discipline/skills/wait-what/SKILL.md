@@ -1,5 +1,5 @@
 ---
-description: "Stop. That last message did not land. Re-pitch it: back up as far as needed, add the context that was missing, write in ASD-STE100 Simplified Technical English, and use the project's own ubiquitous language. Type /discipline:wait-what the moment the reader notices they are skimming; only the reader knows when they stopped following."
+description: "The reader lost the thread of the previous reply. Explain it again, adding the context they lacked, in ASD-STE100 Simplified Technical English and the project's own domain terms. Type /discipline:wait-what the moment you notice you are skimming; only the reader knows when they stopped following."
 user-invocable: true
 disable-model-invocation: true
 metadata:
@@ -9,12 +9,13 @@ metadata:
 
 # Wait. What?
 
-Wait. I don't understand where you've got to here. Re-pitch that: back up as
-far as needed, give me the context I was missing, talk in ASD-STE100
-Simplified Technical English (short sentences, one meaning per word, technical
-terms exact), and use the project's ubiquitous language. Read the nearest
-domain glossary or context map, per the project's own convention, when one
-exists; with none, plain technical English alone.
+I lost track of your last reply. Go back to the last point I clearly
+followed and explain again from there, adding the context I was missing.
+Write it in ASD-STE100 Simplified Technical English (short sentences, one
+meaning per word, technical terms exact) and use the terms the project
+itself uses for its domain. Read the nearest domain glossary or context map,
+per the project's own convention, when one exists; with none, plain technical
+English alone.
 
 ## A declared species in this plugin: NOT a corrector
 
