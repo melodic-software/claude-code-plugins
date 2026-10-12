@@ -1,0 +1,132 @@
+name: post-merge-demotion-alert
+
+# Files the unattended-merge demotion issue when a post-merge signal fails on
+# main, so a human hears of it while no babysit lane runs. The signals are a
+# scheduled or dispatched pr-require-checks run (the whole-tree run) and a
+# canary push run. The issue is the demotion record the babysit post-merge
+# check files under the agent identity and the merge-policy reader holds the
+# rung off on: first body line `<!-- babysit-merge-demotion sha=<S>
+# signal=<name> -->`, labeled needs-human, one per (signal, SHA). A record
+# that already exists gets a comment naming the run instead. This workflow
+# merges, reverts and dequeues nothing.
+#
+# Test: scripts/post-merge-demotion-alert.test.sh runs the step body.
+
+on:
+  # The job checks out nothing, runs no action, and holds a token that can
+  # write issues only, so no code from the triggering run executes here. The
+  # step reads the event's fields through env and acts only on runs of this
+  # repository's main branch.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [pr-require-checks, post-merge-detect-silent-revert]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  alert:
+    name: File the demotion issue
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write # file the demotion issue or comment on it
+    # One group per signal and SHA, so two attempts of one run cannot both
+    # find no record and file two.
+    concurrency:
+      group: post-merge-demotion-alert-${{ github.event.workflow_run.name }}-${{ github.event.workflow_run.event }}-${{ github.event.workflow_run.head_sha }}
+      cancel-in-progress: false
+    steps:
+      - name: File or comment on the demotion issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_WORKFLOW: ${{ github.event.workflow_run.name }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
+        run: |
+          case "$RUN_WORKFLOW:$RUN_EVENT" in
+            pr-require-checks:schedule) signal=schedule ;;
+            pr-require-checks:workflow_dispatch) signal=dispatch ;;
+            post-merge-detect-silent-revert:push) signal=canary ;;
+            *)
+              echo "$RUN_WORKFLOW on $RUN_EVENT is not a post-merge signal"
+              exit 0
+              ;;
+          esac
+          case "$RUN_CONCLUSION" in
+            failure | timed_out | startup_failure) ;;
+            *)
+              echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION: nothing to file"
+              exit 0
+              ;;
+          esac
+          if [[ "$RUN_BRANCH" != main || "$RUN_REPO" != "$GITHUB_REPOSITORY" ]]; then
+            echo "the run is not on this repository's main branch"
+            exit 0
+          fi
+          if [[ ! "$RUN_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::head SHA '$RUN_SHA' is not a full commit SHA"
+            exit 1
+          fi
+
+          marker="<!-- babysit-merge-demotion sha=$RUN_SHA signal=$signal -->"
+          # Records are read by their filer only, so an issue someone else
+          # opens with the marker cannot stand in for this one.
+          records="$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/issues?state=all&creator=github-actions%5Bbot%5D&per_page=100" \
+            --jq '.[] | select(.pull_request == null)
+              | [.number, ((.body // "") | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")), (.body // "")]
+              | @tsv')"
+          number=''
+          body=''
+          while IFS=$'\t' read -r n first rest; do
+            if [[ "$first" == "$marker" ]]; then
+              number="$n"
+              body="$rest"
+              break
+            fi
+          done <<<"$records"
+
+          if [[ -n "$number" ]]; then
+            comments="$(gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/issues/$number/comments?per_page=100" --jq '.[].body')"
+            if [[ "$body" == *"$RUN_URL"* || "$comments" == *"$RUN_URL"* ]]; then
+              echo "#$number already names $RUN_URL"
+              exit 0
+            fi
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$number/comments" \
+              -f body="The post-merge check found this failure again: $RUN_URL" >/dev/null
+            echo "commented on #$number"
+            exit 0
+          fi
+
+          subject="${RUN_COMMIT_MESSAGE%%$'\n'*}"
+          pr='unknown (the head commit names none)'
+          title="Post-merge $signal failure at ${RUN_SHA:0:12}: unattended merging demoted"
+          if [[ "$subject" =~ \(#([0-9]+)\)$ ]]; then
+            pr="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull/${BASH_REMATCH[1]}"
+            title="Post-merge $signal failure after #${BASH_REMATCH[1]}: unattended merging demoted"
+          fi
+          fence='```'
+          body="$marker
+
+          The post-merge check found a \`$signal\` failure on main. The unattended merge path stays at
+          rung off until a human closes this issue directly (not through a pull request's closing keyword).
+
+          - Pull request: $pr
+          - Merge commit: \`$RUN_SHA\`
+          - Failing run: $RUN_URL
+
+          To revert the merge, a human runs:
+
+          ${fence}sh
+          git revert $RUN_SHA
+          ${fence}"
+          gh api -X POST "repos/$GITHUB_REPOSITORY/issues" \
+            -f title="$title" -f body="$body" -f 'labels[]=needs-human' >/dev/null
+          echo "filed the $signal demotion issue for $RUN_SHA"
