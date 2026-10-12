@@ -81,15 +81,14 @@ unchanged and bind every member.
    <https://code.claude.com/docs/en/whats-new/2026-w32>, read verbatim end to
    end through the `.md` fetch route
    ([upstream-drift](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route))
-   on 2026-08-10. The env-vars rows read: `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`
-   "Maximum number of read-only tools and subagents that can execute in
-   parallel (default: 10)"; `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` "Removed in v2.1.224 and now a
-   no-op"; `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS` "the `run_in_background`
-   parameter on Bash and subagent tools". Upstream publishes no per-page content
+   on 2026-08-10. For the current rows of `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY`,
+   `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` and `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS`,
+   fetch [env-vars](https://code.claude.com/docs/en/env-vars) live (as of
+   2026-10-11). Upstream publishes no per-page content
    date, so the fetch date is the whole of the currency claim. Recheck trigger:
    a Claude Code release note naming tool-use concurrency, parallel tool
    execution, or any of these variables, or a re-fetch of env-vars diverging
-   from a quoted row.)
+   from what this file states about them.)
 
    - **Pointer**: when deciding whether the session running this pass can
      spawn forks at all, fetch

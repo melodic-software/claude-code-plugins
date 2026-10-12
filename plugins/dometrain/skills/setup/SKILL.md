@@ -129,9 +129,7 @@ is still required.
 
 `<marketplace>` is the name the catalog registers under when it is added, and `<scope>` is the
 scope the bootstrap chooses: `user`, `project`, or `local`. Pass the scope explicitly on every
-command and carry the same `<scope>` through all of them, rather than relying on any command's
-default; the commands neither default nor spell the flag alike, which is why the blocks above
-write `--scope` on `marketplace add` and `-s` elsewhere.
+command and carry the same `<scope>` through all of them.
 
 - **Pointer**: when a command's scope default or flag spelling matters, fetch
   [plugin marketplace add](https://code.claude.com/docs/en/plugins/cli-reference#plugin-marketplace-add),
