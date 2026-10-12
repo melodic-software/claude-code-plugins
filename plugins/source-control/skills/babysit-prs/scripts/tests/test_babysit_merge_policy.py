@@ -916,5 +916,47 @@ class Assess(unittest.TestCase):
         self.assertIs(report["killSwitch"]["proceed"], True)
 
 
+class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
+    """`babysit_merge.py --merge` with the token acting as the configured
+    `merge.agent-identity`, read from a real pipeline file through the config
+    reader and the shared YAML reader, exits 10 before any evaluation or write.
+    `resolve` is pointed at `assess` so the test holds before and after the
+    two are wired together."""
+
+    def run_main(self, login: str) -> tuple[int, dict[str, Any]]:
+        import contextlib
+        import io
+
+        import babysit_merge as merge
+
+        gh = config_fake(self, PIPELINE.replace("local-babysit", "pr-merge"))
+        gh.rest[f"repos/{REPO}"] = {"default_branch": "main"}
+        gh.rest[f"repos/{REPO}/commits/main"] = {"sha": SHA}
+        never = mock.Mock(side_effect=AssertionError("must not run"))
+        argv = ["babysit_merge.py", f"{REPO}#1", "--allowed-owners", "owner"]
+        argv += ["--merge", "--expected-head", "e" * 40]
+        out = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", argv),
+            mock.patch.object(policy, "resolve", policy.assess),
+            mock.patch.object(merge, "resolve_author", return_value=login),
+            mock.patch.object(merge, "evaluate", never),
+            mock.patch.object(merge, "gh_capture", never),
+            mock.patch.object(merge, "async_merge", never),
+            contextlib.redirect_stdout(out),
+        ):
+            code = merge.main()
+        self.assertIn(
+            ["api", f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"], gh.calls
+        )
+        return code, json.loads(out.getvalue())
+
+    def test_the_identity_token_is_refused_at_exit_10(self) -> None:
+        code, out = self.run_main("Agent-Lanes[bot]")
+        self.assertEqual(code, 10)
+        self.assertEqual(out["agentIdentity"], IDENTITY)
+        self.assertEqual(out["actingLogin"], "Agent-Lanes[bot]")
+
+
 if __name__ == "__main__":
     unittest.main()

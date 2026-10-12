@@ -11,6 +11,11 @@ refuse or not clear, never permissive.
 `resolve()` is still the inert stub `babysit_merge.py` calls, and `assess()`,
 which composes the readers, never enables the path either: no merge is
 connected to them yet.
+
+`self_logins`, wherever a reader takes it, names only lane or bot self
+identities. Every login in it is non-human, as the Design's "Human" definition
+says, so a caller that passed the operator's own login would make the operator
+non-human for opt-in, class provenance and demotion clears.
 """
 
 from __future__ import annotations
@@ -590,7 +595,10 @@ def is_human(
     """An actor whose GraphQL `__typename` is `User`, whose login is not the
     agent identity (in either spelling), not a self-login, not `github-actions`
     and not a `[bot]` login, and who has write or admin permission. A null actor,
-    or a permission that cannot be read, is non-human."""
+    or a permission that cannot be read, is non-human.
+
+    `self_logins` must name only lane or bot self identities, never the
+    operator's personal login: each one listed is treated as non-human."""
     if not is_json_object(actor) or actor.get("__typename") != "User":
         return False
     login = actor.get("login")
@@ -1111,6 +1119,10 @@ def assess(
     eligibility when `pr_number` is given; with none refusing it is
     `merge-unconnected`. Raises `PolicyReadError` when the pipeline config
     cannot be read or parsed, because the agent identity is then unknown.
+
+    `self_logins` names only lane or bot self identities (see `is_human`); it
+    reaches every human test. `verified` judges one auto-merge for `in_flight`;
+    without it every auto-merge counts as unverified.
     """
     sha = base_sha or _default_branch_head(repo)
     config = read_config_at(repo, sha)
