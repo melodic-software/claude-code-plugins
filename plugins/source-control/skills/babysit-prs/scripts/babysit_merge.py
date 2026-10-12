@@ -3051,15 +3051,27 @@ def main() -> int:
         if prior.get("status") == "merged":
             # The recorded request landed at every evaluated head. The gate now
             # reads a merged (closed) PR, but that merge is this run's outcome.
-            result["merged"] = result["ready"] = True
-            result["blockers"] = []
+            # An inert unattended check still reports the merge, and stays not
+            # ready on the inert hold.
+            inert = (
+                [
+                    b
+                    for b in result["blockers"]
+                    if b.startswith("unattended merge inert:")
+                ]
+                if args.unattended and unattended is not None and not unattended.enabled
+                else []
+            )
+            result["merged"] = True
+            result["ready"] = not inert
+            result["blockers"] = inert
             result["merge"] = {
                 **prior,
                 "attempted": False,
                 "source": "pendingMergeRequest",
             }
             print(json.dumps(result, indent=2))
-            return 0
+            return 10 if inert else 0
 
     if not args.merge:
         print(json.dumps(result, indent=2))

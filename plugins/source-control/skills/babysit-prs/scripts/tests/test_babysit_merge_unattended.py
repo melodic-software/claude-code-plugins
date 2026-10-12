@@ -16,6 +16,7 @@ import json
 import pathlib
 import subprocess
 import sys
+import tempfile
 import unittest
 from typing import Any
 from unittest import mock
@@ -27,6 +28,7 @@ import babysit_gh as gh
 import babysit_merge as merge
 import babysit_merge_policy as policy
 import test_babysit_merge as fixtures
+import test_babysit_merge_async as async_fixtures
 from repo_config_fake import RepoConfigFake
 
 HEAD = fixtures.HEAD
@@ -444,6 +446,53 @@ class AgentIdentityCannotUsePlainMerge(MainHarness):
         # The policy resolved for the identity check must not hold plain merges.
         self._main("--merge", "--expected-head", HEAD, resolved=self.CONFIGURED)
         self.assertIsNone(self.evaluate.call_args.kwargs["unattended"])
+
+
+class LandedRequestUnderAnInertCheck(async_fixtures.AsyncMergeHarness):
+    """A prior async request recorded `merged` at the evaluated head: a plain
+    check reports that merge as its outcome; an inert `--unattended` check
+    reports the merge too but stays not ready."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        state = tempfile.TemporaryDirectory()
+        self.addCleanup(state.cleanup)
+        self.state_flags = ("--state-dir", state.name)
+        patcher = mock.patch.object(policy, "resolve", return_value=INERT)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        code = self._run(
+            async_fixtures._proc(async_fixtures._async("pending")),
+            [async_fixtures._async("pending")],
+            clock=[0.0, merge.ASYNC_MERGE_POLL_TIMEOUT_SECONDS + 1],
+            extra=self.state_flags,
+        )
+        self.assertEqual((code, self.output["merge"]["status"]), (10, "pending"))
+
+    def _check(self, *flags: str) -> int:
+        # The verdict evaluate() returns under the inert policy.
+        return self._run(
+            async_fixtures._proc(),
+            [async_fixtures._async("merged")],
+            merge_flag=False,
+            blockers=[INERT_BLOCKER],
+            report={"unattended": INERT.report()},
+            extra=(*self.state_flags, *flags),
+        )
+
+    def test_an_inert_check_reports_the_merge_and_stays_not_ready(self) -> None:
+        self.assertEqual(self._check("--unattended"), 10)
+        self.assertIs(self.output["merged"], True)
+        self.assertIs(self.output["ready"], False)
+        self.assertIn(INERT_BLOCKER, self.output["blockers"])
+        self.assertIs(self.output["unattended"]["enabled"], False)
+        self.assertEqual(self.output["merge"]["status"], "merged")
+
+    def test_a_plain_check_reports_the_merge_as_ready(self) -> None:
+        self.assertEqual(self._check(), 0)
+        self.assertIs(self.output["merged"], True)
+        self.assertIs(self.output["ready"], True)
+        self.assertEqual(self.output["blockers"], [])
 
 
 if __name__ == "__main__":

@@ -104,6 +104,7 @@ class AsyncMergeHarness(unittest.TestCase):
         blockers: list[str] | None = None,
         stack_member: bool = False,
         queue: list[dict[str, Any] | Exception] | None = None,
+        report: dict[str, Any] | None = None,
     ) -> int:
         if blockers is not None:
             ready = not blockers
@@ -131,6 +132,7 @@ class AsyncMergeHarness(unittest.TestCase):
                 ),
             },
             "autoMerge": {"ready": ready, "blockers": []},
+            **(report or {}),
         }
         puts = list(put) if isinstance(put, list) else [put]
         poll_answers = list(polls or [])
