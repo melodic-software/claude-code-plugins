@@ -60,6 +60,7 @@ LOOP_MERGE_KEY = "babysit_loop_merge"
 PARSER = Path(__file__).resolve().parents[3] / "lib" / "parse-concern-value.sh"
 
 RUNG_RANK = {"off": 0, "C2": 2, "C3": 3}
+CLASS_RANK = {"C1": 1, "C2": 2, "C3": 3}
 # `babysit_loop_merge` values as a rung; C4 and C5 never merge unattended.
 LOOP_MERGE_RUNG = {
     "human-only": "off",
@@ -92,12 +93,15 @@ USER_LOGIN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}$")
 AUTOMATION_LOGINS = frozenset({"github-actions"})
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 # C0 and C1 controls and the Unicode line and paragraph separators.
-_SEPARATOR = re.compile(r"[\x00-\x1f\x7f-\x9f  ]")
+_SEPARATOR = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 WRITE_PERMISSIONS = frozenset({"admin", "write"})
 # The merged-PR read for the in-flight rule: pages of 100, at most 10 pages.
 # A history it cannot read to its end (or to the merged-since floor) is not clear.
 MERGED_PAGE_SIZE = 100
 MERGED_PAGE_LIMIT = 10
+# The demotion candidates read per filer: at most 10 pages of 100 issues. A
+# filer whose issues run past it holds the rung off.
+ISSUES_PAGE_LIMIT = 10
 
 
 class PolicyReadError(RuntimeError):
@@ -670,7 +674,7 @@ def _candidate_issues(owner: str, name: str, filer: str) -> list[int]:
     """Issues `filer` opened that carry the marker now or were ever edited."""
     numbers: list[int] = []
     cursor: str | None = None
-    while True:
+    for _ in range(ISSUES_PAGE_LIMIT):
         data = _graphql(
             ISSUES_BY_AUTHOR, f"issues by {filer}", o=owner, r=name, a=filer, c=cursor
         )
@@ -692,6 +696,7 @@ def _candidate_issues(owner: str, name: str, filer: str) -> list[int]:
         cursor = info.get("endCursor")
         if not isinstance(cursor, str) or not cursor:
             raise PolicyReadError(f"issues by {filer}: a next page with no cursor")
+    raise PolicyReadError(f"issues by {filer}: more than {ISSUES_PAGE_LIMIT} pages")
 
 
 def _record_hold(issue: dict[str, Any], human: Callable[[Any], bool]) -> str | None:
@@ -1176,7 +1181,8 @@ def in_flight(
 # --- Composition ------------------------------------------------------------------------------
 
 
-def _default_branch_head(repo: str) -> str:
+def _default_branch_head(repo: str) -> tuple[str, str]:
+    """The default branch's name and its head SHA."""
     owner, name = _split_repo(repo)
     status, payload = _get(f"repos/{owner}/{name}")
     branch = (
@@ -1190,7 +1196,7 @@ def _default_branch_head(repo: str) -> str:
     sha = payload.get("sha") if status == 200 and is_json_object(payload) else None
     if not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
         raise PolicyReadError(f"{repo}: the head of {branch} could not be read")
-    return sha
+    return branch, sha
 
 
 def assess(
@@ -1206,7 +1212,8 @@ def assess(
 
     The reason names the first reader that refuses, in order: authority,
     identity, kill switch, effective rung, in flight, then the pull request's
-    eligibility when `pr_number` is given; with none refusing it is
+    eligibility and its work class against the rung when `pr_number` is given;
+    with none refusing it is
     `merge-unconnected`. Raises `PolicyReadError` when the pipeline config
     cannot be read or parsed, because the agent identity is then unknown.
 
@@ -1214,7 +1221,8 @@ def assess(
     reaches every human test. `verified` judges one auto-merge for `in_flight`;
     without it every auto-merge counts as unverified.
     """
-    sha = base_sha or _default_branch_head(repo)
+    branch, head = _default_branch_head(repo)
+    sha = base_sha or head
     config = read_config_at(repo, sha)
     if config.error:
         raise PolicyReadError(f"{CONFIG_PATH} at {sha}: {config.error}")
@@ -1245,7 +1253,7 @@ def assess(
         cap=cap.value,
         demoted=demotion.active,
     )
-    flight = in_flight(repo, **readers, verified=verified)
+    flight = in_flight(repo, **readers, verified=verified, branch=branch)
     eligible = (
         eligibility(repo, pr_number, **readers) if pr_number is not None else None
     )
@@ -1277,6 +1285,13 @@ def assess(
         (
             eligible is not None and not eligible.eligible,
             f"ineligible:{eligible and eligible.reason}",
+        ),
+        # The rung is a work-class ceiling: C4 and C5 never merge unattended.
+        (
+            eligible is not None
+            and eligible.eligible
+            and CLASS_RANK.get(eligible.work_class or "", 99) > RUNG_RANK[rung.rung],
+            f"class-above-rung:{eligible and eligible.work_class}>{rung.rung}",
         ),
     )
     reason = next((text for refused, text in refusals if refused), MERGE_UNCONNECTED)

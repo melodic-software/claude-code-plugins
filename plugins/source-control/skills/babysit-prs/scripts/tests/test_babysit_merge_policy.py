@@ -140,11 +140,11 @@ class ResolveBash(unittest.TestCase):
 
     def test_sysnative_and_windowsapps_are_refused(self) -> None:
         env = {
-            "PATH": r"C:\Windows\Sysnative;C:\Users\u\AppData\Local\Microsoft\WindowsApps"
+            "PATH": r"C:\Windows\Sysnative;C:\Users\<user>\AppData\Local\Microsoft\WindowsApps"
         }
         files = {
             r"C:\Windows\Sysnative\bash.exe",
-            r"C:\Users\u\AppData\Local\Microsoft\WindowsApps\bash.exe",
+            r"C:\Users\<user>\AppData\Local\Microsoft\WindowsApps\bash.exe",
         }
         self.assertIsNone(self.resolve(env, files))
 
@@ -244,7 +244,7 @@ class ReadConfigAt(unittest.TestCase):
         self.assertEqual(policy.read_config_at(REPO, SHA).rung, "off")
 
     def test_a_value_with_a_line_separator_is_a_parse_error(self) -> None:
-        for char in ("\u0085", " ", "\x0b", "\x1c"):
+        for char in ("\u0085", "\u2028", "\x0b", "\x1c"):
             with self.subTest(char=repr(char)):
                 config_fake(
                     self, f'merge:\n  rung: C2\n  authority: "pr-merge{char}x"\n'
@@ -518,6 +518,14 @@ class ReadDemotion(unittest.TestCase):
             },
         )
         self.assertTrue(read_demotion().active)
+
+    def test_issues_past_the_page_limit_are_off(self) -> None:
+        gh = demotion_fake(self)
+        page = {"pageInfo": {"hasNextPage": True, "endCursor": "next"}, "nodes": []}
+        gh.graphql["PolicyIssuesByAuthor"] = {"repository": {"issues": page}}
+        result = read_demotion()
+        self.assertTrue(result.active)
+        self.assertIn(f"more than {policy.ISSUES_PAGE_LIMIT} pages", result.reason)
 
     def test_marker_beyond_a_truncated_edit_history_is_off(self) -> None:
         # Only the newest 100 revisions are read; the marker may sit in an older one.
@@ -1093,7 +1101,69 @@ class Assess(unittest.TestCase):
 
     def fake(self, pipeline: str | None = PIPELINE) -> GhFake:
         gh = config_fake(self, pipeline)
+        gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
+        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": SHA}
         return gh
+
+    def readable(self) -> GhFake:
+        """Kill switch on, no cap, no demotion record."""
+        gh = self.fake()
+        variables = f"repos/{REPO}/actions/variables"
+        gh.rest[f"{variables}?per_page=1"] = {"variables": []}
+        gh.rest[f"repos/{REPO}/actions/organization-variables?per_page=100"] = {
+            "variables": [{"name": "CLAUDE_LANES_DISABLED", "value": "false"}]
+        }
+        gh.rest[f"{variables}/CLAUDE_LANES_REPO_DISABLED"] = {"value": "false"}
+        gh.rest[f"{variables}/CLAUDE_LANES_DISABLED"] = 404
+        gh.rest[f"{variables}/CLAUDE_LANES_MERGE_RUNG_CAP"] = 404
+        empty = {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": []}
+        gh.graphql["PolicyIssuesByAuthor"] = {"repository": {"issues": empty}}
+        return gh
+
+    def test_in_flight_reads_the_default_branch_not_main(self) -> None:
+        self.readable()
+        with mock.patch.object(
+            policy, "in_flight", return_value=policy.InFlight(False, "x")
+        ) as flight:
+            policy.assess(REPO, base_sha=SHA, acting_login=IDENTITY)
+        self.assertEqual(flight.call_args.kwargs["branch"], "trunk")
+
+    def test_a_work_class_above_the_rung_refuses(self) -> None:
+        self.readable()
+        for work_class in ("C3", "C4", "C5", None):
+            with (
+                self.subTest(work_class=work_class),
+                mock.patch.object(
+                    policy, "in_flight", return_value=policy.InFlight(True, None)
+                ),
+                mock.patch.object(
+                    policy,
+                    "eligibility",
+                    return_value=policy.Eligibility(True, None, work_class, ISSUE),
+                ),
+            ):
+                result = policy.assess(
+                    REPO, base_sha=SHA, pr_number=1, acting_login=IDENTITY
+                )
+                self.assertEqual(result.reason, f"class-above-rung:{work_class}>C2")
+
+    def test_a_work_class_within_the_rung_reaches_merge_unconnected(self) -> None:
+        self.readable()
+        with (
+            mock.patch.object(
+                policy, "in_flight", return_value=policy.InFlight(True, None)
+            ),
+            mock.patch.object(
+                policy,
+                "eligibility",
+                return_value=policy.Eligibility(True, None, "C2", ISSUE),
+            ),
+        ):
+            result = policy.assess(
+                REPO, base_sha=SHA, pr_number=1, acting_login=IDENTITY
+            )
+        self.assertEqual(result.reason, policy.MERGE_UNCONNECTED)
+        self.assertFalse(result.enabled)
 
     def test_no_merge_block_is_authority_unconfigured_with_no_identity(self) -> None:
         self.fake(None)
@@ -1121,17 +1191,7 @@ class Assess(unittest.TestCase):
         self.assertEqual(result.reason, "acting-login-mismatch")
 
     def test_with_no_floor_yet_the_in_flight_reader_refuses(self) -> None:
-        gh = self.fake()
-        variables = f"repos/{REPO}/actions/variables"
-        gh.rest[f"{variables}?per_page=1"] = {"variables": []}
-        gh.rest[f"repos/{REPO}/actions/organization-variables?per_page=100"] = {
-            "variables": [{"name": "CLAUDE_LANES_DISABLED", "value": "false"}]
-        }
-        gh.rest[f"{variables}/CLAUDE_LANES_REPO_DISABLED"] = {"value": "false"}
-        gh.rest[f"{variables}/CLAUDE_LANES_DISABLED"] = 404
-        gh.rest[f"{variables}/CLAUDE_LANES_MERGE_RUNG_CAP"] = 404
-        empty = {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": []}
-        gh.graphql["PolicyIssuesByAuthor"] = {"repository": {"issues": empty}}
+        self.readable()
         result = policy.assess(REPO, base_sha=SHA, acting_login=IDENTITY)
         self.assertFalse(result.enabled)
         self.assertEqual(result.reason, "in-flight:merged-since-unset")
