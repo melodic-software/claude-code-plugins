@@ -21,7 +21,7 @@ pointers below the table when a write depends on one.
 | Ancestor CLAUDE.md | every dir from filesystem root down to cwd | Session start; excludable via `claudeMdExcludes` |
 | Nested/subdirectory CLAUDE.md | `<subdir>/CLAUDE.md` below cwd | ON-DEMAND when Claude works with a file in that subdirectory (see [load triggers](#load-triggers)) |
 | Project rules | `.claude/rules/**/*.md` | No `paths:` frontmatter → session start; with `paths:` globs → on-demand when Claude works with a matching file (see [load triggers](#load-triggers)) |
-| User rules | `~/.claude/rules/*.md` | Session start, alongside project rules; we keep the two consistent rather than rely on either ranking above the other (see the user-rules pointer below) |
+| User rules | `~/.claude/rules/*.md` | Session start; load order relative to project rules: the user-rules pointer below. We keep the two consistent rather than rely on either ranking above the other |
 | `--add-dir` CLAUDE.md/rules | instruction files in each added directory | Session start only behind an opt-in; off by default |
 | `@` imports | `@path` inside CLAUDE.md/rules | Expanded at launch with the importing file, so an import does NOT reduce context vs inlining |
 | AGENTS.md | `AGENTS.md` and `.claude/AGENTS.md` in cwd and ancestors; nested: attaches lazily; see the source-conflict record in [load triggers](#load-triggers) | Session start, but whether it loads depends on a Project instructions setting and on which CLAUDE.md files sit at or above cwd: read both at the AGENTS.md pointer below. Availability moves; read it at the same pointer rather than from here. Where it does not load natively: only via `@AGENTS.md` import, symlink, `/init`, or `/import` |
