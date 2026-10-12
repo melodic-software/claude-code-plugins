@@ -315,6 +315,9 @@ highest work class that authority merges without a human. Work classes are defin
 
 ### The local babysit lane
 
+The babysit wrapper does not enforce these reads yet; until it does, the live config has no
+`merge:` block and the rung stays `off`.
+
 The babysit wrapper (`babysit_merge.py` in the source-control plugin) may merge without a human
 only when every read below allows it. Each read happens at one captured base SHA, and any read
 that fails counts as a refusal.
