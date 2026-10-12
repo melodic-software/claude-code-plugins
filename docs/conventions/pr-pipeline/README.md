@@ -62,7 +62,9 @@ no renumbering.
 `maintenance` and `upstream` are scheduled producers, not steps in a PR's path. They file work
 into `intake`.
 
-Pipeline lanes skip draft PRs; `ci-status` still reports on them. Converting a PR back to draft
+Pipeline lanes skip draft PRs; `ci-status` still reports on them, and passes the skipped lanes.
+The `ready_for_review` run tests the head, and the merge queue re-runs every lane before a merge.
+Converting a PR back to draft
 cancels every running pipeline lane for it.
 
 ## Lanes
