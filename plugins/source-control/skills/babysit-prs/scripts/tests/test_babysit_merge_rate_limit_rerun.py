@@ -244,6 +244,15 @@ class EvaluateReportsAiReviewChecks(unittest.TestCase):
 class MainRerunsOnlyUnderMerge(unittest.TestCase):
     def setUp(self) -> None:
         RepoConfigFake().install(self)
+        self.enterContext(
+            mock.patch.object(
+                merge.merge_policy,
+                "resolve",
+                return_value=merge.merge_policy.UnattendedPolicy(
+                    reason="authority-unconfigured"
+                ),
+            )
+        )
 
     def _main(self, *extra: str) -> mock.Mock:
         result = {

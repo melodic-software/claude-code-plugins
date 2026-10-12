@@ -1250,6 +1250,15 @@ class AutoMergeArming(unittest.TestCase):
 
     def setUp(self) -> None:
         RepoConfigFake().install(self)
+        self.enterContext(
+            mock.patch.object(
+                merge.merge_policy,
+                "resolve",
+                return_value=merge.merge_policy.UnattendedPolicy(
+                    reason="authority-unconfigured"
+                ),
+            )
+        )
 
     CI_RULES = [
         {
@@ -1653,6 +1662,17 @@ class RefreshDisarmsAutoMerge(unittest.TestCase):
 
 class RepoPolicyReachesTheGate(unittest.TestCase):
     """`main` reads the target repository's policy; the flags are the fallback."""
+
+    def setUp(self) -> None:
+        self.enterContext(
+            mock.patch.object(
+                merge.merge_policy,
+                "resolve",
+                return_value=merge.merge_policy.UnattendedPolicy(
+                    reason="authority-unconfigured"
+                ),
+            )
+        )
 
     TIER_FLAGS = (
         "--autopilot-merge-tier",

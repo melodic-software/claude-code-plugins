@@ -76,7 +76,7 @@ Contract enforced here (encoded as code, not convention):
 - `--unattended` runs the gate under the unattended merge policy
   (`babysit_merge_policy`). The policy is inert, so check-only adds the blocker
   `unattended merge inert: <reason>` and reports `unattended.enabled=false`,
-  and `--merge --unattended` refuses at exit 10 before any network access. It
+  and `--merge --unattended` refuses at exit 10 before any write. It
   refuses `--allow-dependency` and `--auto`. Absent the flag the gate is
   unchanged, except that plain `--merge` refuses at exit 10 when the token's
   acting login is the policy's configured agent identity, or cannot be read
@@ -2883,7 +2883,7 @@ def main() -> int:
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)
     # No unattended merge is connected yet, so `--merge --unattended` refuses
-    # whatever the policy says, before any network access and so before any write.
+    # whatever the policy says, before any write.
     if args.merge and args.unattended and unattended is not None:
         return _refuse(
             f"unattended merge inert: {unattended.reason or 'merge-unconnected'}",

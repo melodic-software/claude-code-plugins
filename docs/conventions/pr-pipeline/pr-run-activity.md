@@ -566,9 +566,10 @@ run it names passes the checks the trusted-trigger gate applies. That run must b
 started by a push or a listed human, with a re-run attempt started by a listed human. Its head
 must be an ancestor of the tip and no tag may be named `main`. This run must be a `pr-unblock.yml`
 `workflow_dispatch` created between the dispatcher run's `run_started_at` and the earlier of its
-`updated_at` and `run_started_at` plus 10 minutes. The broker does not yet read the dispatcher
-run's record of the runs it dispatched; the trusted-trigger gate in step 3 does, before any
-token request. The client sends it once and never retries: the broker
+`updated_at` and `run_started_at` plus 10 minutes. The dispatcher run must also hold an unexpired
+`pr-unblock-dispatched-<ids>` artifact whose ids include this run's; the broker reads it once,
+with no wait, since the trusted-trigger gate in step 3 has already waited for it. The client
+sends it once and never retries: the broker
 reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
 and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
 
