@@ -312,16 +312,17 @@ human. Work classes are defined in
   content fingerprint. The local babysit lane accepts only evidence bound to the pinned head SHA
   (below).
 - `merge.stack-landing` defaults to `manual`.
-- A repository has one merge authority. `.github/workflows/pr-automerge-dependabot.yml` only
-  arms auto-merge on a Dependabot pull request with `GITHUB_TOKEN`, and GitHub does not act on that
-  for a branch with a merge queue: a human queues Dependabot pull requests, and the merge-group
-  recheck passes them on its human path.
+- A repository has one merge authority. This repository retired its
+  `pr-automerge-dependabot.yml` caller: it armed auto-merge with `GITHUB_TOKEN`, which cannot add a
+  pull request to a merge queue, so on this merge-queue branch it never merged anything. A human
+  queues Dependabot pull requests, and the merge-group recheck passes them on its human path, until
+  the unattended lane gains a Dependabot class (#7337).
   - Pointer: GitHub's Dependabot docs, [Automating Dependabot with GitHub
     Actions](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/automating-dependabot-with-github-actions)
     (merge queue and `GITHUB_TOKEN`).
   - As-of: 2026-10-12.
   - Recheck trigger: that page stops saying `GITHUB_TOKEN` cannot add pull requests to a merge
-    queue, or `pr-automerge-dependabot.yml` starts using a GitHub App token.
+    queue, or #7337 lands a Dependabot class.
 
 ### The local babysit lane
 

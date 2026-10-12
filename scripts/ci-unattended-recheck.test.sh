@@ -507,7 +507,6 @@ config "${PIPELINE/rung: C2/rung: off}"
 patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest |= (.author = {"__typename":"Bot","login":"dependabot"} | .commits = {"totalCount":1} | .timelineItems.nodes[0] |= (.actor = {"__typename":"Bot","login":"github-actions"} | .enqueuer = {"__typename":"Bot","login":"github-actions"}))'
 printf '[[{"author":{"login":"dependabot[bot]","type":"Bot"},"committer":{"login":"web-flow","type":"User"},"commit":{"verification":{"verified":true}}}]]' |
   put pulls_7_commits_per_page_100
-file_payload 'name: pr-automerge-dependabot' | put "contents_.github_workflows_pr-automerge-dependabot.yml_ref_$BASE"
 expect "a Dependabot PR queued by the Bot github-actions is checked" 1 "rung-off"
 read_terms "a Dependabot PR queued by a Bot reads the policy terms" yes
 
