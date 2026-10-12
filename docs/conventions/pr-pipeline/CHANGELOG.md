@@ -1,5 +1,22 @@
 # Changelog for the PR pipeline convention
 
+## 1.10.0 - 2026-10-12
+
+The config names its merge authority and the identity the local babysit lane acts as. Additive:
+`version` stays 1, and the live config gains no `merge:` block, so its rung stays `off`.
+
+- `merge.authority` (`local-babysit` or `pr-merge`, no default) names the repository's one merge
+  authority.
+- `merge.agent-identity` (a GitHub login) names the login the local babysit lane acts as. The
+  schema requires it when `merge.authority` is `local-babysit`.
+- `resolve-config` ignores both keys, so its resolved output is unchanged.
+- README "Merge authority" gains "The local babysit lane": the effective rung, the human-only cap
+  variable `CLAUDE_LANES_MERGE_RUNG_CAP` and its 404 rule, the kill-switch reads, the demotion
+  issue and how a human clears it, the opt-in label `merge: agent-allowed`, the HIGH path floor,
+  one merge in flight, and `pr-automerge-dependabot.yml` as the one exception to a single merge
+  authority. "Outside this repository" gains the agent identity row.
+- The example config shows both keys, commented out.
+
 ## 1.9.1 - 2026-10-12
 
 The lanes token broker denies a repository whose `CLAUDE_LANES_REPO_DISABLED` variable is absent,

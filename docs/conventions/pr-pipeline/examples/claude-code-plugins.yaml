@@ -159,6 +159,10 @@ loop:
 
 merge:
   rung: C2
+  # The merge authority and, for local-babysit, the login the lane acts as
+  # (README.md, Merge authority). local-babysit requires agent-identity.
+  # authority: local-babysit
+  # agent-identity: example-lanes[bot]
   diff-check:
     denied-paths: [".github/**", ".claude/**", "docs/conventions/pr-pipeline.yaml"]
     max-changed-lines: 400

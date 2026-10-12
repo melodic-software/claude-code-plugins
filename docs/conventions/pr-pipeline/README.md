@@ -290,8 +290,10 @@ the reply; human threads stay open for the human.
 
 ## Merge authority
 
-`merge.rung` is the highest work class `pr-merge` merges without a human. Work classes are defined
-in [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md).
+`merge.authority` names the repository's one merge authority: `local-babysit`, the babysit wrapper
+run by the local babysit lane (loop-lane), or `pr-merge`. It has no default. `merge.rung` is the
+highest work class that authority merges without a human. Work classes are defined in
+[`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md).
 
 - `off` is the default. The first rung a repository adopts is `C2`, together with
   `merge.diff-check`: the diff touches no denied path and stays under the size cap.
@@ -300,13 +302,55 @@ in [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-class
 - C5 always needs a human. C4 becomes promotable under
   [ADR 0050](../../adr/0050-let-merge-authority-reach-c4-by-evidence-and-drop-the-vendor-hosted-cap.md),
   but the schema adds no C4 rung until the autonomy plugin and loop-lane carry the matching change.
-- A rung rises only through a merged change to the config file. It falls automatically: when the
-  default branch fails after a lane merge, that lane's merge rights turn off through a repository
-  variable that can only lower the rung, and a `needs-human` issue is filed.
+- A rung rises only through a merged change to the config file. Under `pr-merge` it falls
+  automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
+  through a repository variable that can only lower the rung, and a `needs-human` issue is filed.
+  The local babysit lane falls through a demotion issue instead (below).
 - A merge needs a review verdict on the final commit, or a verdict carried over by content
   fingerprint.
 - `merge.stack-landing` defaults to `manual`.
-- A repository has one merge authority: either the local babysit lane (loop-lane) or `pr-merge`.
+- A repository has one merge authority. The one exception is
+  `.github/workflows/pr-automerge-dependabot.yml`, which merges Dependabot pull requests on its own
+  rules whatever `merge.authority` says.
+
+### The local babysit lane
+
+The babysit wrapper (`babysit_merge.py` in the source-control plugin) may merge without a human
+only when every read below allows it. Each read happens at one captured base SHA, and any read that fails counts as
+a refusal.
+
+- **Authority and identity.** `merge.authority` reads `local-babysit` and `merge.agent-identity`
+  names the login the lane acts as. The schema rejects `local-babysit` without an identity. The
+  identity is a GitHub App, so its actions never pass as a human's. With no `merge:` block the
+  rung is `off` and the wrapper merges nothing.
+- **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key in
+  `.claude/source-control.md`, the cap variable, and `off` while any demotion issue is open.
+- **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `C2` or `C3`) is a repository variable
+  only a human sets, and it can only lower the rung. The wrapper never writes it, and the identity
+  can read variables but not write them. A 404 after the variables listing proved readable means no
+  cap; any other failure means `off`.
+- **Kill switches.** The org variable `CLAUDE_LANES_DISABLED` and the repository variable
+  `CLAUDE_LANES_REPO_DISABLED` must each read exactly `false`. A read error, or a repository-level
+  variable named `CLAUDE_LANES_DISABLED` that shadows the org one, refuses.
+- **Demotion issue.** A failed post-merge check files an issue whose body starts with
+  `<!-- babysit-merge-demotion sha=<S> signal=<name> -->` and that carries the `needs-human` label.
+  It holds the rung at `off` until a human closes it directly. A close through a pull request's or
+  commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
+  force. The wrapper finds these issues by author (the agent identity or `github-actions[bot]`), so
+  removing the marker or the label does not clear one.
+- **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
+  and the diff risk score still decides. It counts only when a human added it last and the pull
+  request body was not edited afterwards.
+- **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
+  `merge.diff-check.denied-paths` and matched case-insensitively. A diff that touches any of them
+  scores HIGH and is never merged unattended.
+- **One merge in flight.** The wrapper refuses while the identity has an entry in the merge queue,
+  or while an earlier unattended merge has not passed its post-merge check.
+- **Dependabot.** A dependency-manager author is never eligible for an unattended merge. Those pull
+  requests stay with `pr-automerge-dependabot.yml`.
+
+A human here is a GitHub user, not the agent identity and not an automation login, with write or
+admin permission on the repository.
 
 ## Trust-root paths
 
@@ -389,7 +433,7 @@ Everything downstream of that human merge may propagate on its own.
 
 The lanes depend on pieces other repositories own. Each row names where that piece is documented;
 read it there, since this doc does not restate it. azure-iac, github-iac and architecture are
-private. As of 2026-10-10; recheck when a row's owner moves the doc or a new external piece joins
+private. As of 2026-10-12; recheck when a row's owner moves the doc or a new external piece joins
 the lanes.
 
 | Piece | Owner and doc |
@@ -399,6 +443,7 @@ the lanes.
 | Broker operations: health check, taking it down, key disable, key rotation, fallback to a runner key | Not yet tracked; [azure-iac#17](https://github.com/melodic-software/azure-iac/issues/17) adds the runbook to azure-iac |
 | Lanes App `melodic-automation-lanes`: identity and grant model | architecture `docs/trust-links.md` ("Lanes App"); github-iac ADR 0015 |
 | Org variables `CLAUDE_LANES_DISABLED`, `LANES_BROKER_URL`, `LANES_BROKER_AUDIENCE`; repository variable `CLAUDE_LANES_REPO_DISABLED` | github-iac `OrgCiRouting.cs`; README "Claude lane kill-switches" (how to flip either switch); [ADR 0015](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0015-oidc-token-broker-for-pr-pipeline-lane-app-tokens.md) |
+| Agent identity (`merge.agent-identity`): the GitHub App the local babysit lane acts as, installed on this repository only, with variables read only | Not yet provisioned; [github-iac#691](https://github.com/melodic-software/github-iac/issues/691) |
 | Repository variable `AUTOMATION_LANES_APP_SENDER_ID` | Set by hand on this repository and the sandbox, declared nowhere; [github-iac#677](https://github.com/melodic-software/github-iac/issues/677) |
 | `trust-root` ruleset, merge queues, code-owner review settings | github-iac `OrgRulesets.cs`; ADR 0015 Decision 5; [ADR 0007](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0007-no-required-approving-reviews.md). Its rollback is not yet tracked: [github-iac#677](https://github.com/melodic-software/github-iac/issues/677) |
 | Test repository | [`melodic-software/pr-pipeline-sandbox`](https://github.com/melodic-software/pr-pipeline-sandbox), whose README states its purpose |
