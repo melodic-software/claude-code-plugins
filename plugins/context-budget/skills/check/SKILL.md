@@ -11,7 +11,7 @@ metadata:
 
 Run the read-only check. Do not install Node.js, and do not download anything.
 
-We keep this skill model-invocable as the check while `setup` stays manual, because the invocation flag is set per skill, not per action.
+We keep this skill model-invocable as the check while `setup` stays manual.
 
 - **Pointer:** the `disable-model-invocation` field in [skills § Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
 - **As of:** 2026-10-11.
