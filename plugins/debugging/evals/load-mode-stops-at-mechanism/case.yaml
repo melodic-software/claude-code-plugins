@@ -1,0 +1,55 @@
+schema_version: "1.1"
+name: load-mode-stops-at-mechanism
+description: Load mode on a staging CPU profile names the formatter built on every call in src/pricing/format.js, edits nothing, and deletes its SQLite directory
+tags: [analyze-profile, load-mode]
+expected_outcome: The answer converts profiles/checkout.cpuprofile to SQLite in a temporary directory, finds formatPrice (5 of 7 samples) in src/pricing/format.js, reads the function and names the new Intl.NumberFormat built on every call at line 7 as the mechanism, with the caller path through renderLineItems. No source file changes, no fix is applied, and the temporary directory is removed at the end.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/debugging:analyze-profile profiles/checkout.cpuprofile. Checkout got slow after last week's release; this profile is all we have from staging. The source is in src/. What is eating the time?"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: converter-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'trace_to_sqlite\.py'
+    min: 1
+    arm: with-only
+  - name: temp-dir-removed
+    type: tool_used
+    tool: Bash
+    input_match: '\brm\s+(?:-[a-zA-Z]*r|-r)'
+    min: 1
+    arm: with-only
+  - name: names-file-and-line
+    type: regex
+    pattern: 'format\.js:(?:6|7)\b|format\.js[^\n]{0,60}\blines? (?:6|7)\b'
+    flags: i
+    arm: both
+  - name: names-the-mechanism
+    type: regex
+    pattern: 'Intl\.NumberFormat|NumberFormat'
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: source-unchanged
+    type: regex
+    pattern: '^  const formatter = new Intl\.NumberFormat\(locale, \{ style: "currency", currency \}\);$'
+    flags: m
+    target: { source: file, path: src/pricing/format.js }
+    arm: both
+  - name: stops-at-diagnosis
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer names the cause as a new Intl.NumberFormat being constructed on every formatPrice call (src/pricing/format.js, line 6 or 7), backs it with the profile's numbers (formatPrice holding most of the samples, reached through renderLineItems), applies no fix, and says the temporary SQLite files were deleted. FAIL if it edits code, offers a vague 'formatting is slow' without the per-call construction, or never mentions cleanup."
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:debugging:)?analyze-profile"'
+    arm: with-only

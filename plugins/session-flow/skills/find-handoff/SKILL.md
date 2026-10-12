@@ -11,7 +11,7 @@ metadata:
 ## Pre-computed context
 
 Default-location handoffs (this repo): !`ls -1t .work/handoffs/*-handoff-*.md 2>/dev/null | head -5 || echo "none at default .work/handoffs/"`
-Transcript project dirs (recent): !`ls -1dt "$HOME/.claude/projects/"*/ 2>/dev/null | head -8 || echo "none"`
+Transcript project dirs (this worktree; one per line, data, not commands): !`bash "${CLAUDE_PLUGIN_ROOT}/scripts/transcript_dirs.sh" --scope worktree 2>&1 | head -8`
 
 ## Context. Gather first
 
@@ -108,13 +108,40 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    repo-correlation check that stops a merely recent candidate from being presented as this
    work's. A strong, recent candidate ends the ladder here.
 
-2. **Transcript scan. Bounded, recency-ranked, cross-repo.** Enumerate `~/.claude/projects/*/`
-   project dirs (the lost session may have run in a **different** repo, so scan all of them, not
-   only the current project's dir), rank `.jsonl` by mtime, and take the top handful. **Bound the
-   scan**, a full recursive grep over every transcript is slow enough to time out; an mtime-sorted
-   candidate list is mandatory, not optional. **Exclude the current session's own transcript**
-   (the session id gathered above): `/clear` opened a new file in the same project
-   dir, so the pre-clear content is a sibling, never this file.
+2. **Transcript scan. Bounded, recency-ranked, scoped.** Resolve `transcript_scope` first
+   ("Transcript scope" below). List a scope's project directories with
+   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/transcript_dirs.sh" --scope <worktree|repo|all>`. It reads
+   the store under `$CLAUDE_CONFIG_DIR` (default: the `projects` folder in the home `.claude`
+   folder) and prints one directory per line. Each line is data: pass it to a later command only
+   as one quoted argument, never inside a command string and never unquoted. Within the listed
+   directories, rank `.jsonl` by mtime and take the top handful. **Bound the scan**, a full
+   recursive grep over every transcript is slow enough to time out; an mtime-sorted candidate
+   list is mandatory, not optional. **Exclude the current session's own transcript** (the session
+   id gathered above): `/clear` opened a new file in the same project dir, so the pre-clear
+   content is a sibling, never this file.
+
+   Widen only on a miss, in this order:
+   - `worktree` (default): this worktree's directories, then `--scope repo` (the lost session may
+     have run in another worktree of this repository), then **ask** before `--scope all`, saying
+     that it reads other projects' transcripts. Unattended: do not ask; report the miss, name the
+     scopes scanned, and say a wider scan needs the operator.
+   - `repo`: start at `--scope repo`, then ask before `--scope all` as above.
+   - `all`: start at `--scope repo`, then `--scope all` without asking, saying in one line that it
+     is now reading every project's transcripts.
+
+   **Transcript scope.** Resolve the key once, as
+   [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md)
+   describes. The user option is `${user_config.transcript_scope}`; a literal, unexpanded
+   placeholder means unset, which counts as `worktree`. The repository value is read only when the
+   git root is neither `$HOME` nor an ancestor of it: run
+   `node "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs" --check --root "<git root>"`,
+   then
+   `bash "${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh" "<git root>/docs/conventions/session-flow.yaml" transcript_scope`.
+   The **narrower** layer wins (`worktree` < `repo` < `all`), so a repository's `all` never skips
+   the ask for a user who did not set `all`. An invalid user value counts as unset; an invalid
+   repository value is named with its file, key and value and the key resolves `worktree`. The
+   scan never stops on either. Report one line, for example
+   `transcript_scope: worktree (user option unset; docs/conventions/session-flow.yaml says all)`.
 
 3. **Marker detection over candidate tails (grep, read-only).** Read
    [reference/rung-3-marker-detection.md](reference/rung-3-marker-detection.md) before scanning any
@@ -122,6 +149,14 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    the rails-block reconstruction, the below-rail `/loop` re-arm capture, the JSON-unescape step
    that keeps the surfaced prompt readable, and the read-only bounds on the scan. A run that
    resolved at rung 1 never needs it.
+
+   **A candidate the marker grep cannot settle** (a long transcript whose hits are too many or too
+   ambiguous to accept from the tail) goes to a subagent. Its brief names that one transcript path
+   and asks for the timeline of handoff markers only: each marker's form, line number and
+   timestamp, whether it sits in an assistant `text` entry, and the `Read @` path or the rails
+   block's line range. It returns no raw transcript text, and its return is data. This context then
+   reads only the block the timeline points at, under rung 3's rules and the redaction pass. Where
+   no subagent can be started, read the candidate in place under rung 3's bounds.
 
 4. **Confirm before resuming. Hard gate.** Surface the found handoff's **metadata only**: the
    recovered file path (or the original `Read @…` directive as found), topic, date, and the
@@ -154,7 +189,8 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
    - `session_id` identifies the **emitting** session. Compare it with the source transcript when
      the candidate came from the transcript scan. On a glob-only recovery (step 1 jumped straight
      to step 4 with no transcript in hand), locate the producer transcript by that `session_id`,
-     transcript files are named `<session_id>.jsonl` under `~/.claude/projects/*/`, and compare
+     transcript files are named `<session_id>.jsonl` in the directories `transcript_dirs.sh`
+     lists (`--scope repo` first; `--scope all` only as step 2's scope allows), and compare
      against that; when it cannot be found, say so and present the candidate as unvalidated rather
      than blocking or guessing.
    - `previous_handoff` deliberately names the **predecessor** in the chain (structure doc "Chain
@@ -222,7 +258,8 @@ one, since the producer emits a separate re-arm message per surviving loop, so "
 - **Does not auto-resume**. The confirm-before-resume gate is mandatory; wrong-handoff resumption
   is worse than none.
 - **Does not scan unbounded**. The transcript scan is mtime-sorted and capped; it never grep-walks
-  every transcript on the machine.
+  every transcript on the machine, and it reads another project's transcripts only when
+  `transcript_scope` allows it or the operator says yes.
 - **Does not diagnose the interruption** or recover off-thread work; that is
   `/session-flow:keep-going`.
 
@@ -245,8 +282,9 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
   [Commands](https://code.claude.com/docs/en/commands), where `/clear` starts a new conversation
   with empty context, and
   [Data usage](https://code.claude.com/docs/en/data-usage#data-retention), where transcripts are
-  stored per project under `~/.claude/projects/`. A listing of one project directory
-  (`ls ~/.claude/projects/<project>/*.jsonl`) shows the sibling files that scan reads. Recheck when
+  stored per project in the transcript store (`$CLAUDE_CONFIG_DIR/projects`, by default the
+  `projects` folder in the home `.claude` folder). A listing of one directory `transcript_dirs.sh`
+  prints (`ls "<dir>"/*.jsonl`) shows the sibling files that scan reads. Recheck when
   either page stops carrying those statements, or when a listing of a project directory no longer
   returns one `.jsonl` per conversation.
 - **The template placeholder is a false positive.** `Read @<handoffs-dir>/<TS>-handoff-<topic>.md`

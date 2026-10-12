@@ -62,7 +62,7 @@ Avoid: original source
 
 **secondary source**
 
-An account of a primary source rather than the source itself: the model-visible conversation after
+A description or summary standing in for a primary source: the model-visible conversation after
 compaction, a header comment describing code beneath it, another agent's summary. Usable, but a
 claim resting on one is verified against the primary before it ships.
 

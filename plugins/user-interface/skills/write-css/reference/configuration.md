@@ -1,9 +1,10 @@
 # Configuration
 
-Every `css` setting resolves through the plugin's five config layers and reaches this skill as
-`config.values`, with the layer behind each in `config.provenance`. The layer order, locations and
-merge rules belong to the resolver and the plugin README's Configuration section; keys and allowed
-values to `<plugin-root>/reference/team.schema.json`. Never name a layer path from memory.
+Every `css` and `animation` setting resolves through the plugin's five config layers and reaches
+this skill as `config.values`, with the layer behind each in `config.provenance`. The layer order,
+locations and merge rules belong to the resolver and the plugin README's Configuration section;
+keys and allowed values to `<plugin-root>/reference/team.schema.json`. Never name a layer path from
+memory.
 
 ## Settings
 
@@ -15,6 +16,8 @@ values to `<plugin-root>/reference/team.schema.json`. Never name a layer path fr
 | `css.important` | when `!important` may appear: `avoid`, `utilities-only`, `allow` | every layer; userConfig `css_important` |
 | `css.layer` | the layer new CSS goes in when the project has no layer system | every layer; userConfig `css_layer` |
 | `css.token_fallback` | what happens when no token matches: `ask`, `propose-token`, `literal` | every layer; userConfig `css_token_fallback` |
+| `animation.easing.*` | the `out`, `in_out` and `drawer` curves written when the project has no easing tokens | files only; shared with `/user-interface:write-animation` |
+| `animation.duration_ms.*` | the `press`, `small`, `medium` and `large` role limits the `duration` rule and the motion tokens use | files only; shared with `/user-interface:write-animation` |
 
 Per run, the skill's arguments vary the rest: `--target` (browser target), `--no-lint` (whether the
 bundled linter runs), `--show-suppressed` (whether config-suppressed findings are listed one by
