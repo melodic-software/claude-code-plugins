@@ -13,23 +13,26 @@ The assistant **cannot self-apply** the remediation, for two independent reasons
 [permission-rule-hygiene convention](../../../docs/conventions/permission-rule-hygiene/README.md)
 documents in full:
 
-- The auto-mode classifier routes any write to `.claude/` settings through itself, and no
-  `permissions.allow` rule pre-approves that write, so an agent cannot grant itself the widening.
-- A `permissions` block shipped in a plugin's `settings.json` is inert; a plugin `settings.json`
-  honors only the `agent` and `subagentStatusLine` keys.
+- Writes to `.claude/` settings fall under Claude Code's protected-path handling, so an agent
+  cannot grant itself the widening.
+- A `permissions` block shipped in a plugin's `settings.json` does not take effect, so a plugin
+  cannot ship the grant either.
+
+The work lanes also treat an auto-mode classifier denial as landing on the Bash tool call itself:
+the script never runs, so there is no exit code to read.
 
 ### The dated record for both claims
 
-Both are verified 2026-09-06 against Claude Code 2.1.263. The permission-modes page at
-`https://code.claude.com/docs/en/permission-modes#protected-paths` lists `.claude` as a protected
-path, states that protected-path writes are never auto-approved outside `bypassPermissions`, routes
-them to the classifier in auto mode, and states that `permissions.allow` rules in settings files do
-not pre-approve them. The same page states that the classifier reviews actions before they run, which
-is why a denial can land on the Bash tool call itself and produce no exit code. The plugin manifest
-reference at `https://code.claude.com/docs/en/plugins/manifest-reference#settings` (re-read 2026-10-07) states that only the `agent` and
-`subagentStatusLine` keys of a plugin's settings take effect. Recheck when either page stops carrying
-those statements, or when a release note names protected paths, the auto-mode classifier, or plugin
-`settings.json` keys.
+- **Pointer**: when checking whether an agent may write its own settings, fetch
+  [permission modes § Protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths)
+  live; when checking when the classifier reviews a call, fetch
+  [§ How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions)
+  live; when checking which plugin `settings.json` keys take effect, fetch
+  [plugins manifest reference § Settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: any of those sections changes, or a release note names protected paths, the
+  auto-mode classifier, or plugin `settings.json` keys.
 
 So the operative grants live **operator-side**, and the loop-start step only **detects and reports**
 the gap once, up front. It never edits settings, and never retries a permission/classifier denial
@@ -48,13 +51,19 @@ later, was NOT. At the time of writing, **neither** verb carries an explicit
 allow-list coverage gap of the kind this doc otherwise describes; it reads as the classifier's own
 heuristic judgment on the two commands.
 
-Whether adding an explicit allow rule for the `reclaim` invocation would bypass that judgment is an
-**open, unverified question** as of this writing. Official docs describe `permissions.allow` rules
-bypassing the classifier by default (`autoMode.classifyAllShell: false`), but also describe rules
-matching "arbitrary-code-execution patterns" as routed through the classifier regardless, without
-defining that pattern set precisely enough to say which side a script invocation (`work-item-tracker.sh
-reclaim <id>`) falls on. Do not write a rule into the standards floor on the strength of this doc
-alone; confirm the carve-out first. `/work-items:work`'s Step 0 treats a classifier denial of
+Whether adding an explicit allow rule for the `reclaim` invocation would bypass that judgment is
+**not settled by this doc**: it turns on which allow-rule shapes auto mode suspends and whether the
+`classifyAllShell` setting is on, and a script invocation (`work-item-tracker.sh reclaim <id>`)
+has to be checked against that live. Do not write a rule into the standards floor on the strength
+of this doc alone; confirm the carve-out first.
+
+- **Pointer**: before adding a `reclaim` allow rule, fetch
+  [settings reference § `autoMode.classifyAllShell`](https://code.claude.com/docs/en/settings-reference#automode-classifyallshell)
+  and [permission modes § How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions)
+  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes which allow rules auto
+  mode suspends, or a release note names `classifyAllShell`.
+
+`/work-items:work`'s Step 0 treats a classifier denial of
 `reclaim` as a non-blocking, report-once-and-skip condition (see
 `${CLAUDE_PLUGIN_ROOT}/skills/work/SKILL.md` "Step 0").
 That is the current mitigation; a permission-rule fix, if one applies, still lives operator-side per
@@ -75,8 +84,9 @@ What it covers, at a glance (read the component for the authoritative list):
   an unattended loop needs without prompting: `git add` / `commit` / non-force `push` /
   `checkout` / `switch`, and `gh` PR and issue CRUD including `gh pr create` and
   `gh issue comment`. Rules are the narrow bare-command shape (`Bash(git commit *)`, not
-  `Bash(git *)`) that survives auto mode; the broad interpreter-wildcard shapes are dropped on
-  entering auto mode and are the anti-pattern the convention above flags.
+  `Bash(git *)`) so they keep working under auto mode; broad wildcard shapes are the anti-pattern
+  the convention above flags. Which shapes auto mode sets aside is read live from the
+  `classifyAllShell` pointer under "A denial this preflight cannot catch" above.
 - **deny**: the destructive-verb safety floor (force-push, hard reset, `clean`, checkout/restore
   discards, forced branch deletion, `--no-verify` bypass), the `gh api` DELETE surface, hook-disable
   environment prefixes, and secret-material `Read()` patterns. Deny always wins over allow.
@@ -95,8 +105,10 @@ call, and the remedy is to add the open glob (`git push *`). A narrower, flag-sc
 verb means the floor is not composed in on this machine; the remediation is to apply the component
 operator-side, not to add a one-off rule.
 
-**Deny wins over allow.** Because `permissions.deny` overrides `permissions.allow` in the permission
-model, the check first tests each probed verb against the effective **deny** rules: a deny rule of
+**Deny wins over allow.** The check follows the permission model's rule precedence
+([permissions § Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions);
+**As of**: 2026-10-11; **Recheck trigger**: that section changes how deny and allow rules rank), so
+it first tests each probed verb against the effective **deny** rules: a deny rule of
 the verb (bare, or its open-glob form) keeps the verb a gap (reported distinctly as *denied*, not
 *missing*) even when an identical allow rule exists, since the lane still cannot run it. Deny matching
 deliberately errs **wider** than coverage. It also counts the bare-exact spelling, because a
@@ -106,14 +118,20 @@ wildcard spanning it) is not caught here. That conservatism never false-flags th
 floor, whose destructive-verb rules are flag-scoped (`git push --force …`) rather than the bare
 `git push` / `git commit` / `git add` shape.
 
-**`settings.local.json` scope on the autonomous path.** Since Claude Code v2.1.211, choosing
-"Yes, don't ask again" saves the rule to `.claude/settings.local.json` at the repository root,
-**resolved through worktrees to the main checkout**, and the rule applies to sessions anywhere in
-that repository, every linked worktree included, however the worktree was created
-([permissions](https://code.claude.com/docs/en/permissions#permission-system),
-[worktrees](https://code.claude.com/docs/en/worktrees); both fetched 2026-08-10; recheck when
-either page changes where "Yes, don't ask again" saves the rule or how it resolves through
-worktrees). The main
+**`settings.local.json` scope on the autonomous path.** The preflight treats the **main
+checkout's** `.claude/settings.local.json` as shared by the repository's linked worktrees, because
+that is where a "Yes, don't ask again" approval lands on the harness versions this plugin targets
+when Claude Code uses the repository root. It does not hold everywhere: on some platforms and
+layouts the approval stays with the worktree it was granted in, and the preflight does not detect
+that case (read which cases from the pointer below).
+
+- **Pointer**: when checking where a saved approval lands and which sessions it reaches, fetch
+  [permissions § Permission system](https://code.claude.com/docs/en/permissions#permission-system)
+  and [worktrees § What worktrees share with the main checkout](https://code.claude.com/docs/en/worktrees#what-worktrees-share-with-the-main-checkout)
+  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes where "Yes, don't ask
+  again" saves the rule, how it resolves through worktrees, or which cases keep it in the worktree.
+
+Where the shared save applies, the main
 checkout's local file is therefore part of a fresh worker worktree's effective settings, and the
 preflight reads it in **every** mode, but only once it has **verified** which directory that is.
 
@@ -146,7 +164,7 @@ Resolution has three outcomes, and the report distinguishes them:
   script is report-only and findings never fail the run.
 
 What a fresh worker does **not** inherit is a local file living inside some *other* linked
-worktree, such as a pre-2.1.211 save or a hand-placed file, which applies only to sessions started in
+worktree, such as a rule an older harness saved there or a hand-placed file, which applies only to sessions started in
 that worktree. Two cases:
 
 - **Pre-dispatch**: `--worktree-root` is passed but no distinct `--project-root` (the worker is not
@@ -162,12 +180,13 @@ that worktree. Two cases:
 
 **Two residual limits apply to BOTH modes above.**
 
-- **Pre-2.1.211 harness: MASKING.** There a worktree session loads its own local file, not the main
+- **Older harness: MASKING.** On a Claude Code version that predates the repository-wide save (the
+  pointer above names the version), a worktree session loads its own local file, not the main
   checkout's, so crediting a main-local-only grant suppresses a gap the worker really hits. Nothing
   in the preflight detects it: it never probes the running Claude Code version. This is a floor on
-  the *harness*, not on the repository layout, so wherever the installed Claude Code is v2.1.211 or
-  later it is a documentation-completeness matter rather than a live defect (v2.1.222 on the machine
-  this was verified against).
+  the *harness*, not on the repository layout, so wherever the installed Claude Code saves
+  repository-wide it is a documentation-completeness matter rather than a live defect.
+  Observation: the machine this was verified against ran v2.1.222.
 - **`--separate-git-dir` is ambiguous in git itself. It is NOT a preflight defect, and not maskable
   in silence.** For a repository created with `--separate-git-dir <path>/.git`, the main working tree is
   the directory holding the `.git` *file*, but git records no back-pointer to it. A recursive search
@@ -196,16 +215,31 @@ rather than absorbed.
 
 ## The trusted worktree root: `additionalDirectories`
 
-`acceptEdits` auto-approves writes only inside the workspace root; it never auto-approves a write
-**outside** it. The autonomous lanes dispatch implementation subagents into their own out-of-tree
+The lanes rely on `acceptEdits` only for writes inside the workspace root and treat any write
+**outside** it as one that prompts.
+
+- **Pointer**: when checking which writes `acceptEdits` approves, fetch
+  [permission modes § Auto-approve file edits with acceptEdits mode](https://code.claude.com/docs/en/permission-modes#auto-approve-file-edits-with-acceptedits-mode)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes the scope of writes
+  `acceptEdits` approves, or a release note names `acceptEdits`.
+
+The autonomous lanes dispatch implementation subagents into their own out-of-tree
 worktrees (lifecycle owned by `source-control:worktree`), so every edit in a worktree is an
 out-of-workspace write that prompts unless the worktree root is registered as a trusted directory
 via `permissions.additionalDirectories`.
 
-The fleet convention is a dedicated worktree root **sibling to the repo**, not the OS temp dir: a
-`.worktrees/`-style directory (`source-control:worktree` creates worktrees under Claude Code's
-default sibling layout; `babysit-prs` defaults its `babysit_worktree_root` to the `worktrees`
-subdirectory of the plugin data directory). The exact root is operator-configurable and not yet a
+The fleet convention is a dedicated worktree root **outside the repo**, not the OS temp dir
+(`source-control:worktree` places worktrees under its configured external root rather than Claude
+Code's default worktree location; `babysit-prs` defaults its `babysit_worktree_root` to the
+`worktrees` subdirectory of the plugin data directory).
+
+- **Pointer**: when comparing the fleet root with Claude Code's own placement, fetch
+  [worktrees § Start Claude in a worktree](https://code.claude.com/docs/en/worktrees#start-claude-in-a-worktree)
+  and [§ Replace worktree creation with a hook](https://code.claude.com/docs/en/worktrees#replace-worktree-creation-with-a-hook)
+  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes where worktrees are
+  created by default, or a release note names worktree placement.
+
+The exact root is operator-configurable and not yet a
 single documented constant across the fleet (the interim loop stopgap trusts `~/.claude-loop-worktrees`),
 so the preflight checks **coverage of whatever root the lane is configured to use**. It does not
 hardcode a path. Register that root once, operator-side:

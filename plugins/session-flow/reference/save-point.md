@@ -459,14 +459,18 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   The loop would stop doing its actual recurring job. So the rails block stays exactly what it is on
   every other path (the resume directive, unwrapped, bootstrapping the continuation once), and the
   note below the bottom rail reads: "this session was running under `/loop`; after pasting the block
-  above, send `/loop [<interval>] <original prompt>` as a separate message to re-arm it", quoting
+  above, list this session's scheduled tasks, and only if this loop is not among them, send
+  `/loop [<interval>] <original prompt>` as a separate message to re-arm it", quoting
   the interval and the prompt verbatim from the launch turn, self-paced meaning no interval token,
   and listing one such message per surviving loop, since a command is recognized only at a message's
   start and two cannot share one. Order matters and is stated in the note: bootstrap first, re-arm
   second, because the re-armed loop's own first iteration must not run before the continuation it is
-  resuming into. When no launch-turn signal is found, say instead: "if a loop was active, re-arm it
-  with `/loop [<interval>] <the prompt you originally launched it with>` after pasting the block
-  above."
+  resuming into. When no launch-turn signal is found, say instead: "if a loop was active and is not
+  among this session's scheduled tasks after pasting the block above, re-arm it with
+  `/loop [<interval>] <the prompt you originally launched it with>`." The list-first step holds on
+  every path, `/clear`-and-paste and `claude --resume` alike: which tasks a resume restores is
+  upstream behavior (pointer: the Limitations link above), so the note never assumes a loop died or
+  survived, and re-arming one that came back would schedule it twice.
 
   **Delimit the re-arm entries; a verbatim prompt can be several lines long.** The prompt is quoted
   exactly as the operator typed it, and a message can carry newlines, so an entry is not reliably
@@ -503,7 +507,8 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   exactly the fallbacks that do clear. Word the note conditionally instead, so it is correct
   whichever way delivery resolves: "this session was running under `/loop`. **If you paste this
   block after `/clear`** (including the fallback when a background launch is refused or fails),
-  send `/loop [<interval>] <original prompt>` as a separate message afterwards to re-arm it; a
+  list this session's scheduled tasks, and only if this loop is not among them, send
+  `/loop [<interval>] <original prompt>` as a separate message afterwards to re-arm it; a
   background launch that succeeds clears nothing, so the loop keeps running here and needs no
   re-arm." Transferring the loop INTO the launched agent is deliberately not done: that would arm a
   recurring schedule inside a detached session the operator is not watching, which is a new
@@ -682,8 +687,8 @@ directive names, which the added clause leaves untouched.
 `<UUID>` = this session's `$CLAUDE_CODE_SESSION_ID` (the frontmatter `session_id`). It lets a
 fresh session or `/session-flow:retro` chain-walker locate the transcript later, and it is the id
 the below-rail `claude --resume <UUID>` line reopens. On the full path the script refuses a
-missing or non-UUID value (a bridge session's `cse_…` id, never read from
-`CLAUDE_CODE_BRIDGE_SESSION_ID`); the save-point then takes the prompt-only path with the reason
+missing or non-UUID value (such as a Remote Control bridge id; `CLAUDE_CODE_BRIDGE_SESSION_ID`
+is never read); the save-point then takes the prompt-only path with the reason
 stated ("no session UUID available; chain gap accepted"), never a hand-written shape-2 file.
 
 After the rails prompt is emitted, control returns to the citing skill's delivery step.

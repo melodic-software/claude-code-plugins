@@ -276,12 +276,13 @@ ip_discover_nested_instructions() {
 # it up to <root>. One walk, shared by the reachability verdict and the wiring
 # gate, so the two cannot disagree about the same tree.
 #
-# All three count at EVERY level: the memory page counts "a CLAUDE.md,
-# .claude/CLAUDE.md, or CLAUDE.local.md in your working directory or any
-# directory above it", and fires the nested attach only where a subdirectory
-# "has none of the three CLAUDE.md files of its own"
-# (code.claude.com/docs/en/memory, "When Claude Code reads AGENTS.md"; fetched
-# 2026-09-19; recheck when that list changes).
+# All three count at EVERY level, for the root check and for a nested attach
+# alike: this walk treats them the same way at each directory.
+#   Pointer: when deciding which file names count and at which levels, fetch
+#     https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md live.
+#   As of: 2026-10-11.
+#   Recheck trigger: that section changes which file names count, or where the
+#     nested attach checks for them.
 #
 # Paths are emitted rooted at <root>, existing files only.
 # ---------------------------------------------------------------------------
@@ -338,8 +339,13 @@ _ip_imports_of() {
   done
 }
 
-# Depth-bounded walk of the import graph. Upstream caps imports at four hops, so
-# a file reachable only past that depth is genuinely not loaded.
+# Depth-bounded walk of the import graph: a file reachable only past the
+# import depth limit is treated as not loaded. The bound below is a run-time
+# value and stays here.
+#   Pointer: when deciding the import depth limit, fetch
+#     https://code.claude.com/docs/en/memory#import-additional-files live.
+#   As of: 2026-10-11.
+#   Recheck trigger: that section changes the maximum import depth.
 _ip_reaches() {
   local from="$1" want="$2" depth="${3:-0}"
   [[ -f "$from" ]] || return 1

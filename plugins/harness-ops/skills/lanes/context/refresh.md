@@ -17,34 +17,34 @@ handles built-in commands.
 
 1. **A running session keeps its launch-time plugin versions.** Merging to the
    marketplace source does nothing to a live session until the local install is
-   updated; Claude Code's post-start auto-update runs once (random delay ≤ 10 min)
-   and "The running session keeps the versions it loaded"
-   ([When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs), read 2026-10-07; recheck when that section says a running session picks
-   up an updated plugin).
+   updated, and we treat a post-start auto-update as never reaching the running
+   session either.
+   - **Pointer**: when stating when auto-update runs or what a running session keeps,
+     fetch [plugins loading: when auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs)
+     live. **As of**: 2026-10-11. **Recheck trigger**: that section says a running
+     session picks up an updated plugin.
 
-2. **`/loop` does not re-read the skill each cycle.** A rendered `SKILL.md` enters
-   the conversation once and "stays there for the rest of the session … Claude Code
-   does not re-read the skill file on later turns"; an identical re-invocation gets
-   an "already loaded" note, not a fresh read from disk
-   ([skills: Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)).
-   So even an updated on-disk copy is never re-injected into the running loop.
+2. **`/loop` does not re-read the skill each cycle.** We treat a rendered `SKILL.md`
+   as entering the conversation once, so even an updated on-disk copy is never
+   re-injected into the running loop.
+   - **Pointer**: when checking how long skill content stays and what a repeat
+     invocation gets, fetch [skills: skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)
+     live. **As of**: 2026-10-11. **Recheck trigger**: that section says the skill
+     file is re-read on later turns.
 
-3. **A loop can't reload itself.** `/reload-plugins` is a built-in command; a
-   scheduled/loop fire delivers built-in commands to Claude "as plain text instead
-   of executing" them, so a lane cannot self-trigger a reload mid-run
-   ([scheduled-tasks](https://code.claude.com/docs/en/scheduled-tasks)).
+3. **A loop can't reload itself.** `/reload-plugins` is a built-in command, and we
+   treat a scheduled or loop fire as unable to execute one, so a lane cannot
+   self-trigger a reload mid-run.
+   - **Pointer**: when checking what a scheduled fire does with a built-in command,
+     fetch [scheduled tasks: run a prompt repeatedly with /loop](https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-/loop)
+     live. **As of**: 2026-10-11. **Recheck trigger**: that section stops listing
+     built-in commands among what a fire does not execute.
 
-`/reload-plugins` also runs in sessions without an interactive terminal, such as the
-desktop app, the Agent SDK, and non-interactive mode with `-p`, when it is typed into
-the session directly. Requires Claude Code v2.1.260 or later. In those sessions the
-reload applies everything except plugin MCP server changes, which take effect in the
-next session.
-**Claim, basis, as of, recheck:** that sentence,
-[prompt caching](https://code.claude.com/docs/en/prompt-caching) (the `/reload-plugins`
-paragraph), 2026-09-28, and a re-fetch of that paragraph that drops headless `-p` and
-SDK sessions. Reaching into a loop whose skill body is already fixed in context, or a
-scheduled fire that delivers built-in commands as plain text, is a different fact and
-is fact 3 above. That reach was not probed.
+`/reload-plugins` typed directly into a session without an interactive terminal is a
+different fact; `plugins` `context/scope-semantics.md` ("Headless sessions can run it")
+holds its pointer record. Reaching into a loop whose skill body is already fixed in
+context, or a scheduled fire that delivers built-in commands as plain text, is fact 3
+above. That reach was not probed.
 
 **Conclusion:** restart is the honest mechanism. It also resets context bloat
 (composes with the restart discipline), so the live decision is restart

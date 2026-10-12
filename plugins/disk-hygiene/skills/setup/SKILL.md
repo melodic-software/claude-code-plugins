@@ -46,8 +46,9 @@ stubbed `python3` alongside a working `python` or `py -3`: the launcher skips th
 guard launches, and that is a WARN (see step 2), not a failure to downgrade.
 Launching the version probe proves only that something executes, not that it can run
 the guard's own source: Python 3.6, for example, rejects the guard's
-`from __future__ import annotations` and exits without a deny, which PreToolUse treats as
-non-blocking, the same silent fail-open through a different door. Unproven guard execution
+`from __future__ import annotations` and exits without a deny, the same silent fail-open through a
+different door ([Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes), as of
+2026-10-11; recheck when that section changes what a `PreToolUse` exit other than 0 or 2 does). Unproven guard execution
 fails closed like every other guard-relevant unknown in this plugin.
 
 1. **Node exec-form launcher registration**. All three registrations (both wired hooks in
@@ -55,15 +56,15 @@ fails closed like every other guard-relevant unknown in this plugin.
    `command` to `node` and put `hooks/exec-bash.mjs`, then `hooks/run-python-hook.sh` and that
    script's arguments, in `args`. `node` resolves to `node.exe`. FAIL if `command` is bare `bash`,
    `sh`, or `python3`, or if the script path is `command` with no `args`: on Windows bare `bash` is
-   the WSL relay and a `.sh` path is not a spawnable executable, the launch fails, and a failed hook
-   launch is non-blocking, so the guard silently enforces nothing. Also FAIL if `exec-bash.mjs` or
-   the launcher is missing.
-   Claim: exec form spawns `command` as an executable with `args` and no shell, and on Windows
-   `command` must be a real executable such as `node.exe`.
-   Basis: `https://code.claude.com/docs/en/hooks`, "Exec form and shell form".
-   As of: 2026-09-28.
-   Recheck: that page changes the Windows executable sentence, or stops ignoring `shell` when
-   `args` is set.
+   the WSL relay and a `.sh` path is not a spawnable executable, so the guard cannot start; this
+   plugin treats a guard that cannot start as enforcing nothing (what a failed launch does to the
+   call: the pointer below). Also FAIL if
+   `exec-bash.mjs` or the launcher is missing.
+   - **Pointer**: when checking how exec form spawns `command`, or what a hook that fails to start
+     does to the call, fetch [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)
+     and [Block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails)
+     live. **As of**: 2026-10-11. **Recheck trigger**: either section changes what Windows needs
+     in `command`, how `shell` and `args` interact, or the default outcome of a failed launch.
 
    **`node` and bash**, probed with the Bash tool, not through the launcher. FAIL if
    `command -v node` finds nothing: every guard and detector row runs `node`, so none launches and no guard
@@ -72,15 +73,16 @@ fails closed like every other guard-relevant unknown in this plugin.
    Windows the remediation is either `CLAUDE_CODE_GIT_BASH_PATH`, a Git for Windows install, or a
    `bash.exe` on `PATH` outside `System32`, `Sysnative` and `WindowsApps`; elsewhere, a `bash` on
    `PATH`. Both FAILs stay FAIL with the toggle disabled, like the interpreter ladder. State the
-   consequence in the remediation: the hook fails to launch, the user sees a hook error notice, the
-   guard is not enforced, the call proceeds, and the model is not told. A missing `node` cannot be
-   reported by the launcher or the Stop detector, which both need `node` to start.
-   Claim: Claude Code's native binary does not ship or invoke Node, so `node` on `PATH` is a
-   separate prerequisite.
-   Basis: `https://code.claude.com/docs/en/setup`, fetched 2026-09-29.
-   As of: 2026-09-29.
-   Recheck: that page lists Node as bundled or required, or `hooks/hooks.json` stops using `node`
-   as `command`.
+   consequence in the remediation: the hook fails to launch, the guard is not enforced, and the call
+   proceeds; what the user and the model see then is in the Other exit codes record below. A missing `node` cannot be
+   reported by the launcher or the Stop detector, which both need `node` to start. `node` on
+   `PATH` is a prerequisite separate from Claude Code itself.
+   - **Pointer**: when checking whether Claude Code ships or needs Node, fetch
+     [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live; for the
+     failed-launch notice, [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes).
+     **As of**: 2026-10-11. **Recheck trigger**: the setup page lists Node as bundled or required,
+     the hooks section changes what a failed launch shows, or `hooks/hooks.json` stops using
+     `node` as `command`.
 2. **Python floor on `PATH`**. The interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
    that acts only on engine-referencing commands, and the skill-frontmatter belt that

@@ -83,13 +83,17 @@ directly, but the contract's join stays the Pillar 2 attribute. Interactive cont
 contract does not promise inbound trace joining for an interactive session, which
 deliberately ignores ambient context.
 
-**Native trace-context joining, dated record.** *Claim:* relying on native inbound trace context
-was evaluated on 2026-09-25 and not adopted. The agent surface the setup skill wires reads inbound
-trace context only in its headless and SDK sessions; its interactive sessions ignore it, and its
-tracing is beta and off by default. So the contract keeps the Pillar 2 attribute join as its join.
-*Basis:* the setup skill's agent-session wiring records "Inbound trace context in headless
-sessions" and "Traces stay beta", whose vendor page was re-read as raw markdown on 2026-09-25.
-*Verified:* 2026-09-25. *Recheck trigger:* either of those records' recheck triggers fires.
+**Native trace-context joining, dated record.** Relying on native inbound trace context was
+evaluated on 2026-09-25 and not adopted: the contract keeps the Pillar 2 attribute join as its
+join, because native joining does not cover every session kind the contract serves.
+
+- **Pointer**: when re-deciding, read the setup skill's agent-session wiring records
+  [Inbound trace context in headless sessions](../skills/setup/context/agent-session-telemetry.md#inbound-trace-context-in-headless-sessions)
+  and [Traces stay beta](../skills/setup/context/agent-session-telemetry.md#traces-stay-beta), and
+  fetch the sections they name live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either of those records' recheck triggers fires, or either linked heading is
+  renamed or removed.
 
 ## Sink binding: out of contract
 
