@@ -105,7 +105,7 @@ mode). The tool has its own, lower cap (500 characters on 2.1.285, per
 (the tool expands tabs before it counts, so the raw count would understate it). The paste-ready line above is
 emitted either way.
 
-Note for the user: `/goal` holds for the current session only. A goal survives `--resume` / `--continue` (though its turn count, timer, and token baseline reset), but running `/clear` removes it. So the goal must be re-set after any `/clear`.
+Note for the user: `/goal` holds for the current session only. Tell the user what a resume carries over and what `/clear` does to an active goal, taken from the "Resume with an active goal" and "Clear a goal" sections of the page Step 1 fetched (record in [reference/native-goal.md](reference/native-goal.md)), and that a goal the page says is removed must be re-set.
 
 ## Boundary, the built-in `/goal` command and `ProposeGoal` tool
 

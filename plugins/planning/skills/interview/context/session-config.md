@@ -126,18 +126,21 @@ one, and never a guessed-from-memory model name.
 
 The skill knows its own main model, stated in the system prompt. It reads effort from
 `${CLAUDE_EFFORT}` in its body, or from `CLAUDE_EFFORT` in a Bash subprocess, and treats an absent
-value as a model without effort support rather than an unset level. It knows of no surface that
-reads the configured advisor back, so it treats advisor state as unknown.
+value as a model without effort support rather than an unset level. The user can check the
+configured advisor with the `/advisor` command, but the skill has no way to read it from inside its
+own session, so it treats advisor state as unknown and may suggest the user check it.
 
 - **Pointer**: for the effort values, see
   <https://code.claude.com/docs/en/skills#available-string-substitutions> and
-  <https://code.claude.com/docs/en/env-vars#variables>; for choosing and disabling the advisor,
-  see <https://code.claude.com/docs/en/advisor#enable-the-advisor> and
+  <https://code.claude.com/docs/en/env-vars#variables>; for choosing, checking and disabling the
+  advisor, see <https://code.claude.com/docs/en/advisor#enable-the-advisor>,
+  <https://code.claude.com/docs/en/advisor#use-the-advisor-command> and
   <https://code.claude.com/docs/en/advisor#turn-the-advisor-off>.
-- **As of**: 2026-09-06
-- **Recheck trigger**: the skills page drops the `${CLAUDE_EFFORT}` substitution row, a surface for
-  reading the configured advisor appears on the advisor or environment-variables page, or a
-  release note names either.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the skills page drops the `${CLAUDE_EFFORT}` substitution row, the advisor
+  or environment-variables page adds a way for a session itself (not the user's `/advisor`
+  command) to read the configured advisor, the "Use the `/advisor` command" section changes what
+  a bare `/advisor` shows, or a release note names either.
 
 So split the framing. Where effort is readable, say what it is and recommend from there. Where
 advisor state is not, frame the recommendation as a delta the user applies rather than a fact about

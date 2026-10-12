@@ -6,7 +6,7 @@ Failure patterns from real sessions. Loaded on demand from `/planning:interview`
 
 - **Dependent question in its prerequisite's round:** a question whose framing depends on another question still open in the same round forces the user to guess or answer out of order. Sloppy frontier computation; the dependent question belongs to a later round.
 
-- **`AskUserQuestion` without the opt-in, or beyond its cap:** the card surface requires the `use_ask_user_question` user config AND a round of ≤4 mutually independent questions. Prose otherwise; when in doubt, prose.
+- **`AskUserQuestion` without the opt-in, or beyond its cap:** the card surface requires the `use_ask_user_question` user config AND a round of mutually independent questions that fits one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>, as of 2026-10-11; recheck when that section changes the per-call question limit). Prose otherwise; when in doubt, prose.
 
 - **Silently resolving an unanswered round question to its recommendation:** a partial reply resolves only what was answered; the rest stays OPEN and re-surfaces next round. Only an explicit accept-shorthand ("accept all recommendations") resolves unanswered questions.
 
