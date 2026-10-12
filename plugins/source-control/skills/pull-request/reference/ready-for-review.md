@@ -23,6 +23,13 @@ Already out of draft (the PR's draft flag reads `false`;
 [GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#read-the-draft-flag)): the
 flip is done, so run 2.5.2 and 2.5.3 and skip 2.5.4 and 2.5.5.
 
+Still a draft: refuse a held or superseded one before touching the branch
+([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-for-a-hold)).
+Held means a `do-not-merge` label, a body that says "do not merge" or has a line starting `Hold:`,
+or a WIP marker in the title; superseded means an issue the PR closes is already closed. On either,
+or when the check cannot read the PR, leave it in draft, report each reason, and stop. Lifting a
+hold is for whoever set it, never this phase.
+
 ## 2.5.2 Refresh the base with a merge
 
 Read the PR's base branch into `BASE`, resolve `REMOTE` with `resolve-remote.sh`, have the forge
