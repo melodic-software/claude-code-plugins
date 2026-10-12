@@ -893,6 +893,35 @@ class TestDirRequired(unittest.TestCase):
         self.assertIn("--dir", p.stderr)
 
 
+class TestInputFiles(DirCase):
+    """DX-2: a missing or malformed input file is a one-line refusal, never a traceback."""
+
+    def check(self, *args):
+        rc, out, err = self.rp(*args)
+        self.assertEqual(rc, 1, out + err)
+        self.assertNotIn("Traceback", err)
+        self.assertIn("refused: cannot read", err)
+
+    def test_missing_files_refuse_cleanly(self):
+        gone = str(self.tmp / "missing.json")
+        for args in (
+            ("add", "--file", gone),
+            ("add-round", "--file", gone),
+            ("import-ledger", "--ledger", gone),
+            ("doctor", "--ledger", gone),
+            ("sync-ledger", "--ledger", gone),
+        ):
+            with self.subTest(args=args):
+                self.check(*args)
+
+    def test_malformed_json_refuses_cleanly(self):
+        bad = self.tmp / "bad.json"
+        bad.write_text("# not json\n", encoding="utf-8")
+        for cmd in ("add", "add-round"):
+            with self.subTest(cmd=cmd):
+                self.check(cmd, "--file", str(bad))
+
+
 class TestApply(DirCase):
     """AC10, AC9: one atomic write for a list of ops."""
 
@@ -944,6 +973,31 @@ class TestApply(DirCase):
         self.assertEqual(self.q("Q1")["history"][-1]["replyTo"], 1)
         self.assertIn("reply: replied on Q1", out)
         self.assertIn("handle: handled 2", out)
+
+    def test_a_rerun_wake_applies_the_ops_file_once(self):
+        """DX-1: apply consumes ops.json, so re-running the watcher's next adds no duplicate reply."""
+        path = self.file(
+            "ops.json", {"ops": [{"op": "reply", "id": "Q1", "text": "Once."}]}
+        )
+        rc, out, err = self.rp("apply", "--file", path)
+        self.assertEqual(rc, 0, out + err)
+        self.assertFalse(
+            Path(path).exists(), "a successful apply leaves ops.json behind"
+        )
+        rev = self.doc()["rev"]
+        rc, out, err = self.rp("apply", "--file", path)
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("nothing to apply", out)
+        self.assertEqual(self.doc()["rev"], rev)
+        texts = [h.get("text") for h in self.q("Q1").get("history", [])]
+        self.assertEqual(texts.count("Once."), 1, texts)
+
+    def test_a_refused_apply_keeps_the_ops_file(self):
+        path = self.file(
+            "ops.json", {"ops": [{"op": "reply", "id": "Q9", "text": "x"}]}
+        )
+        self.assert_refused("apply", "--file", path)
+        self.assertTrue(Path(path).exists())
 
     def test_only_a_reply_line_carries_a_reply_kind(self):
         ops = {

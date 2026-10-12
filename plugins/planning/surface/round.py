@@ -1243,8 +1243,18 @@ def op_add_round_linted(d, doc, a):
     return result
 
 
+def read_input(path, kind, as_json=False, newline=None):
+    """Read an input file named on the command line; refuse cleanly when it is missing or malformed."""
+    try:
+        with open(path, encoding="utf-8", newline=newline) as f:
+            text = f.read()
+        return json.loads(text) if as_json else text
+    except (OSError, ValueError) as e:
+        sys.exit(f"refused: cannot read {kind} {path}: {e}")
+
+
 def cmd_add(d, a):
-    q = json.loads(Path(a.file).read_text(encoding="utf-8")) if a.file else {}
+    q = read_input(a.file, "question file", as_json=True) if a.file else {}
     for field in (
         "id",
         "group",
@@ -1276,7 +1286,7 @@ def cmd_add(d, a):
 
 
 def cmd_add_round(d, a):
-    spec = json.loads(Path(a.file).read_text(encoding="utf-8"))
+    spec = read_input(a.file, "round file", as_json=True)
     a.meta, a.groups, a.questions, a.visuals = (
         spec.get("meta"),
         spec.get("groups"),
@@ -1374,7 +1384,13 @@ def unhandled_events(doc, r):
 
 
 def cmd_apply(d, a):
-    """Every op against one loaded document, one validated write; any refusal writes nothing."""
+    """Every op against one loaded document, one validated write; any refusal writes nothing.
+
+    A successful write removes the ops file, so a re-run wake applies nothing twice; no file is a no-op.
+    """
+    if not Path(a.file).exists():
+        print(f"nothing to apply: no {a.file}")
+        return
     try:
         spec = json.loads(Path(a.file).read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
@@ -1429,6 +1445,7 @@ def cmd_apply(d, a):
             if op["op"] not in ("add", "add-round", "meta"):
                 warn_bare_issue_refs(doc, f"{op['op']} op", op)
         save(d, doc, touched)
+    Path(a.file).unlink(missing_ok=True)
     for line in lines:
         print(line)
     print(f"applied {len(lines)} ops (rev {doc['rev']})")
@@ -1559,7 +1576,7 @@ LEDGER_VERSION = re.compile(r"^Planning version: *(\d+\.\d+\.\d+\S*)", re.M)
 def cmd_doctor(d, a):
     """Report what the running version needs and the ledger or page lacks; write nothing. Exit 1 on any missing element."""
     running = plugin_version() or "unknown"
-    text = Path(a.ledger).read_text(encoding="utf-8")
+    text = read_input(a.ledger, "ledger")
     missing = [
         f"{a.ledger} has no `{heading}` section"
         for heading in ("## Constraint ledger", "## Open-question register")
@@ -1640,7 +1657,7 @@ def write_text(path, text):
 
 def cmd_export(d, a):
     if a.what == "brief":
-        ledger = Path(a.ledger).read_text(encoding="utf-8") if a.ledger else None
+        ledger = read_input(a.ledger, "ledger") if a.ledger else None
         text = exporters.export_brief(d, ledger)
     else:
         text = exporters.export_report(d)
@@ -1659,7 +1676,7 @@ def report_notes(notes, kinds):
 
 def cmd_export_ledger(d, a):
     if a.diff:
-        text = Path(a.diff).read_text(encoding="utf-8")
+        text = read_input(a.diff, "ledger")
         report_notes(
             exporters.merged_register(d, text)[2], ("change", "conflict", "kept")
         )
@@ -1667,7 +1684,7 @@ def cmd_export_ledger(d, a):
         return
     if not a.out:
         sys.exit("export-ledger needs --out (or --diff LEDGER)")
-    text = Path(a.ledger).read_text(encoding="utf-8") if a.ledger else None
+    text = read_input(a.ledger, "ledger") if a.ledger else None
     write_text(a.out, exporters.export_ledger(d, text))
     print(f"wrote {a.out}")
     if text is not None:
@@ -1677,8 +1694,9 @@ def cmd_export_ledger(d, a):
 def cmd_sync_ledger(d, a):
     path = Path(a.ledger)
     # Read untranslated so a CRLF ledger keeps its line endings.
-    with open(path, encoding="utf-8", newline="") as f:
-        text, notes = exporters.sync_ledger(d, f.read(), a.ledger)
+    text, notes = exporters.sync_ledger(
+        d, read_input(path, "ledger", newline=""), a.ledger
+    )
     tmp = path.with_name(f".{path.name}.sync")
     write_text(tmp, text)
     os.replace(tmp, path)
@@ -1687,7 +1705,7 @@ def cmd_sync_ledger(d, a):
 
 
 def cmd_import_ledger(d, a):
-    text = Path(a.ledger).read_text(encoding="utf-8")
+    text = read_input(a.ledger, "ledger")
     with sidecar_lock(d):
         doc = load(d)
         if doc["questions"]:
