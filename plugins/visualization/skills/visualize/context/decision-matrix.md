@@ -28,8 +28,9 @@ against those sources before relying on a time-sensitive detail; the platform mo
   runtime). Our read of the installed Claude Code 2.1.260 binary found the publish
   path injecting `/_runtime/mermaid-11.16.1.min.js` into the page. Re-read the installed
   binary before relying on the number.
-  - **Pointer**: probe: the binary string read recorded in
-    <https://github.com/melodic-software/claude-code-plugins/pull/3729>.
+  - **Pointer**: probe: `grep -a '/_runtime/mermaid-'` over the installed Claude Code
+    binary, recorded in
+    <https://github.com/melodic-software/claude-code-plugins/pull/3729#issuecomment-5546567555>.
   - **As of**: 2026-09-04
   - **Recheck trigger**: the artifacts page or the changelog names the runtime, a
     mermaid-family rendering failure is reported, or this plugin releases.
