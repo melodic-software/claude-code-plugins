@@ -40,9 +40,9 @@ Filled instance for the repository in use as of 2026-07-25.
   operations reference, loaded by `reference/tracker-seam.md` and
   `skills/work/SKILL.md`. Re-run the listing rather than reusing a count; it
   moves with every plugin added.
-- Merge rung: `c2-mechanical`, live in tracked config on `main`, lowered from
-  `c3-autonomous` because unattended auto-merge launches at C2 only (#6202,
-  "Amendment (auto-merge-safe-prs)"; see "Tier is not the rung" below).
+- Merge rung: `c2-mechanical`, live in tracked config on `main`, because
+  unattended auto-merge launches at C2 only (#6202, "Amendment
+  (auto-merge-safe-prs)"; see "Tier is not the rung" below).
   Effective rung today: human-only, until the promotion-evidence seam
   (#4588) returns a qualified read and the copy-blocks drop
   `--merge human-only`.
@@ -96,13 +96,10 @@ overnight without me":
 
 - **Tier `autopilot`**: in the prompt below. Already maximal.
 - **Merge rung**: one line in `.claude/source-control.md` on `main`.
-  Now `c2-mechanical`: it was raised to `c3-autonomous` on 2026-07-27 (the
-  matrix's **C3 auto-merge cell with an evidence predicate**, closes #1646,
-  superseding #1388's "stay at `c2-mechanical`" decision) and lowered again
-  because unattended auto-merge launches at C2 only (#6202, "Amendment
-  (auto-merge-safe-prs)", item 22). The path stays the one #1388 prescribed:
-  amend the guardrail contract first, then flip the tracked config. Never the
-  reverse.
+  Now `c2-mechanical`, because unattended auto-merge launches at C2 only
+  (#6202, "Amendment (auto-merge-safe-prs)", item 22). A raise follows the
+  path #1388 prescribed: amend the guardrail contract first, then flip the
+  tracked config. Never the reverse.
 
 `full-autonomy` as a rung **adds nothing over `c3-autonomous`**. C4
 `structural` and C5 `untrusted-provenance`, meaning refactors, migrations,
@@ -285,8 +282,8 @@ machines; neither on the attended box.
 ### Merge lane, any machine except the attended one
 
 **`--merge human-only` is deliberate here, and stays until #1695 lands.**
-This repository's tracked config resolves `c2-mechanical` (lowered because
-unattended auto-merge launches at C2 only, #6202), so without the override the
+This repository's tracked config resolves `c2-mechanical` (unattended
+auto-merge launches at C2 only, #6202), so without the override the
 lane would auto-merge C2 PRs. Two reasons to keep the override: the ratification
 ran ahead of the suggested evidence predicates, and this repository has
 recorded **zero autonomous merges ever**. The lane's rung partition also

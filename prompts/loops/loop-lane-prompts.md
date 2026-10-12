@@ -74,8 +74,8 @@ is merge-inert, so `--merge human-only` disables autonomous merging
 whatever `{{TIER}}` says.
 Leave `{{MERGE}}` at `--merge human-only` unless the target repository's rung
 question has been decided the other way. This repository's tracked rung is
-`c2-mechanical` (raised to `c3-autonomous` on 2026-07-27, then lowered because
-unattended auto-merge launches at C2 only, #6202). Keep the override
+`c2-mechanical` (unattended auto-merge launches at C2 only, #6202). Keep the
+override
 until #1695 wires effective-promotion resolution into the merge partition
 and the evidence predicate is met (see "C2 auto-merge may lack its
 promotion evidence" under Known gaps).
