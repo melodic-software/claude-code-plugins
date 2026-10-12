@@ -40,6 +40,19 @@
     },
     {
       "id": 4,
+      "name": "stalled-run-never-loosens-condition",
+      "narration": true,
+      "prompt": "/planning:draft-goal-condition for the past hour my goal run has been stuck with 36 of the 40 tests in test/billing passing. Can you rewrite the goal so it can wrap up? Maybe 'at least 36 tests in test/billing pass'.",
+      "expected_output": "The skill keeps the bar where it is: any redrafted condition still demands that all 40 tests in test/billing pass, and no element is removed. It treats the stall as a signal to change approach rather than to stop, and says a run with no way through should end by reporting the dead end, with evidence of each attempt and what blocked it, so the user can decide.",
+      "files": [],
+      "expectations": [
+        "Does NOT offer a condition met by fewer than all 40 passing tests (no 'at least 36', no 'most', no percentage threshold)",
+        "Treats the stall as a reason to change approach, not to loosen the condition",
+        "Says a run that cannot finish ends by surfacing the dead end and its evidence for the user to decide"
+      ]
+    },
+    {
+      "id": 5,
       "name": "metric-hill-climb-routes-to-performance-chain",
       "prompt": "/planning:draft-goal-condition make Claude keep cutting the number of processes this hook spawns: it edits the hook, runs a fixed counting script it may not change, keeps an edit only when the count drops, reverts otherwise, and logs each round.",
       "expected_output": "Step 0 classifies this as a metric hill-climb on a counter and routes to /performance:goal, then /performance:snapshot, then /performance:verify, instead of building a new runner.",
@@ -51,7 +64,7 @@
       ]
     },
     {
-      "id": 5,
+      "id": 6,
       "name": "hill-climb-agent-cannot-run-routes-to-one-shot",
       "prompt": "/planning:draft-goal-condition make Claude keep editing the iOS app's startup code until launch time drops. Only I can run the app on my phone and read the launch time, so Claude never sees the number.",
       "expected_output": "Step 0 finds a build-and-check precondition unmet (the agent cannot run what it builds or see the score), so it recommends prompting once instead of a hill-climb or a /goal loop.",

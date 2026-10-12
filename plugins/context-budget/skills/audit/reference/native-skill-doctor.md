@@ -10,8 +10,8 @@ session.
 |---|---|---|---|
 | Our probe found `/skill-doctor` as a built-in command, user-invocable, with model invocation disabled (command type `local-jsx`); the probe set no `gated` flag for it | Probe: the `/harness-ops:inventory --binary-only` extraction of the installed 2.1.285 binary, `builtin_commands` lane | 2026-10-02 | A release renames or removes the command, or makes it model-invocable |
 | We send the choice of which skills to turn off to `/skill-doctor`, and never make that choice here | For skill pruning, see <https://code.claude.com/docs/en/skills#find-unused-skills> | 2026-10-02 | That section sends the question to another command, or the command's job there changes |
-| We treat it as gated and never assert it present; the gate is read live, not copied here | For its gate, see the `/skill-doctor` row on <https://code.claude.com/docs/en/commands> and <https://code.claude.com/docs/en/skills#find-unused-skills> | 2026-10-02 | Either page changes the command's version floor or flag requirement |
-| We keep unused MCP servers and plugins routed to the bundled `/doctor` | For `/doctor`, see its row on <https://code.claude.com/docs/en/commands> | 2026-10-02 | That row drops its unused-component check, or a release note names `/doctor` |
+| We treat it as gated and never assert it present; the gate is read live, not copied here | For its gate, see the `/skill-doctor` row in [commands § All commands](https://code.claude.com/docs/en/commands#all-commands) and <https://code.claude.com/docs/en/skills#find-unused-skills> | 2026-10-11 | Either section changes the command's version floor or flag requirement |
+| We keep unused MCP servers and plugins routed to the bundled `/doctor` | For what the checkup covers, see [skills § Check your setup with `/doctor`](https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor) | 2026-10-11 | That section drops unused MCP servers or plugins from its coverage, or a release note names `/doctor` |
 
 ## Why the verdict is complementary
 

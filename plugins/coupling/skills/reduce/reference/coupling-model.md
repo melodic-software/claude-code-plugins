@@ -37,6 +37,18 @@ coupled several ways at once.
    internal file layout, another module's non-published members, another repo's internal paths.
 2. **Common coupling**: units share mutable global state, such as a global variable, a singleton
    holder, a shared config object anyone mutates, a database table two applications both write.
+   The candidate to look for here is a **duplicate writer**: one durable value (a config key, a
+   file path, a database table or column, a cache key) that more than one place writes. The rule
+   it breaks is one writer per value: one owner writes it, and every other site reads it or asks
+   the owner to change it. With two writers, each must keep agreeing with the other on format,
+   defaults and timing, and either can overwrite what the other wrote. Find the write sites of
+   the key, path or table (assignments, file writes, `INSERT`/`UPDATE`/`DELETE` statements,
+   setter calls); for a literal key, run `value-sites.py find --old '<key>'` and keep the rows
+   whose code writes the value. Two or more write sites in different owners make the candidate;
+   several writes inside the one owning module are one writer, and any number of readers is not a
+   finding. A duplicate writer is always a structural ledger entry in the route lane, never part
+   of the apply batch: picking the owner changes who may write the value, so no consolidation is
+   behavior-preserving.
 3. **External coupling**: units share an externally imposed format, protocol, or device
    knowledge that neither owns, duplicated in each.
 4. **Control coupling**: one unit passes a flag that selects the other's behavior, such as
@@ -86,6 +98,17 @@ coupling nobody minds. Weight every finding by:
   without a declared dependency are coupled through a channel the dependency graph cannot see
   (shared assumption, copied logic, implicit contract). Mine the log for pairs with high
   co-change frequency; these outrank most statically visible findings.
+- **Collision hotspots**: a file that pull requests open at the same time keep editing
+  together, and that conflicts when their heads are merged, couples the people and agents
+  working in parallel: each change to it blocks or rewrites another. This is measured, not
+  inferred: pairs of overlapping pull requests that share the file are replayed and their
+  conflicts counted. A hotspot ranks beside co-change evidence; a file with many conflicts
+  across few pairs is the strongest candidate. Changelogs, lockfiles and version manifests
+  conflict on every version bump and say nothing about design, so they are reported apart
+  and never ranked. Without pull-request data from the host, co-change evidence stands in.
+  A hotspot that is a hand-kept list of files or folders the tree already holds is a **second
+  list**: every new entry edits it, and an entry can outlive what it names. It is typed here and
+  remedied per the catalog's "Second lists" section.
 - **Blast radius**: afferent coupling (how many depend on it). Instability `I = Ce / (Ca + Ce)`
   gives the orientation rule: depend in the direction of stability; things many depend on
   should be abstract and stable, things that change freely should have few dependents.
