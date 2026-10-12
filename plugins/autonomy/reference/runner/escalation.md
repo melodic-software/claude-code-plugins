@@ -157,7 +157,8 @@ behavior. This grounding fixes only which class each leg belongs to and the ladd
 naming instances is the binding surface's job, not this contract's.
 
 **Both classes shipped, dated record.** Each leg's transport class has a first-party mechanism
-available today, so neither waits on a primitive that has to be invented. *One bound the ladder
+available today, so neither waits on a primitive that has to be invented (verified 2026-09-06,
+against harness version 2.1.263). *One bound the ladder
 order already reflects:* the push leg's delivery depends on an operator opt-in and is not
 available everywhere the harness runs, a second reason it never substitutes for the channel leg.
 

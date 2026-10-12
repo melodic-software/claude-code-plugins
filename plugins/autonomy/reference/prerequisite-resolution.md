@@ -84,12 +84,12 @@ tokens"; they are not reused as probe labels.
    authority. Platform bound: whether a secondary agent-instruction file reaches a session
    instead of, alongside, or not at all beside a primary instruction file is a host-harness rule
    that this contract does not restate. The pass reads both kinds of file from disk either way.
-   This contract owns that platform bound; the resolution slice and the setup skill state it in
-   one clause each and point at the slice's Instruction-file loading record, as this contract does
-   below.
+   This contract owns the decision that the pass reads both files from disk; the resolution
+   slice's Instruction-file loading record owns the upstream pointer, and the setup skill states
+   the bound in one clause and points at that record.
 
 **Platform bound, dated record.** The upstream pointer for this bound sits with the setup skill,
-because this tree names no vendor.
+because this tree names no vendor. Last verified 2026-09-19, against harness version 2.1.278.
 
 - **Pointer**: when a proposal depends on which instruction files a session loads, read the
   [instruction-file loading record](../skills/setup/context/prerequisite-resolution-slice.md#instruction-file-loading)

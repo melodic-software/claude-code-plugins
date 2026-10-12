@@ -94,7 +94,8 @@ monitoring or hooks page, so a binding has nothing to show which memory an unatt
 with. The claim covers those two pages, not what the harness emits. A binding that needs evidence
 of instruction-file or memory-file reads wraps the hooks that report them.
 
-Basis: raw-markdown reads of both pages on 2026-10-11. The monitoring page has zero
+Basis: raw-markdown reads of the monitoring page (174,316 bytes) and the hooks page (331,285
+bytes) on 2026-09-23. The monitoring page has zero
 case-insensitive matches for the stem of "memory". The hooks page has zero matches for
 `auto memory` or `MEMORY.md`, and its matches for the stem are unrelated (an MCP memory server,
 in-memory state, links to the memory page, and the `InstructionsLoaded` input's instruction-file
@@ -104,6 +105,6 @@ scope field). The memory page does not say how memory writes are made.
   <https://code.claude.com/docs/en/monitoring-usage#events>,
   <https://code.claude.com/docs/en/hooks#instructionsloaded>, and
   <https://code.claude.com/docs/en/memory#auto-memory> live.
-- **As of**: 2026-10-11
+- **As of**: 2026-10-11 (pointer); 2026-09-23 (reading)
 - **Recheck trigger**: the monitoring page documents a memory event or attribute, or the hooks page
   documents a hook event covering auto memory.
