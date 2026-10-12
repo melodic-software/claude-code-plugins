@@ -824,8 +824,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function unheard(){ return deaf() || stalled(); } // no session is listening for the user's events
   const neverPolled = () => !!S.listener && S.listener.idleFor === null && !S.listener.lease; // no watcher has polled this server yet: the first wake may wait on a terminal prompt
-  const closed = () => !S.online || !!S.finished; // nothing the page sends would be saved
-  const closedWhy = () => S.finished ? "The interview is finished. Answers are no longer saved." : "Not connected. Your draft is kept; Save returns when the server is back.";
+  const closed = () => !S.online || !!S.finished || S.restarted; // nothing the page sends would be saved: a restarted server rejects this page's token
+  const closedWhy = () => S.restarted ? "The server restarted. Reload this page to keep answering; your draft is kept." : S.finished ? "The interview is finished. Answers are no longer saved." : "Not connected. Your draft is kept; Save returns when the server is back.";
   function conn(){ // the connection dot's one word; offline says why
     if (S.restarted) return ["offline", "Server restarted: reload"];
     if (!S.online) return S.finished ? ["rest", "Interview finished: server stopped"] : ["offline", "Connection lost: check the terminal"];

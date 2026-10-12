@@ -1386,15 +1386,42 @@ def unhandled_events(doc, r):
 def cmd_apply(d, a):
     """Every op against one loaded document, one validated write; any refusal writes nothing.
 
-    A successful write removes the ops file, so a re-run wake applies nothing twice; no file is a no-op.
+    Under the lock the ops file is renamed to a claimed name before it is read, so overlapping wakes
+    apply one batch once and a batch written meanwhile waits for the next run; a refusal restores it.
     """
-    if not Path(a.file).exists():
-        print(f"nothing to apply: no {a.file}")
-        return
+    src = Path(a.file)
+    claimed = src.with_name(src.name + ".applying")
+    with sidecar_lock(d):
+        if claimed.exists() and not src.exists():
+            os.replace(claimed, src)
+        if not src.exists():
+            print(f"nothing to apply: no {a.file}")
+            return
+        os.replace(src, claimed)
+        try:
+            doc, lines = apply_ops_file(d, a.file, claimed)
+        except BaseException:
+            if not src.exists():
+                os.replace(claimed, src)
+            raise
+        claimed.unlink(missing_ok=True)
+    for line in lines:
+        print(line)
+    print(f"applied {len(lines)} ops (rev {doc['rev']})")
+    if not bridge.watcher_lease(d, NAME):
+        r = load_json(d / "responses.json", EMPTY_RESPONSES)
+        print(
+            f"no watcher armed; {len(unhandled_events(doc, r))} unhandled events",
+            file=sys.stderr,
+        )
+
+
+def apply_ops_file(d, name, claimed):
+    """Validate and apply the claimed ops file; the caller holds the sidecar lock."""
     try:
-        spec = json.loads(Path(a.file).read_text(encoding="utf-8"))
+        spec = json.loads(claimed.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        sys.exit(f"refused: cannot read ops file {a.file}: {e}")
+        sys.exit(f"refused: cannot read ops file {name}: {e}")
     ops_schema = schema.load("ops")
     if (
         not isinstance(spec, dict)
@@ -1417,44 +1444,34 @@ def cmd_apply(d, a):
         )
         if err:
             sys.exit(f"refused: {err}")
-    with sidecar_lock(d):
-        doc = load(d)
-        touched, lines, added, logged = [], [], [], []
-        for op in spec["ops"]:
-            fn, defaults = OP_ARGS[op["op"]]
-            args = argparse.Namespace(
-                **{**defaults, **{k: v for k, v in op.items() if k != "op"}}
-            )
-            if op["op"] == "revise":
-                args.alt = args.alternatives
-                args.commit = args.commits
-            if op["op"] == "handle":
-                args.seq = args.seqs
-            t, msg = fn(d, doc, args)
-            touched += [q for q in t if q not in touched]
-            if op["op"] == "add":
-                added.append(args.question)
-            elif op["op"] == "add-round":
-                added += args.questions or []
-            lines.append(f"{op['op']}: {msg}")
-            if op["op"] in LOGGED_OPS:
-                logged.append((op["op"], msg, t))
-        summarize(doc, logged)
-        lint_questions(doc, added)
-        for op in spec["ops"]:
-            if op["op"] not in ("add", "add-round", "meta"):
-                warn_bare_issue_refs(doc, f"{op['op']} op", op)
-        save(d, doc, touched)
-        Path(a.file).unlink(missing_ok=True)
-    for line in lines:
-        print(line)
-    print(f"applied {len(lines)} ops (rev {doc['rev']})")
-    if not bridge.watcher_lease(d, NAME):
-        r = load_json(d / "responses.json", EMPTY_RESPONSES)
-        print(
-            f"no watcher armed; {len(unhandled_events(doc, r))} unhandled events",
-            file=sys.stderr,
+    doc = load(d)
+    touched, lines, added, logged = [], [], [], []
+    for op in spec["ops"]:
+        fn, defaults = OP_ARGS[op["op"]]
+        args = argparse.Namespace(
+            **{**defaults, **{k: v for k, v in op.items() if k != "op"}}
         )
+        if op["op"] == "revise":
+            args.alt = args.alternatives
+            args.commit = args.commits
+        if op["op"] == "handle":
+            args.seq = args.seqs
+        t, msg = fn(d, doc, args)
+        touched += [q for q in t if q not in touched]
+        if op["op"] == "add":
+            added.append(args.question)
+        elif op["op"] == "add-round":
+            added += args.questions or []
+        lines.append(f"{op['op']}: {msg}")
+        if op["op"] in LOGGED_OPS:
+            logged.append((op["op"], msg, t))
+    summarize(doc, logged)
+    lint_questions(doc, added)
+    for op in spec["ops"]:
+        if op["op"] not in ("add", "add-round", "meta"):
+            warn_bare_issue_refs(doc, f"{op['op']} op", op)
+    save(d, doc, touched)
+    return doc, lines
 
 
 def effective(q, resp):
