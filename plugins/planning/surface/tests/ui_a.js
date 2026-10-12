@@ -147,6 +147,9 @@ async page => {
     const m = await page.evaluate(() => { const c = document.getElementById("choices"), d = document.getElementById("dscroll"), main = document.querySelector("main.detail"), save = document.querySelector("[data-save]").getBoundingClientRect(), dock = document.getElementById("answer").getBoundingClientRect();
       return {choicesScroll: c.scrollHeight > c.clientHeight + 1, detail: d.clientHeight, main: main.clientHeight, saveShown: save.top >= dock.top && save.bottom <= dock.bottom + 1}; });
     ok("at " + w + "x" + h + " the question keeps at least 40% of the pane, every choice shows without its own scroller, and Save is in view", !m.choicesScroll && m.detail >= 0.4 * m.main && m.saveShown, JSON.stringify(m));
+    const clr = await page.evaluate(() => { const a = document.getElementById("answer"); a.scrollTop = a.scrollHeight; const cs = document.querySelectorAll("#choices .choice"), l = cs[cs.length - 1].getBoundingClientRect(), s = document.getElementById("decideRow").getBoundingClientRect(), dock = a.getBoundingClientRect(); a.scrollTop = 0;
+      return {last: [Math.round(l.top), Math.round(l.bottom)], save: [Math.round(s.top), Math.round(s.bottom)], dock: [Math.round(dock.top), Math.round(dock.bottom)], clear: l.bottom <= s.top + 0.5 && l.top >= dock.top - 0.5}; });
+    ok("at " + w + "x" + h + " scrolled to the end, the last choice sits fully clear of the pinned Save bar", clr.clear, JSON.stringify(clr));
   }
   for (const w of [1024, 820]) {
     await page.setViewportSize({width: w, height: 860}); await page.waitForTimeout(250);
