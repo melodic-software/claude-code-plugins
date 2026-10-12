@@ -34,8 +34,8 @@ Every shape below invokes the same line, and the two arguments are not optional 
 /loop 1w /overengineering:delta unattended
 ```
 
-`/loop` is a bundled skill and needs no install. This shape relies on a supplied interval firing on
-a fixed schedule; the exact fire time is the scheduler's.
+`/loop` is a bundled skill and needs no install. This shape supplies an explicit interval; how that
+interval is scheduled is read live.
 
 - **Pointer**: when deciding how a supplied interval is scheduled and how far a fire time can drift,
   fetch [scheduled tasks § Run on a fixed interval](https://code.claude.com/docs/en/scheduled-tasks#run-on-a-fixed-interval)
@@ -55,8 +55,8 @@ self-paced schedule to consume.
 be nice. A surface whose last four cycles were quiet is telling you the interval is too short. Weekly
 or fortnightly suits an actively developed repository; monthly or quarterly suits a stable one.
 
-**Known constraint.** A loop launched this way does not recur forever: when it expires, relaunch it.
-Name the interval explicitly in every case. It makes the cadence policy readable rather than
+**Known constraint.** Whether and when a loop launched this way ends is read live; when it ends,
+relaunch it. Name the interval explicitly in every case. It makes the cadence policy readable rather than
 inferred, and the lane never depends on what an omitted interval does on a given provider or
 version.
 

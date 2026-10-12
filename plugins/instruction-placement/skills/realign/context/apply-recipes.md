@@ -49,7 +49,7 @@ The common case: content keyed to a file kind moves to `.claude/rules/<topic>.md
    <the relocated content, verbatim>
    ```
 
-   `description:` is optional and is written for this plugin's index generator, not for Claude Code.
+   `description:` is optional and is written for this plugin's index generator.
    The generator prefers it over the H1, so it is worth writing when the H1 alone would not tell a
    reader when to open the file.
 
