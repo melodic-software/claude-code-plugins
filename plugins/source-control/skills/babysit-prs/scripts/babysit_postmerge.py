@@ -25,7 +25,9 @@ also dispatches one full run on the branch tip whenever an unverified
 auto-merge has no identity dispatch run covering it, so a merge nobody
 dispatched for (a sync App's own enqueue) cannot hold the lane forever.
 
-Exit codes: 0 no failure, 1 a failure, 2 usage, 3 unreadable, 4 a write failed.
+Exit codes: 0 no failure, 1 a failure, 2 usage or a refused identity (not a
+dedicated App login, or `--remediate` under another acting login), 3
+unreadable, 4 a write failed.
 """
 
 from __future__ import annotations
@@ -716,8 +718,9 @@ def check(
 
 
 def dispatch_full_run(repo: str, *, ref: str = "main") -> None:
-    """Dispatch the full `pr-require-checks` run on `ref`; called after each
-    auto-merge lands, and by `--remediate` when the verdict needs a dispatch."""
+    """Dispatch the full `pr-require-checks` run on `ref`; called only by
+    `--remediate` when the verdict needs a dispatch. Without `--remediate` under
+    the identity nobody dispatches, so each auto-merge fails at the deadline."""
     owner, name = _split_repo(repo)
     _write(
         [
@@ -785,6 +788,8 @@ def _identity_entries(
         )
     found = []
     for entry in nodes:
+        if not _actor_key(entry.get("enqueuer")):
+            raise PostMergeReadError("merge queue: an entry's enqueuer is unknown")
         if _actor_key(entry.get("enqueuer")) == _login_key(identity):
             pr = json_object(entry.get("pullRequest"))
             found.append((str(pr.get("id")), pr.get("number")))
@@ -961,10 +966,44 @@ def _default_is_human(
     repo: str, identity: str, self_logins: Collection[str]
 ) -> IsHuman:
     """The merge policy's human test. A null actor, the identity, a self login,
-    an automation login, or an unreadable permission is non-human (fail closed:
-    the enqueue then counts as an auto-merge and needs verification)."""
+    an automation login, or a login with no write permission is non-human. A
+    permission read that fails raises `PostMergeReadError`, so the verdict is
+    unreadable rather than a human enqueue misjudged as an auto-merge."""
+    cache: dict[str, str | None] = {}
+
+    def permission(login: str) -> str | None:
+        if login not in cache:
+            owner, name = _split_repo(repo)
+            endpoint = (
+                f"repos/{owner}/{name}/collaborators/{quote(login, safe='')}/permission"
+            )
+            label = f"permission of {login}"
+            try:
+                proc = gh_capture(["api", endpoint])
+            except (RuntimeError, ValueError, OSError) as exc:
+                raise PostMergeReadError(f"{label}: {exc}") from exc
+            if proc.returncode != 0:
+                if gh_http_status(proc.stderr or "") != 404:
+                    raise PostMergeReadError(
+                        f"{label}: {(proc.stderr or '').strip() or proc.returncode}"
+                    )
+                cache[login] = None
+            else:
+                try:
+                    value = json_object(json.loads(proc.stdout)).get("permission")
+                except ValueError as exc:
+                    raise PostMergeReadError(f"{label}: {exc}") from exc
+                if not isinstance(value, str):
+                    raise PostMergeReadError(f"{label}: no permission in the response")
+                cache[login] = value
+        return cache[login]
+
     return lambda actor: policy.is_human(
-        actor, repo=repo, agent_identity=identity, self_logins=self_logins
+        actor,
+        repo=repo,
+        agent_identity=identity,
+        self_logins=self_logins,
+        permission=permission,
     )
 
 
@@ -1004,6 +1043,23 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     args = parser.parse_args(argv)
+
+    # Only a dedicated App identity can be judged, and only that identity may
+    # remediate: its dispatches, re-runs and filed issues are what the check
+    # and the demotion record count.
+    acting = args.agent_identity
+    if args.remediate:
+        try:
+            acting = policy.read_acting_login()
+        except policy.PolicyReadError:
+            acting = None
+    refusal = policy.resolve_identity(
+        args.agent_identity, acting, args.self_login
+    ).reason
+    if refusal:
+        json.dump({"ok": False, "error": refusal}, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 2
 
     verdict = check(
         args.repo,

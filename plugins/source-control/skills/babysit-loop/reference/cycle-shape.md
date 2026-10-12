@@ -61,7 +61,7 @@ is.
    demotion issue.
    Exit 0 lets the cycle continue only when every `autoMerges[].verified` is true: exit 0 can
    carry an auto-merge still awaiting its runs, and while any is unverified the merge-eligible set
-   of step 3 is empty this cycle too. On any other exit (1 a failure, 3 unreadable, 4 a write failed)
+   of step 3 is empty this cycle too. On any other exit (1 a failure, 2 a refused identity, 3 unreadable, 4 a write failed)
    the merge-eligible set of step 3 is empty this cycle; report the verdict and escalate each
    failure per Escalation below, and under a credential other than the identity escalate instead
    of remediating. The cycle report carries `demotion_events` (the verdict's

@@ -150,6 +150,9 @@ class FakeGh:
         self.comments: dict[int, list[dict[str, Any]]] = {}
         self.fail_reads: set[str] = set()
         self.merged_pages: list[dict[str, Any]] = []
+        # A login's repository permission, or the HTTP status its read fails with.
+        self.permissions: dict[str, str | int] = {"maintainer": "write"}
+        self.viewer = IDENTITY
 
     def add_runs(self, workflow: str, event: str, *runs: dict[str, Any]) -> None:
         self.runs.setdefault((workflow, event), []).extend(runs)
@@ -222,11 +225,19 @@ class FakeGh:
             )
         if endpoint == f"repos/{REPO}/issues":
             return completed({"number": 9001})
+        if "/collaborators/" in endpoint and endpoint.endswith("/permission"):
+            login = endpoint.split("/collaborators/")[1].split("/")[0]
+            value = self.permissions.get(login, 404)
+            if isinstance(value, int):
+                return completed(returncode=1, stderr=f"gh: Error (HTTP {value})")
+            return completed({"permission": value})
         if endpoint.startswith(f"repos/{REPO}/contents/"):
             return completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
         raise AssertionError(f"unexpected gh call: {args}")
 
     def _graphql(self, joined: str) -> subprocess.CompletedProcess[str]:
+        if "PolicyViewer" in joined:
+            return completed({"data": {"viewer": {"login": self.viewer}}})
         if "dequeuePullRequest" in joined:
             return completed(
                 {"data": {"dequeuePullRequest": {"clientMutationId": None}}}
@@ -254,9 +265,10 @@ class FakeGh:
 class CheckCase(unittest.TestCase):
     def setUp(self) -> None:
         self.gh = FakeGh()
-        patcher = mock.patch.object(pm, "gh_capture", self.gh)
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        for module in (pm, pm.policy):
+            patcher = mock.patch.object(module, "gh_capture", self.gh)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def check(
         self, *, now: datetime | None = None, pinned: str | None = HEAD_SHA
@@ -687,6 +699,17 @@ class Remediation(CheckCase):
             "dequeuePullRequest", " ".join(" ".join(w) for w in self.gh.writes())
         )
 
+    def test_an_entry_with_an_unknown_enqueuer_is_a_remediation_error(self) -> None:
+        verdict = self.failing_verdict()
+        self.gh.queue = [
+            {"enqueuer": None, "pullRequest": {"id": "PR_c", "number": 7012}}
+        ]
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertTrue(any("enqueuer" in e for e in report["errors"]))
+        self.assertNotIn(
+            "dequeuePullRequest", " ".join(" ".join(w) for w in self.gh.writes())
+        )
+
     def test_issue_body_carries_marker_links_and_git_revert(self) -> None:
         verdict = self.failing_verdict()
         pm.remediate(REPO, verdict, agent_identity=IDENTITY)
@@ -969,19 +992,15 @@ class Cli(CheckCase):
         self.assertTrue(report["ok"])
 
 
-class DefaultIsHuman(unittest.TestCase):
-    """The CLI's human test calls the real policy function, with no fake."""
+class DefaultIsHuman(CheckCase):
+    """The CLI's human test calls the real policy function and reads real
+    permissions through gh, with no stand-in."""
 
     def setUp(self) -> None:
-        import babysit_merge_policy as policy
-
-        self.policy = policy
-        table = {"maintainer": "write", "agent-lanes": "admin", "lane-bot": "write"}
-        patcher = mock.patch.object(
-            policy, "permission_reader", return_value=lambda login: table.get(login)
+        super().setUp()
+        self.gh.permissions.update(
+            {"agent-lanes": "admin", "lane-bot": "write", "reader": "read"}
         )
-        patcher.start()
-        self.addCleanup(patcher.stop)
 
     def test_only_a_writer_outside_the_identity_and_self_logins_is_human(self) -> None:
         is_human = pm._default_is_human(REPO, IDENTITY, ["lane-bot"])
@@ -993,16 +1012,86 @@ class DefaultIsHuman(unittest.TestCase):
             {"__typename": "User", "login": "lane-bot"},
             {"__typename": "User", "login": "github-actions"},
             {"__typename": "User", "login": "reader"},
+            {"__typename": "User", "login": "stranger"},
         ):
             with self.subTest(actor=actor):
                 self.assertFalse(is_human(actor))
 
-    def test_an_unreadable_permission_is_not_human(self) -> None:
-        def broken(login: str) -> str:
-            raise self.policy.PolicyReadError("permission read failed")
+    def test_each_login_is_read_once(self) -> None:
+        is_human = pm._default_is_human(REPO, IDENTITY, [])
+        is_human(HUMAN)
+        is_human(HUMAN)
+        reads = [c for c in self.gh.calls if "/collaborators/maintainer/" in c[1]]
+        self.assertEqual(len(reads), 1)
 
-        with mock.patch.object(self.policy, "permission_reader", return_value=broken):
-            self.assertFalse(pm._default_is_human(REPO, IDENTITY, [])(HUMAN))
+    def test_a_failed_permission_read_makes_the_verdict_unreadable(self) -> None:
+        # A human enqueue past the dispatch deadline would otherwise fail as an
+        # auto-merge and, under --remediate, demote the lane.
+        self.gh.permissions["maintainer"] = 403
+        self.gh.merged = [merged_pr(timelineItems=enqueued_by(HUMAN, HUMAN))]
+        verdict = pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=pm._default_is_human(REPO, IDENTITY, []),
+            merged_since=SINCE,
+            now=datetime(2026, 10, 12, 18, 0, tzinfo=UTC),
+        )
+        self.assertFalse(verdict.readable)
+        self.assertFalse(verdict.failures)
+
+    def test_the_cli_judges_a_human_enqueue_through_the_real_test(self) -> None:
+        self.gh.merged = [merged_pr(timelineItems=enqueued_by(HUMAN, HUMAN))]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = pm.main(
+                [
+                    "--repo",
+                    REPO,
+                    "--agent-identity",
+                    IDENTITY,
+                    "--since",
+                    SINCE.isoformat(),
+                ]
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out.getvalue())["autoMerges"], [])
+
+
+class IdentityRefusal(CheckCase):
+    def main(self, identity: str, *argv: str) -> tuple[int, dict[str, Any]]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = pm.main(
+                [
+                    "--repo",
+                    REPO,
+                    "--agent-identity",
+                    identity,
+                    "--since",
+                    SINCE.isoformat(),
+                    *argv,
+                ]
+            )
+        return code, json.loads(out.getvalue())
+
+    def test_a_shared_bot_identity_is_refused_before_any_read(self) -> None:
+        code, report = self.main("github-actions[bot]")
+        self.assertEqual(code, 2)
+        self.assertEqual(report["error"], "agent-identity-invalid")
+        self.assertEqual(self.gh.calls, [])
+
+    def test_remediate_under_another_login_is_refused_before_any_write(self) -> None:
+        self.gh.viewer = "maintainer"
+        code, report = self.main(IDENTITY, "--remediate")
+        self.assertEqual(code, 2)
+        self.assertEqual(report["error"], "acting-login-mismatch")
+        self.assertEqual(self.gh.writes(), [])
+
+    def test_read_only_check_needs_no_acting_login(self) -> None:
+        self.gh.viewer = "maintainer"
+        self.gh.merged = [merged_pr(timelineItems=enqueued_by(HUMAN, HUMAN))]
+        code, _ = self.main(IDENTITY)
+        self.assertEqual(code, 0)
 
 
 if __name__ == "__main__":

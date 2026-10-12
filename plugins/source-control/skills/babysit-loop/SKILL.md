@@ -177,7 +177,7 @@ Read [reference/cycle-shape.md](reference/cycle-shape.md) at the start of the fi
 again whenever the loop resumes after an interrupt: it owns the per-cycle step order, what each
 step may mutate at the resolved autonomy tier, and where the escalation and no-progress checks
 attach. The stop modes above decide whether a cycle runs; that file decides what one is.
-Every cycle runs the post-merge check (`babysit-postmerge.sh`, cycle-shape step 1) before any merge; anything but exit 0 means no merge that cycle.
+Every cycle runs the post-merge check (`babysit-postmerge.sh`, cycle-shape step 1) before any merge; anything but exit 0 with every `autoMerges[].verified` true means no merge that cycle.
 
 **Promotion-evidence gate (trusted seam, fail-closed).** This one condition stays here rather than
 in that file, because it decides whether anything merges at all. A PR is merge-eligible when its
