@@ -2949,6 +2949,9 @@ def unattended_enqueue(
         print(json.dumps(result, indent=2))
         return 10
 
+    scored = str((inputs["pr"].get("head") or {}).get("sha") or "")
+    if not merge_policy.SHA_RE.match(pin) or pin != scored:
+        return hold("the head to enqueue is not the head the policy scored")
     if result.get("mergeAction") != "merge_queue":
         return hold("the base has no merge queue; unattended merges only enqueue")
     queue = read_merge_queue(repo, number)

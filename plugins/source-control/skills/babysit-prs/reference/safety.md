@@ -1011,7 +1011,8 @@ Check-only (no `--merge`) writes nothing and reports the whole decision under `u
 the identity enqueued; a queued identity entry that gained a hold (`do-not-merge`, a body hold, a
 human blocking comment, the opt-in label removed) leaves the queue; an eligible MED or HIGH pull
 request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
-head change. A ready LOW pull request on a merge-queue base is enqueued at the pinned head after a
+head change. A ready LOW pull request on a merge-queue base is enqueued at the pinned head, only
+when that full SHA is the head the policy scored, after a
 second kill-switch read, after an armed auto-merge is disarmed and refused instead, and after a
 `<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When an
 earlier identity entry sits in the queue, the new one dequeues itself. A later run with

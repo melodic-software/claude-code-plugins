@@ -340,6 +340,7 @@ class Unattended(unittest.TestCase):
         self.node_id = "PR_self"
         self.rerun = mock.Mock(return_value=[])
         self.dispatch_error: Exception | None = None
+        self.scored_head = HEAD
 
     def _dispatch(self, repo: str, ref: str) -> None:
         self.log.append("dispatch")
@@ -353,7 +354,7 @@ class Unattended(unittest.TestCase):
             "number": PR,
             "node_id": self.node_id,
             "base": {"ref": "main", "sha": BASE},
-            "head": {"ref": "feat", "sha": HEAD},
+            "head": {"ref": "feat", "sha": self.scored_head},
             "user": {"login": IDENTITY, "type": "Bot"},
         }
         kills = list(self.kill)
@@ -498,6 +499,15 @@ class AllInputsGood(Unattended):
         self.assertIsNone(out["unattended"]["reason"])
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
         self.assertIs(out["enqueued"], True)
+
+    def test_a_head_that_moved_after_scoring_is_not_enqueued(self) -> None:
+        # The policy scored one head; the gate's later read sees another that
+        # still matches the --expected-head prefix. That head was never scored.
+        self.scored_head = HEAD[:12] + "d" * 28
+        code, out = self.run_main()
+        self.assertEqual(code, 10)
+        self.assertEqual(self.log, [])
+        self.assertTrue(any("scored" in b for b in out["blockers"]), out["blockers"])
 
     def test_check_only_reports_the_decision_and_writes_nothing(self) -> None:
         code, out = self.run_main(merge_flag=False)
