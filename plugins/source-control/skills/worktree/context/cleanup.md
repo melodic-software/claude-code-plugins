@@ -6,6 +6,8 @@ Full detail for the `/source-control:worktree cleanup [--dry-run]` action. SKILL
 
 Remove stale worktrees, orphaned metadata, and branches from merged PRs.
 
+**Outside a repository, cleanup reports and removes nothing.** Its guards (stranded work, claims, the reap, `git worktree prune`) are per repository, so it runs only from inside the repository that owns a candidate. Collect with [status.md § Outside a repository](status.md#outside-a-repository-cross-repository-mode), identify candidates per Step 2 for each repository, and add the Step 2c root scan rows of [audit.md](audit.md). Present them as Step 3 does, grouped under a heading per owning repository (scan rows under their root), each group ending with "Run `/source-control:worktree cleanup` from `<repo>` to act on these." Take no Step 1, 4 or 5 action, `--dry-run` or not.
+
 ## Step 1: Prune orphaned metadata
 
 ```bash
