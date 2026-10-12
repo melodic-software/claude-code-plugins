@@ -115,7 +115,7 @@ assert_contains "a github.com issue names its host" "$(cat "$TEST_TMPDIR/calls")
 
 pr "feat(x): add a thing" "" "[]" "[$(ref 10),{\"number\":13,\"url\":null,\"repository\":{\"name\":\"app\",\"owner\":{\"login\":\"acme\"}}}]"
 run 7 >/dev/null 2>&1
-assert_exit "an unparseable closing reference fails closed" 2 "$?"
+assert_exit "a malformed closing reference fails closed" 2 "$?"
 
 rm -f "$TEST_TMPDIR/issue-12"
 pr "feat(x): add a thing" "Closes #12" "[]" "[$(ref 12)]"
