@@ -118,8 +118,9 @@ jobs:
             comments="$(gh api --paginate \
               "repos/$GITHUB_REPOSITORY/issues/$number/comments?per_page=100" \
               --jq '.[] | select(.user.login == "github-actions[bot]") | .body')"
-            if [[ -n "$passed" && "$comments" == *"$note"* ]] ||
-              [[ -z "$passed" && ("$body" == *"$RUN_URL"* || "$comments" == *"$RUN_URL"*) ]]; then
+            # Only this mode's own note counts, so a passing re-run's note
+            # cannot hide a later failing attempt of the same run.
+            if [[ "$comments" == *"$note"* || (-z "$passed" && "$body" == *"$RUN_URL"*) ]]; then
               echo "#$number already records $RUN_URL"
               exit 0
             fi

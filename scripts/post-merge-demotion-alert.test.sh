@@ -260,6 +260,15 @@ else
   fail "duplicate re-run pass: rc=$RC log='$LOG'"
 fi
 
+ATTEMPT=3 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$MARKER" '' closed)]" \
+  "[$(comment 'github-actions[bot]' "re-run passed: $RUN_URL")]"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'PATCH repos/o/r/issues/41' <<<"$LOG" &&
+  grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG"; then
+  ok "a failure after a passing re-run of the same run reopens and comments"
+else
+  fail "failure after re-run passed: rc=$RC log='$LOG' out='$OUT'"
+fi
+
 ATTEMPT=2 run_step "$CANARY" push success main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 ]] && ! grep -qE '^(POST|PATCH)' <<<"$LOG"; then
   ok "a re-run that passes with no record files nothing"
