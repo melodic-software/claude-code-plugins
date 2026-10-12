@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Change .claude/skills/feature-map/start-a-timer.md so its entry point is the `Begin` button. Leave weekly-timesheet-export.md as written; the empty CSV goes in the report as a regression.",
+      "why": "names the map file it corrects"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rename the button back to `Start` in src/components/TimerRow.tsx so it matches the map.",
+      "why": "fixes the product instead of the map"
+    }
+  ]
+}

@@ -54,6 +54,7 @@ Verbs:
   list-sub-items <parent-id> [--state open|closed|all]
   list-items [--state open|closed|all] [--repo <owner>/<repo>] [--label <name>]
   list-frontier [--autonomous] [--parent <container-id>] [--repo <owner>/<repo>] [--label <name>]
+  label-provenance <id> --label <name> [--label <name> ...]
   change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <owner>/<repo>]
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
@@ -123,7 +124,7 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | change-link | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | change-link | capabilities) ;;
   list-items) ;;
   list-frontier)
     # Chosen BEFORE the capability gate, so an adapter without list-sub-items

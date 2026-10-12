@@ -1,0 +1,4 @@
+# yaml-language-server: $schema=../../plugins/source-control/schemas/source-control.schema.json
+# Team layer for the source-control plugin's YAML settings.
+# Resolution: plugins/source-control/reference/config-resolution.md.
+pr_open_state: draft

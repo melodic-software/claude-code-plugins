@@ -57,7 +57,7 @@ Deepening review rendered as self-contained HTML in the OS temp directory: one f
       .badge-speculative { color: var(--gray-500); }
       .seam { stroke-dasharray: 4 4; }
       .leak { stroke: var(--rust); }
-      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .deep { background: var(--slate); color: var(--ivory); }
     </style>
   </head>
   <body>
@@ -76,92 +76,89 @@ Deepening review rendered as self-contained HTML in the OS temp directory: one f
 
 ## Header
 
-Repo name, date, compact legend: solid box = module, dashed line = seam, red arrow = leakage, thick dark box = deep module. No intro paragraph. Go straight into candidates.
+The header holds the repo name, the date, and a one-line legend: a dark, heavy-bordered box is a
+deep module, a plain box is any other module, a dashed line is a seam, and a rust-colored arrow is
+leakage. The candidates follow at once, with no opening paragraph.
+
+## Candidate card
+
+One `<article>` per candidate, holding these parts in this order:
+
+- **Title**: a few words naming the deepening, such as "Fold the invoice export steps into one module"
+- **Badge row**: the recommendation strength (`Strong` uses `.badge-strong`, olive; `Worth exploring` uses `.badge-explore`, amber; `Speculative` uses `.badge-speculative`, muted grey) and the dependency category shown as a tag (`in-process`, `local-substitutable`, `ports & adapters`, `mock`)
+- **Files**: one path per line in `var(--mono)`, one step smaller than the body text
+- **Before / After diagram**: the two states in adjacent columns; patterns below
+- **Problem**: a single sentence
+- **Solution**: a single sentence
+- **Wins**: one gain per bullet, short enough to take in at a glance, each named with a vocabulary term, for example "locality: a rounding fix now touches one file", "leverage: twelve call sites share one interface", "interface: four entry points become one"
+- **ADR callout**, when one applies: a box tinted amber
+
+A card carries nothing beyond these parts. A candidate that will not read without a paragraph has a
+drawing that leaves out the relation the paragraph would explain; add that relation to the drawing.
 
 ## Badge bands
 
 Cards sit in one band per recommendation badge, in badge order: `Strong`, then `Worth exploring`, then `Speculative`. A band with no cards is left out. Banding applies at every candidate count, with no cap, no pagination, and no `<details>` or other collapse around a band or a card: a reader who ran the scan needs every candidate, and the band already tells them how far each claim can be trusted.
 
-## Candidate card
-
-Each candidate is one `<article>`:
-
-- **Title**: short, names the deepening ("Collapse the Order intake pipeline")
-- **Badge row**: recommendation strength (`Strong` = `.badge-strong`, olive; `Worth exploring` = `.badge-explore`, amber; `Speculative` = `.badge-speculative`, muted grey) + dependency category tag (`in-process`, `local-substitutable`, `ports & adapters`, `mock`)
-- **Files**: monospaced list, one path per line, set in `var(--mono)` a step smaller than body text
-- **Before / After diagram**: two columns, side by side. See patterns below
-- **Problem**: one sentence
-- **Solution**: one sentence
-- **Wins**: bullets short enough to scan without reading, each naming one gain. Use vocabulary terms: "locality: bugs concentrate in one module", "leverage: one interface, N call sites", "interface shrinks; implementation absorbs the wrappers"
-- **ADR callout** (if applicable): amber-tinted box
-
-No paragraphs of explanation. If diagram needs a paragraph, redraw it.
-
 ## Diagram patterns
 
-Pick pattern that fits. Mix them; variety is the point. Inline SVG or hand-built HTML/CSS only; a diagram runtime such as Mermaid is out.
+Choose per candidate whichever pattern shows its problem best, and use several across one report
+so the cards do not all look alike. Draw with inline SVG or hand-built HTML/CSS; a diagram runtime
+such as Mermaid is not allowed.
 
-### Flowchart (inline SVG or hand-built boxes)
+Every pattern puts the current state in the left column and the deepened state in the right.
 
-Use when point is "X calls Y calls Z, look at the mess." Style leakage edges with `stroke: var(--rust)` and deep modules with the `.deep` class.
+| Pattern | Shows | Drawing |
+|---|---|---|
+| Call flow | a request passing through a chain of small modules | boxes joined by arrows; leakage edges take `stroke: var(--rust)`, deep modules the `.deep` class |
+| Round-trip sequence | fewer seam crossings, such as five round-trips cut to one | one vertical lifeline per module, numbered arrows in call order; the two arrow counts carry the comparison |
+| Layer stack | shallowness spread over layers | one fixed-height row with a heavy left border per layer a call passes through: six thin rows on the left, one tall row named for the merged responsibility on the right |
+| Size bars | an interface nearly as large as its implementation | an interface bar and an implementation bar per module: similar heights on the left (shallow), a short bar over a tall one on the right (deep) |
+| Collapsed call tree | calls that should become internal | the call tree as nested boxes on the left; on the right the same tree inside one box, its calls faded |
+| Boxes and arrows by hand | a deep module that has to look heavy | bordered `<div>`s and inline SVG arrows, ending in one thick-bordered box with greyed internals, a weight no diagram runtime draws |
+
+A call-flow panel starts like this:
 
 ```html
 <div class="panel">
   <svg viewBox="0 0 400 120" width="100%" height="120" aria-label="call flow">
     <rect x="10" y="40" width="80" height="40" rx="4" fill="var(--gray-150)" stroke="var(--gray-300)"/>
-    <text x="50" y="65" text-anchor="middle" font-size="10">OrderHandler</text>
+    <text x="50" y="65" text-anchor="middle" font-size="10">InvoiceController</text>
     <!-- arrows, additional boxes, leak styling -->
   </svg>
 </div>
 ```
 
-### Hand-built boxes-and-arrows
+## Top recommendation section
 
-Modules as `<div>`s with borders. Arrows as inline SVG. Use when "after" diagram should feel like one thick-bordered deep module with greyed-out internals. Mermaid won't render that weight.
-
-### Cross-section (layered shallowness)
-
-Stack horizontal bands, each a fixed-height row with a thick left border, showing layers a call passes through. Before: 6 thin layers. After: 1 thick band with consolidated responsibility.
-
-### Mass diagram (interface as wide as implementation)
-
-Two rectangles per module: interface surface area + implementation. Before: interface nearly as tall as implementation (shallow). After: interface short, implementation tall (deep).
-
-### Call-graph collapse
-
-Before: tree of function calls as nested boxes. After: same tree collapsed into one box, internal calls faded inside.
-
-### Round-trip sequence
-
-Use when the gain is fewer hops across a seam ("before: 6 round-trips; after: 1"). Inline SVG: one
-vertical lifeline per module, horizontal arrows between them in call order, numbered. Before and
-after sit side by side, so the arrow count is the comparison.
+A single, larger card: the candidate's name, a sentence saying why it comes first, and an in-page link
+to the full card.
 
 ## Style guidance
 
-- Lean editorial, not corporate-dashboard. Generous whitespace
-- Color sparingly: one accent from the scaffold palette (clay or olive), rust for leakage, amber for warnings
-- Diagrams ~320px tall so before/after fits side-by-side without scrolling
-- Module labels inside diagrams are small, uppercase, and letter-spaced
-- Inline styles and inline SVG only (self-containment per the baseline)
+- Self-containment per the baseline: styles and SVG are inline, nothing is fetched
+- Size: diagrams stay near 320px high, so a card's two columns are visible without scrolling
+- Labels: module names inside a diagram are set small, in capitals, with extra letter spacing
+- Color: rust marks leakage and amber marks warnings; apart from those, one palette accent (clay or olive)
+- Overall feel: a magazine page with room around each card, not an operations dashboard
 
-## Top recommendation section
+## Wording
 
-One larger card. Candidate name, one sentence why, anchor link to its card.
+Name things only with the [vocabulary.md](vocabulary.md) terms and their derived forms:
 
-## Tone
+| Write | Never write in its place |
+|---|---|
+| module | component, service, unit, layer, wrapper |
+| interface | API, signature |
+| seam | boundary |
+| implementation, depth, deep, shallow, adapter, leverage, locality | (no synonym) |
 
-Use exactly: module, interface, implementation, depth, deep, shallow, seam, adapter, leverage, locality.
+Each finding is its own sentence and opens with the claim. Lines in the intended style:
 
-Never substitute: component, service, unit (for module); API, signature (for interface); boundary (for seam); layer, wrapper (for module).
+- "Seam justified: the mail port has an SMTP adapter in production and a recording adapter in tests."
+- "Leak: tax rounding happens in three callers instead of inside `TaxCalculator`."
+- "`InvoiceExport` is shallow; its seven methods take as long to learn as the code behind them."
+- "After deepening, callers learn `quote(order)` and the tests target it alone."
 
-State each finding directly, in its own sentence, opening on the claim.
-
-Phrasings that fit the style:
-
-- "Order intake module is shallow: interface nearly matches the implementation."
-- "Pricing leaks across the seam."
-- "Deepen: one interface, one place to test."
-- "Two adapters justify the seam: HTTP in prod, in-memory in tests."
-
-Wins bullets name the gain in glossary terms. Never "easier to maintain" or "cleaner code", since those terms are not in the vocabulary.
+A win written as "more maintainable" or "nicer structure" fails this rule; restate it as the
+leverage or locality gain it stands for.
