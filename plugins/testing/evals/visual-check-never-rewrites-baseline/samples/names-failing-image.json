@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "orders-table.png fails at checkpoint 2 with 37 differing pixels; the checkpoint stops there.",
+      "why": "names the failing image"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The table looks fine to me, so the checkpoint can go green.",
+      "why": "no image named"
+    }
+  ]
+}

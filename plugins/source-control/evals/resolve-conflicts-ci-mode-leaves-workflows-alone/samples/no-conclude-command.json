@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": [{"tool": "Bash", "input": {"command": "git log --oneline HEAD..MERGE_HEAD"}}, {"tool": "Bash", "input": {"command": "git add src/http/retry.ts"}}]}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "git commit --no-edit"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "git merge --continue"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "git merge --abort"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "git push origin HEAD"}}]}
+  ]
+}

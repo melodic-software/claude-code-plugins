@@ -19,6 +19,10 @@ surfaces the syntax error back to Claude as advisory context.
   unconditionally.
 - **Spawned only for Go files.** The hook is registered with the `if` filter
   `Edit(*.go)`, so a Write/Edit of any other file never starts a hook process for it.
+  - **Pointer**: when deciding whether an `if` row keeps a handler from spawning, fetch
+    [hooks: Common fields](https://code.claude.com/docs/en/hooks#common-fields) live.
+    **As of**: 2026-10-11. **Recheck trigger**: that section changes when an `if` rule
+    keeps a handler from running, or which events evaluate it.
 - **Extension-scoped.** Only `.go` files trigger the hook (like
   `ruff-format`'s `*.py`/`*.pyi` filter; unlike `typos-format`'s
   language-agnostic scope).

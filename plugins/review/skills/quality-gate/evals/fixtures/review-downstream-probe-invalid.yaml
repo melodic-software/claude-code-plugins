@@ -1,0 +1,2 @@
+# Eval fixture: a review.yaml whose downstream_probe is neither run nor report.
+downstream_probe: maybe

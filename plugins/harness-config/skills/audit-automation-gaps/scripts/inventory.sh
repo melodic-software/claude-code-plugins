@@ -48,14 +48,12 @@
 #   A hook script on disk is not a wired hook. Script counts live in Components,
 #   apart from the wired handler counts, and are never added to them.
 #
-# Claim: hooks are configured in exactly seven locations, user settings, project
-#   settings, project local settings, managed policy, a plugin's
-#   hooks/hooks.json, skill frontmatter and subagent frontmatter; hook entries
-#   merge across settings levels rather than replacing each other; skill hooks
-#   last for the rest of the session once the skill is invoked and subagent hooks
-#   only while that subagent runs.
-# Basis: https://code.claude.com/docs/en/hooks, the "Hook locations" table.
-# As of: 2026-09-13.
+# This script reads every hook location the docs table listed as of the date
+#   below, and counts entries from different settings levels as merged, not
+#   replaced.
+# Pointer: when changing the locations this script reads, fetch
+#   https://code.claude.com/docs/en/hooks#hook-locations live.
+# As of: 2026-10-11.
 # Recheck trigger: that table gains, drops or renames a row, or the sentence
 #   stating that hook entries merge across settings levels changes.
 #

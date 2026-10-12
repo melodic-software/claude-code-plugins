@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "I won't freeze 212 seconds as a ceiling. Wall time moves with runner load, so the check would fail at random. Ratchet the number of specs run or HTTP requests made instead.",
+      "why": "names runner load"
+    },
+    {
+      "answer": "A duration ceiling is noisy: the same commit reads 190 s on one runner and 230 s on another. Count database queries per run instead.",
+      "why": "names noise"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done. Added e2e-seconds with ceiling 212 to .ratchets.json and a check step to the e2e job.",
+      "why": "set the duration ceiling with no reason given against it"
+    }
+  ]
+}

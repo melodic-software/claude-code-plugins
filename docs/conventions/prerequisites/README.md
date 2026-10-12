@@ -150,9 +150,9 @@ and `toolchain`) ships `check-prerequisites` and names that. No hook installs an
 
 The group holding the node-notice row and the group holding the `probe` row both carry
 `"matcher": "startup|resume|clear|fork"`, every SessionStart source but `compact` (the source
-list is the SessionStart matcher table in the
-[hooks reference](https://code.claude.com/docs/en/hooks), as of 2026-10-04; recheck when that table
-changes). A compaction keeps the session id (inferred from transcripts, which keep one sessionId across a compact boundary; not probed from a hook payload), and both latches with it, so a re-fire there prints
+list is the matcher table in
+[hooks § SessionStart](https://code.claude.com/docs/en/hooks#sessionstart), as of 2026-10-11;
+recheck when that table changes). A compaction keeps the session id (inferred from transcripts, which keep one sessionId across a compact boundary; not probed from a hook payload), and both latches with it, so a re-fire there prints
 nothing and only starts processes. `clear`, `resume` and `fork` stay: each can begin a context
 that has not seen the notice. `scripts/node-notice-rows.test.sh` pins the matcher on both rows.
 
@@ -181,11 +181,11 @@ How the agent offers and runs the fix depends on how the fix is delivered and wh
 | A large download, such as a model | State its size and source before asking, then offer it through the row above that matches how it is delivered; a download behind a `setup` subaction is still the user's to type. |
 | Nothing the agent can run: a credential, an account, a service, an MCP server's configuration, or an `install` hint that is only a URL | Say what is missing and where to get it, and stop. The user does it; the agent never improvises a command for it. |
 
-A plugin enabled mid-session needs the first row, because its install hook has not run: per the
-hooks reference, `SessionStart`'s sources (`startup`, `resume`, `clear`, `compact`, `fork`) do not
-include a mid-session enable, and the page says only that plugin hooks merge when the plugin is
-enabled ([hooks](https://code.claude.com/docs/en/hooks), as of 2026-10-04; recheck when the
-matcher table gains a source or the page describes a mid-session enable). The speech plugin's own
+A plugin enabled mid-session needs the first row, because its install hook has not run: no
+`SessionStart` source in the matcher table cited above is a mid-session enable, and the hooks page
+says only that plugin hooks merge when the plugin is enabled
+([hooks § SessionStart](https://code.claude.com/docs/en/hooks#sessionstart), as of 2026-10-11;
+recheck when the matcher table gains a source or the page describes a mid-session enable). The speech plugin's own
 error tells the user to "start a new session, whose SessionStart hook installs them"
 (`plugins/speech/scripts/narrate.py`). Running the hook's command on a yes makes that new session
 unnecessary.

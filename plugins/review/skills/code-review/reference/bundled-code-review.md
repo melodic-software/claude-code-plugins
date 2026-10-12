@@ -7,11 +7,11 @@ surfaces registry; this file is what the model reads.
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
-| `code-review` ships with Claude Code as a bundled skill, alias `/review`, user-invocable, and Claude may start it on its own | The `/code-review` row on <https://code.claude.com/docs/en/commands> is labeled Skill with the `/review` alias; the installed 2.1.263 binary registers it with `aliases:["review"]` and `userInvocable`; "Let Claude start the review" on <https://code.claude.com/docs/en/code-review> states model invocation and the `skillOverrides` value (`user-invocable-only`) that stops it | 2026-09-11 | A release note names `/code-review` or bundled-skill invocability, or the row leaves the commands table |
-| Bare `/code-review` reviews the branch's commits ahead of upstream plus uncommitted changes; a file path, PR number, branch, or ref range (`main...my-feature`) retargets it | "Review a diff locally" on the code-review page | 2026-09-11 | The page changes the target list |
-| `--fix` edits the working tree (a background review's edits sit outside session checkpoints, so `/rewind` does not undo them); `--comment` posts inline comments on a GitHub PR or one note on a GitLab MR (needs `glab`, 2.1.257 or later); `ultra` launches the cloud review; a bare run reports into the session and writes nothing | Same page; the commands row lists the three flags | 2026-09-11 | A flag is added, removed, or changes what it mutates |
-| It runs as a background subagent by default, foreground in `-p` runs; it follows `CLAUDE.md` and does not read `REVIEW.md` | Same page, "Run in the foreground" and "What the review reads and edits" | 2026-09-11 | Either section changes |
-| The managed Code Review GitHub App is a third surface: research preview, Team and Enterprise plans, unavailable under Zero Data Retention, always a neutral check run | Note at the top of the code-review page and "Check run output" | 2026-09-11 | The page drops the preview label or changes the plan list |
+| `code-review` ships with Claude Code as a bundled skill that Claude may also start on its own, so this lane never assumes a session-local review did or did not run | The installed 2.1.263 binary registers it with `aliases:["review"]` and `userInvocable` (2026-09-11). Pointer: its alias and label are read from the `/code-review` row of [commands: all commands](https://code.claude.com/docs/en/commands#all-commands); model invocation and the setting that stops it from [code-review: let Claude start the review](https://code.claude.com/docs/en/code-review#let-claude-start-the-review) | 2026-10-11 | A release note names `/code-review` or bundled-skill invocability, or either section changes |
+| Its default target and the ways to retarget it are the developer's choice and not this lane's; read them live when routing someone to it | Pointer: [code-review: review a diff locally](https://code.claude.com/docs/en/code-review#review-a-diff-locally) | 2026-10-11 | That section changes the target list |
+| Only a run that reports into the session and writes nothing is read-only; any argument that edits the working tree or posts to a pull request or merge request makes it a mutating surface. Which arguments do which, and their version floors, are read live, never listed here | Pointer: [code-review: review a diff locally](https://code.claude.com/docs/en/code-review#review-a-diff-locally) and [code-review: what the review reads and edits](https://code.claude.com/docs/en/code-review#what-the-review-reads-and-edits) | 2026-10-11 | Either section adds, removes, or changes what an argument mutates |
+| Its run mode and which instruction files it follows differ from this lane's; read them live before comparing the two | Pointer: [code-review: run in the foreground](https://code.claude.com/docs/en/code-review#run-in-the-foreground) and [code-review: what the review reads and edits](https://code.claude.com/docs/en/code-review#what-the-review-reads-and-edits) | 2026-10-11 | Either section changes |
+| The managed Code Review GitHub App is a third surface; its availability and check-run behavior are recorded once, in the `quality-gate` skill's PR context | Pointer: [../../quality-gate/context/pr.md](../../quality-gate/context/pr.md#boundary-three-overlapping-review-surfaces), which holds the live pointer record | 2026-10-11 | That section moves, is renamed, or stops holding the App's pointer record |
 
 ## Why the verdict is complementary
 
@@ -26,9 +26,11 @@ lane repeats only the part that changes what it does.
 
 ## Presence
 
-The bundled skill is gated by `disableBundledSkills`, a `skillOverrides` entry, the host surface,
-and the environment. Nothing in this lane depends on it: the CI wrapper never invokes it, and a
-session where it does not resolve is an ordinary session.
+Whether the bundled skill resolves depends on settings, the host surface, and the environment.
+Nothing in this lane depends on it: the CI wrapper never invokes it, and a session where it does
+not resolve is an ordinary session. Pointer: the settings that turn a bundled skill off or hide it
+are read at [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings).
+As of: 2026-10-11. Recheck trigger: that section adds or renames a setting.
 
 ## Extraction record
 

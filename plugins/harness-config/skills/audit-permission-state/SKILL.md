@@ -200,7 +200,8 @@ entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
 - **`class` names the reason**: `blanket`, `interpreter-wildcard`, `package-manager-run`,
   `agent`, or `monitor`. The three shell shapes come from `lib/permission-patterns.sh`, the
   vocabulary `audit-permission-grants` check P1 also scans with; `agent` and `monitor` are
-  whole-tool classes this script tests on the tool token, `monitor` from v2.1.236.
+  whole-tool classes this script tests on the tool token, `monitor` with the version bound
+  `reference/criteria.md` §"The auto-mode entry diff" records.
 - **`autoMode.classifyAllShell` inverts the answer wholesale.** The stage treats it, when true, as
   suspending *every* Bash and PowerShell allow rule, so narrow rules do **not** carry over. It
   resolves the key only from the scopes it treats the classifier as reading, so a project- or
@@ -326,13 +327,14 @@ collapse it in the report:
 - **`invalid-json` is not `absent`.** A malformed settings file contributes no rules to the
   inventory. Report the parse failure, not an empty scope, and do not describe a managed parse
   failure as silent non-enforcement: we treat an unparsable managed source as stopping Claude Code
-  at startup (from v2.1.259) and an unparsable user, project, or local file as a reported settings
-  error.
-  - **Pointer**: for managed sources that fail to parse, see
-    [Find entries Claude Code dropped](https://code.claude.com/docs/en/managed-settings#find-entries-claude-code-dropped);
-    for other settings files, see
-    [Fix a broken settings file](https://code.claude.com/docs/en/settings#fix-a-broken-settings-file).
-  - **As of**: 2026-10-01
+  at startup, on the versions the pointer names, and an unparsable user, project, or local file as a
+  reported settings error.
+  - **Pointer**: for managed sources that fail to parse, fetch
+    [managed settings: find entries Claude Code dropped](https://code.claude.com/docs/en/managed-settings#find-entries-claude-code-dropped)
+    live; for other settings files, fetch
+    [settings: fix a broken settings file](https://code.claude.com/docs/en/settings#fix-a-broken-settings-file)
+    live.
+  - **As of**: 2026-10-11
   - **Recheck trigger**: either section changes what Claude Code does when a settings source fails
     to parse.
 

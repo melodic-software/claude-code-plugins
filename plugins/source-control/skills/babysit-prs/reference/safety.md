@@ -48,8 +48,8 @@ value and its unset fallback.
   below), whether it is checked out on the PR branch or in detached HEAD because the branch is
   locked elsewhere; otherwise report it (`worktrees.md`).
 - **Assigned-worktree head assertion.** Before any merge, edit, or push, resolve the assigned
-  worktree's `HEAD` to a commit and assert it equals the true PR head, `gh pr view <N> --json
-  headRefOid` (authoritative for same-repo and fork PRs; equal to a freshly re-fetched
+  worktree's `HEAD` to a commit and assert it equals the true PR head as the forge reports it
+  live ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#true-pr-head-and-push-destination)) (authoritative for same-repo and fork PRs; equal to a freshly re-fetched
   `origin/<headRefName>` for a same-repo PR). This holds whether the worktree is on the PR branch,
   in **detached HEAD** (the branch is checked out in a sibling worktree, or lives in a foreign dev
   worktree outside `<worktree-root>`), or on a **stale local branch tip** behind the PR head. If
@@ -60,7 +60,8 @@ value and its unset fallback.
   `headRefOid` while checked out on some OTHER local branch must not enter full mode. A fix committed
   there advances that unrelated branch while only the refspec push lands on the PR branch, leaving the
   other branch locally carrying this PR's work. Require the checkout to be on the PR branch or in
-  detached HEAD (a coincidental same-tip match on another branch heals via `gh pr checkout`). This
+  detached HEAD (a coincidental same-tip match on another branch heals via the forge's PR checkout,
+  [GitHub](../../../reference/providers/github/babysit-prs/safety.md#true-pr-head-and-push-destination)). This
   extends the head-SHA re-check below, which covered only the head moving *mid-work*, to the moment
   the worktree is first assigned. **One codified exception:** the conflict-resolution push in
   `orchestration.md`'s Orchestrator Contract. There `HEAD` is by construction the local merge commit
@@ -74,9 +75,10 @@ value and its unset fallback.
 - **Refspec push to the branch's upstream, never branch checkout.** Do not depend on `git checkout
   <headRefName>` to reach the branch: when it is locked by a sibling worktree that command dead-ends
   (`fatal: '<branch>' is already used by worktree at ...`). Once the head assertion holds, push the
-  integrated work with an explicit refspec to the remote `gh pr checkout` configured for the branch:
+  integrated work with an explicit refspec to the remote the PR checkout configured for the branch:
   `git push "$PUSH_REMOTE" HEAD:<headRefName>`, where `PUSH_REMOTE` resolves **fail-closed**. Decide
-  same-repo vs fork from `gh pr view --json isCrossRepository`, never by whether `git config` happens
+  same-repo vs fork from the PR's cross-repository flag ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#true-pr-head-and-push-destination)), never by whether
+  `git config` happens
   to resolve: `origin` for a same-repo head; for a write-allowed cross-repo (in-owner fork) head, the
   fork destination from `branch.<headRefName>.pushRemote` or `branch.<headRefName>.remote`, validated
   by URL and gated on the trust boundary. First require the cross-repo head's OWNER to be within
@@ -85,8 +87,8 @@ value and its unset fallback.
   carry separate `pushurl`(s) that `git push` honors and writes to ALL of, resolve the actual push URLs
   (`git remote get-url --push --all`) and canonicalize EACH (a remote name, a bare URL, or those
   `pushurl`s) to **host + owner/repo**, then require EVERY one to equal the head repo's own canonical
-  URL (`gh api repos/<nameWithOwner> --jq .html_url`; `gh pr view --json headRepository` exposes no
-  URL), not merely reject the literal `origin` name or match `owner/repo` on any host. Never hardcode
+  URL as the forge reports it ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#true-pr-head-and-push-destination); the PR's head-repository field carries no URL),
+  not merely reject the literal `origin` name or match `owner/repo` on any host. Never hardcode
   `origin`, and never fall back to it when the destination cannot be validated. A fork head reached via
   `--detach` leaves no branch config, and a remote named `upstream` (or any name), a same-`owner/repo`
   path on a different host, a fork fetch URL masking a base-repo `pushurl`, or an extra base/attacker
@@ -94,7 +96,7 @@ value and its unset fallback.
   same-named branch on base instead of updating the fork head; **stop (read-only) instead**. Known
   limitation: this validates the push URLs resolvable at guard time; git's own push-time URL rewrites
   (`url.<base>.pushInsteadOf` and similar) are outside the static guard's threat model, as they do not
-  arise from the documented `gh pr checkout` flow. Because `HEAD` equaled the PR head and you only added
+  arise from the documented PR checkout flow. Because `HEAD` equaled the PR head and you only added
   commits on top, this push is a fast-forward; never `--force` or `--force-with-lease`. A rejected
   non-fast-forward push means the assertion no longer holds. Re-fetch and stop, never force past it.
   (An external-fork head outside `<watched-owners>` remains the read-only stop-and-ask case below.)
@@ -109,7 +111,13 @@ value and its unset fallback.
 
 - Read PR metadata, review comments, checks, and Actions logs.
 - Retry checks only when the failure is likely flaky, infrastructure-related, or already fixed by
-  a new commit.
+  a new commit, and at most once per check at one PR head (the Flake Cap in `orchestration.md`).
+  Record the rerun with `manage_feedback_ledger.py record-rerun --check-id <rerun-id>` before
+  triggering it, naming the check only by its hex id: the hex right after `rerun_id=` at the start
+  of that check's `failing check:` line in the snapshot. Copy only the id, never the GitHub name
+  that follows it. When the ledger exits 4, the check
+  already had its rerun at this head, so its failure is real: fix it or report it, never rerun it
+  again.
 - Edit, commit, and push to the PR branch only for clear branch-owned CI failures or actionable
   bot-review findings when the snapshot allows writes to the head repository, including
   bot-authored branches when needed for a CI fix.
@@ -446,7 +454,7 @@ filesystem set, and the plan-mode branch on `useAutoModeDuringPlan` being on by 
 [permission modes](https://code.claude.com/docs/en/permission-modes#available-modes). The plugin
 `bin/` PATH claim rests on
 [anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066), which
-`gh api repos/anthropics/claude-code/issues/68066` reports closed as not planned, so the behavior
+is closed as not planned, so the behavior
 stands unfixed. Recheck when either docs page stops
 carrying the quoted spans, when a release note names permission modes, `classifyAllShell`, plugin
 `bin/` PATH handling, or the wrapper-strip list, or when that issue reopens or closes as completed.
@@ -540,7 +548,7 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   missing pin, or a pin that no longer matches the live head, refuses the merge: re-snapshot and
   reassess the new head rather than reaching for an override, so no unattended unpinned merge
   exists. The pin is carried through to GitHub's own server-side head match (the async merge API's
-  `sha`, or `gh pr merge --match-head-commit`), so the refusal holds on GitHub's side as well as in
+  `sha`, or the CLI merge's head match, [GitHub](../../../reference/providers/github/babysit-prs/safety.md#cli-merge)), so the refusal holds on GitHub's side as well as in
   the wrapper. Which API merges is in §Async Merge Path below.
 - The merge wrapper never uses `--admin`, and it cannot resolve threads, post replies, or
   force-push. It merges or it refuses.
@@ -670,19 +678,18 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 
 ### Async Merge Path
 
-A ready PR merges through GitHub's async merge API, called with `gh api` (`gh` has no subcommand for
-it): a `PUT` to the PR's `merge-async` endpoint, then a `GET` on the request's UUID.
+A ready PR merges through GitHub's async merge API ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#cli-merge)): a `PUT` to the PR's `merge-async` endpoint, then a `GET` on the request's UUID.
 
 - **Which API.** Async when the base is the default branch, when it requires a merge queue, or when
   the PR is a native stack member under `--stacked-prs`, the bottom layer on any trunk included:
   GitHub documents the async API as the required API for merging a stacked PR. Any other base keeps
-  `gh pr merge`, and so does every `--auto` arm: the async API has no auto-merge form. Without
+  the CLI merge (the forge CLI's merge command, [GitHub](../../../reference/providers/github/babysit-prs/safety.md#cli-merge)), and so does every `--auto` arm: the async API has no auto-merge form. Without
   `--stacked-prs` the gate never reads stack membership, so a bottom layer on a non-default trunk
-  goes to `gh pr merge`, which GitHub refuses for a stacked PR; that fails closed. On the default
-  branch a 404 from the endpoint (a host that lacks it) falls back to `gh pr merge` with the same
+  goes to the CLI merge, which GitHub refuses for a stacked PR; that fails closed. On the default
+  branch a 404 from the endpoint (a host that lacks it) falls back to the CLI merge with the same
   pin; a queue or a stack member has no other API and holds.
 - **Request.** `sha` is always the head the gate just evaluated: `--allow-unpinned-head` waives only
-  the `--expected-head` argument, never the pin, and `gh pr merge` carries the same head as
+  the `--expected-head` argument, never the pin, and the CLI merge carries the same head as
   `--match-head-commit`. `merge_method` is sent for a direct merge only,
   `merge_action` is `direct_merge` or `merge_queue`, and `bypass_rules` is always `false`. No
   API-version header is sent: the endpoint is documented under the default version as well.
@@ -717,9 +724,9 @@ it): a `PUT` to the PR's `merge-async` endpoint, then a `GET` on the request's U
   every other condition holds, the merge enqueues (`action: enqueue`). `enqueued` is final for the
   request and is not a merge. Enqueueing is a merge, so only a tier that may merge enqueues, and
   auto-merge is never armed over a queue. A queue on any other base keeps the hold.
-- **A `gh pr merge` the queue took.** `gh pr merge` adds a PR to the queue on any base that has
-  one, `--auto` or not, and exits `0`, so a queue the branch-rules read did not report would read
-  as a merge or an arm. After every successful `gh pr merge` the gate reads the PR's queue state
+- **A CLI merge the queue took.** The CLI merge adds a PR to the queue on any base that has
+  one, `--auto` or not, and exits `0` ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#a-cli-merge-the-queue-took)), so a queue the branch-rules read did not report would read
+  as a merge or an arm. After every successful CLI merge the gate reads the PR's queue state
   back over GraphQL. In the queue, it reports `action: enqueue`, `enqueued: true`,
   `autoMergeEnabled: false`, `merged: false`, and `mergeQueue` with the entry's `state` and
   `position`. Not yet in the queue but armed to enter it, it stays `action: auto-merge` with
@@ -768,16 +775,9 @@ Recheck when a `gh` release adds an async-merge command, when either REST page c
 field, or when stacked pull requests leave public preview or GitHub announces merge-queue support
 for stacks.
 
-**Claim, basis, as of, recheck:** that `gh pr merge` adds a PR to a required merge queue, or
-enables auto-merge until its checks pass, and exits `0` for a PR already queued,
-[merging a pull request with a merge queue](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/merging-a-pull-request-with-a-merge-queue),
-the [`gh pr merge` manual](https://cli.github.com/manual/gh_pr_merge), and
-[`pkg/cmd/pr/merge/merge.go`](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/merge/merge.go);
-the queue fields read back (`isInMergeQueue`, `isMergeQueueEnabled`, `mergeQueueEntry`,
-`autoMergeRequest`), the
-[`PullRequest` GraphQL object](https://docs.github.com/en/graphql/reference/objects#pullrequest);
-why a PR leaves the queue, the first page's removal section; 2026-10-04. Recheck when a `gh`
-release changes how `gh pr merge` treats a queue base, or the GraphQL schema changes a queue field.
+**Claim, basis, as of, recheck:** the CLI merge's merge-queue behavior and the GraphQL queue
+fields the gate reads back are recorded with their basis, date and recheck trigger in the
+[GitHub provider file](../../../reference/providers/github/babysit-prs/safety.md#a-cli-merge-the-queue-took).
 
 ### Lane-pinned merge authorization: report, don't re-pin
 
@@ -800,7 +800,8 @@ Only a lane-pinned invocation (above) adds `--auto` to its merge gate command. T
 partition is the only class check, so the PR is already C2 (mechanical) or C3 (scoped); a C4
 (structural) or C5 PR never reaches a merge-capable invocation and waits for the user. With
 `--auto`, a PR that is ready except for running checks gets
-`gh pr merge <N> --auto --squash --match-head-commit <pin>` instead of a hold, and only when:
+an auto-merge arm, squash method, pinned to `<pin>` ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#merge-lane-auto-merge-arm)),
+instead of a hold, and only when:
 
 - both AI review checks, the review lane's `claude-review-status` (matched by that job segment
   under any caller, e.g. `review /` or `pr-review /`) and the security lane's `security-review / security-review` or
@@ -826,8 +827,8 @@ Any other running check does not hold the arm: GitHub waits out a running requir
 (`ci-status`) itself, and a non-required check never holds a merge.
 
 To retry an AI review check that failed on a rate limit (HTTP 429), rerun the whole workflow run
-with `gh run rerun <run-id>`, never `gh run rerun --failed`. `--failed` reruns only the failed
-`-status` job, which re-reads the cached rate-limit output of the `review` job that succeeded and
+([GitHub](../../../reference/providers/github/babysit-prs/safety.md#rerun-a-rate-limited-review)), never only its failed jobs. A failed-jobs rerun
+reruns the failed `-status` job alone, which re-reads the cached rate-limit output of the `review` job that succeeded and
 fails again.
 
 A `--merge` run the gate holds does that rerun itself (`aiReviewReruns` in its JSON), only when all
@@ -857,7 +858,7 @@ never armed: they wait until fully ready and then enqueue or land. The gate's JS
 arm exits `0` with `"action": "auto-merge"`, `autoMergeEnabled: true` and `merged: false`, so it
 is reported as armed, not merged, and the PR stays in the queue with its worktree kept. An arm
 GitHub put straight into a merge queue the rules read missed reports `"action": "enqueue"`
-instead (§Async Merge Path, "A `gh pr merge` the queue took"). Nothing
+instead (§Async Merge Path, "A CLI merge the queue took"). Nothing
 else enables auto-merge: not a Worker Contract subagent (`orchestration.md`), not a work-items
 worker lane, not a standalone invocation, not `/source-control:pull-request`. The `worker` tier
 name is unrelated: a lane-pinned invocation at that tier is the merge lane.
@@ -947,9 +948,11 @@ announced operator step.
   clean submit the approval under that identity:
 
   ```text
+  # portability-ok: test_skill_contract.py pins this approve command in the spoke
   GH_TOKEN=<approver-bot-token> gh pr review owner/repo#N --approve --body "<clean-review-summary>"
   ```
 
+  <!-- portability-ok: test_skill_contract.py pins the gh auth switch form in the spoke -->
   `gh auth switch --user <approver-login>` before a plain `gh pr review … --approve` is the
   equivalent when the approver is a persisted gh account rather than a bound token. Submit on the
   live head so the gate's head-unchanged-since-review pin (`--expected-head`) still holds; any

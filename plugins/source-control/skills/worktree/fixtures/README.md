@@ -82,7 +82,11 @@ absence claim is not carried forward.
 - `hooks/worktree-create-gate.sh`'s disabled path exits **non-zero**. The exit-0 shape it used to
   take produced the identical outcome (creation fails) while suppressing every explanation.
 - `worktree_create_gate_enabled=false` cannot hand placement back to Claude Code. The harness-side
-  stand-downs are `worktree.bgIsolation: "none"` and disabling the plugin.
+  stand-down covering every path is disabling the plugin. `worktree.bgIsolation: "none"` is
+  narrower: it stops background sessions isolating at all, and leaves `--worktree` and subagent
+  worktrees on the hook
+  ([settings reference](https://code.claude.com/docs/en/settings-reference#worktree-bgisolation),
+  checked 2026-10-11; recheck when that section stops scoping the key to background sessions).
 - Every refusal message leads with a remedy, because a failing hook's stderr is what the user reads.
 
 ## `nesting-invariant-probe.sh`: the nesting invariant's disputed arm
