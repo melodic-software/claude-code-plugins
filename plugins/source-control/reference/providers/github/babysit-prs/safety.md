@@ -14,8 +14,11 @@ The spoke's Checkout And Push Invariants:
   heals by running it. The remote it configures is never pushed to.
 - Same-repo or fork comes from `gh pr view --json isCrossRepository`, and a fork head's owner from
   `gh pr view --json headRepositoryOwner`.
-- The push destination is `lane-push.sh`'s own read, `gh pr view <N> -R <owner/repo> --json
-  headRepository,headRefName`, from which it builds `https://github.com/<nameWithOwner>.git`.
+- The push is `push-branch.sh --dir <checkout> --pr <N>`. In a lane its destination is
+  `lane-push.sh`'s own read, `gh pr view <N> -R <owner/repo> --json headRepository,headRefName`,
+  from which it builds `https://github.com/<nameWithOwner>.git`; attended, it is the resolved push
+  remote, whose push URLs must each end in the PR's head repository (`gh pr view <N> --json
+  headRepository,headRepositoryOwner`).
 
 ## CLI merge
 

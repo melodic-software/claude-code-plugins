@@ -73,15 +73,19 @@ value and its unset fallback.
   push the assertion remains on `HEAD` itself.
 - Re-check the PR head SHA immediately before editing and again immediately before pushing. Stop
   if it changed unexpectedly. Someone else moved the branch.
-- **Refspec push to the PR's head, never branch checkout, never the checkout's remotes.** Do not
+- **Refspec push to the PR's head, never branch checkout.** Do not
   depend on `git checkout <headRefName>` to reach the branch: when it is locked by a sibling
   worktree that command dead-ends (`fatal: '<branch>' is already used by worktree at ...`). Once
-  the head assertion holds, push through `lane-push.sh --pr <N>` and nothing else (the loop-lane
-  convention's "Lane write identity"): it reads the PR's head repository and branch from the forge
-  and pushes `HEAD:refs/heads/<headRefName>` to `https://github.com/<owner>/<repo>.git`, a URL it
-  builds itself. No remote name, `pushRemote`, `pushurl`, `insteadOf` rewrite or global git config
-  is consulted, so a remote the PR checkout pointed at the base repository, another host or SSH
-  cannot misdirect the push or write a same-named branch on base. A cross-repo head's OWNER must
+  the head assertion holds, push through pull-request's `push-branch.sh --dir <checkout> --pr <N>`
+  and nothing else: it pushes the checkout's `HEAD:refs/heads/<headRefName>`. Inside a lane (a
+  `[bot]` login) it hands the push to `lane-push.sh --pr <N>` as the target's
+  `merge.agent-identity` (the loop-lane convention's "Lane write identity"), which reads the PR's
+  head repository and branch from the forge and pushes to `https://github.com/<owner>/<repo>.git`,
+  a URL it builds itself: no remote name, `pushRemote`, `pushurl`, `insteadOf` rewrite or global
+  git config is consulted, so a remote the PR checkout pointed at the base repository, another
+  host or SSH cannot misdirect the push or write a same-named branch on base. An attended run
+  takes the operator's own path: the resolved push remote, with the operator's hooks and
+  credentials, refused unless every push URL ends in the PR's head repository. A cross-repo head's OWNER must
   still be within `<watched-owners>`, else read-only (Stop And Ask, below): an external-fork head
   with maintainer edits enabled must not receive a push just because it is reachable. Because
   `HEAD` equaled the PR head and you only added commits on top, this push is a fast-forward; never

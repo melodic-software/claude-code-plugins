@@ -1206,10 +1206,21 @@ def _since(value: str) -> datetime:
     return parsed
 
 
-def _preflight(identity: str, self_logins: Collection[str]) -> int:
+def _preflight(repo: str, identity: str | None, self_logins: Collection[str]) -> int:
     """The merge gate's identity rule and credential chokepoint alone: a lane
-    writes nothing unless both pass. Pushes are bound to the identity at push
-    time by scripts/lane-push.sh, not here."""
+    writes nothing unless both pass. With no identity given, the one the
+    repository configures on its default branch is checked (push-branch.sh's
+    lane path). Pushes are bound to the identity at push time by
+    scripts/lane-push.sh, not here."""
+    report: dict[str, Any]
+    if identity is None:
+        try:
+            identity = policy.resolve(repo).agent_identity
+        except policy.PolicyReadError as exc:
+            report = {"ok": False, "error": f"config-unreadable: {exc}"}
+            json.dump(report, sys.stdout, indent=2)
+            sys.stdout.write("\n")
+            return 2
     try:
         acting = policy.read_acting_login()
     except policy.PolicyReadError:
@@ -1237,7 +1248,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--repo", required=True, help="owner/repo")
     parser.add_argument(
-        "--agent-identity", required=True, help="the merge.agent-identity login"
+        "--agent-identity",
+        help=(
+            "the merge.agent-identity login (required except with --preflight, "
+            "which reads it from the default branch when omitted)"
+        ),
     )
     parser.add_argument(
         "--since",
@@ -1278,7 +1293,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.preflight:
-        return _preflight(args.agent_identity, args.self_login)
+        return _preflight(args.repo, args.agent_identity, args.self_login)
+    if args.agent_identity is None:
+        parser.error("--agent-identity is required except with --preflight")
 
     # Only a dedicated App identity can be judged, and only that identity may
     # remediate: its dispatches, re-runs and filed issues are what the check

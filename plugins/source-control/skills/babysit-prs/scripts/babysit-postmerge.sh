@@ -7,10 +7,14 @@
 #   babysit-postmerge.sh --repo <owner/repo> --agent-identity <login>
 #     [--since <ISO 8601>] [--branch <name>] [--self-login <login>]...
 #     [--remediate | --preflight]
+#   babysit-postmerge.sh --repo <owner/repo> --preflight
 #
 # --preflight checks only that the session acts as the identity and holds no
 # other account (the merge gate's identity and credential rules); it never
-# writes and exits 0 or 2. Pushes bind to the identity in scripts/lane-push.sh.
+# writes and exits 0 or 2. Without --agent-identity it checks the
+# merge.agent-identity the repository's pr-pipeline.yaml names on its default
+# branch, and prints it as "identity" on a pass (pull-request's push-branch.sh
+# binds a lane push to it). Pushes bind to the identity in scripts/lane-push.sh.
 #
 # --since defaults to the merge gate's floor (the enabling config commit, or the
 # newest human close of a demotion record when later); --branch to the

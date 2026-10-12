@@ -1380,6 +1380,52 @@ class IdentityPreflight(CheckCase):
         code, report = self.preflight()
         self.assertEqual((code, report["error"]), (2, "acting-login-unreadable"))
 
+    def configured(self, identity: str | None = None, error: str | None = None):
+        """push-branch.sh's call: --preflight with no --agent-identity reads the
+        identity the repository configures on its default branch."""
+        resolve = mock.patch.object(
+            pm.policy,
+            "resolve",
+            side_effect=pm.policy.PolicyReadError(error) if error else None,
+            return_value=pm.policy.UnattendedPolicy(
+                pm.policy.NOT_ASSESSED, identity, enabled=False
+            ),
+        )
+        out = io.StringIO()
+        with resolve as read, contextlib.redirect_stdout(out):
+            code = pm.main(["--repo", REPO, "--preflight"])
+        return code, json.loads(out.getvalue()), read
+
+    def test_preflight_without_an_identity_reads_the_configured_one(self) -> None:
+        code, report, read = self.configured(IDENTITY)
+        self.assertEqual((code, report), (0, {"ok": True, "identity": IDENTITY}))
+        read.assert_called_once_with(REPO)
+
+    def test_a_configured_identity_the_session_does_not_act_as_is_refused(
+        self,
+    ) -> None:
+        self.gh.viewer = "other-lane[bot]"
+        code, report, _ = self.configured(IDENTITY)
+        self.assertEqual((code, report["error"]), (2, "acting-login-mismatch"))
+
+    def test_a_repository_that_configures_no_identity_is_refused(self) -> None:
+        code, report, _ = self.configured(None)
+        self.assertEqual((code, report["error"]), (2, "agent-identity-unconfigured"))
+
+    def test_an_unreadable_config_is_refused(self) -> None:
+        code, report, _ = self.configured(error="pr-pipeline.yaml: status 502")
+        self.assertEqual(code, 2)
+        self.assertTrue(report["error"].startswith("config-unreadable"))
+
+    def test_only_the_preflight_may_omit_the_identity(self) -> None:
+        with (
+            self.assertRaises(SystemExit) as raised,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            pm.main(["--repo", REPO])
+        self.assertEqual(raised.exception.code, 2)
+        self.assertEqual(self.gh.calls, [])
+
     def test_preflight_never_combines_with_remediate(self) -> None:
         with (
             self.assertRaises(SystemExit) as raised,

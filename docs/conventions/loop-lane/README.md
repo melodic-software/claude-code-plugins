@@ -202,7 +202,8 @@ App installed on that repository only: a machine user is a `User` and would pass
   and gh to absolute paths before entering `--dir`, and forces gh (by absolute path) as the only
   credential helper with https as the only transport. It reads the
   acting login with that same gh and refuses unless it is the identity. Where the target names no
-  identity, the login is the session's own. It exits 0 pushed, 1 the push ran and failed, 2
+  identity, the worker lane passes the session's own login; `push-branch.sh` (below) refuses
+  instead. It exits 0 pushed, 1 the push ran and failed, 2
   refused with nothing pushed, printing `lane-push: refused: <code>`:
   - `usage`, `bad-dir`: arguments missing or contradictory, or `--dir` is not a directory.
   - `bad-login`, `bad-repo`, `bad-branch`, `bad-pr`: a value outside its allowlist (owner
@@ -223,13 +224,19 @@ App installed on that repository only: a machine user is a `User` and would pass
   `--check` runs every refusal but the push. Named residual: whoever can replace the gh or git
   binary on the lane host, edit the script, or write the checkout's `.git` directory (its config,
   hooks or alternates) already runs code as the lane; the script cannot close that.
-- **Two push paths.** The pull-request skill's `push-branch.sh`, which the autopilot ready flip and
-  the work lane's monitor reach, keeps the operator's resolved remote and plain `git push` for
-  interactive use. Inside a lane it hands the push to `lane-push.sh` instead (or refuses when the
-  push remote is not a `github.com` URL or the branch is checked out in no worktree). It detects a
-  lane by the acting gh login: a GitHub App `<slug>[bot]` login, which the identity contract above
-  requires of a lane and an operator never holds. No launcher sets a lane marker, so a lane with
-  no identity configured keeps the operator path (the "No identity configured" residual).
+- **Two push paths.** The pull-request skill's `push-branch.sh`, which the autopilot ready flip,
+  the work lane's monitor and every babysit-prs push reach, keeps the operator's resolved remote
+  and plain `git push` for interactive use, attended babysit-prs runs included. Inside a lane it
+  hands the push to `lane-push.sh` instead, bound to the configured identity: it runs the babysit
+  lane's identity preflight (`babysit-postmerge.sh --repo <base repo> --preflight`, which with no
+  `--agent-identity` reads `merge.agent-identity` from the base repository's default branch) and
+  passes the identity it prints as `--login`, so `lane-push.sh` refuses unless the token acts as
+  that identity at push time. It refuses when the preflight refuses (no identity configured
+  included) or the branch is checked out in no worktree and no `--dir` names one, and with `--pr`
+  `lane-push.sh` reads the destination from the pull request, never a remote. It detects a lane by
+  the acting gh login: a GitHub App `<slug>[bot]` login, which the identity contract above
+  requires of a lane and an operator never holds. No launcher sets a lane marker, so a lane
+  running on an operator token keeps the operator path (the "No identity configured" residual).
   Residuals, each named:
   - R1. Two push code paths to maintain, `push-branch.sh` and `lane-push.sh`.
   - R2. The interactive path trusts the operator's git config, SSH agent and remotes, by design:
@@ -237,13 +244,14 @@ App installed on that repository only: a machine user is a `User` and would pass
   - R3. A lane on an operator host with `SSH_AUTH_SOCK` or `~/.ssh` keys reachable can push as the
     operator with a plain `git push`, whatever either script does. Only a lane host whose sole
     credential is the identity's closes it (a Phase 15 precondition of the auto-merge rollout).
+    Whether today's lane launcher strips `SSH_AUTH_SOCK` was not checked (open question).
   - R4. The lane check in `push-branch.sh` is advisory, as is every instruction to use
     `lane-push.sh`: a lane that skips the scripts is stopped only by the credential boundary. A
     failed acting-login read keeps the operator path.
   - R5. `NETRC=/dev/null` takes effect only on a libcurl that reads `NETRC`; the release that added
     it was not checked, and an older libcurl ignores the variable and reads `~/.netrc`.
   - R6. Proxy and CA variables (`https_proxy`, `ALL_PROXY`, `SSL_CERT_FILE`) are not scrubbed. They
-    can redirect or intercept a lane push; they supply no GitHub credential.
+    can redirect or intercept a lane push; they supply no GitHub credential. Not verified (G4).
 - **No identity configured.** The merge path stays inert and the lanes run as before, under
   whatever credential the session holds, and that credential's writes read as human. Named
   residual.
@@ -254,11 +262,10 @@ App installed on that repository only: a machine user is a `User` and would pass
 - **Interactive sessions,** the attended queue included, keep the operator's credential, so their
   label writes count as human provenance. That is accurate only while the user directs the
   session. Named residual.
-- **`lane-push.sh` pushes need workflow-file permission.** It pushes with gh's token over https,
-  so a lane identity without the Workflows repository permission, or a babysit-prs run (which
-  pushes only through `lane-push.sh`, attended runs included) whose gh token lacks the `workflow`
-  scope, cannot push changes to workflow files. `push-branch.sh` outside a lane keeps the
-  operator's own transport and is not affected. Accepted: the script has no fallback to another
+- **Lane pushes need workflow-file permission.** `lane-push.sh` pushes with gh's token over https,
+  so a lane whose identity lacks the Workflows repository permission cannot push changes to
+  workflow files. Attended runs, babysit-prs' included, push through `push-branch.sh` on the
+  operator's own transport and are not affected. Accepted: the script has no fallback to another
   transport or credential. Named residual.
 
 ## 2. Escalation contract

@@ -32,8 +32,7 @@ listing with `--author <login>` in place of `--author "@me"`.
 
 ## Branch checkout and push destination
 
-The spoke's §5.1.2 procedure. It takes `$PR_NUMBER`, `<headRefName>`, `<watched-owners>` and
-`$AGENT_IDENTITY` (the target's `merge.agent-identity`, empty when it names none), sets
+The spoke's §5.1.2 procedure. It takes `$PR_NUMBER`, `<headRefName>` and `<watched-owners>`, sets
 `CHECKOUT_MODE` and `INTEGRATION_STATUS`, and defines `lane_push`. The file names in its comments
 (`safety.md`, `orchestration.md`) are the babysit-prs spokes, and `<plugin-root>` is the
 source-control plugin's root.
@@ -80,13 +79,14 @@ else
   [ "$(git rev-parse HEAD)" = "$PR_HEAD" ] && CHECKOUT_MODE="full" || CHECKOUT_MODE="read-only"
 fi
 
-# The push destination is never this checkout's remotes: lane-push.sh reads the
-# PR's head repository and branch and builds the https URL itself, so whatever
-# remote or pushRemote `gh pr checkout` wrote above (an ssh URL, the base repo)
-# is never pushed to (safety.md, Checkout And Push Invariants). What stays here
-# is the trust boundary: a cross-repo head is writable only when its owner is
-# within <watched-owners> (safety.md Stop And Ask — an external-fork head outside
-# the watched owners stays read-only even with maintainer edits enabled).
+# The push destination is push-branch.sh's (safety.md, Checkout And Push
+# Invariants): in a lane, lane-push.sh reads the PR's head repository and branch
+# and builds the https URL itself, so no remote `gh pr checkout` wrote above is
+# pushed to; attended, the resolved push remote, refused unless every push URL
+# is the PR's head repository. What stays here is the trust boundary: a
+# cross-repo head is writable only when its owner is within <watched-owners>
+# (safety.md Stop And Ask — an external-fork head outside the watched owners
+# stays read-only even with maintainer edits enabled).
 if [ "$CHECKOUT_MODE" = "full" ] &&
   [ "$(gh pr view "$PR_NUMBER" --json isCrossRepository -q .isCrossRepository)" != "false" ]; then
   HEAD_OWNER=$(gh pr view "$PR_NUMBER" --json headRepositoryOwner -q .headRepositoryOwner.login)
@@ -96,26 +96,24 @@ if [ "$CHECKOUT_MODE" = "full" ] &&
   esac
 fi
 
-# The login every push must act as (the loop-lane convention, "Lane write
-# identity"): the target's merge.agent-identity when it names one, else the
-# session's own login.
-BASE_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
-LANE_LOGIN=${AGENT_IDENTITY:-$(gh api user --jq .login)}
-
-# EVERY lane push goes through lane_push, and lane-push.sh is the only push:
-# never a bare `git push`. It turns auto-merge off immediately before the push
-# and again right after it (someone may arm the old head mid-push), because a
-# push keeps auto-merge armed and the new head could merge on ci-status alone
-# before the AI reviews re-run (safety.md, "Merge lane: no auto-merge"). It never
-# arms auto-merge; nothing does. A failed read or disarm, or a lane-push.sh
-# refusal (exit 2, nothing pushed), stops the push.
+# EVERY push goes through lane_push, and push-branch.sh is the only push: never
+# a bare `git push`. It pushes this checkout's HEAD (detached too) to the PR's
+# head branch; inside a lane (a `[bot]` login) it hands the push to
+# lane-push.sh as the target's merge.agent-identity, and attended it takes the
+# operator's own push path (the loop-lane convention, "Lane write identity").
+# lane_push turns auto-merge off immediately before the push and again right
+# after it (someone may arm the old head mid-push), because a push keeps
+# auto-merge armed and the new head could merge on ci-status alone before the
+# AI reviews re-run (safety.md, "Merge lane: no auto-merge"). It never arms
+# auto-merge; nothing does. A failed read or disarm, or a push-branch.sh
+# refusal (nothing pushed), stops the push.
 disarm_auto_merge() {
   ARMED=$(gh pr view "$PR_NUMBER" --json autoMergeRequest --jq '.autoMergeRequest // empty') || return 1
   [ -z "$ARMED" ] || gh pr merge "$PR_NUMBER" --disable-auto
 }
 lane_push() {
   disarm_auto_merge &&
-    bash "<plugin-root>/scripts/lane-push.sh" --login "$LANE_LOGIN" --repo "$BASE_REPO" --pr "$PR_NUMBER" &&
+    bash "<plugin-root>/skills/pull-request/scripts/push-branch.sh" --dir "$CUR_WT" --pr "$PR_NUMBER" &&
     disarm_auto_merge
 }
 

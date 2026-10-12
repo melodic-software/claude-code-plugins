@@ -54,21 +54,38 @@
 # `gh pr view`, whatever worktree the caller runs in. Branch refs are shared
 # across worktrees, so the push carries the commits made in the PR's worktree.
 # A head branch with no local ref, a name starting with '-', or a push remote
-# that is not the PR's head repository exits non-zero rather than pushing.
+# any of whose push URLs is not the PR's head repository exits non-zero rather
+# than pushing.
+#
+# `--dir <checkout>` runs from that checkout and pushes its HEAD, detached
+# included, to the branch by refspec, never with `-u`; with `--pr` the head
+# branch needs no local ref. A babysit worker's worktree pushes this way.
 #
 # Inside a lane (the acting gh login is a GitHub App `[bot]` login) none of the
 # above runs: the push goes to the plugin's scripts/lane-push.sh (see the lane
 # block below).
 #
-# Usage: push-branch.sh [branch-name | --pr <number>]   (defaults to the current branch)
+# Usage: push-branch.sh [--dir <checkout>] [branch-name | --pr <number>]
+#   (defaults to the current branch)
 set -uo pipefail
 
-# portability-scope: --pr resolves the pull request's head branch and head repository through gh.
+# portability-scope: --pr resolves the pull request's head branch and head repository through gh, and a lane its base repository and identity.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVER="${SCRIPT_DIR}/resolve-remote.sh"
 
+DIR=""
+if [[ "${1:-}" == "--dir" ]]; then
+  DIR="${2:-}"
+  if [[ -z "$DIR" ]] || ! cd -- "$DIR" 2>/dev/null; then
+    echo "push-branch.sh: --dir needs a checkout directory, got '$DIR'; not pushing" >&2
+    exit 1
+  fi
+  shift 2
+fi
+
 BRANCH="${1:-}"
+PR=""
 if [[ "$BRANCH" == "--pr" ]]; then
   PR="${2:-}"
   if [[ ! "$PR" =~ ^[0-9]+$ ]]; then
@@ -81,7 +98,7 @@ if [[ "$BRANCH" == "--pr" ]]; then
     echo "push-branch.sh: PR '$PR' head branch '$BRANCH' starts with '-'; not pushing" >&2
     exit 1
   fi
-  if [[ -z "${BRANCH:-}" ]] || ! git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+  if [[ -z "${BRANCH:-}" ]] || { [[ -z "$DIR" ]] && ! git show-ref --verify --quiet "refs/heads/$BRANCH"; }; then
     echo "push-branch.sh: no local branch for the head of PR '$PR' ('${BRANCH:-}'); not pushing" >&2
     exit 1
   fi
@@ -89,56 +106,80 @@ elif [[ -z "$BRANCH" ]]; then
   BRANCH="$(git branch --show-current 2>/dev/null | tr -d '\r')"
 fi
 
-PUSH_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
-# A same-named local branch is not the PR's head unless its push remote is
-# the PR's head repository (a fork PR's head lives on the fork).
-if [[ -n "${HEAD_REPO:-}" ]]; then
-  URL=$(git remote get-url "$PUSH_REMOTE" 2>/dev/null)
-  URL="${URL%/}"
-  URL="${URL%.git}"
-  if [[ "${URL,,}" != *[:/]"${HEAD_REPO,,}" ]]; then
-    echo "push-branch.sh: '$BRANCH' pushes to '$PUSH_REMOTE' ($URL), not PR '$PR' head repository '$HEAD_REPO'; not pushing" >&2
-    exit 1
-  fi
-fi
 # Inside a lane, hand the push to lane-push.sh (loop-lane convention, "Lane
 # write identity"). A lane is a session whose acting gh login is a GitHub App
 # login (`<slug>[bot]`): the identity contract requires one, and an operator
-# never acts as one. lane-push.sh pushes HEAD of the worktree holding the
-# branch to the https URL of the repository the push remote names, as that
-# login. This check is advisory: a lane that skips this script is held only by
-# the credentials its host gives it. A failed login read keeps the operator path.
+# never acts as one. The push goes to the lane's base repository as the
+# merge.agent-identity that repository's pr-pipeline.yaml names on its default
+# branch: babysit-prs' identity preflight reads it and refuses unless the
+# session acts as it and holds no other account, and lane-push.sh, given it as
+# --login, refuses unless the token still acts as it at push time. With --pr,
+# lane-push.sh reads the PR's head repository and branch itself; no remote or
+# URL of this checkout is read. lane-push.sh pushes HEAD of --dir, else of the
+# worktree holding the branch. This check is advisory: a lane that skips this
+# script is held only by the credentials its host gives it. A failed login read
+# keeps the operator path (residual R4).
 ACTING=$(gh api --hostname github.com graphql -f 'query=query{viewer{login}}' \
   --jq .data.viewer.login 2>/dev/null | tr -d '\r')
 if [[ "$ACTING" == *"[bot]" ]]; then
-  URL=$(git remote get-url --push "$PUSH_REMOTE" 2>/dev/null)
-  URL="${URL%/}"
-  URL="${URL%.git}"
-  case "$URL" in
-    https://github.com/* | ssh://git@github.com/* | git@github.com:*) DEST_REPO="${URL#*github.com[:/]}" ;;
-    *) DEST_REPO="" ;;
-  esac
-  if [[ ! "$DEST_REPO" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ ]]; then
-    echo "push-branch.sh: lane push remote '$PUSH_REMOTE' ($URL) is not a github.com repository; not pushing" >&2
+  BASE_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null | tr -d '\r')
+  if [[ -z "$BASE_REPO" ]]; then
+    echo "push-branch.sh: the lane's base repository could not be read; not pushing" >&2
     exit 1
   fi
-  SRC_DIR="" WT=""
-  while IFS= read -r LINE; do
-    case "$LINE" in
-      "worktree "*) WT="${LINE#worktree }" ;;
-      "branch refs/heads/$BRANCH")
-        SRC_DIR="$WT"
-        break
-        ;;
-      *) ;;
-    esac
-  done < <(git worktree list --porcelain 2>/dev/null)
+  PREFLIGHT=$(bash "${SCRIPT_DIR}/../../babysit-prs/scripts/babysit-postmerge.sh" \
+    --repo "$BASE_REPO" --preflight)
+  PREFLIGHT_RC=$?
+  IDENTITY=$(sed -n 's/^[[:space:]]*"identity":[[:space:]]*"\([^"]*\)".*/\1/p' <<<"$PREFLIGHT")
+  if [[ $PREFLIGHT_RC -ne 0 || -z "$IDENTITY" ]]; then
+    echo "push-branch.sh: the lane identity preflight for $BASE_REPO refused; not pushing" >&2
+    echo "$PREFLIGHT" >&2
+    exit 1
+  fi
+  SRC_DIR=""
+  if [[ -n "$DIR" ]]; then
+    SRC_DIR=$(pwd -P)
+  else
+    WT=""
+    while IFS= read -r LINE; do
+      case "$LINE" in
+        "worktree "*) WT="${LINE#worktree }" ;;
+        "branch refs/heads/$BRANCH")
+          SRC_DIR="$WT"
+          break
+          ;;
+        *) ;;
+      esac
+    done < <(git worktree list --porcelain 2>/dev/null)
+  fi
   if [[ -z "$SRC_DIR" ]]; then
     echo "push-branch.sh: '$BRANCH' is checked out in no worktree, so lane-push.sh has no HEAD to push; not pushing" >&2
     exit 1
   fi
-  exec bash "${SCRIPT_DIR}/../../../scripts/lane-push.sh" --dir "$SRC_DIR" --login "$ACTING" \
-    --repo "$DEST_REPO" --branch "$BRANCH"
+  LANE_PUSH="${SCRIPT_DIR}/../../../scripts/lane-push.sh"
+  if [[ -n "$PR" ]]; then
+    exec bash "$LANE_PUSH" --dir "$SRC_DIR" --login "$IDENTITY" --repo "$BASE_REPO" --pr "$PR"
+  fi
+  exec bash "$LANE_PUSH" --dir "$SRC_DIR" --login "$IDENTITY" --repo "$BASE_REPO" --branch "$BRANCH"
+fi
+
+PUSH_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
+# A same-named local branch is not the PR's head unless every URL the push
+# writes to is the PR's head repository (a fork PR's head lives on the fork).
+if [[ -n "${HEAD_REPO:-}" ]]; then
+  URLS=$(git remote get-url --push --all "$PUSH_REMOTE" 2>/dev/null)
+  while IFS= read -r URL; do
+    URL="${URL%/}"
+    URL="${URL%.git}"
+    if [[ -z "$URL" || "${URL,,}" != *[:/]"${HEAD_REPO,,}" ]]; then
+      echo "push-branch.sh: '$BRANCH' pushes to '$PUSH_REMOTE' ($URL), not PR '$PR' head repository '$HEAD_REPO'; not pushing" >&2
+      exit 1
+    fi
+  done <<<"$URLS"
+fi
+
+if [[ -n "$DIR" ]]; then
+  exec git push "$PUSH_REMOTE" "HEAD:refs/heads/$BRANCH"
 fi
 
 FETCH_REMOTE=$(bash "$RESOLVER" "$BRANCH" 2>/dev/null)

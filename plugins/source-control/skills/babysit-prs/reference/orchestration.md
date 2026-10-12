@@ -741,11 +741,11 @@ On the conflict worker's return, and before pushing anything:
      the live PR head read with an explicit remote target
      ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#read-the-true-pr-head)) ==
      `git -C <worktree> rev-parse HEAD^1`; a mismatch is the same superseded-tip no-push as above.
-  3. **Push.** `lane-push.sh --dir <worktree> --login <login> --repo <base repo> --pr <N>`, the
-     same push `lane_push` makes ([loop.md](loop.md), Checkout And Push Invariants in
-     `reference/safety.md`): it pushes to the PR's own head repository and branch, a write-allowed
-     in-owner fork's included, never through the worktree's remotes. Given the first-parent
-     assertion this is a fast-forward.
+  3. **Push.** `push-branch.sh --dir <worktree> --pr <N>`, the same push `lane_push` makes
+     ([loop.md](loop.md), Checkout And Push Invariants in `reference/safety.md`): it pushes the
+     worktree's HEAD to the PR's own head branch, a write-allowed in-owner fork's included, through
+     `lane-push.sh` as the target's `merge.agent-identity` in a lane and the operator's own path
+     attended. Given the first-parent assertion this is a fast-forward.
 
   Disarm auto-merge before step 1 and again right after step 3, never between 2 and 3, per the
   Worker Contract's auto-merge rule below.
@@ -833,7 +833,7 @@ Each worker must:
   checkout between a read and the next write, silently committing branch-owned fixes into the wrong
   repository. Three classes of call need anchoring:
   - **git**: `git -C <absolute-worktree-path>` on every one (`status`, `add`, `commit`, `diff`,
-    `log`, all of them). The push is `lane-push.sh --dir <absolute-worktree-path>` (below),
+    `log`, all of them). The push is `push-branch.sh --dir <absolute-worktree-path>` (below),
     never `git push`.
   - **file reads and edits**: every path passed to a file-read, edit, write, glob, or search tool
     is absolute, never a bare relative path. A relative path resolves against cwd exactly as a
@@ -872,9 +872,10 @@ Each worker must:
   ledger refuses with exit 4 failed after its rerun, so fix it or report it
 - commit and push only clear branch-owned fixes, except a conflict worker, which commits its
   resolution locally and never pushes (Merge Conflict Resolution above); push only through
-  `bash <plugin-root>/scripts/lane-push.sh --dir <worktree> --login <login> --repo <base repo>
-  --pr <N>` with the login the dispatch names (the loop-lane convention's "Lane write
-  identity"), never a bare `git push`; a refusal (exit 2) is a no-push to report
+  `bash <plugin-root>/skills/pull-request/scripts/push-branch.sh --dir <worktree> --pr <N>`
+  (in a lane it pushes through `lane-push.sh` as the target's `merge.agent-identity`, the loop-lane
+  convention's "Lane write identity"), never a bare `git push`; a non-zero exit is a refusal or a
+  failed push to report
 - disarm auto-merge before every push (ahead of the pre-push head re-check) and again right after
   it: read whether auto-merge is armed and, when it is, disable it
   ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#disarm-auto-merge)), and do not push if either the read or the disable fails;
@@ -928,7 +929,6 @@ Assigned PR: <url> (owner/repo#42)
 Expected head SHA: <sha>
 Branch: <branch>
 Worktree (absolute path): <absolute path>
-Push login: <the lane's LANE_LOGIN: merge.agent-identity when named, else the session's login>
 Branch writes allowed: <true only from mutation_policy.branch_write_allowed>
 Pre-push outdated threads you may auto-resolve (id, comment count, last updated): <list or none>
 
@@ -951,8 +951,8 @@ shell's working directory persisting across separate tool calls: a one-time cd i
 because cwd can drift back to this session's default checkout between a read and the next write
 and silently commit into the wrong repository. Anchor every git operation with
 git -C <absolute worktree path>, meaning status, add, commit, diff, log, all of them. Push only with
-bash <plugin-root>/scripts/lane-push.sh --dir <absolute worktree path> --login <push login>
---repo <owner/repo> --pr <N>, never git push; exit 2 means it refused and pushed nothing. Give every
+bash <plugin-root>/skills/pull-request/scripts/push-branch.sh --dir <absolute worktree path>
+--pr <N>, never git push; a non-zero exit means it refused or the push failed. Give every
 file read, edit, write, glob, and search an absolute path, never a bare relative one. A relative
 path resolves against cwd too, so you can validate a finding against the wrong checkout or
 overwrite unrelated work in it. For target-repository files that absolute path is

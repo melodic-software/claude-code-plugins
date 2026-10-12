@@ -27,10 +27,9 @@
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PUSH_BRANCH="${SCRIPT_DIR}/push-branch.sh"
 RESOLVER="${SCRIPT_DIR}/resolve-remote.sh"
 
-for s in "$PUSH_BRANCH" "$RESOLVER"; do
+for s in "${SCRIPT_DIR}/push-branch.sh" "$RESOLVER"; do
   if [[ ! -x "$s" ]]; then
     echo "FAIL: missing or not executable: $s" >&2
     exit 1
@@ -44,10 +43,12 @@ trap 'rm -rf "$WORKDIR"' EXIT
 
 BRANCH="feat/x"
 
-# A gh stand-in for the acting-login read push-branch.sh makes to tell a lane
-# from an operator: an operator login unless PB_LOGIN says otherwise, and a
-# failed read when PB_LOGIN_FAIL is set. Lane cases add a git stand-in that
-# records a push instead of sending it.
+# A gh stand-in. The acting-login read push-branch.sh makes to tell a lane from
+# an operator answers an operator login unless PB_LOGIN says otherwise, and
+# fails when PB_LOGIN_FAIL is set. `repo view` names the base repository, and
+# `pr view` the PR's head branch and repository: push-branch.sh's own read
+# (`-q`, one line) and lane-push.sh's (`-R`, two lines). Lane cases add a git
+# stand-in that records a push instead of sending it.
 REAL_GIT="$(type -P git)"
 SHIM="$WORKDIR/shim"
 LOG="$WORKDIR/log"
@@ -59,7 +60,14 @@ case "$1 $2" in
     [[ -z ${PB_LOGIN_FAIL:-} ]] || exit 1
     echo "${PB_LOGIN:-example-user}"
     ;;
-  "pr view") echo "feat/b example-org/app" ;;
+  "repo view") echo "example-org/app" ;;
+  "pr view")
+    if [[ " $* " == *" -R "* ]]; then
+      printf '%s\n' example-org/app feat/b
+    else
+      echo "feat/b example-org/app"
+    fi
+    ;;
   *) exit 99 ;;
 esac
 EOF
@@ -76,6 +84,28 @@ exec "$REAL_GIT" "\$@"
 EOF
 chmod +x "$SHIM/gh" "$SHIM/git"
 export PATH="$SHIM:$PATH"
+
+# push-branch.sh runs from a copy of the plugin's layout, so the lane identity
+# preflight it calls (babysit-prs' babysit-postmerge.sh --preflight) is a
+# stand-in: it records its arguments and answers in the preflight's JSON shape,
+# passing with PB_IDENTITY as the configured identity, else refusing as a
+# target that names none. lane-push.sh is the real one.
+PLUGIN="$WORKDIR/plugin"
+mkdir -p "$PLUGIN/skills/pull-request/scripts" "$PLUGIN/skills/babysit-prs/scripts" "$PLUGIN/scripts"
+cp -p "${SCRIPT_DIR}/push-branch.sh" "$RESOLVER" "$PLUGIN/skills/pull-request/scripts/"
+cp -p "${SCRIPT_DIR}/../../../scripts/lane-push.sh" "$PLUGIN/scripts/"
+cat >"$PLUGIN/skills/babysit-prs/scripts/babysit-postmerge.sh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$@" >"$LOG/preflight.argv"
+if [[ -n \${PB_IDENTITY:-} ]]; then
+  printf '{\n  "ok": true,\n  "identity": "%s"\n}\n' "\$PB_IDENTITY"
+  exit 0
+fi
+printf '{\n  "ok": false,\n  "error": "agent-identity-unconfigured"\n}\n'
+exit 2
+EOF
+chmod +x "$PLUGIN/skills/babysit-prs/scripts/babysit-postmerge.sh"
+PUSH_BRANCH="$PLUGIN/skills/pull-request/scripts/push-branch.sh"
 
 # Build a working clone under $WORKDIR/$1 with `feat/x` checked out (one commit),
 # plus a bare remote per remaining `name` arg. The clone's `origin` is a bare
@@ -251,12 +281,33 @@ git -C "$wc" update-ref refs/heads/--mirror HEAD
 dash_exit=zero
 (cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 45) >/dev/null 2>&1 || dash_exit=nonzero
 check "pr-worktree: head branch starting with '-' exits non-zero" "$dash_exit" "nonzero"
+# --dir pushes the HEAD of that checkout, detached included (a babysit
+# worker's worktree), to the PR's head branch.
+wt_d="$WORKDIR/pr-worktree/wt-d"
+git -C "$wc" worktree add -q --detach "$wt_d" feat/b 2>/dev/null
+git -C "$wt_d" commit -q --allow-empty -m "fix on a detached head"
+(cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --dir "$wt_d" --pr 42) >/dev/null 2>&1
+check "pr-worktree: --dir --pr exits 0" "$?" "0"
+check "pr-worktree: --dir pushed that checkout's detached HEAD to the PR head branch" \
+  "$(git -C "$WORKDIR/pr-worktree/origin.git" rev-parse --verify --quiet refs/heads/feat/b)" \
+  "$(git -C "$wt_d" rev-parse HEAD)"
+# The head-repository check reads the URL the push goes to: a push URL that is
+# not the PR's head repository refuses even when the fetch URL is.
+git init -q --bare "$WORKDIR/pr-worktree/other.git"
+git -C "$wc" remote set-url --push origin "$WORKDIR/pr-worktree/other.git"
+pushurl_exit=zero
+(cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 42) >/dev/null 2>&1 || pushurl_exit=nonzero
+check "pr-worktree: push URL other than the PR head repository exits non-zero" "$pushurl_exit" "nonzero"
+check "pr-worktree: the other push URL did not receive the branch" \
+  "$(git -C "$WORKDIR/pr-worktree/other.git" rev-parse --verify --quiet refs/heads/feat/b || echo none)" "none"
 
 # 9. Inside a lane, meaning the acting gh login is a GitHub App login
 #    (`<slug>[bot]`, the loop-lane identity contract), the push goes to
-#    lane-push.sh: its constructed https URL for the repository the push remote
-#    names, from the worktree holding the branch, never the remote itself, and
-#    no upstream is written. Expected URL and refspec: the lane-push contract.
+#    lane-push.sh as the identity the base repository configures, and only
+#    after the identity preflight passes for that repository: its constructed
+#    https URL for the base repository (or, with --pr, the PR's own head), from
+#    the worktree holding the branch, never a remote, and no upstream is
+#    written. Expected URL and refspec: the lane-push contract.
 LANE="example-lane[bot]"
 lane_run() {
   rm -f "$LOG"/*
@@ -266,46 +317,79 @@ lane_run() {
 lane_dest() {
   if [[ -f "$LOG/push.argv" ]]; then tail -2 "$LOG/push.argv" | paste -sd' '; else echo NONE; fi
 }
+nonzero() { [[ $RC != 0 ]] && echo nonzero || echo zero; }
 wc=$(make_clone lane)
 git -C "$wc" remote set-url origin git@github.com:example-org/app.git
-lane_run "$wc"
+PB_IDENTITY="$LANE" lane_run "$wc"
 check "lane: exit 0" "$RC" "0"
+check "lane: the identity preflight ran for the base repository" \
+  "$(paste -sd' ' "$LOG/preflight.argv" 2>/dev/null)" "--repo example-org/app --preflight"
 check "lane: pushed through lane-push.sh (helper reset first)" \
   "$(head -2 "$LOG/push.argv" 2>/dev/null | paste -sd' ')" "-c credential.helper="
 check "lane: pushed to the constructed https URL" "$(lane_dest)" \
   "https://github.com/example-org/app.git HEAD:refs/heads/$BRANCH"
 check "lane: no upstream written" "$(branch_config "$wc" remote)" "UNSET"
 
+# The push binds to the configured identity, not to whatever login acts: a
+# configured identity other than the acting login is refused by lane-push.sh.
+PB_IDENTITY="other-lane[bot]" lane_run "$wc"
+check "lane, acting login not the configured identity: exits non-zero" "$(nonzero)" "nonzero"
+check "lane, acting login not the configured identity: nothing pushed" "$(lane_dest)" "NONE"
+
+# A refused preflight (here, a base repository that configures no identity)
+# pushes nothing by either path.
+lane_run "$wc"
+check "lane, preflight refused: exits non-zero" "$(nonzero)" "nonzero"
+check "lane, preflight refused: nothing pushed" "$(lane_dest)" "NONE"
+
 # --pr in a lane: the PR's head, from the worktree that has it checked out.
 wt_l="$WORKDIR/lane/wt-b"
 git -C "$wc" worktree add -q -b feat/b "$wt_l" 2>/dev/null
-lane_run "$wc" --pr 46
+PB_IDENTITY="$LANE" lane_run "$wc" --pr 46
 check "lane --pr: pushes the PR's head branch" "$(lane_dest)" \
   "https://github.com/example-org/app.git HEAD:refs/heads/feat/b"
 check "lane --pr: pushes from the PR worktree" "$(cat "$LOG/push.cwd" 2>/dev/null)" "$(cd "$wt_l" && pwd -P)"
 
-# A lane whose push remote is not a github.com URL cannot be handed over: it
-# is refused, and nothing is pushed by either path.
-wc=$(make_clone lane-local)
-lane_run "$wc"
-check "lane, non-GitHub remote: exits non-zero" "$([[ $RC != 0 ]] && echo nonzero || echo zero)" "nonzero"
-check "lane, non-GitHub remote: lane-push.sh pushed nothing" "$(lane_dest)" "NONE"
-check "lane, non-GitHub remote: the remote did not receive the branch" "$(has_branch "$WORKDIR/lane-local/origin")" "no"
+# --pr takes the destination from the PR, never the remote's push URL: a push
+# URL naming another repository is not where the lane pushes.
+git -C "$wc" remote set-url --push origin https://github.com/other-org/app.git
+PB_IDENTITY="$LANE" lane_run "$wc" --pr 46
+check "lane --pr, push URL elsewhere: pushes to the PR's head repository" "$(lane_dest)" \
+  "https://github.com/example-org/app.git HEAD:refs/heads/feat/b"
+
+# --dir: the HEAD of that checkout, detached included.
+wt_ld="$WORKDIR/lane/wt-d"
+git -C "$wc" worktree add -q --detach "$wt_ld" feat/b 2>/dev/null
+PB_IDENTITY="$LANE" lane_run "$wc" --dir "$wt_ld" --pr 46
+check "lane --dir: exit 0" "$RC" "0"
+check "lane --dir: pushes from that checkout" "$(cat "$LOG/push.cwd" 2>/dev/null)" "$(cd "$wt_ld" && pwd -P)"
+check "lane --dir: pushes the PR's head branch" "$(lane_dest)" \
+  "https://github.com/example-org/app.git HEAD:refs/heads/feat/b"
 
 # A branch checked out in no worktree has no HEAD for lane-push.sh: refused.
 wc=$(make_clone lane-idle)
 git -C "$wc" remote set-url origin https://github.com/example-org/app.git
 git -C "$wc" branch -q feat/idle
-lane_run "$wc" feat/idle
-check "lane, idle branch: exits non-zero" "$([[ $RC != 0 ]] && echo nonzero || echo zero)" "nonzero"
+PB_IDENTITY="$LANE" lane_run "$wc" feat/idle
+check "lane, idle branch: exits non-zero" "$(nonzero)" "nonzero"
 check "lane, idle branch: nothing pushed" "$(lane_dest)" "NONE"
 
 # An operator login keeps the operator path: the remote receives the branch
-# through plain git, lane-push.sh is not involved.
+# through plain git, and neither the preflight nor lane-push.sh is involved.
 wc=$(make_clone operator)
 rm -f "$LOG"/*
 (cd "$wc" && PB_LOGIN=operator-example bash "$PUSH_BRANCH") >/dev/null 2>&1
 check "operator: the remote received the branch by plain git" "$(has_branch "$WORKDIR/operator/origin")" "yes"
+check "operator: no identity preflight" "$([[ -f $LOG/preflight.argv ]] && echo ran || echo none)" "none"
+
+# R4, the named residual: a failed acting-login read is read as an operator,
+# so the push takes the operator path, by plain git to the remote.
+wc=$(make_clone login-fail)
+rm -f "$LOG"/*
+(cd "$wc" && PB_LOGIN_FAIL=1 bash "$PUSH_BRANCH") >/dev/null 2>&1
+check "login read failed: exit 0 on the operator path" "$?" "0"
+check "login read failed: the remote received the branch by plain git" "$(has_branch "$WORKDIR/login-fail/origin")" "yes"
+check "login read failed: no identity preflight" "$([[ -f $LOG/preflight.argv ]] && echo ran || echo none)" "none"
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"

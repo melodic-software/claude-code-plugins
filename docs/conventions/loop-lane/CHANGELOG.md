@@ -26,14 +26,17 @@ as it stops and writes nothing. With none configured, no lane behaves differentl
   residuals: interactive sessions stay under the operator, and their label writes count as human
   provenance; a lane holds the operator's token for the rest of the cycle in which the config
   lands; whoever controls the lane host's gh or git binary, the script or the checkout's `.git`
-  directory already runs code as the lane; a `lane-push.sh` push without workflow-file permission
-  cannot change workflow files (accepted).
-- **Two push paths (§1).** The pull-request skill's `push-branch.sh` keeps the operator's remote
-  for interactive pushes and, inside a lane (a GitHub App `[bot]` acting login), hands the push to
-  `lane-push.sh`. Residuals R1-R6: two paths to maintain; the interactive path trusts the
+  directory already runs code as the lane; a lane whose identity lacks workflow-file permission
+  cannot push changes to workflow files (accepted).
+- **Two push paths (§1).** The pull-request skill's `push-branch.sh`, which every babysit-prs push
+  also goes through, keeps the operator's remote for interactive and attended pushes and, inside a
+  lane (a GitHub App `[bot]` acting login), runs the identity preflight for the base repository
+  and hands the push to `lane-push.sh` as the `merge.agent-identity` it configures, refusing when
+  none is configured. Residuals R1-R6: two paths to maintain; the interactive path trusts the
   operator's git setup; a lane on an operator host with SSH keys reachable can push as the operator
-  until lane hosts hold only the identity's credentials; the lane check is advisory; `NETRC` needs a
-  libcurl that reads it; proxy and CA variables are not scrubbed.
+  until lane hosts hold only the identity's credentials, and whether today's launcher strips
+  `SSH_AUTH_SOCK` is an open question; the lane check is advisory; `NETRC` needs a libcurl that
+  reads it; proxy and CA variables are not scrubbed (not verified).
 
 ## [11.0.1] - 2026-10-11
 

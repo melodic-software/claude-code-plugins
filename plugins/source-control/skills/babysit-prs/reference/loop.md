@@ -180,17 +180,19 @@ rules:
     fork-sourced PRs; a genuinely divergent local (unpushed commits) leaves HEAD != the PR head and
     correctly falls to read-only.
   - After either checkout, full mode requires HEAD == the PR head; anything else is read-only.
-- **Push destination.** Never this checkout's remotes. `lane-push.sh` reads the pull request's
+- **Push destination.** `push-branch.sh`'s. In a lane, `lane-push.sh` reads the pull request's
   head repository and branch from the forge and builds `https://github.com/<owner>/<repo>.git`
   itself, so a remote, `pushRemote` or `pushurl` that the PR checkout wrote, or that points at
   the base repository or another host, is never pushed to (the cross-repo regression this
-  guards; [safety.md](safety.md)). A cross-repo head is writable only when its owner is within
+  guards; [safety.md](safety.md)). Attended, it is the resolved push remote, refused unless every
+  push URL is the PR's head repository. A cross-repo head is writable only when its owner is within
   `<watched-owners>` ([safety.md](safety.md) Stop And Ask: an external-fork head outside the
   watched owners stays read-only even with maintainer edits enabled).
-- **`lane_push`.** EVERY lane push goes through it, and it is the only push: `lane-push.sh
-  --login <login> --repo <base repo> --pr <N>` (the loop-lane convention's "Lane write
-  identity": it refuses unless the gh token acts as `<login>`, the target's
-  `merge.agent-identity` when it names one, else the session's own login) between two auto-merge
+- **`lane_push`.** EVERY push goes through it, and it is the only push: pull-request's
+  `push-branch.sh --dir <this checkout> --pr <N>`, which pushes the checkout's HEAD to the PR's head
+  branch. Inside a lane (a `[bot]` login) it hands the push to `lane-push.sh` as the target's
+  `merge.agent-identity` and refuses unless the session acts as it; an attended run takes the
+  operator's own push path (the loop-lane convention's "Lane write identity"). It runs between two auto-merge
   disarms, one immediately before the push and one right after it (someone may arm the old head
   mid-push), because a push keeps auto-merge armed and the new head could merge on ci-status
   alone before the AI reviews re-run ([safety.md](safety.md), "Merge lane: no auto-merge"). It
@@ -216,7 +218,7 @@ rules:
 
 **Integration conflict handling (graduated).** Freshness is merge-only: integrate a behind-default
 branch via `git merge origin/$DEFAULT_BRANCH` and push by refspec to the PR's head repository
-and branch through `lane_push` (`lane-push.sh` between two auto-merge disarms, for a same-repo
+and branch through `lane_push` (`push-branch.sh` between two auto-merge disarms, for a same-repo
 head and a write-allowed cross-repo head alike; fast-forward, never force, since rebasing or force-pushing a PR branch as freshness
 maintenance is forbidden, safety.md and orchestration.md). Then:
 
@@ -310,8 +312,8 @@ validation, run one wave over all of them:
 
 - [ ] For each VALID comment: edit code to fix it, `git add <specific-files>` (never `-A` or
       `.`), `git commit -m "<type>: <description>"`. No push yet
-- [ ] One `lane_push` for the whole wave: `lane-push.sh` (it pushes `HEAD` by refspec to the
-      PR's head repository and branch, from a `--detach` checkout too) between two auto-merge
+- [ ] One `lane_push` for the whole wave: `push-branch.sh --dir` (it pushes `HEAD` by refspec to
+      the PR's head branch, from a `--detach` checkout too) between two auto-merge
       disarms; never a bare `git push`
 - [ ] For each fixed comment, after that push: verify its commit is on the branch (D6 verify
       step, [review-discipline.md](../../../reference/review-discipline.md) §3), then post a
