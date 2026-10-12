@@ -203,6 +203,27 @@ assert_not_contains "a rule inside an evals/fixtures tree is NOT indexed" "$out"
 assert_not_contains "a nested CLAUDE.md inside an evals/fixtures tree is NOT indexed" "$out" 'evals/fixtures/consumer-repo/CLAUDE.md'
 assert_contains "rules outside the fixture tree are still indexed" "$out" '`.claude/rules/csharp.md`'
 
+# A unit-test fixture tree (a plugin's tests/fixtures/) is the same kind of
+# imitated consuming repository, so it stays out of the index, and a root block
+# written from the same repository stays in sync with it present (#6868).
+tfx="$(build_fixture)"
+tfxdir="$tfx/plugins/demo/tests/fixtures/pointer-home"
+mkdir -p "$tfxdir/.claude/rules"
+printf '# Fixture project\n\nBody.\n' >"$tfxdir/AGENTS.md"
+printf '# Fixture claude\n\nBody.\n' >"$tfxdir/CLAUDE.md"
+printf -- '---\npaths:\n  - "src/**/*.ts"\n---\n\n# Fixture rule\n' >"$tfxdir/.claude/rules/one.md"
+commit_all "$tfx" testfixture
+out="$(run render --root "$tfx")"
+assert_not_contains "a nested AGENTS.md inside a tests/fixtures tree is NOT indexed" "$out" 'tests/fixtures/pointer-home/AGENTS.md'
+assert_not_contains "a nested CLAUDE.md inside a tests/fixtures tree is NOT indexed" "$out" 'tests/fixtures/pointer-home/CLAUDE.md'
+assert_not_contains "a rule inside a tests/fixtures tree is NOT indexed" "$out" 'tests/fixtures/pointer-home/.claude/rules/one.md'
+assert_contains "nested files outside the tests/fixtures tree are still indexed" "$out" '`src/billing/AGENTS.md`'
+printf '# Root shared instructions\n' >"$tfx/AGENTS.md"
+run write --file "$tfx/AGENTS.md" --root "$tfx" >/dev/null 2>&1
+out="$(run check --file "$tfx/AGENTS.md" --root "$tfx")"
+assert_contains "a root index written beside a tests/fixtures tree is IN-SYNC" "$out" "IN-SYNC"
+assert_not_contains "and its written block never names the tests/fixtures tree" "$(cat "$tfx/AGENTS.md")" 'tests/fixtures'
+
 # --------------------------------------------------------------------------
 # Determinism
 # --------------------------------------------------------------------------
@@ -651,8 +672,10 @@ else
 
   out="$(run write --file "$win_target" --root "$win_root")"
   assert_contains "write reports the drive-letter target it wrote" "$out" "WROTE"
+  # The fixture's infra/AGENTS.md is deliberately unshimmed, so write always
+  # warns about that row; only the unreachable-target text is the misreport.
   assert_not_contains "write does not misreport a drive-letter target as unreachable" \
-    "$out" "WARNING"
+    "$out" "not imported"
 
   out="$(run check --file "$win_target" --root "$win_root")"
   assert_contains "the drive-letter round trip lands in sync" "$out" "IN-SYNC"
@@ -685,7 +708,7 @@ else
   assert_contains "write names the backslash target in its forward-slash form" \
     "$out" "$bs_root/AGENTS.md"
   assert_not_contains "write does not misreport a backslash drive-letter target as unreachable" \
-    "$out" "WARNING"
+    "$out" "not imported"
 
   out="$(run check --file "$bs_target_bs" --root "$bs_root_bs")"
   assert_contains "the backslash drive-letter round trip lands in sync" "$out" "IN-SYNC"

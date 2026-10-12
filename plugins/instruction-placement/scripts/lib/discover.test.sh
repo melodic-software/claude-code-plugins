@@ -243,6 +243,23 @@ out="$(ip_discover_nested_instructions "$fixt")"
 assert_has "a nested file outside an eval fixture is discovered" "$out" "svc/AGENTS.md"
 assert_lacks "a nested file inside an evals/fixtures tree is excluded" "$out" "plugins/demo/evals/fixtures/consumer/CLAUDE.md"
 
+# A unit-test fixture tree (tests/fixtures/) is the same kind of imitated
+# repository and is excluded the same way (#6868).
+tfixt="$(mktemp -d "$TMP/x.XXXX")"
+git -C "$tfixt" init -q .
+rule_file "$tfixt/.claude/rules/real.md" '**/*.cs' 'Real rule'
+rule_file "$tfixt/plugins/demo/tests/fixtures/home/.claude/rules/one.md" 'src/**' 'Fixture rule'
+mkdir -p "$tfixt/svc"
+printf '# Fixture home\n' >"$tfixt/plugins/demo/tests/fixtures/home/AGENTS.md"
+printf '# Service\n' >"$tfixt/svc/AGENTS.md"
+commit_all "$tfixt"
+out="$(ip_discover_rules "$tfixt")"
+assert_has "a rule outside a tests/fixtures tree is discovered" "$out" ".claude/rules/real.md"
+assert_lacks "a rule inside a tests/fixtures tree is excluded" "$out" "plugins/demo/tests/fixtures/home/.claude/rules/one.md"
+out="$(ip_discover_nested_instructions "$tfixt")"
+assert_has "a nested file outside a tests/fixtures tree is discovered" "$out" "svc/AGENTS.md"
+assert_lacks "a nested file inside a tests/fixtures tree is excluded" "$out" "plugins/demo/tests/fixtures/home/AGENTS.md"
+
 # Root-level instruction files already load at session start — never "nested".
 root_files="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$root_files" init -q .
