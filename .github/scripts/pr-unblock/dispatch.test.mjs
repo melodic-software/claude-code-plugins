@@ -292,6 +292,21 @@ test("a 200 dispatch with no workflow_run_id counts as failed and is not reporte
   assert.ok(!lines.some((line) => line.startsWith("dispatched #71")));
 });
 
+test("a dispatch with an unusable workflow_run_id still uses one of the maxDispatch slots", async () => {
+  const { api, lines, run } = harness({
+    pages: [[pr(131), pr(132), pr(133), pr(134)]],
+    runIds: new Map([["131", undefined]]),
+  });
+  const result = await run();
+  assert.deepEqual(dispatchedNumbers(api), ["131", "132", "133"]);
+  assert.deepEqual(result.dispatched, [
+    { number: 132, workflowRunId: "9132" },
+    { number: 133, workflowRunId: "9133" },
+  ]);
+  assert.equal(result.failed, 1);
+  assert.ok(lines.some((line) => line.includes("#134") && /later run/.test(line)));
+});
+
 test("a workflow_run_id that is not 1 to 15 digits without a leading zero counts as failed", async () => {
   const bad = [
     ["81", "0123"],

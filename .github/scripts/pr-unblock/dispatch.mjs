@@ -106,8 +106,10 @@ export async function dispatchConflicting({
   candidates.sort((a, b) => a.number - b.number);
   const dispatched = [];
   let failed = 0;
+  // Every accepted dispatch call started a run, recorded or not.
+  let sent = 0;
   for (const node of candidates) {
-    if (dispatched.length >= maxDispatch) {
+    if (sent >= maxDispatch) {
       log(`defer #${node.number}: ${maxDispatch} dispatches this run; left for a later run`);
       continue;
     }
@@ -131,6 +133,7 @@ export async function dispatchConflicting({
         ref: `refs/heads/${base}`,
         inputs: { "pr-number": String(node.number), "dispatcher-run-id": String(runId) },
       });
+      sent += 1;
       // The dispatched run's gate and the broker refuse a run this run did not
       // record, so a dispatch with no usable id counts as failed.
       const id = String(workflowRunId);
