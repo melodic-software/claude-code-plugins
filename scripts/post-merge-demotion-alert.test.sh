@@ -65,7 +65,7 @@ fi
 
 # --- Step body ----------------------------------------------------------------
 # The stub logs one line per call. A POST's -f fields go to post.<n>, one per
-# line. A GET applies its --jq filter to the matching fixture with jq, as gh does.
+# line (a PATCH too). A GET applies its --jq filter to the matching fixture with jq, as gh does.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -81,7 +81,7 @@ for ((i = 0; i < ${#args[@]}; i++)); do
 done
 printf '%s %s\n' "$method" "$endpoint" >>"$STUB_DIR/log"
 n=$(wc -l <"$STUB_DIR/log")
-if [[ "$method" == POST ]]; then
+if [[ "$method" != GET ]]; then
   printf '%s\n' "${fields[@]}" >"$STUB_DIR/post.$n"
   printf '{"number": 900}\n'
   exit 0
@@ -101,10 +101,10 @@ RUN_URL=https://github.com/o/r/actions/runs/4242
 FULL="$full_name"
 CANARY="$canary_name"
 
-# issue <number> <body> [pull_request] -> one REST issue object
+# issue <number> <body> [pull_request] [state] -> one REST issue object
 issue() {
-  jq -n --argjson n "$1" --arg body "$2" --arg pr "${3:-}" \
-    '{number: $n, body: $body, user: {login: "github-actions[bot]", type: "Bot"}}
+  jq -n --argjson n "$1" --arg body "$2" --arg pr "${3:-}" --arg state "${4:-open}" \
+    '{number: $n, state: $state, body: $body, user: {login: "github-actions[bot]", type: "Bot"}}
      + (if $pr == "" then {} else {pull_request: {url: $pr}} end)'
 }
 
@@ -117,7 +117,7 @@ run_step() {
   : >"$TMP_ROOT/stub/log"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" STUB_FAIL_READ="${FAIL_READ:-}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
-    RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" \
+    RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-1}" \
     RUN_COMMIT_MESSAGE="${COMMIT_MESSAGE:-fix: a change (#1234)}" \
     bash -e "$TMP_ROOT/body.sh" 2>&1)" && RC=0 || RC=$?
   LOG="$(cat "$TMP_ROOT/stub/log")"
@@ -150,6 +150,10 @@ files() {
     fail "$label: body lacks the pull request link"
   elif ! grep -qx 'labels\[\]=needs-human' <<<"$fields"; then
     fail "$label: issue is not labeled needs-human: '$fields'"
+  elif [[ "$signal" == schedule && ("$body" != *"- Main at the failing run: \`$SHA\`"* || "$body" == *"Merge commit"*) ]]; then
+    fail "$label: a schedule record must name the SHA as main at the failing run"
+  elif [[ "$signal" != schedule && "$body" != *"- Merge commit: \`$SHA\`"* ]]; then
+    fail "$label: body does not name the merge commit"
   else
     ok "$label"
   fi
@@ -203,12 +207,64 @@ else
   fail "record already naming the run: rc=$RC log='$LOG'"
 fi
 
+# comment <login> <body> -> one REST issue comment object
+comment() {
+  jq -n --arg login "$1" --arg body "$2" '{user: {login: $login}, body: $body}'
+}
+
 run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$MARKER")]" \
-  "[{\"body\": \"The post-merge check found this failure again: $RUN_URL\"}]"
+  "[$(comment someone "$RUN_URL"), $(comment 'github-actions[bot]' "The post-merge check found this failure again: $RUN_URL")]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 0 ]]; then
-  ok "a record whose comments already name this run gets no comment"
+  ok "a record whose own comments already name this run gets no comment"
 else
   fail "comment already naming the run: rc=$RC log='$LOG'"
+fi
+
+run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$MARKER")]" "[$(comment someone "seen $RUN_URL")]"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG"; then
+  ok "a comment by anyone else naming the run does not suppress the sighting"
+else
+  fail "foreign comment naming the run: rc=$RC log='$LOG'"
+fi
+
+run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$MARKER" '' closed)]"
+patch_line="$(grep -n '^PATCH repos/o/r/issues/41$' <<<"$LOG" | cut -d: -f1)"
+comment_line="$(grep -n '^POST repos/o/r/issues/41/comments$' <<<"$LOG" | cut -d: -f1)"
+if [[ "$RC" -eq 0 && -n "$patch_line" && -n "$comment_line" && "$patch_line" -lt "$comment_line" ]] &&
+  grep -qx 'state=open' "$TMP_ROOT/stub/post.$patch_line" && [[ "$(posts)" -eq 1 ]]; then
+  ok "a closed record is reopened, then commented, on a new failure"
+else
+  fail "closed record: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+run_step "$FULL" schedule failure main o/r "$SHA" "[$(issue 41 "$MARKER" '' open)]"
+if [[ "$RC" -eq 0 ]] && ! grep -q '^PATCH' <<<"$LOG"; then
+  ok "an open record is not patched"
+else
+  fail "open record patched: log='$LOG'"
+fi
+
+ATTEMPT=2 run_step "$FULL" schedule success main o/r "$SHA" "[$(issue 41 "$MARKER" '' closed)]"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG" &&
+  [[ "$(post_fields)" == "body=re-run passed: $RUN_URL" ]] && ! grep -q '^PATCH' <<<"$LOG"; then
+  ok "a re-run that passes comments on the record without reopening it"
+else
+  fail "re-run passed: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+ATTEMPT=2 run_step "$FULL" schedule success main o/r "$SHA" "[$(issue 41 "$MARKER")]" \
+  "[$(comment 'github-actions[bot]' "re-run passed: $RUN_URL")]"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 ]]; then
+  ok "a re-run pass already recorded is not commented twice"
+else
+  fail "duplicate re-run pass: rc=$RC log='$LOG'"
+fi
+
+ATTEMPT=2 run_step "$CANARY" push success main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 ]] && ! grep -qE '^(POST|PATCH)' <<<"$LOG"; then
+  ok "a re-run that passes with no record files nothing"
+else
+  fail "re-run pass without record: rc=$RC log='$LOG'"
 fi
 
 if grep -q 'creator=github-actions%5Bbot%5D' <<<"$LOG" && grep -q 'state=all' <<<"$LOG"; then
@@ -236,7 +292,7 @@ quiet "a failed merge_group run files nothing" "$FULL" merge_group failure main 
 quiet "a dispatched canary run files nothing" "$CANARY" workflow_dispatch failure main o/r
 quiet "a successful scheduled run files nothing" "$FULL" schedule success main o/r
 quiet "a successful canary push run files nothing" "$CANARY" push success main o/r
-quiet "a cancelled scheduled run files nothing" "$FULL" schedule cancelled main o/r
+CONCLUSION=cancelled files "a cancelled scheduled run files a record" schedule "$FULL" schedule '[]'
 quiet "a failed run on another branch files nothing" "$FULL" workflow_dispatch failure feat/x o/r
 quiet "a failed run from a fork's main files nothing" "$FULL" schedule failure main fork/r
 quiet "another workflow files nothing" "some-other-workflow" schedule failure main o/r

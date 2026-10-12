@@ -47,6 +47,7 @@ jobs:
           RUN_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
           RUN_SHA: ${{ github.event.workflow_run.head_sha }}
           RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           RUN_COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
         run: |
           case "$RUN_WORKFLOW:$RUN_EVENT" in
@@ -58,8 +59,18 @@ jobs:
               exit 0
               ;;
           esac
+          # Neither signal's runs are cancelled by concurrency, so a cancel
+          # comes from an actor with actions: write and counts as a failure.
+          # A re-run that passes is recorded on the record; it clears nothing.
           case "$RUN_CONCLUSION" in
-            failure | timed_out | startup_failure) ;;
+            failure | timed_out | startup_failure | cancelled) passed='' ;;
+            success)
+              if [[ ! "$RUN_ATTEMPT" =~ ^[0-9]+$ || "$RUN_ATTEMPT" -lt 2 ]]; then
+                echo "$RUN_WORKFLOW passed on attempt $RUN_ATTEMPT: nothing to file"
+                exit 0
+              fi
+              passed=1
+              ;;
             *)
               echo "$RUN_WORKFLOW concluded $RUN_CONCLUSION: nothing to file"
               exit 0
@@ -80,27 +91,44 @@ jobs:
           records="$(gh api --paginate \
             "repos/$GITHUB_REPOSITORY/issues?state=all&creator=github-actions%5Bbot%5D&per_page=100" \
             --jq '.[] | select(.pull_request == null)
-              | [.number, ((.body // "") | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")), (.body // "")]
+              | [.number, .state, ((.body // "") | sub("^\\s+"; "") | split("\n")[0] | sub("\\s+$"; "")), (.body // "")]
               | @tsv')"
           number=''
+          state=''
           body=''
-          while IFS=$'\t' read -r n first rest; do
+          while IFS=$'\t' read -r n s first rest; do
             if [[ "$first" == "$marker" ]]; then
               number="$n"
+              state="$s"
               body="$rest"
               break
             fi
           done <<<"$records"
 
+          if [[ -n "$passed" && -z "$number" ]]; then
+            echo "attempt $RUN_ATTEMPT passed and no record exists: nothing to file"
+            exit 0
+          fi
           if [[ -n "$number" ]]; then
+            if [[ -n "$passed" ]]; then
+              note="re-run passed: $RUN_URL"
+            else
+              note="The post-merge check found this failure again: $RUN_URL"
+            fi
             comments="$(gh api --paginate \
-              "repos/$GITHUB_REPOSITORY/issues/$number/comments?per_page=100" --jq '.[].body')"
-            if [[ "$body" == *"$RUN_URL"* || "$comments" == *"$RUN_URL"* ]]; then
-              echo "#$number already names $RUN_URL"
+              "repos/$GITHUB_REPOSITORY/issues/$number/comments?per_page=100" \
+              --jq '.[] | select(.user.login == "github-actions[bot]") | .body')"
+            if [[ -n "$passed" && "$comments" == *"$note"* ]] ||
+              [[ -z "$passed" && ("$body" == *"$RUN_URL"* || "$comments" == *"$RUN_URL"*) ]]; then
+              echo "#$number already records $RUN_URL"
               exit 0
             fi
-            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$number/comments" \
-              -f body="The post-merge check found this failure again: $RUN_URL" >/dev/null
+            # A new failure on a closed record demotes again.
+            if [[ -z "$passed" && "$state" != open ]]; then
+              gh api -X PATCH "repos/$GITHUB_REPOSITORY/issues/$number" -f state=open >/dev/null
+              echo "reopened #$number"
+            fi
+            gh api -X POST "repos/$GITHUB_REPOSITORY/issues/$number/comments" -f body="$note" >/dev/null
             echo "commented on #$number"
             exit 0
           fi
@@ -112,6 +140,10 @@ jobs:
             pr="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/pull/${BASH_REMATCH[1]}"
             title="Post-merge $signal failure after #${BASH_REMATCH[1]}: unattended merging demoted"
           fi
+          sha_label='Merge commit'
+          if [[ "$signal" == schedule ]]; then
+            sha_label='Main at the failing run'
+          fi
           fence='```'
           body="$marker
 
@@ -119,7 +151,7 @@ jobs:
           rung off until a human closes this issue directly (not through a pull request's closing keyword).
 
           - Pull request: $pr
-          - Merge commit: \`$RUN_SHA\`
+          - $sha_label: \`$RUN_SHA\`
           - Failing run: $RUN_URL
 
           To revert the merge, a human runs:
