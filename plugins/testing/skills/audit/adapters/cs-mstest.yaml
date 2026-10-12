@@ -11,7 +11,7 @@ detect:
 # UITestMethod. This list replaces cs-xunit's, so it repeats the Reqnroll [Then] step.
 test_start:
   - '^[[:space:]]*\[[[:space:]]*[A-Za-z]*TestMethod([^A-Za-z0-9_]|$)'
-  - '^[[:space:]]*\[[[:space:]]*Then([^A-Za-z0-9_]|$)'
+  - '^[[:space:]]*\[[[:space:]]*(global::)?(Reqnroll\.)?Then(Attribute)?([^A-Za-z0-9_]|$)'
 # ExpectedException makes the attribute the assertion, which no body token shows.
 test_skip:
   - 'Ignore'

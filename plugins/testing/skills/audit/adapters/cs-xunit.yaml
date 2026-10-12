@@ -13,7 +13,7 @@ files: ['*Test.cs', '*Tests.cs', '*StepDefinitions.cs', 'UnitTest*.cs']
 # [Given] and [When] steps arrange and act, and are not.
 test_start:
   - '^[[:space:]]*\[[[:space:]]*(Fact|Theory|Test([^A-Za-z0-9_]|$)|TestMethod|TestCase|DataTestMethod)'
-  - '^[[:space:]]*\[[[:space:]]*Then([^A-Za-z0-9_]|$)'
+  - '^[[:space:]]*\[[[:space:]]*(global::)?(Reqnroll\.)?Then(Attribute)?([^A-Za-z0-9_]|$)'
 # Matched in any attribute of the same stack, before or after the test one.
 test_skip:
   - 'Skip[[:space:]]*='
