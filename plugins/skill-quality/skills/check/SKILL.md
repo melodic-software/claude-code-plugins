@@ -260,9 +260,9 @@ The seed probe set is two skills chosen for competitor density (`skill-quality:c
 
 ## Cross-skill invocation (doctrine)
 
-The Skill tool takes one skill per call, so a step needing two skills is two calls. Do not instruct
-Skill-tool invocation of a `disable-model-invocation: true` (user-invoked-only) target. Tell the
-user to run `/plugin:skill` instead. This gate does not automate that reachability check; author
+Make one Skill call per skill a step needs. Do not instruct Skill-tool invocation of a
+`disable-model-invocation: true` (user-invoked-only) target. Tell the user to run `/plugin:skill`
+instead. This gate does not automate that reachability check; author
 and review against the invariant.
 
 - **Pointer**: when deciding whether the Skill tool can reach a target, or how many skills one

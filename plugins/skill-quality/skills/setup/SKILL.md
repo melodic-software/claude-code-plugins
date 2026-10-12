@@ -49,9 +49,8 @@ surface, which setup must not hand-edit (Check-only carve-out, native `userConfi
   any time, or headless `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`
   (repeatable per key), rerun against the already-installed plugin. Pass the scope
   `claude plugin list` reports, and run from that project's directory for a `project`/`local`
-  scope: the convention's verified-version record (anchored above) measured a rerun at another
-  scope adding a second install record and enabling the plugin there, with the value itself
-  still landing in user settings. Do **not** uninstall to reconfigure. Read the command's output
+  scope, and read the convention's verified-version record (anchored above) for what a rerun at
+  another scope does before presenting it. Do **not** uninstall to reconfigure. Read the command's output
   rather than trusting its exit code. The convention's
   [caveats section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries)
   records why for each of these rules; this skill does not restate it.
