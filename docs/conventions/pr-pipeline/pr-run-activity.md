@@ -596,7 +596,7 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 503 | `github-unavailable` | With `dispatcher_run_id`: a dispatcher, run, tag or compare read failed; nothing was minted |
 | 403 | `pr-not-eligible` | The PR is not open, not from a branch of this repository, or does not target `main` |
 | 403 | `default-branch-not-main` | The repository's default branch is not `main` |
-| 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, a repository variable of that name exists (it would shadow the org value), or the repository's `CLAUDE_LANES_REPO_DISABLED` is set and not exactly `false` |
+| 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, a repository variable of that name exists (it would shadow the org value), or the repository's `CLAUDE_LANES_REPO_DISABLED` is absent or not exactly `false` |
 | 403 | `already-minted` | This job already received its mint |
 | 503 | `key-unavailable`, `github-unavailable`, `store-unavailable` | The broker could not sign, read GitHub, or record the mint; nothing was minted |
 
