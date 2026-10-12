@@ -17,6 +17,7 @@ about work items, tickets, issues, tracked work, or what to do next):
 /work-items:triage 42
 /work-items:decompose                  # break the topic's PLAN.md into tickets
 /work-items:ship                       # macro map over a spec container: status, shape, next step
+/work-items:ship run #300              # run the container's ready items under its shape (attended)
 /work-items:scan-todos                 # sweep TODO/FIXME/HACK markers
 /work-items:onboard-adapter gitea      # generate an adapter for an unbundled tracker
 ```
@@ -29,7 +30,7 @@ about work items, tickets, issues, tracked work, or what to do next):
 | `/work-items:work` | Auto-select one item by priority tiers, claim it race-safe (assignee + lease), and execute it end-to-end. |
 | `/work-items:triage` | Evaluate raw intake, issues and unsolicited PRs (a PR is an item with attached code), through raw → verified → briefed → autonomous-eligible, with an attention view. |
 | `/work-items:decompose` | Break a plan/PRD/item into vertical-slice items with AFK/HITL classification and dependency ordering. When a spec container is published and the design behind the plan produced typed artifacts (frontmatter carrying `scope` and `dialect`), each is inlined into the container body as a fenced block plus a one-line provenance note naming the scope and dialect, with no file path; an `integration` design labels two, and both are inlined. Slice bodies are unchanged. |
-| `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step. Thin by design, mechanics stay with their owners. |
+| `/work-items:ship` | Macro-journey router over one spec container: rollup + scoped frontier, the container's recorded execution shape (per-item PRs vs integration branch → single PR) with that mode's discipline, and the routed next step. `run` works the container's ready items in parallel through `/implementation:implement-dispatch` and lands them one at a time, attended only. Mechanics stay with their owners. |
 | `/work-items:scan-todos` | Sweep the codebase for TODO/FIXME/HACK markers; resolve or file each. |
 | `/work-items:onboard-adapter` | Onboard a tracker this plugin does not bundle: interview to lock the provider's shape, explore the consumer's real instance for the per-instance facts only it can settle, generate a consumer-owned adapter (hardened security skeleton, honest capability manifest, contract-fixed verb scaffolds, conformance binding) into the consuming repo, then verify. The tail half of the hybrid adapter model. Bundled adapters cover the majors. |
 | `/work-items:setup` | `check` inspects the tracked `.github/recurring-schedule.json`, the jq/tracker-seam entry gates, and the recurring-maintenance role label read-only; `apply` binds the provider, writes the empty schedule skeleton, and offers the canonical-role → label remap in the tracker binding (re-runnable). Seeding actual rows, inferring candidate items from the repo and interviewing per item, is opt-in via `apply --seed-schedule` or an offer that recommends skipping; a schedule that already carries items is offered updates as before. |
@@ -166,6 +167,22 @@ explicit value, since the id must be distinct across concurrent instances and
 stable across restarts. It appears verbatim in tracker comments. Set an opaque
 id if a machine name should not be published in a public tracker.
 
+`triage_repro_count` (default 2) and `triage_objection_window_hours` (default 0,
+off) have a repository layer as well: the same keys in the consuming repo's
+`docs/conventions/work-items.yaml`, checked by
+[`schemas/work-items.schema.json`](schemas/work-items.schema.json), win over the
+per-user values. Lowest first: the manifest default, `userConfig`, the
+repository file. Only `/work-items:triage` reads the file, through the bundled
+`parse-concern-value.sh`, and reports which layer supplied each value; the
+work-loop admission gate reads the window's end from the marker comment triage
+posts. A lane that passes `--config-ref <ref>` to triage has the
+file read as committed at that ref, so a branch under triage cannot change the
+bar it is judged by. The repro count is how many independent reproductions a
+bug needs before triage marks it `status: confirmed`. With a window above 0,
+triage posts an "Objection window until <UTC>" comment beside the brief of each
+item it makes autonomous-eligible; the work-loop lane skips the item until the
+window ends and escalates it if a person replies inside the window.
+
 Everything else is project-specific behavior that routes through the consuming
 repo's own surfaces: the bound provider in `.work-item-tracker.json` (including
 the optional `config.role_labels` canonical-role → label remap), its labels
@@ -178,7 +195,7 @@ gracefully when any of these are absent.
 ### Option details
 
 **`decompose_container_publish`.** The pre-selected offer publishes the Brief as a container item
-carrying the binding-resolved container label (default `work-map`), with slices as native
+carrying the binding-resolved container label (default `work-map`), with items as native
 sub-items. This key changes the offered default answer and never bypasses approval. It declares no
 default so an unset value stays distinguishable from a configured one.
 
@@ -188,8 +205,8 @@ declares no default, so an unset value stays distinguishable from a configured o
 declared default would collapse into a hard cap.
 
 **`lane_instance`.** Follows the loop-lane convention's lane-instance identity rule. Each lane
-instance owning its own comment protects durable state including `first_drain_complete`, whose loss
-would end one machine's earn-trust ratification gate because a different machine finished a drain.
+instance owning its own comment keeps one machine's durable state, such as its adaptive item cap,
+from being overwritten by another's.
 
 **`work_loop_frontier_item_cap_ceiling`.** A quota guard: items carrying `capability-tier: frontier`
 are bounded by this ceiling instead of the general one.
@@ -205,6 +222,8 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `decompose_container_publish` | boolean | *(none)* | `CLAUDE_PLUGIN_OPTION_DECOMPOSE_CONTAINER_PUBLISH` | When true, /work-items:decompose pre-selects the spec-container offer in its approval round for multi-session breakdowns; the approval gate stays mandatory. Unset or false: the plain ask, with a default answer of no. No default is declared, so unset stays distinct from false. |
+| `triage_repro_count` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_TRIAGE_REPRO_COUNT` | Independent reproductions /work-items:triage needs, each with evidence in its comment, before it marks a bug confirmed. Default 2. The repository's docs/conventions/work-items.yaml overrides this per repo. |
+| `triage_objection_window_hours` | number<br>*min 0* | `0` | `CLAUDE_PLUGIN_OPTION_TRIAGE_OBJECTION_WINDOW_HOURS` | Hours after triage makes an item autonomous-eligible during which the work-loop lane skips it, so a person can object in a reply. 0 (the default) is off. The repository's docs/conventions/work-items.yaml overrides this per repo. |
 | `work_dispatch_concurrency_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_WORK_DISPATCH_CONCURRENCY_CAP` | Maximum worker rows /work-items:work's autonomous execute step lets /implementation:implement-dispatch run at once in one plan phase, passed as its --wave-cap ceiling. A fractional value is floored. Unset: implement-dispatch's implement_dispatch_wave_cap option, else its internal default. |
 | `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's work-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: the sanitized lowercased hostname. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$. It appears verbatim in tracker comments. |
 | `work_loop_item_cap_start` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_START` | Where the work-loop lane's adaptive per-cycle item cap starts. Default 2. The cap ramps up by one after three consecutive clean items (never while a rate-limit warning is latched) and drops by one on any dirty item; enforcement is the loop body's own arithmetic. |

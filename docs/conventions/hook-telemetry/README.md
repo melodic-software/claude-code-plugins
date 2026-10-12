@@ -247,5 +247,4 @@ where the formatter every writer calls lives:
 | `disk-hygiene` plugin | `destructive-guard` | `data/destructive-guard.schema.json` |
 | `disk-hygiene` plugin | `guard-launch-monitor` | `data/guard-launch-monitor.schema.json` |
 | `context-guard` plugin (mod) | `zone-crossing-inject` (events `tool.call`, `prompt.submit` and `turn.complete`, per the schema) | `data/zone-crossing-inject.schema.json` |
-| `context-guard` plugin (mod) | `zone-gate` (event `tool.call`) | `data/zone-gate.schema.json` |
 | `context-guard` plugin | `post-compact-mark` | `data/post-compact-mark.schema.json` |

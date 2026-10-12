@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: css-configured-duration
+description: "Hard (the prompt asks for the longest a modal may take): a team-configured animation.duration_ms.large of 400 is honored over the 500ms default"
+tags: [write-css, rule-duration, config, hard]
+runs: 3
+expected_outcome: "The modal and backdrop transitions last at most 400ms, the team's configured large duration in docs/conventions/user-interface.yaml, not the 500ms default, and the reply may name the configured value as the reason"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Write the CSS for a .modal dialog and its .backdrop that fade and scale in when they open. Give it the longest duration a modal is allowed here so it feels weighty. This run cannot write files, so put the CSS in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 25
+  timeout_seconds: 600

@@ -4,13 +4,13 @@ Copy into your project's working-notes location (or track inline). Tick each box
 
 ## Lifecycle
 
-- [ ] Phase 0: Parse action + detect state. Live `gh pr view` lookup, branch check, route to appropriate phase
+- [ ] Phase 0: Parse action + detect state. Live PR lookup, branch check, route to appropriate phase
 - [ ] Phase 1: Prep. Classify the diff; run each class's skills (agents/inline fallback when a plugin is absent); verify findings; simplify; run the project's build+test+lint gate
-- [ ] Phase 2: Create. Branch-name conformance check; `git push -u`; `gh pr create --draft` with `Closes #N` if the branch carries an issue number
-- [ ] Phase 2.5: Ready. Merge the base; security review over the PR diff; verify gate on the merged head; `gh pr ready`
+- [ ] Phase 2: Create. Branch-name conformance check; `git push -u`; open a draft PR with `Closes #N` if the branch carries an issue number
+- [ ] Phase 2.5: Ready. Merge the base; security review over the PR diff; verify gate on the merged head; mark the PR ready
 - [ ] Phase 3: Monitor. Push channel (when available) OR Monitor watch fallback; CI watch + comment response loop; research before any fix
 - [ ] Phase 3.5: Comments. Evaluate/respond to PR comments only (sub-phase of monitor)
-- [ ] Phase 4: Merge. `gh pr merge --squash --delete-branch` in a regular checkout, or `gh pr merge --squash` plus, once the PR is `MERGED`, `git push <push-remote> --delete <branch>` in a linked worktree; worktree transition (reuse it, or release this session's lock), never removal, which is `/source-control:worktree cleanup`; verify
+- [ ] Phase 4: Merge. Squash-merge deleting the head branch in a regular checkout, or squash-merge without deleting it plus, once the PR is `MERGED`, `git push "$REMOTE" --delete --end-of-options '<branch>'` in a linked worktree, only for a head branch that passes the name rule in `reference/merge.md` 4.2; worktree transition (reuse it, or release this session's lock), never removal, which is `/source-control:worktree cleanup`; verify
 
 ## Skip criteria
 
