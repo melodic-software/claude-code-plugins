@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import pathlib
+import subprocess
 import sys
 import time
 import unittest
@@ -19,9 +20,11 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from babysit_risk import (
     ChangedFile,
     LaneEvidence,
+    Reason,
     Risk,
     RiskInput,
     Rung,
+    _merge_by_code,
     normalize_path,
     score,
 )
@@ -35,6 +38,8 @@ def _file(
     additions=10,
     deletions=5,
     has_patch=True,
+    mode="100644",
+    previous_mode=None,
 ):
     return ChangedFile(
         path=path,
@@ -43,6 +48,8 @@ def _file(
         additions=additions,
         deletions=deletions,
         has_patch=has_patch,
+        mode=mode,
+        previous_mode=previous_mode,
     )
 
 
@@ -82,8 +89,11 @@ class AllPassTests(unittest.TestCase):
         self.assertEqual(result.score, Risk.LOW)
         self.assertEqual(result.reasons, ())
 
-    def test_c1_class_under_c2_rung_scores_low(self):
-        self.assertEqual(score(_input(work_class="C1")).score, Risk.LOW)
+    def test_c1_class_is_contradicted_by_any_pull_request(self):
+        # Spec: C1 work produces no pull request, so a C1 PR is contradicted.
+        result = score(_input(work_class="C1"))
+        self.assertEqual(result.score, Risk.MED)
+        self.assertEqual(_codes(result), ("class-contradicted",))
 
 
 class SingleMedReasonTests(unittest.TestCase):
@@ -306,6 +316,8 @@ class HighReasonTests(unittest.TestCase):
             ("docs/Conventions/x.yaml", "high-path:docs/conventions/**"),
             ("plugins/foo/Claude.md", "high-path:**/CLAUDE.md"),
             ("Scripts/run.sh", "high-path:scripts/**"),
+            ("AGENTS.MD", "high-path:**/AGENTS.md"),
+            ("LIB/x.sh", "high-path:lib/**"),
         ]
         for path, code in cases:
             with self.subTest(path):
@@ -438,8 +450,6 @@ class GlobTimingTests(unittest.TestCase):
     """Spec: each configured glob is judged in under 0.5s, however many stars."""
 
     CASES = (
-        ("plugins/foo/" + "*" * 10 + "z", "plugins/foo/" + "a" * 40 + ".md"),
-        ("plugins/foo/" + "*" * 20 + "z", "plugins/foo/" + "a" * 40 + ".md"),
         ("**/" * 9 + "z", "/".join(["a"] * 30) + "/b.md"),
         ("**/a/" * 9 + "z", "/".join(["a"] * 30) + "/b.md"),
         ("plugins/foo/" + "*a" * 20 + "z", "plugins/foo/" + "a" * 60 + ".md"),
@@ -453,9 +463,31 @@ class GlobTimingTests(unittest.TestCase):
                 self.assertLess(time.perf_counter() - start, 0.5)
                 self.assertEqual(result.score, Risk.LOW)
 
+    def test_star_runs_inside_a_segment_fail_closed_fast(self):
+        # Spec: '**' inside a segment is not a whole '**' segment: unreadable.
+        for stars in (10, 20):
+            glob = "plugins/foo/" + "*" * stars + "z"
+            with self.subTest(glob):
+                start = time.perf_counter()
+                result = score(
+                    _input(
+                        files=(_file("plugins/foo/" + "a" * 40 + ".md"),),
+                        high_paths=(glob,),
+                    )
+                )
+                self.assertLess(time.perf_counter() - start, 0.5)
+                self.assertEqual(_codes(result), ("high-path:**",))
+
+    def test_double_star_over_a_very_deep_path_is_linear(self):
+        path = "/".join(["a"] * 20_000) + "/x.md"
+        start = time.perf_counter()
+        result = score(_input(files=(_file(path),), high_paths=("**/a/**/b",)))
+        self.assertLess(time.perf_counter() - start, 1.0)
+        self.assertEqual(result.score, Risk.LOW)
+
     def test_star_globs_still_match(self):
         for glob, path in (
-            ("plugins/foo/" + "*" * 10 + ".md", "plugins/foo/" + "a" * 40 + ".md"),
+            ("plugins/foo/*.md", "plugins/foo/" + "a" * 40 + ".md"),
             ("**/" * 9 + "b.md", "/".join(["a"] * 30) + "/b.md"),
             ("plugins/*o*/a*.md", "plugins/foo/abc.md"),
         ):
@@ -599,17 +631,54 @@ class MalformedInputTests(unittest.TestCase):
         ("path None", dict(files=(_file(None),)), Risk.HIGH, "high-path:**"),
     ]
 
-    def test_malformed_inputs_never_score_low(self):
-        # Spec: any doubtful input rates MED or HIGH, and never raises. The
-        # code a malformed value maps to is the implementation's choice, so
-        # only the codes the spec names (high-path:**) are asserted.
-        for name, changes, _severity, code in self.CASES:
+    def test_malformed_inputs_map_to_the_documented_code(self):
+        # Spec: the module docstring's mapping (per-file data and the listing
+        # to files-incomplete, an unknown rung to class-above-rung, an
+        # unreadable limit to lines-over, an unreadable HIGH set or path to
+        # high-path:**), never LOW and never a raise.
+        for name, changes, severity, code in self.CASES:
             with self.subTest(name):
                 result = score(_input(**changes))
-                self.assertGreaterEqual(result.score, Risk.MED)
-                if code == "high-path:**":
-                    self.assertEqual(result.score, Risk.HIGH)
-                    self.assertIn(code, _codes(result))
+                self.assertEqual(result.score, severity)
+                self.assertIn(code, _codes(result))
+
+    def test_malformed_has_patch_is_reported_once(self):
+        for value in ("false", None):
+            with self.subTest(value):
+                result = score(
+                    _input(files=(_file("plugins/foo/a.md", has_patch=value),))
+                )
+                self.assertEqual(_codes(result), ("files-incomplete",))
+
+    def test_file_modes_other_than_regular_are_high_any_path(self):
+        # Spec: a missing or malformed mode, a symlink (120000) or submodule
+        # (160000), or a previous_mode of another type rates HIGH.
+        for name, changes in (
+            ("mode None", dict(mode=None)),
+            ("mode empty", dict(mode="")),
+            ("mode tree", dict(mode="040000")),
+            ("mode int", dict(mode=100644)),
+            ("symlink", dict(mode="120000")),
+            ("submodule", dict(mode="160000")),
+            ("regular to symlink", dict(mode="120000", previous_mode="100644")),
+            ("symlink to regular", dict(mode="100644", previous_mode="120000")),
+            ("submodule to regular", dict(mode="100755", previous_mode="160000")),
+            ("previous mode malformed", dict(previous_mode="777")),
+        ):
+            with self.subTest(name):
+                result = score(_input(files=(_file("plugins/foo/a.md", **changes),)))
+                self.assertEqual(result.score, Risk.HIGH)
+                self.assertIn("high-path:**", _codes(result))
+
+    def test_regular_modes_stay_low(self):
+        for changes in (
+            dict(mode="100644"),
+            dict(mode="100755"),
+            dict(mode="100755", previous_mode="100644"),
+        ):
+            with self.subTest(changes):
+                result = score(_input(files=(_file("plugins/foo/a.md", **changes),)))
+                self.assertEqual(result.score, Risk.LOW)
 
     def test_odd_path_forms_are_high_any_path(self):
         # Spec: a `..` segment, a trailing `/`, a `:` in a segment, or a
@@ -653,17 +722,20 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertIn("high-path:**", _codes(result))
 
-    def test_tracked_paths_are_safe(self):
-        # A sample of paths tracked on main; the full tree was probed as well.
-        for path in (
-            ".changes/source-control/feat-babysit-risk-scorer-2b289c3f.md",
-            ".claude-plugin/marketplace.json",
-            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
-            "plugins/source-control/skills/babysit-prs/scripts/engine.test.sh",
-            "AGENTS.md",
-        ):
-            with self.subTest(path):
-                self.assertEqual(normalize_path(path), (path, True))
+    def test_every_tracked_path_is_safe(self):
+        here = pathlib.Path(__file__).resolve().parent
+        try:
+            listing = subprocess.run(
+                ["git", "-C", str(here), "ls-files", "-z", "--full-name", ":/"],
+                capture_output=True,
+                check=True,
+            ).stdout
+        except (OSError, subprocess.CalledProcessError):
+            self.skipTest("git or a checkout is unavailable")
+        paths = [p for p in listing.decode("utf-8").split("\0") if p]
+        self.assertTrue(paths)
+        unsafe = [p for p in paths if not normalize_path(p)[1]]
+        self.assertEqual(unsafe, [])
 
     def test_double_star_spans_any_character(self):
         result = score(_input(files=(_file(".github/a\nb"),)))
@@ -716,7 +788,7 @@ class MalformedInputTests(unittest.TestCase):
             with self.subTest(glob):
                 self.assertEqual(score(_input(high_paths=(glob,))).score, Risk.LOW)
 
-    def test_paths_that_could_hide_a_floor_path_are_high(self):
+    def test_paths_that_could_alias_a_floor_path_are_high_any_path(self):
         for path in (
             "../.github/x.yml",
             "plugins/foo/../../.github/x.yml",
@@ -731,12 +803,11 @@ class MalformedInputTests(unittest.TestCase):
             "plugins/foo /x.md",
             "",
             "../plugins/foo/x.md",
-            "AGENTS.MD",
-            "plugins/foo/Claude.md",
-            "LIB/x.sh",
         ):
             with self.subTest(path):
-                self.assertEqual(score(_input(files=(_file(path),))).score, Risk.HIGH)
+                result = score(_input(files=(_file(path),)))
+                self.assertEqual(result.score, Risk.HIGH)
+                self.assertIn("high-path:**", _codes(result))
 
     def test_dot_slash_prefix_matches_the_floor_glob(self):
         result = score(_input(files=(_file("./scripts/x.sh"),)))
@@ -860,6 +931,83 @@ class NeverRaisesTests(unittest.TestCase):
         codes = _codes(result)
         self.assertEqual(len(codes), len(set(codes)))
         self.assertIn("high-path:**", codes)
+
+    def test_merge_keeps_the_highest_severity_on_a_duplicate_detail(self):
+        merged = _merge_by_code(
+            [
+                Reason("x", Risk.MED, "same"),
+                Reason("x", Risk.HIGH, "same"),
+            ]
+        )
+        self.assertEqual(merged, [Reason("x", Risk.HIGH, "same")])
+
+    def test_merge_appends_a_distinct_detail(self):
+        merged = _merge_by_code(
+            [Reason("x", Risk.MED, "a"), Reason("x", Risk.MED, "b")]
+        )
+        self.assertEqual(merged, [Reason("x", Risk.MED, "a; b")])
+
+
+class AddedFloorTests(unittest.TestCase):
+    def test_added_floor_paths_are_high_under_their_own_code(self):
+        for path, glob in (
+            ("plugins/guardrails/hooks/x.sh", "plugins/guardrails/**"),
+            ("plugins/work-items/skills/x.md", "plugins/work-items/**"),
+            ("plugins/foo/hooks/hooks.json", "plugins/*/hooks/**"),
+            ("prompts/x.md", "prompts/**"),
+            ("package.json", "package.json"),
+            ("package-lock.json", "package-lock.json"),
+            ("plugins/foo/package-lock.json", "**/package-lock.json"),
+            (".node-version", ".node-version"),
+            (".python-version", ".python-version"),
+            (".gitleaks.toml", ".gitleaks.toml"),
+            (".gitleaksignore", ".gitleaksignore"),
+            (".gitattributes", ".gitattributes"),
+            ("plugins/foo/.gitmodules", "**/.gitmodules"),
+            ("plugins/foo/CLAUDE.local.md", "**/CLAUDE.local.md"),
+            ("plugins/foo/.mcp.json", "**/.mcp.json"),
+            ("plugins/foo/AGENTS.override.md", "**/AGENTS.override.md"),
+        ):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path),)))
+                self.assertEqual(result.score, Risk.HIGH)
+                self.assertIn(f"high-path:{glob}", _codes(result))
+
+    def test_nested_package_json_is_not_on_the_floor(self):
+        result = score(_input(files=(_file("plugins/foo/package.json"),)))
+        self.assertEqual(result.score, Risk.LOW)
+
+
+class UnreadableSetAndDetailTests(unittest.TestCase):
+    def test_unreadable_configured_set_matches_only_the_floor(self):
+        result = score(
+            _input(
+                files=(_file("plugins/foo/a.md"),),
+                high_paths=("plugins/foo/**", "./bad"),
+            )
+        )
+        self.assertEqual(_codes(result), ("high-path:**",))
+
+    def test_unbound_lane_detail_says_not_bound(self):
+        lanes = (
+            _lane("claude-review", bound=False, open_findings=None),
+            _lane("claude-security-review"),
+        )
+        reason = score(_input(lanes=lanes)).reasons[0]
+        self.assertEqual(reason.code, "evidence-unbound:claude-review")
+        self.assertEqual(reason.detail, "not bound")
+
+    def test_class_contradicted_names_the_files(self):
+        files = (_file("plugins/foo/old.md", status="removed", additions=0),)
+        reason = score(_input(files=files)).reasons[0]
+        self.assertEqual(reason.code, "class-contradicted")
+        self.assertIn("plugins/foo/old.md", reason.detail)
+
+    def test_rung_is_named_in_the_detail(self):
+        reasons = score(
+            _input(work_class="C3", rung=Rung.C2, blast_radius="low")
+        ).reasons
+        self.assertEqual(reasons[0].detail, "C3 above rung C2")
 
 
 if __name__ == "__main__":

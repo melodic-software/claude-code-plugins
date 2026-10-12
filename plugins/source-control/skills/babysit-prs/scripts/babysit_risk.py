@@ -24,12 +24,15 @@ uses only `[A-Za-z0-9._-]` and does not end in `.` (Windows strips it); every
 tracked path in this repository passes. Any other path rates HIGH as
 `high-path:**`, because it could alias any path: `..`, `:` (an NTFS stream),
 `~1` (an 8.3 short name), whitespace, control or non-ASCII characters. So does
-a rename or copy with no previous path. A configured glob outside the same set
-(plus `*`), read exactly as written, makes the configured HIGH set unreadable.
+a rename or copy with no previous path, and a file whose git mode is missing,
+unknown, a symlink or submodule, or changes type. A configured glob outside the
+same set (plus `*` and whole `**` segments), read exactly as written, makes the
+configured HIGH set unreadable, and then only the floor is matched.
 Malformed values have no code of their own in the contract, so each maps to the
 nearest existing code: per-file data and the listing to `files-incomplete`, an
 unknown rung to `class-above-rung` (read as off), an unreadable line limit to
-`lines-over`, an unreadable configured HIGH set to `high-path:**`.
+`lines-over`, an unreadable configured HIGH set or file mode to `high-path:**`,
+and a blast radius other than LOW above C2 to `blast-radius-missing`.
 """
 
 from __future__ import annotations
@@ -49,7 +52,8 @@ class Risk(enum.IntEnum):
 
 
 class Rung(enum.IntEnum):
-    """Order matches the `merge.rung` enum in pr-pipeline.schema.json."""
+    """Order matches the `merge.rung` enum in pr-pipeline.schema.json. Each value
+    is the highest _CLASS_RANK the rung admits; OFF admits none."""
 
     OFF = 0
     C2 = 2
@@ -64,6 +68,12 @@ class ChangedFile:
     additions: int
     deletions: int
     has_patch: bool  # False for binary, submodule, or over-size files
+    # Git file mode ("100644", "100755", "120000", "160000") on the side that
+    # exists (the base side for a removed file). The pull-request files API
+    # omits it, so the caller fills it from the git trees API or
+    # `git diff --raw`.
+    mode: str
+    previous_mode: str | None = None  # the base-side mode on a rename or change
 
 
 @dataclass(frozen=True)
@@ -117,6 +127,22 @@ HIGH_FLOOR: tuple[str, ...] = (
     "plugins/source-control/lib/**",
     "plugins/source-control/skills/babysit-loop/**",
     ".work-item-tracker.json",
+    "plugins/guardrails/**",
+    "plugins/work-items/**",
+    "plugins/*/hooks/**",
+    "prompts/**",
+    "package.json",
+    "package-lock.json",
+    "**/package-lock.json",
+    ".node-version",
+    ".python-version",
+    ".gitleaks.toml",
+    ".gitleaksignore",
+    ".gitattributes",
+    "**/.gitmodules",
+    "**/CLAUDE.local.md",
+    "**/.mcp.json",
+    "**/AGENTS.override.md",
 )
 
 # Lane -> (code, severity) for an open finding on that lane. Both lanes are
@@ -144,6 +170,16 @@ _SAFE_GLOB_SEGMENT = re.compile(r"[A-Za-z0-9._*-]+")
 _LOW_BLAST = "low"
 
 _CLASS_RANK = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5}
+_C1_RANK = _CLASS_RANK["C1"]
+_C2_RANK = _CLASS_RANK["C2"]
+
+# Git file modes by type. Only regular files may stay below HIGH.
+_MODE_TYPES = {
+    "100644": "regular",
+    "100755": "regular",
+    "120000": "symlink",
+    "160000": "submodule",
+}
 
 
 MAX_COUNT = 10**9
@@ -187,31 +223,27 @@ def normalize_path(path: Any) -> tuple[str, bool]:
 
 def _safe_glob(pattern: str) -> bool:
     """A configured glob must name a path in the same character set, exactly as
-    written: no `./` or `/` prefix, no `\\`, no segment ending in `.`."""
+    written: no `./` or `/` prefix, no `\\`, no segment ending in `.`, and `**`
+    only as a whole segment."""
     if pattern.endswith("/"):
         pattern = pattern[:-1]
     return all(
-        _SAFE_GLOB_SEGMENT.fullmatch(segment) and not segment.endswith(".")
+        _SAFE_GLOB_SEGMENT.fullmatch(segment)
+        and not segment.endswith(".")
+        and ("**" not in segment or segment == "**")
         for segment in pattern.split("/")
     )
 
 
-def _normalize_glob(pattern: str) -> str:
-    pattern = pattern.replace("\\", "/")
-    while pattern.startswith(("./", "/")):
-        pattern = pattern[2:] if pattern.startswith("./") else pattern[1:]
-    return pattern
-
-
 def _segment_match(pattern: str, name: str) -> bool:
-    """`*` and `?` within one segment. Greedy with one backtrack point, so the
-    cost is at most len(pattern) * len(name) however many stars there are."""
+    """`*` within one segment. Greedy with one backtrack point, so the cost is
+    at most len(pattern) * len(name) however many stars there are."""
     p = n = 0
     star, mark = -1, 0
     while n < len(name):
         if p < len(pattern) and pattern[p] == "*":
             star, mark, p = p, n, p + 1
-        elif p < len(pattern) and pattern[p] in ("?", name[n]):
+        elif p < len(pattern) and pattern[p] == name[n]:
             p, n = p + 1, n + 1
         elif star >= 0:
             mark += 1
@@ -222,12 +254,12 @@ def _segment_match(pattern: str, name: str) -> bool:
 
 
 def glob_match(pattern: str, path: str) -> bool:
-    """Match a path glob: `**` spans any number of segments, `*` and `?` stay
-    within one. A pattern also covers everything under it, so `plugins/foo` and
+    """Match a path glob: `**` spans any number of segments, `*` stays within
+    one. A pattern also covers everything under it, so `plugins/foo` and
     `plugins/foo/` both match `plugins/foo/x.md`, and `X/**` matches `X` itself.
-    Matching is case-folded and segment by segment, memoised on (pattern
-    segment, path segment), so no glob can backtrack exponentially."""
-    folded = _normalize_glob(pattern).casefold()
+    Matching is case-folded, by an iterative table over (glob segment, path
+    segment), so its cost is O(glob segments x path segments) for any glob."""
+    folded = pattern.casefold()
     if folded.endswith("/"):
         folded += "**"
     globs: list[str] = []
@@ -237,24 +269,20 @@ def glob_match(pattern: str, path: str) -> bool:
         if not (segment == "**" and globs and globs[-1] == "**"):
             globs.append(segment)
     names = path.casefold().split("/")
-    memo: dict[tuple[int, int], bool] = {}
-
-    def match(i: int, j: int) -> bool:
-        if i == len(globs):
-            return True  # the rest of the path sits under what matched
-        key = (i, j)
-        if key not in memo:
-            if globs[i] == "**":
-                memo[key] = any(match(i + 1, k) for k in range(j, len(names) + 1))
-            else:
-                memo[key] = (
-                    j < len(names)
-                    and _segment_match(globs[i], names[j])
-                    and match(i + 1, j + 1)
-                )
-        return memo[key]
-
-    return match(0, 0)
+    # below[j]: globs[i + 1:] match a prefix of names[j:]. With no glob left,
+    # the rest of the path sits under what matched.
+    below = [True] * (len(names) + 1)
+    for glob in reversed(globs):
+        row = [False] * (len(names) + 1)
+        if glob == "**":
+            row[len(names)] = below[len(names)]
+            for j in range(len(names) - 1, -1, -1):
+                row[j] = below[j] or row[j + 1]
+        else:
+            for j in range(len(names)):
+                row[j] = below[j + 1] and _segment_match(glob, names[j])
+        below = row
+    return below[0]
 
 
 @dataclass(frozen=True)
@@ -266,7 +294,7 @@ class _File:
     unsafe: tuple[str, ...]
     status: Any
     lines: int
-    has_patch: bool
+    has_patch: bool | None  # None when malformed: reported once, as a problem
     problems: tuple[str, ...]
 
 
@@ -285,6 +313,7 @@ def _check_file(changed: Any) -> _File:
     status = raw_status if isinstance(raw_status, str) else None
     if status in ("renamed", "copied") and previous is None:
         unsafe.append(f"{_show(raw_path)} {status} with no previous path")
+    unsafe.extend(_mode_problems(changed, raw_path))
     problems = []
     if status not in STATUSES:
         problems.append(f"status {_show(raw_status)}")
@@ -298,6 +327,7 @@ def _check_file(changed: Any) -> _File:
     has_patch = getattr(changed, "has_patch", None)
     if not isinstance(has_patch, bool):
         problems.append(f"has_patch {_show(has_patch)}")
+        has_patch = None
     if not isinstance(raw_path, str):
         problems.append(f"path {_show(raw_path)}")
     return _File(
@@ -306,9 +336,27 @@ def _check_file(changed: Any) -> _File:
         unsafe=tuple(unsafe),
         status=status,
         lines=lines,
-        has_patch=has_patch is True,
+        has_patch=has_patch,
         problems=tuple(problems),
     )
+
+
+def _mode_problems(changed: Any, raw_path: Any) -> list[str]:
+    """Only a regular file that stays regular may rate below HIGH."""
+    mode = getattr(changed, "mode", None)
+    previous = getattr(changed, "previous_mode", None)
+    kind = _MODE_TYPES.get(mode) if isinstance(mode, str) else None
+    found = []
+    if kind != "regular":
+        found.append(f"{_show(raw_path)} mode {_show(mode)} ({kind or 'unknown'})")
+    if previous is not None:
+        before = _MODE_TYPES.get(previous) if isinstance(previous, str) else None
+        if before != kind:
+            found.append(
+                f"{_show(raw_path)} mode {_show(previous)} -> {_show(mode)}"
+                " changes type"
+            )
+    return found
 
 
 def _high_path_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
@@ -318,7 +366,7 @@ def _high_path_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
         isinstance(p, str) and _safe_glob(p) for p in configured
     ):
         unsafe.append(f"configured HIGH set unreadable: {_show(inp.high_paths)}")
-        configured = tuple(p for p in configured or () if isinstance(p, str))
+        configured = ()  # match only the floor
     reasons = []
     if unsafe:
         reasons.append(Reason(UNSAFE_PATH_CODE, Risk.HIGH, "; ".join(unsafe)))
@@ -333,14 +381,17 @@ def _high_path_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
 def _c2_contradictions(files: list[_File]) -> list[str]:
     """The diff contradicts C2 ("deterministic and trivially reversible")."""
     found = []
-    if any(
-        f.status in _STRUCTURAL or (len(f.paths) > 1 and f.paths[1] != f.paths[0])
+    structural = [
+        f.path
         for f in files
-    ):
-        found.append("removed, renamed, copied or changed file")
+        if f.status in _STRUCTURAL or (len(f.paths) > 1 and f.paths[1] != f.paths[0])
+    ]
+    if structural:
+        found.append(f"removed, renamed, copied or changed: {', '.join(structural)}")
     paths = [path for f in files for path in f.paths]
-    if any(path.casefold().endswith(".schema.json") for path in paths):
-        found.append("*.schema.json changed")
+    schemas = [path for path in paths if path.casefold().endswith(".schema.json")]
+    if schemas:
+        found.append(f"schema changed: {', '.join(schemas)}")
     # Only `plugins` is folded: plugins/Foo and plugins/foo are two plugins.
     plugins = {
         parts[1]
@@ -362,18 +413,19 @@ def _class_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
     rung = inp.rung
     known = isinstance(rung, int) and not isinstance(rung, bool) and rung in set(Rung)
     if not known or rung == Rung.OFF or rank > rung:
-        detail = f"{inp.work_class} above rung {_show(rung)}" + (
-            "" if known else " (unknown)"
-        )
+        shown = Rung(rung).name if known else f"{_show(rung)} (unknown)"
+        detail = f"{inp.work_class} above rung {shown}"
         reasons.append(Reason("class-above-rung", Risk.MED, detail))
-    if rank <= Rung.C2:
+    if rank <= _C2_RANK:
         contradictions = _c2_contradictions(files)
+        if rank == _C1_RANK:
+            contradictions.insert(0, "C1 work produces no pull request")
         if contradictions:
             reasons.append(
                 Reason("class-contradicted", Risk.MED, "; ".join(contradictions))
             )
     blast = inp.blast_radius
-    if rank > Rung.C2 and not (
+    if rank > _C2_RANK and not (
         isinstance(blast, str) and blast.casefold() == _LOW_BLAST
     ):
         rated = isinstance(blast, str) and blast.strip()
@@ -426,36 +478,36 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
         lane = entries[0]
         count = getattr(lane, "open_findings", None)
         unbound_reason = getattr(lane, "unbound_reason", None)
-        if (
-            getattr(lane, "bound", None) is not True
-            or unbound_reason is not None
-            or not _is_count(count)
-        ):
+        bound = getattr(lane, "bound", None) is True
+        if not bound or unbound_reason is not None or not _is_count(count):
+            parts = [] if bound else ["not bound"]
             if isinstance(unbound_reason, str) and unbound_reason:
-                detail = unbound_reason
+                parts.append(unbound_reason)
             elif unbound_reason is not None:
-                detail = _show(unbound_reason)
-            else:
-                detail = "no bound finding count"
-            reasons.append(Reason(f"evidence-unbound:{name}", Risk.MED, detail))
+                parts.append(f"unbound_reason {_show(unbound_reason)}")
+            if bound and not _is_count(count):
+                parts.append(f"open_findings {_show(count)}")
+            reasons.append(
+                Reason(f"evidence-unbound:{name}", Risk.MED, ": ".join(parts))
+            )
         elif count > 0:
             reasons.append(Reason(finding_code, finding_severity, f"{count} open"))
     return reasons
 
 
 def _merge_by_code(reasons: list[Reason]) -> list[Reason]:
-    """One reason per code: the highest severity, distinct details joined."""
+    """One reason per code: the first, at the highest severity seen, with each
+    distinct later detail appended."""
     merged: dict[str, Reason] = {}
     for reason in reasons:
-        seen = merged.get(reason.code)
-        if seen is None:
-            merged[reason.code] = reason
-        elif reason.detail not in seen.detail.split("; "):
-            merged[reason.code] = Reason(
-                reason.code,
-                max(seen.severity, reason.severity),
-                f"{seen.detail}; {reason.detail}",
-            )
+        seen = merged.setdefault(reason.code, reason)
+        if seen is reason:
+            continue
+        detail = seen.detail
+        if reason.detail not in detail.split("; "):
+            detail = f"{detail}; {reason.detail}"
+        severity = max(seen.severity, reason.severity)
+        merged[reason.code] = Reason(reason.code, Risk(severity), detail)
     return list(merged.values())
 
 
