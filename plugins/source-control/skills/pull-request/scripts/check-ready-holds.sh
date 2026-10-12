@@ -63,19 +63,20 @@ facts=$(gh pr view "$PR" ${repo_args[@]+"${repo_args[@]}"} --json title,body,lab
 reasons=$(jq -r '
   ([.labels[]?.name | select(ascii_downcase == "do-not-merge")] | if length > 0 then "label: the pull request carries do-not-merge" else empty end),
   (.body // "" | if test("\\bdo(?:n['"'"'\u2019]?t| not)\\s+merge\\b"; "i") then "body: it says do not merge" else empty end),
-  (.body // "" | split("\n")[] | sub("\r$"; "") | select(test("^\\s*hold:"; "i")) | "body: \(ltrimstr(" "))"),
+  (.body // "" | split("\n")[] | sub("\r$"; "") | select(test("^\\s*hold:"; "i")) | "body: \(ltrimstr(" ") | gsub("[[:cntrl:]]"; ""))"),
   (.title // "" | if test("\\bwip\\b"; "i") then "title: a WIP marker in \"\(.)\"" else empty end)
 ' <<<"$facts") || die 2 "cannot parse the pull request facts"
 
+refs=$(jq -r '.closingIssuesReferences[]? | [(.url | capture("^https?://(?<h>[^/]+)/").h), "\(.repository.owner.login)/\(.repository.name)", (.number | tostring)] | @tsv' <<<"$facts") ||
+  die 2 "cannot parse the closing issue references"
+
 while IFS=$'\t' read -r host path num; do
   [[ -n "$num" ]] || continue
-  host_args=()
-  [[ "$host" != github.com ]] && host_args=(--hostname "$host")
   # REST, not GraphQL: some sandboxed sessions are refused GraphQL.
-  state=$(gh api ${host_args[@]+"${host_args[@]}"} "repos/$path/issues/$num" --jq .state | tr -d '\r') ||
+  state=$(gh api --hostname "$host" "repos/$path/issues/$num" --jq .state | tr -d '\r') ||
     die 2 "cannot read the state of $path#$num"
   [[ "$state" == closed ]] && reasons+="${reasons:+$'\n'}superseded: it closes $path#$num, which is already closed"
-done < <(jq -r '.closingIssuesReferences[]? | [(.url | capture("^https?://(?<h>[^/]+)/").h), "\(.repository.owner.login)/\(.repository.name)", (.number | tostring)] | @tsv' <<<"$facts")
+done <<<"$refs"
 
 [[ -z "$reasons" ]] && exit 0
 printf '%s\n' "$reasons"

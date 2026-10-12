@@ -22,8 +22,8 @@ cat >"$STUB_DIR/gh" <<STUB_EOF
 printf '%s\n' "\$*" >>"$TEST_TMPDIR/calls"
 case "\$1 \$2" in
   "pr view") [[ -f "$TEST_TMPDIR/pr.json" ]] || exit 1; cat "$TEST_TMPDIR/pr.json" ;;
-  "api repos/"*)
-    n="\${2##*/}"
+  "api "*)
+    for a in "\$@"; do [[ "\$a" == repos/* ]] && n="\${a##*/}"; done
     [[ -f "$TEST_TMPDIR/issue-\$n" ]] || exit 1
     cat "$TEST_TMPDIR/issue-\$n"
     ;;
@@ -52,7 +52,7 @@ echo open >"$TEST_TMPDIR/issue-10"
 out=$(run 7)
 assert_exit "an unheld pull request with an open linked issue exits 0" 0 "$?"
 assert_silent "an unheld pull request prints nothing" "$out"
-assert_contains "the issue state is read over REST" "$(cat "$TEST_TMPDIR/calls")" "api repos/acme/app/issues/10"
+assert_contains "the issue state is read over REST" "$(cat "$TEST_TMPDIR/calls")" "repos/acme/app/issues/10 --jq .state"
 
 pr "feat(x): add a thing" "" '[{"name":"do-not-merge"}]'
 out=$(run 7)
@@ -109,6 +109,17 @@ assert_not_contains "an open linked issue is not reported" "$out" "acme/app#10"
 pr "test(x): WIP: thing" "do not merge" '[{"name":"do-not-merge"}]' "[$(ref 11)]"
 out=$(run 7)
 assert_eq "every hold is reported, one per line" "4" "$(grep -c . <<<"$out")"
+
+assert_contains "a github.com issue names its host" "$(cat "$TEST_TMPDIR/calls")" "--hostname github.com"
+
+pr "feat(x): add a thing" $'Hold: until \e[2Jlater'
+out=$(run 7)
+assert_exit "a Hold: line with control bytes still holds" 3 "$?"
+assert_eq "control bytes are stripped from the quoted line" "body: Hold: until [2Jlater" "$out"
+
+pr "feat(x): add a thing" "" "[]" "[$(ref 10),{\"number\":13,\"url\":null,\"repository\":{\"name\":\"app\",\"owner\":{\"login\":\"acme\"}}}]"
+run 7 >/dev/null 2>&1
+assert_exit "an unparseable closing reference fails closed" 2 "$?"
 
 rm -f "$TEST_TMPDIR/issue-12"
 pr "feat(x): add a thing" "Closes #12" "[]" "[$(ref 12)]"
