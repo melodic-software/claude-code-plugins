@@ -145,7 +145,7 @@ rebasing a PR branch, which would need a force-push the lanes forbid.
 ### Lane write identity
 
 Every forge write an unattended lane makes, whether a label, comment, claim, thread resolution,
-PR, merge, telemetry upsert or escalation, runs under one dedicated identity, so the tests that ask
+PR, `git push`, merge, telemetry upsert or escalation, runs under one dedicated identity, so the tests that ask
 whether a person acted (label provenance, thread resolution, merge-queue enqueuer, a demotion
 record's close) never count a lane's action as a person's. The identity is the login a repository
 names in `merge.agent-identity` in its `docs/conventions/pr-pipeline.yaml`. It must be a GitHub
@@ -158,16 +158,25 @@ App installed on that repository only: a machine user is a `User` and would pass
   write, the babysit lane and the worker lane read `docs/conventions/pr-pipeline.yaml` fresh from
   the target's default branch through the forge's contents read, never from a local checkout. A
   read that fails (any answer but the content or not-found), a body that does not decode, or a
-  file that does not parse as YAML is a refusal. A readable file that names no
-  `merge.agent-identity`, or no file at all, skips the gate (the residual below). Running it every
-  cycle catches a lane that was already running when the identity was configured, or whose
-  credential changed mid-run.
+  file that does not parse as YAML is a refusal. A not-found answer means no file only when the
+  repository's contents root at the same ref reads 200, the merge gate's own rule (`_file_at`);
+  otherwise the file may exist but be hidden from the token, and that is a refusal too. A readable
+  file that names no `merge.agent-identity`, or no file, skips the gate (the residual below).
+  Running it every cycle catches a lane that was already running when the identity was
+  configured, or whose credential changed mid-run.
 - **The rule** is the merge gate's: `resolve_identity` and `credential_refusal` in
   `plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py`, which read the
   acting login (GraphQL `viewer { login }`) and the session's account listing
-  (`gh auth status --json hosts`). The babysit lane runs them through `babysit-postmerge.sh
-  --preflight`; the worker lane, in another plugin, makes the same two reads and applies the same
-  rule. Each of these refuses (the preflight prints the code shown):
+  (`gh auth status --json hosts`), plus the push path (`push_refusal` in `babysit_postmerge.py`
+  beside it). A lane's `git push` authenticates through git's own remote URL and credential
+  helper, not through gh, so the push path check reads the git config of the checkout the lane
+  pushes from (`git config --get-regexp` and `git remote get-url --push --all`, reads only): every
+  push URL of every remote, and any bare URL a branch or `remote.pushDefault` names, must be
+  `https://github.com` with no credentials in it, and the credential helpers git runs for
+  `https://github.com` must be gh alone (`gh auth git-credential`, which serves the token the
+  account check vetted). The babysit lane runs all three through `babysit-postmerge.sh
+  --preflight` from its checkout; the worker lane, in another plugin, makes the same reads and
+  applies the same rule. Each of these refuses (the preflight prints the code shown):
   - `agent-identity-unconfigured`: the named identity is empty.
   - `agent-identity-invalid`: the identity is not a GitHub App login (`<slug>[bot]`, letters,
     digits and single inner hyphens), or is the shared `github-actions[bot]` or
@@ -181,6 +190,16 @@ App installed on that repository only: a machine user is a `User` and would pass
     login other than the identity.
   - `credentials:unknown-account-listed`: an inactive entry has no login.
   - `credentials:identity-not-active`: there is not exactly one active `github.com` entry.
+  - `credentials:push-config-unreadable`: the git config read failed (not a checkout, say), no
+    remote is configured, or a remote lists no push URL.
+  - `credentials:push-url-not-github-https`: a push URL is SSH (`ssh://` or `git@host:path`),
+    plain HTTP, a local path, or another host.
+  - `credentials:push-url-embeds-credentials`: a push URL carries a user or token.
+  - `credentials:credential-helper-not-gh`: no helper, or one besides gh, runs for
+    `https://github.com`, or a helper's URL context (a path, port, user or wildcard) cannot be
+    shown not to apply.
+  - `credentials:push-extraheader-set`: an `http.extraHeader` that may apply to `github.com` is
+    set; it would replace the helper's credential.
 
   Any refusal means the lane writes nothing that cycle, telemetry and escalations included: it
   reports the reason in its own session output and stops. Whether `viewer` returns the App's login
@@ -188,6 +207,10 @@ App installed on that repository only: a machine user is a `User` and would pass
 - **No identity configured.** The merge path stays inert and the lanes run as before, under
   whatever credential the session holds, and that credential's writes read as human. Named
   residual.
+- **One-cycle latency.** The gate runs at cycle start, so in the cycle in which a config naming
+  the identity lands, a lane that passed the gate with none configured still holds the operator's
+  token until its next gate. A plain `--merge` it runs in that window merges under the operator.
+  Named residual.
 - **Interactive sessions,** the attended queue included, keep the operator's credential, so their
   label writes count as human provenance. That is accurate only while the user directs the
   session. Named residual.

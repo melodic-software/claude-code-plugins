@@ -9,7 +9,9 @@
 #     [--remediate | --preflight]
 #
 # --preflight checks only that the session acts as the identity and holds no
-# other account (the merge gate's identity and credential rules) and exits 0 or 2.
+# other account (the merge gate's identity and credential rules), and that this
+# checkout pushes over https to github.com through gh's credential helper alone;
+# it reads git config, never writes, and exits 0 or 2.
 #
 # --since defaults to the merge gate's floor (the enabling config commit, or the
 # newest human close of a demotion record when later); --branch to the

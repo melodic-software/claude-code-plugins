@@ -7,16 +7,19 @@ table (§3); drift found by that audit is recorded here.
 
 ## [12.0.0] - 2026-10-12
 
-Major. A new loop-layer invariant (§1): where a repository names `merge.agent-identity`, a lane
-not acting as it stops and writes nothing. With none configured, no lane behaves differently.
+Major. A topology change (§1): where a repository names `merge.agent-identity`, a lane not acting
+as it stops and writes nothing. With none configured, no lane behaves differently.
 
 - **Lane write identity (§1).** Unattended lanes write only under `merge.agent-identity`, a GitHub
   App installed on that repository alone, launched with its token as the only GitHub credential.
   At the start of every cycle the babysit and worker lanes read `pr-pipeline.yaml` from the
-  target's default branch and run the merge gate's identity and credential rules; a refusal, or
+  target's default branch and run the merge gate's identity and credential rules, plus a push-path
+  check (every push URL https to `github.com`, gh as the only credential helper); a refusal, or
   an unreadable or unparsable config, means the lane writes nothing that cycle, telemetry and
-  escalations included, and stops. §1 lists every refusal. Interactive sessions stay under the
-  operator, and their label writes count as human provenance (named residual).
+  escalations included, and stops. A not-found config counts as absent only when the repository's
+  contents root reads. §1 lists every refusal. Named residuals: interactive sessions stay under
+  the operator, and their label writes count as human provenance; a lane holds the operator's
+  token for the rest of the cycle in which the config lands.
 
 ## [11.0.1] - 2026-10-11
 

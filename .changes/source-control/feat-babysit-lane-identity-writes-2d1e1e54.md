@@ -4,7 +4,7 @@ bump: minor
 
 ### Added
 
-- babysit-prs: `babysit-postmerge.sh --preflight` runs the merge gate's identity and credential rules alone (the session acts as `merge.agent-identity` and holds no other account) and exits 0 or 2.
+- babysit-prs: `babysit-postmerge.sh --preflight` runs the merge gate's identity and credential rules alone (the session acts as `merge.agent-identity` and holds no other account) plus a push-path check (every push URL is https to `github.com` with no embedded credential, gh is the only credential helper for it, no `http.extraHeader` applies), and exits 0 or 2.
 - babysit-loop: where the target names a `merge.agent-identity`, the lane launches with that identity's token as its only GitHub credential, and an identity gate at the start of every cycle reads `pr-pipeline.yaml` from the target's default branch and stops the lane before any write when the preflight refuses or the config is unreadable. The durable state block carries a `demotion_events` total.
 
 ### Changed

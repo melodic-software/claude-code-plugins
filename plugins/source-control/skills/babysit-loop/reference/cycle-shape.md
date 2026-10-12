@@ -17,13 +17,17 @@ source the worker lane reads. Then:
   content or not-found), a body that does not decode, or a file that does not parse as YAML stops
   the lane as below.
 - **A readable config that names no `merge.agent-identity` skips the gate**, and so does a
-  not-found answer (no file means no merge block, as the merge gate reads it). The lane then runs
-  under whatever credential the session holds (the convention's named residual).
+  not-found answer when the repository's contents root at the same ref reads 200 (no file means
+  no merge block, as the merge gate reads it). A not-found answer with the root unreadable is a
+  refusal: the file may exist but be hidden from the token. The lane then runs under whatever
+  credential the session holds (the convention's named residual).
 - **A named identity runs the preflight:** `bash
   <plugin-root>/skills/babysit-prs/scripts/babysit-postmerge.sh --repo <owner/repo>
-  --agent-identity <merge.agent-identity> --preflight`. It applies the merge gate's identity and
-  credential rules alone: the session must act as that identity and hold no other account (every
-  refusal it can print: the convention's "Lane write identity", §1).
+  --agent-identity <merge.agent-identity> --preflight`, from the checkout the lane pushes from. It
+  applies the merge gate's identity and credential rules alone, plus the push path: the session
+  must act as that identity, hold no other account, and push only over `https://github.com`
+  through gh's credential helper (every refusal it can print: the convention's "Lane write
+  identity", §1).
 
 On a refusal or any exit but 0, the lane writes nothing that cycle (no telemetry, escalation, fix,
 thread resolution, dequeue or merge), reports the reason (the printed `error`, or the config
@@ -206,7 +210,8 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
      --merge`, never `--auto`: `--unattended` refuses `--auto`, and a plain `--merge` refuses the
      identity's token (same file, "Unattended Merge Path"). A plain `--merge` under the operator's
      token cannot reach this step either: wherever the target names an identity, this cycle's
-     identity gate already stopped a lane not acting as it. Where the target does not configure
+     identity gate already stopped a lane not acting as it, except in the cycle in which that
+     config lands (the convention's one-cycle latency residual). Where the target does not configure
      that path, the gate refuses and the PR is reported merge-ready for a human. Every other
      non-report-only PR is invoked at `safe` (fixes and reports; never resolves threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
      Under the explicit-`autopilot` widening, a merge-eligible PR blocked on a machine-escalated
