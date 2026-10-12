@@ -8,9 +8,8 @@ request's eligibility, and whether an earlier unattended merge is still in
 flight. Every reader fails closed: an unreadable or unexpected answer is off,
 refuse or not clear, never permissive.
 
-`resolve()` is still the inert stub `babysit_merge.py` calls, and `assess()`,
-which composes the readers, never enables the path either: no merge is
-connected to them yet.
+`resolve()`, which `babysit_merge.py` calls, returns `assess()`, which composes
+the readers and never enables the path: no merge is connected to them yet.
 
 `self_logins`, wherever a reader takes it, names only lane or bot self
 identities. Every login in it is non-human, as the Design's "Human" definition
@@ -128,8 +127,10 @@ class UnattendedPolicy:
 
 
 def resolve(repo: str) -> UnattendedPolicy:
-    """The unattended policy for `repo`: inert, and reads nothing yet."""
-    return UnattendedPolicy(reason=AUTHORITY_UNCONFIGURED)
+    """The unattended policy for `repo` at its default branch head: `assess()`,
+    so inert in every case. Raises `PolicyReadError` when the pipeline config
+    cannot be read or parsed."""
+    return assess(repo)
 
 
 # --- Bash, for the shared YAML reader -----------------------------------------
