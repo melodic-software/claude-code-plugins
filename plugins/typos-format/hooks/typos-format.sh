@@ -59,7 +59,7 @@
 # KNOWN RISK (write mode only): we assume no ordering or locking between the
 # matching PostToolUse hooks of one tool call.
 # Pointer: the upstream pointer record in
-# README.md#known-limitation-write-mode-only. As of: 2026-10-11.
+# ../README.md#known-limitation-write-mode-only. As of: 2026-10-11.
 # Recheck trigger: that README section is renamed or its pointer record changes.
 # With the report-only default this hook only READS, so
 # the worst concurrent outcome is a stale finding, never corruption. A consumer
@@ -372,7 +372,7 @@ fi
 # matched by COUNT — never by position.
 # Byte offsets shift as earlier corrections on the same line change its length,
 # and line numbers are no more stable: we assume sibling PostToolUse hooks run
-# concurrently (Pointer: README.md#known-limitation-write-mode-only. As of:
+# concurrently (Pointer: ../README.md#known-limitation-write-mode-only. As of:
 # 2026-10-11. Recheck trigger: that README section is renamed or its pointer
 # record changes.), so a sibling formatter can reflow the file
 # between these two passes and carry an untouched finding to a different line.

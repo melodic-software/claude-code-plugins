@@ -41,7 +41,7 @@ imposes no rules of its own.
   starts Bash. We do not assume a Claude Code install brings Node, so without `node` the
   hook does not launch and nothing is normalized. Pointer: when deciding whether an install
   brings Node, fetch [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)
-  live. As of: 2026-10-11. Recheck trigger: that section or System requirements changes which
+  live. As of: 2026-10-11. Recheck trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
   install needs Node at runtime. [Install Node.js](https://nodejs.org/en/download).
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so

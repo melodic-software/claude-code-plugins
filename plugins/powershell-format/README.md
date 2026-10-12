@@ -84,7 +84,7 @@ directory outside the project.
   install brings Node, so without `node` the hooks do not launch and nothing is formatted,
   with no notice. Pointer: when deciding whether an install brings Node, fetch
   [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live.
-  As of: 2026-10-11. Recheck trigger: that section or System requirements changes which
+  As of: 2026-10-11. Recheck trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
   install needs Node at runtime.
   [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a

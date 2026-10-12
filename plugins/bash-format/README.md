@@ -104,7 +104,7 @@ the install route on your copy only.
   without `node` the hook does not launch and shell edits are neither linted nor formatted.
   We do not assume a Claude Code install brings Node. Pointer: when deciding whether it does,
   fetch [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live.
-  As of: 2026-10-11. Recheck trigger: that section or System requirements changes which
+  As of: 2026-10-11. Recheck trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
   install needs Node at runtime. Unlike the tool
   notices below, a missing `node` shows no notice from this plugin. Check it with
   `/bash-format:setup check`. [Install Node.js](https://nodejs.org/en/download).

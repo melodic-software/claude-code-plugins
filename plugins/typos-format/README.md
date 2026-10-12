@@ -126,7 +126,7 @@ built-in tool list, or that section stops calling it legacy.
   the hook does not launch and spelling is not checked. Pointer: when deciding whether a
   Claude Code install brings Node, fetch
   <https://code.claude.com/docs/en/setup#install-with-npm> live. As of: 2026-10-11. Recheck
-  trigger: that section or System requirements changes which install needs Node at runtime. A missing `node` is a hook launch
+  trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which install needs Node at runtime. A missing `node` is a hook launch
   error, not a skip notice, and `/typos-format:setup check` reports it.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
