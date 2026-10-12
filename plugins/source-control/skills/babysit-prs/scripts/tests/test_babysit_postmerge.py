@@ -153,6 +153,8 @@ class FakeGh:
         self.comments: dict[int, list[dict[str, Any]]] = {}
         self.fail_reads: set[str] = set()
         self.merged_pages: list[dict[str, Any]] = []
+        # The repos API's default_branch; None makes the read fail.
+        self.default_branch: str | None = "main"
         # A login's repository permission, or the HTTP status its read fails with.
         self.permissions: dict[str, str | int] = {"maintainer": "write"}
         self.viewer = IDENTITY
@@ -180,6 +182,10 @@ class FakeGh:
         if args[:2] == ["api", "graphql"]:
             return self._graphql(joined)
         endpoint = next(a for a in args if a.startswith("repos/"))
+        if endpoint == f"repos/{REPO}":
+            if self.default_branch is None:
+                return completed(returncode=1, stderr="gh: Server Error (HTTP 502)")
+            return completed({"full_name": REPO, "default_branch": self.default_branch})
         if "/actions/workflows/" in endpoint and "/runs?" in endpoint:
             workflow = endpoint.split("/actions/workflows/")[1].split("/")[0]
             event = endpoint.split("event=")[1].split("&")[0]
@@ -916,7 +922,7 @@ class Remediation(CheckCase):
         )
 
     def test_dispatch_full_run_posts_the_workflow_dispatch(self) -> None:
-        pm.dispatch_full_run(REPO)
+        pm.dispatch_full_run(REPO, ref="main")
         self.assertEqual(
             self.gh.writes(),
             [
@@ -951,6 +957,37 @@ class Cli(CheckCase):
                 ]
             )
         return code, json.loads(out.getvalue())
+
+    def test_the_default_branch_is_read_from_the_repository(self) -> None:
+        # A repository whose default branch is not `main`: every branch read and
+        # the dispatch ref follow it.
+        self.gh.default_branch = "trunk"
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        _, report = self.main("--remediate")
+        joined = [" ".join(c) for c in self.gh.calls]
+        self.assertTrue(any("PostMergeMerged" in c and "b=trunk" in c for c in joined))
+        self.assertFalse(any("b=main" in c or "branch=main" in c for c in joined))
+        runs = [c for c in joined if "/runs?" in c]
+        self.assertTrue(runs)
+        self.assertTrue(all("branch=trunk" in c for c in runs))
+        self.assertEqual(
+            [w[-1] for w in self.gh.writes() if w[3].endswith("/dispatches")],
+            ["ref=trunk"],
+        )
+        self.assertEqual(report["branch"], "trunk")
+
+    def test_unreadable_default_branch_exits_3_without_writes(self) -> None:
+        self.gh.default_branch = None
+        code, report = self.main("--remediate")
+        self.assertEqual(code, 3)
+        self.assertFalse(report["readable"])
+        self.assertEqual(self.gh.writes(), [])
+
+    def test_an_explicit_branch_skips_the_lookup(self) -> None:
+        self.gh.default_branch = None
+        code, report = self.main("--branch", "release")
+        self.assertNotEqual(code, 3)
+        self.assertEqual(report["branch"], "release")
 
     def test_read_only_by_default_even_with_failures(self) -> None:
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))

@@ -136,6 +136,8 @@ class PostMergeVerdict:
     reruns: tuple[Rerun, ...] = ()
     flakes: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+    # The branch judged: the caller's, or the repository's default branch.
+    branch: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -190,6 +192,7 @@ class PostMergeVerdict:
             "flakes": list(self.flakes),
             "needsDispatch": self.needs_dispatch,
             "warnings": list(self.warnings),
+            "branch": self.branch,
         }
 
 
@@ -298,6 +301,17 @@ QUEUE_QUERY = (
     "enqueuer{__typename login} pullRequest{id number}}}}}}"
 )
 DEQUEUE_MUTATION = "mutation PostMergeDequeue($id:ID!){dequeuePullRequest(input:{id:$id}){clientMutationId}}"
+
+
+def _default_branch(owner: str, name: str) -> str:
+    """The repository's default branch; an unreadable one fails the read, so
+    the check never judges a branch the repository does not merge into."""
+    branch = json_object(_read(["api", f"repos/{owner}/{name}"], "repository")).get(
+        "default_branch"
+    )
+    if not isinstance(branch, str) or not branch.strip():
+        raise PostMergeReadError("repository: no default branch")
+    return branch
 
 
 def _merged_since(
@@ -651,9 +665,10 @@ def check(
     merged_since: datetime | None,
     now: datetime | None = None,
     pinned_sha: Callable[[AutoMerge], str | None] | None = None,
-    branch: str = "main",
+    branch: str | None = None,
 ) -> PostMergeVerdict:
-    """Judge every auto-merge into `branch` since `merged_since`.
+    """Judge every auto-merge into `branch` since `merged_since`; with no
+    `branch`, the repository's default branch, read once from the repos API.
 
     `is_human` is the Design's human test for one GraphQL actor (null included).
     `pinned_sha` returns the head SHA the wrapper pinned for a merge, or None when
@@ -668,6 +683,7 @@ def check(
     now = now or datetime.now(UTC)
     try:
         owner, name = _split_repo(repo)
+        branch = branch or _default_branch(owner, name)
         merges: list[AutoMerge] = []
         warnings: list[str] = []
         identity = _login_key(agent_identity)
@@ -679,7 +695,7 @@ def check(
                 merges.append(derived)
         merges.sort(key=lambda m: (str(m.merged_at), m.number))
         if not merges:
-            return PostMergeVerdict(True, warnings=tuple(warnings))
+            return PostMergeVerdict(True, warnings=tuple(warnings), branch=branch)
         floor = (
             min(_time(m.merged_at) for m in merges if m.merged_at)
             if any(m.merged_at for m in merges)
@@ -722,13 +738,14 @@ def check(
         reruns=tuple(tally.reruns.values()),
         flakes=tuple(tally.flakes),
         warnings=tuple(warnings),
+        branch=branch,
     )
 
 
 # --- Writes -------------------------------------------------------------------------
 
 
-def dispatch_full_run(repo: str, *, ref: str = "main") -> None:
+def dispatch_full_run(repo: str, *, ref: str) -> None:
     """Dispatch the full `pr-require-checks` run on `ref`; called only by
     `--remediate` when the verdict needs a dispatch. Without `--remediate` under
     the identity nobody dispatches, so each auto-merge fails at the deadline."""
@@ -879,7 +896,7 @@ def remediate(
     verdict: PostMergeVerdict,
     *,
     agent_identity: str,
-    branch: str = "main",
+    branch: str | None = None,
     label: str | None = None,
     record_telemetry: Callable[[int], None] | None = None,
 ) -> dict[str, Any]:
@@ -902,7 +919,13 @@ def remediate(
         return report
     owner, name = _split_repo(repo)
     try:
-        for pr_id, number in _identity_entries(owner, name, branch, agent_identity):
+        # The queue is the judged branch's unless the caller names another.
+        queue_branch = branch or verdict.branch
+        if not queue_branch:
+            raise PostMergeReadError("no branch to read the merge queue of")
+        for pr_id, number in _identity_entries(
+            owner, name, queue_branch, agent_identity
+        ):
             _graphql(
                 DEQUEUE_MUTATION, f"dequeue #{number}", PostMergeWriteError, id=pr_id
             )
@@ -1059,7 +1082,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--since", required=True, type=_since, help="ISO 8601 floor with an offset"
     )
-    parser.add_argument("--branch", default="main")
+    parser.add_argument(
+        "--branch",
+        help="the branch to judge (default: the repository's default branch)",
+    )
     parser.add_argument(
         "--self-login",
         action="append",
@@ -1111,12 +1137,12 @@ def main(argv: list[str] | None = None) -> int:
         report["dispatched"] = False
         if verdict.needs_dispatch:
             try:
-                dispatch_full_run(args.repo, ref=args.branch)
+                dispatch_full_run(args.repo, ref=verdict.branch)
                 report["dispatched"] = True
             except PostMergeWriteError as exc:
                 errors.append(f"dispatch: {exc}")
         report["remediation"] = remediate(
-            args.repo, verdict, agent_identity=args.agent_identity, branch=args.branch
+            args.repo, verdict, agent_identity=args.agent_identity
         )
         report["remediation"]["errors"] = errors + report["remediation"]["errors"]
         if report["remediation"]["errors"]:
