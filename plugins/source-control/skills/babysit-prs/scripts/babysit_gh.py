@@ -113,15 +113,15 @@ GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
 # through a proxy that refuses GraphQL requests with HTTP 403, whatever the
 # credential. The refusal reads like an expired token or a missing scope and is
 # neither: re-authenticating never clears it, and the only remedy is to source
-# the same fact over REST. The marker is the casefolded GraphQL refusal prefix
-# from the section below; its repository-scope refusal is a different failure
+# the same fact over REST. The marker is the casefolded GraphQL refusal wording
+# from the section below, matched with or without its leading "GitHub"; its repository-scope refusal is a different failure
 # and deliberately not a marker.
 #   Pointer: <https://code.claude.com/docs/en/cloud-environments#github-proxy>
 #   As-of: 2026-10-11.
 #   Recheck trigger: that section stops rejecting GraphQL outright, or changes
 #   the refusal's message prefix.
 GRAPHQL_UNAVAILABLE_MARKERS = (
-    "github graphql is not available from claude code sessions",
+    "graphql is not available from claude code sessions",
 )
 
 

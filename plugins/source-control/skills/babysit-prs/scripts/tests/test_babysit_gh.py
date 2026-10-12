@@ -483,6 +483,10 @@ class GraphQLAvailabilityClassificationTests(unittest.TestCase):
         # A body read off `gh api graphql` stdout carries no `(HTTP nnn)`.
         self.assertTrue(gh.is_graphql_unavailable(RuntimeError(GRAPHQL_REFUSAL)))
 
+    def test_the_refusal_without_its_github_prefix_is_recognized(self) -> None:
+        message = "GraphQL is not available from Claude Code sessions"
+        self.assertTrue(gh.is_graphql_unavailable(RuntimeError(message)))
+
     def test_a_bare_403_is_recognized(self) -> None:
         self.assertTrue(
             gh.is_graphql_unavailable(RuntimeError("gh: Forbidden (HTTP 403)"))
