@@ -1383,6 +1383,33 @@ class EntryHold(unittest.TestCase):
             with self.subTest(name):
                 self.assertEqual(self.relabeled(actor, via_app), hold)
 
+    def test_a_removal_the_timeline_shows_beats_the_label_snapshot(self) -> None:
+        # The labels were read before a human removed the label; the timeline,
+        # read after, already shows the removal (local review of ed841af72).
+        gh = self.fake(
+            labels={"totalCount": 1, "nodes": [{"name": policy.OPT_IN_LABEL}]}
+        )
+        label = {"name": policy.OPT_IN_LABEL}
+        human = {"login": OPERATOR, "type": "User"}
+        gh.rest[f"repos/{REPO}/issues/5/timeline?per_page=100"] = [
+            {
+                "event": "labeled",
+                "label": label,
+                "actor": human,
+                "created_at": "2026-10-12T09:00:00Z",
+            },
+            {
+                "event": "unlabeled",
+                "label": label,
+                "actor": human,
+                "created_at": "2026-10-12T10:30:00Z",
+            },
+        ]
+        self.assertEqual(
+            policy.entry_hold(REPO, 5, IDENTITY, permission=HUMANS),
+            "opt-in-label-removed",
+        )
+
     def test_a_revoked_opt_in_restored_by_a_human_is_no_hold(self) -> None:
         self.assertIsNone(self.relabeled({"login": "maintainer", "type": "User"}))
 
@@ -1534,7 +1561,35 @@ class InFlight(unittest.TestCase):
         )
         self.assertTrue(result.clear, result.reason)
         reads = [c for c in gh.calls if any("PolicyRecentMerges" in a for a in c)]
-        self.assertEqual(len(reads), 2)
+        # Two pages walked, then page 1 again for a PR that moved mid-read;
+        # the endless third page is never read.
+        self.assertEqual(len(reads), 3)
+
+    def test_a_merge_that_jumped_to_page_one_mid_read_is_not_clear(self) -> None:
+        # Local review of ed841af72: an unverified auto-merge on a later page
+        # updated during the walk moves to page 1 behind the cursor.
+        gh = queue_fake(self, [], [])
+        human = merged(2, user(OPERATOR), user(OPERATOR))
+        jumped = merged(1, bot("agent-lanes"), None, "2026-10-01T09:00:00Z")
+        older = merged(0, user(OPERATOR), user(OPERATOR), "2025-12-01T09:00:00Z")
+        reads: list[str] = []
+
+        def answer(variables: dict[str, str]) -> dict[str, Any]:
+            first = "c" not in variables
+            reads.append(variables.get("c", "first"))
+            if first and len(reads) > 1:
+                nodes, more = [jumped, human], True  # the re-read of page 1
+            elif first:
+                nodes, more = [human], True
+            else:
+                nodes, more = [older], False  # #1 left this page mid-read
+            info = {"hasNextPage": more, "endCursor": "p0"}
+            return {"repository": {"pullRequests": {"pageInfo": info, "nodes": nodes}}}
+
+        gh.graphql["PolicyRecentMerges"] = answer
+        result = self.flight()
+        self.assertFalse(result.clear)
+        self.assertTrue(result.reason.startswith("unreadable"), result.reason)
 
     def test_a_merge_before_the_floor_updated_after_it_is_not_judged(self) -> None:
         # Codex P1 on #7335: a comment on an old bot-queued merge moves its
@@ -1705,11 +1760,12 @@ class Assess(unittest.TestCase):
     ) -> None:
         # Codex P1 on #7335: the post-merge check, its dispatch and the
         # scheduled full run all judge the default branch, so a merge into any
-        # other base would go unjudged. The path refuses it before the identity
-        # is accepted, so nothing is dequeued or commented.
+        # other base would go unjudged. The refusal comes after the kill
+        # switch with the identity accepted, so the identity's queued entries
+        # can still be held or dequeued (local review of ed841af72).
         for name, answer, reason in (
             ("another branch", {"default_branch": "main"}, "base-not-default:trunk"),
-            ("unreadable", 502, "base-not-default:default-branch-unreadable"),
+            ("unreadable", 502, "default-branch-unreadable"),
         ):
             with self.subTest(name):
                 gh = self.readable()
@@ -1717,7 +1773,16 @@ class Assess(unittest.TestCase):
                 result = self.assess(post_merge=mock.Mock(side_effect=AssertionError))
                 self.assertEqual(result.reason, reason)
                 self.assertIs(result.enabled, False)
-                self.assertNotIn("identity", result.inputs)
+                self.assertEqual(result.inputs["identity"], IDENTITY)
+
+    def test_the_kill_switch_is_read_before_the_default_branch(self) -> None:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/actions/variables/CLAUDE_LANES_REPO_DISABLED"] = {
+            "value": "true"
+        }
+        gh.rest[f"repos/{REPO}"] = 502
+        result = self.assess(post_merge=mock.Mock(side_effect=AssertionError))
+        self.assertEqual(result.reason, "kill-switch:repo-switch-not-false")
 
     def test_without_a_post_merge_check_the_path_refuses(self) -> None:
         self.readable()

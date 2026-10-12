@@ -2554,7 +2554,12 @@ def queued_entry_hold(
 RISK_MARKER = "<!-- babysit-merge-risk -->"
 UNATTENDED_REFUSED = "unattended merge refused: "
 # Refusals that stop the path: the identity's own queued entries leave the queue.
-STOP_REFUSALS = ("kill-switch:", "post-merge:", "rung-off:")
+STOP_REFUSALS = (
+    "kill-switch:",
+    "post-merge:",
+    "rung-off:",
+    merge_policy.DEFAULT_BRANCH_UNREADABLE,
+)
 UNATTENDED_QUEUE_QUERY = (
     "query($o:String!,$r:String!,$b:String!){repository(owner:$o,name:$r){"
     "mergeQueue(branch:$b){entries(first:100){totalCount nodes{enqueuedAt position "
@@ -2723,8 +2728,8 @@ def assess_unattended(
     promotion_settings: Path | None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
-    identity, the credential chokepoint, the kill switch, the post-merge
-    check, demotion and cap, in flight, promotion evidence, eligibility, then
+    identity, the credential chokepoint, the kill switch, a default-branch
+    base, the post-merge check, demotion and cap, in flight, promotion evidence, eligibility, then
     the review evidence and the score. Raises `PolicyReadError` when the
     pull request or its pipeline config cannot be read."""
 
@@ -2837,7 +2842,7 @@ def unattended_writes(
     A stop refusal (kill switch, post-merge, rung off) dequeues every entry
     the identity enqueued; otherwise each queued identity entry carrying a
     hold (D3) leaves the queue, as does this pull request's own entry when
-    this run found it ineligible. Then the reasons comment for an eligible
+    this run refused it for itself (`own_refusal`). Then the reasons comment for an eligible
     MED or HIGH pull request on a path not stopped. Nothing is written before
     the identity and the credential chokepoint passed (`inputs["identity"]`)."""
     inputs = policy.inputs or {}
@@ -2864,11 +2869,12 @@ def unattended_writes(
                     )
                 )
             }
-            # This run's own eligibility read of a queued entry also counts:
-            # the pull request it just found ineligible leaves the queue.
-            eligible = inputs.get("eligibility")
-            if number in queued and eligible is not None and not eligible.eligible:
-                report["holds"].setdefault(number, f"ineligible:{eligible.reason}")
+            # This run's own read of a queued entry also counts: the pull
+            # request it just found ineligible, above the rung or unpromoted
+            # for its class leaves the queue.
+            own = inputs.get("own_refusal")
+            if number in queued and own:
+                report["holds"].setdefault(number, own)
             numbers = set(report["holds"])
         if numbers is None or numbers:
             unknown = postmerge.dequeue_identity_entries(

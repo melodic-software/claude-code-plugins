@@ -341,6 +341,12 @@ class Unattended(unittest.TestCase):
         self.rerun = mock.Mock(return_value=[])
         self.dispatch_error: Exception | None = None
         self.scored_head = HEAD
+        self.default_branch: str | None = "main"
+
+    def _default_branch(self, repo: str) -> str:
+        if self.default_branch is None:
+            raise policy.PolicyReadError("the default branch could not be read")
+        return self.default_branch
 
     def _dispatch(self, repo: str, ref: str) -> None:
         self.log.append("dispatch")
@@ -397,7 +403,9 @@ class Unattended(unittest.TestCase):
         patches = [
             mock.patch.object(sys, "argv", argv),
             mock.patch.object(policy, "pull_request", return_value=pr_record),
-            mock.patch.object(policy, "_default_branch", return_value="main"),
+            mock.patch.object(
+                policy, "_default_branch", side_effect=self._default_branch
+            ),
             mock.patch.object(policy, "read_config_at", return_value=self.config),
             mock.patch.object(policy, "read_acting_login", return_value=self.acting),
             mock.patch.object(
@@ -589,6 +597,16 @@ class AllInputsGood(Unattended):
         self.assertIs(out["unattended"]["dispatched"], True)
         self.assertEqual(code, 0)
 
+    def test_a_failed_dispatch_after_a_merged_enqueue_is_reported(self) -> None:
+        # The merge is this run's own outcome, so the exit stays 0; the next
+        # `babysit-postmerge.sh --remediate` cycle dispatches the run.
+        self.dispatch_error = postmerge.PostMergeWriteError("HTTP 500")
+        code, out = self.merged_on_enqueue(HEAD)
+        self.assertIs(out["merged"], True)
+        self.assertIs(out["unattended"]["dispatched"], False)
+        self.assertEqual(out["unattended"]["dispatchError"], "HTTP 500")
+        self.assertEqual(code, 0)
+
     def test_an_enqueue_merged_at_another_head_dispatches_nothing(self) -> None:
         # The read-back did not hold: as on a later run, no dispatch, exit 10.
         code, out = self.merged_on_enqueue("f" * 40)
@@ -663,6 +681,13 @@ class EachRefusalMakesNoMergeCall(Unattended):
                 "demotion",
                 policy.Demotion(True, "#9 open", (9,)),
                 "rung-off:demotion",
+            ),
+            # Local review of ed841af72: a doubtful default-branch read must
+            # not skip the dequeue a hold or the kill switch would make.
+            "default branch unreadable": (
+                "default_branch",
+                None,
+                "default-branch-unreadable",
             ),
         }
         for name, (field, value, reason) in cases.items():
@@ -797,6 +822,32 @@ class OneUnattendedMergeInFlight(Unattended):
             out["unattended"]["writes"]["holds"],
             {str(PR): "ineligible:opt-in-label:labeler-not-human"},
         )
+
+    def test_a_queued_entry_whose_class_rose_above_the_rung_dequeues_itself(
+        self,
+    ) -> None:
+        # Local review of ed841af72: a human relabels the linked issue C4 after
+        # the enqueue. Eligibility still passes, so only the class ceiling says
+        # it must never merge unattended.
+        self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
+        self.queued = [PR]
+        self.eligible = policy.Eligibility(True, None, "C4", 40)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        # The scorer rates C4 HIGH, so the reasons comment follows the dequeue.
+        self.assertEqual(self.log, [f"dequeue:[{PR}]", "risk-comment:POST"])
+        self.assertEqual(
+            out["unattended"]["writes"]["holds"], {str(PR): "class-above-rung:C4>C2"}
+        )
+
+    def test_a_non_default_base_still_holds_the_identitys_entries(self) -> None:
+        self.default_branch = "trunk"
+        self.queued = [5]
+        self.holds = {5: "do-not-merge"}
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "base-not-default:main")
+        self.assertEqual(self.log, ["dequeue:[5]"])
 
 
 class GateReviewFixes(Unattended):

@@ -991,15 +991,15 @@ announced operator step.
 
 `--unattended` on the merge gate runs it under the unattended merge policy. It stays off unless
 the repository's `docs/conventions/pr-pipeline.yaml`, read at the pull request's base SHA, sets
-`merge.authority: local-babysit` and a `merge.agent-identity`, and it refuses a pull request whose
-base is not the default branch (`base-not-default:<ref>`), the only branch the post-merge check
-judges. The gate decides in this order, and any refusal is the blocker
-`unattended merge refused: <reason>`:
+`merge.authority: local-babysit` and a `merge.agent-identity`. The gate decides in this order, and
+any refusal is the blocker `unattended merge refused: <reason>`:
 
 1. Identity: the token acts as `merge.agent-identity`. Then the credential chokepoint:
    `gh auth status` lists no other account on any host. A session holding only the identity
    cannot act as a human anywhere, thread resolution included.
-2. The kill switch, then the post-merge check (`babysit_postmerge`) from the floor (the enabling
+2. The kill switch, then a base that is the default branch, the only branch the post-merge check
+   judges (`base-not-default:<ref>`; an unreadable default branch is `default-branch-unreadable`),
+   then the post-merge check (`babysit_postmerge`) from the floor (the enabling
    config commit, or the newest human close of a demotion record when later). A refusal here or
    above leaves `unattended.enabled: false` and stops every later read.
 3. The rung (demotion record and `CLAUDE_LANES_MERGE_RUNG_CAP`), one merge in flight, the
@@ -1010,11 +1010,12 @@ judges. The gate decides in this order, and any refusal is the blocker
    yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
-`--merge`, under the identity only: a kill-switch, post-merge or rung refusal dequeues every entry
-the identity enqueued; a queued identity entry that gained a hold (`do-not-merge`, a body hold, a
-human blocking comment, the opt-in label removed, or put back after the enqueue by anyone but a
-human in person) leaves the queue, as does the assessed pull request's own entry when this run
-finds it ineligible; an eligible MED or HIGH pull
+`--merge`, under the identity only: a kill-switch, unreadable-default-branch, post-merge or rung
+refusal dequeues every entry the identity enqueued; a queued identity entry that gained a hold
+(`do-not-merge`, a body hold, a human blocking comment, the opt-in label removed, or put back after
+the enqueue by anyone but a human in person) leaves the queue, as does the assessed pull request's
+own entry when this run finds it ineligible, above the rung or unpromoted for its class; an
+eligible MED or HIGH pull
 request gets one `<!-- babysit-merge-risk -->` comment, rewritten only when the score, reasons or
 head change. A ready LOW pull request on a merge-queue base is enqueued at the pinned head, only
 when that full SHA is the head the policy scored, after a
@@ -1022,7 +1023,8 @@ second kill-switch read, after an armed auto-merge is disarmed and refused inste
 `<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When an
 earlier identity entry sits in the queue, the new one dequeues itself. When the enqueue itself
 returns merged at the pin, the run dispatches the full `pr-require-checks` run at once and exits
-`0`. A later run with
+`0`: the policy was clear when it enqueued, and the merge is this run's outcome (a failed dispatch
+is reported the same way as below). A later run with
 `--state-dir` that reads the entry back merged at its pin dispatches the full `pr-require-checks`
 run and still exits `10` with `merged: true`, since the merge it just read back is the in-flight
 unverified auto-merge; a failed dispatch is reported as `dispatchError`, and the next cycle's
