@@ -107,6 +107,11 @@ else
   key="${2#repos/acme/widgets/}"
 fi
 key="${key//[^A-Za-z0-9._-]/_}"
+if [[ -f "$FIX/$key.fails" ]] && (($(cat "$FIX/$key.fails") > 0)); then
+  printf '%s\n' "$(($(cat "$FIX/$key.fails") - 1))" >"$FIX/$key.fails"
+  printf 'gh: request failed (HTTP 502)\n' >&2
+  exit 1
+fi
 if [[ -f "$FIX/$key.status" ]]; then
   printf 'gh: request failed (HTTP %s)\n' "$(cat "$FIX/$key.status")" >&2
   exit 1
@@ -118,7 +123,8 @@ fi
 printf 'stub: no fixture for %s\n' "$key" >&2
 exit 1
 EOF
-chmod +x "$TMP_ROOT/bin/gh"
+printf '#!/usr/bin/env bash\n' >"$TMP_ROOT/bin/sleep"
+chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 
 BASE=0123456789abcdef0123456789abcdef01234567
 HEAD=89abcdef0123456789abcdef0123456789abcdef
@@ -439,6 +445,29 @@ printf '[[%s,%s]]' "$(labeled labeled 'merge: agent-allowed' alice User 2026-10-
 expect "an opt-in label removed before enqueue does not hold" 0 -
 
 # --- The step around the recheck ----------------------------------------------
+
+# reads <label> <want>: how many times the run read the queued pull request.
+reads() {
+  local got
+  got="$(grep -c RecheckPullRequest "$TMP_ROOT/log")"
+  if [[ "$got" -eq "$2" ]]; then ok "$1"; else fail "$1: $got recheck run(s), wanted $2"; fi
+}
+
+# An unreadable answer (exit 2) is retried up to three runs; a failure is not.
+baseline
+printf '1\n' >"$FIX/graphql-RecheckPullRequest-7.fails"
+expect "one transient unreadable read, then a pass, passes" 0 "meets every term"
+reads "the transient read is retried once" 2
+
+baseline
+printf '3\n' >"$FIX/graphql-RecheckPullRequest-7.fails"
+expect "three unreadable runs fail" 2 "unreadable"
+reads "unreadable is retried at most three runs" 3
+
+baseline
+config "${PIPELINE/rung: C2/rung: off}"
+expect "a failing recheck fails" 1 "rung-off"
+reads "a failing recheck (exit 1) is not retried" 1
 
 baseline
 expect "a non-queue ref fails closed" 1 "cannot read a pull request number" refs/heads/main

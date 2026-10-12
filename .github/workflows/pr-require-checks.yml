@@ -2801,10 +2801,16 @@ jobs:
   # human-enqueued entry passes without reading them. Under ALLGREEN a failed
   # group removes only the pull request it was built for.
   #
-  # The rule, `babysit_merge_policy.py recheck`, runs from a checkout of the
-  # queue's base, never the group's tree, so a pull request cannot change the
-  # rule it is judged by; a base older than the recheck has no rule yet and
-  # passes. Every other event skips the job, and `ci-status` passes that skip
+  # The rule, `babysit_merge_policy.py recheck`, and its config come from a
+  # checkout of the group's base, never from this pull request's own change,
+  # so a pull request cannot change the rule it is judged by. Groups stack, so
+  # that base is the preceding group's head: main plus every entry ahead in the
+  # queue. That is still safe. A non-human entry ahead that edits the policy or
+  # its config fails its own recheck on the HIGH floor, and ALLGREEN rebuilds
+  # the groups behind it without it; a human-enqueued one is a human changing
+  # the rule. A base older than the recheck has no rule yet and passes. An
+  # unreadable answer (exit 2) is retried up to three runs, a failure (exit 1)
+  # never. Every other event skips the job, and `ci-status` passes that skip
   # only off the merge queue. Pinned by scripts/ci-unattended-recheck.test.sh,
   # which runs the step body.
   unattended-recheck:
@@ -2840,9 +2846,17 @@ jobs:
             echo "The queue base predates the merge-group recheck; nothing to recheck for #$pr."
             exit 0
           fi
-          python3 "$policy" recheck --repo "$GITHUB_REPOSITORY" --pr "$pr" \
-            --base-sha "$BASE_SHA" --base-ref "${BASE_REF#refs/heads/}" \
-            --lanes-disabled "$LANES_DISABLED"
+          for attempt in 1 2 3; do
+            rc=0
+            python3 "$policy" recheck --repo "$GITHUB_REPOSITORY" --pr "$pr" \
+              --base-sha "$BASE_SHA" --base-ref "${BASE_REF#refs/heads/}" \
+              --lanes-disabled "$LANES_DISABLED" || rc=$?
+            if [ "$rc" -ne 2 ] || [ "$attempt" -eq 3 ]; then
+              exit "$rc"
+            fi
+            echo "Attempt $attempt could not read an input; retrying."
+            sleep $((attempt * 5))
+          done
 
   ci-status:
     needs:
