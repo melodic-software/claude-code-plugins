@@ -1392,7 +1392,12 @@ def cmd_apply(d, a):
     src = Path(a.file)
     claimed = src.with_name(src.name + ".applying")
     with sidecar_lock(d):
-        if claimed.exists() and not src.exists():
+        if claimed.exists() and src.exists():
+            sys.exit(
+                f"refused: {claimed} holds a batch an earlier apply did not finish; "
+                f"merge it into {a.file} or delete it, then re-run"
+            )
+        if claimed.exists():
             os.replace(claimed, src)
         if not src.exists():
             print(f"nothing to apply: no {a.file}")

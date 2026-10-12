@@ -996,6 +996,16 @@ class TestApply(DirCase):
         texts = [h.get("text") for h in self.q("Q1").get("history", [])]
         self.assertEqual(texts.count("Once."), 1, texts)
 
+    def test_an_unfinished_claim_beside_a_new_ops_file_refuses(self):
+        """A killed apply leaves ops.json.applying; a fresh ops.json must not overwrite that batch."""
+        old = {"ops": [{"op": "reply", "id": "Q1", "text": "Orphaned."}]}
+        path = self.file("ops.json.applying", old)[: -len(".applying")]
+        self.file("ops.json", {"ops": [{"op": "reply", "id": "Q1", "text": "New."}]})
+        out = self.assert_refused("apply", "--file", path)
+        self.assertIn("ops.json.applying", out)
+        self.assertEqual(json.loads(Path(path + ".applying").read_text()), old)
+        self.assertTrue(Path(path).exists())
+
     def test_a_refused_apply_keeps_the_ops_file(self):
         path = self.file(
             "ops.json", {"ops": [{"op": "reply", "id": "Q9", "text": "x"}]}
