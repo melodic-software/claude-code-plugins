@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: debug-hands-artifact-to-analyze-profile
+description: Debug given a production heap snapshot and no way to reproduce hands the artifact to analyze-profile instead of stopping at its loop gate
+tags: [debug, analyze-profile, routing]
+expected_outcome: Debug recognizes an artifact in hand with no reproduction and routes it to /debugging:analyze-profile, which reads heap/api.heapsnapshot and reports the large string held by SessionCache.lastOrder, reachable from Window.sessionCache.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/debugging:debug Our API pods' memory climbs until they are OOM-killed in production. We cannot reproduce it locally, but ops captured heap/api.heapsnapshot just before the last restart."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: hands-to-analyze-profile
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:debugging:)?analyze-profile"'
+    min: 1
+    arm: with-only
+  - name: names-the-holder
+    type: regex
+    pattern: 'SessionCache[\s\S]{0,200}lastOrder|lastOrder[\s\S]{0,200}SessionCache'
+    arm: both
+  - name: reads-the-artifact
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer works from the heap snapshot it was given instead of insisting on a local reproduction first, and reports that the 4096-byte 'order payload' string is held through SessionCache.lastOrder, reached from Window.sessionCache. FAIL if it stops at 'cannot build a loop' without reading the snapshot, or names a holder the snapshot does not contain."

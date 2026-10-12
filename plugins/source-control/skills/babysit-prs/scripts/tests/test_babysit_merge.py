@@ -1133,8 +1133,8 @@ class GraphQLRestrictionHarness(unittest.TestCase):
     ) -> tuple[dict[str, Any], list[str]]:
         requested: list[str] = []
         refusal = RuntimeError(
-            "gh pr view failed: gh: this GraphQL operation is not enabled for "
-            "this session (HTTP 403)"
+            "gh pr view failed: gh: GitHub GraphQL is not available from "
+            "Claude Code sessions (HTTP 403)"
         )
 
         def gh_json(args: list[str]) -> Any:

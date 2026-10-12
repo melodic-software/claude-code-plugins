@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: animation-audit-trigger
+description: "Routine: a request to review a component's animations invokes audit-animation and finds the seeded defects"
+tags: [audit-animation, trigger, routine]
+runs: 3
+expected_outcome: "A Skill call reaches user-interface:audit-animation; the report names the scale-from-zero entrance, ease-in, the animate-everything transition, the duration over its role, the ungated hover and the missing reduced-motion handling in src/notifications.css, each with a line and a severity"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Review the animations in src/notifications.css and tell me what is wrong with them. Do not change any file."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 600

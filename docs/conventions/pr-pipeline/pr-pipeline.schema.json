@@ -19,7 +19,7 @@
     },
     "activities": {
       "type": "object",
-      "description": "Each activity, defined once and referenced by key from lane slots.",
+      "description": "Each activity, defined once and referenced by key from lane slots and composite children.",
       "propertyNames": { "$ref": "#/$defs/name" },
       "additionalProperties": { "$ref": "#/$defs/activity" }
     },
@@ -62,7 +62,7 @@
         "pre-ready",
         "refine",
         "verify",
-        "respond",
+        "unblock",
         "merge",
         "post-merge",
         "maintenance",
@@ -89,6 +89,24 @@
           "type": "array",
           "minItems": 1,
           "items": { "type": "string", "minLength": 1 }
+        },
+        "labels-absent": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Matches only when none of these labels is on the PR. A miss skips with awaiting-human."
+        },
+        "mergeable": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "enum": ["conflicting", "clean"] },
+          "description": "The PR's mergeability at the gated head. Unknown mergeability never matches and skips with prerequisite-missing."
+        },
+        "draft": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "boolean" },
+          "description": "Whether the PR is a draft."
         },
         "work-classes": {
           "type": "array",
@@ -129,13 +147,43 @@
       "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
     },
     "activity": {
+      "oneOf": [{ "$ref": "#/$defs/leaf" }, { "$ref": "#/$defs/composite" }],
+      "description": "A leaf runs one skill or script; a composite groups other activities."
+    },
+    "composite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["children"],
+      "description": "Activities run as one group. It declares no effect: the config reader applies lane rules to each of its leaves, and each leaf runs, is granted and reports on its own.",
+      "properties": {
+        "children": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/slot" },
+          "description": "Leaf activities, in the order and under the rules of a lane's slots."
+        },
+        "applies-when": {
+          "$ref": "#/$defs/predicate",
+          "description": "Gates every child; each leaf's own predicate must also match."
+        }
+      }
+    },
+    "leaf": {
       "type": "object",
       "additionalProperties": false,
       "required": ["effect", "gating", "reads-untrusted"],
       "oneOf": [{ "required": ["skill"] }, { "required": ["script"] }],
-      "dependentRequired": { "model": ["skill"], "max-turns": ["skill"] },
+      "dependentRequired": {
+        "model": ["skill"],
+        "max-turns": ["skill"],
+        "prepare": ["skill"]
+      },
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
+        "prepare": {
+          "enum": ["merge-base"],
+          "description": "What the write runner does around a skill with an effect other than read. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents."
+        },
         "args": {
           "type": "string",
           "minLength": 1,
@@ -206,7 +254,7 @@
           "type": "array",
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/name" },
-          "description": "Activities in this lane that must finish first."
+          "description": "Activities in the same slots or children list that must finish first."
         },
         "applies-when": {
           "$ref": "#/$defs/predicate",
