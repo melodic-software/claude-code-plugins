@@ -15,26 +15,26 @@ into another plugin's private reference would leave these conditions unresolvabl
 standalone install. Each record below cites the upstream page directly. Where a sibling plugin keeps
 its own record of the same upstream fact, that is a parallel record, not this one's source.
 
-## Availability: three conditions, any one of which ends the question
+## Availability: any listed condition ends the question
 
 Our checks treat `AGENTS.md` support as unavailable, so that no `AGENTS.md` is read natively at
-any path under any mode, when any one of these holds for the session:
-
-1. the Claude Code version is below v2.1.277, or below v2.1.281 in a session that fetches no
-   feature flags from Anthropic (a third-party provider such as Amazon Bedrock, or telemetry
-   disabled);
-2. the built-in `agents-md` plugin is disabled in `/plugin`;
-3. it may be the first session after an upgrade from a version without `AGENTS.md` support.
+any path under any mode, when any one of the conditions the pointer lists holds for the session.
+Read the list and its version floors live; this file keeps no copy of them. The conditions fall into
+three kinds, which decide how each resolves: a version comparison (against a floor that can depend
+on the provider and telemetry configuration), whether the built-in plugin is disabled, and whether
+this may be the first session after an upgrade.
 
 For such a session the remedy we recommend is a `CLAUDE.md` that imports the `AGENTS.md`.
 
-- **Pointer**: for when `AGENTS.md` support is unavailable and the import remedy, see
-  <https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: a condition is added to or removed from that section's list, a version
-  floor in it moves, or its remedy changes.
+- **Pointer**: when deciding whether `AGENTS.md` support is available, fetch
+  [memory: when AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a condition is added to or removed from that section's list, or its remedy
+  changes.
 
-**No hooks setting is an availability condition.** `agents-md@builtin` is a built-in mod, so our
+**No hooks setting is an availability condition.** The built-in plugin that reads `AGENTS.md` is a
+built-in mod, so our
 checks never count `disableAllHooks`, `allowManagedHooksOnly`, `--bare` or `--safe-mode` against
 it. A session that loads no instruction files at all (`--bare` without `--add-dir`, `--safe-mode`,
 `CLAUDE_CODE_DISABLE_CLAUDE_MDS`) reads no `AGENTS.md` either.
@@ -49,10 +49,11 @@ it. A session that loads no instruction files at all (`--bare` without `--add-di
 - **Recheck trigger**: the overview's built-in-mods section or the README's settings paragraph
   changes.
 
-**Two of the three resolve from what this plugin already reads.** Condition 1 is a version
-comparison, plus the provider and telemetry configuration on a CLI between the two floors.
-Condition 2 is whether the built-in `agents-md` plugin is enabled, which the permission-and-settings
-lanes already inventory. Condition 3 resolves only as "this may be that session", so it is the one
+**Two of the three kinds resolve from what this plugin already reads.** A version condition is a
+comparison against the floor the pointer states, plus the provider and telemetry configuration
+where the floor depends on them. Plugin enablement is whether the built-in plugin that reads
+`AGENTS.md` is enabled, which the permission-and-settings lanes already inventory. The
+first-session-after-upgrade condition resolves only as "this may be that session", so it is the one
 that commonly stays unresolved. Do not treat the whole question as unresolvable because one
 condition is: resolve what is resolvable first, because a condition known TRUE settles it with no
 further work.
@@ -77,26 +78,29 @@ displacement is a condition of the default value alone.
   which files it loads.
 
 **Where the value lives**, which is what a check reads rather than the `/config` panel: our checks
-read the `instructionFiles` option under the `agents-md@builtin` key of `pluginConfigs`, from user
-settings (`~/.claude/settings.json`), a `--settings` file or managed settings, and ignore the key
-in project and local settings files.
+read the `instructionFiles` option under the built-in plugin's entry in `pluginConfigs`, from user
+settings (`~/.claude/settings.json`), a `--settings` file or managed settings, and ignore the entry
+in project and local settings files. The plugin has had more than one id, and a settings file may
+carry its entry under any id the pointer says the installed version reads; read every such id, not
+one, and treat a value found under any of them as set.
 
-- **Pointer**: for where the setting is honored and its JSON shape, see
-  <https://code.claude.com/docs/en/memory#choose-which-instruction-files-load>; for the `--settings`
-  and `pluginConfigs` scopes, see
-  <https://code.claude.com/docs/en/settings#change-a-setting-for-one-session> and
-  <https://code.claude.com/docs/en/settings-reference#pluginconfigs>.
-- **As of**: 2026-10-07
-- **Recheck trigger**: the option key or plugin id changes, the settings guide stops letting
-  `--settings` set user-scope keys, the `pluginConfigs` scope changes, or the setting becomes
-  readable from project or local settings.
+- **Pointer**: when locating the stored value, fetch
+  [memory: choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load)
+  live for the plugin ids, which ids each version reads, the honored scopes and the JSON shape; for
+  the `--settings` and `pluginConfigs` scopes, see
+  [settings: change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session)
+  and [settings reference: pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs).
+- **As of**: 2026-10-11
+- **Recheck trigger**: the option key changes, a plugin id is added or retired, the settings guide
+  stops letting `--settings` set user-scope keys, the `pluginConfigs` scope changes, or the setting
+  becomes readable from project or local settings.
 
 Because the honored scopes are user, `--settings` and managed, resolve the **effective** value
 across them. Reading one scope answers the wrong question in both directions: a user scope naming
 the default can be overridden by a managed one, and the reverse.
 
-**The legacy key still counts.** Read `projectInstructions` under the same `agents-md@builtin`
-entry as well as `instructionFiles`:
+**The legacy key still counts.** Read `projectInstructions` under the same plugin entry, at every id
+above, as well as `instructionFiles`:
 
 - **Claim**: the option was first keyed `projectInstructions`, with the values `claude`,
   `agents-fallback`, `both` and `none`. While `instructionFiles` reads as its default, a stored

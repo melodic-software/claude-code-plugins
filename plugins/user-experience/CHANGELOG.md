@@ -3,6 +3,13 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.5] - 2026-10-11
+
+### Changed
+
+- The README points at the live subagent frontmatter section for the `evaluator` agent's pinned
+  model, effort and turn cap, with an as-of date and recheck trigger.
+
 ## [0.1.3] - 2026-10-11
 
 ### Changed

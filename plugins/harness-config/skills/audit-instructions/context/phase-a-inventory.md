@@ -51,28 +51,34 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   `.claude/settings.local.json`**, since local settings are a supported hook-configuration scope and a
   hook configured there gates the session as much as one configured anywhere else, **and declared
   in the `hooks:` frontmatter of the user- and project-scope skills and agents listed above**.
-  Frontmatter is a supported hook location, live "while the component is active", so a hook in a
+  Frontmatter is a supported hook location, live for the span its row in
+  [hooks: hook locations](https://code.claude.com/docs/en/hooks#hook-locations) states (a skill's
+  and a subagent's differ), so a hook in a
   locally owned `.claude/skills/**/SKILL.md` or `.claude/agents/*.md` is exactly as editable as the
   body it rides on and belongs in this set, not the read-only tier below, whose counterpart
   item covers the plugin cache and whose components no proposal may touch. Anchor a frontmatter hook at
   its own component file and frontmatter line rather than at a settings file. A subagent's
-  frontmatter `Stop` hook is registered as `SubagentStop`, so resolve the effective event before
-  pairing. Two kinds, and the discriminator is **whether the handler's output reaches this session's
-  context, never the handler's `type`**
+  frontmatter hook can register under a different event than the one it names, so resolve the
+  effective event from
+  [subagents: hooks in subagent frontmatter](https://code.claude.com/docs/en/sub-agents#hooks-in-subagent-frontmatter)
+  before pairing (both pointers as of 2026-10-11; recheck when either section changes a frontmatter
+  hook's lifetime or the event it registers under). Two kinds, and the discriminator is **whether
+  the handler's output reaches this session's context, never the handler's `type`**
   ([reference/conflict-criteria.md](../reference/conflict-criteria.md) owns the distinction and its
   citations):
   - **Prompt-type hook text**: extract the prompt text. **What is compared is the gate, not the
     prose:** it goes to a separate evaluator model, never into this session's context, so it enters
     the comparison set as the act it blocks under its event and `matcher`. An `agent` handler is
     treated the same way.
-  - **Context-injecting handler output**: a handler that prints to stdout on `SessionStart`,
-    `UserPromptSubmit`, or `UserPromptExpansion`, or returns `hookSpecificOutput.additionalContext`
-    on a main-session event that accepts it, puts that text in this session's context window. It is
-    live instruction text and enters the comparison set as text. `command` is not an exclusion:
-    `mcp_tool` shares the stdout channel and `http` the JSON one. Two bounds the criteria file
-    states and cites: `SubagentStart` / `SubagentStop` `additionalContext` lands in **that
-    subagent's** context, not this session's; and type decides registrability, so resolve the
-    event×type pair before admitting a surface (`SessionStart` takes only `command` and `mcp_tool`).
+  - **Context-injecting handler output**: a handler that prints to stdout on an event whose stdout
+    reaches context, or returns `hookSpecificOutput.additionalContext` on a main-session event that
+    accepts it, puts that text in this session's context window. It is live instruction text and
+    enters the comparison set as text. `command` is not an exclusion: other handler types share
+    those channels. Which events and types qualify is read live, never from a list kept here;
+    [reference/conflict-criteria.md](../reference/conflict-criteria.md) owns the pointers. Two
+    bounds it states and cites: `SubagentStart` / `SubagentStop` `additionalContext` lands in
+    **that subagent's** context, not this session's; and type decides registrability, so resolve
+    the event×type pair against the event's own section before admitting a surface.
     Where the output is not literal in the config, as with a handler that runs a script, record the
     surface with the emitting handler's event and `matcher` and mark the text `text-unresolved`
     rather than inventing it; a run inside the session it describes can read what was injected.
@@ -92,16 +98,14 @@ out-of-session inventory cannot read are in
 resolved controls in the report's tier-transparency line.
 
 **Hook enablement is a liveness control, and configuration alone does not establish it.**
-`disableAllHooks` turns off hooks without removing them, so an enabled plugin's handler, or one wired
-in project settings, sits on disk unable to run, and a gate that cannot run this session constrains
-nothing to compare against. Its reach is all hooks with exactly one carve-out, and that carve-out is
-what makes this a per-scope resolution rather than a per-file one: set in user, project, or local
-settings it cannot disable **managed** hooks, so managed hook text stays live against it and must not
-be dropped with the rest; only a managed-level `disableAllHooks` reaches those too. The mirror
-control, `allowManagedHooksOnly`, cuts the other way and blocks user, project, and plugin hooks,
-exempting plugins force-enabled in managed `enabledPlugins`. Omit every hook surface they disable,
-both kinds, prompt-type and context-injecting alike, since neither reaches this session when the
-handler never fires, and report both resolved values with the other controls.
+`disableAllHooks` and `allowManagedHooksOnly` can leave a configured handler on disk unable to run,
+and a gate that cannot run this session constrains nothing to compare against. Their reach differs
+by settings scope, so resolve them per scope, never per file: a lower-scope disable can leave
+managed hook text live, and that text must not be dropped with the rest. The reach of each, and the
+pointers to read it live, are in
+[reference/conflict-criteria.md](../reference/conflict-criteria.md)'s liveness gate. Omit every hook
+surface they disable, both kinds, prompt-type and context-injecting alike, since neither reaches this
+session when the handler never fires, and report both resolved values with the other controls.
 
 Exclude from the **editable** set, and hold for the routing subsection: auto-memory
 (`projects/<project>/memory/` under the resolved user root, owned by `harness-memory`), installed
@@ -140,16 +144,19 @@ involving one still carries the no-change representation and its routing recomme
   [reference/conflict-criteria.md](../reference/conflict-criteria.md) assigns every pair involving it to
   I15 precisely because `harness-memory`'s C6 does not read it, so excluding it outright would leave
   a `MEMORY.md`-versus-`CLAUDE.md` contradiction audited by neither skill. Only the content that
-  actually loads is compared (the first 200 lines or 25KB); topic files beside it are read on demand
-  and are not resident. Ownership is unchanged: `harness-memory` still owns auto memory, and a finding
+  actually loads is compared, the loaded portion
+  [memory: how it works](https://code.claude.com/docs/en/memory#how-it-works) names (as of
+  2026-10-11; recheck when that portion changes); topic files beside it are read on demand and are
+  not resident. Ownership is unchanged: `harness-memory` still owns auto memory, and a finding
   here routes there rather than editing it.
 - **Each enabled agent's own memory, under that same gate**: an agent definition carrying a
   `memory` field gets its **own** memory directory, separate from the main conversation's and named
   per agent, and that subagent reads and writes its own `MEMORY.md` there. The field's value is the
-  scope, and each scope has its own location: `user` → `agent-memory/<name-of-agent>/` under the
-  **resolved** user root above (never a hardcoded `~/.claude`, for the reason the entry above gives),
-  `project` → `.claude/agent-memory/<name-of-agent>/`, `local` →
-  `.claude/agent-memory-local/<name-of-agent>/`.
+  scope, and each scope has its own location; read the scope-to-directory mapping from
+  [subagents: enable persistent memory](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory)
+  live (as of 2026-10-11; recheck when a scope or its directory changes), and resolve a user-scope
+  directory under the **resolved** user root above, never a hardcoded `~/.claude`, for the reason
+  the entry above gives.
   [reference/conflict-criteria.md](../reference/conflict-criteria.md) keeps an agent-definition-versus-
   its-own-memory contradiction in scope precisely because those two *do* co-reside in that subagent,
   so this inventory has to reach it: enumerate that `MEMORY.md` for every inventoried agent whose
@@ -169,15 +176,16 @@ involving one still carries the no-change representation and its routing recomme
   plugin's `hooks/hooks.json` (a plugin is a supported hook location, so that text is as live as a
   settings-configured hook, and a plugin `SessionStart` handler injecting a standing behavioral
   block is the clearest instance of the context-injecting kind), hooks declared in the frontmatter of an
-  active skill or agent **from that cache** (a supported location, live "while the component is
-  active"; the user- and project-scope counterparts are locally owned and are inventoried in the
-  editable set above, not here), **the active
+  active skill or agent **from that cache** (a supported location, live for the span the hook
+  locations row above states; the user- and project-scope counterparts are locally owned and are
+  inventoried in the editable set above, not here), **the active
   output style when a plugin supplies it**, and any managed materialization. The output-style case
   is easy to miss because the user- and project-scope scans cannot reach the plugin cache: plugins
   ship styles in an
-  `output-styles/` directory, and a plugin style with `force-for-plugin` applies "automatically
-  whenever the plugin is enabled, without requiring users to select it", overriding the user's
-  `outputStyle` setting ([output-styles](https://code.claude.com/docs/en/output-styles)). Resolve
+  `output-styles/` directory, and a plugin style with `force-for-plugin` can be active without the
+  user selecting it
+  ([output styles: create a custom output style](https://code.claude.com/docs/en/output-styles#create-a-custom-output-style),
+  as of 2026-10-11; recheck when that section changes how `force-for-plugin` applies). Resolve
   which style is actually active, a `force-for-plugin` style from the enabled set first, else the
   `outputStyle` value, which may itself name a plugin-supplied style, and inventory that one. Only
   the active style is resident, so the others stay out of the corpus. Enablement is

@@ -318,7 +318,7 @@ jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$PROJ3/.claude/settings
 assert_eq "interactive path reads local grant → no gap" "0" "$(run "$REPO3" "$CFG16" --count)"
 OUT=$(run "$REPO3" "$CFG16" --worktree-root "$POSIX_CHILD")
 assert_contains "header states the main-local inclusion basis" "$OUT" \
-  "includes this main checkout's settings.local.json: since Claude Code v2.1.211"
+  "includes this main checkout's settings.local.json: where approvals save at the repository root"
 assert_eq "autonomous path reads the main checkout's local grant → no gap" "0" "$(run "$REPO3" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
 
 # --- Case 16b: a linked worktree's OWN local file is still excluded ----------

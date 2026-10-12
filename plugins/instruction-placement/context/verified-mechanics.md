@@ -267,7 +267,13 @@ These mechanics are version-sensitive and have changed repeatedly across minor r
 measurements above when any of the following is true, and update the version stamp rather than the
 claim's confidence:
 
-- The consuming repo's Claude Code major or minor version has moved.
+- The consuming repo's Claude Code version has moved past the newest measurement here. This one
+  is checked mechanically: `scripts/precompute.sh` compares `claude --version` with the newest
+  version named after `measured` inside a citation marker, such as `*(measured 2.1.268)*`, and
+  the `audit` and `realign` headers print `Mechanics record: STALE` when the CLI is newer. A
+  measurement recorded without a version in its marker is invisible to that check, so stamp
+  every new one there, and keep a stamped marker on one line with no parenthesis inside it: the
+  check reads line by line and ends a marker at its first closing parenthesis.
 - A finding here contradicts observed behavior in a real session.
 - The official memory documentation changes its wording on deferral, imports, or subagent scope.
 

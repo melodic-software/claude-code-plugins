@@ -3,11 +3,11 @@
 #
 # Packet files are written with the Write tool, and any sibling plugin that
 # registers a `PostToolUse` hook on the `Write|Edit` matcher post-processes
-# every one of them: PostToolUse runs after a tool call succeeds and may rewrite
-# content (https://code.claude.com/docs/en/hooks, fetched 2026-08-10; recheck when
-# the hooks page stops saying so), and the
-# matcher keys on the TOOL NAME, so nothing about the destination directory
-# excludes a packet. Observed in this fleet: `typos-format` and
+# every one of them, whatever the destination directory. When and how
+# PostToolUse may rewrite is the pointer record in
+# skills/audit/reference/evidence-packet.md#packet-files-are-write-once-evidence-sibling-hooks-rewrite-them-in-place
+# (as of 2026-10-11; recheck when that section is renamed or moved, or its
+# pointer stops covering PostToolUse). Observed in this fleet: `typos-format` and
 # `markdown-format` both register that matcher unconditionally and both rewrite
 # in place, damaging exactly what a packet exists to preserve — verbatim
 # quotations and code-span identifiers.
