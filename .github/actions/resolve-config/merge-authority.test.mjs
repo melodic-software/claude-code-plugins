@@ -92,7 +92,12 @@ for (const login of ["lanes bot[bot]", "-lanes[bot]"]) {
   });
 }
 
-for (const login of ["github-actions[bot]", "dependabot[bot]"]) {
+for (const login of [
+  "github-actions[bot]",
+  "dependabot[bot]",
+  "GitHub-Actions[bot]",
+  "Dependabot[bot]",
+]) {
   test(`GitHub's shared built-in bot ${login} is rejected as agent-identity`, () => {
     rejectedFor(
       withMerge({ authority: "local-babysit", "agent-identity": login }),
@@ -100,6 +105,17 @@ for (const login of ["github-actions[bot]", "dependabot[bot]"]) {
     );
   });
 }
+
+test("rung C2 with a valid diff-check and no authority still validates (absent authority means pr-merge)", () => {
+  assert.doesNotThrow(() =>
+    run(
+      withMerge({
+        rung: "C2",
+        "diff-check": { "denied-paths": [".claude/**"], "max-changed-lines": 200 },
+      }),
+    ),
+  );
+});
 
 test("rung C2 without diff-check still fails the schema", () => {
   rejectedFor(withMerge({ rung: "C2" }), /required property 'diff-check'/);
