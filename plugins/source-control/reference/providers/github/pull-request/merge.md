@@ -39,9 +39,9 @@ while another worktree holds it, and exits 1 even though the merge succeeded.
 ```bash
 gh pr merge <pr_number> --squash && {
   if [ "$(gh pr view <pr_number> --json state -q .state)" = MERGED ]; then
-    REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push <branch>) && git push "$REMOTE" --delete <branch>
+    REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push '<branch>') && git push "$REMOTE" --delete --end-of-options '<branch>'
   else
-    echo 'PR not merged yet (merge queue or auto-merge); delete <branch> once it reads MERGED' >&2
+    echo 'PR not merged yet (merge queue or auto-merge); delete the head branch once it reads MERGED' >&2
   fi
 }
 ```

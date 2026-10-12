@@ -99,6 +99,36 @@
         "Output explains that the weak cues can be ordinary prose, so they are reviewed rather than deleted",
         "The output is a classification report with tiers and treatments; no file is edited"
       ]
+    },
+    {
+      "id": 9,
+      "name": "workaround-without-link-or-removal-condition-is-flagged",
+      "prompt": "Audit a shell file with these comments and classify them: `# Workaround: the cache client drops the first write after a reconnect, so write twice.`, `# Workaround for the parser crash: https://example.org/bugs/88`, `# Workaround until the vendor SDK 4.2 ships: pin the v1 endpoint.`, `# Workaround for upstream issue #412.`, and the two-line comment `# Workaround: the IDE holds a lock on the output folder;` / `# remove when the IDE releases it after a build.` The file also has the code line `workaround_count=0`.",
+      "expected_output": "Reports one unjustified-workaround finding at Tier 2, on the cache-client comment, with a review treatment that names fixing the cause or adding a link or removal condition. The URL, 'until', and issue-number comments are not findings, the two-line comment is justified by its second line, the issue number is not reported as ticket-pr-residue, and the identifier workaround_count is not flagged. No edits are applied.",
+      "files": [],
+      "expectations": [
+        "The cache-client comment is classified as unjustified-workaround at Tier 2 with a review treatment, not a delete treatment",
+        "The comments carrying a URL, 'until', or an issue number are NOT flagged as unjustified-workaround",
+        "The two-line comment is NOT flagged: the removal condition on its second line justifies the run",
+        "The 'upstream issue #412' comment is NOT reported as ticket-pr-residue, because a workaround's reference is its justification",
+        "The identifier workaround_count is NOT flagged",
+        "The output is a classification report with tiers and treatments; no file is edited"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "added-since-reports-only-added-lines",
+      "prompt": "/code-tidying:audit-comment-residue --added-since main\n\n(The branch adds two lines to app.py: '# Workaround: write twice' and a code line. app.py already carried '# used to buffer writes' on line 1 before the branch, and lib.py is unchanged and also carries '# used to buffer writes'.)",
+      "narration": true,
+      "expected_output": "Runs detect.sh with --added-since main and reports only the unjustified-workaround finding on the added comment in app.py. The history-narration comments on unchanged lines in app.py and in the unchanged lib.py are not reported, and lib.py is not audited. No question is asked and no edits are applied.",
+      "files": [],
+      "expectations": [
+        "Runs detect.sh with --added-since main",
+        "Reports the unjustified-workaround finding on the added comment in app.py",
+        "Does NOT report the history-narration comment on app.py line 1 or the one in lib.py, since neither sits on an added line",
+        "Finishes the report without asking the user a question",
+        "No file is edited"
+      ]
     }
   ]
 }

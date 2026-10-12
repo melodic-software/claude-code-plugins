@@ -97,6 +97,11 @@ exclude = [
   '^https?://(www\.)?medium\.com/fortmatic/postmortem-service-disruption-from-expired-ssl-certificate-a993a59272a0/?([?#].*)?$',
   '^https?://dev\.mysql\.com/doc/refman/8\.4/en/innodb-transaction-isolation-levels\.html/?([?#].*)?$',
   '^https?://(www\.)?npmjs\.com/package/(firecrawl-cli|@mirohq/miro-api)/?([?#].*)?$',
+  # help.miro.com passed one GitHub-runner retest, then answered 403 to lychee
+  # on a runner (claude-code-plugins online run 38171979835, 2026-10-11), so one
+  # pass was not enough evidence to drop it. A workstation gets 200 with
+  # lychee's User-Agent.
+  '^https?://help\.miro\.com/hc/en-us/articles/31624028247058/?([?#].*)?$',
   # Loopback hosts: never reachable from the checker. The example.com/.org/.net
   # placeholder domains need no entry: lychee excludes them by default.
   '^https?://localhost',
@@ -116,15 +121,3 @@ exclude = [
   '^https?://github\.com/melodic-software/(agent-automations|architecture|azure-iac|claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)(\.git)?([/#?]|$)',
   '^https?://raw\.githubusercontent\.com/melodic-software/(agent-automations|architecture|azure-iac|claude-code-proxy|dotfiles|github-iac|itinerary-planner|knowledge-corpus|medley|medley-archive|melodic-main-archive|provisioning|songwriting)/',
 ]
-
-# Per-host pacing for hosts that answer a GitHub runner's burst with 429 even
-# after lychee's retries (online runs, 2026-10-11), while the same pages answer
-# 200 from a workstation. One request at a time, two seconds apart, so each
-# link is still checked rather than accepted.
-[hosts."testing.googleblog.com"]
-concurrency = 1
-request_interval = "2s"
-
-[hosts."jackrighteous.com"]
-concurrency = 1
-request_interval = "2s"

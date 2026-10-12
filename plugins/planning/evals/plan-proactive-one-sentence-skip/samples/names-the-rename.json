@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Three lines in `tally()` change: `cnt = 0` becomes `count = 0`, `cnt += 1` becomes `count += 1`, and `return cnt` becomes `return count`. Nothing else in utils/stats.py refers to it.",
+      "why": "names both the old and the new variable"
+    },
+    {
+      "answer": "This one is small enough that a plan would cost more than the change. In utils/stats.py, inside tally(), replace every cnt with count: lines 2, 5 and 6.",
+      "why": "skips the plan and names the rename"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Open utils/stats.py and rename the counter variable in tally() on lines 2, 5 and 6.",
+      "why": "never names either variable"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: climb-reverts-attempt-with-no-gain
+description: 'A climb run is mid-way: attempt a2 is committed on climb/template-parses and leaves the parse count at 15. The run measures both arms, takes the verdict from the keep rule, reverts with git reset --keep in climb''s own worktree and logs the row with the dropped SHA. The scaffold puts both worktrees in the ignored climb-worktrees/ directory inside the workspace, so they go when the workspace is removed; the state file names them. A run needs --scaffold and --allow-tools Bash.'
+tags: [climb, keep-or-revert]
+plugins: ["../.."]
+expected_outcome: 'Both worktrees measure parses=15 errors=0 pages=5, climb_log.py decide prints reverted under the lower, gain_floor 0 rule, git reset --keep moves climb/template-parses back to the last kept commit in the climb worktree, the baseline worktree stays put, and log.tsv gains an a2 row with tests pass, verdict reverted and the dropped SHA. The checkout is not reset.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/performance:climb template-parses. The run is in progress; its state is in .work/site-build/climb/template-parses/state.txt. Attempt a2 is already committed in the climb worktree. Measure it, decide, and finish attempt a2 only; do not start a3.'
+  allowed_tools: [Bash, Read, Grep, Glob, Skill]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: reset-keep-used
+    type: tool_used
+    tool: Bash
+    input_match: 'reset\s+--keep\b'
+    min: 1
+    arm: with-only
+  - name: no-discarding-restore
+    type: tool_used
+    tool: Bash
+    input_match: 'reset\s+--hard|checkout\s+(?:\S+\s+)?--\s|git\s+(?:-C\s+\S+\s+)?restore\b|clean\s+-[a-zA-Z]*f'
+    min: 0
+    max: 0
+    arm: both
+  - name: decide-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'climb_log\.py\S*\s+decide\b'
+    min: 1
+    arm: with-only
+  - name: logged-reverted-row
+    type: regex
+    pattern: '^a2\t[^\n]*\tpass\treverted\t[^\n]*[0-9a-f]{7}'
+    flags: m
+    target: { source: file, path: .work/site-build/climb/template-parses/log.tsv }
+    arm: with-only
+  - name: reverted-for-no-gain
+    type: llm
+    focus: trace
+    criteria: 'PASS only if the run measured attempt a2 against a re-measured baseline arm in the other worktree (not against a number stored earlier), found the parse count unchanged at 15 with errors=0 and pages=5 in both, called it reverted, ran git reset --keep to the last kept commit inside the climb worktree rather than the checkout, left the baseline worktree where it was, and did not start attempt a3. FAIL otherwise.'
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:performance:)?climb"'
+    arm: with-only
