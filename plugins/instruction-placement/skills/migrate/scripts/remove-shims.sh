@@ -185,6 +185,8 @@ installed_version() { # <plugin name>
   while IFS= read -r v; do
     v="${v%$'\r'}"
     [[ -n "$v" ]] || continue
+    # One copy whose version cannot be read could be the stale one.
+    [[ "$v" =~ ^[0-9]+(\.[0-9]+)*$ ]] || return 1
     if [[ -z "$worst" ]] || ip_ver_ge "$worst" "$v"; then worst="$v"; fi
   done < <(jq -r --arg p "$1@" '.plugins | to_entries[]
              | select(.key | startswith($p)) | .value[].version' \
@@ -197,7 +199,7 @@ for pair in "instruction-placement:$FLOOR_INSTRUCTION_PLACEMENT" "harness-memory
   name="${pair%%:*}"
   floor="${pair##*:}"
   if ! have="$(installed_version "$name")"; then
-    refuse "cannot read the installed version of $name from $INSTALLED_PLUGINS (jq missing, file absent, or the plugin is not installed). An unread version is not a version that carries the corrected doctrine."
+    refuse "cannot read the installed version of $name from $INSTALLED_PLUGINS (jq missing, file absent, the plugin is not installed, or a copy's version is not a dotted number). An unread version is not a version that carries the corrected doctrine."
   fi
   if ! ip_ver_ge "$have" "$floor"; then
     refuse "installed $name is $have (the lowest copy across every scope), below the corrected-doctrine release $floor. An older build tells a de-shimmed repository to put the shim back."

@@ -13,10 +13,13 @@
 
 # `a >= b` over dotted numeric versions. `sort -V` would do it and is GNU-only.
 # A missing component counts as 0, and 10# keeps a leading zero from reading as
-# octal. A non-numeric component returns 2 before it reaches the arithmetic,
-# where bash would evaluate it as an expression: a version read from a plugin
-# manifest is not trusted text. Callers that test only for success fail closed.
+# octal. Either side not a dotted number returns 2 before any comparison, so a
+# malformed later component cannot ride on an earlier one that already decided
+# the order, and no component reaches the arithmetic, where bash would evaluate
+# it as an expression: a version read from a plugin manifest is not trusted
+# text. Callers that test only for success fail closed.
 ip_ver_ge() {
+  [[ "$1" =~ ^[0-9]+(\.[0-9]+)*$ && "$2" =~ ^[0-9]+(\.[0-9]+)*$ ]] || return 2
   local -a a b
   local i x y
   IFS=. read -r -a a <<<"$1"
@@ -24,7 +27,6 @@ ip_ver_ge() {
   for i in 0 1 2; do
     x="${a[i]:-0}"
     y="${b[i]:-0}"
-    [[ "$x" =~ ^[0-9]+$ && "$y" =~ ^[0-9]+$ ]] || return 2
     ((10#$x > 10#$y)) && return 0
     ((10#$x < 10#$y)) && return 1
   done

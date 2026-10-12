@@ -52,6 +52,8 @@ assert_eq "a non-numeric component returns 2" "2" "$(status_of ip_ver_ge "2.1.$p
 assert_eq "and is not evaluated as arithmetic" "absent" \
   "$([[ -e "$TMP/ran" ]] && echo present || echo absent)"
 assert_eq "a non-numeric side is not strictly newer" "2" "$(status_of ip_ver_gt 2.1.0 2.x.0)"
+assert_eq "a malformed later component is caught after an earlier one decided" "2" \
+  "$(status_of ip_ver_ge 0.16.bad 0.15.0)"
 
 # --------------------------------------------------------------------------
 # ip_version_in

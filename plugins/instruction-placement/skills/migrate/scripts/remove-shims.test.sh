@@ -140,6 +140,21 @@ cat >"$TMP/installed-mixed.json" <<'EOF'
 }
 EOF
 
+# A valid copy first and an unreadable one after it. The unreadable copy could
+# be the stale one, so it must not be skipped in favor of the valid one.
+cat >"$TMP/installed-malformed.json" <<'EOF'
+{
+  "version": 2,
+  "plugins": {
+    "instruction-placement@melodic-software": [
+      { "scope": "user", "version": "0.15.0" },
+      { "scope": "project", "version": "bad.0.0" }
+    ],
+    "harness-memory@melodic-software": [{ "scope": "user", "version": "0.12.9" }]
+  }
+}
+EOF
+
 # 0.14.0 is below the instruction-placement floor: the old doctrine still lived
 # in two of its own files at that release.
 cat >"$TMP/installed-0140.json" <<'EOF'
@@ -291,6 +306,13 @@ OUT=$(bash "$SCRIPT" --root "$READY" --confirm --installed-plugins "$TMP/install
   --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
 assert_eq "instruction-placement 0.14.0 is below the floor" 1 "$rc"
 assert_contains "and the floor is named" "$OUT" "below the corrected-doctrine release 0.15.0"
+
+rc=0
+OUT=$(bash "$SCRIPT" --root "$READY" --confirm --installed-plugins "$TMP/installed-malformed.json" \
+  --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
+assert_eq "an unreadable copy beside a valid one refuses" 1 "$rc"
+assert_contains "and says an unread version is not a version" "$OUT" "An unread version is not"
+assert_eq "and removes nothing" "" "$(cd "$READY" && git status --porcelain)"
 
 # --- Case 4: an unmet cutover condition removes nothing -------------------
 
