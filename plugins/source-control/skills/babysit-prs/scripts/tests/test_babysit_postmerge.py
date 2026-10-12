@@ -382,6 +382,12 @@ class AutoMergeDerivation(CheckCase):
         self.gh.merged_pages = [page, page]
         self.assertTrue(self.check().readable)
 
+    def test_merged_auto_merge_without_a_number_is_unreadable(self) -> None:
+        self.gh.merged = [merged_pr(number=None)]
+        verdict = self.check()
+        self.assertFalse(verdict.readable)
+        self.assertIn("no number", verdict.reason)
+
     def test_merged_pr_without_a_merge_commit_is_unreadable(self) -> None:
         self.gh.merged = [merged_pr(mergeCommit=None)]
         verdict = self.check()
@@ -975,6 +981,23 @@ class Cli(CheckCase):
             ["ref=trunk"],
         )
         self.assertEqual(report["branch"], "trunk")
+
+    def test_a_readable_verdict_without_a_branch_writes_nothing(self) -> None:
+        # A verdict that needs a dispatch but names no branch: the CLI must
+        # refuse before any write rather than dispatch on an unknown ref.
+        merge = pm.AutoMerge(7001, MERGE_SHA, HEAD_SHA, "2026-10-12T10:00:00Z")
+        verdict = pm.PostMergeVerdict(
+            True,
+            merges=(pm.MergeState(merge, False, (), dispatch_covered=False),),
+            reruns=(pm.Rerun(31, f"{RUN_URL}/31", "schedule"),),
+            branch=None,
+        )
+        self.assertTrue(verdict.needs_dispatch)
+        with mock.patch.object(pm, "check", return_value=verdict):
+            code, report = self.main("--remediate")
+        self.assertEqual(code, 3)
+        self.assertEqual(self.gh.writes(), [])
+        self.assertNotIn("remediation", report)
 
     def test_unreadable_default_branch_exits_3_without_writes(self) -> None:
         self.gh.default_branch = None

@@ -647,8 +647,11 @@ def _auto_merge(
     actor, enqueuer = event.get("actor"), event.get("enqueuer")
     if is_human(actor) and is_human(enqueuer):
         return None
+    number = pr.get("number")
+    if not isinstance(number, int) or isinstance(number, bool):
+        raise PostMergeReadError(f"merged pull request: no number {number!r}")
     return AutoMerge(
-        number=pr.get("number"),
+        number=number,
         merge_commit=json_object(pr.get("mergeCommit")).get("oid"),
         head_ref_oid=pr.get("headRefOid"),
         merged_at=pr.get("mergedAt"),
@@ -1128,7 +1131,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     report = verdict.report()
     code = 3 if not verdict.readable else 1 if verdict.failures else 0
-    if args.remediate and verdict.readable:
+    branch = verdict.branch
+    if verdict.readable and not branch:
+        # A readable verdict always names its branch; refuse before any write
+        # rather than dispatch or dequeue on an unknown ref.
+        report["reason"] = "branch-unknown"
+        code = 3
+    elif args.remediate and verdict.readable and branch:
         errors: list[str] = []
         try:
             report["rerunsTriggered"] = attribute(args.repo, verdict)
@@ -1137,7 +1146,7 @@ def main(argv: list[str] | None = None) -> int:
         report["dispatched"] = False
         if verdict.needs_dispatch:
             try:
-                dispatch_full_run(args.repo, ref=verdict.branch)
+                dispatch_full_run(args.repo, ref=branch)
                 report["dispatched"] = True
             except PostMergeWriteError as exc:
                 errors.append(f"dispatch: {exc}")
