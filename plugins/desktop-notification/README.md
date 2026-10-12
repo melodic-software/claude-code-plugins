@@ -35,7 +35,7 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 | OS | Tool | Requirement |
 |---|---|---|
 | macOS | [`osascript … display notification`](https://code-maven.com/display-notification-from-the-mac-command-line) | Built-in. No dependency. First run prompts to allow notifications for the terminal app. |
-| Linux | [`notify-send`](https://man.archlinux.org/man/notify-send.1.en) (libnotify) | Install `libnotify-bin` (Debian/Ubuntu) or `libnotify` (Fedora). Absent → the `os_toast` channel is a silent no-op. |
+| Linux | [`notify-send`](https://man.archlinux.org/man/notify-send.1.en) (libnotify) | Install `libnotify-bin` (Debian/Ubuntu) or `libnotify` (Fedora). Without it, the `os_toast` channel is a silent no-op. |
 | Windows / other | none | No OS-toast branch: a fire-and-forget hook process leaves no live activator host for a WinRT toast to render into, so it would never reliably surface. The `terminal_notify` channel (OSC 9) carries Windows attention; which Windows terminals handle OSC 9 is read at the Emit terminal notifications pointer record above, which carries this cell's as-of date and recheck trigger. |
 
 The OS toast body includes the current git branch when the project is a git
@@ -180,7 +180,7 @@ hands a configured value to a hook process; the value comes from the routes abov
 When the consumer sets `HOOK_TELEMETRY_SINK` to an executable, the hook emits one
 [telemetry envelope](../../docs/conventions/hook-telemetry/README.md) per run.
 `hook: "desktop-notification"`, `hook_event: "Notification"`, and a `data` payload
-of `notification_type` plus the `channels` that fired. Unset → exact no-op.
+of `notification_type` plus the `channels` that fired. When it is unset, the hook is an exact no-op.
 
 ## License
 
