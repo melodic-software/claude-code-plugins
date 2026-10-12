@@ -323,6 +323,26 @@ class AgentIdentityCannotUsePlainMerge(MainHarness):
         self.assertEqual(code, 10)
         self.assert_no_write()
 
+    def test_padded_identity_still_refuses_its_login(self) -> None:
+        padded = policy.UnattendedPolicy(
+            reason="authority-unconfigured", agent_identity="  my-app[bot]  "
+        )
+        code, _ = self._main(
+            "--merge", "--expected-head", HEAD, resolved=padded, login="my-app[bot]"
+        )
+        self.assertEqual(code, 10)
+        self.assert_no_write()
+        self.assertFalse(self.evaluate.called)
+
+    def test_blank_identity_counts_as_unconfigured(self) -> None:
+        blank = policy.UnattendedPolicy(
+            reason="authority-unconfigured", agent_identity=" \t "
+        )
+        self.assertIsNone(blank.agent_identity)
+        code, _ = self._main("--merge", "--expected-head", HEAD, resolved=blank)
+        self.assertEqual(code, 0)
+        self.assertFalse(self.login.called)
+
     def test_unresolvable_acting_login_refuses(self) -> None:
         code, _ = self._main(
             "--merge",

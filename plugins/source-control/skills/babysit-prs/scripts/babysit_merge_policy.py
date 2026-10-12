@@ -22,11 +22,16 @@ class UnattendedPolicy:
 
     `reason` names the refusal that keeps the path inert; only None enables it,
     and it has no default, so no policy is enabled by omission.
-    `agent_identity` is the configured `merge.agent-identity` login, or None.
+    `agent_identity` is the configured `merge.agent-identity` login, stripped of
+    surrounding whitespace, or None when unset or blank.
     """
 
     reason: str | None
     agent_identity: str | None = None
+
+    def __post_init__(self) -> None:
+        identity = (self.agent_identity or "").strip() or None
+        object.__setattr__(self, "agent_identity", identity)
 
     @property
     def enabled(self) -> bool:

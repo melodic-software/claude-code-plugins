@@ -2892,14 +2892,14 @@ def main() -> int:
     identity = unattended.agent_identity if unattended is not None else None
     if args.merge and identity:
         try:
-            acting = resolve_author("@me") or ""
+            acting = (resolve_author("@me") or "").strip()
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(
                 f"the token's acting login could not be read ({exc}) while "
                 f"merge.agent-identity is {identity!r}; refusing a plain --merge",
                 10,
             )
-        if not acting or acting.casefold() == identity.casefold():
+        if not acting or acting.casefold() == identity.strip().casefold():
             return _refuse(
                 f"the token acts as {acting or 'an unknown login'!r}, the configured "
                 f"merge.agent-identity {identity!r}; it merges only through "
