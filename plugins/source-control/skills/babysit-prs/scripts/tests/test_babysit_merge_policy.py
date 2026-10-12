@@ -12,6 +12,7 @@ the real shared copy run through bash.
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import pathlib
 import subprocess
@@ -460,7 +461,15 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
         "createdAt": "2026-10-12T10:00:00Z",
         "author": bot("agent-lanes"),
         "userContentEdits": {"totalCount": 0, "nodes": []},
-        "timelineItems": {"nodes": [{"actor": user(OPERATOR), "closer": None}]},
+        "timelineItems": {
+            "nodes": [
+                {
+                    "createdAt": "2026-10-12T12:00:00Z",
+                    "actor": user(OPERATOR),
+                    "closer": None,
+                }
+            ]
+        },
     } | issue
     gh = GhFake().install(case)
 
@@ -495,6 +504,33 @@ class ReadDemotion(unittest.TestCase):
         result = read_demotion()
         self.assertFalse(result.active, result.reason)
         self.assertEqual(result.records, (9,))
+        # The cleared record restarts the evidence window and the floor.
+        self.assertEqual(
+            (result.newest_created, result.cleared_at),
+            (
+                policy.datetime.fromisoformat("2026-10-12T10:00:00Z"),
+                policy.datetime.fromisoformat("2026-10-12T12:00:00Z"),
+            ),
+        )
+
+    def test_a_cleared_record_without_a_close_time_is_off(self) -> None:
+        demotion_fake(
+            self,
+            timelineItems={"nodes": [{"actor": user(OPERATOR), "closer": None}]},
+        )
+        result = read_demotion()
+        self.assertTrue(result.active)
+        self.assertTrue(result.reason.startswith("demotion-unreadable"), result.reason)
+
+    def test_no_record_has_no_window_restart(self) -> None:
+        gh = demotion_fake(self)
+        empty = {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": []}
+        gh.graphql["PolicyIssuesByAuthor"] = {"repository": {"issues": empty}}
+        result = read_demotion()
+        self.assertEqual(
+            (result.active, result.newest_created, result.cleared_at),
+            (False, None, None),
+        )
 
     def test_open_is_off(self) -> None:
         demotion_fake(self, state="OPEN", timelineItems={"nodes": []})
@@ -951,6 +987,282 @@ class Eligibility(unittest.TestCase):
         self.assertEqual(eligibility().reason, "claim-missing")
 
 
+class EligibilityAgentSignals(unittest.TestCase):
+    """Carried from #7324: an App acting on a human's token is not the human,
+    and a class label removed by a non-human leaves a lower class untrusted."""
+
+    TIMELINE = f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"
+
+    def test_a_class_label_applied_through_an_app_is_not_human(self) -> None:
+        gh = eligibility_fake(self)
+        gh.rest[self.TIMELINE][0]["performed_via_github_app"] = {"slug": "agent"}
+        self.assertEqual(eligibility().reason, "class-provenance:labeler-via-app")
+
+    def test_a_class_label_removed_by_a_non_human_is_ineligible(self) -> None:
+        for actor, via in (
+            ({"login": IDENTITY, "type": "Bot"}, None),
+            ({"login": OPERATOR, "type": "User"}, {"slug": "agent"}),
+        ):
+            with self.subTest(actor=actor, via=via):
+                gh = eligibility_fake(self)
+                gh.rest[self.TIMELINE].append(
+                    {
+                        "event": "unlabeled",
+                        "label": {"name": "work-class: scoped"},
+                        "actor": actor,
+                        "performed_via_github_app": via,
+                        "created_at": "2026-10-11T10:00:00Z",
+                    }
+                )
+                self.assertEqual(
+                    eligibility().reason, "class-label-removed-by-non-human"
+                )
+
+    def test_a_human_removing_a_class_label_stays_eligible(self) -> None:
+        gh = eligibility_fake(self)
+        gh.rest[self.TIMELINE].append(
+            {
+                "event": "unlabeled",
+                "label": {"name": "work-class: scoped"},
+                "actor": {"login": OPERATOR, "type": "User"},
+                "created_at": "2026-10-11T10:00:00Z",
+            }
+        )
+        self.assertTrue(eligibility().eligible)
+
+    def test_a_label_event_without_an_offset_is_ineligible(self) -> None:
+        gh = eligibility_fake(self)
+        gh.rest[self.TIMELINE][0]["created_at"] = "2026-10-11T09:00:00"
+        result = eligibility()
+        self.assertFalse(result.eligible)
+        self.assertTrue(result.reason.startswith("unreadable"), result.reason)
+
+
+class ChangedFiles(unittest.TestCase):
+    """Git modes come from the trees API, which the PR files API omits."""
+
+    HEAD = "e" * 40
+
+    def test_modes_come_from_the_head_and_base_trees(self) -> None:
+        gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = [
+            {
+                "filename": "docs/a.md",
+                "status": "modified",
+                "additions": 1,
+                "deletions": 0,
+                "patch": "@@",
+            },
+            {
+                "filename": "docs/b.md",
+                "previous_filename": "docs/old.md",
+                "status": "renamed",
+                "additions": 0,
+                "deletions": 0,
+            },
+        ]
+        gh.rest[f"repos/{REPO}/git/trees/{self.HEAD}?recursive=1"] = {
+            "truncated": False,
+            "tree": [
+                {"path": "docs/a.md", "mode": "100755"},
+                {"path": "docs/b.md", "mode": "120000"},
+            ],
+        }
+        gh.rest[f"repos/{REPO}/git/trees/{SHA}?recursive=1"] = {
+            "truncated": False,
+            "tree": [
+                {"path": "docs/a.md", "mode": "100644"},
+                {"path": "docs/old.md", "mode": "100644"},
+            ],
+        }
+        pr = {
+            "number": 7,
+            "changed_files": 2,
+            "head": {"sha": self.HEAD},
+            "base": {"sha": SHA},
+        }
+        files, complete = policy.changed_files(REPO, pr)
+        self.assertTrue(complete)
+        self.assertEqual(
+            [(f.path, f.mode, f.previous_mode, f.has_patch) for f in files],
+            [
+                ("docs/a.md", "100755", "100644", True),
+                ("docs/b.md", "120000", "100644", False),
+            ],
+        )
+
+    def test_a_truncated_tree_is_incomplete(self) -> None:
+        gh = GhFake().install(self)
+        gh.rest[f"repos/{REPO}/pulls/7/files?per_page=100"] = []
+        for sha in (self.HEAD, SHA):
+            gh.rest[f"repos/{REPO}/git/trees/{sha}?recursive=1"] = {
+                "truncated": True,
+                "tree": [],
+            }
+        pr = {
+            "number": 7,
+            "changed_files": 0,
+            "head": {"sha": self.HEAD},
+            "base": {"sha": SHA},
+        }
+        self.assertEqual(policy.changed_files(REPO, pr), ((), False))
+
+
+class PromotionOptions(unittest.TestCase):
+    """The four bootstrap values come only from settings the lane user cannot
+    write (plan Phase 13; D10)."""
+
+    def settings(
+        self, directory: pathlib.Path, options: dict[str, str]
+    ) -> pathlib.Path:
+        path = directory / "settings.json"
+        path.write_text(
+            json.dumps(
+                {"pluginConfigs": {"source-control@market": {"options": options}}}
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    FOUR = {
+        "promotion_evidence_binding": "/opt/p/binding.json",
+        "promotion_evidence_root": "/opt/p/evidence",
+        "promotion_evidence_source": "/opt/p/events.json",
+        "promotion_evidence_checker": "/opt/p/check.mjs",
+    }
+
+    def read(self, path: pathlib.Path, writable: bool = False) -> Any:
+        return policy.read_promotion_options(
+            path, managed=lambda: [], writable=lambda p: writable
+        )
+
+    def test_an_unwritable_settings_file_supplies_the_four_values(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            values, reason = self.read(self.settings(pathlib.Path(tmp), self.FOUR))
+        self.assertIsNone(reason)
+        self.assertEqual(values, self.FOUR)
+
+    def test_a_lane_writable_settings_file_refuses(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self.settings(pathlib.Path(tmp), self.FOUR)
+            values, reason = self.read(path, writable=True)
+            real, real_reason = policy.read_promotion_options(path, managed=lambda: [])
+        self.assertIsNone(values)
+        self.assertTrue(reason.startswith("settings-lane-writable"))
+        # The real check: a file this test just created is the lane user's own.
+        self.assertIsNone(real)
+        self.assertTrue(real_reason.startswith("settings-lane-writable"))
+
+    def test_an_unset_option_refuses(self) -> None:
+        import tempfile
+
+        partial = dict(self.FOUR)
+        del partial["promotion_evidence_checker"]
+        with tempfile.TemporaryDirectory() as tmp:
+            values, reason = self.read(self.settings(pathlib.Path(tmp), partial))
+        self.assertIsNone(values)
+        self.assertEqual(reason, "options-unset:promotion_evidence_checker")
+
+    def test_no_settings_file_refuses(self) -> None:
+        values, reason = policy.read_promotion_options(None, managed=lambda: [])
+        self.assertIsNone(values)
+        self.assertTrue(reason.startswith("options-unset"))
+
+
+class ReadPromotion(unittest.TestCase):
+    """The resolver runs on a copy of the evidence written outside the checkout;
+    a demotion record adds a contrary event per cell at its creation."""
+
+    def run_resolver(self, events: Any, window_start: Any) -> tuple[Any, list[Any]]:
+        import tempfile
+
+        seen: list[Any] = []
+
+        def fake_run(argv: list[str], **_: Any) -> Any:
+            evidence = argv[argv.index("--evidence") + 1]
+            seen.append((argv, json.loads(pathlib.Path(evidence).read_text())))
+            cells = {c: {"effective": "promoted"} for c in policy.PROMOTABLE_CELLS}
+            return subprocess.CompletedProcess(
+                argv, 0, json.dumps({"failClosedReason": None, "cells": cells}), ""
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            source = pathlib.Path(tmp) / "events.json"
+            source.write_text(json.dumps(events), encoding="utf-8")
+            values = {
+                "promotion_evidence_binding": "/opt/p/b.json",
+                "promotion_evidence_root": "/opt/p/root",
+                "promotion_evidence_source": str(source),
+                "promotion_evidence_checker": "/opt/p/c.mjs",
+            }
+            with mock.patch.object(policy, "run_command", fake_run):
+                result = policy.read_promotion(
+                    settings_file=None,
+                    checkout=pathlib.Path(__file__).resolve().parents[5],
+                    window_start=window_start,
+                    options=(values, None),
+                )
+        return result, seen
+
+    def test_the_source_events_pass_unchanged_without_a_demotion(self) -> None:
+        events = [{"cell": "C2-auto-merge", "event": "gate-failure", "at": "x"}]
+        result, seen = self.run_resolver(events, None)
+        self.assertTrue(result.promoted("C2"))
+        self.assertEqual(seen[0][1], events)
+
+    def test_a_demotion_adds_a_contrary_event_per_cell_and_drops_none(self) -> None:
+        start = policy.datetime.fromisoformat("2026-10-11T07:00:00+00:00")
+        events = [{"cell": "C2-auto-merge", "event": "reverted-merge", "at": "y"}]
+        _, seen = self.run_resolver(events, start)
+        copied = seen[0][1]
+        self.assertEqual(copied[0], events[0])
+        self.assertEqual(
+            copied[1:],
+            [
+                {"cell": c, "event": "gate-failure", "at": "2026-10-11T07:00:00+00:00"}
+                for c in policy.PROMOTABLE_CELLS
+            ],
+        )
+
+    def test_the_evidence_copy_sits_outside_the_checkout(self) -> None:
+        _, seen = self.run_resolver([], None)
+        argv = seen[0][0]
+        checkout = pathlib.Path(argv[argv.index("--checkout") + 1])
+        copy = pathlib.Path(argv[argv.index("--evidence") + 1])
+        self.assertFalse(copy.is_relative_to(checkout))
+
+    def test_c4_and_c5_are_never_promoted(self) -> None:
+        result, _ = self.run_resolver([], None)
+        for work_class in ("C4", "C5", None):
+            self.assertFalse(result.promoted(work_class))
+
+    def test_a_fail_closed_resolver_promotes_nothing(self) -> None:
+        def fake_run(argv: list[str], **_: Any) -> Any:
+            payload = {"failClosedReason": "--checker not set", "cells": {}}
+            return subprocess.CompletedProcess(argv, 0, json.dumps(payload), "")
+
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            source = pathlib.Path(tmp) / "events.json"
+            source.write_text("[]", encoding="utf-8")
+            values = dict.fromkeys(policy.PROMOTION_OPTIONS.values(), "/x")
+            values["promotion_evidence_source"] = str(source)
+            with mock.patch.object(policy, "run_command", fake_run):
+                result = policy.read_promotion(
+                    settings_file=None,
+                    checkout=pathlib.Path(tmp) / "checkout",
+                    window_start=None,
+                    options=(values, None),
+                )
+        self.assertEqual(result.reason, "--checker not set")
+        self.assertFalse(result.promoted("C2"))
+
+
 def queue_fake(
     case: unittest.TestCase, entries: list[dict[str, Any]], merges: list[dict[str, Any]]
 ) -> GhFake:
@@ -1108,18 +1420,45 @@ class InFlight(unittest.TestCase):
         )
 
 
+ENABLED_AT = "2026-10-10T00:00:00Z"
+IDENTITY_ONLY = {
+    "hosts": {
+        "github.com": [
+            {
+                "login": IDENTITY,
+                "active": True,
+                "host": "github.com",
+                "state": "success",
+            }
+        ]
+    }
+}
+
+
+def gate(refusal: str | None = None, verified: Any = None) -> policy.PostMergeGate:
+    return policy.PostMergeGate(refusal, {"ok": refusal is None}, verified)
+
+
+PROMOTED = policy.Promotion(dict.fromkeys(policy.PROMOTABLE_CELLS, "promoted"), None)
+
+
 class Assess(unittest.TestCase):
-    """The readers composed; every outcome stays inert in this phase."""
+    """The readers composed for one pull request, in the wiring order."""
 
     def fake(self, pipeline: str | None = PIPELINE) -> GhFake:
         gh = config_fake(self, pipeline)
-        gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
-        gh.rest[f"repos/{REPO}/commits/trunk"] = {"sha": SHA}
+        gh.rest[f"repos/{REPO}/pulls/1"] = {
+            "number": 1,
+            "base": {"ref": "trunk", "sha": SHA},
+            "head": {"ref": "feat", "sha": "e" * 40},
+        }
         return gh
 
     def readable(self) -> GhFake:
-        """Kill switch on, no cap, no demotion record."""
+        """Identity-only credentials, kill switch on, no cap, no demotion
+        record, and the path enabled since ENABLED_AT."""
         gh = self.fake()
+        gh.rest["status"] = IDENTITY_ONLY  # gh auth status --json hosts
         variables = f"repos/{REPO}/actions/variables"
         gh.rest[f"{variables}?per_page=1"] = {"variables": []}
         gh.rest[f"repos/{REPO}/actions/organization-variables?per_page=100"] = {
@@ -1130,56 +1469,159 @@ class Assess(unittest.TestCase):
         gh.rest[f"{variables}/CLAUDE_LANES_MERGE_RUNG_CAP"] = 404
         empty = {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": []}
         gh.graphql["PolicyIssuesByAuthor"] = {"repository": {"issues": empty}}
+        history = f"repos/{REPO}/commits?sha={SHA}&path=docs%2Fconventions%2Fpr-pipeline.yaml&per_page=100"
+        gh.rest[history] = [{"sha": SHA, "commit": {"committer": {"date": ENABLED_AT}}}]
         return gh
 
-    def test_in_flight_reads_the_default_branch_not_main(self) -> None:
-        self.readable()
-        with mock.patch.object(
-            policy, "in_flight", return_value=policy.InFlight(False, "x")
-        ) as flight:
-            policy.assess(REPO, base_sha=SHA, acting_login=IDENTITY)
-        self.assertEqual(flight.call_args.kwargs["branch"], "trunk")
+    def assess(self, **kwargs: Any) -> policy.UnattendedPolicy:
+        kwargs.setdefault("acting_login", IDENTITY)
+        return policy.assess(REPO, 1, **kwargs)
 
-    def test_a_work_class_above_the_rung_refuses(self) -> None:
-        self.readable()
-        for work_class in ("C3", "C4", "C5", None):
-            with (
-                self.subTest(work_class=work_class),
-                mock.patch.object(
-                    policy, "in_flight", return_value=policy.InFlight(True, None)
-                ),
-                mock.patch.object(
-                    policy,
-                    "eligibility",
-                    return_value=policy.Eligibility(True, None, work_class, ISSUE),
-                ),
-            ):
-                result = policy.assess(
-                    REPO, base_sha=SHA, pr_number=1, acting_login=IDENTITY
-                )
-                self.assertEqual(result.reason, f"class-above-rung:{work_class}>C2")
-
-    def test_a_work_class_within_the_rung_reaches_merge_unconnected(self) -> None:
-        self.readable()
-        with (
+    def all_clear(self, work_class: str | None = "C2") -> Any:
+        """Patch the in-flight and eligibility readers clear."""
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(
             mock.patch.object(
                 policy, "in_flight", return_value=policy.InFlight(True, None)
-            ),
+            )
+        )
+        stack.enter_context(
             mock.patch.object(
                 policy,
                 "eligibility",
-                return_value=policy.Eligibility(True, None, "C2", ISSUE),
-            ),
-        ):
-            result = policy.assess(
-                REPO, base_sha=SHA, pr_number=1, acting_login=IDENTITY
+                return_value=policy.Eligibility(True, None, work_class, ISSUE),
             )
-        self.assertEqual(result.reason, policy.MERGE_UNCONNECTED)
-        self.assertFalse(result.enabled)
+        )
+        return stack
+
+    def test_every_input_good_permits_the_merge(self) -> None:
+        # The outcome that replaced Phase 6's `merge-unconnected`: nothing refuses.
+        self.readable()
+        self.all_clear()
+        result = self.assess(
+            post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
+        )
+        self.assertIsNone(result.reason)
+        self.assertIs(result.enabled, True)
+        self.assertIs(result.promoted, True)
+        self.assertEqual(result.report()["credentials"], "identity-only")
+
+    def test_config_is_read_at_the_pull_requests_base_sha(self) -> None:
+        gh = self.readable()
+        self.all_clear()
+        self.assess(post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED)
+        self.assertIn(
+            ["api", f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"], gh.calls
+        )
+
+    def test_the_floor_and_branch_reach_the_post_merge_check_and_in_flight(
+        self,
+    ) -> None:
+        self.readable()
+        seen: list[Any] = []
+        verified = lambda merge: True  # noqa: E731
+        ineligible = policy.Eligibility(False, "fork")
+        with (
+            mock.patch.object(
+                policy, "in_flight", return_value=policy.InFlight(False, "x")
+            ) as flight,
+            mock.patch.object(policy, "eligibility", return_value=ineligible),
+        ):
+            result = self.assess(
+                post_merge=lambda floor, who: (
+                    seen.append((floor, who)) or gate(verified=verified)
+                )
+            )
+        floor = policy.datetime.fromisoformat(ENABLED_AT)
+        self.assertEqual(seen, [(floor, IDENTITY)])
+        self.assertEqual(flight.call_args.kwargs["branch"], "trunk")
+        self.assertEqual(flight.call_args.kwargs["merged_since"], floor)
+        self.assertIs(flight.call_args.kwargs["verified"], verified)
+        self.assertEqual(result.reason, "in-flight:x")
+        self.assertIs(result.enabled, True)
+
+    def test_a_human_clear_of_a_demotion_record_restarts_the_floor(self) -> None:
+        self.readable()
+        cleared = policy.datetime.fromisoformat("2026-10-11T08:00:00Z")
+        seen: list[Any] = []
+        with mock.patch.object(
+            policy,
+            "read_demotion",
+            return_value=policy.Demotion(False, None, (9,), cleared, cleared),
+        ):
+            self.assess(post_merge=lambda floor, who: seen.append(floor) or gate("x"))
+        self.assertEqual(seen, [cleared])
+
+    def test_a_post_merge_refusal_stops_before_any_later_read(self) -> None:
+        self.readable()
+        with mock.patch.object(policy, "in_flight") as flight:
+            result = self.assess(post_merge=lambda floor, who: gate("failure:#7"))
+        self.assertEqual(result.reason, "post-merge:failure:#7")
+        self.assertIs(result.enabled, False)
+        flight.assert_not_called()
+
+    def test_without_a_post_merge_check_the_path_refuses(self) -> None:
+        self.readable()
+        self.assertEqual(self.assess().reason, "post-merge:unchecked")
+
+    def test_the_kill_switch_stops_before_the_post_merge_check(self) -> None:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/actions/variables/CLAUDE_LANES_REPO_DISABLED"] = {
+            "value": "true"
+        }
+        never = mock.Mock(side_effect=AssertionError("must not run"))
+        result = self.assess(post_merge=never)
+        self.assertEqual(result.reason, "kill-switch:repo-switch-not-false")
+        self.assertIs(result.enabled, False)
+
+    def test_another_listed_account_refuses_before_the_kill_switch(self) -> None:
+        gh = self.readable()
+        operator = {"login": OPERATOR, "active": False, "host": "github.com"}
+        gh.rest["status"] = {
+            "hosts": {"github.com": [IDENTITY_ONLY["hosts"]["github.com"][0], operator]}
+        }
+        result = self.assess(post_merge=mock.Mock(side_effect=AssertionError))
+        self.assertEqual(result.reason, "credentials:other-account-listed")
+        self.assertFalse(any("variables" in " ".join(c) for c in gh.calls))
+
+    def test_a_work_class_above_the_rung_refuses(self) -> None:
+        self.readable()
+        for work_class in ("C3", "C4", "C5"):
+            with self.subTest(work_class=work_class), self.all_clear(work_class):
+                result = self.assess(
+                    post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
+                )
+                self.assertEqual(result.reason, f"class-above-rung:{work_class}>C2")
+                self.assertIs(result.enabled, True)
+
+    def test_unread_promotion_refuses_but_the_path_stays_enabled(self) -> None:
+        self.readable()
+        self.all_clear()
+        result = self.assess(post_merge=lambda floor, who: gate())
+        self.assertEqual(result.reason, "promotion-unqualified:promotion-unread")
+        self.assertIs(result.enabled, True)
+        self.assertIs(result.promoted, False)
+
+    def test_the_demotion_window_start_reaches_the_promotion_read(self) -> None:
+        self.readable()
+        self.all_clear()
+        created = policy.datetime.fromisoformat("2026-10-11T07:00:00Z")
+        seen: list[Any] = []
+        with mock.patch.object(
+            policy,
+            "read_demotion",
+            return_value=policy.Demotion(False, None, (9,), created, created),
+        ):
+            self.assess(
+                post_merge=lambda floor, who: gate(),
+                promotion=lambda start: seen.append(start) or PROMOTED,
+            )
+        self.assertEqual(seen, [created])
 
     def test_no_merge_block_is_authority_unconfigured_with_no_identity(self) -> None:
         self.fake(None)
-        result = policy.assess(REPO, base_sha=SHA)
+        result = self.assess()
         self.assertFalse(result.enabled)
         self.assertEqual(
             (result.reason, result.agent_identity), ("authority-unconfigured", None)
@@ -1187,7 +1629,7 @@ class Assess(unittest.TestCase):
 
     def test_a_configured_identity_is_reported_even_while_inert(self) -> None:
         self.fake(PIPELINE.replace("local-babysit", "pr-merge"))
-        result = policy.assess(REPO, base_sha=SHA)
+        result = self.assess()
         self.assertEqual(
             (result.reason, result.agent_identity), ("authority-unconfigured", IDENTITY)
         )
@@ -1195,21 +1637,116 @@ class Assess(unittest.TestCase):
     def test_a_parse_error_refuses_rather_than_hiding_the_identity(self) -> None:
         self.fake("merge:\n  rung: [C2\n")
         with self.assertRaises(policy.PolicyReadError):
-            policy.assess(REPO, base_sha=SHA)
+            self.assess()
 
     def test_the_first_failing_reader_is_the_reason(self) -> None:
-        self.fake()
-        result = policy.assess(REPO, base_sha=SHA, acting_login=OPERATOR)
+        gh = self.fake()
+        result = self.assess(acting_login=OPERATOR)
         self.assertEqual(result.reason, "acting-login-mismatch")
+        self.assertNotIn(["auth", "status", "--json", "hosts"], gh.calls)
 
-    def test_with_no_floor_yet_the_in_flight_reader_refuses(self) -> None:
-        self.readable()
-        result = policy.assess(REPO, base_sha=SHA, acting_login=IDENTITY)
-        self.assertFalse(result.enabled)
-        self.assertEqual(result.reason, "in-flight:merged-since-unset")
-        report = result.report()
-        self.assertEqual(report["rung"], "C2")
-        self.assertIs(report["killSwitch"]["proceed"], True)
+
+class CredentialRefusal(unittest.TestCase):
+    """The `gh auth status` chokepoint (plan Phase 13): any account other than
+    the identity refuses, every run."""
+
+    def refusal(self, hosts: Any) -> str | None:
+        gh = GhFake().install(self)
+        gh.rest["status"] = hosts
+        return policy.credential_refusal(IDENTITY)
+
+    def test_the_identity_alone_passes(self) -> None:
+        self.assertIsNone(self.refusal(IDENTITY_ONLY))
+
+    def test_an_app_token_with_no_login_passes_as_the_active_entry(self) -> None:
+        entry = {"login": "", "active": True, "host": "github.com"}
+        self.assertIsNone(self.refusal({"hosts": {"github.com": [entry]}}))
+
+    def test_a_second_account_on_any_host_refuses(self) -> None:
+        second = {"login": OPERATOR, "active": True, "host": "ghe.example.com"}
+        hosts = {**IDENTITY_ONLY["hosts"], "ghe.example.com": [second]}
+        self.assertEqual(self.refusal({"hosts": hosts}), "other-account-listed")
+
+    def test_the_operator_active_refuses(self) -> None:
+        entry = {"login": OPERATOR, "active": True, "host": "github.com"}
+        self.assertEqual(
+            self.refusal({"hosts": {"github.com": [entry]}}), "other-account-listed"
+        )
+
+    def test_an_inactive_entry_with_no_login_refuses(self) -> None:
+        unknown = {"login": "", "active": False, "host": "github.com"}
+        hosts = {"github.com": [IDENTITY_ONLY["hosts"]["github.com"][0], unknown]}
+        self.assertEqual(self.refusal({"hosts": hosts}), "unknown-account-listed")
+
+    def test_no_entry_or_an_unreadable_status_refuses(self) -> None:
+        self.assertEqual(self.refusal({"hosts": {}}), "credentials-unreadable")
+        self.assertEqual(self.refusal(1), "credentials-unreadable")
+
+
+class EnabledSince(unittest.TestCase):
+    """The post-merge floor's enabling commit: the oldest commit in the run of
+    pipeline-file commits that enable the path."""
+
+    HISTORY = (
+        f"repos/{REPO}/commits?sha={SHA}"
+        "&path=docs%2Fconventions%2Fpr-pipeline.yaml&per_page=100"
+    )
+
+    def commit(self, sha: str, date: str) -> dict[str, Any]:
+        return {"sha": sha, "commit": {"committer": {"date": date}}}
+
+    def fake(self, history: list[dict[str, Any]], configs: dict[str, str]) -> GhFake:
+        gh = GhFake().install(self)
+        gh.rest[self.HISTORY] = history
+        for sha, text in configs.items():
+            gh.rest[f"repos/{REPO}/contents?ref={sha}"] = []
+            gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={sha}"] = (
+                file_payload(text)
+            )
+            gh.rest[f"repos/{REPO}/contents/{policy.SOURCE_CONTROL_PATH}?ref={sha}"] = (
+                file_payload(SOURCE_CONTROL)
+            )
+        return gh
+
+    def test_a_later_edit_that_keeps_it_enabled_does_not_move_the_floor(self) -> None:
+        older, oldest = "b" * 40, "c" * 40
+        self.fake(
+            [
+                self.commit(SHA, "2026-10-12T00:00:00Z"),
+                self.commit(older, "2026-10-11T00:00:00Z"),
+                self.commit(oldest, "2026-10-01T00:00:00Z"),
+            ],
+            {SHA: PIPELINE, older: PIPELINE, oldest: "merge:\n  rung: C2\n"},
+        )
+        self.assertEqual(
+            policy.enabled_since(REPO, SHA),
+            policy.datetime.fromisoformat("2026-10-11T00:00:00Z"),
+        )
+
+    def test_a_base_that_does_not_enable_the_path_has_no_floor(self) -> None:
+        self.fake(
+            [self.commit(SHA, "2026-10-12T00:00:00Z")], {SHA: "merge:\n  rung: C2\n"}
+        )
+        with self.assertRaises(policy.PolicyReadError):
+            policy.enabled_since(REPO, SHA)
+
+    def test_an_enabled_run_longer_than_the_read_has_no_floor(self) -> None:
+        history = [self.commit(SHA, "2026-10-12T00:00:00Z")] * 100
+        self.fake(history, {})
+        enabled = policy.PipelineConfig(
+            SHA, "C2", "local-babysit", IDENTITY, 200, (), None
+        )
+        with (
+            mock.patch.object(policy, "read_config_at", return_value=enabled),
+            self.assertRaises(policy.PolicyReadError),
+        ):
+            policy.enabled_since(REPO, SHA)
+
+    def test_an_unreadable_history_has_no_floor(self) -> None:
+        gh = GhFake().install(self)
+        gh.rest[self.HISTORY] = 502
+        with self.assertRaises(policy.PolicyReadError):
+            policy.enabled_since(REPO, SHA)
 
 
 class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
@@ -1224,8 +1761,12 @@ class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
         import babysit_merge as merge
 
         gh = config_fake(self, PIPELINE.replace("local-babysit", "pr-merge"))
-        gh.rest[f"repos/{REPO}"] = {"default_branch": "main"}
-        gh.rest[f"repos/{REPO}/commits/main"] = {"sha": SHA}
+        # The config is read at the pull request's base SHA (S4), not main's head.
+        gh.rest[f"repos/{REPO}/pulls/1"] = {
+            "number": 1,
+            "base": {"ref": "main", "sha": SHA},
+            "head": {"ref": "feat", "sha": "e" * 40},
+        }
         never = mock.Mock(side_effect=AssertionError("must not run"))
         argv = ["babysit_merge.py", f"{REPO}#1", "--allowed-owners", "owner"]
         argv += ["--merge", "--expected-head", "e" * 40]

@@ -291,7 +291,8 @@ class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
         self.assertEqual(resolved.reason, "authority-unconfigured")
         self.assertIsNone(resolved.agent_identity)
         self.assertEqual(
-            resolved.report(), {"enabled": False, "reason": "authority-unconfigured"}
+            resolved.report(),
+            {"enabled": False, "promoted": None, "reason": "authority-unconfigured"},
         )
 
     def test_a_policy_without_a_refusal_is_enabled(self) -> None:

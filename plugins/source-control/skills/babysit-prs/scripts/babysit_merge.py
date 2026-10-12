@@ -2879,7 +2879,7 @@ def main() -> int:
     unattended: merge_policy.UnattendedPolicy | None = None
     if args.merge or args.unattended:
         try:
-            unattended = merge_policy.resolve(repo)
+            unattended = merge_policy.resolve(repo, number)
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)
     # No unattended merge is connected yet, so `--merge --unattended` refuses
