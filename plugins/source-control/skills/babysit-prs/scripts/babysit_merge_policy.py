@@ -39,7 +39,12 @@ from typing import Any
 from urllib.parse import quote
 
 import babysit_repo_config as repo_config
-from babysit_classify import is_dependency_author
+from babysit_classify import (
+    actor_kind,
+    has_blocking_severity,
+    has_blocking_text,
+    is_dependency_author,
+)
 from babysit_gh import (
     flatten_paginated_items,
     gh_capture,
@@ -1333,6 +1338,107 @@ def in_flight(
     return InFlight(True, None)
 
 
+# --- Holds on a queued entry -------------------------------------------------------------------
+
+ENTRY_HOLD_QUERY = (
+    "query PolicyEntryHold($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){number body labels(first:100){totalCount nodes{name}} "
+    "timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
+    "... on AddedToMergeQueueEvent{createdAt}}}}}}"
+)
+
+
+def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[str]:
+    """Logins of humans whose comment, review or inline comment on the pull
+    request reads as blocking, by the autopilot tier's predicates."""
+    from babysit_merge import HUMAN_MERGE_VETO_RE  # noqa: PLC0415 - import cycle
+
+    corpus = [
+        item
+        for kind in ("issues/{n}/comments", "pulls/{n}/reviews", "pulls/{n}/comments")
+        for item in _paginated(
+            f"repos/{owner}/{name}/{kind.format(n=number)}?per_page=100",
+            f"#{number} {kind.split('/')[-1]}",
+        )
+    ]
+    found = set()
+    for item in corpus:
+        author = _rest_actor(item.get("user"))
+        login = str((author or {}).get("login") or "")
+        if actor_kind({"author": author}) != "human" or _login_key(login) in {
+            _login_key(identity),
+            *AUTOMATION_LOGINS,
+        }:
+            continue
+        body = str(item.get("body") or "")
+        if (
+            has_blocking_text(body)
+            or has_blocking_severity(body)
+            or HUMAN_MERGE_VETO_RE.search(body)
+        ):
+            found.add(login or "unknown")
+    return sorted(found)
+
+
+def _opt_in_removed(
+    owner: str, name: str, pr: dict[str, Any], enqueued_at: Any
+) -> bool:
+    """The opt-in label was on the pull request at enqueue and is gone now."""
+    labels = _label_names(pr)
+    if labels is None:
+        raise PolicyReadError(f"#{pr.get('number')}: labels unreadable")
+    if OPT_IN_LABEL in labels:
+        return False
+    at = _time(enqueued_at)
+    timeline = _paginated(
+        f"repos/{owner}/{name}/issues/{pr.get('number')}/timeline?per_page=100",
+        f"#{pr.get('number')} timeline",
+    )
+    events = sorted(
+        (
+            e
+            for e in timeline
+            if e.get("event") in ("labeled", "unlabeled")
+            and json_object(e.get("label")).get("name") == OPT_IN_LABEL
+        ),
+        key=lambda e: _time(e.get("created_at")),
+    )
+    present = False
+    for event in events:
+        if _time(event.get("created_at")) > at:
+            break
+        present = event.get("event") == "labeled"
+    return present
+
+
+def entry_hold(repo: str, number: int, identity: str) -> str | None:
+    """Why a queued entry of the agent identity must leave the queue (D3): the
+    `do-not-merge` label, a body hold, a human blocking comment, or the opt-in
+    label removed since the enqueue. An unreadable entry is a hold."""
+    from babysit_merge import BODY_MERGE_HOLD_RE, MERGE_HOLD_LABEL  # noqa: PLC0415
+
+    owner, name = _split_repo(repo)
+    try:
+        data = _graphql(ENTRY_HOLD_QUERY, f"#{number}", o=owner, r=name, n=number)
+        pr = json_object(json_object(data.get("repository")).get("pullRequest"))
+        labels = _label_names(pr)
+        events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
+        if labels is None or not events:
+            return "unreadable"
+        if any(label.casefold() == MERGE_HOLD_LABEL for label in labels):
+            return MERGE_HOLD_LABEL
+        if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
+            return "body-hold"
+        blockers = _human_blockers(owner, name, number, identity)
+        if blockers:
+            return f"human-blocking-comment:{','.join(blockers)}"
+        if _opt_in_removed(owner, name, pr, json_object(events[-1]).get("createdAt")):
+            return "opt-in-label-removed"
+    except PolicyReadError as exc:
+        return f"unreadable: {exc}"
+    return None
+
+
 # --- Composition ------------------------------------------------------------------------------
 
 
@@ -1726,6 +1832,9 @@ def assess(
     details["credentials"] = credentials or "identity-only"
     if credentials:
         return replace(stopped, reason=f"credentials:{credentials}")
+    # From here the session holds only the identity: a refusal below may still
+    # dequeue the identity's own entries (`inputs["identity"]`).
+    inputs["identity"] = resolved.login
     kill = read_kill_switch(repo)
     details["killSwitch"] = {"proceed": kill.proceed, "reason": kill.reason}
     if not kill.proceed:
@@ -1737,7 +1846,7 @@ def assess(
         "self_logins": self_logins,
         "permission": permission,
     }
-    inputs.update(identity=resolved.login, permission=permission)
+    inputs["permission"] = permission
     demotion = read_demotion(repo, **readers)
     details["demotion"] = {
         "active": demotion.active,

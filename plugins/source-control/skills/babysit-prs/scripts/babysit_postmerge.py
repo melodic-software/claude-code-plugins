@@ -803,6 +803,14 @@ def _identity_entries(
     return found, unknown
 
 
+def identity_queue(repo: str, branch: str, identity: str) -> tuple[list[int], int]:
+    """The pull request numbers of the agent identity's merge-queue entries on
+    `branch`, and how many entries have an unknown enqueuer."""
+    owner, name = _split_repo(repo)
+    entries, unknown = _identity_entries(owner, name, branch, identity)
+    return [number for _, number in entries], unknown
+
+
 def dequeue_identity_entries(
     repo: str,
     branch: str,

@@ -128,10 +128,10 @@ check_exit "resolve wrapper reaches fail-closed CLI (no allowlist)" 3 \
 # without its three required sets refuses before any network access.
 check_exit "merge wrapper rejects --autopilot-merge-tier without required sets" 3 \
   bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners owner --autopilot-merge-tier
-# The unattended merge path is inert: --unattended --merge refuses at exit 10
-# before any write. The policy read goes through gh, so a gh that fails every
-# call stands first on PATH: the check needs no network, and an unreadable
-# policy must refuse too.
+# The unattended merge path fails closed: --unattended --merge refuses at exit
+# 10 before any write when its policy cannot be read. The policy read goes
+# through gh, so a gh that fails every call stands first on PATH: the check
+# needs no network.
 failing_gh="$(mktemp -d)" || exit 1
 trap 'rm -rf "$failing_gh"' EXIT
 printf '#!/usr/bin/env bash\necho "gh: offline in engine.test.sh" >&2\nexit 1\n' >"$failing_gh/gh"

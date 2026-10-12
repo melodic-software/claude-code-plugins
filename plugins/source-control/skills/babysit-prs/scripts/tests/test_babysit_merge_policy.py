@@ -1263,6 +1263,74 @@ class ReadPromotion(unittest.TestCase):
         self.assertFalse(result.promoted("C2"))
 
 
+class EntryHold(unittest.TestCase):
+    """D3: a hold that lands on a queued identity entry after the enqueue."""
+
+    def fake(self, **pr: Any) -> GhFake:
+        gh = GhFake().install(self)
+        gh.graphql["PolicyEntryHold"] = {
+            "repository": {
+                "pullRequest": {
+                    "number": 5,
+                    "body": "Closes #40",
+                    "labels": {"totalCount": 0, "nodes": []},
+                    "timelineItems": {"nodes": [{"createdAt": "2026-10-12T10:00:00Z"}]},
+                }
+                | pr
+            }
+        }
+        for kind in (
+            "issues/5/comments",
+            "pulls/5/reviews",
+            "pulls/5/comments",
+            "issues/5/timeline",
+        ):
+            gh.rest[f"repos/{REPO}/{kind}?per_page=100"] = []
+        return gh
+
+    def hold(self) -> str | None:
+        return policy.entry_hold(REPO, 5, IDENTITY)
+
+    def test_no_hold(self) -> None:
+        self.fake()
+        self.assertIsNone(self.hold())
+
+    def test_the_do_not_merge_label(self) -> None:
+        self.fake(labels={"totalCount": 1, "nodes": [{"name": "Do-Not-Merge"}]})
+        self.assertEqual(self.hold(), "do-not-merge")
+
+    def test_a_body_hold(self) -> None:
+        self.fake(body="Please do not merge until the release")
+        self.assertEqual(self.hold(), "body-hold")
+
+    def test_a_human_blocking_comment(self) -> None:
+        gh = self.fake()
+        gh.rest[f"repos/{REPO}/issues/5/comments?per_page=100"] = [
+            {"user": {"login": OPERATOR, "type": "User"}, "body": "don't merge this"}
+        ]
+        self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+
+    def test_the_opt_in_label_removed_since_the_enqueue(self) -> None:
+        gh = self.fake()
+        gh.rest[f"repos/{REPO}/issues/5/timeline?per_page=100"] = [
+            {
+                "event": "labeled",
+                "label": {"name": policy.OPT_IN_LABEL},
+                "created_at": "2026-10-12T09:00:00Z",
+            },
+            {
+                "event": "unlabeled",
+                "label": {"name": policy.OPT_IN_LABEL},
+                "created_at": "2026-10-12T10:30:00Z",
+            },
+        ]
+        self.assertEqual(self.hold(), "opt-in-label-removed")
+
+    def test_an_unreadable_entry_is_a_hold(self) -> None:
+        self.fake(timelineItems={"nodes": []})
+        self.assertEqual(self.hold(), "unreadable")
+
+
 def queue_fake(
     case: unittest.TestCase, entries: list[dict[str, Any]], merges: list[dict[str, Any]]
 ) -> GhFake:

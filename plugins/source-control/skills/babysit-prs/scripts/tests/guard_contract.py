@@ -1354,7 +1354,11 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutation=CONDITIONAL,
         mutates_what=(
             "merges the PR on GitHub, or with --auto arms auto-merge; with --state-dir "
-            "it also keeps a local pending-merge record"
+            "it also keeps a local pending-merge record. With --unattended --merge, "
+            "under the agent identity only: enqueues at the pinned head after a pin "
+            "comment, dequeues the identity's queue entries, disarms an armed "
+            "auto-merge, upserts the reasons comment, and dispatches the full run "
+            "once a queued entry reads back merged"
         ),
         gate="--merge (absent: readiness check only, exit 0 ready / 10 not ready)",
         claim=(
