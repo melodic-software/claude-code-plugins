@@ -37,6 +37,25 @@
         "issues": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@182aca3ad32b79fd002def94e58eb498ac49e7af": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "allowed-labels",
+        "escalation-label",
+        "floor-label",
+        "instructions",
+        "cli-version"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/pr-review.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2": {
       "routing": "runner-input",
       "runnerInput": "runner",
@@ -154,6 +173,15 @@
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner", "label", "label-prefix"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "issues": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@182aca3ad32b79fd002def94e58eb498ac49e7af": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "label", "label-prefix", "human-label"],
       "allowedSecrets": {},
       "allowedCallerPermissions": {
         "issues": "write"
