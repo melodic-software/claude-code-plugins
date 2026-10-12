@@ -128,5 +128,10 @@ check_exit "resolve wrapper reaches fail-closed CLI (no allowlist)" 3 \
 # without its three required sets refuses before any network access.
 check_exit "merge wrapper rejects --autopilot-merge-tier without required sets" 3 \
   bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners owner --autopilot-merge-tier
+# The unattended merge path is inert with no merge config: --merge refuses at
+# exit 10 before any network access, so before any write.
+check_exit "merge wrapper refuses --unattended --merge with no config" 10 \
+  bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners owner --unattended --merge \
+  --expected-head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 exit "$FAILED"
