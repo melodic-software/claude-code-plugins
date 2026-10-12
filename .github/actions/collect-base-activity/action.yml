@@ -5,8 +5,8 @@ description: >
   a skill the base plugins/ and .claude-plugin/ to
   $RUNNER_TEMP/base-marketplace, plus the skill's plugin, prompt (with its
   changed-paths) and claude_args (with read access to the marketplace copy,
-  and for any effect but read the write tool set, a scratch directory and the
-  instruction to commit). Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
+  and for any effect but read the write tool set, a scratch directory and,
+  unless the runner commits for it, the instruction to commit). Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
   step 8 and Skill activities.
 
 inputs:
@@ -44,6 +44,13 @@ inputs:
       skill is then told to commit its edits.
     required: false
     default: "false"
+  prepare:
+    description: >
+      The activity's prepare mode from resolve-config, empty for none. With
+      `merge-base` the runner commits the staged merge after the skill, so
+      the skill gets neither the commit tool nor the instruction to commit.
+    required: false
+    default: ""
   resolved-path:
     description: resolve-config's output file, which holds the activity's args.
     required: true
@@ -102,6 +109,7 @@ runs:
         GATING: ${{ inputs.gating }}
         EFFECT: ${{ inputs.effect }}
         CAN_COMMIT: ${{ inputs.can-commit }}
+        PREPARE: ${{ inputs.prepare }}
         SCRATCH: ${{ runner.temp }}/lane-scratch
       run: |
         fail() {
@@ -115,6 +123,10 @@ runs:
         [[ $marketplace =~ $name ]] || fail "the base marketplace name is malformed"
         [[ $SKILL =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]] || fail "the skill must be <plugin>:<skill>"
         [[ $MAX_TURNS =~ ^[1-9][0-9]*$ ]] || fail "max-turns must be a positive integer"
+        case "$PREPARE" in
+          "" | merge-base) ;;
+          *) fail "the activity's prepare mode is not a known mode" ;;
+        esac
         # resolve-config already filtered these; a name outside this set
         # could break the prompt (a leading @ reads as a file mention), so it
         # fails red.
@@ -139,11 +151,17 @@ runs:
             # sandboxed Bash) and commit through the action's signed tool.
             # Its Bash comes from its own allowed-tools. The PR is the review
             # step; no tool here limits which files it changes.
+            # In merge-base mode the runner commits what the skill staged,
+            # so the skill gets no commit tool and no instruction to commit.
             mkdir -p "$SCRATCH"
-            allowed="$allowed,Edit,Write,Agent,mcp__github_file_ops__commit_files,Edit(/$SCRATCH/**)"
+            allowed="$allowed,Edit,Write,Agent"
+            if [ "$PREPARE" != merge-base ]; then
+              allowed="$allowed,mcp__github_file_ops__commit_files"
+            fi
+            allowed="$allowed,Edit(/$SCRATCH/**)"
             disallowed="WebFetch,WebSearch"
             system_prompt="You run unattended as a CI lane activity on a pull request, and no one can answer a question. Run every step the skill instructions name. Your scratchpad directory is $SCRATCH: put every temporary or state file there."
-            if [ "$CAN_COMMIT" = true ]; then
+            if [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
               # The slash command never says the edits reach the PR only as
               # commits on CLAUDE_BRANCH.
               system_prompt="$system_prompt A change to a repository file reaches the pull request only as a commit: before you finish, commit every repository file you changed with the mcp__github_file_ops__commit_files tool. An uncommitted change is discarded when the run ends."

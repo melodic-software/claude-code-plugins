@@ -102,6 +102,11 @@
       { "name": "audit-org-architecture-pointer", "status": "in-use" },
       { "name": "audit-pr-convention-pins", "status": "in-use" },
       { "name": "audit-test-selection", "status": "in-use" },
+      {
+        "name": "check-links",
+        "status": "in-use",
+        "purpose": "Check every Markdown link with the network on; audit-link-check-excludes covers only the exclude list."
+      },
       { "name": "reconcile-pr-creation-policy", "status": "in-use" },
       { "name": "repin-account-rotation", "status": "in-use" },
       { "name": "repin-ci-workflows", "status": "in-use" },

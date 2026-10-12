@@ -3,6 +3,74 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-10-11
+
+### Fixed
+
+- filter list reads in the provider and order work by created_at
+
+  The tracker seam's list reads now count only matching items against
+  limits.list_items_max, and work-loop orders admitted items without a
+  GitHub-only flag.
+
+  - Linear sends the state filter (and an optional label) in its GraphQL
+    query, so a team with many closed issues lists its open ones complete.
+  - list-items is a core verb, and list-items and list-frontier take
+    --label. Adapters that declare features.list_items_label_filter (all
+    five bundled ones) filter in the provider query; core keeps exact
+    matches afterward either way.
+  - Every normalized item carries created_at (UTC, or null). work-loop and
+    work's oldest-first pick sort on it; a null timestamp sorts last, with
+    item number as a fixed tie-break.
+  - work-loop passes --scope to both snapshot reads as --label.
+
+- report a labeled GitHub listing at the search cap as truncated
+
+  gh serves a labeled issue list from the search API, which returns at most
+  1000 results, so a labeled read reaching 1000 now reports truncated. Jira
+  answers a whitespace label with an empty, complete listing instead of a
+  usage error, and the adapter generator's list-items guidance names the
+  state-in-query and created_at rules.
+
+- The ship skill, tracker seam and GitHub adapter state that a cloud session behind the GitHub proxy is served no GraphQL, pointing at the upstream section instead of quoting retired wording.
+
+## [2.0.0] - 2026-10-11
+
+### Changed
+
+- **Breaking:** a headless `work-loop` launch must carry `--drain` or the new `--standing` token; without one it stops with a message naming the relaunch tokens instead of running the standing default. Run config (`stop_mode`, `ordering`, `shard`, `scope`) now comes from the invocation line only and is recorded in the telemetry state block for the operator, never read back from it. The loop-lane convention's headless-config floor now states this rule, and the worker-lane launch lines in `prompts/loops/` carry `--standing` (#7142).
+- The tracker seam's `list-items`, `list-sub-items` and `list-frontier` envelopes carry `truncated`, true when items past `limits.list_items_max` exist and were not returned. Every bundled adapter emits it, `list-frontier` passes it through, and the conformance suite checks it is a boolean (#7142).
+- The Linear adapter reads its list ceiling from `limits.list_items_max` in `capabilities.json` instead of a second hard-coded copy (#7142).
+
+### Fixed
+
+- Tracker contract: "Degradation without `gh`" no longer names cloud sessions as a no-`gh` environment. It points at the upstream installed-tools and GitHub-proxy sections, and notes that GraphQL-backed `gh` calls fail there even with `gh` present.
+
+- `work-loop` aborts a cycle with no state change when a snapshot read (the seam's `list-frontier --autonomous` and `list-items --state open`, which every bundled adapter serves) errors, is truncated, or returns nothing parseable, so an empty or partial read can no longer complete a drain or set `first_drain_complete`. A truncated read, which recurs every cycle on a backlog past `limits.list_items_max`, also raises the stall escalation in that cycle without waiting for the no-progress threshold, and a headless lane then stops with a message naming the adapter and its ceiling (#7142).
+- `lane-telemetry-upsert.sh` compares the stored comment body with the body file after the write and exits 14 on a mismatch, so a write that left an earlier cycle's well-formed body in place no longer verifies (#7142).
+- The Jira adapter's `list-items` no longer prints a partial envelope after a mid-walk failure (#7142).
+- The Linear adapter's `list-items` asks each page for at most one issue past `limits.list_items_max` and stops at the first one past it, so a ceiling below, or not a multiple of, the page size can no longer return more than the ceiling with `truncated: false` (#7142).
+
+- end the first-drain period only on a person-applied label
+
+  work-loop's first-drain C3 gate lifted on first_drain_complete, a flag in
+  the lane's own telemetry comment, so the lane could widen its own autonomy.
+  The gate now lifts only when first-drain-ratified.sh finds the
+  `loop-lane: first-drain-ratified` label on the lane's telemetry issue,
+  where its last labeled or unlabeled event is an application by a User
+  actor not acting through a GitHub App. A completed drain proposes instead:
+  a kind=ratify-first-drain escalation on the telemetry issue, which
+  attend-queue lists as a [ratify] row despite its lane-infrastructure
+  exclusion. The reference names which durable-state fields may stay
+  lane-writable and why.
+
+- adopt only the write identity's telemetry comments
+
+  lane-telemetry-upsert.sh now adopts only sentinel comments its write
+  identity authored (the gh api user login, or <slug>[bot] via --app-slug,
+  matching babysit-loop), checks a create's author, rejects dot-segment
+  --repo values, and exits 15 when the identity is unresolved.
+
 ## [1.0.0] - 2026-10-11
 
 ### Changed

@@ -21,6 +21,7 @@ it for delegation-heavy tasks.
 | `/session-flow:audit-friction` | Where do permission prompts, auto-mode denials, hook blocks and the agent's own asks get in my way, and what should change? |
 | `/session-flow:running-retro` | Mid-flight: how is this session going, what is drifting, and what should change before it costs more? |
 | `/session-flow:orient` | Where do we stand, what are we doing, and why, from the durable + off-thread state, not just the conversation? |
+| `/session-flow:recall` | What have past sessions already tried on this topic, and what was kept or reverted? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
 | `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
@@ -44,6 +45,7 @@ it for delegation-heavy tasks.
   - [audit-friction](#audit-friction)
   - [running-retro](#running-retro)
   - [orient](#orient)
+  - [recall](#recall)
   - [orchestrate](#orchestrate)
   - [reanchor](#reanchor)
   - [reconcile](#reconcile)
@@ -112,6 +114,9 @@ save-point already established rather than sweeping durable state; that is `orie
 delays or displaces the rails prompt. Work with no delineated units gets the prose blocks and no
 rail; units are never invented to fill one.
 
+With the `wip_commit` option on, a handoff you start to pause the work first makes one local
+`chore(wip):` commit of the tracked files the work changed, never pushed; see "Option details".
+
 ```shell
 /session-flow:handoff                 # auto-detect full vs prompt-only
 /session-flow:handoff prompt          # force prompt-only
@@ -150,7 +155,14 @@ a kill on a hunch. Safe, idempotent work auto-resumes; re-running side-effectful
 comment, a deploy) *and* killing or restarting work it cannot prove is dead are gated. After a usage
 limit lifts it continues rather than summarizing-and-stalling (the block is already over if it is
 running again); while a limit still holds it hands back via `handoff` rather than self-arming a
-scheduler. Intent is inferred from the conversation; arguments are optional.
+scheduler. Intent is inferred from the conversation; arguments are optional. Three situations get
+their own handling, listed in the order keep-going reaches them:
+
+| Situation | What keep-going does | For example |
+|---|---|---|
+| The session that started the work has ended, so the agent and task ids it handed out no longer resolve | Looks the work up by what outlives a session: its branch, PR, worktree or commits | A `continue-in-background` session closed with the laptop; keep-going reads its pushed branch and draft PR |
+| Another agent's trail, such as a `handoff` save-point, reports progress | Checks each status claim on the artifact it names, gives the trail exactly one verdict (ratify, ship the finished recommendation, continue, restart), and reports what it took over apart from what it redid | A save-point says the fix is pushed; keep-going opens the branch before anything rests on that |
+| An item fails again after a retry | Fits each retry to the cause of the failure before it, and reruns unchanged only when that cause lay outside the work or none shows. When the second retry fails too, it marks the item abandoned and redraws the plan for what is left so nothing waits on it | A background test run hit its time limit, and both retries, each on a narrower slice, hit it again |
 
 ```shell
 /session-flow:keep-going              # inventory → inspect → goal-align → recover → reconcile → report
@@ -161,8 +173,9 @@ scheduler. Intent is inferred from the conversation; arguments are optional.
 The recovery counterpart to `handoff`: finds a save-point whose resume prompt was written but never
 copied. The operator ran `/clear` before copying it, leaving the fresh session with zero context
 and no path to the handoff on disk. Runs a read-only detection ladder: known-location glob of the
-current repo's `<memory_dir>/handoffs/`, then a bounded, recency-ranked scan of transcripts
-(excluding the current session's own file, since `/clear` opens a new transcript in the same project
+current repo's `<memory_dir>/handoffs/`, then a bounded, recency-ranked scan of transcripts in the
+project directories the `transcript_scope` option allows (this worktree first by default, asking
+before any other project; see "Option details") (excluding the current session's own file, since `/clear` opens a new transcript in the same project
 dir and the pre-clear content is a sibling) for the handoff directive and dashed-rail markers, which
 `reference/save-point.md` documents as a stable detection contract, then a confirm-before-resume
 gate. Handles both output modes (file-based and prompt-only, which writes no file). A shape-2
@@ -203,11 +216,13 @@ Structured end-of-session retrospective: extracts transcript metrics via a bundl
 parser (multi-session-aware: it walks the handoff chain), assesses quality across five dimensions
 against the consuming repo's own conventions, checks Claude Code auto-memory for feedback
 regressions, and codifies user-approved learnings. Health scores persist across sessions for trend
-analysis.
+analysis. With the `retro_lenses` option at `3`, the analysis runs as three parallel review
+passes merged before scoring.
 
 ```shell
 /session-flow:retro            # full 5-phase analysis (default)
 /session-flow:retro codify     # persist a specific mid-session learning
+/session-flow:retro codify reviews  # lessons from recent merged PRs' review comments
 /session-flow:retro trends     # cross-session score history
 /session-flow:retro quick      # abbreviated, for limited context
 ```
@@ -221,12 +236,15 @@ Cross-session audit: a stdlib collector reads every transcript under `~/.claude/
 durable local store (one redacted record per session, incremental, retention-bounded), and a sweep
 reports per-session metrics against this machine's own thresholds, flags transcript-format drift
 between Claude Code versions, and routes each finding to the skill that would act on it. It never
-applies a finding.
+applies a finding. The `style` action reads the stored excerpts of your own typed turns, keeps
+preferences two or more sessions show, and hands each one you confirm to `retro codify` for a
+user-scope file, never a repository file.
 
 ```shell
 /session-flow:audit-sessions                                # collect, then sweep every session
 /session-flow:audit-sessions sweep --since 2026-09-01       # a date window
 /session-flow:audit-sessions --scope project --write-report # this repository, saved report
+/session-flow:audit-sessions style --scope machine          # preferences seen in 2+ sessions, to retro codify
 ```
 
 ### audit-friction
@@ -288,6 +306,21 @@ strictly read-only: it writes nothing and routes rather than acts. Freshness ver
 
 ```shell
 /session-flow:orient              # read-only briefing: goal/why → where-we-stand → decisions → direction
+```
+
+### recall
+
+Topic history: what past sessions tried on one topic, and how each attempt ended. It lists the
+transcript directories `transcript_scope` allows through `scripts/transcript_dirs.sh` (this
+worktree first, then the repository's other worktrees, asking before any other project), scans
+them with `skills/recall/scripts/recall_scan.py`, which matches literal terms and redacts every
+snippet before printing it, and has subagents condense each matching session from those redacted
+lines. It adds reverted commits from git, closed unmerged pull requests through `gh`, and open
+tracker items when `/work-items:track` is available, then reports Tried, Kept, Dropped or
+reverted, and Still open in chat, opening with the scope it searched. It writes nothing.
+
+```shell
+/session-flow:recall webhook retry budget   # scope line, then tried / kept / reverted / open
 ```
 
 ### orchestrate
@@ -388,15 +421,19 @@ Opt-in only: nothing runs unless invoked.
 
 ### setup
 
-A check-centric setup for the **observer substrate only**. The other seventeen skills are zero-config.
 `check` (default) verifies the runtime prerequisites (Node.js for the hook launcher, Python 3.10+ for the tailer, `jq` for
 the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
 `userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;
-`observer_idle_seconds` below the machine's longest single turn). It has no write path. Reconfiguration
-routes through Claude Code's native `/plugin configure session-flow@<marketplace>`.
+`observer_idle_seconds` below the machine's longest single turn). It also validates the repository's
+`docs/conventions/session-flow.yaml`, reporting a problem as a warning. Observer reconfiguration
+routes through Claude Code's native `/plugin configure session-flow@<marketplace>`; setup never
+writes it. `apply` writes `docs/conventions/session-flow.yaml` and nothing else: every value and the
+whole file are checked against the schema first, and changing an existing file shows the diff and
+waits for your yes.
 
 ```shell
-/session-flow:setup         # verify observer prerequisites + config (read-only)
+/session-flow:setup                                    # verify observer prerequisites + config (read-only)
+/session-flow:setup apply worker_continuation=respawn  # write the repository setting
 ```
 
 ## Consumer conventions
@@ -423,13 +460,19 @@ The skills adapt to the consuming repo rather than imposing structure:
 
 - Node.js on PATH: every hook launches through `node hooks/exec-bash.mjs`, so without it the hooks do not run.
 - The observer substrate only: Python 3.10+, `jq`, and `claude` on PATH. `/session-flow:setup` checks each.
+- `/session-flow:find-handoff` uses Python 3.10+ when present to tell which transcript directories
+  belong to this repository; without it, it lists only directories whose name matches a worktree
+  exactly and says so.
+- `/session-flow:recall` needs Python 3.10+ for its transcript scan; it uses `git` and `gh` when
+  present for reverted commits and closed pull requests, and names any source it could not use.
 
 ## Configuration
 
-`userConfig`. Two surfaces are configurable: the **detached observer** (eight keys, all defaulting
-to zero-config behavior; see `reference/observer.md` for full semantics), and **audit-sessions**
+`userConfig`. Three surfaces are configurable: the **detached observer** (eight keys, all defaulting
+to zero-config behavior; see `reference/observer.md` for full semantics), **audit-sessions**
 (five `audit_sessions_*` keys: store retention, excerpt length, the short-turn word limit, and the
-two drift-check bounds; see the options reference below):
+two drift-check bounds), and `cloud_route`, whether the workflow's continuation advice offers a
+cloud session (see the options reference below):
 
 | Key | Default | Effect |
 |---|---|---|
@@ -457,15 +500,19 @@ verify when that authenticated egress is unavailable. `clean-stop` pushes unpush
 or updates PRs and issues over the network via `git push` and `gh`, routing through whatever
 pull-request / work-item capabilities are installed and falling back to direct `git`/`gh`. `orient`
 optionally runs `gh pr list` (read-only) and, when a work-item tracker capability is installed, reads
-its open items, degrading to local git state alone when `gh` or the tracker is absent. The observer's
+its open items, degrading to local git state alone when `gh` or the tracker is absent. `recall`
+scans local transcripts and git history, and optionally runs `gh pr list` (read-only) for closed
+unmerged pull requests and searches the tracker when one is installed, naming any source it could
+not reach. The observer's
 autonomous analysis leg reaches the network only when armed with `observer_analysis_enabled` on: it
 runs a headless `claude -p` (ordinary model API egress); collect-only mode and the in-session
 checkpoint are network-free. Every skill not named above is network-free
 (retro, running-retro and audit-sessions read local `~/.claude/projects/` transcripts with stdlib-only
-Python 3.10+ scripts sharing one transcript reader; find-handoff scans those same local transcripts read-only with no
-parser, and `reconcile` reads them read-only and mutates only the in-session task ledger);
+Python 3.10+ scripts sharing one transcript reader; find-handoff scans those same local transcripts read-only, using
+that reader only to read the launch `cwd` that maps a scope to directories, and `reconcile` reads them read-only and mutates only the in-session task ledger);
 `continue-in-background` spawns a local `claude --bg` process, a new Claude Code session with ordinary
-session network access, but the skill itself performs no egress.
+session network access, or with `--cloud` a `claude --cloud` process that starts a cloud session
+from the pushed branch, but the skill itself performs no egress.
 
 ### Option details
 
@@ -477,6 +524,51 @@ per-session Claude spend and no automatic in-session consumer. The end it waits 
 
 **`observer_poll_seconds`.** Bounded below at 1: 0 spins the detached observer continuously, and a
 negative value raises at its sleep and kills it silently.
+
+**`worker_continuation`.** Read by `/session-flow:orchestrate` when it primes a session: `resume`
+(default) keeps a worker across related units, `respawn` starts each new unit in a fresh worker
+with consolidated scope. A repository sets it for everyone with `worker_continuation: respawn` in
+`docs/conventions/session-flow.yaml` (schema: `schemas/session-flow.schema.json`), which wins over
+the option; an invalid value is named and its layer dropped, so a valid higher layer still wins,
+else the default `resume`, never a lower layer's value. `/session-flow:setup apply
+worker_continuation=<value>` writes that file after validating it. Resolution and the root rule:
+[`reference/config.md`](reference/config.md). Picking a value from a list needs Claude Code
+v2.1.271 or later.
+
+**`encode_policy` and `review_mining_prs`.** Read by `/session-flow:retro codify`.
+`encode_policy` sets where a lesson starts on the enforcement ladder: `promote-when-must-hold`
+(default) writes it as an instruction line unless the rule must hold every time;
+`strongest-first` proposes the strongest rung that can assert it. `review_mining_prs` (2-200,
+default 20) is how many recent merged PRs `codify reviews` reads. Both resolve like
+`worker_continuation`, from the same `docs/conventions/session-flow.yaml`, and
+`/session-flow:setup apply` writes them.
+
+**`wip_commit`.** Read by `/session-flow:handoff`, and only when you ask in the session to pause.
+On (`true`), the handoff makes one local `chore(wip): <one-line state>` commit of the tracked files
+the work changed, records its SHA in the save-point and lists untracked paths there. It never
+pushes, never skips commit hooks (a rejecting hook leaves the work uncommitted and the save-point
+says so), and refuses on the default branch, a detached HEAD, during a merge, rebase, cherry-pick
+or revert, and over a partially staged path. A handoff another skill, a hook or a phase boundary
+starts never commits. Default `false`. It resolves like `worker_continuation`, from the same
+`docs/conventions/session-flow.yaml`, where only an unquoted `true` or `false` is valid, and
+`/session-flow:setup apply wip_commit=true` writes it.
+
+**`retro_lenses`.** Read by `/session-flow:retro` session mode before its Phase 2 analysis. `1`
+(default) runs one pass. `3` runs three subagents in parallel, one on the calls the session made
+and why, one on the tools and steps it used, one on the approaches it did not try, and merges their
+findings before anything is scored; it applies to short sessions too. It resolves like
+`worker_continuation`, from the same `docs/conventions/session-flow.yaml`, where an unquoted `3`
+is valid; any other value, `2` included, is named and its layer dropped. `/session-flow:setup
+apply retro_lenses=3` writes it.
+
+**`transcript_scope`.** Read by `/session-flow:find-handoff` and `/session-flow:recall` for their transcript scans. `worktree`
+(default) scans this worktree's sessions, then the repository's other worktrees, and asks before
+reading any other project's transcripts; `repo` starts with every worktree; `all` reaches every
+project without asking. Unlike the other keys, the narrower of the option and
+`docs/conventions/session-flow.yaml` wins, and an unset option counts as `worktree`, so a
+repository can narrow your scan but never widen it. The transcript store follows
+`CLAUDE_CONFIG_DIR`. `/session-flow:setup apply transcript_scope=<value>` writes the repository
+value.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -501,6 +593,13 @@ reads it from.
 | `audit_sessions_excerpt_words` | number<br>*min 1, max 200* | `60` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_EXCERPT_WORDS` | A typed turn of this many words or fewer, right after a Claude reply, is flagged and excerpted by audit-sessions; default 60. These are the turns most likely to be corrections. |
 | `audit_sessions_drift_min_count` | number<br>*min 1* | `20` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_MIN_COUNT` | How often a transcript key must appear in a Claude Code version before audit-sessions' drift check reports it as new or vanished; default 20. Raise it if rare keys clutter the drift section. |
 | `audit_sessions_drift_versions` | number<br>*min 1, max 20* | `3` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_VERSIONS` | How many of the newest Claude Code versions a key must be absent from before audit-sessions' drift check reports it vanished; default 3, maximum 20. |
+| `worker_continuation` | string | `"resume"` | `CLAUDE_PLUGIN_OPTION_WORKER_CONTINUATION` | How /session-flow:orchestrate runs a worker's next unit: resume (default) continues the same worker; respawn starts a fresh worker with consolidated scope unless that worker holds state costly to move. A repository's worker_continuation in docs/conventions/session-flow.yaml wins. |
+| `encode_policy` | string | `"promote-when-must-hold"` | `CLAUDE_PLUGIN_OPTION_ENCODE_POLICY` | Where /session-flow:retro codify starts a lesson: promote-when-must-hold (default) writes an instruction line, moving to a checking rung only for a rule that must always hold; strongest-first proposes the strongest rung that can assert it. docs/conventions/session-flow.yaml wins. |
+| `review_mining_prs` | number<br>*min 2, max 200* | `20` | `CLAUDE_PLUGIN_OPTION_REVIEW_MINING_PRS` | How many recent merged pull requests /session-flow:retro codify reviews reads for review comments; default 20, from 2 to 200. A lesson is routed only when it recurs in two or more of them. A repository's review_mining_prs in docs/conventions/session-flow.yaml wins. |
+| `wip_commit` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WIP_COMMIT` | When you ask to pause, /session-flow:handoff makes one local chore(wip): commit of the tracked work. Off by default. Never pushed or run with hooks skipped; refused on the default branch, a detached HEAD, mid-merge or rebase, or a partial staging. docs/conventions/session-flow.yaml wins. |
+| `transcript_scope` | string | `"worktree"` | `CLAUDE_PLUGIN_OPTION_TRANSCRIPT_SCOPE` | How far /session-flow:find-handoff and /session-flow:recall read transcripts: worktree widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins. |
+| `retro_lenses` | string | `"1"` | `CLAUDE_PLUGIN_OPTION_RETRO_LENSES` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |
+| `cloud_route` | string | `"offer"` | `CLAUDE_PLUGIN_OPTION_CLOUD_ROUTE` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
 
 ### How to set these
 
