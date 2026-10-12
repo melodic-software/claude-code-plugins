@@ -28,7 +28,10 @@ source the worker lane reads. Then:
   the lane pushes from. The first applies the merge gate's identity and credential rules alone:
   the session must act as that identity and hold no other account. The second runs every refusal
   the lane's pushes will run but the push, so a checkout that could not push fails before any
-  write. Every push the lane makes then goes through `lane-push.sh` (every refusal either can
+  write. A lane launched from a neutral directory has no such checkout at cycle start (per-PR
+  checkouts come later), so where `git rev-parse --is-inside-work-tree` fails it skips the second
+  command; each push's `lane-push.sh` still runs every
+  refusal before it pushes. Every push the lane makes then goes through `lane-push.sh` (every refusal either can
   print: the convention's "Lane write identity", §1).
 
 On a refusal or any exit but 0, the lane writes nothing that cycle (no telemetry, escalation, fix,

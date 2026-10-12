@@ -55,21 +55,32 @@ printf 'protocol=https\nhost=github.com\n\n' |
 exit "\${LP_PUSH_EXIT:-0}"
 EOF
 
-# The gh shim: the acting-login read and the pull-request head read.
+# The gh shim: the acting-login, default-branch and pull-request head reads.
 cat >"$BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$LP_LOG/gh.calls"
 case "$1 $2" in
   "api --hostname")
+    # The repository read: old-org/old-repo is a renamed example-org/example-repo;
+    # any other repository is a fork of it unless LP_PARENT says otherwise.
+    if [[ $4 == repos/* ]]; then
+      [[ -z ${LP_DEFAULT_FAIL:-} ]] || exit 1
+      r=${4#repos/}
+      [[ ${r,,} == old-org/old-repo ]] && r=example-org/example-repo
+      parent=""
+      [[ ${r,,} == example-org/example-repo ]] || parent=${LP_PARENT-example-org/example-repo}
+      if [[ $6 == .full_name ]]; then
+        printf '%s\n' "$r"
+      else
+        printf '%s\n%s\n%s\n%s\n' "$r" "${LP_DEFAULT_BRANCH-trunk}" "$parent" "$parent"
+      fi
+      exit 0
+    fi
     printf 'viewer HOME=%s\n' "$HOME" >>"$LP_LOG/gh.home"
     [[ -z ${LP_LOGIN_FAIL:-} ]] || exit 1
     printf '%s\n' "$LP_LOGIN"
     ;;
   "pr view") printf '%s\n%s\n' "$LP_HEAD_REPO" "$LP_HEAD_REF" ;;
-  "api repos/"*)
-    [[ -z ${LP_DEFAULT_FAIL:-} ]] || exit 1
-    printf '%s\n' "${LP_DEFAULT_BRANCH-trunk}"
-    ;;
   "auth git-credential")
     printf 'helper HOME=%s\n' "$HOME" >>"$LP_LOG/gh.home"
     printf 'username=x-access-token\npassword=gh-token\n'
@@ -341,7 +352,7 @@ rm -rf "$REPO_DIR/planted"
 run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch trunk
 expect_refused "case 15: --branch on the default branch is refused" default-branch
 assert_eq "case 15: the default branch is read from the repository" \
-  1 "$(grep -cxF "api repos/example-org/example-repo --jq .default_branch" "$LOG/gh.calls" 2>/dev/null)"
+  1 "$(grep -c "^api --hostname github.com repos/example-org/example-repo --jq " "$LOG/gh.calls" 2>/dev/null)"
 LP_HEAD_REPO="example-org/example-repo" LP_HEAD_REF="trunk" \
   run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --pr 12
 expect_refused "case 15: an in-repository head on the default branch is refused" default-branch
@@ -355,6 +366,21 @@ LP_DEFAULT_FAIL=1 run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example
 expect_refused "case 15: an unreadable default branch is refused" default-branch-unreadable
 LP_DEFAULT_BRANCH="" run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
 expect_refused "case 15: an empty default branch is refused" default-branch-unreadable
+LP_DEFAULT_BRANCH=$'main\r' run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
+expect_refused "case 15: a default branch outside the branch allowlist is refused" default-branch-unreadable
+# The base is compared by its canonical name, so a renamed repository's old
+# name does not skip the refusal.
+LP_HEAD_REPO="example-org/example-repo" LP_HEAD_REF="trunk" \
+  run "$REPO_DIR" --login "$LP_LOGIN" --repo old-org/old-repo --pr 12
+expect_refused "case 15: an in-repository default-branch head under the base's old name is refused" default-branch
+# Only a fork of the base may be pushed on its own default branch: another
+# repository's head (the base's upstream, when the base is itself a fork) is not.
+LP_PARENT="" LP_HEAD_REPO="upstream-org/upstream" LP_HEAD_REF="trunk" \
+  run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --pr 12
+expect_refused "case 15: a non-fork head repository's default branch is refused" default-branch
+LP_HEAD_REPO="someone/example-fork" LP_HEAD_REF="fix/y" \
+  run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --pr 12
+assert_eq "case 15: a fork head on another branch pushes" 0 "$RC"
 
 if ((FAILED)); then
   printf '%d failure(s)\n' "$FAILED" >&2

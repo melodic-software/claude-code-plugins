@@ -104,7 +104,9 @@ when that branch has no local ref or a push URL of its push remote is not the PR
 on github.com (an SSH host alias or an enterprise host refuses). Inside a lane
 (the acting gh login is a GitHub App `[bot]` login), it hands the push to the plugin's
 `lane-push.sh` instead, as the `merge.agent-identity` the repository configures, and refuses when
-the session does not act as it (loop-lane convention, "Lane write identity").
+the session does not act as it, or when `--pr` names a fork head and no `--dir <checkout>` names
+the checkout to push (loop-lane convention, "Lane write identity"). For a fork head in a lane, add
+`--dir` with the PR's checkout.
 
 ```bash
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything

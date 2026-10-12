@@ -53,9 +53,11 @@
 #   - Reads the acting login (GraphQL viewer, github.com) with the same gh in
 #     the same environment the helper runs in, and refuses unless it is the
 #     identity, compared case-insensitively.
-#   - Refuses the base repository's default branch (read with gh), named by
-#     --branch or as an in-repository PR's head; a fork's default branch can be
-#     a fork PR's head and pushes.
+#   - Refuses the target repository's default branch (read with gh on
+#     github.com), named by --branch or as a PR's head, unless the target is a
+#     fork of the base (its parent or network source), whose default branch
+#     can be a fork PR's head. Repository names compare as GitHub
+#     canonicalizes them, so a renamed repository's old name changes nothing.
 #   - Pushes HEAD:refs/heads/<branch>, fast-forward only; it never forces.
 #
 # Not closed here: whoever can replace the gh or git binary, edit this
@@ -71,7 +73,8 @@
 # bad-dir, bad-login, bad-repo, bad-branch, bad-pr, gh-missing, gh-path-unsafe,
 # git-missing, git-path-unsafe, config-unreadable, local-config-url,
 # local-config-include, local-config-credential, local-config-http,
-# local-config-remote, head-unreadable, login-unreadable, login-mismatch.
+# local-config-remote, head-unreadable, default-branch,
+# default-branch-unreadable, login-unreadable, login-mismatch.
 set -euo pipefail
 export LC_ALL=C
 
@@ -182,12 +185,28 @@ if [[ -n $pr ]]; then
   require_branch "$branch"
 fi
 
-# The base repository's default branch is never a lane's push target; a
-# fork's own default branch can be a fork PR's head.
-if [[ -n $repo && -n $branch && ${repo,,} == "${base,,}" ]]; then
-  default=$("$gh_bin" api "repos/$repo" --jq .default_branch) || refuse default-branch-unreadable
-  [[ -n $default ]] || refuse default-branch-unreadable
-  [[ $branch != "$default" ]] || refuse default-branch
+# A lane never pushes a repository's default branch, except a fork of the base
+# repository (parent or network source), whose default branch can be a fork
+# PR's head. Names are compared as GitHub canonicalizes them, so a renamed
+# repository's old name changes nothing.
+if [[ -n $repo && -n $branch ]]; then
+  mapfile -t target < <("$gh_bin" api --hostname github.com "repos/$repo" \
+    --jq '.full_name, .default_branch, (.parent.full_name // ""), (.source.full_name // "")' ||
+    echo FAILED)
+  [[ ${#target[@]} -eq 4 && -n ${target[0]} && ${target[1]} =~ $branch_re ]] ||
+    refuse default-branch-unreadable
+  if [[ $branch == "${target[1]}" ]]; then
+    is_fork=0
+    if [[ -n $pr && -n ${target[2]}${target[3]} ]]; then
+      canonical_base=$("$gh_bin" api --hostname github.com "repos/$base" --jq .full_name) ||
+        refuse default-branch-unreadable
+      [[ -n $canonical_base ]] || refuse default-branch-unreadable
+      if [[ ${target[2],,} == "${canonical_base,,}" || ${target[3],,} == "${canonical_base,,}" ]]; then
+        is_fork=1
+      fi
+    fi
+    ((is_fork)) || refuse default-branch
+  fi
 fi
 
 acting=$("$gh_bin" api --hostname github.com graphql -f 'query=query{viewer{login}}' \

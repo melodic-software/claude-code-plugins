@@ -48,7 +48,7 @@ BRANCH="feat/x"
 # fails when PB_LOGIN_FAIL is set. `repo view` names the base repository, and
 # `pr view` the PR's head branch and repository (PB_PR_HEAD_REPO, else the
 # base): push-branch.sh's own read (`-q`, one line) and lane-push.sh's (`-R`,
-# two lines). `api repos/...` is lane-push.sh's default-branch read. Lane cases add a git
+# two lines). `api --hostname github.com repos/...` is lane-push.sh's default-branch read. Lane cases add a git
 # stand-in that records a push instead of sending it. With PB_GITHUB_ROOT set,
 # the git stand-in sends a push for https://github.com/<path> to
 # $PB_GITHUB_ROOT/<path>, so a remote can carry a github.com URL (what
@@ -61,11 +61,14 @@ cat >"$SHIM/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$1 $2" in
   "api --hostname")
+    if [[ $4 == repos/* ]]; then
+      printf '%s\nmain\n\n\n' "${4#repos/}"
+      exit 0
+    fi
     [[ -z ${PB_LOGIN_FAIL:-} ]] || exit 1
     echo "${PB_LOGIN:-example-user}"
     ;;
   "repo view") echo "example-org/app" ;;
-  "api repos/"*) echo main ;;
   "pr view")
     if [[ " $* " == *" -R "* ]]; then
       printf '%s\n' "${PB_PR_HEAD_REPO:-example-org/app}" feat/b
@@ -330,15 +333,20 @@ check "pr-worktree: push URL other than the PR head repository exits non-zero" "
 check "pr-worktree: the other push URL did not receive the branch" \
   "$(git -C "$WORKDIR/pr-worktree/other.git" rev-parse --verify --quiet refs/heads/feat/b || echo none)" "none"
 # The head repository is a github.com repository: a push URL on another host,
-# or a longer github.com path, that merely ends in owner/repo refuses.
+# a longer github.com path, or an SSH host alias, that merely ends in
+# owner/repo refuses, and refuses at the head-repository check rather than at
+# a failed push.
 git init -q --bare "$WORKDIR/elsewhere/pr-worktree/origin.git"
 for url in "$WORKDIR/elsewhere/pr-worktree/origin.git" \
-  https://github.com/elsewhere/pr-worktree/origin.git; do
+  https://github.com/elsewhere/pr-worktree/origin.git \
+  git@github-work:pr-worktree/origin.git; do
   git -C "$wc" remote set-url --push origin "$url"
   host_exit=zero
-  (cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 42) >/dev/null 2>&1 || host_exit=nonzero
+  host_err=$(cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 42 2>&1 >/dev/null) || host_exit=nonzero
   check "pr-worktree: push URL $url, not the github.com head repository, exits non-zero" \
     "$host_exit" "nonzero"
+  check "pr-worktree: push URL $url is refused by the head-repository check" \
+    "$([[ $host_err == *"not PR '42' head repository"* ]] && echo refused || echo "$host_err")" "refused"
   check "pr-worktree: push URL $url did not receive the branch" \
     "$(git -C "$WORKDIR/elsewhere/pr-worktree/origin.git" rev-parse --verify --quiet refs/heads/feat/b || echo none)" "none"
 done

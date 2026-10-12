@@ -7,7 +7,7 @@ bump: minor
 - work-loop: where the target repository names a `merge.agent-identity`, an identity gate at the start of every cycle reads `pr-pipeline.yaml` from the target's default branch, confirms the session acts as that identity and holds no other account, runs `lane-push.sh --check`, and ends the run before any triage, claim, label, PR or push write when it does not or the config is unreadable.
 - triage: "Lane barred from recording a class" records whose credential label writes carry: an unattended lane's run under the identity, while interactive label writes stay under the operator and count as human provenance (a named residual).
 
-- `scripts/lane-push.sh`, the only way a lane pushes (generated from the shared `lib/lane-push.sh`): it builds the https URL itself, scrubs git's environment and global config, forces gh as the credential helper, refuses the base repository's default branch, and pushes only as the named login.
+- `scripts/lane-push.sh`, the only way a lane pushes (generated from the shared `lib/lane-push.sh`): it builds the https URL itself, scrubs git's environment and global config, forces gh as the credential helper, refuses a default branch other than a fork's own, and pushes only as the named login.
 
 ### Changed
 

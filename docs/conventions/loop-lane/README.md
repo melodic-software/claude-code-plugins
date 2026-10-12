@@ -170,7 +170,9 @@ App installed on that repository only: a machine user is a `User` and would pass
   (`gh auth status --json hosts`). The babysit lane runs both through `babysit-postmerge.sh
   --preflight`; the worker lane, in another plugin, makes the same reads and applies the same
   rule. Both lanes then run `lane-push.sh --login <identity> --check` (below) from the checkout
-  they push from. Each of these refuses (the preflight prints the code shown):
+  they push from; a babysit lane launched from a neutral directory has no checkout at cycle start
+  and skips it, since each push's `lane-push.sh` runs every refusal before pushing. Each of these
+  refuses (the preflight prints the code shown):
   - `agent-identity-unconfigured`: the named identity is empty.
   - `agent-identity-invalid`: the identity is not a GitHub App login (`<slug>[bot]`, letters,
     digits and single inner hyphens), or is the shared `github-actions[bot]` or
@@ -219,9 +221,10 @@ App installed on that repository only: a machine user is a `User` and would pass
     name is not a plain remote name. These survive the global and system scrub and can redirect
     or re-credential an https push, so any of them fails closed.
   - `head-unreadable`: the pull request's head repository and branch could not be read.
-  - `default-branch`, `default-branch-unreadable`: the target is the base repository's default
-    branch, by `--branch` or as an in-repository pull request's head (a fork's own default branch
-    pushes), or that default branch could not be read.
+  - `default-branch`, `default-branch-unreadable`: the target is its repository's default branch,
+    by `--branch` or as a pull request's head, and that repository is not a fork of the base (a
+    fork's own default branch pushes; names compare canonically, so an old repository name
+    changes nothing), or the repository could not be read.
   - `login-unreadable`, `login-mismatch`: the `viewer` read failed or returned another login.
 
   `--check` runs every refusal but the push. Named residual: whoever can replace the gh or git
