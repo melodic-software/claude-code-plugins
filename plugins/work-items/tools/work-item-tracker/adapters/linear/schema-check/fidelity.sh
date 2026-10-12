@@ -67,7 +67,7 @@ unesc() { sed 's/\\\$/$/g'; }
 
 declare -a MULTILINE=(
   "$A/common.sh|issues(filter: { team: { key: { eq: \$team } }, number: { eq: \$num } }, first: 1)"
-  "$A/list-items.sh|issues(filter: { team: { key: { in: \$teams } } }, first: \$first, after: \$after)"
+  "$A/list-items.sh|query(\$filter: IssueFilter!, \$first: Int!, \$after: String) { issues(filter: \$filter, first: \$first, after: \$after)"
   "$A/list-sub-items.sh|children(first: \$first, after: \$after)"
   "$A/create-item.sh|issueLabels("
   "$A/create-item.sh|filter: { or: [{ team: { id: { eq: \$team } } }, { team: { null: true } }] }"

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Intent: ops can download the filtered order list as CSV.\nChanged: Q5, file name orders-export-<timestamp>.csv.\nNew assumptions: synchronous export; row-level permissions apply.\nThe other seven answers stand as read back.\n\nConfirm, or give me the numbers to change.",
+      "why": "no unchanged item re-listed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1 filtered rows. Q2 columns as shown. Q3 UTC. Q4 50,000-row cap. Q5 orders-export-<timestamp>.csv. Q6 toolbar button. Q7 gzip off. Q8 audit log entry.",
+      "why": "re-lists every accepted answer"
+    },
+    {
+      "answer": "Changed: Q5. Also note the cap stays at 50000 rows.",
+      "why": "re-shows the unchanged Q4 cap"
+    }
+  ]
+}

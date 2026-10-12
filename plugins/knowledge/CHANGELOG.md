@@ -4,6 +4,22 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.21.1] - 2026-10-11
+
+### Changed
+
+- **`docpage-digest` reads `claude.dev/blog` posts through their raw-markdown channel.** The publisher profile now fetches `https://claude.dev/blog/<slug>.md` as `source.md`, keeps the rendered page as `source.html` for figure text, and falls back to `extract_blog_body.py` when the `.md` fetch fails, is not markdown, or lacks the article's title. The channel's observed shape lives in a probe record the profile points at, and a new eval case covers the raw-first, HTML-companion and fallback path.
+
+## [0.21.0] - 2026-10-11
+
+### Added
+
+- video-digest: `watch/relayout-slice.js` copies a finished slice into the knowledge-corpus layout (`transcript/`, `metadata/`, `frames/all/`, `frames/key/`, `media/`, `analysis/`, provenance `README.md`). It finds the links, images, definitions and backticked paths in each markdown file with `mdast-util-from-markdown`, rewrites each one that names a copied slice path for the file's new location (a slice file the layout does not keep becomes plain text saying so), and exits 1 listing every slice-internal path that still does not resolve. It runs on a closed slice, or before `close` on one whose outcome checks pass; run it before `close` to keep the media, because `close` removes the temp session and a closed slice then needs `--no-media`. It builds the layout in a staging directory and moves it into place only when the link check passes; an existing target needs `--replace`, and a `.relayout-backup` left by an interrupted replace blocks the run until restored or removed. `context/output-contract.md` points at it in place of re-laying out by hand and lists what it cannot rewrite ([#6902](https://github.com/melodic-software/claude-code-plugins/issues/6902)).
+
+### Fixed
+
+- video-digest: an auto-caption transcript paragraph no longer repeats the previous paragraph's closing words that a rolling caption carried over: 2 to 12 words compared case- and punctuation-insensitively, dropped only when the opening cue carries them from the cue before it (the cues overlap in time, or the cue starts with the previous cue's words verbatim), so a phrase the speaker genuinely repeats stays ([#6992](https://github.com/melodic-software/claude-code-plugins/issues/6992)).
+
 ## [0.20.13] - 2026-10-11
 
 ### Changed

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nsuppressions=3\nunjustified=1\n```",
+      "why": "the lines as printed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "suppressions=3, and one of them has no reason.",
+      "why": "the second line paraphrased"
+    },
+    {
+      "answer": "suppressions=3\nunjustified=12",
+      "why": "a different number"
+    }
+  ]
+}

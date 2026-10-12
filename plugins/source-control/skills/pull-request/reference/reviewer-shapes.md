@@ -29,7 +29,7 @@ trigger. The date is the ceiling on how current a claim can be, never a guarante
 basis before acting on a record, and when a trigger has fired, re-derive the record from the
 endpoints named in its basis rather than patching it.
 
-Basis reads below are `gh api` reads against `melodic-software/claude-code-plugins`, all read-only.
+Basis reads below are GitHub API reads, made with the `gh` CLI, against `melodic-software/claude-code-plugins`, all read-only.
 
 ## Codex (`chatgpt-codex-connector[bot]`)
 

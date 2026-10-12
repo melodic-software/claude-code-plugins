@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"no-console\",\n      \"command\": \"bash lint-count.sh\",\n      \"field\": \"violations\",\n      \"ceiling\": 14,\n      \"goal\": \"no new no-console violations; fix existing ones down to 0\"\n    }\n  ]\n}\n",
+      "why": "the measured count is the ceiling"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"no-console\",\n      \"command\": \"bash lint-count.sh\",\n      \"field\": \"violations\",\n      \"ceiling\": 20,\n      \"goal\": \"keep console calls bounded\"\n    }\n  ]\n}\n",
+      "why": "headroom above the measured 14"
+    },
+    {
+      "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"no-console\",\n      \"command\": \"bash lint-count.sh\",\n      \"field\": \"violations\",\n      \"ceiling\": 140,\n      \"goal\": \"keep console calls bounded\"\n    }\n  ]\n}\n",
+      "why": "140 is not 14"
+    }
+  ]
+}
