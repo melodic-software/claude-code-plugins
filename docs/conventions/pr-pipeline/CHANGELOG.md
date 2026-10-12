@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## 1.10.3 - 2026-10-12
+
+`pr-run-activity.md` run job step 14: the lane-token revoke step never fails the job. A DELETE
+other than 204 is a `::warning::`, and a 204 whose `GET /installation/repositories` is not yet
+refused with 401 is a `::notice::`. `scripts/write-runner-revoke-step.test.sh` runs the step's
+script against each case. `version` stays 1.
+
 ## 1.10.2 - 2026-10-12
 
 `pr-run-activity.md` "The lane token broker": the broker now also requires the dispatcher run's `pr-unblock-dispatched-<ids>` record to list the requesting run, read once with no wait. `version` stays 1.
