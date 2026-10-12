@@ -82,9 +82,15 @@ any run with no human to answer, STOP before any claim and report that `run` is 
      through `/work-items:track done` with a summary naming the branch: the checkpoint. No
      per-item PR.
    - **`per-item PRs`.** Each accepted item has a pull request against the default branch; open a
-     missing one with `/source-control:pull-request create --pushed --worktree <path>`. When the
-     user says to land it, take it through `/source-control:pull-request ready` (which brings it
-     current with the default branch) and then `merge`; both keep their own gates and holds.
+     missing one with `/source-control:pull-request create --pushed --worktree <path>`. **Then
+     ready it:** right after `create --pushed`, dispatch `/source-control:pull-request ready <N>`
+     into the item's worktree with the PR number explicit, at the strong tier's model, never this
+     session's inherited one, since `ready` merges the base, runs the code and security reviews,
+     verifies the merged head, and only then flips the draft. When `ready` refuses (a hold, a
+     superseded item, a failed gate), the PR stays a draft: carry the reason it reported into the
+     report, and never lift the hold or flip the PR another way. When the user says to land it,
+     take it through `ready` again (on a PR already out of draft it only brings the branch current
+     with the default branch) and then `merge`; both keep their own gates and holds.
      The PR's closing keyword closes the item. Only then start the next PR, which landing the
      previous one may have made stale.
 

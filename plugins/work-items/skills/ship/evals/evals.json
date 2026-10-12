@@ -123,6 +123,32 @@
         "Says run is attended only",
         "Performs no tracker mutation, dispatch or merge"
       ]
+    },
+    {
+      "id": 10,
+      "name": "ship-run-readies-each-pr-after-create-pushed",
+      "prompt": "/work-items:ship run #360. The container body carries `**Execution shape:** per-item PRs`. The user approved the item list; dispatch returned item #361 accepted in worktree /work/wt-361 on branch feat/361-export, committed and pushed, and `/source-control:pull-request create --pushed --worktree /work/wt-361` opened draft PR 905. What does the run do next for that item?",
+      "expected_output": "Right after create --pushed, the run dispatches /source-control:pull-request ready 905 into /work/wt-361, passing the PR number explicitly and a strong-tier model rather than its own inherited one. ready merges the base, runs the code and security reviews, verifies the merged head and flips the draft. The run merges only when the user says to land it, and does not flip the PR itself.",
+      "files": [],
+      "expectations": [
+        "Dispatches /source-control:pull-request ready after create --pushed, without waiting for the user to say land it",
+        "Runs it in the item's worktree with PR 905 named explicitly",
+        "Passes an explicit strong-tier model on that dispatch",
+        "Never flips the draft with a bare forge command and merges only on the user's go-ahead"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "ship-run-leaves-a-held-pr-in-draft-when-ready-refuses",
+      "prompt": "/work-items:ship run #360. The container body carries `**Execution shape:** per-item PRs`. create --pushed opened draft PR 906 for item #362, and the run dispatched /source-control:pull-request ready 906, which refused: the PR body has a line `Hold: a human merges this`.",
+      "expected_output": "PR 906 stays a draft. The run carries ready's refusal reason (the Hold: line) into its report row for #362, does not edit the body or flip the PR another way, and does not merge it.",
+      "files": [],
+      "expectations": [
+        "PR 906 is left in draft",
+        "The report names the Hold: line as the reason ready refused",
+        "The hold is not lifted and the PR is not flipped by any other route",
+        "The PR is not merged"
+      ]
     }
   ]
 }
