@@ -646,6 +646,44 @@ class ReadDemotion(unittest.TestCase):
         gh.graphql["PolicyIssuesByAuthor"] = 502
         self.assertTrue(read_demotion().active)
 
+    def test_a_listing_page_without_a_boolean_has_next_page_is_off(self) -> None:
+        gh = demotion_fake(self)
+        page = {"pageInfo": {"endCursor": "p0"}, "nodes": []}
+        gh.graphql["PolicyIssuesByAuthor"] = {"repository": {"issues": page}}
+        result = read_demotion()
+        self.assertTrue(result.active)
+        self.assertTrue(result.reason.startswith("demotion-unreadable"), result.reason)
+
+    def test_a_timestamp_without_an_offset_is_off(self) -> None:
+        # The original revision's naive stamp equals createdAt, so its offset
+        # is read when compared with the human edit's stamp.
+        edits = {
+            "totalCount": 2,
+            "nodes": [
+                {
+                    "editedAt": "2026-10-12T11:00:00Z",
+                    "deletedAt": None,
+                    "editor": user(OPERATOR),
+                    "diff": DEMOTION_BODY + " note",
+                },
+                {
+                    "editedAt": "2026-10-12T10:00:00",
+                    "deletedAt": None,
+                    "editor": bot("agent-lanes"),
+                    "diff": DEMOTION_BODY,
+                },
+            ],
+        }
+        demotion_fake(
+            self,
+            createdAt="2026-10-12T10:00:00",
+            lastEditedAt="2026-10-12T11:00:00Z",
+            userContentEdits=edits,
+        )
+        result = read_demotion()
+        self.assertTrue(result.active)
+        self.assertTrue(result.reason.startswith("demotion-unreadable"), result.reason)
+
 
 class ResolveIdentity(unittest.TestCase):
     def test_equal_logins_resolve(self) -> None:
@@ -910,11 +948,44 @@ def merged(
     }
 
 
+FLOOR = policy.datetime.fromisoformat("2026-01-01T00:00:00Z")
+
+
 class InFlight(unittest.TestCase):
     def flight(self, verified: Any = None) -> Any:
         return policy.in_flight(
-            REPO, agent_identity=IDENTITY, permission=HUMANS, verified=verified
+            REPO,
+            agent_identity=IDENTITY,
+            permission=HUMANS,
+            verified=verified,
+            merged_since=FLOOR,
         )
+
+    def test_an_unset_floor_is_not_clear_and_reads_nothing(self) -> None:
+        gh = queue_fake(self, [], [])
+        result = policy.in_flight(REPO, agent_identity=IDENTITY, permission=HUMANS)
+        self.assertEqual((result.clear, result.reason), (False, "merged-since-unset"))
+        self.assertEqual(gh.calls, [])
+
+    def test_a_page_without_a_boolean_has_next_page_is_not_clear(self) -> None:
+        for info in ({"endCursor": "p0"}, {"hasNextPage": "false", "endCursor": "p0"}):
+            with self.subTest(info):
+                gh = queue_fake(self, [], [])
+                page = {"pageInfo": info, "nodes": []}
+                gh.graphql["PolicyRecentMerges"] = {
+                    "repository": {"pullRequests": page}
+                }
+                result = self.flight()
+                self.assertFalse(result.clear)
+                self.assertTrue(result.reason.startswith("unreadable"), result.reason)
+
+    def test_a_timestamp_without_an_offset_is_not_clear(self) -> None:
+        gh = queue_fake(self, [], [])
+        naive = merged(2, user(OPERATOR), user(OPERATOR), "2026-10-12T09:00:00")
+        gh.graphql["PolicyRecentMerges"] = merge_pages([[naive]])
+        result = self.flight()
+        self.assertFalse(result.clear)
+        self.assertTrue(result.reason.startswith("unreadable"), result.reason)
 
     def test_clear_with_no_identity_entry_and_only_human_merges(self) -> None:
         queue_fake(
@@ -1013,7 +1084,7 @@ class Assess(unittest.TestCase):
         result = policy.assess(REPO, base_sha=SHA, acting_login=OPERATOR)
         self.assertEqual(result.reason, "acting-login-mismatch")
 
-    def test_every_reader_passing_is_still_inert(self) -> None:
+    def test_with_no_floor_yet_the_in_flight_reader_refuses(self) -> None:
         gh = self.fake()
         variables = f"repos/{REPO}/actions/variables"
         gh.rest[f"{variables}?per_page=1"] = {"variables": []}
@@ -1025,13 +1096,9 @@ class Assess(unittest.TestCase):
         gh.rest[f"{variables}/CLAUDE_LANES_MERGE_RUNG_CAP"] = 404
         empty = {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": []}
         gh.graphql["PolicyIssuesByAuthor"] = {"repository": {"issues": empty}}
-        gh.graphql["PolicyMergeQueue"] = {
-            "repository": {"mergeQueue": {"entries": {"totalCount": 0, "nodes": []}}}
-        }
-        gh.graphql["PolicyRecentMerges"] = merge_pages([[]])
         result = policy.assess(REPO, base_sha=SHA, acting_login=IDENTITY)
         self.assertFalse(result.enabled)
-        self.assertEqual(result.reason, "merge-unconnected")
+        self.assertEqual(result.reason, "in-flight:merged-since-unset")
         report = result.report()
         self.assertEqual(report["rung"], "C2")
         self.assertIs(report["killSwitch"]["proceed"], True)

@@ -319,10 +319,23 @@ def _login_key(login: Any) -> str:
 
 
 def _time(value: Any) -> datetime:
+    """A timestamp with an offset; anything else, a naive one included, raises
+    `PolicyReadError` rather than a comparison `TypeError` later."""
     try:
-        return datetime.fromisoformat(str(value))
+        parsed = datetime.fromisoformat(str(value))
     except ValueError as exc:
         raise PolicyReadError(f"not a timestamp: {value!r}") from exc
+    if parsed.utcoffset() is None:
+        raise PolicyReadError(f"a timestamp without an offset: {value!r}")
+    return parsed
+
+
+def _has_next_page(info: dict[str, Any], label: str) -> bool:
+    """`pageInfo.hasNextPage`, which must be a boolean: only False ends a read."""
+    more = info.get("hasNextPage")
+    if not isinstance(more, bool):
+        raise PolicyReadError(f"{label}: a page without a boolean hasNextPage")
+    return more
 
 
 def _rest_actor(actor: Any) -> dict[str, Any] | None:
@@ -664,7 +677,7 @@ def _candidate_issues(owner: str, name: str, filer: str) -> list[int]:
             ):
                 numbers.append(node["number"])
         info = json_object(page.get("pageInfo"))
-        if not info.get("hasNextPage"):
+        if not _has_next_page(info, f"issues by {filer}"):
             return numbers
         cursor = info.get("endCursor")
         if not isinstance(cursor, str) or not cursor:
@@ -1026,7 +1039,7 @@ RECENT_MERGES_QUERY = (
 
 
 def _merged_since(
-    owner: str, name: str, branch: str, since: datetime | None
+    owner: str, name: str, branch: str, since: datetime
 ) -> list[dict[str, Any]] | None:
     """Merged pull requests on `branch`, newest update first, read until one was
     last updated before `since` (a merge updates the PR, so every PR merged
@@ -1048,10 +1061,10 @@ def _merged_since(
         if not is_json_array(page.get("nodes")) or not is_json_object(info):
             raise PolicyReadError("merged pull requests: no page")
         for pr in map(json_object, page["nodes"]):
-            if since is not None and _time(pr.get("updatedAt")) < since:
+            if _time(pr.get("updatedAt")) < since:
                 return found
             found.append(pr)
-        if info.get("hasNextPage") is not True:
+        if not _has_next_page(info, "merged pull requests"):
             return found
         cursor = info.get("endCursor")
         if not isinstance(cursor, str) or not cursor:
@@ -1087,14 +1100,16 @@ def in_flight(
 ) -> InFlight:
     """Clear only when no merge-queue entry is the agent identity's and every
     auto-merge (an enqueue whose event `actor` or `enqueuer` is null or
-    non-human) merged into `branch` since `merged_since` (all history when
-    None) is verified. A history the read cannot reach the end of is not
-    clear. `verified` judges one auto-merge; without it none is, so any
-    auto-merge keeps the path not clear."""
+    non-human) merged into `branch` since `merged_since` is verified. With no
+    floor it is not clear and reads nothing; a history the read cannot reach
+    the floor or end of is not clear. `verified` judges one auto-merge;
+    without it none is, so any auto-merge keeps the path not clear."""
     owner, name = _split_repo(repo)
     if not agent_identity:
         return InFlight(False, "agent-identity-unconfigured")
-    if merged_since is not None and merged_since.utcoffset() is None:
+    if merged_since is None:
+        return InFlight(False, "merged-since-unset")
+    if merged_since.utcoffset() is None:
         return InFlight(False, "merged-since-not-timezone-aware")
     human = lambda actor: is_human(  # noqa: E731
         actor,
