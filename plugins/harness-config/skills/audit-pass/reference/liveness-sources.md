@@ -22,6 +22,8 @@ We treat those six as sources a model-driven run cannot use.
 - **Pointer**: when deciding whether one of them can be a source, fetch
   [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) live; the
   installed binary's own command surface, read by `/harness-ops:inventory`, is the probe beside it.
+- **Observation** (2026-09-13, Claude Code 2.1.268): model invocation of built-ins has been
+  *removed* upstream rather than added to, `/verify` and `/deep-research` being the worked cases.
 - **As of**: 2026-10-11
 - **Recheck trigger**: a release note or the commands page grants any of those six a
   model-invocable or non-interactive form, at which point it returns as a source.
@@ -45,6 +47,9 @@ So Phase 1 takes the sources it can hold:
     [MCP: managing your servers](https://code.claude.com/docs/en/mcp#managing-your-servers) and
     [MCP: server status](https://code.claude.com/docs/en/mcp#server-status) live; `claude mcp --help`
     on the installed binary is the probe beside them.
+  - **Probe** (`claude mcp --help`, Claude Code 2.1.268, 2026-09-13): `list` health-checks approved
+    servers and marks unapproved `.mcp.json` servers pending approval; `get <name>` prints one
+    server's detail.
   - **As of**: 2026-10-11
   - **Recheck trigger**: the `claude mcp` subcommand list changes, or `list` stops reporting
     connection state.
@@ -54,8 +59,8 @@ So Phase 1 takes the sources it can hold:
   - **Pointer**: when wiring or reading the probe, fetch
     [hooks: InstructionsLoaded input](https://code.claude.com/docs/en/hooks#instructionsloaded-input)
     live for the payload fields and the `load_reason` values. Basis beside it: first-party
-    measurement in this marketplace.
-  - **As of**: 2026-10-11
+    measurement in this marketplace (2026-09-13, Claude Code 2.1.268).
+  - **As of**: 2026-10-11 (pointer); 2026-09-13 (measurement)
   - **Recheck trigger**: that section changes the event's payload fields or its `load_reason` set.
 
   Only the `session_start` half is out of reach at dispatch time, because those events fired before
