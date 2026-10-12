@@ -21,6 +21,8 @@ from babysit_risk import (
     Risk,
     RiskInput,
     Rung,
+    glob_regex,
+    normalize_path,
     score,
 )
 
@@ -411,6 +413,22 @@ class OrderingTests(unittest.TestCase):
         )
 
 
+class EvidenceAndPluginTests(unittest.TestCase):
+    def test_bound_lane_carrying_an_unbound_reason_is_unbound(self):
+        lanes = (
+            _lane("claude-review", unbound_reason="stale-sha"),
+            _lane("claude-security-review"),
+        )
+        result = score(_input(lanes=lanes))
+        self.assertEqual(result.score, Risk.MED)
+        self.assertEqual(_codes(result), ("evidence-unbound:claude-review",))
+
+    def test_plugin_directories_differing_only_in_case_are_two_plugins(self):
+        files = (_file("plugins/Foo/a.md"), _file("plugins/foo/b.md"))
+        result = score(_input(files=files))
+        self.assertEqual(_codes(result), ("class-contradicted",))
+
+
 class BlastRadiusTests(unittest.TestCase):
     def test_blast_radius_ignored_for_c2(self):
         for value in (None, "", "high"):
@@ -419,6 +437,27 @@ class BlastRadiusTests(unittest.TestCase):
 
     def test_rated_blast_radius_above_c2_is_low(self):
         result = score(_input(work_class="C3", rung=Rung.C3, blast_radius="low"))
+        self.assertEqual(result.score, Risk.LOW)
+
+    def test_only_a_low_rating_keeps_a_class_above_c2_low(self):
+        # Spec: the plan's scale is LOW / MEDIUM / HIGH / CRITICAL; any value
+        # other than LOW above C2 rates MED.
+        for value in (
+            "high",
+            "HIGH",
+            "MEDIUM",
+            "CRITICAL",
+            "unknown",
+            "none",
+            "null",
+            " low",
+        ):
+            with self.subTest(value):
+                result = score(
+                    _input(work_class="C3", rung=Rung.C3, blast_radius=value)
+                )
+                self.assertEqual(result.score, Risk.MED)
+        result = score(_input(work_class="C3", rung=Rung.C3, blast_radius="LOW"))
         self.assertEqual(result.score, Risk.LOW)
 
     def test_blank_blast_radius_above_c2_is_missing(self):
@@ -554,17 +593,92 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertIn("high-path:**", _codes(result))
 
-    def test_tilde_without_a_digit_stays_low(self):
-        self.assertEqual(
-            score(_input(files=(_file("plugins/foo/a~b.md"),))).score, Risk.LOW
-        )
+    def test_paths_outside_the_segment_allowlist_are_high_any_path(self):
+        # Spec: safe only if every segment is non-empty, matches
+        # [A-Za-z0-9._-]+ and does not end in `.`.
+        for path in (
+            "plugins/foo/x.md\n",
+            "AGENTS.md\n",
+            "plugins/foo/x.schema.json\n",
+            "plugins/foo/\x00x.md",
+            "plugins/foo/\tx.md",
+            "plugins/foo/\x1bx.md",
+            " plugins/foo/x.md",
+            "plugins/foo/x.md ",
+            "plugins/foo/x .md",
+            "plugins/foo/x　.md",
+            "plugins/foo/x‌.md",
+            "plugins/foo/lıb.md",
+            "plugins/foo/і.md",
+            "plugins/foo/Ａ.md",
+            "plugins/foo/a~b.md",
+        ):
+            with self.subTest(repr(path)):
+                result = score(_input(files=(_file(path),)))
+                self.assertEqual(result.score, Risk.HIGH)
+                self.assertIn("high-path:**", _codes(result))
 
-    def test_configured_globs_naming_no_path_fail_closed(self):
-        for glob in ("", ".", "./"):
-            with self.subTest(glob):
+    def test_tracked_paths_are_safe(self):
+        # A sample of paths tracked on main; the full tree was probed as well.
+        for path in (
+            ".changes/source-control/feat-babysit-risk-scorer-2b289c3f.md",
+            ".claude-plugin/marketplace.json",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py",
+            "plugins/source-control/skills/babysit-prs/scripts/engine.test.sh",
+            "AGENTS.md",
+        ):
+            with self.subTest(path):
+                self.assertEqual(normalize_path(path), (path, True))
+
+    def test_double_star_spans_any_character(self):
+        self.assertTrue(glob_regex(".github/**").fullmatch(".github/a\nb"))
+
+    def test_rename_or_copy_without_a_previous_path_is_high_at_every_class(self):
+        for status in ("renamed", "copied"):
+            for work_class, rung in (("C2", Rung.C2), ("C3", Rung.C3)):
+                with self.subTest((status, work_class)):
+                    result = score(
+                        _input(
+                            work_class=work_class,
+                            rung=rung,
+                            blast_radius="low",
+                            files=(_file("plugins/foo/x.md", status=status),),
+                        )
+                    )
+                    self.assertEqual(result.score, Risk.HIGH)
+                    self.assertIn("high-path:**", _codes(result))
+
+    def test_unhashable_status_is_malformed_not_a_raise(self):
+        for status in ([], {}, ["renamed"]):
+            with self.subTest(repr(status)):
+                result = score(
+                    _input(files=(_file("plugins/foo/a.md", status=status),))
+                )
+                self.assertGreaterEqual(result.score, Risk.MED)
+
+    def test_configured_globs_outside_the_allowlist_fail_closed(self):
+        for glob in (
+            "",
+            ".",
+            "./",
+            "   ",
+            "plugins/../x",
+            "plugins/./x",
+            "..",
+            "plugins/fo o/**",
+            "plugins/foo:x",
+            "plugins/ｆoo/**",
+            "plugins/foo\n",
+        ):
+            with self.subTest(repr(glob)):
                 result = score(_input(high_paths=(glob,)))
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertIn("high-path:**", _codes(result))
+
+    def test_configured_globs_inside_the_allowlist_are_accepted(self):
+        for glob in ("docs/*.md", "**/build/**", "plugins/bar/", "tools/x-y_z.json"):
+            with self.subTest(glob):
+                self.assertEqual(score(_input(high_paths=(glob,))).score, Risk.LOW)
 
     def test_paths_that_could_hide_a_floor_path_are_high(self):
         for path in (

@@ -15,12 +15,13 @@ place of it. Every glob matches case-insensitively, because a lane host on a
 case-insensitive filesystem treats `Claude.md` as `CLAUDE.md`.
 
 Paths are normalised before matching (`\\` to `/`, empty and `.` segments
-dropped). A path that could hide a floor path rates HIGH as `high-path:**`,
-because it could be any path: empty, absolute, ending in `/`, or with a `..`
-segment, a `:` (an NTFS stream), a `~<digit>` (an 8.3 short name) or a segment
-ending in `.` or a space (Windows strips both). Git emits none of these. A
-configured glob that names no path (`''`, `.`, `./`) makes the configured HIGH
-set unreadable.
+dropped). A path is safe only when every `/`-separated segment is non-empty,
+uses only `[A-Za-z0-9._-]` and does not end in `.` (Windows strips it); every
+tracked path in this repository passes. Any other path rates HIGH as
+`high-path:**`, because it could alias any path: `..`, `:` (an NTFS stream),
+`~1` (an 8.3 short name), whitespace, control or non-ASCII characters. So does
+a rename or copy with no previous path. A configured glob outside the same set
+(plus `*`) makes the configured HIGH set unreadable.
 Malformed values have no code of their own in the contract, so each maps to the
 nearest existing code: per-file data and the listing to `files-incomplete`, an
 unknown rung to `class-above-rung` (read as off), an unreadable line limit to
@@ -129,7 +130,14 @@ _STRUCTURAL = frozenset({"removed", "renamed", "copied", "changed"})
 
 UNSAFE_PATH_CODE = "high-path:**"
 
-_SHORT_NAME = re.compile(r"~[0-9]")  # a Windows 8.3 name such as GITHUB~1
+# Every tracked path segment uses only these characters. Anything else (a `:`,
+# a `~`, whitespace, a control or non-ASCII character) could alias a floor path
+# on some filesystem, so it is unsafe rather than enumerated.
+_SAFE_SEGMENT = re.compile(r"[A-Za-z0-9._-]+")
+_SAFE_GLOB_SEGMENT = re.compile(r"[A-Za-z0-9._*-]+")
+# The plan's blast-radius scale is LOW / MEDIUM / HIGH / CRITICAL; only LOW
+# can leave a class above C2 at LOW.
+_LOW_BLAST = "low"
 
 _CLASS_RANK = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5}
 
@@ -146,21 +154,23 @@ def normalize_path(path: Any) -> tuple[str, bool]:
     """Return (normalised path, safe). Unsafe means it could hide a floor path."""
     if not isinstance(path, str):
         return "", False
-    raw = path.replace("\\", "/")
-    safe = not raw.startswith("/") and not raw.endswith("/")
-    segments: list[str] = []
-    for segment in raw.split("/"):
-        if segment in ("", "."):
-            continue
-        if (
-            segment == ".."
-            or ":" in segment
-            or _SHORT_NAME.search(segment)
-            or segment.endswith((".", " "))
-        ):
-            safe = False
-        segments.append(segment)
-    return "/".join(segments), safe and bool(segments)
+    safe = all(
+        _SAFE_SEGMENT.fullmatch(segment) and not segment.endswith(".")
+        for segment in path.split("/")
+    )
+    segments = [s for s in path.replace("\\", "/").split("/") if s not in ("", ".")]
+    return "/".join(segments), safe
+
+
+def _safe_glob(pattern: str) -> bool:
+    """A configured glob must name a path in the same character set."""
+    normalized = _normalize_glob(pattern)
+    if normalized.endswith("/"):
+        normalized = normalized[:-1]
+    return all(
+        _SAFE_GLOB_SEGMENT.fullmatch(segment) and segment not in (".", "..")
+        for segment in normalized.split("/")
+    )
 
 
 def _normalize_glob(pattern: str) -> str:
@@ -198,7 +208,7 @@ def glob_regex(pattern: str) -> re.Pattern[str]:
             parts.append(".*" if last else "(?:[^/]+/)*")
         else:
             parts.append(_segment_regex(segment) + ("(?:/.*)?" if last else "/"))
-    return re.compile("".join(parts))
+    return re.compile("".join(parts), re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -224,10 +234,14 @@ def _check_file(changed: Any) -> _File:
         paths.append(normalized)
         if not safe:
             unsafe.append(repr(raw))
+    raw_status = getattr(changed, "status", None)
+    # A non-string status (possibly unhashable) is unknown, never a raise.
+    status = raw_status if isinstance(raw_status, str) else None
+    if status in ("renamed", "copied") and previous is None:
+        unsafe.append(f"{raw_path!r} {status} with no previous path")
     problems = []
-    status = getattr(changed, "status", None)
     if status not in STATUSES:
-        problems.append(f"status {status!r}")
+        problems.append(f"status {raw_status!r}")
     lines = 0
     for field in ("additions", "deletions"):
         value = getattr(changed, field, None)
@@ -255,8 +269,7 @@ def _high_path_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
     unsafe = [raw for f in files for raw in f.unsafe]
     configured = _sequence(inp.high_paths)
     if configured is None or not all(
-        isinstance(p, str) and _normalize_glob(p).strip("/") not in ("", ".")
-        for p in configured
+        isinstance(p, str) and _safe_glob(p) for p in configured
     ):
         unsafe.append(f"configured HIGH set unreadable: {inp.high_paths!r}")
         configured = tuple(p for p in configured or () if isinstance(p, str))
@@ -280,9 +293,10 @@ def _c2_contradictions(files: list[_File]) -> list[str]:
         for f in files
     ):
         found.append("removed, renamed, copied or changed file")
-    paths = [path.casefold() for f in files for path in f.paths]
-    if any(path.endswith(".schema.json") for path in paths):
+    paths = [path for f in files for path in f.paths]
+    if any(path.casefold().endswith(".schema.json") for path in paths):
         found.append("*.schema.json changed")
+    # Not case-folded: plugins/Foo and plugins/foo are two directories in git.
     plugins = {
         parts[1]
         for parts in (path.split("/") for path in paths)
@@ -312,9 +326,13 @@ def _class_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
                 Reason("class-contradicted", Risk.MED, "; ".join(contradictions))
             )
     blast = inp.blast_radius
-    if rank > Rung.C2 and not (isinstance(blast, str) and blast.strip()):
+    if rank > Rung.C2 and not (
+        isinstance(blast, str) and blast.casefold() == _LOW_BLAST
+    ):
+        rated = isinstance(blast, str) and blast.strip()
+        detail = f"rated {blast!r}, not LOW" if rated else "has no rating"
         reasons.append(
-            Reason("blast-radius-missing", Risk.MED, f"{inp.work_class} has no rating")
+            Reason("blast-radius-missing", Risk.MED, f"{inp.work_class} {detail}")
         )
     return reasons
 
@@ -358,7 +376,12 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
             continue
         lane = entries[0]
         count = getattr(lane, "open_findings", None)
-        if getattr(lane, "bound", None) is not True or not _is_count(count):
+        unbound_reason = getattr(lane, "unbound_reason", None)
+        if (
+            getattr(lane, "bound", None) is not True
+            or unbound_reason is not None
+            or not _is_count(count)
+        ):
             detail = getattr(lane, "unbound_reason", None) or "no bound finding count"
             reasons.append(Reason(f"evidence-unbound:{name}", Risk.MED, str(detail)))
         elif count > 0:
