@@ -91,10 +91,10 @@ each on its own line. `MODE` is `unattended` when the argument says so, else `at
 
 - **Attended**: do not wait on the sweeper where the session lets it run in the background. Tell
   the user in one line that the sweep is running, and carry on with the work in hand. Present at
-  the next natural break after the sweeper returns, never mid-task. Do not enter or leave a
-  worktree while the sweep runs: a run belongs to the checkout it started in. If you must move, let
-  the sweep finish or stop it, release the lock, then run `/performance:go-faster` again from the
-  new checkout.
+  the next natural break after the sweeper returns, never mid-task.
+  Do not enter or leave a worktree while the sweep runs: a run belongs to the checkout it started
+  in. If you must move, let the sweep finish or stop it, release the lock, then run
+  `/performance:go-faster` again from the new checkout.
 - **Unattended**: wait for the sweeper's result before doing anything else.
 
 This skill sets no foreground or background mode on the sweeper.
