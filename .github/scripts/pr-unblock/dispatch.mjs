@@ -222,6 +222,7 @@ export function createGitHubApi({
         {
           ref,
           inputs,
+          return_run_details: true,
         },
       );
       return { workflowRunId: result.workflow_run_id };

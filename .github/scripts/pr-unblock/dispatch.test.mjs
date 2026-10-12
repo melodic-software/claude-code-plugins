@@ -271,7 +271,8 @@ test("a failed dispatch or check-run read is reported and the other PRs still go
 });
 
 // The REST contract (docs.github.com rest/actions/workflows "Create a workflow
-// dispatch event": 200 with workflow_run_id; rest/checks/runs "List check runs
+// dispatch event", API version 2022-11-28: 200 with workflow_run_id only when
+// return_run_details is true, else 204; rest/checks/runs "List check runs
 // for a Git reference" with check_name) and the GraphQL listing.
 test("the GitHub adapter calls the documented endpoints", async () => {
   const requests = [];
@@ -293,6 +294,11 @@ test("the GitHub adapter calls the documented endpoints", async () => {
       body: init.body && JSON.parse(init.body),
       auth: init.headers.Authorization,
     });
+    const body = init.body && JSON.parse(init.body);
+    if (url.endsWith("/dispatches") && body.return_run_details !== true) {
+      responses.shift();
+      return { ok: true, status: 204, json: async () => assert.fail("204 has no body") };
+    }
     return { ok: true, status: 200, json: async () => responses.shift() };
   };
   const api = createGitHubApi({
@@ -330,7 +336,11 @@ test("the GitHub adapter calls the documented endpoints", async () => {
     requests[2].url,
     "https://api.example/repos/octo/repo/actions/workflows/pr-unblock.yml/dispatches",
   );
-  assert.deepEqual(requests[2].body, { ref: "refs/heads/main", inputs: { "pr-number": "1" } });
+  assert.deepEqual(requests[2].body, {
+    ref: "refs/heads/main",
+    inputs: { "pr-number": "1" },
+    return_run_details: true,
+  });
   assert.equal(requests[2].method, "POST");
   assert.equal(requests[2].auth, "Bearer t0ken");
 });
