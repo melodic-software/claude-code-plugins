@@ -778,6 +778,13 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertIn(code, _codes(result))
 
+    def test_trailing_double_star_forms_match_the_bare_entry(self):
+        # Spec: 'X/**' also matches X; 'X/**/' and 'X/**/**' mean the same glob.
+        for glob in ("docs/**", "docs/**/", "docs/**/**"):
+            with self.subTest(glob):
+                result = score(_input(files=(_file("docs"),), high_paths=(glob,)))
+                self.assertIn(f"high-path:{glob}", _codes(result))
+
 
 class NeverRaisesTests(unittest.TestCase):
     def _assert_high_any_path(self, result):
