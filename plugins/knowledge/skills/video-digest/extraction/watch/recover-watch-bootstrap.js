@@ -161,16 +161,19 @@ function pickCaptionName(vttNames, infoPath, captionClass) {
  * The names belonging to the media entry `videoName` (`<id>.mp4`) heads, by
  * yt-dlp's `%(id)s.%(ext)s` template, so a multi-video work dir (an X post)
  * never pairs one entry's video with another entry's caption or info.json.
- * All `names` when none carry that prefix.
+ * All `names` only when the work dir is not entry-named (no info.json stem
+ * prefixes another file), so an entry whose own files are missing gets none
+ * rather than a sibling's.
  *
  * @param {string[]} names
  * @param {string} videoName
+ * @param {boolean} entryNamed
  * @returns {string[]}
  */
-function scopeToEntry(names, videoName) {
+function scopeToEntry(names, videoName, entryNamed) {
+  if (!entryNamed) return names;
   const prefix = `${videoName.slice(0, -".mp4".length)}.`;
-  const scoped = names.filter((name) => name.startsWith(prefix));
-  return scoped.length > 0 ? scoped : names;
+  return names.filter((name) => name.startsWith(prefix));
 }
 
 /**
@@ -186,12 +189,16 @@ export function resolveWorkArtifacts(workDir, captionClass = "manual-and-auto") 
   if (!videoPath || vttNames.length === 0 || infoNames.length === 0) {
     throw new Error(`Missing mp4/vtt/info.json in ${workDir}`);
   }
-  const infoPath = scopeToEntry(infoNames, videoPath)[0];
-  const vttPath = pickCaptionName(
-    scopeToEntry(vttNames, videoPath),
-    path.join(workDir, infoPath),
-    captionClass,
-  );
+  const entryNamed = infoNames.some((info) => {
+    const prefix = `${info.slice(0, -".info.json".length)}.`;
+    return entries.some((name) => name !== info && name.startsWith(prefix));
+  });
+  const [infoPath] = scopeToEntry(infoNames, videoPath, entryNamed);
+  const entryVttNames = scopeToEntry(vttNames, videoPath, entryNamed);
+  if (!infoPath || entryVttNames.length === 0) {
+    throw new Error(`Missing vtt/info.json for ${videoPath} in ${workDir}`);
+  }
+  const vttPath = pickCaptionName(entryVttNames, path.join(workDir, infoPath), captionClass);
   return {
     videoPath: path.join(workDir, videoPath),
     vttPath: path.join(workDir, vttPath),

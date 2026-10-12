@@ -230,4 +230,15 @@ describe("resolveWorkArtifacts", () => {
     expect(artifacts.vttPath).toBe(path.join(workDir, "111.und.vtt"));
     expect(artifacts.infoPath).toBe(path.join(workDir, "111.info.json"));
   });
+
+  it("refuses a sibling entry's caption and info.json when the video's own are missing", () => {
+    const workDir = mkTmp("video-extraction-");
+    for (const name of ["111.mp4", "222.en.vtt", "222.info.json"]) {
+      fs.writeFileSync(path.join(workDir, name), name.endsWith(".json") ? "{}" : "x");
+    }
+
+    expect(() => resolveWorkArtifacts(workDir, "platform-asr")).toThrow(
+      /Missing vtt\/info\.json for 111\.mp4/,
+    );
+  });
 });
