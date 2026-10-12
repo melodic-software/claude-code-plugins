@@ -14,9 +14,9 @@ pointers below the table when a write depends on one.
 
 | Surface | Path pattern | Load class |
 |---------|-------------|---------------|
-| Managed-policy CLAUDE.md / `claudeMd` key | OS-specific managed dirs | Session start; not excludable |
+| Managed-policy CLAUDE.md / `claudeMd` key | OS-specific managed dirs | Session start |
 | User CLAUDE.md | `~/.claude/CLAUDE.md` | Session start |
-| Project CLAUDE.md | `./CLAUDE.md` or `./.claude/CLAUDE.md` | Session start; survives `/compact` |
+| Project CLAUDE.md | `./CLAUDE.md` or `./.claude/CLAUDE.md` | Session start |
 | CLAUDE.local.md | `./CLAUDE.local.md` (also beside ancestor CLAUDE.md) | Session start |
 | Ancestor CLAUDE.md | every dir from filesystem root down to cwd | Session start; excludable via `claudeMdExcludes` |
 | Nested/subdirectory CLAUDE.md | `<subdir>/CLAUDE.md` below cwd | ON-DEMAND when Claude works with a file in that subdirectory (see [load triggers](#load-triggers)) |
@@ -28,7 +28,7 @@ pointers below the table when a write depends on one.
 | Auto-memory index | `MEMORY.md` in the auto-memory directory | Session start, head only; the excess is not loaded |
 | Auto-memory topic files | same dir, `*.md` | On-demand only |
 | Skills | `.claude/skills/`, `~/.claude/skills/`, plugin `skills/` | Listing metadata (description) in context every turn; body on invocation or model trigger |
-| Commands (legacy) | `.claude/commands/`, `~/.claude/commands/` | On invocation; merged into the skills mechanism |
+| Commands (legacy) | `.claude/commands/`, `~/.claude/commands/` | On invocation |
 | Subagent definitions | `.claude/agents/`, `~/.claude/agents/`, plugin `agents/` | Per spawn: the body is the subagent's system prompt |
 | Subagent persistent memory | `agent-memory/<agent>/` | Per spawn, head of that agent's MEMORY.md only |
 | Output styles | `output-styles/` (user/project/managed/plugin) | Session start when selected; modifies the system prompt |
@@ -44,8 +44,8 @@ Load-semantics facts that change how you write:
 - Content that loads on demand (nested CLAUDE.md, `paths:`-gated rules) may be absent right after
   `/compact` until it loads again, so a constraint that must hold post-compaction belongs on a
   surface that survives it.
-- Block-level HTML comments in CLAUDE.md are stripped before injection, which makes them free
-  maintainer notes.
+- We use block-level HTML comments in CLAUDE.md as maintainer notes that cost no context (which
+  comments are stripped: the load-order pointer below).
 - MEMORY.md loads only its head, so put what must load first; keep CLAUDE.md short for adherence,
   and treat the 200-line target as ours to grade with (the target's source is the CLAUDE.md size
   pointer below; `/docs-hygiene:audit-progressive-disclosure` runs the grading).
@@ -54,7 +54,8 @@ Load-semantics facts that change how you write:
 
 ### Surface pointers
 
-- **Pointer**: when a write depends on a load-order, exclusion, import or `--add-dir` detail, fetch
+- **Pointer**: when a write depends on a load-order, HTML-comment stripping, exclusion, import or
+  `--add-dir` detail, fetch
   <https://code.claude.com/docs/en/memory#how-claude-md-files-load>,
   <https://code.claude.com/docs/en/memory#load-from-additional-directories>,
   <https://code.claude.com/docs/en/memory#import-additional-files> and
@@ -81,9 +82,9 @@ Load-semantics facts that change how you write:
 - **As of**: 2026-10-11
 - **Recheck trigger**: one of those sections changes a surface's load class, adds or removes a
   surface, or changes how rule scopes rank; the Project instructions setting is removed or its
-  values change; the CLAUDE.md size target changes; the AGENTS.md unavailability section changes
-  where support is missing; the compaction section changes which surfaces survive `/compact`; or
-  the hooks JSON-output section removes, adds or changes a cap on hook output size.
+  values change; the load section changes which HTML comments are stripped; the CLAUDE.md size
+  target changes; the AGENTS.md unavailability section changes where support is missing; the
+  compaction section changes which surfaces survive `/compact`; or the hooks JSON-output section removes, adds or changes a cap on hook output size.
 
 ### Load triggers
 
