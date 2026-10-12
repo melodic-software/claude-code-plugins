@@ -11,7 +11,7 @@ metadata:
 
 Run the read-only check. Do not install Node.js, and do not download anything.
 
-This skill is the model-invocable check and `setup` stays manual, because the invocation switch applies to a whole skill, never to one action. **Pointer:** when deciding what `disable-model-invocation` covers, fetch [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live. **As of:** 2026-10-11. **Recheck trigger:** a Claude Code release adds a per-action invocation flag, or that field stops applying to the whole skill.
+This skill is the model-invocable check and `setup` stays manual, so `apply` is never model-invoked. **Pointer:** when deciding what `disable-model-invocation` covers, fetch [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live. **As of:** 2026-10-11. **Recheck trigger:** a Claude Code release adds a per-action invocation flag, or that field stops applying to the whole skill.
 
 ## Check
 
