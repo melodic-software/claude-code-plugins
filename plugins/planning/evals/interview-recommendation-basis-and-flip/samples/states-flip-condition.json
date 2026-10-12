@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: Where should the counters live?\nMy recommendation: Redis 7, already deployed for sessions.\nBasis: your message (Redis 7 in place).\nWould change if: the session Redis cannot take about 2,000 extra writes a second.",
+      "why": "would change if"
+    },
+    {
+      "answer": "Q2: Per key or per IP?\nMy recommendation: per API key, as your partner terms state.\nFlips to per IP if anonymous traffic matters more than partners.",
+      "why": "flips"
+    },
+    {
+      "answer": "Recommendation: a sliding window, unless you need burst allowance.",
+      "why": "unless"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Q1: Where should the counters live?\nMy recommendation: Redis.\nBasis: judgment",
+      "why": "no condition that would change it"
+    },
+    {
+      "answer": "Q1: Where should the counters live?\nMy recommendation: Redis.\nBasis: judgment\nI won't proceed unless you answer.",
+      "why": "an unless that is not a flip condition"
+    }
+  ]
+}

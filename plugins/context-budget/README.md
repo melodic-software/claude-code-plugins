@@ -36,6 +36,43 @@ saving.
   approval. User-global `~/.claude/settings.json` is only ever printed, and every applied lever
   is re-measured and ledgered before the next.
 
+## Live breakdown
+
+A mod shows what the session's context is made of right now, by category, with each category's
+tokens, share of the window and theme color. It needs Claude Code 2.1.287 or later; mods are
+unsupported below that, and the plugin ships no shim
+([ADR 0052](../../docs/adr/0052-adopt-claude-code-mods.md)).
+
+The `live_display` option picks where it shows:
+
+- `pane` (default). `/context-budget live` opens or closes a pane. Its header reads
+  `◆ context <used> of <window> · compacts at <threshold> <percent>%`, with the "compacts at" part
+  only when auto-compaction is on. Each category follows with its tokens, percent and color;
+  deferred categories are listed dimmed with "deferred" in place of a percent.
+- `band`. A bordered block of up to 5 rows above the prompt (header, bar, one-line legend), above
+  other plugins' rows, fitted to the available width, and out of the way while a survey prompt
+  shows. `/context-budget live` opens or closes the detail pane and leaves the band on;
+  `/context-budget live off` hides the band. This multi-row band is an opt-in exception to
+  the repository's one-row-per-mod display guidance
+  ([mods](../user-interface/reference/types/mods.md)).
+- `off`. Nothing shows and nothing is measured.
+
+`/context-budget live pane`, `live band` and `live off` set the mode for the session and survive a
+hot reload. In `off` mode, `/context-budget live` shows a toast that says how to turn the display
+on.
+
+**Refresh and cost.** The mod reads Claude Code's local estimate of the breakdown, with no network
+call, when you open or switch the view and, while it is shown, when context usage changes. `off`
+makes no reads.
+
+**States.** Before the first response, and right after a compaction, the pane says "waiting for
+next response" and the band draws nothing. When no breakdown is available, the pane shows the basic
+usage header and one "usage unavailable" line (the line alone when the basic figures fail too), and
+the band draws nothing.
+
+Tested in: the plugin test kit (terminal and desktop surfaces) on Claude Code 2.1.296, plus
+`claude plugin validate` and `tsc`. No live interactive, `--bg` or Desktop session has run it yet.
+
 ## Hook
 
 A PreToolUse checkpoint returns `permissionDecision: "ask"` when a **file-editing tool call**
@@ -71,7 +108,8 @@ live:
 - **Recheck trigger:** any of these sections changes who can answer or skip a hook's `ask`, or a
   release note names hook evaluation order or `disableAllHooks`.
 
-An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
+A mod (this plugin's or any other installed one) can keep `PreToolUse` settings hooks such as this
+plugin's settings-write checkpoint from running: they run after the last
 mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
 ([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
 A mod can also approve a call they blocked, because its `tool.check` hook runs after them
@@ -121,7 +159,7 @@ stays unconditioned until upstream matching reaches those paths.
 
 ## What makes the numbers trustworthy
 
-- **Nothing is shipped, everything is measured.** The skill contains no token figures, tool
+- **No figures ship; every number is measured locally.** The skill contains no token figures, tool
   inventories, or thresholds. Those drift with every CLI release. Every number in a report was
   produced by a run on the consumer's machine during that audit.
 - **Every report is stamped** with the measured binary path and version, the measurement mode,
@@ -130,7 +168,7 @@ stays unconditioned until upstream matching reaches those paths.
   with identical skill listings (listed skill frontmatter is subtracted from that bucket); the
   engine fingerprints the listing per run and marks violating comparisons incomparable rather
   than reporting their numbers.
-- **Levers are catalogued data, not folklore.** Each row in
+- **Levers are catalogued data.** Each row in
   `skills/audit/reference/levers.json` carries its honesty category (does it remove weight, work
   but save nothing here, block without saving, sit as vendor weight, or cost more than it buys),
   the official citation behind it, how to detect and measure it, the exact config it would emit,
@@ -172,7 +210,9 @@ An uninstall can delete this directory; the audit tells the operator so near the
   Pointer: <https://code.claude.com/docs/en/skills#find-unused-skills>. As of 2026-10-02.
   Recheck when that section sends the question to another command.
 - Per-skill / per-agent / per-MCP-tool attribution belongs to `/context` natively.
-- Live in-session occupancy zones belong to the `context-guard` plugin.
+- This plugin answers "what is my context made of": the startup measurement and the live
+  breakdown. How full the context is and what happens as it fills (zones, notices to Claude,
+  toasts, optional blocking, the one-line level row) belongs to the `context-guard` plugin.
 - Measurements describe **headless** sessions of the **local CLI**; interactive sessions and
   cloud/web surfaces can compose the payload differently, and reports say so.
 
@@ -189,6 +229,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher. |
+| `live_display` | string | `"pane"` | `CLAUDE_PLUGIN_OPTION_LIVE_DISPLAY` | Where the live context breakdown shows. pane opens it in a pane when you run /context-budget live; band keeps it above the prompt; off shows nothing and measures nothing. /context-budget live pane, band or off changes it for the session. |
 
 ### How to set these
 

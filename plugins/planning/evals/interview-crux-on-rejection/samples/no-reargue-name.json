@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Q3: `ship-docs` it is.",
+      "why": "accepts the name"
+    },
+    {
+      "answer": "Q3: Sure, `ship-docs` it is.",
+      "why": "plain deference that says sure"
+    },
+    {
+      "answer": "Q3: renamed docs-publish to ship-docs, matching your preference.",
+      "why": "accepts the rename"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply re-argues nothing; the other graders fail it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q3: I'd still suggest docs-publish instead, for consistency with the other docs-* commands.",
+      "why": "re-argues the name"
+    },
+    {
+      "answer": "Q3: Are you sure about ship-docs? It breaks the docs-* pattern.",
+      "why": "challenges the personal choice"
+    }
+  ]
+}

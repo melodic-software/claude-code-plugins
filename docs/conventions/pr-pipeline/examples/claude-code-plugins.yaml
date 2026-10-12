@@ -61,28 +61,24 @@ activities:
     gating: gate
     reads-untrusted: false
     inputs: [pr, head-sha]
-  address-feedback:
-    skill: source-control:pull-request
-    args: comments
-    effect: mutate-branch
-    gating: advisory
-    reads-untrusted: true
-    inputs: [pr, findings]
-  fix-ci:
-    skill: source-control:pull-request
-    args: monitor
-    effect: mutate-branch
-    gating: advisory
-    reads-untrusted: true
-    inputs: [pr, head-sha]
-  update:
+  resolve-conflicts:
     skill: source-control:resolve-conflicts
+    args: ci                      # no gates; escalates instead of asking
+    prepare: merge-base           # the runner merges the base tip before the skill, commits after
     effect: mutate-branch
-    gating: advisory
-    reads-untrusted: false
+    gating: advisory              # ci-status judges the merged tree
+    reads-untrusted: true         # reads PR head files
     inputs: [pr, base-sha, head-sha]
     applies-when:
-      events: [push, schedule, dequeued]
+      mergeable: [conflicting]    # a PR that is only behind stays with the merge queue
+      labels-absent: [do-not-merge, needs-human]
+      draft: [false]
+  report-escalation:              # labels needs-human with a resume key
+    script: .github/scripts/pr-unblock/report-escalation.sh
+    effect: publish-artifact
+    gating: advisory
+    reads-untrusted: false
+    inputs: [pr, head-sha]
   merge:
     script: .github/scripts/merge-pr.sh
     effect: merge
@@ -135,21 +131,14 @@ lanes:
     stage: verify
     slots:
       - activity: require-checks
-  pr-address-feedback:
-    stage: respond
+  pr-unblock:
+    stage: unblock
     slots:
-      - activity: address-feedback
-  pr-fix-ci:
-    stage: respond
-    slots:
-      # Runs head code with a write token; off until the split design (a
-      # read-only run, then a separate signed-commit step) exists.
-      - activity: fix-ci
-        enabled: false
-  pr-update:
-    stage: respond
-    slots:
-      - activity: update
+      - activity: resolve-conflicts
+      - activity: report-escalation
+        needs: [resolve-conflicts]
+      # Fixing CI and addressing review feedback join this lane as composites
+      # (a `children:` list of leaves) once their designs land.
   pr-merge:
     stage: merge
     slots:

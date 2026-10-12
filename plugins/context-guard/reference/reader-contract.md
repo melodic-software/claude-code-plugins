@@ -100,9 +100,34 @@ nothing is written and readers read `unknown`, as with no file.
       "cache_creation_input_tokens": 9000,
       "cache_read_input_tokens": 27000
     }
+  },
+  "zone": "smart",
+  "evidence_degraded": false,
+  "bands": {
+    "smart_max_used_percentage": 50,
+    "acceptable_max_used_percentage": 75,
+    "smart_max_tokens": 100000,
+    "acceptable_max_tokens": 150000
   }
 }
 ```
+
+**The published zone (public consumer contract).** `zone`, `evidence_degraded` and `bands` let a
+reader such as a status line show the zone and its edges without re-implementing the band lookup
+or importing plugin code. A reader that predates these fields, or reads a file an older module
+wrote, falls back to its own lookup over `context_window` and `zones.json` as this contract
+describes; the fields are additive, and a reader ignores keys it does not know.
+
+- `zone`: `smart`, `acceptable`, `dumb` or `unknown`, as the module resolved this body: the
+  combination rule over the bands below, and `dumb` once the session was compacted. It is as of
+  `captured_at`, so the staleness rule still applies: a stale file means `unknown`. A
+  `.compacted` marker still means degraded whatever this field says.
+- `evidence_degraded`: `true` once the module saw a compaction or the marker for this session.
+- `bands`: the edges in force after `zones.json`: `smart_max_used_percentage` and
+  `acceptable_max_used_percentage` always; `smart_max_tokens` and `acceptable_max_tokens` for
+  the session's window class, `null` when the token shape is not computable (see "Version
+  floor").
+- They are written whenever the snapshot is, whatever the `model_notices` option says.
 
 - `captured_at`: ISO-8601 UTC write time; always present. Drives the staleness rule. A write
   whose other fields are unchanged since the last one happens at most once per 60 seconds (the
@@ -267,17 +292,19 @@ snapshot, through a TypeScript copy of the resolver's band function; the shared 
 holds the two resolvers to the same word and notices. Where mods cannot load (see the setup
 skill's module check), none of the following runs except the PostCompact marker.
 
-- **Zone lines** (on each tool result of the main conversation and each prompt): on a transition
+- **Zone lines** (on each tool result of the main conversation and each prompt; the model channel
+  below only with the `model_notices` option on, which is off by default): on a transition
   into a zone worse than any this session has already reported, report the crossing on **two
   channels with two audiences**. The **model channel** (the `context` a `tool.call` or
-  `prompt.submit` hook adds) carries facts only, never an instruction: by default the zone word and its rank of three. A
+  `prompt.submit` hook adds) carries by default the zone word and its rank of three, and past
+  `smart` one options line after the verdict lines at a carrier (below). A
   line carries no figure unless `zone_line_data` adds one (percent, tokens, window); it never
   carries a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
   percentage points before it), one line per `thresholds` entry passed, and the verdict restated
   once, only when it is past `smart`, after a compaction (not a `precompute` one), after an
   in-process resume, and on a reload or a worker respawn (a load with earlier turns). Each line
-  sent, and each gate denial, is also written as sent to the debug log. Lines due
+  sent is also written as sent to the debug log. Lines due
   at one carrier: a crossing or restatement recorded before a pending restatement merges into it;
   a crossing recorded after it is the newer verdict and replaces it. After
   `/clear` it sends nothing: the new session starts in `smart`. Lines go to the main conversation
@@ -301,14 +328,20 @@ skill's module check), none of the following runs except the PostCompact marker.
   and `ui.log` doc comments in the build's `claude-code/index.d.ts` types. As of: 2026-10-04.
   Recheck trigger: either doc comment changes what the model reads. Pointer: for what to do when the context fills up, see
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. As of: 2026-10-04.
-  Recheck trigger: that section is renamed, moved or removed. **Neither the menu nor the router
-  pointer ever reaches the model channel.** A menu injected into
-  model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
-  live finding under I23 of `/harness-config:audit-instructions`. By default the module sends the
-  verdict and any operator-configured `zones.json` action, and nothing that tells the model what
-  to do: no save-state or handoff advice, no reassurance, no counter-steer rule about what a zone
-  means. The model decides what to do with the facts; `/session-flow:workflow` and the user's own
-  instructions own handoff and compaction guidance. The model
+  Recheck trigger: that section is renamed, moved or removed. **Neither the person's menu nor the
+  router pointer ever reaches the model channel.** I23 of `/harness-config:audit-instructions`
+  holds that a menu injected into model context manufactures the model's own initiative to stop,
+  summarize, or hand off. The options line below is a deliberate, owner-decided exception to that
+  row (2026-10-11, issue #7118): an audit that flags it records it as this known exception rather
+  than a new finding. By default the module sends the
+  verdict, any operator-configured `zones.json` action, and past `smart` one options line: record
+  decisions and pending items in a durable file, then continue, `/compact`, or hand off as the
+  model and the user choose, and a zone never calls for terser output, fewer agents, or lower
+  quality. The verdict alone, with no such line, pushed the model toward handoffs and terse
+  delegation (observed 2026-10-11, issue #7118), so the line states the durable-state step and
+  says what a zone does not mean; it lists compaction and a handoff only as choices beside
+  continuing. `/session-flow:workflow` and the user's own instructions own when to compact or hand
+  off. The model
   channel never says the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
   claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or
   `unknown`. **Hysteresis**: the gate is the worst zone already *reported*, not the zone last
@@ -324,26 +357,20 @@ skill's module check), none of the following runs except the PostCompact marker.
   same observation, so a session oscillating there re-announces `acceptable` once per down-up cycle;
   the hook sees one word per observation, never the occupancy behind it, and separating those two
   cases needs a numeric deadband or a dwell the single-observation recovery could not survive.
-- **Blocking gate** (in the module, when `zone_hook_mode` is `blocking` or `zones.json` sets a
-  `block` action): denies new `Write|Edit|NotebookEdit|Agent|Workflow` calls in the blocked zone
-  past a small grace budget. In a turn a person typed the block applies; in headless, loop,
-  schedule and notification turns only a compacted session is blocked, unless
-  `zone_block_unattended` is `same-as-typed`. Fail-open on `unknown`; handoff-path writes,
-  read-only tools, Bash, and Skill invocations are never gated, so a durable handoff is always
-  writable. Leaving the blocked zone, an `unknown` reading and a compaction each reset the budget.
+- **No gate**: the module never denies a tool call. A zone is reported, never enforced.
 - **PostCompact marker** (a settings hook, so it runs where mods are off): writes the
   evidence-degraded marker file (below).
-- **Both zone consumers honor the marker**: when the marker exists, or the module saw the
-  compaction itself, the lines and the blocking gate treat the session's effective zone as
+- **The zone lines honor the marker**: when the marker exists, or the module saw the
+  compaction itself, the lines treat the session's effective zone as
   **dumb** regardless of the resolved word, including a green post-compaction reading and
   including `unknown`. That implements this contract's own "evidence-degraded regardless of zone"
   rule, so the marker is never write-only.
 - **Status tool** `mcp__context-guard__status`: returns the session's latest figures (the last API
   response's), its zone, whether the evidence is degraded, the bands in force (the token edges of
   the session's window class as `smart_max_tokens` and `acceptable_max_tokens`, `null` when the
-  token shape is not computable) and the gate state, as JSON. A zone lookup for a session that has the module loaded; it has no switch.
+  token shape is not computable), as JSON. A zone lookup for a session that has the module loaded; it has no switch.
 
-Module state (last-seen zone, armed rank, gate counter) lives in the module's memory, per session
+Module state (last-seen zone, armed rank) lives in the module's memory, per session
 id; it is plugin-private and not part of this contract. The module adds no new snapshot
 semantics. For the mods API it uses, see <https://code.claude.com/docs/en/plugins/mods/overview>.
 As of: 2026-10-03, Claude Code 2.1.288. Recheck trigger: that page or its events reference changes
@@ -495,9 +522,8 @@ That diagnostic reading is adopted; the prescription that usually travels with i
 auto-compact enabled.** Disabling it is a defensible operator choice on an attended machine, but it
 is not this plugin's guidance: unattended cloud and autonomous sessions have no human at the
 boundary, and for them a degraded continuation beats a hard stall at the window. The shipped ladder
-is instrumentation, not prohibition: observable zones, then advisory injection, then an opt-in
-blocking gate with a grace budget, with auto-compact remaining the last-resort safety net beneath
-all of it (as-of 2026-08-17; recheck when Claude Code removes the auto-compact setting or changes
+is instrumentation, not prohibition: observable zones and advisory injection, with auto-compact
+remaining the last-resort safety net beneath both (as-of 2026-08-17; recheck when Claude Code removes the auto-compact setting or changes
 what it does at the window).
 
 **On folklore numbers.** The auto-compact window figure in the vendored Boris playbook, §64, is a
@@ -583,15 +609,14 @@ an absent or invalid one means its default, so a file without them keeps working
   token band edge sits below the percentage edge, that boundary's approach line comes the same
   points of the window early in tokens (50000 tokens at 5 on a 1000000-token window); with no
   known window size there is no token-shape approach line.
-- `actions.<zone>`: `action` is `none`, `save-state`, `handoff` or `block`; optional `text`
-  replaces the default wording, which names the action (`block`'s describes the gate). The
+- `actions.<zone>`: `action` is `none`, `save-state` or `handoff`; `block` reads as `none` with its text dropped, and any other value is ignored. Optional `text`
+  replaces the default wording, which names the action. The
   action's sentence appears at that zone's crossing and
   restatement, never on an approach line, labeled "operator setting for the <zone> zone".
-  Default: `none` everywhere. `block` arms the gate in that zone.
-  An action set for `dumb` takes the place of `zone_hook_mode: blocking` there.
+  Default: `none` everywhere.
 - `thresholds`: extra boundaries at a percentage that is not a zone edge (`at_percent`, 0 to
   100), each with an `action` and optional `text`; each fires once per cycle like a zone
-  boundary and has its own approach line. A `block` threshold arms the gate once passed.
+  boundary and has its own approach line.
 
 **Consumers read `zones.json` directly** (it is a shared data file): under plugin cache isolation a
 consumer cannot invoke this plugin's `context-zone.sh`, so it re-implements the band lookup:
