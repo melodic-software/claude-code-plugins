@@ -152,7 +152,7 @@ them live when a command's output, or the files you find, do not match the entry
 - **Recheck trigger**: a gh release renames `gh auth status` or `gh auth login`, or
   `GH_CONFIG_DIR` stops naming gh's configuration directory.
 
-- **Pointer**: [CLAUDE_CONFIG_DIR](https://code.claude.com/docs/en/env-vars)
+- **Pointer**: [CLAUDE_CONFIG_DIR](https://code.claude.com/docs/en/env-vars#variables)
 - **As of**: 2026-10-03
 - **Recheck trigger**: the page changes what `CLAUDE_CONFIG_DIR` moves; this file relies on it
   moving the user's `settings.json` only, and names the user `CLAUDE.md` and `rules/` by their
@@ -215,13 +215,11 @@ them live when a command's output, or the files you find, do not match the entry
 ## permissions
 
 - **Source**: the permission rules in the project, local and user settings files this run can
-  read. Resolve each file's path from the settings pointers under **Upstream pointers** above
-  ([go-faster areas](#go-faster-areas); as of 2026-10-11; recheck trigger: those pointers leave
-  that block), fetched live in this run the way a catalog pointer is: where each file sits,
+  read. Resolve each file's path from the settings pointers in the **Upstream pointers** block
+  above (as of 2026-10-11; recheck trigger: those pointers leave that block), fetched live in this run the way a catalog pointer is: where each file sits,
   including where the local file sits in a git repository or a worktree, is the page's to state.
-  The user file honors `CLAUDE_CONFIG_DIR` (its record is also under **Upstream pointers** above,
-  [go-faster areas](#go-faster-areas); as of 2026-10-11; recheck trigger: that record leaves that
-  block).
+  The user file honors `CLAUDE_CONFIG_DIR` (its record is also in the **Upstream pointers** block above;
+  as of 2026-10-11; recheck trigger: that record leaves that block).
   Settings files can hold tokens in `env`, so never Read them; findings.py reads them and prints
   only counts.
 - **Run**: `"$PY" "$ROOT/scripts/findings.py" permission-counts --file <path> --file <path> ...`
@@ -245,9 +243,9 @@ them live when a command's output, or the files you find, do not match the entry
 ## instructions
 
 - **Source**: the instruction files loaded at launch, read only: the instruction files, the
-  `AGENTS.md` files and the rules without a `paths:` key that the memory pointers under
-  **Upstream pointers** above ([go-faster areas](#go-faster-areas); as of 2026-10-11; recheck
-  trigger: those pointers leave that block) say load at launch. Fetch those sections live in this run the way a
+  `AGENTS.md` files and the rules without a `paths:` key that the memory pointers in the
+  **Upstream pointers** block above (as of 2026-10-11; recheck trigger: those pointers leave that
+  block) say load at launch. Fetch those sections live in this run the way a
   catalog pointer is, and take the file list and the conditions on it from them; this file keeps
   no copy. Startup token history through its owner.
 - **Run**: `wc -l` over the files that exist; `/context-budget:audit --ledger`.
