@@ -1592,12 +1592,6 @@ def evaluate(
         )
         blockers.extend(tier_blockers)
 
-    # Absent, the unattended policy leaves the gate and its report unchanged.
-    # Present and inert, it is one more hold, added before the network reads
-    # below for the same per-cycle cost reason.
-    if unattended is not None and not unattended.enabled:
-        blockers.append(f"unattended merge inert: {unattended.reason}")
-
     # The self-login exemption from the unprotected-base hold above exists for a
     # repository whose DEFAULT branch carries no rules -- a solo owner merging
     # their own work, where holding every PR would make the gate useless. It must
@@ -1678,6 +1672,7 @@ def evaluate(
                 extra_dependency_manager_logins,
                 settle,
                 rules_base=trunk,
+                unattended=unattended,
             )
 
         layer_blockers, stack_result = evaluate_stack_layers(
@@ -1685,6 +1680,14 @@ def evaluate(
         )
         stack_result["enabled"] = True
         blockers.extend(layer_blockers)
+
+    # Absent, the unattended policy leaves the gate and its report unchanged.
+    # Present and inert, it is one more hold, added last: the unprotected-base,
+    # freshness and stack checks above run only while no hold stands, so an
+    # earlier inert hold would hide the holds a plain check reports. That costs
+    # their network reads on an otherwise-ready PR.
+    if unattended is not None and not unattended.enabled:
+        blockers.append(f"unattended merge inert: {unattended.reason}")
 
     ready = not blockers
     # `--auto` needs both AI review checks at SUCCESS in the rollup, which is the
@@ -2898,6 +2901,8 @@ def main() -> int:
                 f"the token's acting login could not be read ({exc}) while "
                 f"merge.agent-identity is {identity!r}; refusing a plain --merge",
                 10,
+                actingLogin=None,
+                agentIdentity=identity,
             )
         if not acting or acting.casefold() == identity.strip().casefold():
             return _refuse(
@@ -2905,6 +2910,8 @@ def main() -> int:
                 f"merge.agent-identity {identity!r}; it merges only through "
                 "--unattended, never plain --merge",
                 10,
+                actingLogin=acting or None,
+                agentIdentity=identity,
             )
 
     # The target repository's policy, read from its default branch with the flags

@@ -14,6 +14,7 @@ import contextlib
 import io
 import json
 import pathlib
+import subprocess
 import sys
 import unittest
 from typing import Any
@@ -22,6 +23,7 @@ from unittest import mock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_gh as gh
 import babysit_merge as merge
 import babysit_merge_policy as policy
 import test_babysit_merge as fixtures
@@ -98,24 +100,37 @@ FIXTURES: list[tuple[str, dict[str, Any], str, Any]] = [
     ),
 ]
 
-_UNSET = object()
+# The fixtures the base gate must call ready; every other fixture carries a hold.
+READY_FIXTURES = frozenset({"ready", "ready under the tier"})
+# A base compare showing the head three commits behind a base that does not
+# require up-to-date branches: a hold the gate adds after every other one.
+BEHIND = {"status": "behind", "ahead_by": 0, "behind_by": 3}
+BEHIND_BLOCKER = (
+    "head is 3 commit(s) behind base 'main', which does not require up-to-date "
+    "branches -- refresh the branch before merging"
+)
 
 
 def _evaluate(
-    pr: dict[str, Any], expected: str, tier: Any, unattended: Any = _UNSET
+    pr: dict[str, Any],
+    expected: str,
+    tier: Any,
+    unattended: Any = None,
+    *,
+    compare: dict[str, Any] = fixtures.UP_TO_DATE,
 ) -> dict[str, Any]:
     """Run `evaluate` over one fixture with every gh seam stubbed."""
 
     def gh_json(args: list[str]) -> Any:
         if args[0] == "api" and "/compare/" in args[1]:
-            return fixtures.UP_TO_DATE
+            return compare
         if args[:2] == ["pr", "view"]:
             return pr
         if args[0] == "api":
             return fixtures.RULES
         raise AssertionError(f"unexpected gh_json call: {args}")
 
-    kwargs = {} if unattended is _UNSET else {"unattended": unattended}
+    kwargs = {"unattended": unattended}
     with (
         mock.patch.object(merge, "gh_json", side_effect=gh_json),
         mock.patch.object(merge, "fetch_review_threads", return_value=[]),
@@ -139,18 +154,21 @@ def _evaluate(
 
 
 class EvaluateWithoutPolicyIsUnchanged(unittest.TestCase):
-    def test_every_fixture_reports_the_same_verdict_and_keys(self) -> None:
+    """`unattended=None` keeps each fixture's verdict and the report's key set.
+
+    Comparing a run that omits the keyword with one passing None would compare
+    the same call twice and could not fail. So each fixture is checked against
+    its literal verdict and the pre-unattended key set, and the existing gate
+    suites, which run unchanged, pin the blockers themselves.
+    """
+
+    def test_every_fixture_keeps_its_verdict_and_keys(self) -> None:
         for name, pr, expected, tier in FIXTURES:
             with self.subTest(name):
-                before = _evaluate(pr, expected, tier)
-                after = _evaluate(pr, expected, tier, unattended=None)
-                self.assertEqual(after, before)
-                self.assertEqual(frozenset(after), PRE_UNATTENDED_KEYS)
-
-    def test_the_ready_fixture_stays_ready(self) -> None:
-        # Guards the parity loop against comparing two broken runs.
-        result = _evaluate(fixtures._pr(), HEAD, None, unattended=None)
-        self.assertTrue(result["ready"], result["blockers"])
+                result = _evaluate(pr, expected, tier, unattended=None)
+                self.assertIs(result["ready"], name in READY_FIXTURES, result["blockers"])
+                self.assertEqual(result["blockers"] == [], name in READY_FIXTURES)
+                self.assertEqual(frozenset(result), PRE_UNATTENDED_KEYS)
 
 
 class EvaluateWithInertPolicyHolds(unittest.TestCase):
@@ -166,17 +184,68 @@ class EvaluateWithInertPolicyHolds(unittest.TestCase):
                 self.assertEqual(result["unattended"]["reason"], "authority-unconfigured")
 
     def test_other_blockers_are_still_reported(self) -> None:
-        without = _evaluate(fixtures._pr(isDraft=True), HEAD, None)
-        result = _evaluate(fixtures._pr(isDraft=True), HEAD, None, unattended=INERT)
-        for blocker in without["blockers"]:
-            self.assertIn(blocker, result["blockers"])
+        # The freshness hold is evaluated only once no other hold stands, so an
+        # inert blocker added before it would hide a behind head.
+        plain = _evaluate(fixtures._pr(), HEAD, None, compare=BEHIND)
+        result = _evaluate(fixtures._pr(), HEAD, None, INERT, compare=BEHIND)
+        self.assertEqual(plain["blockers"], [BEHIND_BLOCKER])
+        self.assertEqual(result["blockers"], [BEHIND_BLOCKER, INERT_BLOCKER])
+
+    def test_stack_layers_are_evaluated_under_the_same_policy(self) -> None:
+        # A native stack layer whose trunk differs from its base: the layers
+        # below it land with it, so each runs the gate with the same policy.
+        stack = {"number": 5, "base": {"ref": "trunk"}}
+        layer_calls: list[dict[str, Any]] = []
+
+        def fake_layers(repo, number, base_ref, stack, evaluate_layer):
+            with mock.patch.object(
+                merge,
+                "evaluate",
+                side_effect=lambda *a, **k: layer_calls.append(k) or {},
+            ):
+                evaluate_layer(2, HEAD)
+            return [], {"enabled": True}
+
+        with (
+            mock.patch.object(merge, "pull_request_stack", return_value=stack),
+            mock.patch.object(merge, "evaluate_stack_layers", side_effect=fake_layers),
+        ):
+            pr = fixtures._pr()
+
+            def gh_json(args: list[str]) -> Any:
+                if args[0] == "api" and "/compare/" in args[1]:
+                    return fixtures.UP_TO_DATE
+                if args[:2] == ["pr", "view"]:
+                    return pr
+                return fixtures.RULES
+
+            with (
+                mock.patch.object(merge, "gh_json", side_effect=gh_json),
+                mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            ):
+                merge.evaluate(
+                    "owner/repo",
+                    fixtures.PR_NUMBER,
+                    HEAD,
+                    {"owner"},
+                    frozenset(),
+                    False,
+                    False,
+                    stacked=True,
+                    unattended=INERT,
+                )
+        self.assertEqual(len(layer_calls), 1)
+        self.assertEqual(layer_calls[0]["unattended"], INERT)
 
 
 class ResolveStubIsInert(unittest.TestCase):
     def test_resolve_returns_inert_without_network(self) -> None:
+        # The process seams every gh read reaches, whichever module makes it.
         with (
-            mock.patch.object(merge, "gh_json", side_effect=AssertionError("network")),
-            mock.patch.object(merge, "gh_capture", side_effect=AssertionError("network")),
+            mock.patch.object(gh, "_run_gh", side_effect=AssertionError("gh call")),
+            mock.patch.object(
+                subprocess, "run", side_effect=AssertionError("subprocess")
+            ),
         ):
             resolved = policy.resolve("owner/repo")
         self.assertIs(resolved.enabled, False)
@@ -311,6 +380,8 @@ class AgentIdentityCannotUsePlainMerge(MainHarness):
         self.assert_no_write()
         self.assertFalse(self.evaluate.called)
         self.assertIn(IDENTITY, out["error"])
+        self.assertEqual(out["actingLogin"], IDENTITY)
+        self.assertEqual(out["agentIdentity"], IDENTITY)
 
     def test_identity_match_ignores_case(self) -> None:
         code, _ = self._main(
