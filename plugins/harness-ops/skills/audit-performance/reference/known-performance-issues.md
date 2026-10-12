@@ -52,8 +52,16 @@ before any reinstall. Our reading of why each matters, in our words:
 
 ## Accumulated-state mechanisms confirmed at source level, v2.1.228 (suspect 1)
 
-These are our own reading of the v2.1.228 bundle; no probe script holds the evidence, so the
-timings and counts are not restated here, and a claim that needs one is re-derived first.
+These are our own reading of the v2.1.228 bundle; no probe script holds the evidence, so a
+claim that rests on one of its timings or counts is re-derived against the running version first.
+
+- **Probe**: source-level reading of the Claude Code v2.1.228 bundle, 2026-08-12. The retention
+  sweep fired about 5 s after the first launch of the day, gated by a 24 h `.last-cleanup`
+  sentinel, deferred 10 min when the user had been active in the last 60 s, and then ran about 30
+  sequential sub-sweeps, each a stat (and past the window, an unlink) per file. Every running <!-- portability-ok: prose names a filesystem stat walk, not GNU stat -c -->
+  session polled `~/.claude.json` at 1 Hz, a cheap stat, re-parsing it only when another process
+  wrote it. **Recheck trigger**: a Claude Code release note that changes cleanup scheduling or
+  `~/.claude.json` watching, or a figure here cited for a version other than v2.1.228.
 
 - **Retention sweep cost is a periodic stat-walk of the whole tree.** We read it as async and <!-- portability-ok: prose names a filesystem stat walk, not GNU stat -c -->
   yielding, so the harm mode is sustained background I/O, amplified per-operation by antivirus
@@ -689,8 +697,8 @@ is unmeasured until someone takes readings there. See [desktop.md](https://code.
   anthropics/claude-code#54053; installer false positive: #36796). Exclusions are hidden from
   non-elevated `Get-MpPreference` on Windows 11, so an empty non-admin read proves nothing.
 - Every running session watches `~/.claude.json` and re-parses it when another process writes
-  it, so concurrent sessions multiply all watcher and poll load. This is our source-level reading;
-  no probe holds a poll rate, so none is stated here.
+  it, so concurrent sessions multiply all watcher and poll load. Our v2.1.228 bundle reading put
+  the poll at 1 Hz; see the Probe record under "Accumulated-state mechanisms" above.
 - A leaked kernel reference to Token objects, from a driver or service path, fills paged pool and
   taxes every process creation system-wide at idle CPU; see "The host-level floor" above. A
   reboot restores the floor, and only attribution of the minter ends the leak.

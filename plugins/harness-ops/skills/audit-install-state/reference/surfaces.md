@@ -66,9 +66,12 @@ nested under another name takes its parent's classification, and a swept subpath
 no row (such as `feedback/drafts/`) leaves that parent `unclassified`. Read which nested paths are
 swept, and what each path holds, from the pointer at the top of this file.
 
-One firing rule of ours rides on a row: **`image-cache/` sweeps other sessions' directories
-whatever their age**, so an old `image-cache/<session>/` disappearing immediately is expected,
-never an `age-exceeds-window` signal.
+One firing rule of ours rides on a row: an old `image-cache/<session>/` disappearing immediately
+is expected, never an `age-exceeds-window` signal. Read how the sweep treats other sessions'
+`image-cache/` directories from the `image-cache/<session>/` row of
+[claude-directory: cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically).
+**As of**: 2026-10-11. **Recheck trigger**: that row stops saying the sweep removes other
+sessions' directories whatever their age, or the row is dropped.
 
 ### The unit of retention is not always the file
 
