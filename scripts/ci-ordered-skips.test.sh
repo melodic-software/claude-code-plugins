@@ -5,9 +5,9 @@
 #
 # A test lane `test-<x>`, or `lint-shell` on `run_shell`, that skipped turns
 # into `success` only where `select-tests` succeeded and its row is exactly
-# 'false'. Every other result passes
-# through unchanged, so a skip that hid work stays `skipped` and the aggregate
-# (treat-skipped-as: fail) reds it.
+# 'false', and `unattended-recheck` only off the merge queue. Every other
+# result passes through unchanged, so a skip that hid work stays `skipped` and
+# the aggregate (treat-skipped-as: fail) reds it.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -51,11 +51,11 @@ lanes() {
   printf '"test-node":{"result":"%s","outputs":{}}}' "$7"
 }
 
-# expect <label> <want-rc> <want-results> <lanes-json>
+# expect <label> <want-rc> <want-results> <lanes-json> [<event>]
 expect() {
   local out rc got
   : >"$TMP_ROOT/out"
-  out="$(LANES="$4" GITHUB_OUTPUT="$TMP_ROOT/out" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+  out="$(LANES="$4" GITHUB_EVENT_NAME="${5-pull_request}" GITHUB_OUTPUT="$TMP_ROOT/out" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   got="$(sed -n 's/^results=//p' "$TMP_ROOT/out")"
   if [[ "$2" == nonzero && "$rc" -ne 0 && -z "$got" ]]; then
     ok "$1"
@@ -85,5 +85,22 @@ expect "lint-repo does not borrow a run_repo row" 0 "success skipped success suc
 expect "a contract-only run passes every skip through" 0 "skipped skipped skipped skipped skipped skipped" \
   "$(lanes skipped "" "" "" skipped skipped skipped "" skipped | sed 's/"lint-repo":{"result":"success"/"lint-repo":{"result":"skipped"/')"
 expect "unreadable lanes fail and write no results" nonzero "" "not json"
+
+# unattended-recheck runs only on a merge group: its skip passes off the queue
+# and stays skipped on it.
+with_recheck() {
+  jq -c --arg r "$1" '. + {"unattended-recheck": {"result": $r, "outputs": {}}}' \
+    <<<"$(lanes success true true true success success success)"
+}
+for event in pull_request schedule workflow_dispatch; do
+  expect "a skipped recheck passes on $event" 0 "success success success success success success success" \
+    "$(with_recheck skipped)" "$event"
+done
+expect "a skipped recheck stays skipped on merge_group" 0 "success success success success success success skipped" \
+  "$(with_recheck skipped)" merge_group
+expect "a skipped recheck stays skipped with no event" 0 "success success success success success success skipped" \
+  "$(with_recheck skipped)" ""
+expect "a failed recheck stays failed" 0 "success success success success success success failure" \
+  "$(with_recheck failure)" pull_request
 
 test_harness::report

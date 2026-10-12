@@ -11,6 +11,10 @@ refuse or not clear, never permissive.
 `resolve()`, which `babysit_merge.py` calls, returns `assess()`, which composes
 the readers and never enables the path: no merge is connected to them yet.
 
+`recheck` (the CLI, `recheck()` here) is the merge-group backstop that
+pr-require-checks.yml's `unattended-recheck` job runs from the queue's base: it
+fails a queued pull request that a non-human enqueued unless every term holds.
+
 `self_logins`, wherever a reader takes it, names only lane or bot self
 identities. Every login in it is non-human, as the Design's "Human" definition
 says, so a caller that passed the operator's own login would make the operator
@@ -19,6 +23,7 @@ non-human for opt-in, class provenance and demotion clears.
 
 from __future__ import annotations
 
+import argparse
 import base64
 import binascii
 import json
@@ -36,13 +41,19 @@ from typing import Any
 from urllib.parse import quote
 
 import babysit_repo_config as repo_config
-from babysit_classify import is_dependency_author
+from babysit_classify import (
+    actor_kind,
+    has_blocking_severity,
+    has_blocking_text,
+    is_dependency_author,
+)
 from babysit_gh import (
     flatten_paginated_items,
     gh_capture,
     gh_http_status,
     is_owner_repo_pair,
 )
+from babysit_risk import ChangedFile, RiskInput, Rung, score
 from babysit_util import (
     is_json_array,
     is_json_object,
@@ -1110,6 +1121,30 @@ class InFlight:
     reason: str | None
 
 
+def _queue_hold(
+    owner: str, name: str, branch: str, identity: str, exclude: int | None = None
+) -> str | None:
+    """Why the merge queue on `branch` holds an identity merge: an entry other
+    than `exclude` the agent identity enqueued, or one whose enqueuer is
+    unknown (an App enqueue can read as null). None when neither is queued."""
+    data = _graphql(MERGE_QUEUE, "merge queue", o=owner, r=name, b=branch)
+    queue = json_object(json_object(data.get("repository")).get("mergeQueue"))
+    entries = json_object(queue.get("entries"))
+    nodes = [json_object(n) for n in json_array(entries.get("nodes"))]
+    if not queue or entries.get("totalCount") != len(nodes):
+        return "merge-queue-unreadable"
+    for entry in nodes:
+        number = json_object(entry.get("pullRequest")).get("number")
+        if exclude is not None and number == exclude:
+            continue
+        enqueuer = json_object(entry.get("enqueuer"))
+        if not enqueuer:
+            return f"entry-enqueuer-unknown:#{number}"
+        if _login_key(enqueuer.get("login")) == _login_key(identity):
+            return f"identity-entry-queued:#{number}"
+    return None
+
+
 def in_flight(
     repo: str,
     *,
@@ -1142,19 +1177,9 @@ def in_flight(
         permission=permission,
     )
     try:
-        data = _graphql(MERGE_QUEUE, "merge queue", o=owner, r=name, b=branch)
-        queue = json_object(json_object(data.get("repository")).get("mergeQueue"))
-        entries = json_object(queue.get("entries"))
-        nodes = [json_object(n) for n in json_array(entries.get("nodes"))]
-        if not queue or entries.get("totalCount") != len(nodes):
-            return InFlight(False, "merge-queue-unreadable")
-        for entry in nodes:
-            number = json_object(entry.get("pullRequest")).get("number")
-            enqueuer = json_object(entry.get("enqueuer"))
-            if not enqueuer:
-                return InFlight(False, f"entry-enqueuer-unknown:#{number}")
-            if _login_key(enqueuer.get("login")) == _login_key(agent_identity):
-                return InFlight(False, f"identity-entry-queued:#{number}")
+        held = _queue_hold(owner, name, branch, agent_identity)
+        if held:
+            return InFlight(False, held)
         merges = _merged_since(owner, name, branch, merged_since)
         if merges is None:
             return InFlight(False, "merged-history-truncated")
@@ -1181,8 +1206,7 @@ def in_flight(
 # --- Composition ------------------------------------------------------------------------------
 
 
-def _default_branch_head(repo: str) -> tuple[str, str]:
-    """The default branch's name and its head SHA."""
+def _default_branch(repo: str) -> str:
     owner, name = _split_repo(repo)
     status, payload = _get(f"repos/{owner}/{name}")
     branch = (
@@ -1192,6 +1216,13 @@ def _default_branch_head(repo: str) -> tuple[str, str]:
     )
     if not isinstance(branch, str) or not branch:
         raise PolicyReadError(f"{repo}: the default branch could not be read")
+    return branch
+
+
+def _default_branch_head(repo: str) -> tuple[str, str]:
+    """The default branch's name and its head SHA."""
+    owner, name = _split_repo(repo)
+    branch = _default_branch(repo)
     status, payload = _get(f"repos/{owner}/{name}/commits/{quote(branch, safe='')}")
     sha = payload.get("sha") if status == 200 and is_json_object(payload) else None
     if not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
@@ -1296,3 +1327,315 @@ def assess(
     )
     reason = next((text for refused, text in refusals if refused), MERGE_UNCONNECTED)
     return UnattendedPolicy(reason, identity, details)
+
+
+# --- The merge-group recheck ------------------------------------------------------------------
+
+RECHECK_PASS, RECHECK_FAIL, RECHECK_UNREADABLE = 0, 1, 2
+RECHECK_PULL_REQUEST = (
+    "query RecheckPullRequest($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){number body headRefOid changedFiles "
+    "labels(first:100){totalCount nodes{name}} "
+    "timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
+    "... on AddedToMergeQueueEvent{createdAt actor{__typename login} "
+    "enqueuer{__typename login}}}}}}}"
+)
+# Scorer reasons that come from the review lanes' evidence. The wrapper binds
+# that evidence to the head before it enqueues; a merge group has none to bind.
+LANE_REASON_CODES = ("evidence-unbound:", "findings:claude-review", "security-finding")
+
+
+@dataclass(frozen=True)
+class Recheck:
+    code: int
+    reasons: tuple[str, ...]
+
+
+def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
+    """Each path's git mode at `sha`, or None when the listing is truncated."""
+    status, payload = _get(f"repos/{owner}/{name}/git/trees/{sha}?recursive=1")
+    if status != 200 or not is_json_object(payload):
+        raise PolicyReadError(f"the tree at {sha} could not be read (status {status})")
+    if payload.get("truncated") is not False:
+        return None
+    return {
+        str(entry.get("path")): str(entry.get("mode"))
+        for entry in map(json_object, json_array(payload.get("tree")))
+    }
+
+
+def _changed_files(
+    owner: str, name: str, pr: dict[str, Any], base_sha: str
+) -> tuple[tuple[ChangedFile, ...], bool]:
+    """The pull request's files with git modes from the trees API (the files
+    API carries none): the head side at its head, the previous side at the
+    queue base. Complete only when every listing reads to its end."""
+    number, head = pr.get("number"), pr.get("headRefOid")
+    if not SHA_RE.fullmatch(str(head)):
+        raise PolicyReadError(f"#{number}: no head commit")
+    listing = _paginated(
+        f"repos/{owner}/{name}/pulls/{number}/files?per_page=100", f"#{number} files"
+    )
+    head_modes = _tree_modes(owner, name, str(head))
+    base_modes = _tree_modes(owner, name, base_sha)
+    complete = (
+        head_modes is not None
+        and base_modes is not None
+        and pr.get("changedFiles") == len(listing)
+    )
+    files = []
+    for entry in listing:
+        path, previous = entry.get("filename"), entry.get("previous_filename")
+        status = entry.get("status")
+        side = base_modes if status == "removed" else head_modes
+        files.append(
+            ChangedFile(
+                path=path,
+                previous_path=previous,
+                status=status,
+                additions=entry.get("additions"),
+                deletions=entry.get("deletions"),
+                has_patch="patch" in entry,
+                mode=(side or {}).get(path),
+                previous_mode=None
+                if status in ("added", "removed")
+                else (base_modes or {}).get(previous or path),
+            )
+        )
+    return tuple(files), complete
+
+
+def _grouping(owner: str, name: str, branch: str) -> set[str]:
+    rules = _paginated(
+        f"repos/{owner}/{name}/rules/branches/{quote(branch, safe='')}?per_page=100",
+        f"{branch} rules",
+    )
+    return {
+        str(json_object(rule.get("parameters")).get("grouping_strategy"))
+        for rule in rules
+        if rule.get("type") == "merge_queue"
+    }
+
+
+def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[str]:
+    """Logins of humans whose comment, review or inline comment on the pull
+    request reads as blocking, by the autopilot tier's predicates."""
+    from babysit_merge import HUMAN_MERGE_VETO_RE  # noqa: PLC0415 - import cycle
+
+    corpus = [
+        item
+        for kind in ("issues/{n}/comments", "pulls/{n}/reviews", "pulls/{n}/comments")
+        for item in _paginated(
+            f"repos/{owner}/{name}/{kind.format(n=number)}?per_page=100",
+            f"#{number} {kind.split('/')[-1]}",
+        )
+    ]
+    found = set()
+    for item in corpus:
+        author = _rest_actor(item.get("user"))
+        login = str((author or {}).get("login") or "")
+        if actor_kind({"author": author}) != "human" or _login_key(login) in {
+            _login_key(identity),
+            *AUTOMATION_LOGINS,
+        }:
+            continue
+        body = str(item.get("body") or "")
+        if (
+            has_blocking_text(body)
+            or has_blocking_severity(body)
+            or HUMAN_MERGE_VETO_RE.search(body)
+        ):
+            found.add(login or "unknown")
+    return sorted(found)
+
+
+def _opt_in_removed(
+    owner: str, name: str, pr: dict[str, Any], enqueued_at: Any
+) -> bool:
+    """The opt-in label was on the pull request at enqueue and is gone now."""
+    labels = _label_names(pr)
+    if labels is None:
+        raise PolicyReadError(f"#{pr.get('number')}: labels unreadable")
+    if OPT_IN_LABEL in labels:
+        return False
+    at = _time(enqueued_at)
+    timeline = _paginated(
+        f"repos/{owner}/{name}/issues/{pr.get('number')}/timeline?per_page=100",
+        f"#{pr.get('number')} timeline",
+    )
+    events = sorted(
+        (
+            e
+            for e in timeline
+            if e.get("event") in ("labeled", "unlabeled")
+            and json_object(e.get("label")).get("name") == OPT_IN_LABEL
+        ),
+        key=lambda e: _time(e.get("created_at")),
+    )
+    present = False
+    for event in events:
+        if _time(event.get("created_at")) > at:
+            break
+        present = event.get("event") == "labeled"
+    return present
+
+
+def recheck(
+    repo: str,
+    number: int,
+    base_sha: str,
+    *,
+    base_ref: str | None = None,
+    lanes_disabled: str | None = None,
+) -> Recheck:
+    """The merge-group backstop for one queued pull request.
+
+    The latest `AddedToMergeQueueEvent` decides who enqueued it: when both its
+    `actor` and `enqueuer` are human (`is_human`, the configured agent identity
+    excluded) it passes without reading any term. Otherwise the effective rung
+    and the kill switches come first, then eligibility and the class against
+    the rung, another queued identity entry, ALLGREEN grouping, the scorer's
+    terms except the review-lane evidence, a body hold, a human blocking
+    comment and an opt-in label removed since enqueue. Config is read at
+    `base_sha`; nothing is read from the merge group's tree. `lanes_disabled`,
+    when given, is `vars.CLAUDE_LANES_DISABLED` and must be exactly `false`.
+    A read failure is `RECHECK_UNREADABLE`.
+    """
+    try:
+        return _recheck(repo, number, base_sha, base_ref, lanes_disabled)
+    except PolicyReadError as exc:
+        return Recheck(RECHECK_UNREADABLE, (f"unreadable: {exc}",))
+
+
+def _recheck(
+    repo: str,
+    number: int,
+    base_sha: str,
+    base_ref: str | None,
+    lanes_disabled: str | None,
+) -> Recheck:
+    owner, name = _split_repo(repo)
+    config = read_config_at(repo, base_sha)
+    identity = None if config.error else config.agent_identity
+    data = _graphql(RECHECK_PULL_REQUEST, f"#{number}", o=owner, r=name, n=number)
+    pr = json_object(json_object(data.get("repository")).get("pullRequest"))
+    events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
+    if not pr or not events:
+        raise PolicyReadError(f"#{number}: no AddedToMergeQueueEvent, enqueuer unknown")
+    event = json_object(events[-1])
+    readers = {"agent_identity": identity, "permission": permission_reader(repo)}
+
+    def human(actor: Any) -> bool:
+        return is_human(actor, repo=repo, **readers)
+
+    if human(event.get("actor")) and human(event.get("enqueuer")):
+        return Recheck(RECHECK_PASS, ("human-enqueued",))
+
+    def fail(reason: str) -> Recheck:
+        return Recheck(RECHECK_FAIL, (reason,))
+
+    cap = read_rung_cap(repo)
+    demotion = read_demotion(repo, **readers)
+    rung = effective_rung(
+        config_rung=config.rung,
+        loop_merge=config.loop_merge,
+        cap=cap.value,
+        demoted=demotion.active,
+    )
+    if (config.authority or "pr-merge") != "local-babysit":
+        return fail("rung-off:authority")
+    if rung.rung == "off":
+        return fail(f"rung-off:{rung.limited_by}")
+    kill = read_kill_switch(repo)
+    if not kill.proceed:
+        return fail(f"kill-switch:{kill.reason}")
+    if lanes_disabled is not None and lanes_disabled != "false":
+        return fail("kill-switch:vars.CLAUDE_LANES_DISABLED")
+    if not identity or not IDENTITY_RE.fullmatch(identity):
+        return fail("agent-identity-unconfigured")
+
+    reasons = []
+    eligible = eligibility(repo, number, **readers)
+    if not eligible.eligible:
+        reasons.append(f"ineligible:{eligible.reason}")
+    elif CLASS_RANK.get(eligible.work_class or "", 99) > RUNG_RANK[rung.rung]:
+        reasons.append(f"class-above-rung:{eligible.work_class}>{rung.rung}")
+    branch = base_ref or _default_branch(repo)
+    held = _queue_hold(owner, name, branch, identity, exclude=number)
+    if held:
+        reasons.append(f"in-flight:{held}")
+    grouping = _grouping(owner, name, branch)
+    if grouping != {"ALLGREEN"}:
+        reasons.append(f"grouping:{','.join(sorted(grouping)) or 'none'}")
+    files, complete = _changed_files(owner, name, pr, base_sha)
+    risk = score(
+        RiskInput(
+            work_class=eligible.work_class,
+            rung=Rung[rung.rung],
+            files=files,
+            files_complete=complete,
+            max_changed_lines=config.max_changed_lines,
+            high_paths=config.denied_paths,
+            lanes=(),
+            blast_radius=None,
+        )
+    )
+    reasons += [
+        f"risk:{r.code}"
+        for r in risk.reasons
+        if not r.code.startswith(LANE_REASON_CODES)
+    ]
+    from babysit_merge import BODY_MERGE_HOLD_RE  # noqa: PLC0415 - import cycle
+
+    if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
+        reasons.append("body-hold")
+    blockers = _human_blockers(owner, name, number, identity)
+    if blockers:
+        reasons.append(f"human-blocking-comment:{','.join(blockers)}")
+    if _opt_in_removed(owner, name, pr, event.get("createdAt")):
+        reasons.append("opt-in-label-removed")
+    if reasons:
+        return Recheck(RECHECK_FAIL, tuple(reasons))
+    return Recheck(RECHECK_PASS, ("non-human enqueue meets every term",))
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="babysit_merge_policy.py",
+        description="The unattended merge policy; `recheck` is the merge-group backstop.",
+        allow_abbrev=False,
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+    parse = commands.add_parser(
+        "recheck",
+        help="re-test one queued pull request; exit 0 pass, 1 fail, 2 unreadable",
+        allow_abbrev=False,
+    )
+    parse.add_argument("--repo", required=True, help="owner/repo")
+    parse.add_argument("--pr", type=int, required=True, help="the queued pull request")
+    parse.add_argument("--base-sha", required=True, help="the merge group's base SHA")
+    parse.add_argument(
+        "--base-ref", help="the queue's branch (default: the default branch)"
+    )
+    parse.add_argument(
+        "--lanes-disabled", help="vars.CLAUDE_LANES_DISABLED; must be exactly 'false'"
+    )
+    args = parser.parse_args(argv)
+    result = recheck(
+        args.repo,
+        args.pr,
+        args.base_sha,
+        base_ref=args.base_ref,
+        lanes_disabled=args.lanes_disabled,
+    )
+    for reason in result.reasons:
+        # A reason can carry a path or login; no control character may start a
+        # workflow command line.
+        text = _SEPARATOR.sub("?", reason)
+        prefix = "" if result.code == RECHECK_PASS else "::error::"
+        print(f"{prefix}#{args.pr}: {text}")
+    return result.code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

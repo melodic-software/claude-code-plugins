@@ -46,6 +46,7 @@ REVIEW_CLI = "skills/babysit-prs/scripts/request_review.py"
 SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
 THREADS_CLI = "skills/babysit-prs/scripts/pr_review_threads.py"
+POLICY_CLI = "skills/babysit-prs/scripts/babysit_merge_policy.py"
 READINESS_GATE = "scripts/babysit-readiness-gate.sh"
 MERGE_WRAPPER = "scripts/source-control-babysit-merge"
 RESOLVE_WRAPPER = "scripts/source-control-babysit-resolve-thread"
@@ -1475,6 +1476,19 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "The pull-request skill's readiness thread gate. It reads unresolved review "
             "threads and reports THREADS_OK / THREADS_BLOCKED / THREADS_UNPROVEN; "
             "it writes no file and performs no GitHub write."
+        ),
+        backed_by=(),
+    ),
+    EntryPoint(
+        path=POLICY_CLI,
+        wrapper=None,
+        mutation=READ_ONLY,
+        mutates_what="nothing",
+        gate="n/a",
+        claim=(
+            "`recheck` is the merge-group backstop pr-require-checks.yml runs: it "
+            "reads the queued pull request and the policy terms and exits 0 pass, "
+            "1 fail or 2 unreadable; it writes no file and performs no GitHub write."
         ),
         backed_by=(),
     ),
