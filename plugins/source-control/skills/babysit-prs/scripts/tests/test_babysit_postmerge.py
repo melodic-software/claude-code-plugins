@@ -856,7 +856,7 @@ class Cli(CheckCase):
         out = io.StringIO()
         with (
             contextlib.redirect_stdout(out),
-            mock.patch.object(pm, "_default_is_human", return_value=(human, None)),
+            mock.patch.object(pm, "_default_is_human", return_value=human),
         ):
             code = pm.main(
                 [
@@ -967,6 +967,42 @@ class Cli(CheckCase):
         code, report = self.main()
         self.assertEqual(code, 0)
         self.assertTrue(report["ok"])
+
+
+class DefaultIsHuman(unittest.TestCase):
+    """The CLI's human test calls the real policy function, with no fake."""
+
+    def setUp(self) -> None:
+        import babysit_merge_policy as policy
+
+        self.policy = policy
+        table = {"maintainer": "write", "agent-lanes": "admin", "lane-bot": "write"}
+        patcher = mock.patch.object(
+            policy, "permission_reader", return_value=lambda login: table.get(login)
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_only_a_writer_outside_the_identity_and_self_logins_is_human(self) -> None:
+        is_human = pm._default_is_human(REPO, IDENTITY, ["lane-bot"])
+        self.assertTrue(is_human(HUMAN))
+        for actor in (
+            None,
+            APP_ACTOR,
+            {"__typename": "User", "login": "agent-lanes"},
+            {"__typename": "User", "login": "lane-bot"},
+            {"__typename": "User", "login": "github-actions"},
+            {"__typename": "User", "login": "reader"},
+        ):
+            with self.subTest(actor=actor):
+                self.assertFalse(is_human(actor))
+
+    def test_an_unreadable_permission_is_not_human(self) -> None:
+        def broken(login: str) -> str:
+            raise self.policy.PolicyReadError("permission read failed")
+
+        with mock.patch.object(self.policy, "permission_reader", return_value=broken):
+            self.assertFalse(pm._default_is_human(REPO, IDENTITY, [])(HUMAN))
 
 
 if __name__ == "__main__":

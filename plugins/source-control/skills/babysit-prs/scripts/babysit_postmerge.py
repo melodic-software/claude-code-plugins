@@ -39,6 +39,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import quote
 
+import babysit_merge_policy as policy
 from babysit_gh import (
     flatten_paginated_items,
     gh_capture,
@@ -958,21 +959,13 @@ def remediate(
 
 def _default_is_human(
     repo: str, identity: str, self_logins: Collection[str]
-) -> tuple[IsHuman, str | None]:
-    """The policy module's human test when it has one; otherwise every actor is
-    non-human (fail closed: every queued merge then needs verification)."""
-    import babysit_merge_policy as policy
-
-    test = getattr(policy, "is_human", None)
-    if test is None:
-        return (
-            lambda actor: False
-        ), "is-human-unavailable: every enqueue counts as an auto-merge"
-    return (
-        lambda actor: bool(
-            test(actor, repo=repo, agent_identity=identity, self_logins=self_logins)
-        )
-    ), None
+) -> IsHuman:
+    """The merge policy's human test. A null actor, the identity, a self login,
+    an automation login, or an unreadable permission is non-human (fail closed:
+    the enqueue then counts as an auto-merge and needs verification)."""
+    return lambda actor: policy.is_human(
+        actor, repo=repo, agent_identity=identity, self_logins=self_logins
+    )
 
 
 def _since(value: str) -> datetime:
@@ -1012,19 +1005,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    is_human, warning = _default_is_human(
-        args.repo, args.agent_identity, args.self_login
-    )
     verdict = check(
         args.repo,
         agent_identity=args.agent_identity,
-        is_human=is_human,
+        is_human=_default_is_human(args.repo, args.agent_identity, args.self_login),
         merged_since=args.since,
         branch=args.branch,
     )
     report = verdict.report()
-    if warning:
-        report["warnings"].append(warning)
     code = 3 if not verdict.readable else 1 if verdict.failures else 0
     if args.remediate and verdict.readable:
         errors: list[str] = []
