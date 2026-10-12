@@ -11,6 +11,7 @@
     "link-blocks": true,
     "add-sub-item": true,
     "list-items": true,
+    "label-provenance": false,
     "list-sub-items": true,
     "capabilities": true,
     "change-link": true
@@ -19,7 +20,8 @@
     "cross_repo_edges": false,
     "sub_items": true,
     "leases": true,
-    "labels": true
+    "labels": true,
+    "list_items_label_filter": true
   },
   "limits": {
     "sub_items_per_parent": 100000,

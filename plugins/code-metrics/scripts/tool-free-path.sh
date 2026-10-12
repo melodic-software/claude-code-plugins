@@ -36,7 +36,7 @@ cm_ladder_tools() {
 cm_ladder_path_bins() {
   local py=python3
   command -v python3 >/dev/null 2>&1 || py=python
-  "$py" - "$_CM_LADDER" "$_CM_COLLECTORS" <<'PY'
+  "$py" -I - "$_CM_LADDER" "$_CM_COLLECTORS" <<'PY'
 import ast
 import os
 import sys
@@ -107,7 +107,7 @@ _cm_is_python_interp() {
 
 _cm_nonmutating_python() {
   local exe="$1" resolved
-  resolved="$("$exe" -c 'import os, sys; print(os.path.realpath(sys.executable))' 2>/dev/null)" || return 1
+  resolved="$("$exe" -I -c 'import os, sys; print(os.path.realpath(sys.executable))' 2>/dev/null)" || return 1
   [[ -n "$resolved" && -f "$resolved" && -x "$resolved" ]] || return 1
   printf '%s\n' "$resolved"
 }

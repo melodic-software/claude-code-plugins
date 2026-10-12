@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "@media (prefers-reduced-motion: no-preference) {\n  .drawer { transition: translate 300ms var(--ease-out); }\n}",
+      "why": "opt-in query"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "@media (prefers-reduced-motion: reduce) {\n  * { transition-duration: 0.01ms !important; }\n}",
+      "why": "opt-out override"
+    },
+    {
+      "answer": ".drawer { transition: transform 300ms ease-out; }",
+      "why": "no query"
+    }
+  ]
+}

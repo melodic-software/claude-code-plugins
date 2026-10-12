@@ -3,6 +3,14 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3] - 2026-10-11
+
+### Changed
+
+- Shared `standards-contract.md` synced to standards contract 1.0.3: the `.claude/rules` seam now says a path-scoped rule fires when Claude works with a matching file, not only when it reads one, and points at the memory docs for what loads a rule; no change to this plugin's behavior.
+
+- `/improvement:improve` counts its open pull requests for the unattended throttle through `/source-control:pull-request list --head-match`, and its fallbacks for an absent source-control or work-items plugin name the forge's or tracker's own tooling instead of `gh`.
+
 ## [0.2.2] - 2026-10-07
 
 ### Changed

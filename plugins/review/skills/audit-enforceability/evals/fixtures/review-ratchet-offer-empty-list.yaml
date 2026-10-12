@@ -1,0 +1,2 @@
+# Eval fixture: a review.yaml whose ratchet_offer is an empty flow list, not a boolean.
+ratchet_offer: []

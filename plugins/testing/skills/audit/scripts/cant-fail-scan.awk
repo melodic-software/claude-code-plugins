@@ -683,8 +683,9 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
 # and whose other side is a literal. Shell variables are uppercase whether
 # constant or computed, so a shell name counts only when nothing in the file
 # assigned it earlier: it came from a sourced file. "Testing the fixture"
-# (js, python): the subject's root is bound to a literal in the same block
-# and the block calls nothing but assertions; judged when the block closes.
+# (js, python): the subject's root is bound to a literal in the same block,
+# compared to a literal or to a path whose root the block also bound to a
+# literal, and the block calls nothing but assertions; judged when it closes.
 # ---------------------------------------------------------------------------
 
 function is_lit(s) {
@@ -710,7 +711,12 @@ function const_check(a, b, tkind,    x, y) {
   if (!LINE_IN_TEST) return 0
   x = trim(a); y = trim(b)
   if (is_lit(x) && !is_lit(y)) { x = y; y = trim(a) }
-  if (!is_lit(y) || x == "") return 0
+  if (x == "") return 0
+  # Two plain paths: the fixture variant again, when both roots are bound.
+  if (!is_lit(y)) {
+    if (g8_path(x) && g8_path(y)) G8_CAND = G8_CAND FNR "\t" tkind "\t" x "\t" y "\tpath\n"
+    return 0
+  }
   # No act step before the assertion: a call, or in shell any command after the
   # last source line, may be what gave the uppercase name its value.
   if (is_const(x)) {
@@ -718,10 +724,18 @@ function const_check(a, b, tkind,    x, y) {
     emit(tkind, "constant-restatement", FNR, "constant " x " compared to the literal " y)
     return 1
   }
-  # A path rooted in a plain identifier, no call anywhere in it.
-  if ((LEXER == "js" || LEXER == "python") && x ~ /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*|\[[^]()]*\])*$/)
-    G8_CAND = G8_CAND FNR "\t" tkind "\t" x "\t" y "\n"
+  if (g8_path(x)) G8_CAND = G8_CAND FNR "\t" tkind "\t" x "\t" y "\tlit\n"
   return 0
+}
+
+# A path rooted in a plain identifier, no call anywhere in it (js, python).
+function g8_path(s) {
+  return (LEXER == "js" || LEXER == "python") && s ~ /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*|\[[^]()]*\])*$/
+}
+
+function g8_root(s) {
+  sub(/[.[].*$/, "", s)
+  return s
 }
 
 # A binding of a name to a literal, for the fixture variant.
@@ -753,15 +767,17 @@ function g8_no_calls(    rest, n, lines, i, s, name) {
   return 1
 }
 
-function g8_eval(    n, recs, i, f, root) {
+function g8_eval(    n, recs, i, f, root, root2) {
   if (G8_CAND == "" || G8_BOUND == "" || !g8_no_calls()) return
   n = split(G8_CAND, recs, "\n")
   for (i = 1; i < n; i++) {
     split(recs[i], f, "\t")
-    root = f[3]
-    sub(/[.[].*$/, "", root)
-    if (index(G8_BOUND, " " root " "))
+    root = g8_root(f[3])
+    if (!index(G8_BOUND, " " root " ")) continue
+    if (f[5] == "lit")
       emit(f[2], "constant-restatement", f[1], root " is a literal bound in the test and " f[3] " is compared to the literal " f[4] " with no code under test called")
+    else if (index(G8_BOUND, " " (root2 = g8_root(f[4])) " "))
+      emit(f[2], "constant-restatement", f[1], (root == root2 ? root " is a literal" : root " and " root2 " are literals") " bound in the test and " f[3] " is compared to " f[4] " with no code under test called")
   }
 }
 

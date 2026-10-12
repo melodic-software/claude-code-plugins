@@ -54,9 +54,16 @@ key, and adds `id-token: write` to the calling job's permissions.
 | `default-model` | `''` | The model when the activity sets none; empty omits `--model` |
 | `default-max-turns` | `75` | The turn budget when the activity sets none |
 | `timeout-minutes` | `30` | The run job's timeout; the report job's is fixed at 10 |
+| `dispatcher-run-id` | `''` | Write file only: the `pr-unblock-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
+| `trusted-base` | `pr-base` | Write file only: `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
+| `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
+
+The write file has one `workflow_call` output, `escalation-reason`: empty, or why a
+[`prepare: merge-base`](#prepare-merge-base) activity handed the PR to a person.
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
-files) is the only one. Variables: `CLAUDE_LANES_DISABLED` (the kill switch),
+files) is the only one. Variables: `CLAUDE_LANES_DISABLED` and `CLAUDE_LANES_REPO_DISABLED` (the org
+and repository kill switches),
 `AUTOMATION_LANES_APP_SENDER_ID`, the App bot's numeric user id, the one place it is written, and,
 for the write file, `LANES_BROKER_URL` and `LANES_BROKER_AUDIENCE`
 ([below](#the-lane-token-broker)). The run job's first step fails red when
@@ -103,17 +110,33 @@ the broker request, and no other permission; it never holds `checks: write` or `
    denies `AUTOMATION_LANES_APP_SENDER_ID`, so the lanes App bot as sender or `workflow_run` actor
    stops it with `bot-actor` (neutral) and one write activity never chains into the next. The read
    file denies nothing, so a `workflow_run` read lane still runs after a bot push; the bot's own
-   `pull_request` events are skipped by the job `if:` in both files.
+   `pull_request` events are skipped by the job `if:` in both files. The write file passes its
+   `dispatcher-run-id` input with `dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml`
+   and `dispatched-workflow: .github/workflows/pr-unblock.yml`, so a `workflow_dispatch` sent by
+   `github-actions[bot]` proceeds only when it names a run of that dispatcher on the default branch
+   whose window holds this run's creation, and this run is `pr-unblock.yml`; every other
+   bot-sent dispatch stops with `untrusted-actor`. The checks are in the gate's README. Only
+   with a `dispatcher-run-id` does the skill step pass claude-code-action
+   `allowed_bots: github-actions`, which otherwise refuses a run a bot started.
 4. `check-trusted-base` asserts the PR targets the default branch and fails red otherwise. On `pull_request` the base
    branch is the event's `pull_request.base.ref`; on any other event (`workflow_dispatch`,
    `workflow_run`) it is read from the PR with the job's `GITHUB_TOKEN`. It then fails red unless
    the gate's `base-sha` is an ancestor of the default branch tip (`git merge-base --is-ancestor`),
    and checks that SHA out in `.base`. Nothing the PR's base branch chose runs before this check.
-5. `resolve-config`. An invalid config fails the step red and the check is a failure, never a skip.
-   A config skip (`disabled-by-config`, `not-applicable-paths`, `not-applicable`) mints nothing.
-   With a valid config, the read file fails red with `effect-not-read` unless the effect is
-   `read`, and the write file fails red with `effect-read` when it is, whether or not the activity
-   applies.
+   With the write file's `trusted-base: default-tip` (`mode: default-tip`) it checks out the
+   default branch tip instead, after the same checks: a PR in merge conflict keeps a stale base
+   SHA, and the lane must run the tip's config and actions and merge the tip. The checked-out SHA
+   is the `base-sha` output either way, and the merge's second parent in
+   [`prepare: merge-base`](#prepare-merge-base).
+5. `resolve-config`, with the gated `head-sha` and, in the write file, `prepare-supported: true`.
+   An invalid config fails the step red and the check is a failure, never a skip. A config skip
+   (`disabled-by-config`, `not-applicable-paths`, `not-applicable`, `awaiting-human`,
+   `prerequisite-missing`) mints nothing. With a valid config, the read file fails red with
+   `effect-not-read` unless the effect is `read`, and the write file fails red with `effect-read`
+   when it is, whether or not the activity applies. For a `mutate-branch` activity the write file
+   then re-reads the PR branch from `GET git/ref/heads/<head ref>` (`GET /pulls` can lag a push);
+   when it no longer points at the gated head the activity skips with `superseded-sha`, mints
+   nothing and runs no model turn. Other effects never write the branch and keep the gated head.
 6. Write file only:
    [`request-lane-token`](../../../.github/actions/request-lane-token/README.md) gets the lane
    token from the broker ([below](#the-lane-token-broker)), before `select-trusted-text` and before
@@ -128,15 +151,20 @@ the broker request, and no other permission; it never holds `checks: write` or `
    that closes an issue may fail the step red.
 8. `collect-base-activity` copies what the activity runs from the base out of `.base`: a script's whole
    directory to `$RUNNER_TEMP/base-script`, or for a skill the base `plugins/` and
-   `.claude-plugin/` to `$RUNNER_TEMP/base-marketplace`.
+   `.claude-plugin/` to `$RUNNER_TEMP/base-marketplace`. For `prepare: merge-base` the write file
+   also copies the base's `.github/scripts/merge-base/` scripts and
+   `plugins/source-control/scripts/resolve-version-bump-conflict.sh` to
+   `$RUNNER_TEMP/merge-base-bin`, recording each copy's SHA-256 as a step output, and reads
+   `loop.no-progress` from the resolved config.
 9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat with `apt-get` (three tries) and, where
    `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It fails red
    if `bwrap` is not on `PATH` afterwards. The skill step needs it for subprocess isolation (below).
 10. Removes sudo and docker access for the rest of the job: `/var/run/docker.sock` becomes
    root-only and the runner user's `/etc/sudoers.d/runner` entry is deleted. It fails red if
    `sudo -n true` still succeeds or the socket is still open to the runner user.
-11. Checks out the trigger gate's `head-sha` with `persist-credentials: false`, then fails red
-    unless `git rev-parse HEAD` equals that SHA. This replaces `.base`.
+11. Checks out the trigger gate's `head-sha` with `persist-credentials: false` (full history for
+    `prepare: merge-base`, else depth 1), then fails red unless `git rev-parse HEAD` equals that
+    SHA. This replaces `.base`.
 12. Runs the activity (below), then, in the read file, records whether the tree is dirty.
 13. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
     `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
@@ -151,12 +179,19 @@ A stacked PR, one whose base is not the default branch, gets a failure check fro
 it to the default branch to run its lanes.
 
 Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit` and
-`act-outcome`. All but `act-outcome` are outputs of steps that ran before any head code:
+`act-outcome`, plus, in the write file, `head-ref`, `merge-state` and `escalation-reason`. Every
+one is computed by a runner step, never read from model text. All but `act-outcome`,
+`merge-state` and `escalation-reason` are outputs of steps that ran before any head code:
 `gate-reason` is the kill switch's reason if it stopped, else the trigger's if it stopped, else
-empty; `head-sha` is the trigger gate's; `base-sha` is set only by step 4, so it is always on the
-default branch. `act-outcome` is the activity step's outcome, except that a skill whose step
-succeeded is a failure when it took no model turn, or when it is a gate skill and the verdict check
-(below) fails. Both checks are steps that run after the skill.
+empty; `head-sha` and `head-ref` are the trigger gate's; `base-sha` is set only by step 4, so it
+is always on the default branch. `merge-state` and a pre-model `escalation-reason` come from the
+prepare step, before any model turn; a post-model `escalation-reason` comes from `post.sh` after
+it, and a forged one can only hand the PR to a person. `act-outcome` is the activity step's
+outcome, except that a skill whose step succeeded is a failure when it took no model turn, when it
+is a gate skill and the verdict check (below) fails, when its commits could not be moved onto the
+PR branch, or when its merge commit failed or was not made; in `prepare: merge-base`, a clean merge
+that skipped the skill is a success once its commit is promoted. These checks are steps that run
+after the skill.
 
 ### Skill activities
 
@@ -195,7 +230,9 @@ scratch directory, `$RUNNER_TEMP/lane-scratch`, passed as `--add-dir` with an `E
 its state files and its sandboxed `Bash` redirects land there. `--append-system-prompt` names that
 directory, says no one can answer a question, and, when the grant can commit, tells it to commit
 every file it changed with that tool: the prompt is the slash command alone, so without this the
-skill leaves its edits uncommitted and the lane moves nothing. Its
+skill leaves its edits uncommitted and the lane moves nothing. A `prepare: merge-base` skill
+gets neither the tool nor that sentence: it stages its resolution and the runner commits
+([below](#prepare-merge-base)). Its
 `Bash` comes from its own `allowed-tools`, git included. `WebFetch` and `WebSearch` stay off
 (`--disallowedTools`) unless a skill needs them. No rule limits which files it changes: with its
 token it can change, commit and push any file in the repository, and claude-code-action writes
@@ -275,7 +312,83 @@ root-level script path fails red rather than copying the whole base tree. Its en
 
 Exit 0 is success, non-zero is failure, and a reason file whose value is not a skip reason is a
 failure. A script that gets `GH_TOKEN` must not execute code from the PR head. The head checkout
-persists no credentials, so a `read` script cannot push.
+persists no credentials, so a `read` script cannot push. The write file also exports its
+`escalation-reason` input as `ESCALATION_REASON` (empty unless a caller passes one), which the
+`report-escalation` leaf reads, and `TRACKER_CONFIG`, the base's `.work-item-tracker.json` copied
+to `$RUNNER_TEMP/base-script` before the head checkout and checked against its recorded SHA-256
+(or its recorded absence) before the script runs.
+
+### prepare: merge-base
+
+A write skill leaf whose config sets `prepare: merge-base` (resolve-config's `prepare` output) is
+run around a merge of the trusted base (step 4's `base-sha`) into the gated head. The scripts are
+the base's copies from step 8, each checked against its recorded SHA-256 before it runs:
+
+1. After the head checkout and before any model turn, `prepare.sh` runs with the gated head, the
+   trusted base, the base's version-bump script and an output directory under `$RUNNER_TEMP`. The
+   step's `env:` holds the lanes bot identity (`melodic-automation-lanes[bot]` and its noreply
+   address), which a `--no-commit` merge needs and the repeat cap counts by, and `loop.no-progress`
+   as `LOOP_NO_PROGRESS`. It escalates `repeat-cap` before merging, runs
+   `git merge --no-commit --no-ff <trusted base>` and the version-bump script, snapshots the
+   index, and escalates `protected-path-conflict` (a conflicted path under `.github/workflows/` or
+   a path claude-code-action restores) or `unresolved-conflict` (a conflict with no markers to
+   resolve). Its `merge-state` output is `clean`, `conflicted` or `escalate`; an escalation skips
+   with `awaiting-human`.
+2. The skill runs only when `merge-state` is `conflicted`, without the commit tool. A clean merge
+   takes no model turn.
+3. `post.sh` runs after a clean merge, or after the skill and its model-turn check succeeded, with
+   prepare's hashes. It restores `.git/config` and `.git/info/attributes`, repairs the paths
+   claude-code-action reset, and escalates `unresolved-conflict` (an unmerged entry, or conflict
+   markers in a staged resolution) or `workflow-staged` (a `.github/workflows/` index entry changed
+   since the snapshot); otherwise it writes the index as a tree.
+4. With no escalation reason and a tree, a pinned `github-script` step commits through the Git
+   Data API: it fails unless the lane branch is still at the gated head, uploads only the blobs
+   `tree-entries.sh` flags (logging `created <k> blobs`), builds the tree on the gated head's tree
+   and fails unless it hashes to `post.sh`'s tree, re-reads the PR's labels with the job's
+   `GITHUB_TOKEN` and stops uncommitted (`awaiting-human`) when `do-not-merge` or the base's
+   human-gated role label is on the PR, then creates the commit
+   `Merge <default branch> into <head ref>` with trailer
+   `Lane-Activity: pr-unblock/resolve-conflicts`, parents `[gated head, trusted base]` and no
+   author, committer or signature, so GitHub signs it as the App, and moves the lane branch to it.
+   The promote step then fast-forwards the PR branch only when the lane branch holds that step's
+   own commit and `git/ref heads/<head ref>` is still at the gated head, and confirms the move by
+   reading that ref again.
+
+The merge scripts, `tree-entries.sh` and the commit step's `git` run with workflow commands
+stopped (`::stop-commands::<random>`), since git's output can name head files, and with
+`GIT_NO_REPLACE_OBJECTS=1`; the commit step runs `/usr/bin/git` and `/usr/bin/bash` under an
+allowlisted environment. The kill switch (step 3) stops new runs only; a run already past it
+stops for a hold only at the commit step's label re-read.
+
+The run's `escalation-reason` output is prepare's or `post.sh`'s reason, one of
+`protected-path-conflict`, `workflow-staged`, `repeat-cap` or `unresolved-conflict`; a caller
+passes it to its `report-escalation` job as that job's `escalation-reason` input. Every path and
+its check:
+
+| Path | act-outcome | skip reason | escalation-reason | Check |
+|---|---|---|---|---|
+| Head moved before mint | skipped | `superseded-sha` | empty | neutral |
+| Hold label present | skipped | `awaiting-human` | empty | neutral |
+| Pre-model escalation | skipped | `awaiting-human` | `protected-path-conflict` / `repeat-cap` / `unresolved-conflict` (no markers) | neutral |
+| Clean merge, no model turn, committed, promoted | success | none | empty | success |
+| Clean merge, `post.sh` exits non-zero | failure | none | empty | failure |
+| Hold label added during the run, found before the commit | success | `awaiting-human` | empty | neutral |
+| Model left a conflict | success | `awaiting-human` | `unresolved-conflict` | neutral |
+| Model staged a `.github/workflows/` change | success | `awaiting-human` | `workflow-staged` | neutral |
+| Resolved, committed, promoted | success | none | empty | success |
+| Commit step fails or lane branch moved | failure | none | empty | failure |
+| PR branch moved during run (promote) | failure | none | empty | failure |
+| Conflicted but no model turn | failure | none | empty | failure |
+| A prepare step fails | skipped | none | empty | failure (run job failed) |
+| A post-skill step fails | success | none | empty | failure (run job failed) |
+
+Residual: a `.github/workflows/` change from the base side of the merge (not conflicted, not
+staged by the model) is committed and pushed. GitHub does not refuse it for the App's missing
+`workflows` permission: sandbox probe run 38148710292 pushed such merges by all three methods.
+
+The head re-read in step 5 applies to every `mutate-branch` activity, not only this mode: a
+pr-refine run whose PR branch moved before the mint now posts neutral `superseded-sha` without a
+model turn.
 
 ## The report job
 
@@ -287,7 +400,9 @@ SHA, so a PR into another branch cannot choose the actions that write its check.
 the verdict (`continue-on-error`: a missing verdict is already decided below), runs
 [`check-signed-commits`](../../../.github/actions/check-signed-commits/README.md) with its
 `GITHUB_TOKEN` unless `can-commit` is `false`, reads the PR's current head SHA with its
-`GITHUB_TOKEN` (empty when there is no PR or the read fails), and posts the check with
+`GITHUB_TOKEN` (empty when there is no PR or the read fails; in the write file, when the branch's
+`git/ref` is readable, `GET /pulls/{n}` is re-read until its head matches it, at most 5 reads 2 s
+apart, since it can lag the promote step's push), and posts the check with
 [`report-check-run`](../../../.github/actions/report-check-run/README.md), passing that SHA as
 `pr-head-sha`. Why the check is written by this job and not the run job:
 [ADR 0053](../../adr/0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md).
@@ -398,8 +513,15 @@ Both are organization variables declared in github-iac
 ([ADR 0015](https://github.com/melodic-software/github-iac/blob/main/docs/adr/0015-oidc-token-broker-for-pr-pipeline-lane-app-tokens.md)).
 
 The request is `POST <LANES_BROKER_URL>` with `Authorization: Bearer <OIDC token>` and the JSON
-body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>}`; `pr_number` is the gate's PR
-and is required off `pull_request`. The client sends it once and never retries: the broker
+body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>, "dispatcher_run_id": <id>}`;
+`pr_number` is the gate's PR and is required off `pull_request`. `dispatcher_run_id`, a positive
+JSON integer, is the `dispatcher-run-id` input, sent only when set. The broker reads it only when
+the OIDC actor is `github-actions[bot]`: such a run mints only when the `pr-unblock-dispatch.yml`
+run it names passes the checks the trusted-trigger gate applies. That run must be on `main`,
+started by a push or a listed human, with a re-run attempt started by a listed human. Its head
+must be an ancestor of the tip and no tag may be named `main`. This run must be a `pr-unblock.yml`
+`workflow_dispatch` created between the dispatcher run's `run_started_at` and the earlier of its
+`updated_at` and `run_started_at` plus 10 minutes. The client sends it once and never retries: the broker
 reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
 and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
 
@@ -416,19 +538,22 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 
 | Status | Reason | Meaning |
 |---|---|---|
-| 400 | (none) | The body is not `{lane, activity, pr_number?}` with valid names |
+| 400 | (none) | The body is not `{lane, activity, pr_number?, dispatcher_run_id?}` with valid names and positive integers |
 | 403 | `invalid-token`, `wrong-audience` | The OIDC token does not verify, or is for another audience |
 | 403 | `wrong-owner`, `repo-not-allowed`, `self-hosted-runner` | Not a melodic-software repository on the broker's allowlist, or not a GitHub-hosted runner |
 | 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main` |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
 | 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip |
+| 403 | `workflow-modified` | With `dispatcher_run_id`: `pr-unblock-dispatch.yml` at the dispatcher run's head differs from the tip |
 | 403 | `lane-mismatch` | The requested lane is not the caller's file stem |
 | 403 | `activity-not-in-lane`, `slot-disabled`, `config-invalid`, `effect-forbidden-by-lane` | The tip config does not give this activity a write grant |
 | 403 | `effect-read` | The activity is `read`; it belongs in the read file |
 | 403 | `untrusted-actor`, `untrusted-author`, `bot-actor` | The actor, the PR author or a re-runner is not on the tip's trusted-actor list, or is the lanes bot |
+| 403 | `untrusted-actor` | With `dispatcher_run_id` from `github-actions[bot]`: the dispatcher run or this run is missing or fails a dispatcher check above |
+| 503 | `github-unavailable` | With `dispatcher_run_id`: a dispatcher, run, tag or compare read failed; nothing was minted |
 | 403 | `pr-not-eligible` | The PR is not open, not from a branch of this repository, or does not target `main` |
 | 403 | `default-branch-not-main` | The repository's default branch is not `main` |
-| 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, or a repository variable of that name is set to anything else |
+| 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, a repository variable of that name exists (it would shadow the org value), or the repository's `CLAUDE_LANES_REPO_DISABLED` is set and not exactly `false` |
 | 403 | `already-minted` | This job already received its mint |
 | 503 | `key-unavailable`, `github-unavailable`, `store-unavailable` | The broker could not sign, read GitHub, or record the mint; nothing was minted |
 
