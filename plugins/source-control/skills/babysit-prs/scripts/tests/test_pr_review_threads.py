@@ -117,8 +117,8 @@ class UnreadableThreadsNeverReadAsClean(unittest.TestCase):
 
     def test_graphql_refused_is_unproven(self) -> None:
         refusal = RuntimeError(
-            "gh api graphql failed: gh: this GraphQL operation is not enabled for "
-            "this session (HTTP 403)"
+            "gh api graphql failed: gh: GitHub GraphQL is not available from "
+            "Claude Code sessions (HTTP 403)"
         )
         code, out = _run(["owner/repo#7"], side_effect=refusal)
         self.assertEqual(code, 2)

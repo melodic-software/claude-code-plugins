@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/notifications.css",
+            "content": ".notifications { transition: transform 250ms ease-out; }"
+          }
+        }
+      ],
+      "why": "a rewrite in a read-only run"
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "skill_name": "audit-animation",
+  "evals": [
+    {
+      "id": 1,
+      "name": "diff-default-read-only",
+      "prompt": "Review the animations in my current changes before I open the PR.",
+      "expected_output": "The skill reviews only the animation in the working diff, edits nothing and says so, runs the write-css review pre-pass on changed CSS-styled files, and reports each finding with a severity, a file:line, the catalog rule it breaks, and whether it is verified from code or needs a device recording.",
+      "files": [],
+      "expectations": [
+        "No file is edited, and the answer says the review is read-only",
+        "Findings are limited to animation in the changed files",
+        "Each finding carries a severity and a file:line",
+        "Each finding is labeled verified from code or needs a device recording"
+      ],
+      "difficulty": "routine",
+      "source": "the skill's default diff mode, written for this suite"
+    },
+    {
+      "id": 2,
+      "name": "tree-audit-offers-handoff",
+      "prompt": "Audit every animation in this codebase.",
+      "expected_output": "The skill runs tree mode over the whole repository, groups findings by severity, edits nothing, and with many findings offers a handoff to an implementation skill instead of fixing them itself.",
+      "files": [],
+      "expectations": [
+        "The audit covers the whole repository, not only the diff",
+        "Findings are grouped or ordered by severity",
+        "No file is edited",
+        "With many findings, the answer offers a handoff for the fixes instead of applying them"
+      ],
+      "difficulty": "routine",
+      "source": "the skill's tree mode, written for this suite"
+    },
+    {
+      "id": 3,
+      "name": "opportunities-include-where-not-to-animate",
+      "prompt": "Where in this app would animation actually help? Don't change anything.",
+      "expected_output": "The skill runs opportunities mode: each suggestion names the element, the purpose from the catalog and the frequency tier, and the answer also names places that should stay still (keyboard-driven or many-times-an-hour actions, data being read).",
+      "files": [],
+      "expectations": [
+        "Each suggestion names a purpose (feedback, spatial consistency, state indication, preventing a jarring change, explanation or delight)",
+        "At least one place is named where animation should not be added, with the reason",
+        "No file is edited"
+      ],
+      "difficulty": "hard",
+      "why_hard": "Asked where animation helps, the model's pull is to propose motion everywhere; the catalog's frequency gate requires naming where it must not go",
+      "source": "reference/animation/catalog.md should-it-animate, written for this suite"
+    },
+    {
+      "id": 4,
+      "name": "performance-cause-before-fix",
+      "prompt": "The sidebar animation stutters when I open it. Find out why.",
+      "expected_output": "The skill runs performance mode: it lists what animates and with which properties, names a cause from performance.md's diagnosis order before proposing any change, gives the swap down a tier, and labels the finding verified from code or needing a device recording.",
+      "files": [],
+      "expectations": [
+        "The answer names a specific cause (for example a layout property, a busy main thread, a per-frame render or an inherited value) before proposing a change",
+        "The proposed change swaps to a cheaper property or driver rather than only adding a layer-promotion hint",
+        "The finding is labeled verified from code or needs a device recording",
+        "No file is edited"
+      ],
+      "difficulty": "hard",
+      "why_hard": "Adding a layer-promotion hint looks like a fix and is the common reflex; the case needs the cause named first",
+      "source": "reference/animation/performance.md diagnose, written for this suite"
+    },
+    {
+      "id": 5,
+      "name": "fix-one-at-a-time-with-consent",
+      "prompt": "Review the animations in my changes and fix what you find, with --fix.",
+      "expected_output": "The skill reports the findings, then for one finding at a time shows the exact diff and asks for a yes before applying it, never applying several unasked.",
+      "files": [],
+      "expectations": [
+        "The answer shows the exact change for a finding before applying it",
+        "The answer asks for confirmation before applying a change",
+        "Changes are proposed one finding at a time"
+      ],
+      "difficulty": "routine",
+      "source": "the skill's --fix contract, written for this suite"
+    },
+    {
+      "id": 6,
+      "name": "configured-role-duration-not-flagged",
+      "prompt": "Review the toast animation in src/toast.css. Our team config sets animation.duration_ms.large to 600 and the toast's transition is 400ms.",
+      "expected_output": "The skill judges the 400ms toast against the configured role rather than a fixed limit: a toast is within large, so the duration is not reported as a finding (or is listed as suppressed with the configured role as the reason).",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The 400ms toast duration is not reported as a duration finding",
+        "The answer refers to the configured role duration, not a fixed 300ms cap"
+      ],
+      "difficulty": "hard",
+      "why_hard": "The bundled linter flags durations over its own fixed limit, so the model must overrule a tool finding with the resolved config",
+      "source": "the skill's duration filter, written for this suite"
+    }
+  ]
+}

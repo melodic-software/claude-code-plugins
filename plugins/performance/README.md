@@ -34,13 +34,16 @@ worse than generating none.
 | `/performance:target` | Identify and rank candidates by **evidence quality**, not suspicion. Nothing measured yet means the top recommendation is "instrument this first". |
 | `/performance:goal` | Human-gated. The metric and the exact command producing it, a **realistic** target and an **ideal** target held separately, and the **floor** computed before any work. |
 | `/performance:snapshot` | Host qualification, baseline and post capture, interleaved and duet A/B, the drift-immune counter, and the unmeasurable-host refusal. |
+| `/performance:climb` | A keep-or-revert loop on a frozen harness: one hypothesis and one commit per attempt, both arms re-measured each time, the verdict taken from a rule written before the run, every attempt logged outside the tree. Runs in its own worktree and branch. |
 | `/performance:verify` | Fresh-context re-derivation that does not inherit the implementer's numbers, plus the report. |
 | `/performance:protect` | Locks in a proven counter win: a checked-in counter ceiling, a CI check that fails when the counter rises, and a lower ceiling when it falls: in the same PR, or through a scheduled draft PR for a counter that can fall without a code change. Never merges. |
 | `/performance:go-faster` | Whole-process sweep for ways to go faster without losing accuracy: checks 16 areas, ranks evidenced findings, and offers session changes for adoption. |
 
 Each names its successor. There is no router skill, and go-faster sweeps and ranks but does not
 drive the goal, snapshot, verify and protect loop. The loop over the five skills runs under the
-user's own `/goal` or `/loop` condition, which sets its cadence and when it stops.
+user's own `/goal` or `/loop` condition, which sets its cadence and when it stops. Within one
+goal, climb repeats the change-and-measure step until the target and the goal's `min_attempts`
+are both reached.
 
 - **Pointer**: when you want a per-goal optimization loop run end to end, fetch the post's [The loop, thread by thread section](https://claude.dev/blog/how-we-made-claude-ai-faster/#the-loop-thread-by-thread) live; no docs page covers a per-goal optimization loop as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering a per-goal loop.
 

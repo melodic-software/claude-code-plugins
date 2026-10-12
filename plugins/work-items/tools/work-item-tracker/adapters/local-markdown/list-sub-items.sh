@@ -46,4 +46,4 @@ parent_quoted="$(jq -cn --arg p "$id" '$p')"
     wit_state_matches "$state" "$item_state" || continue
     wit_emit_local_item "$n" true
   done
-} | jq -c -s --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}'
+} | jq -c -s --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: ., truncated: false}'
