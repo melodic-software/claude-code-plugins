@@ -5,25 +5,29 @@
       "id": 1,
       "name": "validates-rendered-quiz-policy-without-settings-edits",
       "prompt": "/education:setup",
-      "expected_output": "Reports the rendered quiz_policy, report_library_dir, and workspace_root (or their defaults), explains quiz offer cadence, and never reads or edits settings files or pluginConfigs.",
+      "expected_output": "Reports the rendered quiz_policy, report_library_dir, workspace_root and explain_starting_rung (or their defaults), explains quiz offer cadence, runs the setup-apply script's --check for docs/conventions/education.yaml, and never reads or edits settings files or pluginConfigs.",
       "files": [],
       "expectations": [
         "Reads only the rendered user_config values supplied to the skill",
         "Explains the on-request default and the private plugin-data report fallback",
+        "Reports docs/conventions/education.yaml from the script's --check output, as INFO absent when there is no file",
         "Does not inspect or edit settings files or pluginConfigs"
-      ]
+      ],
+      "narration": true
     },
     {
       "id": 2,
       "name": "routes-changes-through-claude-configuration",
       "prompt": "/education:setup\n\nStore quiz reports in a shared corpus checkout.",
-      "expected_output": "Recommends a portable corpus location, directs the user to Claude Code's plugin configuration prompt for report_library_dir, and requires a rerun before claiming the value changed.",
+      "expected_output": "Recommends a portable corpus location, directs the user to Claude Code's plugin configuration prompt for report_library_dir, and requires a rerun before claiming the value changed. It does not write report_library_dir into docs/conventions/education.yaml, which holds no such key.",
       "files": [],
       "expectations": [
         "Uses repository evidence before recommending a library location",
         "Rejects machine-absolute team paths",
-        "Routes persistence through Claude Code and verifies on rerun"
-      ]
+        "Routes persistence through Claude Code and verifies on rerun",
+        "Does not write report_library_dir into the repository file"
+      ],
+      "narration": true
     },
     {
       "id": 3,
@@ -37,6 +41,60 @@
         "Routes the persistent change through Claude Code's native configuration prompt",
         "Verifies on a rerun rather than claiming the write succeeded"
       ]
+    },
+    {
+      "id": 4,
+      "name": "apply-writes-a-fresh-repository-file",
+      "narration": true,
+      "prompt": "/education:setup apply explain_starting_rung=peer\n\n[The repository has no docs/conventions/education.yaml yet.]",
+      "expected_output": "Runs check first, then calls the setup-apply script with explain_starting_rung=peer. The script creates docs/conventions/education.yaml holding explain_starting_rung: peer and no other key. The re-run check reports the value from the file, and the tracked-file pair reports the file as written but untracked, telling the operator to commit it so the team receives it. No other file is written.",
+      "files": [],
+      "expectations": [
+        "Runs check before writing",
+        "Writes only docs/conventions/education.yaml, holding explain_starting_rung: peer and no other key",
+        "Reports the value from the re-run check, not from the write alone",
+        "Says the new file is untracked and must be committed to reach the team, rather than reporting plain success",
+        "Does not edit settings files, pluginConfigs or .gitignore"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "apply-shows-the-diff-before-changing-an-existing-file",
+      "narration": true,
+      "prompt": "/education:setup apply explain_starting_rung=plain\n\n[docs/conventions/education.yaml already exists and holds explain_starting_rung: peer under a comment line.]",
+      "expected_output": "The first script call exits 3 and prints a unified diff from explain_starting_rung: peer to explain_starting_rung: plain without writing. The skill shows that diff, asks the operator whether to write it, and stops for the answer. It re-runs with --yes only after an explicit yes; the comment line stays in the file.",
+      "files": [],
+      "expectations": [
+        "Shows the diff from peer to plain before anything is written",
+        "Asks for confirmation and does not pass --yes in the same turn as showing the diff",
+        "Does not treat the original apply request as confirmation of the diff",
+        "Leaves the file unchanged when the operator has not said yes"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "apply-refuses-an-invalid-value",
+      "prompt": "/education:setup apply explain_starting_rung=expert",
+      "expected_output": "The script refuses explain_starting_rung=expert because it is not plain or peer, exits 1 and writes nothing. The skill reports the key, the rejected value and the two allowed values, and offers to write one of them instead; it does not write expert by hand or create the file another way.",
+      "files": [],
+      "expectations": [
+        "Names explain_starting_rung, the rejected value expert, and the allowed values plain and peer",
+        "Writes no file, by the script or by hand",
+        "Offers a valid value instead of persisting the invalid one"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "check-warns-on-a-duplicate-key",
+      "prompt": "/education:setup check\n\n[docs/conventions/education.yaml sets explain_starting_rung twice, first plain, then peer.]",
+      "expected_output": "Check reports a WARN row quoting the file and saying explain_starting_rung is set twice, from the script's --check output, and says /education:explain drops that layer rather than stopping. It writes nothing and says one of the two lines must be removed by hand, since apply refuses a file that sets a key twice.",
+      "files": [],
+      "expectations": [
+        "Reports the duplicate key as a WARN naming docs/conventions/education.yaml and explain_starting_rung",
+        "Does not report either plain or peer as the repository value",
+        "Writes nothing during check"
+      ],
+      "narration": true
     }
   ]
 }

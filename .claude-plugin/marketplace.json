@@ -760,6 +760,13 @@
       "category": "development",
       "defaultEnabled": false,
       "tags": ["developer-experience", "dx", "tooling", "cli", "scripts", "audit", "skill"]
+    },
+    {
+      "name": "display-redaction",
+      "source": "./plugins/display-redaction",
+      "category": "claude-code",
+      "defaultEnabled": false,
+      "tags": ["mod", "redaction", "screen-share", "recording", "display", "hooks"]
     }
   ]
 }
