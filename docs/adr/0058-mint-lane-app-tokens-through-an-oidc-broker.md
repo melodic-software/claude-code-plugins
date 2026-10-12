@@ -6,6 +6,9 @@
   condition 3
 - Closes: the App key part of the secret-set residual in
   [ADR 0055](0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md)
+- Amended by
+  [ADR 0071](0071-start-pr-unblock-from-a-push-to-main-dispatcher-checked-at-the-gate-and-the-broker.md):
+  point 3 gains the dispatcher path
 - Canary: pr-unblock end-to-end test line; this pull request is closed, not merged
 
 ## Context
