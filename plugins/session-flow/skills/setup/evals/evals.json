@@ -16,14 +16,69 @@
     },
     {
       "id": 2,
-      "name": "check-has-no-write-path-routes-to-native-configure",
-      "prompt": "/session-flow:setup — after the check, how do I apply these findings?",
-      "expected_output": "Runs the check, then for each finding offers only guidance (install the missing tool, or reconfigure via Claude Code's native /plugin configure session-flow@<marketplace>). It never writes pluginConfigs, mutates user settings, or edits the installed plugin cache.",
+      "name": "observer-findings-route-to-native-configure",
+      "prompt": "/session-flow:setup. After the check, how do I apply the observer findings? I want observer_idle_seconds raised.",
+      "expected_output": "Runs the check, then for each observer finding offers only guidance (install the missing tool, or reconfigure via Claude Code's native /plugin configure session-flow@<marketplace>). It never writes pluginConfigs, mutates user settings, or edits the installed plugin cache, and it does not put observer_idle_seconds into docs/conventions/session-flow.yaml, whose schema does not list it.",
       "files": [],
+      "narration": true,
       "expectations": [
         "Runs the check before offering any resolution",
-        "Offers install/guidance remediation but has no config write path",
-        "Routes reconfiguration to /plugin configure session-flow@<marketplace>, never writing pluginConfigs or user settings"
+        "Routes the observer change to /plugin configure session-flow@<marketplace>, never writing pluginConfigs or user settings",
+        "Does not write observer_idle_seconds into docs/conventions/session-flow.yaml"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "apply-writes-a-fresh-repository-file",
+      "narration": true,
+      "prompt": "/session-flow:setup apply worker_continuation=respawn\n\n[The repository has no docs/conventions/session-flow.yaml yet.]",
+      "expected_output": "Runs check first, then calls the setup-apply script with worker_continuation=respawn. The script validates the value against the schema and creates docs/conventions/session-flow.yaml holding worker_continuation: respawn. The re-run check reports the value from the file, and the tracked-file pair reports the file as written but untracked, telling the operator to commit it to share it with the team. No other file is written.",
+      "files": [],
+      "expectations": [
+        "Runs check before writing",
+        "Writes only docs/conventions/session-flow.yaml, holding worker_continuation: respawn",
+        "Reports the value from the re-run check, not from the write alone",
+        "Says the new file is untracked and must be committed to reach the team, rather than reporting plain success"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "apply-shows-the-diff-before-changing-an-existing-file",
+      "narration": true,
+      "prompt": "/session-flow:setup apply worker_continuation=resume\n\n[docs/conventions/session-flow.yaml already exists and holds worker_continuation: respawn under a comment line.]",
+      "expected_output": "The first script call exits 3 and prints a unified diff from worker_continuation: respawn to worker_continuation: resume without writing. The skill shows that diff and asks the operator whether to write it, then stops for the answer. It re-runs with --yes only after an explicit yes; the comment line stays in the file.",
+      "files": [],
+      "expectations": [
+        "Shows the diff from respawn to resume before anything is written",
+        "Asks for confirmation and does not pass --yes in the same turn as showing the diff",
+        "Does not treat the original apply request as confirmation of the diff",
+        "Leaves the file unchanged when the operator has not said yes"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "apply-refuses-an-invalid-value",
+      "narration": true,
+      "prompt": "/session-flow:setup apply worker_continuation=restart",
+      "expected_output": "The script refuses worker_continuation=restart because it is not resume or respawn, exits 1 and writes nothing. The skill reports the key, the rejected value and the two allowed values, and offers to write one of them instead; it does not write restart by hand or create the file some other way.",
+      "files": [],
+      "expectations": [
+        "Names worker_continuation, the rejected value restart, and the allowed values resume and respawn",
+        "Writes no file, by the script or by hand",
+        "Offers a valid value instead of persisting the invalid one"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "check-warns-on-an-invalid-repository-file",
+      "narration": true,
+      "prompt": "/session-flow:setup\n\n[docs/conventions/session-flow.yaml holds worker_continuation twice, once as resume and once as respawn.]",
+      "expected_output": "The repository-settings row is a WARN, not a FAIL, quoting the script's line that worker_continuation appears 2 times. The check writes nothing and points at apply, after the duplicate is removed by hand, as the fix.",
+      "files": [],
+      "expectations": [
+        "Reports the repository settings row as WARN, never FAIL",
+        "Quotes the repeated worker_continuation key from the script output",
+        "Writes nothing during the check"
       ]
     },
     {

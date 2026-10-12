@@ -158,7 +158,9 @@ autopilot: zero-blocker drafts always route through a worker (see Fan out). The 
 happens only in autopilot, only for a draft its worker assesses complete, and it runs
 `/source-control:pull-request ready` rather than a bare draft flip: that step merges the base
 branch and runs the security review and the verify gate before it flips, which a bare flip does
-not.
+not. A PR that `/source-control:pull-request create` opened ready for review, because the
+repository or its author set `pr_open_state: ready`, is handled as any non-draft PR; no tier turns
+it back into a draft.
 
 ## Autopilot
 
@@ -341,10 +343,10 @@ classification gate. Let a safe iteration proceed when the engine is absent, rep
 merge-readiness as unchecked.
 
 **Sandboxed sessions: the engine reads over REST, and thread resolution fails closed.**
-Claude Code on the web and remote execution serve only part of the forge's GraphQL API, and the
+In a cloud session behind the GitHub proxy, a forge GraphQL call can be refused, and the
 refusal reads like an expired token or a missing scope while being neither: take it as a signal to
-switch APIs rather than to re-authenticate (the signal and the REST routes: provider reference
-"Sandboxed sessions"). The engine re-sources its pull-request reads over REST by itself, so
+switch APIs rather than to re-authenticate (the signal, the REST routes and the upstream pointer:
+provider reference "Sandboxed sessions"). The engine re-sources its pull-request reads over REST by itself, so
 discovery, classification, and the branch-rule and freshness checks keep working unchanged.
 
 Review-thread **resolution** is the one fact with no REST equivalent, and it is not approximated.

@@ -116,6 +116,45 @@ run PATH="$tmp/bin:$PATH" --
 check "a failed fetch skips the stale-base check only" \
   '[[ $RC == 0 && $ERR == *"SKIP stale-base-overlap (git fetch of origin/main failed)"* && $OUT$ERR == *"validate-plugins (no plugin changed)"* ]]'
 
+# Run from another tree (the pre-push hook's merge-base copy), every check
+# script comes from that tree and is told which tree to read; the checked
+# tree's own scripts and its test code never run.
+tools="$tmp/tools"
+mkdir -p "$tools/scripts"
+cp "$SELF_DIR/check-affected.sh" "$tools/scripts/"
+for s in check-shell-portability check-changelog-fragments check-stale-base-overlap affected-tests; do
+  printf '#!/usr/bin/env bash\necho "copy of %s read $CHECK_DATA_ROOT" >&2\nexit 1\n' "$s" >"$tools/scripts/$s.sh"
+done
+chmod +x "$tools"/scripts/*.sh
+RC=0
+ERR="$(cd "$repo" && bash "$tools/scripts/check-affected.sh" --base base --tests 2>&1)" || RC=$?
+check "a copy run elsewhere runs its own check scripts against the checked tree" \
+  '[[ $RC == 1 && $ERR == *"copy of check-shell-portability read $repo"* ]]'
+check "a copy run elsewhere skips the checked tree's tests" \
+  '[[ $ERR == *"SKIP tests"* && $ERR != *"affected-tests"* ]]'
+
+if command -v markdownlint-cli2 >/dev/null 2>&1; then
+  printf '{ "config": { "MD013": false } }\n' >"$tools/.markdownlint-cli2.jsonc"
+  mkdir -p "$repo/docs"
+  printf 'require("fs").writeFileSync(%s, "x");\nmodule.exports = {};\n' "'$tmp/md-payload'" \
+    >"$repo/docs/.markdownlint-cli2.cjs"
+  printf '# Title\n\nText.\n' >"$repo/docs/a.md"
+  git_test_config "$repo" add -A
+  git_test_config "$repo" commit -q -m docs
+  RC=0
+  ERR="$(cd "$repo" && bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+  check "a copy run elsewhere never loads the checked tree's markdownlint config" \
+    '[[ ! -e $tmp/md-payload && $ERR != *"SKIP markdown"* ]]'
+  printf '# Title\nText.\n' >"$repo/docs/a.md"
+  git_test_config "$repo" commit -q -am bad-md
+  RC=0
+  ERR="$(cd "$repo" && bash "$tools/scripts/check-affected.sh" --base base 2>&1)" || RC=$?
+  check "a copy run elsewhere still lints the checked tree's markdown" \
+    '[[ $RC == 1 && $ERR == *"FAIL markdown"* && $ERR == *"MD022"* ]]'
+else
+  ok "SKIP markdown copy cases (markdownlint-cli2 not installed)"
+fi
+
 run -- --bogus
 check "an unknown flag is a usage error" '[[ $RC == 2 ]]'
 run -- --base no-such-ref
