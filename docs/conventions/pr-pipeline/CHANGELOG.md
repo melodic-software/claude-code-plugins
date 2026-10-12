@@ -5,11 +5,12 @@
 The config names its merge authority and the identity the local babysit lane acts as. Additive:
 `version` stays 1, and the live config gains no `merge:` block, so its rung stays `off`.
 
-- `merge.authority` (`local-babysit` or `pr-merge`, no default) names the repository's one merge
-  authority.
+- `merge.authority` (`local-babysit` or `pr-merge`) names the repository's one merge authority.
+  Absent means `pr-merge`, the meaning a rung had before this key existed, so an existing
+  `rung: C2` config still validates; the babysit wrapper merges only when it reads `local-babysit`.
 - `merge.agent-identity` (the `[bot]` login of a dedicated GitHub App; any other login, and the
-  shared `github-actions[bot]` and `dependabot[bot]`, fail the schema) names the login the local
-  babysit lane acts as. The schema requires it when `merge.authority` is `local-babysit`.
+  shared `github-actions[bot]` and `dependabot[bot]` in any letter case, fail the schema) names the
+  login the local babysit lane acts as. The schema requires it when `merge.authority` is `local-babysit`.
 - `resolve-config` ignores both keys, so its resolved output is unchanged.
 - README "Merge authority" gains "The local babysit lane": the effective rung, same-repository
   heads only, LOW risk only, review evidence bound to the pinned head SHA, the human-only cap

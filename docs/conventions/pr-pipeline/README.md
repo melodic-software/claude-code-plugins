@@ -291,8 +291,10 @@ the reply; human threads stay open for the human.
 ## Merge authority
 
 `merge.authority` names the repository's one merge authority: `local-babysit`, the babysit wrapper
-run by the local babysit lane (loop-lane), or `pr-merge`. It has no default. `merge.rung` is the
-highest work class that authority merges without a human. Work classes are defined in
+run by the local babysit lane (loop-lane), or `pr-merge`. When it is absent the authority is
+`pr-merge`, the meaning a rung had before this key existed, so the babysit wrapper merges only when
+it reads `local-babysit`. `merge.rung` is the highest work class that authority merges without a
+human. Work classes are defined in
 [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md).
 
 - `off` is the default. The first rung a repository adopts is `C2`, together with
@@ -327,8 +329,8 @@ that fails counts as a refusal.
   names the login the lane acts as. The schema rejects `local-babysit` without an identity. The
   identity must be the `[bot]` login of a GitHub App dedicated to this lane, and the schema rejects
   any other login: a machine user is a GitHub user and would pass every human test, and the shared
-  `github-actions[bot]` and `dependabot[bot]` are refused. With no `merge:` block the rung is `off`
-  and the wrapper merges nothing.
+  `github-actions[bot]` and `dependabot[bot]` are refused in any letter case. With no `merge:` block,
+  or no `authority`, the wrapper merges nothing.
 - **Same repository.** The pull request's head is in this repository, never a fork.
 - **Risk score.** Only a diff the risk scorer rates LOW merges; MEDIUM and HIGH are refused.
 - **Review evidence.** For each review lane, the newest run of the lane's caller workflow on the
