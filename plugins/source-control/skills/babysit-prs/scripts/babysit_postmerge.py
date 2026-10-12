@@ -731,9 +731,11 @@ def check(
 
 
 def dispatch_full_run(repo: str, *, ref: str) -> None:
-    """Dispatch the full `pr-require-checks` run on `ref`; called only by
-    `--remediate` when the verdict needs a dispatch. Without `--remediate` under
-    the identity nobody dispatches, so each auto-merge fails at the deadline."""
+    """Dispatch the full `pr-require-checks` run on `ref`; called by
+    `--remediate` when the verdict needs a dispatch, and by the unattended
+    merge gate (`babysit_merge.py`) once a landed merge reads back at its pin.
+    When neither dispatches under the identity, each auto-merge fails at the
+    deadline."""
     owner, name = _split_repo(repo)
     _write(
         [

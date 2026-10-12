@@ -1016,7 +1016,9 @@ second kill-switch read, after an armed auto-merge is disarmed and refused inste
 `<!-- babysit-merge-pin sha=<S> -->` comment records the pin for the post-merge read-back. When an
 earlier identity entry sits in the queue, the new one dequeues itself. A later run with
 `--state-dir` that reads the entry back merged at its pin dispatches the full `pr-require-checks`
-run.
+run and still exits `10` with `merged: true`, since the merge it just read back is the in-flight
+unverified auto-merge; a failed dispatch is reported as `dispatchError`, and the next cycle's
+`babysit-postmerge.sh --remediate` dispatches it.
 
 Named residuals:
 

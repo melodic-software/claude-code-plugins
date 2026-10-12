@@ -339,6 +339,12 @@ class Unattended(unittest.TestCase):
         self.entries_total: int | None = -1
         self.node_id = "PR_self"
         self.rerun = mock.Mock(return_value=[])
+        self.dispatch_error: Exception | None = None
+
+    def _dispatch(self, repo: str, ref: str) -> None:
+        self.log.append("dispatch")
+        if self.dispatch_error is not None:
+            raise self.dispatch_error
 
     def run_main(
         self, *flags: str, merge_flag: bool = True
@@ -354,9 +360,7 @@ class Unattended(unittest.TestCase):
         self.capture = mock.Mock(side_effect=self._capture)
         self.async_merge = mock.Mock(side_effect=self._async_merge)
         self.dequeue = mock.Mock(side_effect=self._dequeue)
-        self.dispatch = mock.Mock(
-            side_effect=lambda repo, ref: self.log.append("dispatch")
-        )
+        self.dispatch = mock.Mock(side_effect=self._dispatch)
 
         def gh_json(args: list[str]) -> Any:
             if args[:2] == ["pr", "view"]:
@@ -520,6 +524,28 @@ class AllInputsGood(Unattended):
         self.assertEqual(self.log, ["dispatch"])
         self.dispatch.assert_called_once_with("owner/repo", ref="main")
         self.assertIs(out["unattended"]["dispatched"], True)
+        self.assertEqual(code, 10)
+
+    def test_a_failed_dispatch_is_reported_and_left_to_the_remediate_check(
+        self,
+    ) -> None:
+        # The pending record is already cleared, so the next cycle's
+        # `babysit-postmerge.sh --remediate` is what dispatches again.
+        self.flight = policy.InFlight(False, f"unverified-auto-merge:#{PR}")
+        self.pr_view = fixtures._pr(state="MERGED")
+        self.prior = {
+            "queued": True,
+            "head": HEAD,
+            "status": "merged",
+            "verification": {"verified": True, "mismatches": []},
+            "requestedAt": "2026-10-12T10:00:00Z",
+        }
+        self.dispatch_error = postmerge.PostMergeWriteError("HTTP 500")
+        with tempfile.TemporaryDirectory() as state:
+            code, out = self.run_main("--state-dir", state)
+        self.assertIs(out["merged"], True)
+        self.assertIs(out["unattended"]["dispatched"], False)
+        self.assertEqual(out["unattended"]["dispatchError"], "HTTP 500")
         self.assertEqual(code, 10)
 
     def test_a_read_back_that_did_not_hold_dispatches_nothing(self) -> None:
