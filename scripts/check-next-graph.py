@@ -16,6 +16,9 @@ WHAT FIRES, over the chain roster in scripts/next-graph-chain.txt:
   * stage-skip: a roster skill's `## Next` names a successor whose ladder stage
     lies more than one stage ahead, and a stage in between is neither
     conditional nor optional on the ladder;
+  * unstaged: a roster skill's `workflow-stage` is missing or names no ladder
+    stage, which would otherwise exempt its edges, and edges into it, from the
+    stage-skip check;
   * orphan: no other roster skill's `## Next` names a roster skill, and the
     roster declares no `entry:` reason for it;
   * stale-roster: a roster line names a skill that does not exist.
@@ -25,8 +28,8 @@ workflow-stage:` frontmatter value. The ladder order, and which stages are
 conditional or optional, are read from the numbered stage headings of
 plugins/session-flow/skills/workflow/context/steps.md, which owns them; this
 gate holds no second copy. A stage that is not on the ladder (`anytime`,
-`operator`, `session`, `pr`) imposes no ordering, so an edge to or from it
-never skips. A backward edge (a gate that fails back to an earlier stage)
+`operator`, `session`, `pr`) imposes no ordering, so an edge to an off-roster
+skill on one never skips; a roster skill off the ladder is `unstaged`. A backward edge (a gate that fails back to an earlier stage)
 never skips either.
 
 Usage:
@@ -207,7 +210,13 @@ def check(root: Path) -> list[str]:
             findings.append(
                 f"no-next: /{name} has no '## Next' section and {ROSTER} declares no terminal reason"
             )
-        here = ladder_index(frontmatter_stage(text), ladder)
+        stage = frontmatter_stage(text)
+        here = ladder_index(stage, ladder)
+        if here is None:
+            findings.append(
+                f"unstaged: /{name} has workflow-stage '{stage or ''}', which is not a ladder "
+                f"stage, so none of its edges can be checked"
+            )
         for target in next_targets(text):
             if target in inbound and target != name:
                 inbound[target].add(name)

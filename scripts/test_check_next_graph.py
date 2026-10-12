@@ -150,11 +150,12 @@ class NextGraphTest(unittest.TestCase):
 
     def test_pr_stage_is_off_ladder_not_prd(self) -> None:
         # `pr` must not prefix-match `prd`: read as prd, this edge would skip
-        # the design stage and fail.
-        self.fx.skill("p:pull-request", "pr", "/p:plan")
+        # the research stage and fail.
+        self.fx.skill("p:pull-request", "pr", None)
+        self.fx.skill("p:explore", "explore", "/p:pull-request")
         self.fx.roster(
+            "p:explore | entry: start",
             "p:interview | entry: start",
-            "p:pull-request | entry: reached by hand in this fixture",
             "p:design",
             "p:plan",
             "p:decompose",
@@ -166,6 +167,26 @@ class NextGraphTest(unittest.TestCase):
         self.assertIsNone(gate.ladder_index("pr", ladder))
         self.assertEqual(gate.ladder_index("prd", ladder), 1)
         self.assertEqual(gate.ladder_index("retro", ladder), 3)
+
+    def test_roster_skill_off_the_ladder_fails(self) -> None:
+        # A typo or an off-ladder stage on a roster skill must not exempt its
+        # edges: here it would hide interview's skip over design.
+        for stage in ("dsign", "anytime"):
+            with self.subTest(stage=stage):
+                self.fx.skill("p:design", stage, "/p:plan")
+                self.fx.skill("p:interview", "contract", "/p:design and /p:plan")
+                rc, _, err = self.fx.run()
+                self.assertEqual(rc, 1)
+                self.assertIn(f"unstaged: /p:design has workflow-stage '{stage}'", err)
+
+    def test_roster_skill_without_a_stage_fails(self) -> None:
+        self.fx.write(
+            "plugins/p/skills/design/SKILL.md",
+            "---\ndescription: x\n---\n\n## Next\n\n/p:plan\n",
+        )
+        rc, _, err = self.fx.run()
+        self.assertEqual(rc, 1)
+        self.assertIn("unstaged: /p:design has workflow-stage ''", err)
 
     def test_unresolved_target_fails_anywhere_in_tree(self) -> None:
         # The resolution check covers every skill's Next, not only the roster.
