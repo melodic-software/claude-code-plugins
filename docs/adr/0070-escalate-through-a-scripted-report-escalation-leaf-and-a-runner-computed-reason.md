@@ -49,9 +49,8 @@ point 4).
 
 - Each escalation costs a second job and a second mint.
 - A forged reason can only cause an escalation, which is the fail-safe direction.
-- The resume key is the gated head SHA alone, not a value derived from lane, activity, head and
-  reason as first designed. The script always escalates on that head: dropping an escalation
-  whose PR head moved could strand a conflicted PR, because pr-unblock has no `pull_request`
+- The resume key is the gated head SHA alone. The script always escalates on that head: dropping
+  an escalation whose PR head moved could strand a conflicted PR, because pr-unblock has no `pull_request`
   trigger to start a run on the new head
   ([#7172](https://github.com/melodic-software/claude-code-plugins/pull/7172)).
 - The job runs under `!cancelled()`, not the default `success()`, so a later red step in the

@@ -21,17 +21,19 @@ An activity is either a leaf or a composite
 
 1. **One flat map.** `activities:` stays a single map keyed by unique names. A leaf has `skill` or
    `script`, `effect`, `gating`, `reads-untrusted`, `inputs` and `applies-when`. A composite has
-   only `children:`, a list in the same slot shape a lane's `slots:` uses (`activity`, `needs`,
-   `applies-when`, `enabled`), so a lane is the root composite.
+   `children:`, a list in the same slot shape a lane's `slots:` uses (`activity`, `needs`,
+   `applies-when`, `enabled`), so a lane is the root composite, and an optional `applies-when`
+   that gates every child (`pr-pipeline.schema.json:165-168`,
+   [pr-pipeline README, "Activities"](../conventions/pr-pipeline/README.md#activities)).
 2. **Effects, inputs and grants belong to leaves.** A composite declares none. Lane rules are
    checked over every leaf a lane expands to
-   ([`resolve.mjs:293-310`](../../.github/actions/resolve-config/resolve.mjs)), and
+   ([`resolve.mjs:293-323`](../../.github/actions/resolve-config/resolve.mjs)), and
    `resolveGrant`, the broker's entry point, resolves only leaf keys, because the lane is expanded
    to its leaves before an activity is looked up (`resolve.mjs:346-375,577-596`). One job runs one
    leaf, gets one grant and posts one check; a composite has no job, grant or check of its own.
 3. **The path decides.** A leaf runs only when the lane, every ancestor composite and its own slot
    are enabled, and only when every ancestor's `applies-when` and its own match
-   (`resolve.mjs:346-367`).
+   (`resolve.mjs:346-376`).
 4. **What the reader checks that the schema cannot**: every child is defined, `needs:` names only
    siblings, no composite contains itself, a composite holds only leaves (at most two layers below
    the lane), and a leaf appears at most once in a lane

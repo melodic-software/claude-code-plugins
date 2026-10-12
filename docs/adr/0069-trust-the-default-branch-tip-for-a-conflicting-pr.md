@@ -9,8 +9,10 @@
 
 A write activity reads its config, actions and trusted-actor list from the PR's base SHA, which
 must be on the default branch (ADR 0053 point 1; `check-trusted-base`). A PR in merge conflict
-keeps a stale base SHA: on the sandbox, a conflicting PR's base was still an old main commit whose
-config had no pr-unblock slot, so resolve-config found `0 slots for activity`. The token broker
+keeps a stale base SHA: on pr-pipeline-sandbox, a dispatch for a conflicting PR whose `base.sha`
+was still an old main commit failed with `lane pr-refine has 0 slots for activity
+test-workflow-push`, because that commit's config lacked the probe's activity (run
+38148621946). The token broker
 already decides the grant from the default-branch tip
 ([ADR 0058](0058-mint-lane-app-tokens-through-an-oidc-broker.md)), and the merge the lane makes
 has to bring in the tip, not the stale base.
@@ -23,7 +25,7 @@ The write runner takes a caller input `trusted-base`, `pr-base` by default or `d
 1. With `default-tip`, `check-trusted-base` runs the same checks (the PR targets the default
    branch, the gated base SHA is on it), then checks out the default branch tip instead of the base
    SHA, before any head checkout
-   ([`check-trusted-base/action.yml:61-86`](../../.github/actions/check-trusted-base/action.yml)).
+   ([`check-trusted-base/action.yml:61-85`](../../.github/actions/check-trusted-base/action.yml)).
 2. That one SHA is the `base-sha` output, the source of config, actions and trusted actors, and
    the merge's second parent
    ([ADR 0068](0068-push-a-lane-merge-as-an-api-made-two-parent-commit-signed-by-the-app.md)).

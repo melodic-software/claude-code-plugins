@@ -10,8 +10,9 @@
 "Workflows will not run on `pull_request` activity if the pull request has a merge conflict"
 ([Events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows),
 fetched 2026-10-12), so the PRs pr-unblock exists for never start a PR-event lane. A workflow must
-start it from outside the PR. With `GITHUB_TOKEN`, only `workflow_dispatch` and
-`repository_dispatch` create runs (same page). A sandbox probe showed that a run dispatched with
+start it from outside the PR. An event raised with `GITHUB_TOKEN` creates no run except
+`workflow_dispatch`, `repository_dispatch` and `pull_request` runs that need approval (same
+page), so the lane is started by `workflow_dispatch`. A sandbox probe showed that a run dispatched with
 `GITHUB_TOKEN` names only `github-actions[bot]` (id 41898282) as sender, actor, triggering actor
 and OIDC actor, and nothing in it names the dispatching run (pr-pipeline-sandbox runs 38155572048
 and 38155580529). The trigger gate and the broker trust only listed actors
@@ -71,11 +72,13 @@ from any workflow in the repository holding `actions: write`.
 - Accepted residual: any workflow on any branch of this repository can get a `GITHUB_TOKEN` with
   `actions: write`. With one, a forger can dispatch `pr-unblock.yml` on `main` naming a real
   dispatcher run, inside that run's window, with any `pr-number`. Since `allowed_bots` admits
-  `github-actions` for such a run, the forged dispatch can reach the model. What bounds it is the
-  PR author check and the lane's `applies-when` (a conflicting, non-draft PR without a hold
-  label), so a forger can start only a run the dispatcher could have started. A hardening that
-  would close it, the gate and the broker accepting only a run id the dispatcher's own dispatch
-  calls returned, is not built.
+  `github-actions` for such a run, the forged dispatch can reach the model. The PR author check
+  and the lane's `applies-when` (a conflicting, non-draft PR without a hold label) still apply.
+  A forged dispatch skips the dispatcher's existing-check skip and its cap of 3, so it can repeat
+  runs on one head; the per-PR write queue and the `needs-human` label after an escalation limit
+  that (judgment, untested). The owner has decided to build run-id membership: the dispatcher
+  records the run ids it dispatched in an artifact, and the gate and the broker require
+  membership. It is not built yet.
 - One runner per conflicting PR per push, capped at 3 per dispatcher run. The cap is judgment
   until the lane's per-run cost is measured.
 - A merge-queue merge raises one push for a batch, so the dispatcher lists PRs against `main` as

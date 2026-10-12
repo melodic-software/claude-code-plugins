@@ -59,9 +59,9 @@ The runner, not the model, makes the merge commit through the Git Data API
   verified: sandbox probe run 38148710292 produced a verified two-parent commit that passed
   `check-signed-commits`, and the lane's first sandbox merge (run 38180382216, commit
   `b7df9578d3`) had `parents[1]` equal to the trusted base.
-- The built step goes further than the design sketch: it checks GitHub's tree hash against
-  `post.sh`'s tree and every uploaded blob, and the promote step refuses a lane-branch commit the
-  commit step did not make, because the model holds a contents-write token
+- The commit step also checks GitHub's tree hash against `post.sh`'s tree and every uploaded
+  blob, and the promote step refuses a lane-branch commit the commit step did not make, because
+  the model holds a contents-write token
   ([#7225](https://github.com/melodic-software/claude-code-plugins/pull/7225)).
 - Accepted residual: a `.github/workflows/` change from the base side of a merge, neither
   conflicted nor staged by the model, is committed and pushed. GitHub did not refuse it for the

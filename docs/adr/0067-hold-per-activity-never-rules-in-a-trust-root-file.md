@@ -28,7 +28,7 @@ beside `lane-rules.json` and `effect-grants.json`, keyed by leaf
 3. The file is read from the action's own trusted checkout, never from the PR head
    ([`resolve-config.mjs:184-192`](../../.github/actions/resolve-config/resolve-config.mjs)), and
    the token broker reads it at the default-branch tip as one of its trust files
-   (`melodic-software/azure-iac`, `src/lanes-token-broker/src/grant.mjs:7-12`). It is a
+   (`melodic-software/azure-iac`, `src/lanes-token-broker/src/binding.mjs:7-26`). It is a
    trust-root path
    ([pr-pipeline README, "Trust-root paths"](../conventions/pr-pipeline/README.md#trust-root-paths)).
 
