@@ -24,16 +24,24 @@ the usual way one of these moves. These stamps are page reads with a date, not s
 Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
 
 - `<plugin-data-dir>` = this plugin's persistent data directory, `${CLAUDE_PLUGIN_DATA}`. That
-  placeholder resolves here: the plugin manifest reference has `${...}` resolve
-  "Anywhere in the Markdown body" of skill, command, and agent content
-  (<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, fetched 2026-10-07; recheck when that section drops skill,
-  command or agent Markdown bodies from the list), alongside hook and
-  monitor commands. Should it
-  arrive unexpanded, derive the directory deterministically per the same page:
-  `~/.claude/plugins/data/<plugin-id>/`, where `<plugin-id>` is this plugin's install identifier
-  with characters outside `[A-Za-z0-9_-]` replaced by `-` (marketplace install →
-  `plugin-quality-<marketplace-name>`; a `--plugin-dir` dev load gets its own id such as
-  `plugin-quality-inline`). Before the first write, list `~/.claude/plugins/data/` and use the
+  placeholder resolves here, in skill, command and agent bodies as in hook and monitor commands.
+  This is the plugin's one record of where placeholders resolve; the audit skill cites it.
+  - **Pointer**: when a placeholder arrives unexpanded or a new context needs one, fetch
+    [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+    live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section drops skill, command or agent Markdown bodies from where
+    `${...}` resolves, adds supporting files to it, or changes which contexts carry
+    `CLAUDE_PLUGIN_ROOT`.
+
+  Should it
+  arrive unexpanded, derive the directory deterministically from the `${CLAUDE_PLUGIN_DATA}` row
+  of [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables),
+  fetched live, which gives the path and how this plugin's install identifier becomes `<plugin-id>`
+  (marketplace install → `plugin-quality-<marketplace-name>`; a `--plugin-dir` dev load gets its
+  own id such as `plugin-quality-inline`). As of 2026-10-11. Recheck trigger: that row stops giving
+  the data directory's path or how its id is formed. Before the first write, list the parent
+  directory that row names and use the
   matching entry; if none exists yet, create the id-form directory for this install.
 - `<target-slug>` = one **resolved** target from the list above. `<plugin>` or
   `<plugin>-<component>`. Sanitized to `[A-Za-z0-9_-]` (every other character → `-`, the same
@@ -153,21 +161,32 @@ probe a closed set instead of trusting a pointer. That note is a courtesy for a 
 packet; it is **not** an input the resume rule reads, because every `evidence*.md` carries audited
 output and resume must not be steerable by it.
 
-This guardrail is **observed harness behavior, not documented**: no official Claude Code page
-describes it (sub-agents reference checked 2026-07-26,
-<https://code.claude.com/docs/en/sub-agents>, which documents write restriction only at
-tool-access granularity via `disallowedTools`; recheck when that page documents a write
-guardrail). Treat it as environment-dependent. It may not
-fire at all in a given context, which is why the naming rule is the primary defense and the
-rename fallback is the backstop.
+This guardrail is **observed harness behavior, not documented**. Treat it as environment-dependent.
+It may not fire at all in a given context, which is why the naming rule is the primary defense and
+the rename fallback is the backstop. This is the record the `auditor` agent cites.
+
+- **Pointer**: when checking whether the report-filename guardrail is now documented, fetch
+  [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools) live. The
+  sub-agents reference was checked 2026-07-26 and that section re-read 2026-10-11: it documents
+  write restriction only at tool-access granularity (`tools` and `disallowedTools`) and names no
+  report-filename guardrail.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section, or any Claude Code page, starts describing a subagent write
+  guardrail on report-like file names, or a release note names one.
 
 ## Packet files are write-once evidence (sibling hooks rewrite them in place)
 
-The likelier event is a write **succeeding and then being changed underneath it**.
-`PostToolUse` runs after success and may rewrite; `matcher` keys on the **tool name**
-(<https://code.claude.com/docs/en/hooks>, fetched 2026-08-10). Keep write-once /
-read-back / seal: a formatter that reaches a packet rewrites in place and announces
-that only in the session the packet exists to outlive.
+The likelier event is a write **succeeding and then being changed underneath it**: a sibling
+plugin's `PostToolUse` hook on the `Write|Edit` matcher. Keep write-once / read-back / seal: a
+formatter that reaches a packet rewrites in place and announces that only in the session the packet
+exists to outlive. This is the record the `auditor` agent and `scripts/packet-seal.sh` cite.
+
+- **Pointer**: when checking when `PostToolUse` fires, what it may change, and what its matcher
+  keys on, fetch [PostToolUse](https://code.claude.com/docs/en/hooks#posttooluse) and
+  [Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes when `PostToolUse` runs, whether it may rewrite a
+  tool's result, or what a matcher matches on, or a release note names `PostToolUse`.
 
 **Accurate scope (verified 2026-09-02 against `plugins/markdown-format/hooks/hooks.json`,
 `plugins/typos-format/hooks/hooks.json`, and `hook::read_file_path` in the shared

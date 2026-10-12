@@ -28,7 +28,9 @@ set -uo pipefail
 # gate already applies it, this keeps a direct run honest too. --enabled is
 # for the consumer settings entry /testing:setup check prints for a glob no
 # shipped row covers: a settings hook receives no CLAUDE_PLUGIN_OPTION_*
-# (probes.md), and adding that entry is the opt-in.
+# (probe: https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md#consumer-settings-hook-environment-claude-code-21284-wsl2-2026-09-29,
+# as of 2026-09-29; recheck when a Claude Code release note says settings
+# hooks receive plugin options), and adding that entry is the opt-in.
 [[ "${1:-}" == --enabled ]] && CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true
 [[ "${CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED:-false}" == "true" ]] || exit 0
 

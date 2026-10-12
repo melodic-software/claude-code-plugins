@@ -21,6 +21,10 @@ your `PATH`.
   `.github/workflows/*.yaml` are linted. Other YAML is left alone. The registration
   carries the matching `if` filters (`Edit(**/.github/workflows/*.yml)` and the
   `.yaml` twin), so a Write/Edit of any other file never starts a hook process for it.
+  - **Pointer**: when deciding whether an `if` row keeps a handler from spawning, fetch
+    [hooks: Common fields](https://code.claude.com/docs/en/hooks#common-fields) live.
+    **As of**: 2026-10-11. **Recheck trigger**: that section changes when an `if` rule
+    keeps a handler from running, or which events evaluate it.
 - **Gitignored paths are out of scope.** A workflow file the repository gitignores
   is not reported. Set `actionlint_lint_gitignored` to `true` to lint gitignored
   workflow files too. A tracked file that matches an ignore pattern stays in scope.
@@ -109,6 +113,10 @@ repository when present. Three `userConfig` options tune the hook itself:
   emitting is bounded by Claude Code's own hook timeout, not by this value. If
   this shell's `read -t` will not accept the setting, or the setting is `0`, the
   hook falls back to the default.
+  - **Pointer**: when deciding what bounds a hook run past this idle read, fetch
+    [hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts) live.
+    **As of**: 2026-10-11. **Recheck trigger**: that section changes how a hook is
+    cancelled at its timeout.
 
 Configure interactively with `/plugin configure actionlint@<marketplace>` or headless at
 install time:

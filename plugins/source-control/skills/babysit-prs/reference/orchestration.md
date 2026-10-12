@@ -526,10 +526,12 @@ push. The two contracts below are halves of one operation; neither is complete a
 
 ### Why The Push Stays With The Orchestrator
 
-A dispatched subagent starts with a fresh, isolated context window: it "doesn't see your
-conversation history, the skills you've already invoked, or the files Claude has already read.
-Claude composes a delegation message that summarizes the task, and the subagent works from there"
-(<https://code.claude.com/docs/en/sub-agents>, "Context isolation"). Everything a conflict worker
+A dispatched non-fork subagent starts without the dispatching conversation and works from the
+delegation message Claude composes. Pointer:
+[sub-agents: What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup).
+As of 2026-10-11; recheck when that section says a non-fork subagent receives the parent
+conversation or anything beyond the delegation message that carries the operator's turn.
+Everything a conflict worker
 knows about its own authority therefore reaches it inside a delegation prompt written by the agent
 that dispatched it.
 

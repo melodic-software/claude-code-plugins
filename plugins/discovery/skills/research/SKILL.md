@@ -115,9 +115,9 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 
 ### Effort, source breadth
 
-Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
-one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
-skill-loaded, so the substitution never ran: treat the run as `high` and run every phase below.
+Caller effort for this run is `${CLAUDE_EFFORT}`. If that still begins with `${`, this body was read
+directly and the substitution never ran: run as `high`, every phase below. A value the table below
+does not name also runs as `high`.
 Dated record: `${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`,
 "Harness facts the dispatch design rests on". A dispatched run follows envelope `Source breadth:`
 from this load, not the researcher pin. Missing line: `high`, named in the artifact.
@@ -159,7 +159,7 @@ In the main conversation, take the deep tier when any of these holds, and read [
 - **One topic that needs adversarial verification**: contested, high-stakes, or broad enough (multi-vendor, comparison, migration) that independent skeptics should try to refute each claim. The `discovery:research-sweep` workflow runs it when the Workflow tool is observed in this session's toolset; otherwise one researcher does.
 - **A leading `deep` token** in the arguments: strip it from the topic, then route as above. A `breadth=` token with it wins, and the run takes the standard dispatch.
 
-Otherwise the standard dispatch runs: one researcher, whatever the task's size. A dispatched or forked run never selects the deep tier, because `Workflow` and a dependable `Agent` spawn exist only in the main conversation: it runs inline, and never promises the workflow engine.
+Otherwise the standard dispatch runs: one researcher, whatever the task's size. A dispatched or forked run never selects the deep tier, because it cannot count on `Workflow` or a dependable `Agent` spawn (pointers: [context/deep-tier.md](context/deep-tier.md), the "Main context only" paragraph under its title, which has no heading anchor; as of 2026-10-11; recheck when that paragraph moves or its pointers change): it runs inline, and never promises the workflow engine.
 
 ## Pre-dispatch envelope and baseline
 
@@ -276,11 +276,13 @@ Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier ar
 
 The `context/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugin manifest reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+writing it into a brief: we never rely on a `${…}` token in a file read from disk being expanded
+later.
+
+- **Pointer**: when deciding whether a `${…}` reference in a supporting file resolves, fetch
+  [plugin manifest reference: where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that table adds supporting files or the Bash
+  environment to where a `${…}` reference resolves.
 
 ## Boundary, the bundled `deep-research` workflow
 

@@ -190,7 +190,8 @@ comparative (side-by-side directions), interactive (motion you can only feel), o
 - **Reading ceiling**: the author's markdown length ceiling (S2) is a practitioner
   anecdote, recorded as such, not a measured threshold; we set none.
 - **Sharing**: the publish-and-share need is met in this environment by the Artifact tool
-  (see [Share session output as artifacts](https://code.claude.com/docs/en/artifacts));
+  (see [Share session output as artifacts § Share an artifact](https://code.claude.com/docs/en/artifacts#share-an-artifact),
+  as of 2026-10-11; recheck when that section changes how an artifact is shared);
   nothing extra to build.
 - **Scoping rule**: HTML artifacts are for ephemeral and published outputs. They never
   replace version-controlled instruction surfaces. HTML diffs are noisy and generating HTML

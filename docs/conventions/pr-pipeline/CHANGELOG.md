@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## 1.8.0 - 2026-10-11
+
+The `pr-unblock` dispatcher lands, and the write runner trusts its dispatches. `version` stays 1.
+
+- New workflow `.github/workflows/pr-unblock-dispatch.yml` (script
+  `.github/scripts/pr-unblock/dispatch.mjs`) runs on each push to `main` and dispatches
+  `pr-unblock.yml` for the open, non-draft, same-repository PRs GitHub reports as conflicting, at
+  most 3 per run, skipping a head that already carries a `pr-unblock` check run.
+- `pr-run-activity-write.yml` passes `check-trusted-trigger` its `dispatcher-run-id` with the
+  `pr-unblock-dispatch.yml` and `pr-unblock.yml` paths, so a `github-actions[bot]` dispatch runs
+  only through a checked dispatcher run instead of always stopping `untrusted-actor`.
+
 ## 1.7.0 - 2026-10-11
 
 The `pr-unblock` lane gets its caller and live config. `version` stays 1.
