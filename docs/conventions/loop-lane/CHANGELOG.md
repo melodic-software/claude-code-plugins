@@ -21,13 +21,19 @@ as it stops and writes nothing. With none configured, no lane behaves differentl
   script builds the https URL from the repository and branch (or a pull request's head), scrubs
   every `GIT_*` variable, ignores global and system config, forces gh as the only credential
   helper and https as the only transport, refuses on local `url.*`, `include*`, `credential.*`,
-  `http.*` and unsafe `remote.*` keys, and pushes only when gh's acting login is the identity. §1
-  lists every refusal. Named residuals: interactive sessions stay under the operator, and their
-  label writes count as human provenance; a lane holds the operator's token for the rest of the
-  cycle in which the config lands; whoever controls the lane host's gh or git binary, the script
-  or the checkout's `.git` directory already runs code as the lane; interactive babysit-prs runs
-  push through the script with the session's gh token over https, so a token without the
-  `workflow` scope cannot push changes to workflow files (accepted, not exempted).
+  `http.*` and unsafe `remote.*` keys, sets `NETRC=/dev/null`, takes git and gh only at absolute
+  paths, and pushes only when gh's acting login is the identity. §1 lists every refusal. Named
+  residuals: interactive sessions stay under the operator, and their label writes count as human
+  provenance; a lane holds the operator's token for the rest of the cycle in which the config
+  lands; whoever controls the lane host's gh or git binary, the script or the checkout's `.git`
+  directory already runs code as the lane; a `lane-push.sh` push without workflow-file permission
+  cannot change workflow files (accepted).
+- **Two push paths (§1).** The pull-request skill's `push-branch.sh` keeps the operator's remote
+  for interactive pushes and, inside a lane (a GitHub App `[bot]` acting login), hands the push to
+  `lane-push.sh`. Residuals R1-R6: two paths to maintain; the interactive path trusts the
+  operator's git setup; a lane on an operator host with SSH keys reachable can push as the operator
+  until lane hosts hold only the identity's credentials; the lane check is advisory; `NETRC` needs a
+  libcurl that reads it; proxy and CA variables are not scrubbed.
 
 ## [11.0.1] - 2026-10-11
 

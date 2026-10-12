@@ -56,6 +56,10 @@
 # A head branch with no local ref, a name starting with '-', or a push remote
 # that is not the PR's head repository exits non-zero rather than pushing.
 #
+# Inside a lane (the acting gh login is a GitHub App `[bot]` login) none of the
+# above runs: the push goes to the plugin's scripts/lane-push.sh (see the lane
+# block below).
+#
 # Usage: push-branch.sh [branch-name | --pr <number>]   (defaults to the current branch)
 set -uo pipefail
 
@@ -97,6 +101,46 @@ if [[ -n "${HEAD_REPO:-}" ]]; then
     exit 1
   fi
 fi
+# Inside a lane, hand the push to lane-push.sh (loop-lane convention, "Lane
+# write identity"). A lane is a session whose acting gh login is a GitHub App
+# login (`<slug>[bot]`): the identity contract requires one, and an operator
+# never acts as one. lane-push.sh pushes HEAD of the worktree holding the
+# branch to the https URL of the repository the push remote names, as that
+# login. This check is advisory: a lane that skips this script is held only by
+# the credentials its host gives it. A failed login read keeps the operator path.
+ACTING=$(gh api --hostname github.com graphql -f 'query=query{viewer{login}}' \
+  --jq .data.viewer.login 2>/dev/null | tr -d '\r')
+if [[ "$ACTING" == *"[bot]" ]]; then
+  URL=$(git remote get-url --push "$PUSH_REMOTE" 2>/dev/null)
+  URL="${URL%/}"
+  URL="${URL%.git}"
+  case "$URL" in
+    https://github.com/* | ssh://git@github.com/* | git@github.com:*) DEST_REPO="${URL#*github.com[:/]}" ;;
+    *) DEST_REPO="" ;;
+  esac
+  if [[ ! "$DEST_REPO" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ ]]; then
+    echo "push-branch.sh: lane push remote '$PUSH_REMOTE' ($URL) is not a github.com repository; not pushing" >&2
+    exit 1
+  fi
+  SRC_DIR="" WT=""
+  while IFS= read -r LINE; do
+    case "$LINE" in
+      "worktree "*) WT="${LINE#worktree }" ;;
+      "branch refs/heads/$BRANCH")
+        SRC_DIR="$WT"
+        break
+        ;;
+      *) ;;
+    esac
+  done < <(git worktree list --porcelain 2>/dev/null)
+  if [[ -z "$SRC_DIR" ]]; then
+    echo "push-branch.sh: '$BRANCH' is checked out in no worktree, so lane-push.sh has no HEAD to push; not pushing" >&2
+    exit 1
+  fi
+  exec bash "${SCRIPT_DIR}/../../../scripts/lane-push.sh" --dir "$SRC_DIR" --login "$ACTING" \
+    --repo "$DEST_REPO" --branch "$BRANCH"
+fi
+
 FETCH_REMOTE=$(bash "$RESOLVER" "$BRANCH" 2>/dev/null)
 EXISTING_REMOTE=$(git config "branch.${BRANCH}.remote" 2>/dev/null)
 EXISTING_MERGE=$(git config "branch.${BRANCH}.merge" 2>/dev/null)

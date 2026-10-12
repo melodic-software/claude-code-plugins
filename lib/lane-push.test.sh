@@ -44,6 +44,8 @@ done
 [[ \$is_push == 1 ]] || exec "$REAL_GIT" "\$@"
 printf '%s\n' "\$@" >"\$LP_LOG/push.argv"
 env | LC_ALL=C sort >"\$LP_LOG/push.env"
+printf 'protocol=https\nhost=github.com\n\n' |
+  "$REAL_GIT" "\${cflags[@]}" credential fill >"\$LP_LOG/push.cred" 2>/dev/null
 "$REAL_GIT" "\${cflags[@]}" config --get-all credential.helper >"\$LP_LOG/push.helpers"
 "$REAL_GIT" "\${cflags[@]}" config --get-regexp '^(url|include|http)\.' >"\$LP_LOG/push.risky"
 exit "\${LP_PUSH_EXIT:-0}"
@@ -55,10 +57,15 @@ cat >"$BIN/gh" <<'EOF'
 printf '%s\n' "$*" >>"$LP_LOG/gh.calls"
 case "$1 $2" in
   "api --hostname")
+    printf 'viewer HOME=%s\n' "$HOME" >>"$LP_LOG/gh.home"
     [[ -z ${LP_LOGIN_FAIL:-} ]] || exit 1
     printf '%s\n' "$LP_LOGIN"
     ;;
   "pr view") printf '%s\n%s\n' "$LP_HEAD_REPO" "$LP_HEAD_REF" ;;
+  "auth git-credential")
+    printf 'helper HOME=%s\n' "$HOME" >>"$LP_LOG/gh.home"
+    printf 'username=x-access-token\npassword=gh-token\n'
+    ;;
   *) exit 99 ;;
 esac
 EOF
@@ -280,6 +287,45 @@ expect_refused "case 11: a missing --dir is refused" bad-dir
 mkdir -p "$TMP/plain"
 run "$TMP/plain" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
 expect_refused "case 12: outside a checkout is refused" config-unreadable
+
+# 13. git runs with NETRC=/dev/null whatever the caller set, so libcurl reads
+# no netrc file; HOME is the caller's, so gh, for the login read and as the
+# helper, reads the same config and token.
+REPO_DIR="$TMP/repo-main"
+printf 'machine github.com login operator password leaked\n' >"$TMP/netrc-file"
+NETRC="$TMP/netrc-file" run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
+assert_eq "case 13: exit 0" 0 "$RC"
+assert_eq "case 13: a caller's NETRC is replaced by /dev/null" "NETRC=/dev/null" "$(grep -E '^NETRC=' "$LOG/push.env")"
+run "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
+assert_eq "case 13: with no caller NETRC, git still gets /dev/null" "NETRC=/dev/null" "$(grep -E '^NETRC=' "$LOG/push.env")"
+assert_eq "case 13: the helper answers with gh's credential" \
+  $'protocol=https\nhost=github.com\nusername=x-access-token\npassword=gh-token' "$(cat "$LOG/push.cred")"
+assert_eq "case 13: the login read and the helper both run gh under the caller's HOME" \
+  "viewer HOME=$HOME"$'\n'"helper HOME=$HOME" "$(cat "$LOG/gh.home")"
+
+# 14. git is resolved from PATH before --dir is entered, and only to an
+# absolute path, so a relative PATH entry cannot pick up a git the checkout
+# holds.
+mkdir -p "$REPO_DIR/planted" "$TMP/cwd/planted"
+for d in "$REPO_DIR/planted" "$TMP/cwd/planted"; do
+  printf '#!/usr/bin/env bash\ntouch "%s/ran"\n' "$d" >"$d/git"
+  chmod +x "$d/git"
+done
+PATH="planted:$PATH" run "$TMP" --dir "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
+assert_eq "case 14: a git planted under --dir is not used" 0 "$RC"
+if [[ -e $REPO_DIR/planted/ran ]]; then
+  fail "case 14: the planted git never ran" "it ran"
+else
+  pass "case 14: the planted git never ran"
+fi
+PATH="planted:$PATH" run "$TMP/cwd" --dir "$REPO_DIR" --login "$LP_LOGIN" --repo example-org/example-repo --branch main
+expect_refused "case 14: a git found through a relative PATH entry is refused" git-path-unsafe
+if [[ -e $TMP/cwd/planted/ran ]]; then
+  fail "case 14: the relative git never ran" "it ran"
+else
+  pass "case 14: the relative git never ran"
+fi
+rm -rf "$REPO_DIR/planted"
 
 if ((FAILED)); then
   printf '%d failure(s)\n' "$FAILED" >&2

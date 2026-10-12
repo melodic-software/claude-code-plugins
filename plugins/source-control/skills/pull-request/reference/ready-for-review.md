@@ -97,7 +97,9 @@ replaces that push's draft run within seconds instead of after it ran to the end
 `push-branch.sh`, as [create.md](create.md) does: it pushes to the remote `resolve-remote.sh
 --push` resolves, so a fork or triangular checkout never pushes to the wrong remote. `--pr` pushes
 the pull request's head branch even when the session runs in another worktree, and exits non-zero
-when that branch has no local ref or its push remote is not the PR's head repository.
+when that branch has no local ref or its push remote is not the PR's head repository. Inside a lane
+(the acting gh login is a GitHub App `[bot]` login), it hands the push to the plugin's
+`lane-push.sh` instead (loop-lane convention, "Lane write identity").
 
 ```bash
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything

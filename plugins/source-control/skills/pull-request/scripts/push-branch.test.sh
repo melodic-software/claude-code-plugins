@@ -44,6 +44,39 @@ trap 'rm -rf "$WORKDIR"' EXIT
 
 BRANCH="feat/x"
 
+# A gh stand-in for the acting-login read push-branch.sh makes to tell a lane
+# from an operator: an operator login unless PB_LOGIN says otherwise, and a
+# failed read when PB_LOGIN_FAIL is set. Lane cases add a git stand-in that
+# records a push instead of sending it.
+REAL_GIT="$(type -P git)"
+SHIM="$WORKDIR/shim"
+LOG="$WORKDIR/log"
+mkdir -p "$SHIM" "$LOG"
+cat >"$SHIM/gh" <<'EOF'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "api --hostname")
+    [[ -z ${PB_LOGIN_FAIL:-} ]] || exit 1
+    echo "${PB_LOGIN:-example-user}"
+    ;;
+  "pr view") echo "feat/b example-org/app" ;;
+  *) exit 99 ;;
+esac
+EOF
+cat >"$SHIM/git" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do
+  if [[ \$a == push && -n \${PB_RECORD_PUSH:-} ]]; then
+    printf '%s\n' "\$@" >"$LOG/push.argv"
+    pwd -P >"$LOG/push.cwd"
+    exit 0
+  fi
+done
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$SHIM/gh" "$SHIM/git"
+export PATH="$SHIM:$PATH"
+
 # Build a working clone under $WORKDIR/$1 with `feat/x` checked out (one commit),
 # plus a bare remote per remaining `name` arg. The clone's `origin` is a bare
 # repo of its own so a real push has somewhere to land. Echoes the clone path.
@@ -186,6 +219,7 @@ stub="$WORKDIR/pr-worktree/bin"
 mkdir -p "$stub"
 cat >"$stub/gh" <<'STUB'
 #!/usr/bin/env bash
+[[ "$1" == api ]] && echo example-user && exit 0
 [[ "$*" == *" 42 "* ]] && echo "feat/b pr-worktree/origin" && exit 0
 [[ "$*" == *" 43 "* ]] && echo "feat/missing pr-worktree/origin" && exit 0
 [[ "$*" == *" 44 "* ]] && echo "feat/b someone/fork" && exit 0
@@ -217,6 +251,61 @@ git -C "$wc" update-ref refs/heads/--mirror HEAD
 dash_exit=zero
 (cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 45) >/dev/null 2>&1 || dash_exit=nonzero
 check "pr-worktree: head branch starting with '-' exits non-zero" "$dash_exit" "nonzero"
+
+# 9. Inside a lane, meaning the acting gh login is a GitHub App login
+#    (`<slug>[bot]`, the loop-lane identity contract), the push goes to
+#    lane-push.sh: its constructed https URL for the repository the push remote
+#    names, from the worktree holding the branch, never the remote itself, and
+#    no upstream is written. Expected URL and refspec: the lane-push contract.
+LANE="example-lane[bot]"
+lane_run() {
+  rm -f "$LOG"/*
+  (cd "$1" && shift && PB_LOGIN="$LANE" PB_RECORD_PUSH=1 bash "$PUSH_BRANCH" "$@") >/dev/null 2>&1
+  RC=$?
+}
+lane_dest() {
+  if [[ -f "$LOG/push.argv" ]]; then tail -2 "$LOG/push.argv" | paste -sd' '; else echo NONE; fi
+}
+wc=$(make_clone lane)
+git -C "$wc" remote set-url origin git@github.com:example-org/app.git
+lane_run "$wc"
+check "lane: exit 0" "$RC" "0"
+check "lane: pushed through lane-push.sh (helper reset first)" \
+  "$(head -2 "$LOG/push.argv" 2>/dev/null | paste -sd' ')" "-c credential.helper="
+check "lane: pushed to the constructed https URL" "$(lane_dest)" \
+  "https://github.com/example-org/app.git HEAD:refs/heads/$BRANCH"
+check "lane: no upstream written" "$(branch_config "$wc" remote)" "UNSET"
+
+# --pr in a lane: the PR's head, from the worktree that has it checked out.
+wt_l="$WORKDIR/lane/wt-b"
+git -C "$wc" worktree add -q -b feat/b "$wt_l" 2>/dev/null
+lane_run "$wc" --pr 46
+check "lane --pr: pushes the PR's head branch" "$(lane_dest)" \
+  "https://github.com/example-org/app.git HEAD:refs/heads/feat/b"
+check "lane --pr: pushes from the PR worktree" "$(cat "$LOG/push.cwd" 2>/dev/null)" "$(cd "$wt_l" && pwd -P)"
+
+# A lane whose push remote is not a github.com URL cannot be handed over: it
+# is refused, and nothing is pushed by either path.
+wc=$(make_clone lane-local)
+lane_run "$wc"
+check "lane, non-GitHub remote: exits non-zero" "$([[ $RC != 0 ]] && echo nonzero || echo zero)" "nonzero"
+check "lane, non-GitHub remote: lane-push.sh pushed nothing" "$(lane_dest)" "NONE"
+check "lane, non-GitHub remote: the remote did not receive the branch" "$(has_branch "$WORKDIR/lane-local/origin")" "no"
+
+# A branch checked out in no worktree has no HEAD for lane-push.sh: refused.
+wc=$(make_clone lane-idle)
+git -C "$wc" remote set-url origin https://github.com/example-org/app.git
+git -C "$wc" branch -q feat/idle
+lane_run "$wc" feat/idle
+check "lane, idle branch: exits non-zero" "$([[ $RC != 0 ]] && echo nonzero || echo zero)" "nonzero"
+check "lane, idle branch: nothing pushed" "$(lane_dest)" "NONE"
+
+# An operator login keeps the operator path: the remote receives the branch
+# through plain git, lane-push.sh is not involved.
+wc=$(make_clone operator)
+rm -f "$LOG"/*
+(cd "$wc" && PB_LOGIN=operator-example bash "$PUSH_BRANCH") >/dev/null 2>&1
+check "operator: the remote received the branch by plain git" "$(has_branch "$WORKDIR/operator/origin")" "yes"
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"

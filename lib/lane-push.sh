@@ -19,9 +19,17 @@
 #     name, a branch's pushRemote or a caller URL. Owner, repository, branch,
 #     login and number must match strict character allowlists, and the branch
 #     must pass `git check-ref-format`.
+#   - Resolves git and gh on PATH before entering --dir and refuses either
+#     unless absolute, so a relative PATH entry cannot reach into the checkout.
 #   - Drops every GIT_* variable the caller set, plus SSH_ASKPASS, BASH_ENV and
-#     ENV, then sets GIT_CONFIG_GLOBAL=/dev/null, GIT_CONFIG_NOSYSTEM=1 and
-#     GIT_TERMINAL_PROMPT=0. git(1) ENVIRONMENT VARIABLES and git-config(1)
+#     ENV, then sets GIT_CONFIG_GLOBAL=/dev/null, GIT_CONFIG_NOSYSTEM=1,
+#     GIT_TERMINAL_PROMPT=0 and NETRC=/dev/null. git sets CURLOPT_NETRC and
+#     asks a helper only when it has no username, so a netrc entry would
+#     authenticate first; libcurl reads the file NETRC names before
+#     $HOME/.netrc and, when HOME is empty or unset, the passwd home
+#     (curl lib/netrc.c), so emptying HOME would not stop it. HOME is left
+#     alone, so gh finds its config and keyring for both the login read and
+#     the helper. git(1) ENVIRONMENT VARIABLES and git-config(1)
 #     ENVIRONMENT list what git reads from the environment; every name there,
 #     GIT_CONFIG_COUNT/KEY_<n>/VALUE_<n>, GIT_SSH_COMMAND, GIT_ASKPASS,
 #     GIT_PROXY_COMMAND, GIT_EXEC_PATH, GIT_ALLOW_PROTOCOL and GIT_TRACE*
@@ -49,13 +57,18 @@
 #
 # Not closed here: whoever can replace the gh or git binary, edit this
 # script, or write the checkout's .git directory already runs code as the lane.
+# A libcurl older than the release that reads NETRC ignores it. libcurl still
+# honors proxy and CA variables (https_proxy, ALL_PROXY, SSL_CERT_FILE): they
+# can redirect or intercept the push but supply no GitHub credential. The
+# script mediates only lanes that call it; a lane that runs git push itself is
+# held only by the credentials its host gives it (loop-lane convention).
 #
 # Exit: 0 pushed (or --check passed); 1 the push ran and failed; 2 refused,
 # nothing pushed, with `lane-push: refused: <code>` on stderr. Codes: usage,
 # bad-dir, bad-login, bad-repo, bad-branch, bad-pr, gh-missing, gh-path-unsafe,
-# git-missing, config-unreadable, local-config-url, local-config-include,
-# local-config-credential, local-config-http, local-config-remote,
-# head-unreadable, login-unreadable, login-mismatch.
+# git-missing, git-path-unsafe, config-unreadable, local-config-url,
+# local-config-include, local-config-credential, local-config-http,
+# local-config-remote, head-unreadable, login-unreadable, login-mismatch.
 set -euo pipefail
 export LC_ALL=C
 
@@ -96,6 +109,17 @@ require_repo() {
     refuse bad-repo
 }
 
+for v in "${!GIT_@}"; do unset "$v"; done
+unset SSH_ASKPASS BASH_ENV ENV
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 NETRC=/dev/null
+
+# Resolved before --dir is entered, so a relative PATH entry cannot reach into
+# the checkout, and held to absolute paths.
+git_bin=$(type -P git) || refuse git-missing
+[[ $git_bin == /* ]] || refuse git-path-unsafe
+gh_bin=$(type -P gh) || refuse gh-missing
+[[ $gh_bin == /* && $gh_bin != *[\'[:cntrl:]]* ]] || refuse gh-path-unsafe
+
 [[ -z $dir ]] || cd -- "$dir" 2>/dev/null || refuse bad-dir
 [[ $login =~ ^[A-Za-z0-9][A-Za-z0-9-]{0,38}(\[bot\])?$ ]] || refuse bad-login
 if ((check)); then
@@ -105,14 +129,6 @@ else
 fi
 [[ -z $repo ]] || require_repo "$repo"
 [[ -z $pr ]] || [[ $pr =~ ^[1-9][0-9]{0,9}$ ]] || refuse bad-pr
-
-for v in "${!GIT_@}"; do unset "$v"; done
-unset SSH_ASKPASS BASH_ENV ENV
-export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0
-
-git_bin=$(type -P git) || refuse git-missing
-gh_bin=$(type -P gh) || refuse gh-missing
-[[ $gh_bin == /* && $gh_bin != *[\'[:cntrl:]]* ]] || refuse gh-path-unsafe
 
 require_branch() {
   [[ $1 =~ $branch_re && $1 != -* ]] || refuse bad-branch
