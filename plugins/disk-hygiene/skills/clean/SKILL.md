@@ -11,13 +11,14 @@ hooks:
         # finds Git Bash and never System32\bash.exe, then runs
         # run-python-hook.sh. Bare `bash` or `python3` as `command` is the
         # launch that fails open on Windows.
-        # Claim: exec form spawns `command` with `args` and no shell, and a
-        # skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT}.
-        # Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form"
-        # and "Command hook fields".
-        # As of: 2026-09-28.
-        # Recheck: that page stops ignoring `shell` when `args` is set, or a
-        # skill hook gains another placeholder.
+        # A skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT}
+        # (our probe, PR #1014), so args pass only `--plugin-root`.
+        # Pointer: when checking how exec form spawns `command` with `args`,
+        # fetch https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
+        # and https://code.claude.com/docs/en/hooks#command-hook-fields live.
+        # As of: 2026-10-11.
+        # Recheck trigger: either section changes how `args` and `shell`
+        # interact, or a skill hook gains another placeholder.
         - type: command
           command: node
           args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]
@@ -135,9 +136,9 @@ What a valid answer must *name* is per question, because a target prompt has no 
 name and cannot be held to a bar built for one.
 
 **Question surface.** Prefer `AskUserQuestion`: its answer is the user's own and cannot be
-fabricated. It is not always usable, in two distinct ways, a bare-name `permissions.deny` rule or a
-`disallowed-tools` entry removes it from context entirely, while permission mode `dontAsk` denies it
-even when an allow rule names it, leaving it visible and every call failing. Fall back to the same
+fabricated. It is not always usable: a deny rule or tool restriction can hide it, and a permission
+mode can leave it visible while every call fails ([dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode),
+as of 2026-10-11; recheck when that section changes which tools it denies). Fall back to the same
 question asked inline as a numbered choice whenever the tool is absent, denied, **or otherwise
 unusable**. Including a denial discovered only by calling it; a denied call is an unanswered
 question, never an answer. Then wait for the reply.
@@ -212,16 +213,14 @@ re-verification checks a candidate with no live-I/O value left to give would oth
 fan-out worker receives a bounded subtree and returns evidence only (see
 [fan-out-worker-brief.md](reference/fan-out-worker-brief.md)). The parent owns classification, the
 single report, every approval, preview, and all execution. Do not let workers delete or prepare approvals.
-The skill-frontmatter Bash/PowerShell belt does not apply inside those subagents. **Claim:** a
-subagent dispatched from a session whose Bash lane is belt-denied still runs Bash, `gh`, and
-`curl` without the belt. **Basis:** a probe on Claude Code 2.1.285 (Linux): after `/disk-hygiene:clean`
-loaded, the session's `git --version` was denied by the belt and a subagent's `git --version` ran;
-the subagents page lists settings, managed-policy and plugin hooks as the ones that apply inside
-subagents and does not list skill frontmatter hooks
-(https://code.claude.com/docs/en/sub-agents, https://code.claude.com/docs/en/hooks, fetched
-2026-09-30). **As of:** 2026-09-30.
-**Recheck:** a page documents subagent inheritance of skill-frontmatter hooks, or a release
-note names that reach. Enforcing "workers return evidence only" in a hook that fires for
+The skill-frontmatter Bash/PowerShell belt does not apply inside those subagents, so a worker
+still runs Bash, `gh`, and `curl` without it. Our probe on Claude Code 2.1.285 (Linux), recorded in
+[#5565](https://github.com/melodic-software/claude-code-plugins/pull/5565), observed this: after `/disk-hygiene:clean` loaded, the session's `git --version` was denied by the belt and a
+subagent's `git --version` ran. **Pointer:** when checking which hooks apply inside subagents, fetch
+[Define hooks for subagents](https://code.claude.com/docs/en/sub-agents#define-hooks-for-subagents)
+and [Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)
+live. **As of:** 2026-10-11. **Recheck trigger:** either section documents subagent inheritance of
+skill-frontmatter hooks, or a release note names that reach. Enforcing "workers return evidence only" in a hook that fires for
 subagents is parked: a plugin-level gate that reached subagents would be a new
 hook surface, not a SKILL.md sentence. Do not treat a worker PowerShell recycle or delete as
 belt-denied.
@@ -464,8 +463,10 @@ and what the guard does when no Python resolves → "Hook launch form".
   bottom-up; it never follows a new link or recursively discovers new entries. The manual-handoff
   lane's container re-enumeration rule applies this same changed-since-scan discipline where no
   snapshot token exists.
-- `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
-  grants none. Consumer permission policy remains authoritative.
+- This destructive skill intentionally sets no `allowed-tools`, so it adds no tool approvals of its own
+  ([Pre-approve tools for a skill](https://code.claude.com/docs/en/skills#pre-approve-tools-for-a-skill),
+  as of 2026-10-11; recheck when that section changes what the field grants). Consumer permission
+  policy remains authoritative.
 - The Bash lane is deny-by-default: only the literal-word bundled scan, inventory, preview,
   handoff-verify, catalog, apply, and handoff-apply shapes (plus the argument-free kill-switch probe) pass, using the hook
   runtime's own absolute interpreter. The guard also admits literal-form read-only
@@ -479,21 +480,19 @@ and what the guard does when no Python resolves → "Hook launch form".
   redirections, aliases, and exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
-  (`permissionDecision: "ask"`). The hooks reference says that value asks the user about the tool
-  call, and the permission-modes page says auto mode still shows a prompt a hook forces, so the
-  classifier can still deny but cannot silently approve. Verified 2026-09-06 against Claude Code
-  2.1.263 at `https://code.claude.com/docs/en/hooks#pretooluse-decision-control` and
-  `https://code.claude.com/docs/en/permission-modes`; recheck when either page stops carrying those
-  statements, or when a release note names hook permission decisions.
-  An explicit `permissions.ask` rule for those deletion
-  spellings is what the same docs treat as forcing a prompt in `auto` and `bypassPermissions`;
-  in `dontAsk` that rule is denied with no prompt, so leave `dontAsk` first if the per-path
-  handoff confirm must appear. Add one if the manual handoff must not depend on hook-`ask`
-  surfacing. The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
+  (`permissionDecision: "ask"`): each deletion needs the user's explicit confirmation. Whether that
+  `ask` reaches the user in the active mode is upstream behavior: fetch the pointed sections before
+  relying on it, and add an explicit `permissions.ask` rule for those spellings, or change mode,
+  when they show it would not. **Pointer:** when checking how a hook `ask` or a `permissions.ask`
+  rule behaves in each mode, fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
+  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode) and
+  [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
+  live. **As of:** 2026-10-11. **Recheck trigger:** a section changes whether either kind of `ask`
+  prompts in a mode, or a release note names hook permission decisions.
+  The lane is a raised bar, not fail-closed; its flagged set is enumerated, so an
   unflagged mutation spelling passes it. The engine's own containment and the Bash lane remain
   the deletion authority, except inside the opt-in elevated script, which no guard sees.
-- A `permissions.allow` rule cannot remove the deletion prompts. Those prompts are hook `ask` verdicts, which force a prompt; the engine's read-only scan, preview, and `handoff-verify` calls already get hook `allow`, so an allow rule adds nothing there. Auto mode also drops broad interpreter allow rules such as `Bash(python*)`.
-  Verified 2026-09-29 against Claude Code 2.1.285 at `https://code.claude.com/docs/en/hooks#pretooluse-decision-control` (an `ask` prompts the user, including in auto mode) and `https://code.claude.com/docs/en/permission-modes` (the list of allow rules dropped on entering auto mode); recheck when either page changes those statements, or when a release note names hook permission decisions or auto-mode rule handling.
+- A `permissions.allow` rule cannot remove the deletion prompts. Those prompts are hook `ask` verdicts, which force a prompt; the engine's read-only scan, preview, and `handoff-verify` calls already get hook `allow`, so an allow rule adds nothing there. Do not reach for a broad interpreter allow rule either. **Pointer:** when checking which allow rules survive auto mode, fetch [How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions) live. **As of:** 2026-10-11. **Recheck trigger:** that section changes which allow rules it drops, or a release note names auto-mode rule handling.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.

@@ -49,6 +49,72 @@
         "Proposes a reference form for each setup site instead of only swapping the literal",
         "Edits no file, creates no branch, and says that change apply is the edit path"
       ]
+    },
+    {
+      "id": 5,
+      "name": "collision-hotspots-ranked-beside-co-change",
+      "prompt": "/coupling:reduce dry-run\n\nWe run several agents in parallel on this GitHub repo and their pull requests keep conflicting. Which files do they keep colliding on? We merge about 40 pull requests a day.",
+      "expected_output": "Runs the bundled collision-hotspots script from the repository root with --prs sized to several days of history (about 40 a day), reads its conflicts, pairs and path rows, verifies the ranked files before ledgering them as collision-hotspot candidates beside the co-change evidence, carries every gap: line into the report, treats the known bump hotspots line (changelogs, lockfiles, version manifests) as version-bump noise that is not ledgered, and makes no repository edits because the run is dry-run.",
+      "files": [],
+      "expectations": [
+        "Uses scripts/collision-hotspots.sh with a --prs value derived from the stated merge rate times a number of days, not an ad-hoc gh or git loop",
+        "Ranks files from the script's conflicts and pairs columns and verifies each before it reaches the ledger",
+        "Reports changelogs, lockfiles and version manifests from the known bump hotspots line without ledgering them as coupling findings",
+        "Carries the script's gap: lines into the report and edits no repository file"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "collision-hotspots-fall-back-without-gh",
+      "prompt": "/coupling:reduce dry-run src\n\ngh is not installed on this machine.",
+      "expected_output": "Attempts the collision-hotspot measure or recognizes it cannot run without gh, ranks coupling by co-change history from git alone, and records a gap: line saying collision hotspots were not measured and why, without failing the pass or editing files.",
+      "files": [],
+      "expectations": [
+        "Falls back to co-change mining from version-control history for the hotspot evidence",
+        "Records a gap: line naming the missing gh as the reason collision hotspots were not measured",
+        "Completes the dry-run pass with a ranked ledger and makes no repository edits"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "duplicate-writer-ledgered-and-handed-off",
+      "prompt": "/coupling:reduce app\n\nThe billing worker and the admin API both update the invoices.status column, and the nightly export job rewrites the export-path settings file that the CLI's setup command also writes.",
+      "expected_output": "Verifies both write sites of each value, types each as a duplicate writer under common coupling, ledgers both as structural route-lane entries without editing either writer, writes one review-findings file under <memory_dir>/coupling/<branch-slug>/ whose rows state an ownership rule per value (after checking the memory root carries a .gitignore with *), names that file in the ledger outcome and the report, and offers /review:audit-enforceability on it without running it.",
+      "files": [],
+      "expectations": [
+        "Classifies each value with two writers as a duplicate writer and puts it in the route lane, never the apply batch",
+        "Edits no writer code, schema or file-writing script",
+        "Writes the findings file under the coupling/<branch-slug>/ memory directory, not under reviews/, and names it in the ledger and the report",
+        "Offers /review:audit-enforceability for the file when that skill is available and does not invoke it unasked"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "second-list-hotspot-design-it-twice",
+      "prompt": "/coupling:reduce repo\n\nThe hotspot lens ranked config/services.json first: 40 entries, each with a name, an owner team and a path under services/, and every new service PR edits it. We build with plain shell scripts, no bundler.",
+      "expected_output": "Runs derivable-list.py on the ranked file, verifies the list is a second list (most entries name folders git tracks), ledgers it as a route-lane entry without editing it, and reports a Design-It-Twice comparison of keeping the list, build-time discovery and generating the list from the tree with a --check drift step, noting that discovery needs a loader this stack lacks and that the owner-team data must move into each service's own file before the list can be derived, then recommends one design for the human to pick.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Checks the ranked file with derivable-list.py or the same 80%-of-at-least-5-entries rule rather than by eye",
+        "Puts the second list in the route lane and does not edit, delete or regenerate config/services.json in this run",
+        "Compares all three designs: keep the list, discover at build time, generate with a drift check",
+        "Says build-time discovery needs a loader the stack does not have, and that the owner-team field must move into each service folder first",
+        "Ends with one recommendation and leaves the choice to the human"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "second-list-not-flagged-when-entries-hold-data",
+      "prompt": "/coupling:reduce dry-run repo\n\nThe hotspot lens ranked i18n/strings.json first: 600 translation keys, none of which name a file.",
+      "expected_output": "Checks the ranked file for a second list, finds no list whose entries mostly name tracked paths (a below row), and does not report it as a second list or offer the derive-from-tree comparison; it stays a collision hotspot ranked like any other.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not call i18n/strings.json a second list",
+        "Does not present the keep, discover or generate comparison for it",
+        "Keeps it as an ordinary ranked collision hotspot and makes no repository edits"
+      ]
     }
   ]
 }

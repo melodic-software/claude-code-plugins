@@ -392,6 +392,20 @@ else
   fail "a hooks.json jq cannot fully read fails closed (rc=$rc): $out"
 fi
 
+# A modules-only hooks.json (a mod with no settings hooks) has no hook to scan.
+new_fixture f
+guard "$f" demo "alpha.sh" "$HOISTED"
+hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/alpha.sh'
+mkdir -p "$f/plugins/moddy/hooks"
+printf '%s\n' '{"description":"A mod.","modules":["./register.tsx"]}' >"$f/plugins/moddy/hooks/hooks.json"
+out="$(run_check "$f")"
+rc=$?
+if ((rc == 0)); then
+  ok "a modules-only hooks.json passes"
+else
+  fail "a modules-only hooks.json passes (rc=$rc): $out"
+fi
+
 # `hoist-ok:` above the first early exit excuses the order; on a
 # hook::check_enabled call it does not.
 new_fixture f

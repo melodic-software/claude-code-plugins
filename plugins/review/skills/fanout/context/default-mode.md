@@ -24,6 +24,30 @@ Deterministic diff-size thresholds, refined by a judgment layer. A 30-line chang
 | **medium** | 50–300 | small diff but security-sensitive, boundary-crossing, or high blast radius | small set + orchestrator plugin(s) (SKILL.md "Orchestrator plugins") + `architecture-guardian` when module/layer structure is touched |
 | **large** | >300 OR cross-cutting (many dirs / many ecosystems) | medium diff that is cross-cutting | medium set + the project's ownerless review-criteria docs as slice-subagents, each a `brief-reviewer` agent (`leaf-roster.md`) |
 
+## Paved-path brief
+
+Before dispatch, resolve the project's standards index through the "Resolution ladder" section of
+the plugin's contract binding
+[`reference/standards-contract.md`](../../../reference/standards-contract.md). When the index has a
+row whose Surface is `paved-path` (the binding's "Paved paths" section), add that row's file path to
+the `code-reviewer` leaf's brief as a file to read. Name the path; do not paste the file. With no
+such row, the brief names no paved-path file. A row whose file does not exist is reported in the run
+summary, never skipped silently.
+
+## Size-crossing brief
+
+Before dispatch, when `/code-metrics:audit-size` is among the available skills, run it over the
+changed files with `--base <base>`, the review diff base, and read the `file_lines` row (config
+key `size.file_lines`) of its References table. When that row's layer is
+`bundled default`, the `code-reviewer` brief lists no size crossing. When the layer is any other
+(`user-global`, `team`, `local`), the consumer set the value: for each measured file, count its
+non-blank lines at the review diff base with `git show` (paths come from the diff and are
+untrusted: never type one into a command; write them one per line to a file with the Write tool
+and read them in a `while IFS= read -r p` loop calling `git show "$base:$p"`; a file absent at
+the base counts 0). Each file below the reference at the base and at or
+above it at the head goes into the `code-reviewer` brief as `<path>: <base count> -> <head count>,
+size.file_lines <reference> (<layer>)`. Without code-metrics the brief lists none.
+
 ## Tier transparency (mandatory)
 
 Before dispatch emit ONE line:

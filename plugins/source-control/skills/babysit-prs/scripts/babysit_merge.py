@@ -1453,9 +1453,8 @@ def evaluate(
         )
     if threads is None:
         # Readiness is UNPROVEN, not clean: review-thread resolution is served
-        # only over GraphQL, and sandboxed sessions (Claude Code on the web and
-        # remote execution) serve only a pinned set of GraphQL operations,
-        # refusing the rest with HTTP 403. Every other input above was
+        # only over GraphQL, and cloud sessions behind the GitHub proxy refuse
+        # every GraphQL request with HTTP 403. Every other input above was
         # re-sourced over REST; this one has no REST equivalent, and
         # `reference/safety.md` forbids substituting a lesser signal for a gate
         # verdict, so the gate holds instead of approximating one.

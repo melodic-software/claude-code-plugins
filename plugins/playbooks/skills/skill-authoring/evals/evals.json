@@ -62,6 +62,30 @@
         "Output names the invocation-context rubric as the owner of when fork pays, the anti-candidate classes, and the background: false default",
         "Output does not treat context: fork as the fleet default"
       ]
+    },
+    {
+      "id": 6,
+      "name": "authoring-run-ends-with-closing-report",
+      "prompt": "Write me a skill that formats our SQL migration files before commit. When you are done, tell me what you made.",
+      "expected_output": "After writing the skill, the last reply has three parts in order: the checks run (skill-quality check, evals) with their results and any check not run; the choices made (for example why a script carries the formatting, and which trigger phrases the description uses), each with a reason; and one or two sentences on what the skill does and when it fires.",
+      "files": [],
+      "expectations": [
+        "The last reply lists each check run with its result, and names any check that was not run",
+        "The last reply lists the choices made while writing the skill, each with its reason",
+        "The last reply ends with a short statement of what the skill does and the requests it fires on"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "instruction-states-the-rule-reason-only-when-needed",
+      "prompt": "I'm writing a skill step: 'Always run the formatter with --check first. We do this because, historically, people forgot and the CI failed, which is annoying for everyone.' Is that how a step should read?",
+      "expected_output": "No. A step states what to do. The history and the annoyance do not change what the model does, so they go. A reason stays only where the bare rule would mislead, for example when a reader could take --check for an optional dry run that may be skipped. Suggested rewrite: 'Run the formatter with --check before writing any file.'",
+      "files": [],
+      "expectations": [
+        "The answer rewrites the step as a direct instruction without the history",
+        "The answer says a reason is kept only where the step would mislead without it",
+        "The answer does not add a new reason sentence to the rewrite"
+      ]
     }
   ]
 }

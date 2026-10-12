@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "python-helper"
+          }
+        }
+      ],
+      "why": "another skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:write-css"
+          }
+        }
+      ],
+      "why": "write-css fired"
+    }
+  ]
+}
