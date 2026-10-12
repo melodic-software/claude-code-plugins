@@ -47,8 +47,8 @@ from pathlib import Path
 MIN_PYTHON = (3, 7)
 
 DEFAULT_ROOT = Path(__file__).resolve().parent.parent
-ROSTER = Path("scripts/next-graph-chain.txt")
-STEPS = Path("plugins/session-flow/skills/workflow/context/steps.md")
+ROSTER = "scripts/next-graph-chain.txt"
+STEPS = "plugins/session-flow/skills/workflow/context/steps.md"
 
 TOKEN = re.compile(r"(?<![\w/.-])/([a-z0-9][a-z0-9-]*):([a-z0-9][a-z0-9-]*)(?![\w-])")
 STAGE_HEADING = re.compile(r"^## (\d+)\. (\w+)(?: \((conditional|optional)\b)?")
