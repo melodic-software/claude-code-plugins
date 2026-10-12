@@ -28,7 +28,7 @@ why is the worktree skill's
 [reference/gather-block.md § The pre-compute block runs as one shell invocation](https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/source-control/skills/worktree/reference/gather-block.md#the-pre-compute-block-runs-as-one-shell-invocation)
 (as of 2026-10-11; recheck when that section's record changes). How injected commands run is
 [Extend Claude with skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
-(as of 2026-10-11; recheck when that section changes how a skill's injected commands are grouped).
+(as of 2026-10-11; recheck when that section changes the per-command shell, timeout, or output-handling behavior it documents).
 
 ## Variables
 
