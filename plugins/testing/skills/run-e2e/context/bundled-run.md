@@ -9,6 +9,7 @@ section.
 |---|---|---|---|
 | `run` ships with Claude Code as a bundled skill, with `/verify` and `/run-skill-generator` beside it, and the first two infer the launch from the project without setup | [Extend Claude with skills § Run and verify your app](https://code.claude.com/docs/en/skills#run-and-verify-your-app) | 2026-10-11 | That section changes which skills it lists or how they find the launch |
 | `run` is registered as a bundled skill with no invocation-control field, so Claude can invoke it on its own | Probe: the invocation-mode evidence line, dated 2026-09-11 (Claude Code 2.1.263), on the `run` x `testing:run-e2e` row of `docs/native-surfaces/records.json` | 2026-09-11 | A new extraction or binary search changes that evidence line |
+| Its registration carries `menuDescription:"Launch this project's app to see your change working"` and `userInvocable` | Probe: string search of the installed 2.1.263 binary | 2026-09-11 | A release changes the registration |
 | The commands reference lists `/run` as a bundled skill, and `/verify` runs only when the user invokes it | [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands), the `/run` row and the legend above the table | 2026-10-11 | The `/run` row changes, or the legend changes `/verify`'s invocability |
 | Neither bundled skill captures evidence to a contract, and neither has a non-UI mode | Our reading of the section in the first row: it names launching, driving, building, and confirming; nothing names screenshots, response captures, logs as artifacts, or libraries, MCP servers, hooks, and scripts | 2026-10-11 | Either skill gains an evidence-capture or non-app target mode |
 | `run` defers to a project skill that already covers launching the app; a project skill named `run` is a legitimate target of that deferral | String search of the installed 2.1.284 binary: the `run` registration description contains "First looks for a project skill that already covers launching the app". The named-`run` half rests on the evidence line dated 2026-09-11 (2.1.263) on the `run` x `testing:run-e2e` row of `docs/native-surfaces/records.json` | 2026-09-29 (binary); 2026-09-11 (named `run`) | A release changes the registration description, or the store row's evidence line changes |
@@ -39,5 +40,5 @@ this skill's own launch playbook, which is complete on its own.
 ## Extraction record
 
 The probe rows above rest on the observations their Basis cells name: the registry row's evidence
-line from the 2.1.263 binary on 2026-09-11, and a string search of the installed 2.1.284 binary on
+line and a string search of the installed 2.1.263 binary, both on 2026-09-11, and a string search of the installed 2.1.284 binary on
 2026-09-29. The docs rows were re-read live on 2026-10-11.
