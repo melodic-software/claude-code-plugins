@@ -2798,16 +2798,9 @@ jobs:
   # identity): first the rung and the kill switches, then the fixed rules
   # (HIGH paths, 200 lines and 8 files, label provenance, demotion record, body
   # hold, human blocking comment, another identity entry queued, ALLGREEN). A
-  # human-enqueued entry passes without reading them. So does the one named
-  # exception, Dependabot auto-merge: a pull request authored by the Bot
-  # `dependabot`, whose enqueue event actor and enqueuer are both the Bot
-  # `github-actions` (pr-automerge-dependabot.yml's GITHUB_TOKEN), whose every
-  # commit is authored by `dependabot[bot]` or `github-actions[bot]` (the
-  # version bump), committed by GitHub (`web-flow`) or that Bot, and verified,
-  # and while pr-automerge-dependabot.yml exists at the queue base. Any other
-  # commit, a User with either login, or another App ends the exception.
-  # Under ALLGREEN a failed group removes only the pull request it was built
-  # for.
+  # human-enqueued entry passes without reading them; a human queues Dependabot
+  # pull requests, since GITHUB_TOKEN cannot add to a merge queue. Under
+  # ALLGREEN a failed group removes only the pull request it was built for.
   #
   # The rule, `babysit_merge_policy.py recheck`, and its config come from a
   # checkout of the group's base, never from this pull request's own change,

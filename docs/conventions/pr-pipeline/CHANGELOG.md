@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 1.10.3 - 2026-10-12
+
+README "Merge authority": corrects 1.10.0, which named `pr-automerge-dependabot.yml` as the one
+exception to a single merge authority. That workflow only arms auto-merge with `GITHUB_TOKEN`, which
+cannot add a pull request to a merge queue (GitHub's Dependabot docs), so a human queues Dependabot
+pull requests and the merge-group recheck passes them on its human path. There is no exception.
+`version` stays 1.
+
 ## 1.10.2 - 2026-10-12
 
 `pr-run-activity.md` "The lane token broker": the broker now also requires the dispatcher run's `pr-unblock-dispatched-<ids>` record to list the requesting run, read once with no wait. `version` stays 1.

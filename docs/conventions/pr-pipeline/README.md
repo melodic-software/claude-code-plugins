@@ -312,9 +312,16 @@ human. Work classes are defined in
   content fingerprint. The local babysit lane accepts only evidence bound to the pinned head SHA
   (below).
 - `merge.stack-landing` defaults to `manual`.
-- A repository has one merge authority. The one exception is
-  `.github/workflows/pr-automerge-dependabot.yml`, which merges Dependabot pull requests on its own
-  rules whatever `merge.authority` says.
+- A repository has one merge authority. `.github/workflows/pr-automerge-dependabot.yml` only
+  arms auto-merge on a Dependabot pull request with `GITHUB_TOKEN`, and GitHub does not act on that
+  for a branch with a merge queue: a human queues Dependabot pull requests, and the merge-group
+  recheck passes them on its human path.
+  - Pointer: GitHub's Dependabot docs, [Automating Dependabot with GitHub
+    Actions](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/automating-dependabot-with-github-actions)
+    (merge queue and `GITHUB_TOKEN`).
+  - As-of: 2026-10-12.
+  - Recheck trigger: that page stops saying `GITHUB_TOKEN` cannot add pull requests to a merge
+    queue, or `pr-automerge-dependabot.yml` starts using a GitHub App token.
 
 ### The local babysit lane
 
@@ -362,7 +369,7 @@ that fails counts as a refusal.
 - **One merge in flight.** The wrapper refuses while the identity has an entry in the merge queue,
   or while an earlier unattended merge has not passed its post-merge check.
 - **Dependabot.** A dependency-manager author is never eligible for an unattended merge. Those pull
-  requests stay with `pr-automerge-dependabot.yml`.
+  requests are merged by a human enqueue.
 
 A human here is a GitHub user, not the agent identity and not an automation login, with write or
 admin permission on the repository.
