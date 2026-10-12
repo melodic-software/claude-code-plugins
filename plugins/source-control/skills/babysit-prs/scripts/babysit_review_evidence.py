@@ -113,8 +113,10 @@ def bind(
     try:
         if not isinstance(head_sha, str) or not SHA_RE.match(head_sha):
             raise Unbound("bad-head")
+        # Thread ids already standing for a recorded finding in some lane.
+        claimed: set[str] = set()
         return tuple(
-            _bind_lane(lane, head_sha, runs, comments, threads, is_human)
+            _bind_lane(lane, head_sha, runs, comments, threads, is_human, claimed)
             for lane in LANES
         )
     except Exception as exc:  # noqa: BLE001 - any doubt is unbound
@@ -129,12 +131,13 @@ def _bind_lane(
     comments: Sequence[Mapping[str, Any]],
     threads: Sequence[Mapping[str, Any]] | None,
     is_human: Callable[[Any], bool],
+    claimed: set[str],
 ) -> LaneEvidence:
     try:
         lane_runs = _lane_runs(lane, runs)
         _resolve(lane, head, lane_runs)
         _require_marker(lane, head, comments)
-        count = _open_findings(lane, lane_runs, threads, is_human)
+        count = _open_findings(lane, lane_runs, threads, is_human, claimed)
     except Unbound as exc:
         return LaneEvidence(lane, False, exc.reason, None)
     return LaneEvidence(lane, True, None, count)
@@ -361,12 +364,15 @@ def _open_findings(
     lane_runs: list[Mapping[str, Any]],
     threads: Sequence[Mapping[str, Any]] | None,
     is_human: Callable[[Any], bool],
+    claimed: set[str],
 ) -> int:
     """Summary findings over every completed attempt of the lane on this pull
     request, plus inline threads still open or closed by a non-human, plus
     inline findings whose thread is gone. A thread stands for a recorded
-    inline finding only when it was opened inside that lane job's run, so a
-    Claude thread from an unrecorded review never hides a missing one."""
+    inline finding only when it was opened inside that lane job's run, and
+    it stands for one finding across both lanes (`claimed`), so neither an
+    unrecorded review's thread nor the other lane's untagged thread hides a
+    missing one."""
     if threads is None:
         raise Unbound("threads-unread")
     summary = 0
@@ -404,10 +410,13 @@ def _open_findings(
         if not _lane_thread(lane, thread):
             continue
         created = _time(thread["comments"][0].get("createdAt"))
-        for i, (start, end, _) in enumerate(windows):
-            if created and start and end and start <= created <= end:
-                covered[i] += 1
-                break
+        thread_id = thread.get("id")
+        if created and isinstance(thread_id, str) and thread_id not in claimed:
+            for i, (start, end, k) in enumerate(windows):
+                if start and end and start <= created <= end and covered[i] < k:
+                    covered[i] += 1
+                    claimed.add(thread_id)
+                    break
         if thread.get("isResolved") is not True or not is_human(
             thread.get("resolvedBy")
         ):

@@ -689,6 +689,17 @@ class CountTests(Base):
         result = self.bind(runs, threads=threads)
         self.assertEqual(result["claude-review"].open_findings, 1)
 
+    def test_untagged_thread_covers_a_finding_in_one_lane_only(self) -> None:
+        # Both lanes' jobs overlap; one human-resolved untagged thread lies in
+        # both windows, and each lane recorded one inline finding.
+        runs = [whole(lane, S, n=1, k=1) for lane in LANES]
+        threads = [thread(resolved=True, resolved_by=MAINTAINER)]
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(
+            sum(result[lane].open_findings for lane in LANES),
+            1,
+        )
+
     def test_unread_threads_unbind(self) -> None:
         result = self.bind([whole("claude-review", S)], threads=None)
         self.assertUnbound(result["claude-review"], "threads-unread")
