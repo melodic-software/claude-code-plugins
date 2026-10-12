@@ -201,11 +201,10 @@ uses. Its rules:
   a fork fetch url masking a base pushurl, an extra base/attacker pushurl past a matching first
   one, and an external-fork head outside the trust boundary.
 - **`lane_push`.** EVERY lane push goes through it: `git push "$PUSH_REMOTE" "HEAD:$BRANCH"`
-  between two auto-merge disarms, one immediately before the push and one right after it (the
-  merge lane may re-arm the old head mid-push), because a push keeps auto-merge armed and the new
-  head could merge on ci-status alone before the AI reviews re-run ([safety.md](safety.md),
-  "Merge-lane auto-merge"). It never re-arms; that stays with the merge lane. A failed read or
-  disarm stops the push.
+  between two auto-merge disarms, one immediately before the push and one right after it (someone
+  may arm the old head mid-push), because a push keeps auto-merge armed and the new head could
+  merge on ci-status alone before the AI reviews re-run ([safety.md](safety.md), "Merge lane: no
+  auto-merge"). It never arms auto-merge; nothing does. A failed read or disarm stops the push.
 - **Branch freshness, MERGE-ONLY (full mode only).** Rebasing would rewrite history and require a
   force-push, which [safety.md](safety.md) ("Never Do Automatically") and orchestration.md's
   never-force-push invariant forbid; the final squash merge flattens interim history, so a merge

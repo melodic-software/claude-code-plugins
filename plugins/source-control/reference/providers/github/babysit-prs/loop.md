@@ -139,11 +139,11 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
 fi
 
 # EVERY lane push goes through lane_push: it turns auto-merge off immediately
-# before the push and again right after it (the merge lane may re-arm the old
-# head mid-push), because a push keeps auto-merge armed and the new head could
-# merge on ci-status alone before the AI reviews re-run (safety.md, "Merge-lane
-# auto-merge"). It never re-arms; that stays with the merge lane. A failed read
-# or disarm stops the push.
+# before the push and again right after it (someone may arm the old head
+# mid-push), because a push keeps auto-merge armed and the new head could merge
+# on ci-status alone before the AI reviews re-run (safety.md, "Merge lane: no
+# auto-merge"). It never arms auto-merge; nothing does. A failed read or disarm
+# stops the push.
 disarm_auto_merge() {
   ARMED=$(gh pr view "$PR_NUMBER" --json autoMergeRequest --jq '.autoMergeRequest // empty') || return 1
   [ -z "$ARMED" ] || gh pr merge "$PR_NUMBER" --disable-auto

@@ -876,7 +876,7 @@ Each worker must:
   it: read whether auto-merge is armed and, when it is, disable it
   ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#disarm-auto-merge)), and do not push if either the read or the disable fails;
   never re-arm
-  (`safety.md`, "Merge-lane auto-merge")
+  (`safety.md`, "Merge lane: no auto-merge")
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
   through `bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>

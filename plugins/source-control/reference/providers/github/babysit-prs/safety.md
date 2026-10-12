@@ -41,11 +41,6 @@ the queue fields read back (`isInMergeQueue`, `isMergeQueueEnabled`, `mergeQueue
 why a PR leaves the queue, the first page's removal section; 2026-10-04. Recheck when a `gh`
 release changes how `gh pr merge` treats a queue base, or the GraphQL schema changes a queue field.
 
-## Merge-lane auto-merge arm
-
-The arm the spoke's Merge-lane auto-merge section allows, in place of a hold:
-`gh pr merge <N> --auto --squash --match-head-commit <pin>`.
-
 ## Rerun a rate-limited review
 
 Rerun the whole workflow run with `gh run rerun <run-id>`, never `gh run rerun --failed`.
