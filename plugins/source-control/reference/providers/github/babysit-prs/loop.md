@@ -32,9 +32,11 @@ listing with `--author <login>` in place of `--author "@me"`.
 
 ## Branch checkout and push destination
 
-The spoke's §5.1.2 procedure. It takes `$PR_NUMBER`, `<headRefName>` and `<watched-owners>`, sets
-`CHECKOUT_MODE`, `PUSH_REMOTE` and `INTEGRATION_STATUS`, and defines `lane_push`. The file names
-in its comments (`safety.md`, `orchestration.md`) are the babysit-prs spokes.
+The spoke's §5.1.2 procedure. It takes `$PR_NUMBER`, `<headRefName>`, `<watched-owners>` and
+`$AGENT_IDENTITY` (the target's `merge.agent-identity`, empty when it names none), sets
+`CHECKOUT_MODE` and `INTEGRATION_STATUS`, and defines `lane_push`. The file names in its comments
+(`safety.md`, `orchestration.md`) are the babysit-prs spokes, and `<plugin-root>` is the
+source-control plugin's root.
 
 ```bash
 # Decide checkout mode by asserting this worktree's HEAD against the TRUE PR head
@@ -78,78 +80,43 @@ else
   [ "$(git rev-parse HEAD)" = "$PR_HEAD" ] && CHECKOUT_MODE="full" || CHECKOUT_MODE="read-only"
 fi
 
-# Resolve the push destination ONCE, here, for EVERY full-mode push path — the
-# freshness push, the conflict-continue push, and the §5.1.4 fix-cycle push all
-# read $PUSH_REMOTE. FAIL CLOSED: a same-repo head pushes to origin; a fork head
-# pushes to the destination whose URL resolves to the PR HEAD repository.
-# Validate the fork destination by URL, NOT by name: `gh pr checkout` wires the
-# branch to whatever remote (or bare URL) reaches the head, and when it cannot
-# create a writable fork remote it may point the branch at the base checkout
-# remote — commonly named `upstream`, but any name — so accepting any non-origin
-# name would push to the BASE repo, writing a same-named branch there instead of
-# updating the fork head (the cross-repo regression this guards; safety.md).
-# `branch.<b>.pushRemote`/`remote` may hold a remote name OR a URL, and a named
-# remote can carry separate `pushurl`(s) that `git push` honors — so resolve the
-# actual PUSH urls (`git remote get-url --push --all`) and canonicalize EACH to
-# host + owner/repo, then require EVERY one to equal the head repo's own canonical
-# URL (`gh api repos/<nameWithOwner> --jq .html_url`), else read-only. A cross-repo
-# head is additionally gated on its owner being within <watched-owners>. This
-# rejects a same-path remote on a DIFFERENT host, a fork fetch url masking a base
-# pushurl, an extra base/attacker pushurl past a matching first one, and an
-# external-fork head outside the trust boundary.
-if [ "$CHECKOUT_MODE" = "full" ]; then
-  if [ "$(gh pr view "$PR_NUMBER" --json isCrossRepository -q .isCrossRepository)" = "false" ]; then
-    PUSH_REMOTE=origin
-  else
-    # Canonicalize each line of stdin — scheme://[user@]host[:port]/owner/repo,
-    # user@host:owner/repo, or a bare host/owner/repo — to host/owner/repo so the
-    # comparison includes the HOST, not just the path: a same-path remote on a
-    # different host (git@evil.example.com:owner/repo) must NOT satisfy it.
-    canon() { sed -E 's#\.git$##; s#/+$##; s#^[a-zA-Z][a-zA-Z0-9+.-]*://##; s#^[^/@]*@##; s#:[0-9]+/#/#; s#:#/#'; }
-    HEAD_REPO=$(gh pr view "$PR_NUMBER" --json headRepository -q .headRepository.nameWithOwner)
-    # Trust boundary: a cross-repo head is writable only when its owner is within
-    # <watched-owners> (safety.md Stop And Ask — an external-fork head outside the
-    # watched owners stays read-only even with maintainer edits enabled). Enforce it
-    # before accepting the fork remote so the pure-bash degrade path never pushes to
-    # a repository outside the trust boundary.
-    HEAD_OWNER=${HEAD_REPO%%/*}
-    case ",<watched-owners>," in
-      *",$HEAD_OWNER,"*) : ;;
-      *) echo "Cross-repo head owner $HEAD_OWNER outside <watched-owners> — read-only"; CHECKOUT_MODE="read-only" ;;
-    esac
-    # headRepository carries no URL; canonicalize the head repo's authoritative
-    # html_url (a fork head is always on the base instance).
-    HEAD_ID=$(gh api "repos/$HEAD_REPO" --jq .html_url 2>/dev/null | canon)
-    # git push consults pushRemote before remote; either may be a remote NAME or a
-    # URL, and it writes to EVERY configured push url (`--push --all`; `--push`
-    # honors remote.<name>.pushurl, which can differ from the fetch url). Require ALL
-    # of them to canonicalize to the head repo — any non-matching line (an extra
-    # base-repo or attacker pushurl past a matching first one) fails closed. A
-    # bare-URL config value is not a known remote, so get-url errors and the literal
-    # value is validated instead.
-    PUSH_REMOTE=$(git config --get "branch.$BRANCH.pushRemote" \
-      || git config --get "branch.$BRANCH.remote" || true)
-    PUSH_URLS=$(git remote get-url --push --all "$PUSH_REMOTE" 2>/dev/null || printf '%s\n' "$PUSH_REMOTE")
-    BAD=$(printf '%s\n' "$PUSH_URLS" | canon | grep -vxF "$HEAD_ID" || true)
-    if [ -z "$PUSH_REMOTE" ] || [ -z "$HEAD_ID" ] || [ -z "$PUSH_URLS" ] || [ -n "$BAD" ]; then
-      echo "Fork push URL(s) do not all resolve to the PR head repo ($HEAD_ID) — read-only"
-      CHECKOUT_MODE="read-only"
-    fi
-  fi
+# The push destination is never this checkout's remotes: lane-push.sh reads the
+# PR's head repository and branch and builds the https URL itself, so whatever
+# remote or pushRemote `gh pr checkout` wrote above (an ssh URL, the base repo)
+# is never pushed to (safety.md, Checkout And Push Invariants). What stays here
+# is the trust boundary: a cross-repo head is writable only when its owner is
+# within <watched-owners> (safety.md Stop And Ask — an external-fork head outside
+# the watched owners stays read-only even with maintainer edits enabled).
+if [ "$CHECKOUT_MODE" = "full" ] &&
+  [ "$(gh pr view "$PR_NUMBER" --json isCrossRepository -q .isCrossRepository)" != "false" ]; then
+  HEAD_OWNER=$(gh pr view "$PR_NUMBER" --json headRepositoryOwner -q .headRepositoryOwner.login)
+  case ",<watched-owners>," in
+    *",$HEAD_OWNER,"*) : ;;
+    *) echo "Cross-repo head owner $HEAD_OWNER outside <watched-owners> — read-only"; CHECKOUT_MODE="read-only" ;;
+  esac
 fi
 
-# EVERY lane push goes through lane_push: it turns auto-merge off immediately
-# before the push and again right after it (someone may arm the old head
-# mid-push), because a push keeps auto-merge armed and the new head could merge
-# on ci-status alone before the AI reviews re-run (safety.md, "Merge lane: no
-# auto-merge"). It never arms auto-merge; nothing does. A failed read or disarm
-# stops the push.
+# The login every push must act as (the loop-lane convention, "Lane write
+# identity"): the target's merge.agent-identity when it names one, else the
+# session's own login.
+BASE_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+LANE_LOGIN=${AGENT_IDENTITY:-$(gh api user --jq .login)}
+
+# EVERY lane push goes through lane_push, and lane-push.sh is the only push:
+# never a bare `git push`. It turns auto-merge off immediately before the push
+# and again right after it (someone may arm the old head mid-push), because a
+# push keeps auto-merge armed and the new head could merge on ci-status alone
+# before the AI reviews re-run (safety.md, "Merge lane: no auto-merge"). It never
+# arms auto-merge; nothing does. A failed read or disarm, or a lane-push.sh
+# refusal (exit 2, nothing pushed), stops the push.
 disarm_auto_merge() {
   ARMED=$(gh pr view "$PR_NUMBER" --json autoMergeRequest --jq '.autoMergeRequest // empty') || return 1
   [ -z "$ARMED" ] || gh pr merge "$PR_NUMBER" --disable-auto
 }
 lane_push() {
-  disarm_auto_merge && git push "$PUSH_REMOTE" "HEAD:$BRANCH" && disarm_auto_merge
+  disarm_auto_merge &&
+    bash "<plugin-root>/scripts/lane-push.sh" --login "$LANE_LOGIN" --repo "$BASE_REPO" --pr "$PR_NUMBER" &&
+    disarm_auto_merge
 }
 
 # Branch freshness — MERGE-ONLY (full mode only). Rebasing would rewrite history
@@ -164,9 +131,9 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
     MERGE_EXIT=$?
     if [ "$MERGE_EXIT" -eq 0 ]; then
       INTEGRATION_STATUS="integrated"
-      # Push by refspec (works from a detached HEAD too) to the pre-resolved
-      # $PUSH_REMOTE; fast-forward given the head assertion, never force. A
-      # rejected non-fast-forward push means the head moved: re-fetch and stop.
+      # Push by refspec (works from a detached HEAD too); fast-forward given the
+      # head assertion, never force. A rejected non-fast-forward push means the
+      # head moved: re-fetch and stop.
       lane_push
     else
       # Graduated conflict handling — attempt simple, abort complex.

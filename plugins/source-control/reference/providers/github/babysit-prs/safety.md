@@ -10,13 +10,12 @@ indexes the other operations.
 The spoke's Checkout And Push Invariants:
 
 - The true PR head is `gh pr view <N> --json headRefOid`.
-- The PR checkout is `gh pr checkout`. It configures the remote the branch pushes to, and a
-  coincidental same-tip match on another local branch heals by running it.
-- Same-repo or fork comes from `gh pr view --json isCrossRepository`.
-- The head repository's own URL is `gh api repos/<nameWithOwner> --jq .html_url`;
-  `gh pr view --json headRepository` exposes no URL.
-- Git's push-time URL rewrites (`url.<base>.pushInsteadOf` and similar) do not arise from the
-  documented `gh pr checkout` flow.
+- The PR checkout is `gh pr checkout`, and a coincidental same-tip match on another local branch
+  heals by running it. The remote it configures is never pushed to.
+- Same-repo or fork comes from `gh pr view --json isCrossRepository`, and a fork head's owner from
+  `gh pr view --json headRepositoryOwner`.
+- The push destination is `lane-push.sh`'s own read, `gh pr view <N> -R <owner/repo> --json
+  headRepository,headRefName`, from which it builds `https://github.com/<nameWithOwner>.git`.
 
 ## CLI merge
 

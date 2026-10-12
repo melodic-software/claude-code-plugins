@@ -23,11 +23,13 @@ source the worker lane reads. Then:
   credential the session holds (the convention's named residual).
 - **A named identity runs the preflight:** `bash
   <plugin-root>/skills/babysit-prs/scripts/babysit-postmerge.sh --repo <owner/repo>
-  --agent-identity <merge.agent-identity> --preflight`, from the checkout the lane pushes from. It
-  applies the merge gate's identity and credential rules alone, plus the push path: the session
-  must act as that identity, hold no other account, and push only over `https://github.com`
-  through gh's credential helper (every refusal it can print: the convention's "Lane write
-  identity", §1).
+  --agent-identity <merge.agent-identity> --preflight`, then `bash
+  <plugin-root>/scripts/lane-push.sh --login <merge.agent-identity> --check` from the checkout
+  the lane pushes from. The first applies the merge gate's identity and credential rules alone:
+  the session must act as that identity and hold no other account. The second runs every refusal
+  the lane's pushes will run but the push, so a checkout that could not push fails before any
+  write. Every push the lane makes then goes through `lane-push.sh` (every refusal either can
+  print: the convention's "Lane write identity", §1).
 
 On a refusal or any exit but 0, the lane writes nothing that cycle (no telemetry, escalation, fix,
 thread resolution, dequeue or merge), reports the reason (the printed `error`, or the config

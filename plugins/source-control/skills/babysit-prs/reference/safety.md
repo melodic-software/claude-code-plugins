@@ -73,32 +73,19 @@ value and its unset fallback.
   push the assertion remains on `HEAD` itself.
 - Re-check the PR head SHA immediately before editing and again immediately before pushing. Stop
   if it changed unexpectedly. Someone else moved the branch.
-- **Refspec push to the branch's upstream, never branch checkout.** Do not depend on `git checkout
-  <headRefName>` to reach the branch: when it is locked by a sibling worktree that command dead-ends
-  (`fatal: '<branch>' is already used by worktree at ...`). Once the head assertion holds, push the
-  integrated work with an explicit refspec to the remote the PR checkout configured for the branch:
-  `git push "$PUSH_REMOTE" HEAD:<headRefName>`, where `PUSH_REMOTE` resolves **fail-closed**. Decide
-  same-repo vs fork from the PR's cross-repository flag ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#true-pr-head-and-push-destination)), never by whether
-  `git config` happens
-  to resolve: `origin` for a same-repo head; for a write-allowed cross-repo (in-owner fork) head, the
-  fork destination from `branch.<headRefName>.pushRemote` or `branch.<headRefName>.remote`, validated
-  by URL and gated on the trust boundary. First require the cross-repo head's OWNER to be within
-  `<watched-owners>`, else read-only (Stop And Ask, below). An external-fork head with maintainer
-  edits enabled must not receive a push just because its URL matches. Then, because a named remote can
-  carry separate `pushurl`(s) that `git push` honors and writes to ALL of, resolve the actual push URLs
-  (`git remote get-url --push --all`) and canonicalize EACH (a remote name, a bare URL, or those
-  `pushurl`s) to **host + owner/repo**, then require EVERY one to equal the head repo's own canonical
-  URL as the forge reports it ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#true-pr-head-and-push-destination); the PR's head-repository field carries no URL),
-  not merely reject the literal `origin` name or match `owner/repo` on any host. Never hardcode
-  `origin`, and never fall back to it when the destination cannot be validated. A fork head reached via
-  `--detach` leaves no branch config, and a remote named `upstream` (or any name), a same-`owner/repo`
-  path on a different host, a fork fetch URL masking a base-repo `pushurl`, or an extra base/attacker
-  `pushurl` past a matching first one, can point at the base repo, so pushing there silently writes a
-  same-named branch on base instead of updating the fork head; **stop (read-only) instead**. Known
-  limitation: this validates the push URLs resolvable at guard time; git's own push-time URL rewrites
-  (`url.<base>.pushInsteadOf` and similar) are outside the static guard's threat model, as they do not
-  arise from the documented PR checkout flow. Because `HEAD` equaled the PR head and you only added
-  commits on top, this push is a fast-forward; never `--force` or `--force-with-lease`. A rejected
+- **Refspec push to the PR's head, never branch checkout, never the checkout's remotes.** Do not
+  depend on `git checkout <headRefName>` to reach the branch: when it is locked by a sibling
+  worktree that command dead-ends (`fatal: '<branch>' is already used by worktree at ...`). Once
+  the head assertion holds, push through `lane-push.sh --pr <N>` and nothing else (the loop-lane
+  convention's "Lane write identity"): it reads the PR's head repository and branch from the forge
+  and pushes `HEAD:refs/heads/<headRefName>` to `https://github.com/<owner>/<repo>.git`, a URL it
+  builds itself. No remote name, `pushRemote`, `pushurl`, `insteadOf` rewrite or global git config
+  is consulted, so a remote the PR checkout pointed at the base repository, another host or SSH
+  cannot misdirect the push or write a same-named branch on base. A cross-repo head's OWNER must
+  still be within `<watched-owners>`, else read-only (Stop And Ask, below): an external-fork head
+  with maintainer edits enabled must not receive a push just because it is reachable. Because
+  `HEAD` equaled the PR head and you only added commits on top, this push is a fast-forward; never
+  `--force` or `--force-with-lease`. A rejected
   non-fast-forward push means the assertion no longer holds. Re-fetch and stop, never force past it.
   (An external-fork head outside `<watched-owners>` remains the read-only stop-and-ask case below.)
 - Honor `mutation_policy.branch_write_allowed`: never push, and never create a write-capable

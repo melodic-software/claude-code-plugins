@@ -162,21 +162,6 @@ class FakeGh:
         self.accounts: list[dict[str, Any]] = [
             {"login": IDENTITY, "active": True, "host": "github.com"}
         ]
-        # The lane checkout's git config, as `git config --get-regexp -z` lists it
-        # (git-config(1) --null: key, newline, value, NUL; a valueless key alone).
-        # The two github.com helper lines are what `gh auth setup-git` writes
-        # (gh 2.102.0 on a fleet host): an empty value resetting the list, then gh.
-        self.git_config: list[tuple[str, str | None]] = [
-            ("remote.origin.url", f"https://github.com/{REPO}.git"),
-            ("credential.https://github.com.helper", ""),
-            ("credential.https://github.com.helper", "!/usr/bin/gh auth git-credential"),
-        ]
-        # `git remote get-url --push --all <name>`: one URL per line, insteadOf
-        # and pushInsteadOf already expanded (git-remote(1) get-url).
-        self.push_urls: dict[str, list[str]] = {
-            "origin": [f"https://github.com/{REPO}.git"]
-        }
-        self.git_fails = False
         # The pull request's last comments, as the pin read returns them.
         self.pin_comments: list[dict[str, Any]] = []
         # Comment pages served in order, one per pin read, when set.
@@ -184,34 +169,6 @@ class FakeGh:
 
     def add_runs(self, workflow: str, event: str, *runs: dict[str, Any]) -> None:
         self.runs.setdefault((workflow, event), []).extend(runs)
-
-    def git(self, args: list[str]) -> subprocess.CompletedProcess[str]:
-        self.calls.append(["git", *args])
-        if self.git_fails:
-            # git's own wording outside a repository (exit 128).
-            return subprocess.CompletedProcess(
-                ["git"], 128, "", "fatal: not a git repository"
-            )
-        if args[:2] == ["config", "--get-regexp"]:
-            if not self.git_config:
-                # git-config(1): exit 1 when no key matches.
-                return subprocess.CompletedProcess(["git"], 1, "", "")
-            text = "".join(
-                f"{key}\0" if value is None else f"{key}\n{value}\0"
-                for key, value in self.git_config
-            )
-            return subprocess.CompletedProcess(["git"], 0, text, "")
-        if args[:4] == ["remote", "get-url", "--push", "--all"]:
-            urls = self.push_urls.get(args[4])
-            if urls is None:
-                # git-remote(1) get-url on an unknown name (exit 2).
-                return subprocess.CompletedProcess(
-                    ["git"], 2, "", f"error: No such remote '{args[4]}'"
-                )
-            return subprocess.CompletedProcess(
-                ["git"], 0, "".join(f"{url}\n" for url in urls), ""
-            )
-        raise AssertionError(f"unexpected git call {args}")
 
     def writes(self) -> list[list[str]]:
         return [c for c in self.calls if self._is_write(c)]
@@ -1394,122 +1351,15 @@ class IdentityPreflight(CheckCase):
             )
         return code, json.loads(out.getvalue())
 
-    def setUp(self) -> None:
-        super().setUp()
-        patcher = mock.patch.object(pm, "git_capture", self.gh.git)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def refused(self) -> str:
-        code, report = self.preflight()
-        self.assertEqual(code, 2)
-        return report["error"]
-
     def test_a_session_holding_only_the_identity_passes_with_no_other_read(
         self,
     ) -> None:
         code, report = self.preflight()
         self.assertEqual((code, report), (0, {"ok": True, "identity": IDENTITY}))
         self.assertEqual(
-            [c[:2] for c in self.gh.calls],
-            [["api", "graphql"], ["auth", "status"], ["git", "config"], ["git", "remote"]],
+            [c[:2] for c in self.gh.calls], [["api", "graphql"], ["auth", "status"]]
         )
         self.assertEqual(self.gh.writes(), [])
-
-    def test_an_ssh_push_url_is_refused(self) -> None:
-        self.gh.push_urls["origin"] = [f"ssh://git@github.com/{REPO}"]
-        self.assertEqual(self.refused(), "credentials:push-url-not-github-https")
-
-    def test_an_scp_style_push_url_is_refused(self) -> None:
-        self.gh.push_urls["origin"] = [f"git@github.com:{REPO}.git"]
-        self.assertEqual(self.refused(), "credentials:push-url-not-github-https")
-
-    def test_an_ssh_pushurl_beside_an_https_one_is_refused(self) -> None:
-        self.gh.push_urls["origin"] = [
-            f"https://github.com/{REPO}.git",
-            f"git@github.com:{REPO}.git",
-        ]
-        self.assertEqual(self.refused(), "credentials:push-url-not-github-https")
-
-    def test_every_configured_remote_is_checked(self) -> None:
-        self.gh.git_config.append(("remote.fork.url", "git@github.com:someone/repo.git"))
-        self.gh.push_urls["fork"] = ["git@github.com:someone/repo.git"]
-        self.assertEqual(self.refused(), "credentials:push-url-not-github-https")
-
-    def test_a_bare_url_push_remote_is_checked(self) -> None:
-        self.gh.git_config.append(("branch.topic.pushremote", f"git@github.com:{REPO}.git"))
-        self.assertEqual(self.refused(), "credentials:push-url-not-github-https")
-
-    def test_a_push_url_carrying_a_token_is_refused(self) -> None:
-        self.gh.push_urls["origin"] = [f"https://x-access-token:t@github.com/{REPO}.git"]
-        self.assertEqual(self.refused(), "credentials:push-url-embeds-credentials")
-
-    def test_a_non_gh_helper_is_refused(self) -> None:
-        self.gh.git_config[1:] = [("credential.helper", "manager")]
-        self.assertEqual(self.refused(), "credentials:credential-helper-not-gh")
-
-    def test_no_helper_at_all_is_refused(self) -> None:
-        del self.gh.git_config[1:]
-        self.assertEqual(self.refused(), "credentials:credential-helper-not-gh")
-
-    def test_a_helper_added_after_gh_is_refused(self) -> None:
-        self.gh.git_config.append(("credential.helper", "store"))
-        self.assertEqual(self.refused(), "credentials:credential-helper-not-gh")
-
-    def test_a_github_path_context_is_refused_as_unproven(self) -> None:
-        self.gh.git_config.append(
-            ("credential.https://github.com/example-org.helper", "store")
-        )
-        self.assertEqual(self.refused(), "credentials:credential-helper-not-gh")
-
-    def test_a_fleet_host_setup_git_shape_passes(self) -> None:
-        # Recorded from a fleet host's `git config --get-regexp -z` (gh 2.102.0
-        # setup-git under a version-manager PATH prefix), the manager path
-        # generalized: the github.com context resets the global helper, and the
-        # gist lines name another host.
-        self.gh.git_config[1:] = [
-            ("credential.helper", "/usr/local/bin/git-credential-manager"),
-            ("credential.https://github.com.helper", ""),
-            (
-                "credential.https://github.com.helper",
-                '!PATH="${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims:$PATH" '
-                "gh auth git-credential",
-            ),
-            ("credential.https://gist.github.com.helper", ""),
-            ("credential.https://gist.github.com.helper", "!gh auth git-credential"),
-        ]
-        code, _ = self.preflight()
-        self.assertEqual(code, 0)
-
-    def test_a_quoted_windows_gh_path_passes(self) -> None:
-        # The shape gh's setup-git writes when the executable path has a space.
-        self.gh.git_config[2] = (
-            "credential.https://github.com.helper",
-            "!'C:\\Program Files\\GitHub CLI\\gh.exe' auth git-credential",
-        )
-        code, _ = self.preflight()
-        self.assertEqual(code, 0)
-
-    def test_an_extra_auth_header_is_refused(self) -> None:
-        # actions/checkout's persisted-credential shape.
-        self.gh.git_config.append(
-            ("http.https://github.com/.extraheader", "AUTHORIZATION: basic xxx")
-        )
-        self.assertEqual(self.refused(), "credentials:push-extraheader-set")
-
-    def test_an_unreadable_git_config_is_refused(self) -> None:
-        self.gh.git_fails = True
-        self.assertEqual(self.refused(), "credentials:push-config-unreadable")
-
-    def test_no_remote_is_refused(self) -> None:
-        del self.gh.git_config[0]
-        self.gh.push_urls.clear()
-        self.assertEqual(self.refused(), "credentials:push-config-unreadable")
-
-    def test_identity_refusal_skips_the_git_reads(self) -> None:
-        self.gh.viewer = "maintainer"
-        self.refused()
-        self.assertFalse([c for c in self.gh.calls if c[0] == "git"])
 
     def test_the_operator_token_is_refused(self) -> None:
         self.gh.viewer = "maintainer"

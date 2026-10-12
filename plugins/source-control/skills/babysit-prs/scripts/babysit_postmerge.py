@@ -43,14 +43,12 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import shlex
-import subprocess
 import sys
 from collections.abc import Callable, Collection, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote
 
 import babysit_merge_policy as policy
 from babysit_gh import (
@@ -1210,111 +1208,10 @@ def _since(value: str) -> datetime:
     return parsed
 
 
-def git_capture(args: list[str]) -> subprocess.CompletedProcess[str]:
-    """Run a read-only git command in the lane's checkout, never raising on a
-    nonzero exit."""
-    return subprocess.run(
-        ["git", *args], capture_output=True, text=True, check=False, timeout=30
-    )
-
-
-GITHUB_HTTPS = "https://github.com"
-# `gh auth setup-git`'s helper: `!`, optional VAR=value prefixes, gh, the verb.
-_ENV_ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
-
-
-def _github_context(context: str | None) -> bool | None:
-    """Whether a `credential.<context>` or `http.<context>` key applies to
-    https://github.com: True, False, or None when it might and cannot be shown
-    either way (git's URL matching allows paths, ports, users and wildcards)."""
-    if context is None:
-        return True
-    if "://" not in context:
-        return None if "github.com" in context.casefold() else False
-    parts = urlsplit(context)
-    host = (parts.hostname or "").casefold()
-    if parts.scheme.casefold() != "https" or ("*" not in host and host != "github.com"):
-        return False
-    if "*" in host or parts.username or parts.port or parts.path not in ("", "/"):
-        return None
-    return True
-
-
-def _is_gh_helper(value: str) -> bool:
-    if not value.startswith("!"):
-        return False
-    lexer = shlex.shlex(value[1:], posix=True)
-    lexer.whitespace_split = True
-    lexer.escape = ""  # keep Windows path separators
-    try:
-        tokens = list(lexer)
-    except ValueError:
-        return False
-    while tokens and _ENV_ASSIGNMENT.match(tokens[0]):
-        tokens.pop(0)
-    return (
-        len(tokens) == 3
-        and re.split(r"[\\/]", tokens[0])[-1].casefold() in ("gh", "gh.exe")
-        and tokens[1:] == ["auth", "git-credential"]
-    )
-
-
-def push_refusal() -> str | None:
-    """Why a `git push` from this checkout may not authenticate as the gh
-    identity token, or None. Reads git config only.
-
-    Every push URL of every remote, and every bare URL a branch or
-    remote.pushDefault names, must be https://github.com with no credentials in
-    it, and the credential helpers git runs for https://github.com must be gh
-    alone (`gh auth git-credential`, which serves the token `credential_refusal`
-    checked). No http extraHeader may apply: it would replace the helper."""
-    proc = git_capture(["config", "--get-regexp", "-z", r"^(credential|http|branch|remote)\."])
-    if proc.returncode not in (0, 1):
-        return "push-config-unreadable"
-    entries = [e.partition("\n") for e in proc.stdout.split("\0") if e]
-    remotes: list[str] = []
-    targets: list[str] = []
-    helpers: list[str] = []
-    for key, _, value in entries:
-        section, _, rest = key.partition(".")
-        context, _, name = rest.rpartition(".")
-        if section == "remote" and name in ("url", "pushurl") and context:
-            remotes += [] if context in remotes else [context]
-        elif (section, name) in (("branch", "remote"), ("branch", "pushremote")) or (
-            key == "remote.pushdefault"
-        ):
-            targets.append(value)
-        elif section == "credential" and name == "helper":
-            applies = _github_context(context or None)
-            if applies is None:
-                return "credential-helper-not-gh"
-            if applies:
-                helpers = [] if value == "" else [*helpers, value]
-        elif section == "http" and name == "extraheader":
-            if _github_context(context or None) is not False:
-                return "push-extraheader-set"
-    if not remotes:
-        return "push-config-unreadable"
-    urls = [t for t in targets if t not in remotes and t != "."]
-    for remote in remotes:
-        listed = git_capture(["remote", "get-url", "--push", "--all", remote])
-        if listed.returncode != 0 or not listed.stdout.strip():
-            return "push-config-unreadable"
-        urls += listed.stdout.split()
-    for url in urls:
-        parts = urlsplit(url)
-        if parts.scheme.casefold() != "https" or (parts.hostname or "") != "github.com":
-            return "push-url-not-github-https"
-        if parts.username or parts.password:
-            return "push-url-embeds-credentials"
-    if not helpers or not all(_is_gh_helper(h) for h in helpers):
-        return "credential-helper-not-gh"
-    return None
-
-
 def _preflight(identity: str, self_logins: Collection[str]) -> int:
-    """The merge gate's identity rule and credential chokepoint, plus the lane's
-    push path, alone: a lane writes nothing unless all pass."""
+    """The merge gate's identity rule and credential chokepoint alone: a lane
+    writes nothing unless both pass. Pushes are bound to the identity at push
+    time by scripts/lane-push.sh, not here."""
     try:
         acting = policy.read_acting_login()
     except policy.PolicyReadError:
@@ -1322,7 +1219,7 @@ def _preflight(identity: str, self_logins: Collection[str]) -> int:
     resolved = policy.resolve_identity(identity, acting, self_logins)
     refusal = resolved.reason
     if refusal is None and resolved.login:
-        credentials = policy.credential_refusal(resolved.login) or push_refusal()
+        credentials = policy.credential_refusal(resolved.login)
         refusal = f"credentials:{credentials}" if credentials else None
     report = (
         {"ok": False, "error": refusal}
@@ -1376,9 +1273,8 @@ def main(argv: list[str] | None = None) -> int:
         "--preflight",
         action="store_true",
         help=(
-            "check only that the session acts as the identity, holds no other "
-            "account, and that this checkout pushes through gh alone (the lane "
-            "identity gate, run every cycle); exit 0 or 2"
+            "check only that the session acts as the identity and holds no "
+            "other account (the lane identity gate, run every cycle); exit 0 or 2"
         ),
     )
     args = parser.parse_args(argv)

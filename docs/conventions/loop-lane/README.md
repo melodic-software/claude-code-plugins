@@ -167,16 +167,10 @@ App installed on that repository only: a machine user is a `User` and would pass
 - **The rule** is the merge gate's: `resolve_identity` and `credential_refusal` in
   `plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py`, which read the
   acting login (GraphQL `viewer { login }`) and the session's account listing
-  (`gh auth status --json hosts`), plus the push path (`push_refusal` in `babysit_postmerge.py`
-  beside it). A lane's `git push` authenticates through git's own remote URL and credential
-  helper, not through gh, so the push path check reads the git config of the checkout the lane
-  pushes from (`git config --get-regexp` and `git remote get-url --push --all`, reads only): every
-  push URL of every remote, and any bare URL a branch or `remote.pushDefault` names, must be
-  `https://github.com` with no credentials in it, and the credential helpers git runs for
-  `https://github.com` must be gh alone (`gh auth git-credential`, which serves the token the
-  account check vetted). The babysit lane runs all three through `babysit-postmerge.sh
-  --preflight` from its checkout; the worker lane, in another plugin, makes the same reads and
-  applies the same rule. Each of these refuses (the preflight prints the code shown):
+  (`gh auth status --json hosts`). The babysit lane runs both through `babysit-postmerge.sh
+  --preflight`; the worker lane, in another plugin, makes the same reads and applies the same
+  rule. Both lanes then run `lane-push.sh --login <identity> --check` (below) from the checkout
+  they push from. Each of these refuses (the preflight prints the code shown):
   - `agent-identity-unconfigured`: the named identity is empty.
   - `agent-identity-invalid`: the identity is not a GitHub App login (`<slug>[bot]`, letters,
     digits and single inner hyphens), or is the shared `github-actions[bot]` or
@@ -190,20 +184,41 @@ App installed on that repository only: a machine user is a `User` and would pass
     login other than the identity.
   - `credentials:unknown-account-listed`: an inactive entry has no login.
   - `credentials:identity-not-active`: there is not exactly one active `github.com` entry.
-  - `credentials:push-config-unreadable`: the git config read failed (not a checkout, say), no
-    remote is configured, or a remote lists no push URL.
-  - `credentials:push-url-not-github-https`: a push URL is SSH (`ssh://` or `git@host:path`),
-    plain HTTP, a local path, or another host.
-  - `credentials:push-url-embeds-credentials`: a push URL carries a user or token.
-  - `credentials:credential-helper-not-gh`: no helper, or one besides gh, runs for
-    `https://github.com`, or a helper's URL context (a path, port, user or wildcard) cannot be
-    shown not to apply.
-  - `credentials:push-extraheader-set`: an `http.extraHeader` that may apply to `github.com` is
-    set; it would replace the helper's credential.
 
   Any refusal means the lane writes nothing that cycle, telemetry and escalations included: it
   reports the reason in its own session output and stops. Whether `viewer` returns the App's login
   on an installation token is unprobed until the identity exists.
+- **Lanes push only through `lane-push.sh`.** A `git push` authenticates through git's own URL
+  and credential helper, not through gh, and the checkout's remotes, the environment, global
+  config and command-line overrides can each send it elsewhere or as someone else. So no lane
+  instruction runs a bare `git push`: every lane push, babysit's and the worker lane's alike, runs
+  `scripts/lane-push.sh` (canonical `lib/lane-push.sh`, carried by the source-control and
+  work-items plugins), which builds the push instead of inspecting it. It builds the URL as
+  `https://github.com/<owner>/<repo>.git` from its arguments, or from the pull request's head
+  repository for `--pr`, and pushes `HEAD:refs/heads/<branch>`, fast-forward only. It drops
+  every `GIT_*` variable plus `SSH_ASKPASS`, ignores global and system config, and forces gh (by
+  absolute path) as the only credential helper with https as the only transport. It reads the
+  acting login with that same gh and refuses unless it is the identity. Where the target names no
+  identity, the login is the session's own. It exits 0 pushed, 1 the push ran and failed, 2
+  refused with nothing pushed, printing `lane-push: refused: <code>`:
+  - `usage`, `bad-dir`: arguments missing or contradictory, or `--dir` is not a directory.
+  - `bad-login`, `bad-repo`, `bad-branch`, `bad-pr`: a value outside its allowlist (owner
+    `[A-Za-z0-9-]`, repository `[A-Za-z0-9._-]`, branch `[A-Za-z0-9._/-]` that also passes
+    `git check-ref-format`, a decimal number); a pull request's head is held to the same lists.
+  - `gh-missing`, `gh-path-unsafe`, `git-missing`: no gh or git on `PATH`, or a gh path the
+    helper cannot quote.
+  - `config-unreadable`: the repository-local config cannot be listed (not a checkout).
+  - `local-config-url`, `local-config-include`, `local-config-credential`, `local-config-http`,
+    `local-config-remote`: the local or worktree config holds a `url.*`, `include.*` or
+    `includeIf.*`, `credential.*`, `http.*` key, or a `remote.*.vcs` or a `remote.<name>.*` whose
+    name is not a plain remote name. These survive the global and system scrub and can redirect
+    or re-credential an https push, so any of them fails closed.
+  - `head-unreadable`: the pull request's head repository and branch could not be read.
+  - `login-unreadable`, `login-mismatch`: the `viewer` read failed or returned another login.
+
+  `--check` runs every refusal but the push. Named residual: whoever can replace the gh or git
+  binary on the lane host, edit the script, or write the checkout's `.git` directory (its config,
+  hooks or alternates) already runs code as the lane; the script cannot close that.
 - **No identity configured.** The merge path stays inert and the lanes run as before, under
   whatever credential the session holds, and that credential's writes read as human. Named
   residual.

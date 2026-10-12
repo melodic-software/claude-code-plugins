@@ -13,13 +13,19 @@ as it stops and writes nothing. With none configured, no lane behaves differentl
 - **Lane write identity (§1).** Unattended lanes write only under `merge.agent-identity`, a GitHub
   App installed on that repository alone, launched with its token as the only GitHub credential.
   At the start of every cycle the babysit and worker lanes read `pr-pipeline.yaml` from the
-  target's default branch and run the merge gate's identity and credential rules, plus a push-path
-  check (every push URL https to `github.com`, gh as the only credential helper); a refusal, or
-  an unreadable or unparsable config, means the lane writes nothing that cycle, telemetry and
-  escalations included, and stops. A not-found config counts as absent only when the repository's
-  contents root reads. §1 lists every refusal. Named residuals: interactive sessions stay under
-  the operator, and their label writes count as human provenance; a lane holds the operator's
-  token for the rest of the cycle in which the config lands.
+  target's default branch and run the merge gate's identity and credential rules and
+  `lane-push.sh --check`; a refusal, or an unreadable or unparsable config, means the lane writes
+  nothing that cycle, telemetry and escalations included, and stops. A not-found config counts as
+  absent only when the repository's contents root reads.
+- **Lanes push only through `lane-push.sh` (§1).** No lane instruction runs a bare `git push`. The
+  script builds the https URL from the repository and branch (or a pull request's head), scrubs
+  every `GIT_*` variable, ignores global and system config, forces gh as the only credential
+  helper and https as the only transport, refuses on local `url.*`, `include*`, `credential.*`,
+  `http.*` and unsafe `remote.*` keys, and pushes only when gh's acting login is the identity. §1
+  lists every refusal. Named residuals: interactive sessions stay under the operator, and their
+  label writes count as human provenance; a lane holds the operator's token for the rest of the
+  cycle in which the config lands; whoever controls the lane host's gh or git binary, the script
+  or the checkout's `.git` directory already runs code as the lane.
 
 ## [11.0.1] - 2026-10-11
 
