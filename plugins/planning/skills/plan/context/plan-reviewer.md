@@ -51,7 +51,7 @@ the finding; a tool behavior you did not probe is an assumption, and the finding
 - Testable by design — logic separated from orchestration; injectable boundaries for planned handlers/services
 - Bug-fix plans — does the test strategy name the regression test (level + rough assertion), or document an explicit carve-out?
 - Names reveal responsibility — vague role-suffixes (Manager, Helper, Util, Processor) on planned types/files?
-- Variation verdicts: every external system the plan touches has a verdict in the Design section (abstract now, contain now, or leave inline); no provider name reaches domain code, storage, or a public contract under a contain verdict; no planned abstraction exposes implementation types in its signatures
+- Variation verdicts: every external system the plan touches has a verdict in the Design section of abstract now or contain now, and a `leave inline` verdict on an external system is a finding (leave inline is for internal one-offs only); no provider name reaches domain code, storage, or a public contract under a contain verdict; no planned abstraction exposes implementation types in its signatures
 
 ### Plan mechanics
 - Every phase has at least one mechanically verifiable Sanity Check
