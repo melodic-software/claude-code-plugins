@@ -198,7 +198,7 @@ the former default-on pause).
 
 ## Cycle shape
 
-0. **Lane-start preflight (once per lane, before the first cycle).** Make the escalation record
+0. **Lane-start preflight (once per lane, before the first cycle).** **Identity first:** when the target's default-branch `docs/conventions/pr-pipeline.yaml` names a `merge.agent-identity`, confirm before any triage, claim, label, comment, PR or telemetry write that the session acts as that identity and holds no other account, by the reads and rule the convention's "Lane write identity" (§1) names; on a refusal or unreadable read, write nothing, report the reason in the session output and end the run. Then make the escalation record
    directory ignored in this checkout so step 5's unconditional write can never dirty the tree:
    if `git check-ignore -q .claude/lane-escalations/` reports it unignored, append
    `/.claude/lane-escalations/` to `$(git rev-parse --git-common-dir)/info/exclude`. That file is

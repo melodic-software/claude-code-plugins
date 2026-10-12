@@ -158,6 +158,10 @@ class FakeGh:
         # A login's repository permission, or the HTTP status its read fails with.
         self.permissions: dict[str, str | int] = {"maintainer": "write"}
         self.viewer = IDENTITY
+        # `gh auth status --json hosts`: the accounts the session holds.
+        self.accounts: list[dict[str, Any]] = [
+            {"login": IDENTITY, "active": True, "host": "github.com"}
+        ]
         # The pull request's last comments, as the pin read returns them.
         self.pin_comments: list[dict[str, Any]] = []
         # Comment pages served in order, one per pin read, when set.
@@ -185,6 +189,8 @@ class FakeGh:
                 return completed(returncode=1, stderr="gh: Server Error (HTTP 502)")
         if args[:2] == ["api", "graphql"]:
             return self._graphql(joined)
+        if args[:2] == ["auth", "status"]:
+            return completed({"hosts": {"github.com": self.accounts}})
         endpoint = next(a for a in args if a.startswith("repos/"))
         if endpoint == f"repos/{REPO}":
             if self.default_branch is None:
@@ -1331,6 +1337,65 @@ class IdentityRefusal(CheckCase):
         self.gh.merged = [merged_pr(timelineItems=enqueued_by(HUMAN, HUMAN))]
         code, _ = self.main(IDENTITY)
         self.assertEqual(code, 0)
+
+
+class IdentityPreflight(CheckCase):
+    """The lane-start preflight (plan Phase 14, Design T23): the merge gate's
+    identity and credential rules, run alone; exit 2 refuses every lane write."""
+
+    def preflight(self, *argv: str) -> tuple[int, dict[str, Any]]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = pm.main(
+                ["--repo", REPO, "--agent-identity", IDENTITY, "--preflight", *argv]
+            )
+        return code, json.loads(out.getvalue())
+
+    def test_a_session_holding_only_the_identity_passes_with_no_other_read(
+        self,
+    ) -> None:
+        code, report = self.preflight()
+        self.assertEqual((code, report), (0, {"ok": True, "identity": IDENTITY}))
+        self.assertEqual(
+            [c[:2] for c in self.gh.calls], [["api", "graphql"], ["auth", "status"]]
+        )
+
+    def test_the_operator_token_is_refused(self) -> None:
+        self.gh.viewer = "maintainer"
+        code, report = self.preflight()
+        self.assertEqual((code, report["error"]), (2, "acting-login-mismatch"))
+
+    def test_a_second_account_beside_the_identity_is_refused(self) -> None:
+        self.gh.accounts.append(
+            {"login": "maintainer", "active": False, "host": "github.com"}
+        )
+        code, report = self.preflight()
+        self.assertEqual(
+            (code, report["error"]), (2, "credentials:other-account-listed")
+        )
+
+    def test_an_unreadable_acting_login_is_refused(self) -> None:
+        self.gh.fail_reads.add("PolicyViewer")
+        code, report = self.preflight()
+        self.assertEqual((code, report["error"]), (2, "acting-login-unreadable"))
+
+    def test_preflight_never_combines_with_remediate(self) -> None:
+        with (
+            self.assertRaises(SystemExit) as raised,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            pm.main(
+                [
+                    "--repo",
+                    REPO,
+                    "--agent-identity",
+                    IDENTITY,
+                    "--preflight",
+                    "--remediate",
+                ]
+            )
+        self.assertEqual(raised.exception.code, 2)
+        self.assertEqual(self.gh.calls, [])
 
 
 def pin(sha: str, *, author: Any = APP_ACTOR, edited: str | None = None) -> Any:

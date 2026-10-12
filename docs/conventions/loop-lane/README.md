@@ -142,6 +142,35 @@ that marker stays the attended queue's and draws no dispatch. Merge conflicts ro
 dedicated conflict-resolution path and integrate merge-only; this exception never authorizes
 rebasing a PR branch, which would need a force-push the lanes forbid.
 
+### Lane write identity
+
+Every forge write an unattended lane makes, whether a label, comment, claim, thread resolution,
+PR, merge, telemetry upsert or escalation, runs under one dedicated identity, so the tests that ask
+whether a person acted (label provenance, thread resolution, merge-queue enqueuer, a demotion
+record's close) never count a lane's action as a person's. The identity is the login a repository
+names in `merge.agent-identity` in its `docs/conventions/pr-pipeline.yaml`. It must be a GitHub
+App installed on that repository only: a machine user is a `User` and would pass every human test.
+
+- **Launch.** A lane starts in an environment whose only GitHub credential is the identity's
+  installation token. Delivering and refreshing that token on each lane host is provisioning
+  outside this repository.
+- **Preflight.** At lane start, before any write, the babysit lane and the worker lane check that
+  the session acts as `merge.agent-identity` and holds no other account. The rule is the merge
+  gate's: `resolve_identity` and `credential_refusal` in
+  `plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py`, which read the
+  acting login (GraphQL `viewer { login }`) and the session's account listing (`gh auth status`).
+  The babysit lane runs them through `babysit-postmerge.sh --preflight`; the worker lane, in
+  another plugin, makes the same two reads and applies the same rule. Any refusal or unreadable
+  read means the lane writes nothing at all, telemetry and escalations included: it reports the
+  reason in its own session output and stops. Whether `viewer` returns the App's login on an
+  installation token is unprobed until the identity exists.
+- **No identity configured.** The merge path stays inert and the lanes run as before, under
+  whatever credential the session holds, and that credential's writes read as human. Named
+  residual.
+- **Interactive sessions,** the attended queue included, keep the operator's credential, so their
+  label writes count as human provenance. That is accurate only while the user directs the
+  session. Named residual.
+
 ## 2. Escalation contract
 
 A lane escalates by creating or labeling a tracker item that carries the **`needs-human` role

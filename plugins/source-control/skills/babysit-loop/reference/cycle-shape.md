@@ -5,7 +5,15 @@ mutate at the resolved autonomy tier, and where the escalation and no-progress c
 stop modes in [`../SKILL.md`](../SKILL.md) decide whether a cycle runs; this file decides what one
 is.
 
-0. **Lane-start preflight (once per lane, before the first cycle).** Keep step 5's unconditional
+0. **Lane-start preflight (once per lane, before the first cycle).** **Identity first, before any
+   write.** When the target's `docs/conventions/pr-pipeline.yaml` names a `merge.agent-identity`,
+   run `bash <plugin-root>/skills/babysit-prs/scripts/babysit-postmerge.sh --repo <owner/repo>
+   --agent-identity <merge.agent-identity> --preflight`. It applies the merge gate's identity and
+   credential rules alone: the session must act as that identity and hold no other account. On
+   any exit but 0, write nothing (no telemetry, escalation, fix, thread resolution or merge),
+   report the printed `error` in the session output and stop the lane: the convention's "Lane
+   write identity" (§1). With no `merge.agent-identity`, skip it.
+   Keep step 5's unconditional
    record write out of the tracked tree, per §2: if `git check-ignore -q .claude/lane-escalations/`
    reports the path unignored, append `/.claude/lane-escalations/` to the clone's untracked
    `$(git rev-parse --git-common-dir)/info/exclude`. Skipped outside a git checkout, which the
@@ -55,8 +63,8 @@ is.
    --agent-identity <merge.agent-identity>`. With no `--since` it computes the merge gate's floor:
    the commit that enabled the unattended path, or the newest human close of a demotion record
    when later. It judges every merge since the floor that a human did not
-   enqueue or merge (Dependabot and sync-App merges included) and prints a JSON verdict. Add `--remediate`
-   only when the lane's acting GitHub login is that identity: it then triggers the one attribution
+   enqueue or merge (Dependabot and sync-App merges included) and prints a JSON verdict. Add
+   `--remediate`, since step 0's identity preflight passed: it then triggers the one attribution
    re-run, dispatches one full run on the branch tip when an unverified merge has no identity
    dispatch run covering it, dequeues the identity's queue entries, and files or comments on the
    demotion issue.
@@ -64,10 +72,9 @@ is.
    auto-merge still awaits its runs: the merge-eligible set of step 3 is empty this cycle, with
    nothing to escalate. On any other exit (1 a failure, 2 a refused identity, 3 unreadable, 4 a write failed)
    the merge-eligible set of step 3 is empty this cycle; report the verdict and escalate each
-   failure per Escalation below, and under a credential other than the identity escalate instead
-   of remediating. The cycle report carries `demotion_events` (the verdict's
+   failure per Escalation below. The cycle report carries `demotion_events` (the verdict's
    `remediation.telemetry.demotion_events`, new demotion issues filed this cycle) and lists its
-   `flakes`.
+   `flakes`; step 6 adds that count to the state block's `demotion_events` total.
 2. **Grace-window overlay.** From the snapshot, mark every PR whose head moved or that received
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a
    work-in-progress title marker, a do-not-merge label, or non-green checks). Marked PRs are
@@ -177,10 +184,11 @@ is.
      merge-capable tier, one `/source-control:babysit-prs <tier> <owner/repo>#<N>` per PR, the
      invocation brief carrying the partitioned head SHA as the merge gate's required
      `--expected-head` (the lane pin; `babysit-prs/reference/safety.md`, "Lane-pinned merge
-     authorization"), and the brief tells it to pass the merge gate's `--auto`, which arms
-     auto-merge only once both AI review checks passed on that head and no thread is open
-     (same file, "Merge-lane auto-merge"); every other non-report-only PR is invoked at `safe` (fixes and reports;
-     never resolves threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
+     authorization"), and the brief tells it to merge only through the gate's `--unattended
+     --merge`, never `--auto`: `--unattended` refuses `--auto`, and a plain `--merge` refuses the
+     identity's token (same file, "Unattended Merge Path"). Where the target does not configure
+     that path, the gate refuses and the PR is reported merge-ready for a human. Every other
+     non-report-only PR is invoked at `safe` (fixes and reports; never resolves threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
      Under the explicit-`autopilot` widening, a merge-eligible PR blocked on a machine-escalated
      `needs-human` item, an open finding, or a contradictory thread gets the leased fresh-subagent
      resolution dispatch ("Explicit-`autopilot` widening" above, Escalation below) ahead of its `autopilot` per-PR invocation, not instead of it, and only where the next bullet permits it.
