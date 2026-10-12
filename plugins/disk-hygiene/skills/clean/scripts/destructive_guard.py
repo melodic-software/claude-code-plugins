@@ -1284,9 +1284,11 @@ def resolve_disk_hygiene_enabled() -> bool:
     The key is read only from the scopes a project or local ``settings.json``
     cannot write (https://code.claude.com/docs/en/settings-reference#pluginconfigs,
     as of 2026-10-11; recheck when that section changes which scopes the key is
-    read from), so a hostile repo cannot flip the switch. Managed settings are the highest-precedence, non-overridable scope, so
-    a value configured there wins over the user file — that is how an organization
-    enforces audit-only mode. The ``--settings`` file is a session CLI flag a hook
+    read from), so a hostile repo cannot flip the switch. The guard reads managed
+    settings so an organization can enforce audit-only mode there
+    (https://code.claude.com/docs/en/managed-settings#deploy-a-managed-settings-file,
+    as of 2026-10-11; recheck when that section moves a platform's
+    managed-settings path or stops describing the file as an enforced policy). The ``--settings`` file is a session CLI flag a hook
     cannot observe, the one honored source not read here (see
     ``killswitch_config.managed_settings_path`` for the full residual list). The
     environment is rejected on purpose: a repo ``settings.json`` ``env`` block

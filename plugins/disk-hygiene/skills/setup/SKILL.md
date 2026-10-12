@@ -72,8 +72,8 @@ fails closed like every other guard-relevant unknown in this plugin.
    Windows the remediation is either `CLAUDE_CODE_GIT_BASH_PATH`, a Git for Windows install, or a
    `bash.exe` on `PATH` outside `System32`, `Sysnative` and `WindowsApps`; elsewhere, a `bash` on
    `PATH`. Both FAILs stay FAIL with the toggle disabled, like the interpreter ladder. State the
-   consequence in the remediation: the hook fails to launch, the user sees a hook error notice, the
-   guard is not enforced, the call proceeds, and the model is not told. A missing `node` cannot be
+   consequence in the remediation: the hook fails to launch, the guard is not enforced, and the call
+   proceeds; what the user and the model see then is in the Other exit codes record below. A missing `node` cannot be
    reported by the launcher or the Stop detector, which both need `node` to start. `node` on
    `PATH` is a prerequisite separate from Claude Code itself.
    - **Pointer**: when checking whether Claude Code ships or needs Node, fetch
