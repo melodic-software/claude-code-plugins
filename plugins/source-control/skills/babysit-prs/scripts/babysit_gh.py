@@ -397,8 +397,8 @@ def rest_list_prs_for_repo(
     """`gh pr list --json` rebuilt from REST, in the shape discovery reads.
 
     `gh pr list --json` is a GraphQL `PullRequestList` query -- confirmed
-    against a restricted session, which answers it with the same pinned-
-    operation 403 that takes out `gh pr view`. Queue discovery is the FIRST
+    against a restricted session, which answers it with the proxy's GraphQL
+    403 that takes out `gh pr view`. Queue discovery is the FIRST
     call in the fleet loop, so without this substitution the loop finds no PRs
     and every REST hydration path downstream is never reached.
 
