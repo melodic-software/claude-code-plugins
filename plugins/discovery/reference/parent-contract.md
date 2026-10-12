@@ -141,9 +141,8 @@ whose scope earns a different model; it replaces the pin in either direction. Ev
 spends `maxTurns: 40`: `researcher` and `intent-tracer` at `effort: high`, and `explorer` at
 `effort: medium`, the effort floor, because its turns go almost entirely to reading. Why 40 stays
 is the harness-facts record "`maxTurns` is set per definition, so 40 is a checkpoint, not a
-completion budget". The pin
-outranks the consumer's `CLAUDE_CODE_SUBAGENT_MODEL`; `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` still
-overrides both the pin and the per-call parameter, which it blocks outright. Dated record:
+completion budget". How the pin and the per-call parameter rank against the consumer's
+subagent-model environment settings is not restated here. Dated record:
 [Harness facts the dispatch design rests on](#harness-facts-the-dispatch-design-rests-on),
 "A per-invocation `model` outranks a subagent's frontmatter".
 
@@ -432,9 +431,9 @@ that carries the detail; none restates the page.
 ### A preloaded skill that fails to resolve is skipped silently
 
 *What we rely on.* A subagent's `skills:` preload that cannot resolve does not fail the dispatch;
-the agent runs without the body it was supposed to carry, and the only trace is a debug-log
-warning. A preload that does resolve carries the whole skill body, not only its description.
-*Pointer:* for both, see
+the agent runs without the body it was supposed to carry, and nothing in the run's normal output
+says so. We rely on a resolved preload carrying the skill body itself.
+*As of:* 2026-10-11. *Pointer:* for what a failed and a resolved preload deliver, see
 [subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents).
 *Why the plugin cares.* A run whose discipline never loaded is indistinguishable from a good one by
 every other signal, which is what the liveness token exists to catch.
@@ -451,9 +450,11 @@ a fork keeps, see
 ### Plan-mode tools are removed from every non-fork subagent
 
 *What we rely on.* A dispatched run cannot enter plan mode, so a read-only posture there is the
-agent's own instruction rather than a harness boundary. The one exception, a subagent whose
-`permissionMode` is `plan` keeping the exit tool, does not apply to any agent here. *Pointer:* the
-same available-tools section.
+agent's own instruction rather than a harness boundary. The section's one exception, for a
+subagent run in plan mode, does not apply to any agent here. *Pointer:* for the plan-mode tools a
+non-fork subagent loses and that exception, see
+[subagents: available tools](https://code.claude.com/docs/en/sub-agents#available-tools).
+*As of:* 2026-10-11.
 
 ### The `Workflow` tool is absent from every non-fork subagent
 
@@ -464,23 +465,19 @@ available-tools section.
 ### Background is the default execution mode, and it narrows the tool set again
 
 *What we rely on.* A dispatched agent runs in the background unless one of the documented
-foreground cases applies, and a background subagent keeps a smaller set of built-in tools plus
-every MCP tool. *Pointer:* for the foreground cases, see
+foreground cases applies, and a background subagent's tool set is narrower than a foreground
+one's. *Pointer:* for the foreground cases, see
 [subagents: run subagents in foreground or background](https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background);
 for the background tool set, the available-tools section. *Do not restate the tool subset.* It is a
 list the harness owns and revises; a site that needs it names the page rather than copying the
-members.
+members. *As of:* 2026-10-11.
 
 ### A spawn is permission-checked before it launches, and the depth limit is a different mechanism
 
-*What we rely on.* A denied spawn is not evidence about nesting depth. A deny rule refuses a spawn
-before it launches, while the depth limit takes the `Agent` tool away from a non-fork subagent, so
-a subagent at the limit has no tool to call rather than a call that comes back denied; a fork at
-the limit keeps the tool and gets an error when it calls it. The two failures have different
-causes and different error text, so read the error rather than inferring a depth ceiling from it.
-One bound worth carrying: in a subagent definition, listing `Agent` permits nesting while the depth
-limit allows it, and a type list in parentheses there restricts nothing. *Pointer:* for deny rules,
-see
+*What we rely on.* A denied spawn is not evidence about nesting depth. A permission deny and the
+depth limit are different mechanisms with different symptoms and error text, so read the error
+rather than inferring a depth ceiling from it. A type list on a definition's `Agent` entry is
+never relied on here as a restriction; what that form does is the second pointer's to say. *As of:* 2026-10-11. *Pointer:* for deny rules, see
 [subagents: restrict which subagents can be spawned](https://code.claude.com/docs/en/sub-agents#restrict-which-subagents-can-be-spawned);
 for the depth limit, see
 [subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
@@ -509,8 +506,7 @@ way.
 
 *What we rely on.* Built-in Explore is a read-only locator: it cannot write or edit, it preloads no
 skill, it skips the CLAUDE.md hierarchy and the parent's git status, and it is one-shot with no
-agent ID to resume. A caller passes it a thoroughness level (`quick`, `medium`, or
-`very thorough`). *Pointer:* for its tools, the skip, and the thoroughness level, see
+agent ID to resume. A caller passes it a thoroughness level. *Pointer:* for its tools, the skip, and the thoroughness level, see
 [subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents);
 for preloading and resume, see
 [subagents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
@@ -525,23 +521,22 @@ is neither documented nor recoverable from its report, and a worker therefore tr
 hit as a pointer backing `verified: grep`, never `verified: read`. *Not verified:* whether a user-
 or project-scope subagent *named* `Explore` inherits the CLAUDE.md and git-status skip; the page
 ties the skip to the built-in agents by name. Setting `omitClaudeMd: true` on such an override
-makes the question moot.
+makes the question moot. *As of:* 2026-10-11.
 
 ### A per-invocation `model` outranks a subagent's frontmatter
 
-*What we rely on.* A subagent's model resolves from the per-invocation parameter first, then the
-definition's `model` frontmatter (`inherit` selecting the main conversation's model), then
-`CLAUDE_CODE_SUBAGENT_MODEL`, then the main conversation's model; an older harness ranked the
-environment variable first; and `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` overrides all of it. *Pointer:*
-for the order, the version where it changed, and the force switch, see
+*What we rely on.* The per-invocation `model` outranks the definition's `model` frontmatter, and
+a definition without a pin falls through to settings outside this plugin's control. *Pointer:* for
+the full resolution order, the version where it changed, and the session-wide override, see
 [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) and
 [subagents: run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model).
 *Why the plugin cares.* Each worker's frontmatter pin is its default, and the dispatching
 session overrides it per run with the per-call `model`, which replaces the pin in either direction.
-An omitted `model` is not a neutral default: it falls to `CLAUDE_CODE_SUBAGENT_MODEL` and then to
-the main conversation's model, so on a machine without the variable an unpinned worker runs on the
-orchestrator's model and pays that rate for every turn it spends reading files. `model: inherit` selects the same model and outranks the
-environment variable, so it is a cost defect in a worker definition.
+An omitted `model` is not a neutral default: it falls through the order the pointer names, so on a
+machine without a subagent-model setting an unpinned worker runs on the orchestrator's model and
+pays that rate for every turn it spends reading files. `model: inherit` in a worker definition is a
+cost defect for the same reason; how it resolves is at the pointer.
+*As of:* 2026-10-11.
 
 ### The verdict lane pins `opus` at `effort: high`
 
@@ -557,8 +552,7 @@ philosophy's tier rule, lane rule, or pinned-agents record.
 
 *What we rely on.* A subagent that reaches its `maxTurns` limit
 returns its output marked as partial, and the parent can resume it with `SendMessage` addressed
-by agent ID; the resumed run keeps its full history and continues where it stopped. An older harness, below the version the
-`maxTurns` field row names, may return nothing at all. *Pointer:* for the marking and its version
+by agent ID, and the resumed run continues where it stopped. *Pointer:* for the marking and its version
 floor, see the `maxTurns` row of
 [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields);
 for resume, see
@@ -567,20 +561,20 @@ for resume, see
 [Resume first, then decide about the slice](#resume-first-then-decide-about-the-slice) the first
 rung rather than a hope. *Not verified:* which text the partial output carries. We found no page
 that says whether a payload block the agent emitted mid-run is part of it, which is why the agents
-keep the disk marker as the primary stop signal.
+keep the disk marker as the primary stop signal. *As of:* 2026-10-11.
 
 ### `maxTurns` is set per definition, so 40 is a checkpoint, not a completion budget
 
 *What we rely on.* A subagent's `maxTurns` comes from its definition, and the parent cannot change
-it for one dispatch: the Agent tool takes no per-call `maxTurns`, an `--agents` JSON definition
-sets it for the whole session rather than one dispatch, and the CLI's `--max-turns` is a different
-setting for print mode. *Pointer:* for the field, see
+it for one dispatch, and neither the session-wide agent definitions flag nor the CLI's turn limit
+is a per-dispatch control. *Pointer:* for the field, see
 [subagents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields);
 for the Agent tool's per-call parameters, see
 [subagents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) and
 [subagents: subagent names](https://code.claude.com/docs/en/sub-agents#subagent-names);
 for `--agents` and `--max-turns`, see their rows in
 [CLI reference: CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags).
+*As of:* 2026-10-11.
 
 *Decision.* Every producing worker definition here (`explorer`, `researcher`, `intent-tracer`) sets `maxTurns: 40`. The read-only `research-verifier` sets `maxTurns: 30` and stops gathering at turn 24. The number is a checkpoint and a
 runaway guard for unattended fan-out, not a budget sized to finish the work: each agent stops
@@ -619,25 +613,26 @@ reaches the limit completes through resume. The recheck triggers above still app
 
 ### A named `discovery:explorer` dispatch delivers its definition body and its `skills:` preload
 
-*Claim.* A `subagent_type: discovery:explorer` dispatch from a directory-source plugin gives the
+*What we observed.* A `subagent_type: discovery:explorer` dispatch from a directory-source plugin gives the
 agent its own definition body and resolves the `skills:` preload, so the agent returns the YAML
 block on its first return, with `model:` and `name:` together, with `name:` alone, and with `model:`
 alone. The
 two reported runs where an explorer behaved as if it had neither (no payload block, "I skipped the
 requested skills", a token expected in the dispatch prompt) did not reproduce.
-*Basis.* Four headless dispatches at commit `8f9a939b8`, `claude --version` 2.1.286, with
+*Probe.* [#5687](https://github.com/melodic-software/claude-code-plugins/pull/5687): four headless
+dispatches at commit `8f9a939b8`, `claude --version` 2.1.286, with
 `--plugin-dir plugins/discovery` (which overrides the installed 0.25.18 cache): `model: haiku` plus
 `name:`, `name:` alone, `model: haiku` alone, and `model: haiku` plus `name:` with a probe line asking
 the agent to say whether a "Preload liveness" section was in its instructions. Every run logged
 `[Agent: discovery:explorer] Preloaded skill 'discovery:explore'` and no skip warning; the probe run
 confirmed the definition body was in the agent's context; no run Read `SKILL.md`; every first return
 carried the YAML block with the skill's `preload_token` and `preload: fired`. Harness 2.1.286 also
-delivers a child agent's report as a message to its parent, not as a tool result, which matches
-our reading of the sub-agents page: a parent that launched background subagents waits for them,
-and their results arrive in a later turn. *Pointer:* for both, see
+delivered a child agent's report as a message to its parent, not as a tool result. *Pointer:* when
+deciding how a background child's result reaches its parent, fetch
 [subagents: run subagents in foreground or background](https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background)
 and
-[subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
+[subagents: let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents)
+live.
 *What this does not establish.* The reported runs' dispatch prompts, debug logs and checkouts were not reachable, so an
 intermittent harness fault, or a definition text that differed from this commit, is neither
 confirmed nor excluded. The dispatch without `model:` and `name:` was not run. *Consequence.* The
@@ -708,8 +703,8 @@ refused a compound command whose words included a slice path ending in `git`, an
 allowed the same path as one plain command. The side-effect-free `--help` probes in
 "Pre-flight" stay chained; they take no slice path.
 
-- **Pointer**: when a worktree-isolated Bash command is refused, fetch <https://code.claude.com/docs/en/worktrees> (isolation, command shape) live. The probe is [#6067](https://github.com/melodic-software/claude-code-plugins/issues/6067).
-- **As of**: 2026-10-03
+- **Pointer**: when a worktree-isolated Bash command is refused, fetch [worktrees: how Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) live. The probe is [#6067](https://github.com/melodic-software/claude-code-plugins/issues/6067).
+- **As of**: 2026-10-11 (pointer anchor); the probe ran 2026-10-03
 - **Recheck trigger**: a Claude Code release in which `<gate> <absolute-slice-ending-in-git>; echo exit=$?` from a worktree-isolated session is allowed. When that probe passes, drop the sub-slice naming line in the research deep tier (`skills/research/context/deep-tier.md`).
 
 The source-applicability checker ships as Python only, with no `.sh` twin. Where the shebang's
@@ -717,7 +712,7 @@ The source-applicability checker ships as Python only, with no `.sh` twin. Where
 from any open lane; a session that can run no Python interpreter halts on criterion 13.
 
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/…"` remains valid where a direct exec is awkward. On a session
-whose Bash tool is blocked by another skill's PreToolUse belt but whose PowerShell lane (or another
+whose Bash tool is blocked by another skill's PreToolUse hook but whose PowerShell lane (or another
 open shell) still runs, invoke the **same** scripts from that open lane, including the coverage
 ledger's Python twin (`check-coverage-complete.py`) when `python3` is what that lane can run. The
 twin is the non-bash alternative for criterion 11; it shares the `.sh` exit contract (0 / 1 / 2)
@@ -795,9 +790,12 @@ path this plugin's skills render for `${CLAUDE_PLUGIN_ROOT}`:
 }
 ```
 
-The quoted and unquoted forms are both listed because a Bash rule matches the command text as
-written, quotes included, and the invocation forms above quote the path while a hand-typed call may
-not. Each rule names the script directly, so it is not the interpreter-led shape auto mode drops.
+The quoted and unquoted forms are both listed because we treat quoting as part of what a Bash rule
+matches, and the invocation forms above quote the path while a hand-typed call may not (Pointer:
+when deciding how a Bash rule matches the text of a quoted path, fetch
+[permissions: wildcard patterns](https://code.claude.com/docs/en/permissions#wildcard-patterns)
+live. As of: 2026-10-11. Recheck trigger: that section changes how the text before a rule's first
+`*` is matched). Each rule names the script directly, so it is not the interpreter-led shape auto mode drops.
 The trailing space-and-`*` covers `--help` and every gate argument.
 
 **Why the rules pin the version instead of wildcarding it.** A cache install's plugin root carries

@@ -3,12 +3,22 @@
 Context7 HTTP MCP server, reading the same backend as the `ctx7` CLI. This plugin does NOT ship or auto-start an MCP server; the consuming project opts in by declaring it in its own MCP configuration.
 
 > Server URL and header facts verified 2026-07-18 against `ctx7` 0.5.5 source and
-> [Context7's docs](https://context7.com/docs); Claude Code config behavior verified against
-> [the MCP docs](https://code.claude.com/docs/en/mcp). Re-check both before acting on a row.
+> [Context7's docs](https://context7.com/docs) (linked without a section anchor: the fetched page
+> exposes no stable MCP heading id, checked 2026-10-11). Recheck when the installed `ctx7` is newer than
+> 0.5.5 (the `update` action reports it) or Context7's docs change the MCP URL or header name.
+
+- **Pointer**: when deciding where the entry goes and how a `${VAR}` in it expands, fetch
+  [MCP installation scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes),
+  [Environment variable expansion in `.mcp.json`](https://code.claude.com/docs/en/mcp#environment-variable-expansion-in-mcp-json)
+  and [Unset variables without a default](https://code.claude.com/docs/en/mcp#unset-variables-without-a-default)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: any of those sections changes where server entries are read from or what
+  happens to an unset variable.
 
 ## Configuration (consumer-side, optional)
 
-Add to the consuming project's `.mcp.json` (or user-scope MCP config). Server entries live under the top-level `mcpServers` key. Anonymous (low-rate) usage needs no headers:
+Add to the consuming project's `.mcp.json` (or user-scope MCP config). Anonymous (low-rate) usage needs no headers:
 
 ```json
 {
@@ -21,7 +31,9 @@ Add to the consuming project's `.mcp.json` (or user-scope MCP config). Server en
 }
 ```
 
-With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects). When a referenced env var is unset with no default, Claude Code still loads the config: it reports a missing-variable warning in `claude mcp list` and sends the **literal `${CONTEXT7_API_KEY}` text as-is**. That is silently broken auth, not a parse failure. Only use this form once `CONTEXT7_API_KEY` is actually set in your environment (or add a `${VAR:-default}` fallback):
+With an API key (higher limits), add the `CONTEXT7_API_KEY` request header (the header name Context7's server expects). Only use this form once `CONTEXT7_API_KEY` is actually set in your environment (or add a `${VAR:-default}` fallback): an unset variable shows up as failed auth, not as a config error (the Unset variables without a default pointer at the top of this file, which sits under no
+section heading, has the detail; as of 2026-10-11; recheck when that pointer moves, is dropped,
+or its as-of date changes):
 
 ```json
 {

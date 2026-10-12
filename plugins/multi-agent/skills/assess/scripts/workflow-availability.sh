@@ -4,6 +4,9 @@
 # turn workflows off, then `verdict<TAB>off|not-off`. `not-off` means no switch
 # here is set; whether the Workflow tool is in the session's toolset is a
 # separate check only the session can make, and managed settings show up there.
+# The switches checked below are the ones listed at
+# https://code.claude.com/docs/en/workflows#turn-workflows-off (as of 2026-10-11;
+# recheck when that section adds, renames or drops a switch).
 set -uo pipefail
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"

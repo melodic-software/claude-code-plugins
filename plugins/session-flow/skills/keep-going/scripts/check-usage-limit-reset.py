@@ -10,6 +10,10 @@ Exit codes:
 Example limit text:
   You've hit your session limit · resets 2:30am (America/New_York)
 
+A wording the regex does not match exits 2, our fail-safe. The message forms
+are upstream's: https://code.claude.com/docs/en/errors#usage-limits (as of
+2026-10-11; recheck when that section shows a reset clause in a new form).
+
 On Windows (and any host without a system IANA TZDB) ``zoneinfo`` needs the
 first-party ``tzdata`` package. This script extracts a bundled
 ``vendor/tzdata-zoneinfo.zip`` into a tempfile cache and puts that on

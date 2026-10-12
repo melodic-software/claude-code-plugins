@@ -33,7 +33,7 @@
 #   remove-shims.sh --help
 #
 # Exit: 0 shims removed and every canary passed; 1 refused, or removed and
-# restored; 2 usage error.
+# restored; 2 usage error, or a missing scripts/lib/version.sh.
 
 set -uo pipefail
 
@@ -142,19 +142,8 @@ refuse() {
   exit 1
 }
 
-ver_ge() {
-  local -a a b
-  local i x y
-  IFS=. read -r -a a <<<"$1"
-  IFS=. read -r -a b <<<"$2"
-  for i in 0 1 2; do
-    x="${a[i]:-0}"
-    y="${b[i]:-0}"
-    ((10#$x > 10#$y)) && return 0
-    ((10#$x < 10#$y)) && return 1
-  done
-  return 0
-}
+# shellcheck source=../../../scripts/lib/version.sh
+. "$SCRIPT_DIR/../../../scripts/lib/version.sh" || exit 2
 
 # --- 1. the price ---------------------------------------------------------
 echo "=== remove-shims: $REPO ==="
@@ -196,7 +185,9 @@ installed_version() { # <plugin name>
   while IFS= read -r v; do
     v="${v%$'\r'}"
     [[ -n "$v" ]] || continue
-    if [[ -z "$worst" ]] || ver_ge "$worst" "$v"; then worst="$v"; fi
+    # One copy whose version cannot be read could be the stale one.
+    [[ "$v" =~ ^[0-9]+(\.[0-9]+)*$ ]] || return 1
+    if [[ -z "$worst" ]] || ip_ver_ge "$worst" "$v"; then worst="$v"; fi
   done < <(jq -r --arg p "$1@" '.plugins | to_entries[]
              | select(.key | startswith($p)) | .value[].version' \
     "$INSTALLED_PLUGINS" 2>/dev/null)
@@ -208,9 +199,9 @@ for pair in "instruction-placement:$FLOOR_INSTRUCTION_PLACEMENT" "harness-memory
   name="${pair%%:*}"
   floor="${pair##*:}"
   if ! have="$(installed_version "$name")"; then
-    refuse "cannot read the installed version of $name from $INSTALLED_PLUGINS (jq missing, file absent, or the plugin is not installed). An unread version is not a version that carries the corrected doctrine."
+    refuse "cannot read the installed version of $name from $INSTALLED_PLUGINS (jq missing, file absent, the plugin is not installed, or a copy's version is not a dotted number). An unread version is not a version that carries the corrected doctrine."
   fi
-  if ! ver_ge "$have" "$floor"; then
+  if ! ip_ver_ge "$have" "$floor"; then
     refuse "installed $name is $have (the lowest copy across every scope), below the corrected-doctrine release $floor. An older build tells a de-shimmed repository to put the shim back."
   fi
   echo "  installed $name $have (lowest across scopes), at or above $floor"

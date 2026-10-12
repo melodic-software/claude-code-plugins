@@ -21,7 +21,7 @@ Churn from partial history produces confidently-wrong rankings, which are worse 
 rankings. Run this gate before counting anything:
 
 ```bash
-# 1. Shallow clone? (cloud sessions often clone shallow)
+# 1. Shallow clone? (any checkout can be; the gate never assumes full history)
 git rev-parse --is-shallow-repository
 
 # 2. Oldest reachable commit date (ISO YYYY-MM-DD)

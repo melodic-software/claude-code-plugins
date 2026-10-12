@@ -146,7 +146,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/tdd:principles`](../plugins/tdd/skills/principles/SKILL.md) | `tdd` | Answer test design questions from authoritative TDD sources |
 | [`/testing:audit`](../plugins/testing/skills/audit/SKILL.md) | `testing` | Detect tests that cannot fail. Report, gate, or persist |
 | [`/testing:check-visual-parity`](../plugins/testing/skills/check-visual-parity/SKILL.md) | `testing` | Baseline screenshots before a change, pixel counts against them after |
-| [`/testing:cleanup`](../plugins/testing/skills/cleanup/SKILL.md) | `testing` | Rewrite, quarantine or delete low-value tests in one folder behind a mutation gate |
+| [`/testing:cleanup`](../plugins/testing/skills/cleanup/SKILL.md) | `testing` | Rewrite, quarantine or delete low-value tests behind a mutation gate, or delete cannot-fail ones |
 | [`/testing:diagnose`](../plugins/testing/skills/diagnose/SKILL.md) | `testing` | Root-cause failing tests, never retry blindly |
 | [`/testing:map-features`](../plugins/testing/skills/map-features/SKILL.md) | `testing` | Write a feature map that /testing:run-e2e drives entry point by entry point |
 | [`/testing:plan`](../plugins/testing/skills/plan/SKILL.md) | `testing` | Classify changes by required test type and coverage gaps |

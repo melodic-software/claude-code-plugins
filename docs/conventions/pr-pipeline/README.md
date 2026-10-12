@@ -7,6 +7,7 @@
 - [Lanes](#lanes)
 - [Activities](#activities)
 - [Slots and order](#slots-and-order)
+- [Concurrency](#concurrency)
 - [Outputs and skips](#outputs-and-skips)
 - [Merge authority](#merge-authority)
 - [Trust-root paths](#trust-root-paths)
@@ -92,6 +93,19 @@ reader applies.
 | `post-merge-verify` | push to the default branch |
 | `post-merge-sweep-comments` | push to the default branch |
 
+`pr-unblock`'s dispatches come from `pr-unblock-dispatch.yml`, a scripted workflow with no model
+that runs on a push to `main` and on a trusted human's `workflow_dispatch`:
+
+- It lists open, non-draft, same-repository PRs into `main` that GitHub reports as `CONFLICTING`,
+  re-querying an `UNKNOWN` PR up to 5 times, 10 s apart.
+- It skips a PR whose head already has a `pr-unblock / resolve-conflicts` check run from the
+  GitHub Actions app, unless that run is a neutral `Skipped: untrusted-trigger`.
+- It dispatches `pr-unblock.yml` on `refs/heads/main` for at most 3 PRs per run, lowest number
+  first, passing `pr-number` and `dispatcher-run-id`.
+- A hand run or a re-run must be started by a listed human (`check-trusted-trigger` with
+  `require-pr: false` and `require-kind: human`).
+- With the kill switch on, the run ends green with a notice and dispatches nothing.
+
 `workflow_run` runs the default-branch copy of a workflow with secrets; the conditions fixing CI
 from it holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
 Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
@@ -123,11 +137,14 @@ Every lane:
   and the `<lane> / <activity>` check runs are written by scripted jobs with no model step, and
   branch protection pins `ci-status` to the source that writes it
   ([ADR 0053](../../adr/0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md)).
-  A base merge that touches
-  `.github/workflows/` escalates to a human instead of being pushed by a lane.
-- Writes through one per-PR queue (a concurrency group that queues, never cancels). It pushes its
-  own commits as fast-forward updates, never with force. When the head moved, it fetches, replays
-  its own commits and retries. `pr-unblock` writes first when it is triggered.
+  A base merge escalates to a human instead of being pushed when a path under
+  `.github/workflows/` is left conflicted by the merge (before any model turn), or when the model
+  staged a change under `.github/workflows/` (after it). A workflow change that comes cleanly from
+  the base is merged and pushed with the rest.
+- Writes through one per-PR queue (a concurrency group that queues, never cancels; see
+  [Concurrency](#concurrency)). It pushes its own commits as fast-forward updates, never with
+  force. A head that moved before the token mint skips the run with `superseded-sha`; one that
+  moved during the run fails its push. Either way a later run on the new head does the work.
 - Works each layer of a stack but touches only the lowest unmerged layer when fixing, and never
   rebases a stack.
 - Respects the cross-lane hold, the `do-not-merge` label
@@ -232,6 +249,19 @@ The schema checks each file's shape. The config reader also rejects:
 
 The reader also adds the config file's own path, `.github/**` and the trusted-actor list to
 `merge.diff-check.denied-paths`, whatever the config says.
+
+## Concurrency
+
+| Scope | Rule | Set by |
+|---|---|---|
+| Triggers of one PR's `pr-unblock` | A newer dispatch replaces one still waiting; a running one finishes | workflow group `pr-unblock-<n>`, `cancel-in-progress: false` |
+| Within one run | Leaves run in slot order: `report-escalation` after `resolve-conflicts`, and only when it escalated | the caller's `needs:` |
+| Across PRs | Unbounded: every group is per PR | group names |
+| Within one PR, across write lanes | One queue: a write job waits for the one ahead and never cancels it | job group `pr-pipeline-write-<n>`, `queue: max`, on every write caller job |
+| `pr-unblock-dispatch` | One run at a time; a newer push replaces a waiting run | workflow group `pr-unblock-dispatch` |
+
+The write group sits on each caller job, behind an `if:` that leaves out the lanes App's own
+`pull_request` events, so a lane's push never queues a job in it.
 
 ## Outputs and skips
 
