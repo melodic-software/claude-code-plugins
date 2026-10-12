@@ -314,7 +314,8 @@
         "agent-identity": {
           "type": "string",
           "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$",
-          "description": "GitHub login the unattended merge lane acts as. It must be a GitHub App's [bot] login: a machine user is a User and would pass every human test. Absent: the unattended path stays inert. Required when authority is local-babysit."
+          "not": { "enum": ["github-actions[bot]", "dependabot[bot]"] },
+          "description": "GitHub login the unattended merge lane acts as. It must be the [bot] login of a GitHub App dedicated to this lane: a machine user is a User and would pass every human test, and GitHub's shared built-in bots (github-actions[bot], dependabot[bot]) are rejected. Absent: the unattended path stays inert. Required when authority is local-babysit."
         },
         "diff-check": {
           "type": "object",

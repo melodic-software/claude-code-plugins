@@ -83,10 +83,43 @@ test("an authority outside local-babysit and pr-merge fails the schema", () => {
   );
 });
 
-test("an agent-identity that is not a GitHub login fails the schema", () => {
+for (const login of ["lanes bot[bot]", "-lanes[bot]"]) {
+  test(`an agent-identity with the [bot] suffix but an invalid login (${login}) fails the schema`, () => {
+    rejectedFor(
+      withMerge({ authority: "local-babysit", "agent-identity": login }),
+      /\/merge\/agent-identity must match pattern/,
+    );
+  });
+}
+
+for (const login of ["github-actions[bot]", "dependabot[bot]"]) {
+  test(`GitHub's shared built-in bot ${login} is rejected as agent-identity`, () => {
+    rejectedFor(
+      withMerge({ authority: "local-babysit", "agent-identity": login }),
+      /\/merge\/agent-identity must NOT be valid/,
+    );
+  });
+}
+
+test("rung C2 without diff-check still fails the schema", () => {
+  rejectedFor(withMerge({ rung: "C2" }), /required property 'diff-check'/);
+});
+
+test("rung C2 with authority local-babysit and an identity but no diff-check fails the schema", () => {
   rejectedFor(
-    withMerge({ authority: "local-babysit", "agent-identity": "lanes bot" }),
-    /\/merge\/agent-identity must match pattern/,
+    withMerge({
+      rung: "C2",
+      authority: "local-babysit",
+      "agent-identity": IDENTITY,
+    }),
+    /required property 'diff-check'/,
+  );
+});
+
+test("rung C2 with authority local-babysit fails on both the missing diff-check and the missing identity", () => {
+  rejectedFor(
+    withMerge({ rung: "C2", authority: "local-babysit" }),
+    /required property 'diff-check'.*required property 'agent-identity'|required property 'agent-identity'.*required property 'diff-check'/,
   );
 });
 
