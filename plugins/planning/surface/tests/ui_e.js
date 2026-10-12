@@ -68,6 +68,7 @@ async page => { // answer controls: radios by keyboard, a withheld question, pas
   const open = await page.evaluate(() => ({radios: [...document.querySelectorAll("#choices input")].every(r => !r.disabled), hint: document.getElementById("saveHint").textContent}));
   ok("back online, the radios are enabled again", back && open.radios && !/Not connected/.test(open.hint), JSON.stringify(open));
   } catch (e) { R.push("ERROR " + e.message.split("\n").slice(0, 3).join(" | ")); }
+  await page.context().setOffline(false); // the suites after this one share the browser context
   const real = errors.filter(e => !/ERR_INTERNET_DISCONNECTED|ERR_CONNECTION_(REFUSED|RESET)/.test(e));
   ok("zero console errors (besides the network lines for the offline step)", real.length === 0, errors.join(" | "));
   return R.join("\n");
