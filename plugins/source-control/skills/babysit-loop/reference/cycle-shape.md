@@ -104,15 +104,15 @@ is.
    work-class comparison, once per cycle, resolve each cell through the trusted seam. When the
    effective rung is merge-capable and step 0's bootstrap check found no problem, run
    `node <plugin-root>/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` with
-   `--binding`, `--probe-evidence-root`, `--evidence` and `--checker` set to the
-   `promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source` and
-   `promotion_evidence_checker` values from the substituted block in [`../SKILL.md`](../SKILL.md)
-   (never the `CLAUDE_PLUGIN_OPTION_*` mirror, and never a path the lane found or chose: the lane
-   does not look for the autonomy plugin's install), `--checkout` the target checkout, and one
-   `--worktree-root` per worktree root step 0 names. The helper refuses a path inside the checkout
-   or a worktree root, or containing one; it cannot tell an operator's value from one the lane
-   chose, so only the substituted values are passed. It prints `{source, failClosedReason, cells}`
-   and exits 0. Decide each cell from `cells` with the resolution table: it is effective-promoted
+   `--checkout` the target checkout and one `--worktree-root` per worktree root step 0 names, and
+   nothing else. The helper reads the four `promotion_evidence_*` values from the operator's
+   managed and user settings itself (channel F,
+   [the contract](promotion-evidence-bootstrap.md#allowed-source-class)), so the lane passes no
+   surface or checker path; it rejects the retired `--binding`, `--probe-evidence-root`,
+   `--evidence` and `--checker` arguments as a usage error. It refuses a path inside the checkout
+   or a worktree root, or containing one. It prints `{source, failClosedReason, options, cells}`,
+   `options` naming the settings file each value came from, and exits 0. Decide each cell from
+   `cells` with the resolution table: it is effective-promoted
    only when `failClosedReason` is null and its `effective` is `promoted`. A fail-closed reason, a
    skipped invocation (`human-only`, a non-merge-capable tier, a step 0 problem, which includes an
    unset checker option), or a helper failure (non-zero exit, unparsable output) leaves every cell

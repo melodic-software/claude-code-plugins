@@ -206,7 +206,9 @@ only: never the `CLAUDE_PLUGIN_OPTION_*` environment mirror, and never `.claude/
 or any other repository file. The reasons and their verification record are in
 [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md#allowed-source-class),
 which also says what each surface must be. The lane-start preflight in
-[reference/cycle-shape.md](reference/cycle-shape.md) steps 0 and 3 read this block.
+[reference/cycle-shape.md](reference/cycle-shape.md) step 0 reads this block. The resolution helper
+step 3 runs takes none of these values from the lane: it reads them from the operator's managed
+and user settings itself.
 
 | Option | Value |
 | --- | --- |

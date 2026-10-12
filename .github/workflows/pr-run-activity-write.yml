@@ -259,7 +259,7 @@ jobs:
       - name: Re-read the PR head before the mint
         id: head-recheck
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EFFECT: ${{ steps.config.outputs.effect }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
@@ -507,7 +507,7 @@ jobs:
           steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
           && steps.config.outputs.can-commit == 'true'
           && steps.prepare.outputs.merge-state != 'escalate'
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           LANE_BRANCH: lane-commits/${{ inputs.lane }}/${{ inputs.activity }}/${{ github.run_id }}-${{ github.run_attempt }}
@@ -595,7 +595,7 @@ jobs:
       - name: Check the skill took a model turn
         id: act-turns
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EXECUTION_FILE: >-
             ${{ steps.act-skill.outputs.execution_file
@@ -755,7 +755,7 @@ jobs:
         if: >-
           steps.post.outcome == 'success' && steps.post.outputs.escalation-reason == ''
           && steps.post.outputs.tree != ''
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           BIN: ${{ runner.temp }}/merge-base-bin
           TREE_ENTRIES_SHA256: ${{ steps.merge-bin.outputs.tree-entries-sha256 }}
@@ -898,7 +898,7 @@ jobs:
       - name: Move the PR branch to the lane's commits
         id: promote
         if: always() && steps.lane-branch.outputs.branch != ''
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           HEAD_REF: ${{ steps.gate.outputs.head-ref }}
@@ -1068,7 +1068,7 @@ jobs:
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
         continue-on-error: true
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
