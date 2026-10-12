@@ -5,8 +5,11 @@
 # is "true", so installing session-flow does not change any consumer's behavior.
 # When enabled it fire-and-forgets the detached tailer for the CURRENT session,
 # which then outlives the session and (if analysis is on) runs the post-end
-# running-retro checkpoint. SessionStart is context-only and cannot block, so the
-# launch is safe by construction. Always exits 0.
+# running-retro checkpoint. We treat SessionStart as unable to block, so the
+# launch is safe by construction. Always exits 0. Event semantics and the stdin
+# `source` and `agent_type` fields: https://code.claude.com/docs/en/hooks#sessionstart
+# and #sessionstart-input (as of 2026-10-11; recheck when either section lets
+# SessionStart block or changes those fields).
 #
 # Self-arm guard (never observe the observer's own analysis run, subagents, or
 # forked/background helpers):
