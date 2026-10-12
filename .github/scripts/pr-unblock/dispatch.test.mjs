@@ -307,6 +307,17 @@ test("a dispatch with an unusable workflow_run_id still uses one of the maxDispa
   assert.ok(lines.some((line) => line.includes("#134") && /later run/.test(line)));
 });
 
+test("a dispatch call that throws still uses one of the maxDispatch slots", async () => {
+  const { api, lines, run } = harness({
+    pages: [[pr(141), pr(142), pr(143), pr(144)]],
+    failDispatch: new Set(["141"]),
+  });
+  const result = await run();
+  assert.deepEqual(dispatchedNumbers(api), ["141", "142", "143"]);
+  assert.equal(result.failed, 1);
+  assert.ok(lines.some((line) => line.includes("#144") && /later run/.test(line)));
+});
+
 test("a workflow_run_id that is not 1 to 15 digits without a leading zero counts as failed", async () => {
   const bad = [
     ["81", "0123"],
