@@ -11,7 +11,9 @@ not a scoped rule.
   jointly-signed floor ("implementation code only needs comments when the code is nonobvious") and
   the class-C boundary. Martin's "comments are always failures" is his alone and is not built on.
 - [Google eng-practices, comments explain *why*, not *what*](https://google.github.io/eng-practices/review/reviewer/looking-for.html).
-- [Anthropic prompting best practices, Overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices),
+- [Anthropic prompting best practices, Overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness)
+  (as of 2026-10-11; recheck when that section's sample prompt drops or rewords the comment,
+  scope, or abstraction lines quoted here),
   "Only add comments where the logic isn't self-evident". That sentence sits inside
   anti-overengineering guidance whose sibling bullets say "Don't add features, refactor code, or
   make 'improvements' beyond what was asked" and "Don't create helpers, utilities, or abstractions
