@@ -131,7 +131,7 @@ exposes cumulative counters. That is true of the *metrics* and false of the *eve
 per-request token counts, the issuing subsystem, an ordering sequence and the session id.
 Filtering to the newest `repl_main_thread` event for a session therefore yields the current
 main-thread occupancy: the event's input token counts add up to the same sum the status line
-computes `used_percentage` from. This channel really does supply live, per-session occupancy for
+computes `used_percentage` from. This channel supplies live, per-session occupancy for
 a running interactive session.
 
 - **Pointer**: when re-checking this channel, fetch
@@ -165,7 +165,7 @@ an out-of-process collector, and a plugin that ships a zone instrument only for 
 an OTLP pipeline has not solved the problem this file exists for.
 
 The plugin therefore does **not** ship an OTel-derived capture path. The channel is recorded here
-because it is genuinely the closest documented substitute, and a future reader deserves the real
+because it is the closest documented substitute, and a future reader deserves the real
 reason rather than a claim about counters that its own citation disproves.
 
 ## The transcript is reachable, and still not a viable source
@@ -186,7 +186,7 @@ The sessions page disqualifies the parse (<https://code.claude.com/docs/en/sessi
 > internal to Claude Code and changes between versions, so scripts that parse these files directly
 > can break on any release.
 
-**That warning alone is not sufficient grounds, and this file will not pretend it is.** A reader
+**That warning alone is not sufficient grounds.** A reader
 that validates shape before emitting degrades on a breaking format change to writing *no snapshot*,
 which resolves to `unknown`. Validating the shape means checking that all three keys are present,
 integral and non-negative, that their sum is inside a known window, that the entry's timestamp is
