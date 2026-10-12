@@ -286,10 +286,9 @@ Two settings live outside `userConfig`:
 | `LOOP_LANE_RATE_LIMIT_PAUSE` | the loop lane session's environment | unset (off) | `1` makes an unattended loop lane pause at 95% of either window; see the [reader contract](reference/reader-contract.md). |
 
 A threshold or approach mark outside 1 to 100, or line data with an unknown item, reads as that
-option's default with one transcript line naming it. The thresholds declare no range because a
-value outside a declared range would cost the whole module, not just that option, so the module
-judges a value outside 1 to 100 itself. A value of the wrong type (text for a number, a number for
-a switch) is Claude Code's to handle before the module sees it.
+option's default with one transcript line naming it. The thresholds declare no range in
+`userConfig`; the module judges a value outside 1 to 100 itself. A value of the wrong type (text
+for a number, a number for a switch) is Claude Code's to handle before the module sees it.
 
 - **Pointer**: when deciding what Claude Code does with an option value that does not fit
   `userConfig`, fetch
