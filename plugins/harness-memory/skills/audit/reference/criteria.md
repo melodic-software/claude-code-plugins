@@ -8,7 +8,7 @@
 - [Audit output format](#audit-output-format)
 
 Version: 1.7.0
-Last updated: 2026-09-20
+Last updated: 2026-10-11
 Source: official Claude Code docs, chiefly
 [How CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load),
 [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md),
