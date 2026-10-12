@@ -26,32 +26,38 @@ The runner, not the model, makes the merge commit through the Git Data API
 ([pr-run-activity.md, "prepare: merge-base"](../conventions/pr-pipeline/pr-run-activity.md#prepare-merge-base)):
 
 1. A leaf opts in with `prepare: merge-base`, a closed-enum schema key valid only on a skill leaf
-   that can write ([`pr-pipeline.schema.json:171-186`](../conventions/pr-pipeline/pr-pipeline.schema.json),
-   [`resolve.mjs:198-207`](../../.github/actions/resolve-config/resolve.mjs)). The write runner
-   branches on the resolved `prepare` output, never on the skill's name.
+   that can write. The write runner branches on the resolved `prepare` output, never on the
+   skill's name. Basis:
+   [`pr-pipeline.schema.json:171-186`](../conventions/pr-pipeline/pr-pipeline.schema.json);
+   [`resolve.mjs:198-207`](../../.github/actions/resolve-config/resolve.mjs);
+   [`pr-run-activity-write.yml:359,434`](../../.github/workflows/pr-run-activity-write.yml).
 2. Before any model turn, the base's `prepare.sh` runs `git merge --no-commit --no-ff` of the
    trusted base ([ADR 0069](0069-trust-the-default-branch-tip-for-a-conflicting-pr.md)) into the
-   gated head ([`pr-run-activity-write.yml:424-494`](../../.github/workflows/pr-run-activity-write.yml)).
-   A clean merge takes no model turn; the skill runs only on a conflicted one.
-3. After the skill, the base's `post.sh` checks the index and writes it as a tree
-   (`pr-run-activity-write.yml:688-741`).
+   gated head. A clean merge takes no model turn; the skill runs only on a conflicted one. Basis:
+   `pr-run-activity-write.yml:424-494,527`.
+3. After the skill, the base's `post.sh` checks the index and writes it as a tree. Basis:
+   `pr-run-activity-write.yml:688-741`.
 4. A pinned `github-script` step uploads only the blobs neither parent holds, builds the tree,
    fails unless GitHub's tree hashes to `post.sh`'s, and creates the commit with
    `parents: [gated head, trusted base]` and no author, committer or signature fields, so GitHub
-   signs it as the App. It writes the commit to the lane branch with `force: false`
-   (`pr-run-activity-write.yml:742-891`).
+   signs it as the App. It writes the commit to the lane branch with `force: false`. Basis:
+   `pr-run-activity-write.yml:742-891`; the GitHub page quoted in Context.
 5. The existing promote step fast-forwards the PR branch only when the lane branch holds that
    step's own commit and the PR branch is still at the gated head, then re-reads the ref to confirm
-   the move (`pr-run-activity-write.yml:893-950`).
+   the move. Basis: `pr-run-activity-write.yml:893-950`.
 
 ## Alternatives considered
 
 - **`git push` of the local merge commit.** Rejected: unsigned, so `check-signed-commits` fails
-  it, and it bypasses the promote step's head-moved guard.
+  it, and it bypasses the promote step's head-moved guard. Basis: ADR 0054, "Decision";
+  `pr-run-activity-write.yml:893-950`.
 - **The existing commit tool on the lane branch.** Rejected: it makes a single-parent commit, so
-  the PR stays computed against the old base.
+  the PR stays computed against the old base. Basis: judgment; the tool was not re-read for this
+  record.
 - **A separate push job with its own mint.** Rejected for now: it is the fix-ci head-code and push
-  split the owner has reserved, and it costs a second mint per run.
+  split the owner has reserved, and it costs a second mint per run. Basis:
+  [ADR 0058](0058-mint-lane-app-tokens-through-an-oidc-broker.md) point 3 (one mint per job); the
+  owner's reservation of that split is not recorded in this repository.
 
 ## Consequences
 
@@ -67,4 +73,5 @@ The runner, not the model, makes the merge commit through the Git Data API
   conflicted nor staged by the model, is committed and pushed. GitHub did not refuse it for the
   App's missing `workflows` permission (probe run 38148710292, all three push methods). A
   conflicted or model-staged workflow path escalates instead.
-- The merge scripts need git 2.41 or later (`GIT_ATTR_SOURCE`) and fail closed below it.
+- The merge scripts need git 2.41 or later (`GIT_ATTR_SOURCE`) and fail closed below it. Basis:
+  [`prepare.sh:24,79`](../../.github/scripts/merge-base/prepare.sh).

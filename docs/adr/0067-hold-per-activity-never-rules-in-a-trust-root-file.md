@@ -22,23 +22,26 @@ beside `lane-rules.json` and `effect-grants.json`, keyed by leaf
 1. Each row holds `never`, a statement of what the leaf never does, and optionally
    `forbidden-effects`, effects it may never be given. A leaf with no row is valid; a missing or
    malformed file is a config error, and every forbidden effect must be one `effect-grants.json`
-   knows ([`resolve.mjs:169-196`](../../.github/actions/resolve-config/resolve.mjs)).
-2. The reader rejects a leaf whose `effect` its row forbids, as `forbidden-by-activity`
-   (`resolve.mjs:198-221`). Today `report-escalation` may never be `mutate-branch` or `merge`.
-3. The file is read from the action's own trusted checkout, never from the PR head
-   ([`resolve-config.mjs:184-192`](../../.github/actions/resolve-config/resolve-config.mjs)), and
-   the token broker reads it at the default-branch tip as one of its trust files
-   (`melodic-software/azure-iac`, `src/lanes-token-broker/src/binding.mjs:7-26`). It is a
-   trust-root path
-   ([pr-pipeline README, "Trust-root paths"](../conventions/pr-pipeline/README.md#trust-root-paths)).
+   knows. Basis: [`resolve.mjs:169-196`](../../.github/actions/resolve-config/resolve.mjs).
+2. The reader rejects a leaf whose `effect` its row forbids, as `forbidden-by-activity`. Today
+   `report-escalation` may never be `mutate-branch` or `merge`. Basis: `resolve.mjs:198-221`;
+   `activity-rules.json:5-8`.
+3. The file is read from the action's own trusted checkout, never from the PR head, and the token
+   broker reads it at the default-branch tip as one of its trust files. It is a trust-root path.
+   Basis: [`resolve-config.mjs:34-35,184-192`](../../.github/actions/resolve-config/resolve-config.mjs);
+   `melodic-software/azure-iac` `src/lanes-token-broker/src/binding.mjs:7-26`;
+   [pr-pipeline README, "Trust-root paths"](../conventions/pr-pipeline/README.md#trust-root-paths).
 
 ## Alternatives considered
 
-- **`never:` on the activity in `pr-pipeline.yaml`.** Rejected: the config is lane-power too, but a
-  rule beside the definition it limits can be loosened in the same hunk that widens the activity.
-  In a separate file under `.github/actions/**`, widening an activity past its rule takes two
-  changes, one of them to the file the rule protects.
+- **`never:` on the activity in `pr-pipeline.yaml`.** Rejected: a rule beside the definition it
+  limits can be loosened in the same hunk that widens the activity. Under `.github/actions/**`,
+  loosening the rule is a separate trust-root change from widening the activity. Basis: judgment,
+  on the trust-root list in the pr-pipeline README (lines 311-340); the owner chose this option in
+  the pr-unblock design review on 2026-10-11.
 - **Keep rules per lane only.** Rejected: one lane now holds activities with different effects.
+  Basis: [`pr-pipeline.yaml:16-39`](../conventions/pr-pipeline.yaml) (`mutate-branch` and
+  `publish-artifact` in the pr-unblock lane).
 
 ## Consequences
 

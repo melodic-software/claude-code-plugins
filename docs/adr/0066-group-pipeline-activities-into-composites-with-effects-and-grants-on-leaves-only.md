@@ -23,31 +23,34 @@ An activity is either a leaf or a composite
    `script`, `effect`, `gating`, `reads-untrusted`, `inputs` and `applies-when`. A composite has
    `children:`, a list in the same slot shape a lane's `slots:` uses (`activity`, `needs`,
    `applies-when`, `enabled`), so a lane is the root composite, and an optional `applies-when`
-   that gates every child (`pr-pipeline.schema.json:165-168`,
-   [pr-pipeline README, "Activities"](../conventions/pr-pipeline/README.md#activities)).
+   that gates every child. Basis: `pr-pipeline.schema.json:150-186`;
+   [pr-pipeline README, "Activities"](../conventions/pr-pipeline/README.md#activities).
 2. **Effects, inputs and grants belong to leaves.** A composite declares none. Lane rules are
-   checked over every leaf a lane expands to
-   ([`resolve.mjs:293-323`](../../.github/actions/resolve-config/resolve.mjs)), and
-   `resolveGrant`, the broker's entry point, resolves only leaf keys, because the lane is expanded
-   to its leaves before an activity is looked up (`resolve.mjs:346-375,577-596`). One job runs one
-   leaf, gets one grant and posts one check; a composite has no job, grant or check of its own.
+   checked over every leaf a lane expands to, and `resolveGrant`, the broker's entry point,
+   resolves only leaf keys, because the lane is expanded to its leaves before an activity is looked
+   up. One job runs one leaf, gets one grant and posts one check; a composite has no job, grant or
+   check of its own. Basis:
+   [`resolve.mjs:293-323,346-375,577-596`](../../.github/actions/resolve-config/resolve.mjs).
 3. **The path decides.** A leaf runs only when the lane, every ancestor composite and its own slot
-   are enabled, and only when every ancestor's `applies-when` and its own match
-   (`resolve.mjs:346-376`).
+   are enabled, and only when every ancestor's `applies-when` and its own match. Basis:
+   `resolve.mjs:346-376`.
 4. **What the reader checks that the schema cannot**: every child is defined, `needs:` names only
-   siblings, no composite contains itself, a composite holds only leaves (at most two layers below
-   the lane), and a leaf appears at most once in a lane
-   (`resolve.mjs:111-166,293-303`).
+   siblings, no composite contains itself, a composite holds only leaves, and a leaf appears at
+   most once in a lane. Basis: `resolve.mjs:111-166,293-303`. The depth limit of two layers below
+   the lane: judgment, held until a third layer is needed.
 
 ## Alternatives considered
 
 - **Nested definitions** (children defined inline, a leaf identified by its path). Rejected: a leaf
   under two composites is defined twice, and the resolver, broker and report job would all have
-  to carry paths instead of one key.
+  to carry paths instead of one key. Basis: judgment, from the activity-name keying in
+  `resolve.mjs:577-596` and the check name `<lane> / <activity>` in
+  [ADR 0053](0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md) point 2.
 - **No composites; group by name prefix only.** Rejected: nothing could enable, order or gate a
-  group as one unit, which is what the later pr-unblock groups need.
+  group as one unit, which is what the later pr-unblock groups need. Basis: judgment.
 - **An effect on the composite.** Rejected: a token is minted per job and a job runs one leaf, so
-  a composite-level effect would either widen every member's grant or be ignored.
+  a composite-level effect would either widen every member's grant or be ignored. Basis:
+  [ADR 0058](0058-mint-lane-app-tokens-through-an-oidc-broker.md) point 3 (one mint per job).
 
 ## Consequences
 
