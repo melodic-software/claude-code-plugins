@@ -73,6 +73,14 @@ Contract enforced here (encoded as code, not convention):
   fallback. The review-settle pair stays `userConfig`-only: a repository
   declaration of either key is ignored. A repository config that cannot be read
   refuses the run at exit 2.
+- `--unattended` runs the gate under the unattended merge policy
+  (`babysit_merge_policy`). The policy is inert, so check-only adds the blocker
+  `unattended merge inert: <reason>` and reports `unattended.enabled=false`,
+  and `--merge --unattended` refuses at exit 10 before any network access. It
+  refuses `--allow-dependency` and `--auto`. Absent the flag the gate is
+  unchanged, except that plain `--merge` refuses at exit 10 when the token's
+  acting login is the policy's configured agent identity, or cannot be read
+  while one is configured.
 
 Readiness is gated on GitHub's own `mergeStateStatus == CLEAN` (which integrates
 required checks, approvals, conversation resolution, and up-to-date where the
@@ -100,6 +108,7 @@ from pathlib import Path
 from typing import Any, cast
 from urllib.parse import quote
 
+import babysit_merge_policy as merge_policy
 import babysit_repo_config as repo_policy
 from babysit_state import resolve_state_dir, state_lock, write_state
 from babysit_checks import check_identity_key, classify_checks
@@ -133,6 +142,7 @@ from babysit_gh import (
     gh_json,
     normalized_rest_author,
     parse_repo_number,
+    resolve_author,
     resolve_authors,
     view_pr_fields,
 )
@@ -1311,6 +1321,7 @@ def evaluate(
     settle: ReviewSettleConfig | None = None,
     stacked: bool = False,
     rules_base: str | None = None,
+    unattended: merge_policy.UnattendedPolicy | None = None,
 ) -> dict[str, Any]:
     owner = split_owner(repo)
     # `closingIssuesReferences` is requested only when the autopilot merge tier
@@ -1581,6 +1592,12 @@ def evaluate(
         )
         blockers.extend(tier_blockers)
 
+    # Absent, the unattended policy leaves the gate and its report unchanged.
+    # Present and inert, it is one more hold, added before the network reads
+    # below for the same per-cycle cost reason.
+    if unattended is not None and not unattended.enabled:
+        blockers.append(f"unattended merge inert: {unattended.reason}")
+
     # The self-login exemption from the unprotected-base hold above exists for a
     # repository whose DEFAULT branch carries no rules -- a solo owner merging
     # their own work, where holding every PR would make the gate useless. It must
@@ -1702,7 +1719,7 @@ def evaluate(
         auto_blockers.append(MERGE_QUEUE_AUTO_HOLD)
     if not ready and stack_mode:
         auto_blockers.append(STACK_AUTO_HOLD)
-    return {
+    report: dict[str, Any] = {
         "pr": f"{repo}#{number}",
         "autopilotMergeTier": tier_result,
         "reviewSettle": settle_result,
@@ -1743,6 +1760,9 @@ def evaluate(
         "aiReviewHolds": ai_review_holds,
         "aiReviewChecks": ai_review_checks,
     }
+    if unattended is not None:
+        report["unattended"] = unattended.report()
+    return report
 
 
 def allowed_method(repo: str, requested: str | None) -> str:
@@ -2692,6 +2712,15 @@ def main() -> int:
             "(autopilot merge tier)"
         ),
     )
+    parser.add_argument(
+        "--unattended",
+        action="store_true",
+        help=(
+            "gate under the unattended merge policy, which is inert: check-only "
+            "reports why, and --merge refuses at exit 10. Refuses "
+            "--allow-dependency and --auto"
+        ),
+    )
     args = parser.parse_args()
 
     def _refuse(message: str, code: int, **envelope: object) -> int:
@@ -2822,6 +2851,62 @@ def main() -> int:
         except ValueError as exc:
             return _refuse(str(exc), 2)
 
+    # An unattended merge never takes a dependency-manager PR or arms auto-merge,
+    # so the flags that would widen it are usage errors, not ignored options.
+    if args.unattended:
+        widening = [
+            flag
+            for flag, given in (
+                ("--allow-dependency", args.allow_dependency),
+                ("--auto", args.auto),
+            )
+            if given
+        ]
+        if widening:
+            return _refuse(
+                "--unattended refuses " + ", ".join(widening)
+                + ": an unattended merge never merges a dependency-manager PR "
+                "or arms auto-merge",
+                2,
+            )
+
+    # The unattended policy is resolved for any merge, so the plain path can
+    # refuse the agent identity's token. Any failure refuses: this decides who
+    # may merge, and an unreadable answer is not a permissive one.
+    unattended: merge_policy.UnattendedPolicy | None = None
+    if args.merge or args.unattended:
+        try:
+            unattended = merge_policy.resolve(repo)
+        except (RuntimeError, ValueError, OSError) as exc:
+            return _refuse(f"unattended merge policy unreadable: {exc}", 10)
+    # No unattended merge is connected yet, so `--merge --unattended` refuses
+    # whatever the policy says, before any network access and so before any write.
+    if args.merge and args.unattended and unattended is not None:
+        return _refuse(
+            f"unattended merge inert: {unattended.reason or 'merge-unconnected'}",
+            10,
+            unattended=unattended.report(),
+        )
+    # The agent identity merges only through `--unattended`; its token on the
+    # plain path would bypass every unattended check.
+    identity = unattended.agent_identity if unattended is not None else None
+    if args.merge and identity:
+        try:
+            acting = resolve_author("@me") or ""
+        except (RuntimeError, ValueError, OSError) as exc:
+            return _refuse(
+                f"the token's acting login could not be read ({exc}) while "
+                f"merge.agent-identity is {identity!r}; refusing a plain --merge",
+                10,
+            )
+        if not acting or acting.casefold() == identity.casefold():
+            return _refuse(
+                f"the token acts as {acting or 'an unknown login'!r}, the configured "
+                f"merge.agent-identity {identity!r}; it merges only through "
+                "--unattended, never plain --merge",
+                10,
+            )
+
     # The target repository's policy, read from its default branch with the flags
     # as the deprecated `userConfig` fallback. Unreadable policy refuses the
     # check as well as the merge: a verdict computed without the repository's
@@ -2899,6 +2984,7 @@ def main() -> int:
             extra_dependency_manager_logins=extra_dependency_manager_logins,
             settle=settle,
             stacked=args.stacked_prs,
+            unattended=unattended if args.unattended else None,
         )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         # Surface any gh/parse failure as JSON rather than a traceback.

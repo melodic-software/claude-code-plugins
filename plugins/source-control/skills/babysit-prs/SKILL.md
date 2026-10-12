@@ -176,6 +176,15 @@ widens are the single home in [reference/autopilot.md](reference/autopilot.md).
 A config-gated escalation of autopilot's merge authority, off by default and active only while the operator sets `babysit_autopilot_merge_tier`; with the key unset, every merge decision follows the base path above. When enabled, per candidate PR autopilot runs a **genuine review pass** under a **second bot account** (author ≠ approver) that submits an approving review **only when clean**, then runs the pinned merge gate with the `--autopilot-merge-tier` flags layered onto `--merge --expected-head <post-push-head-sha>`. The concrete enabled-path merge command, the second-account approve mechanic, and the review-workflow requiredness precondition for enabling the tier are the single home in [reference/safety.md](reference/safety.md).
 That gate merges **only when every criterion holds**, the criteria and the safety-contract rationale are codified in [reference/safety.md](reference/safety.md). It is **fail-closed** (the umbrella flag refuses unless all three parameter sets are supplied; predicates reused from the shared `babysit_classify` module), and any criterion failing falls back to the human merge-ready list, the tier never routes around the gate.
 
+## Unattended merge path (inert)
+
+`--unattended` on the merge gate runs it under the unattended merge policy, which nothing enables
+yet. Check-only reports the blocker `unattended merge inert: <reason>` and
+`unattended.enabled: false`; with `--merge` the gate refuses at exit 10 before any network call.
+It refuses `--allow-dependency` and `--auto`. No tier passes the flag. Separately, plain `--merge`
+refuses at exit 10 when the token's login is the repository's configured `merge.agent-identity`:
+that identity may merge only through `--unattended`.
+
 ## Guarded mutations: deterministic gates, agent judgment
 
 The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `scripts/`-path form,
