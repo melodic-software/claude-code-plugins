@@ -7,7 +7,8 @@ is a minor bump. Docs-only clarification is a patch.
 ## [2.0.1] - 2026-10-11
 
 Patch. The official-notation record points at the commands table's section instead of quoting
-built-in hints, two of which had changed upstream. The grammar is unchanged.
+four built-in hints, two of which had changed upstream; it keeps only `/mcp`'s current hint, as
+evidence for its `()` grouping. The grammar is unchanged.
 
 ## [2.0.0] - 2026-10-01
 
