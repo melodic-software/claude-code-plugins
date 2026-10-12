@@ -8,9 +8,9 @@
 # `allowed-tools` rule matches at runtime on every host, and this repo does not
 # ship a grant on docs alone (plugins/discovery/reference/parent-contract.md).
 # The skill-local path is the exercised shape; the implementation stays
-# single-source at the plugin root. Recheck when that section stops documenting
-# ${CLAUDE_PLUGIN_ROOT} substitution in `allowed-tools` Bash rules, or documents
-# that such a rule matches at runtime.
+# single-source at the plugin root. Recheck when that section changes where
+# plugin variables are substituted, or documents that such a rule matches at
+# runtime.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 exec "$here/../../../scripts/changed-code-files.sh" "$@"

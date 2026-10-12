@@ -37,3 +37,8 @@ The registry row's observation is a 2026-08-23 extraction of the 2.1.232 binary,
 appears as a bundled skill. This record re-verified the registration on the installed 2.1.263
 binary by string search and read the commands page, both on 2026-09-11; the pointers above were
 re-read live on 2026-10-11 and are the live source for everything this record decides.
+
+Probe observation (ours): a string search of the installed 2.1.263 binary on 2026-09-11 found the
+registered description "Review the changed code for reuse, simplification, efficiency, and
+altitude cleanups, then apply the fixes. Quality only, it does not hunt for bugs; use /code-review
+for that". Recheck when a release changes the registration text.
