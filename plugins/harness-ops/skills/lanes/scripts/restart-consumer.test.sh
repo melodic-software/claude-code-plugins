@@ -83,12 +83,32 @@ case "$*" in
   [[ -n "${GH_FAIL_COMMENTS:-}" ]] && exit 1
   case "$*" in
   *"--method POST"* | *"--method PATCH"*) printf '{"id":999,"html_url":"https://example.invalid/c/999"}\n' ;;
-  *) printf '[]\n' ;;
+  *)
+    # GH_COMMENTS_JSON is one page in the REST list-issue-comments shape; a
+    # -q/--jq filter is applied to it as gh itself would.
+    expr="" prev=""
+    for a in "$@"; do
+      [[ "$prev" == -q || "$prev" == --jq ]] && expr="$a"
+      prev="$a"
+    done
+    if [[ -n "$expr" ]]; then
+      printf '%s\n' "${GH_COMMENTS_JSON:-[]}" | jq -c "$expr"
+    else
+      printf '%s\n' "${GH_COMMENTS_JSON:-[]}"
+    fi
+    ;;
   esac
   ;;
 *"loop-lane telemetry running per-lane status in:title"*) printf '%s\n' "${GH_SEARCH_RESULT:-[]}" ;;
 *"Lane telemetry in:title"*) printf '%s\n' "${GH_TITLE_RESULT:-[]}" ;;
-"api user"*) printf 'stub-user\n' ;;
+"api user"*)
+  [[ -n "${GH_USER_FAIL:-}" ]] && exit 1
+  if [[ "$*" == *".type"* ]]; then
+    printf '%s %s\n' "${GH_USER_LOGIN:-stub-user}" "${GH_USER_TYPE:-User}"
+  else
+    printf '%s\n' "${GH_USER_LOGIN:-stub-user}"
+  fi
+  ;;
 *) printf '[]\n' ;;
 esac
 SH
@@ -582,6 +602,8 @@ for literal in 'loop-lane telemetry running per-lane status in:title' 'sort_by(.
   assert_contains "the consumer carries the discovery literal [$literal]" "$(cat "$SCRIPT")" "$literal"
   assert_contains "the morning brief carries the SAME literal [$literal]" "$(cat "$BRIEF")" "$literal"
 done
+assert_contains "the consumer's search reads as many issues as the brief's" "$(cat "$SCRIPT")" 'per-lane status in:title" --limit 100'
+assert_contains "the brief's search limit is the consumer's" "$(cat "$BRIEF")" 'TELEMETRY_SEARCH_LIMIT=100'
 
 # --- 21. print-schedule makes the offline form copy-pasteable ----------------
 OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --data-dir "$DATA" 2>&1)"
@@ -877,6 +899,76 @@ HOME="$TMP/home-foreign" CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" run --conf
 assert_eq "a foreign CLAUDE_PLUGIN_DATA gets no ledger" "absent" "$([[ -e "$FOREIGN" ]] && echo present || echo absent)"
 assert_eq "the ledger falls back to the home data dir" "1" \
   "$(find "$TMP/home-foreign/.claude/plugins/data/harness-ops/lanes" -name 'restart-consumer.jsonl' 2>/dev/null | wc -l | tr -d ' ')"
+
+# --- Only the write identity's comments are read (#7203) ----------------------
+# The sentinel is public, so anyone who can comment on the telemetry issue can
+# post a lookalike carrying restart_request. The network read keeps only comments
+# whose author is the resolved write identity. Canned comments follow the REST
+# list-issue-comments shape (body, user.login, user.type).
+author_comment() { # $1 login, $2 restart_request JSON literal
+  jq -n --arg l "$1" --arg b "$(state_comment 'work-items:work-loop' "$2")" \
+    '{body: $b, user: {login: $l, type: "User"}}'
+}
+comments_json() { # pairs of login, request
+  local out=()
+  while (($#)); do
+    out+=("$(author_comment "$1" "$2")")
+    shift 2
+  done
+  printf '%s\n' "${out[@]}" | jq -s -c .
+}
+run_network() { # $@ extra args; GH_* set by the caller
+  GH_LOG="$TMP/gh-author.log" bash "$SCRIPT" run --config "$CONFIG" --repo "$REPO" \
+    --data-dir "$TMP/data-author" --target-repo "owner/name" --launcher "$LAUNCHER" \
+    --no-telemetry --now 1800000000 --max-restarts 0 --lane work --agents-json "$AGENTS_NONE" "$@" 2>&1
+}
+
+: >"$LAUNCH_LOG"
+OUT="$(GH_COMMENTS_JSON="$(comments_json mallory true)" run_network)"
+assert_contains "a foreign-author sentinel comment is not lane state" "$OUT" "| work | no-state |"
+assert_not_contains "a foreign author's restart_request relaunches nothing" "$(cat "$LAUNCH_LOG")" "restart work"
+
+: >"$LAUNCH_LOG"
+OUT="$(GH_COMMENTS_JSON="$(comments_json mallory true stub-user null)" run_network)"
+assert_contains "a foreign request beside the lane's own quiet comment is no request" "$OUT" "| work | no-request |"
+assert_eq "nothing launched off the foreign request" "" "$(cat "$LAUNCH_LOG")"
+
+: >"$LAUNCH_LOG"
+OUT="$(GH_COMMENTS_JSON="$(comments_json mallory null stub-user true)" run_network)"
+assert_contains "the write identity's own request is still honored" "$(cat "$LAUNCH_LOG")" "restart work"
+
+: >"$LAUNCH_LOG"
+OUT="$(GH_USER_LOGIN=lane_op GH_COMMENTS_JSON="$(comments_json lane_op true)" run_network)"
+assert_contains "a User login with an underscore is a valid identity" "$(cat "$LAUNCH_LOG")" "restart work"
+
+: >"$LAUNCH_LOG"
+OUT="$(GH_USER_FAIL=1 GH_COMMENTS_JSON="$(comments_json 'lane-app[bot]' true)" run_network --app-slug lane-app)"
+assert_contains "a failed gh api user with --app-slug reads <slug>[bot]" "$(cat "$LAUNCH_LOG")" "restart work"
+
+: >"$LAUNCH_LOG"
+OUT="$(GH_USER_TYPE=Bot GH_COMMENTS_JSON="$(comments_json 'lane-app[bot]' true)" run_network --app-slug lane-app)"
+assert_contains "a Bot report with --app-slug reads <slug>[bot]" "$(cat "$LAUNCH_LOG")" "restart work"
+OUT="$(GH_USER_TYPE=Bot GH_COMMENTS_JSON="$(comments_json stub-user true)" run_network --app-slug lane-app)"
+assert_contains "under --app-slug the reported Bot login's comments are foreign" "$OUT" "| work | no-state |"
+
+: >"$LAUNCH_LOG"
+OUT="$(GH_USER_LOGIN=lane-app GH_USER_TYPE=Bot GH_COMMENTS_JSON="$(comments_json 'lane-app[bot]' true)" run_network)"
+assert_contains "a Bot report without --app-slug reads the login plus [bot]" "$(cat "$LAUNCH_LOG")" "restart work"
+
+: >"$LAUNCH_LOG"
+OUT="$(GH_USER_FAIL=1 GH_COMMENTS_JSON="$(comments_json stub-user true)" run_network)"
+RC=$?
+assert_eq "no resolvable write identity exits 4" "4" "$RC"
+assert_contains "the failure names the fix" "$OUT" "pass --app-slug"
+assert_not_contains "no lane is evaluated without an identity" "$OUT" "| work |"
+assert_eq "nothing launched without an identity" "" "$(cat "$LAUNCH_LOG")"
+
+OUT="$(run_network --app-slug 'Bad Slug')"
+RC=$?
+assert_eq "an invalid --app-slug is rejected" "3" "$RC"
+
+OUT="$(bash "$SCRIPT" print-schedule --repo "$REPO" --app-slug lane-app 2>&1)"
+assert_contains "a passed --app-slug survives into the scheduled command" "$OUT" "--app-slug lane-app"
 
 # --- Summary -----------------------------------------------------------------
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"

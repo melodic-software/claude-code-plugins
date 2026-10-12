@@ -5,107 +5,87 @@ comment **for this lane instance**. `SKILL.md`'s "Telemetry and durable loop sta
 comment lives and what goes in it; this file owns how the singleton is maintained and how a creation
 race converges.
 
-The upsert is inlined in this plugin rather than invoked from `harness-ops` because an installed
+The upsert is a script in this plugin rather than a call into `harness-ops` because an installed
 plugin cannot invoke a sibling plugin's scripts.
 
 Per the convention's lane-instance identity rule, the marker names the **writer**, not the lane
 type: a marker naming only the lane makes two concurrent instances resolve one comment and
-clobber each other's durable state. The id is `${user_config.lane_instance}`; a surviving literal
-`${user_config.…}` placeholder means the key is unset, so fall back to the sanitized lowercased
-hostname (headless-config floor: log the assumption). It is operator-supplied text about to be
-interpolated into a shell string and a `jq` program, so it is validated and **rejected**, never
-sanitized-and-continued. Substitute the resolved value for `<lane-instance>`; the check runs before
-`MARKER` is built. The hostname fallback is a *default*, not a sanitizer: it passes through the
-same gate, so a hostname that cannot produce a conforming id stops the lane rather than yielding a
-marker nobody chose:
+clobber each other's durable state. Write the cycle's telemetry (cycle report, state block, guard
+mode, `usage_sample`) to a file, then run:
 
 ```bash
-INSTANCE="<lane-instance>"   # ${user_config.lane_instance}, else `hostname` sanitized
-[ -n "$INSTANCE" ] || INSTANCE="$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
-# ^[a-z0-9][a-z0-9-]{0,31}$ — empty, a leading hyphen, any other character, or
-# over 32 chars is REJECTED, never trimmed into something that looks valid.
-case "$INSTANCE" in
-"" | -* | *[!a-z0-9-]*)
-  echo "telemetry: lane_instance '$INSTANCE' is not ^[a-z0-9][a-z0-9-]{0,31}\$; refusing to build a marker" >&2
-  exit 1
-  ;;
-esac
-[ "${#INSTANCE}" -le 32 ] || {
-  echo "telemetry: lane_instance '$INSTANCE' exceeds 32 characters; refusing to build a marker" >&2
-  exit 1
-}
-MARKER="source-control:babysit-loop@$INSTANCE"
-SENT="<!-- harness-ops:lane-telemetry marker=$MARKER -->"   # $BODY_FILE MUST open with this line
-LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" \
-  --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
-SENTINEL_OK() { # $1 = text; true iff line 1 is exactly $SENT and >=16 payload bytes follow
-  [ "$(printf '%s' "$1" | head -c ${#SENT})" = "$SENT" ] &&
-    [ "$(printf '%s' "$1" | tail -n +2 | wc -c | tr -d ' ')" -ge 16 ]
-}
-VERIFY() { # $1 = comment id; re-read what LANDED, whatever form the write took
-  BACK="$(gh api "repos/$REPO/issues/comments/$1" --jq '.body' 2>/dev/null | tr -d '\r')" &&
-    SENTINEL_OK "$BACK"
-}
-if [ ! -s "$BODY_FILE" ] || [ "$(head -c 1 "$BODY_FILE")" = "@" ]; then
-  echo "telemetry: body is empty or a literal @path - nothing written; fix the body composition, do not re-run blind" >&2
-elif ! SENTINEL_OK "$(cat "$BODY_FILE")"; then
-  echo "telemetry: body is not sentinel-prefixed or carries no payload - nothing written; fix the body composition, do not re-run blind" >&2
-elif ! LIST=$(LOOKUP); then
-  echo "telemetry: comment lookup failed; skipping upsert this cycle (fail closed)" >&2
-else
-  if [ -z "$LIST" ]; then
-    gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE" >/dev/null || true
-    LIST=$(LOOKUP) || LIST=""   # re-list; a failure here converges next cycle
-  fi
-  CANON=$(printf '%s\n' "$LIST" | sort -n | head -n1)
-  if [ -z "$CANON" ]; then
-    echo "telemetry: no comment available to write to (a create may have landed but was not re-found) - treat the lane as UNREPORTED and carry that forward to the next cycle" >&2
-  elif ! gh api -X PATCH "repos/$REPO/issues/comments/$CANON" -F body=@"$BODY_FILE" >/dev/null; then
-    echo "telemetry: the PATCH of comment $CANON failed - treat the lane as UNREPORTED and carry that forward to the next cycle; the comment holds an earlier body, not this cycle's write" >&2
-  elif ! VERIFY "$CANON"; then
-    echo "telemetry: comment $CANON does NOT carry a well-formed telemetry body after the write - treat the lane as UNREPORTED and carry that forward to the next cycle; do not trust the timestamp" >&2
-  else
-    for DUP in $(printf '%s\n' "$LIST" | sort -n | tail -n +2); do
-      gh api -X PATCH "repos/$REPO/issues/comments/$DUP" \
-        -f body="Superseded duplicate - canonical telemetry comment: $CANON" || true
-    done
-  fi
-fi
+bash <plugin-root>/skills/babysit-loop/scripts/telemetry-upsert.sh \
+  --repo <owner/repo> --issue <telemetry issue number> \
+  --instance '${user_config.lane_instance}' --body-file <telemetry file>
 ```
 
-**`$BODY_FILE` contract.** The file's FIRST line must be exactly `$SENT`, with the cycle's telemetry
-below it. The lookup matches on that prefix, so a body composed without it is not merely rejected
-here. It would never be found again, and the next cycle would post a second comment. Compose the
-sentinel into the file; do not rely on anything downstream to add it.
+Keep the single quotes: an unsubstituted placeholder inside double quotes is a bash
+`bad substitution` error, while single quotes pass it through for the fallback below.
 
-**Body gate, write check, and read-back (encoded above).** Three checks, because they catch
-different failures. The **pre-write** assertions run before any API call and reject a `$BODY_FILE`
-that is empty, opens with a literal `@`, is not sentinel-prefixed, or carries under 16 payload bytes
-below the sentinel, the mechanical form of the `@path`-as-body rule owned by the `harness-ops` lanes
-skill, `/harness-ops:lanes` ("Never pass a body as an `@path` string"). The floor is measured on
-everything below line 1, so it matches the wrapper's `MIN_BODY_BYTES` byte-for-byte whether that
-line ends in LF or CRLF. The **write's own exit status** is checked next: a PATCH that fails leaves
-the previous cycle's body in place, which a read-back running regardless would happily accept. The
-**post-write** `VERIFY` then re-reads what the write stored, the only check that sees a write which
-reported success and stored something else: a mangled body, a concurrent overwrite, a deleted
-comment. It is also the only check that catches a defect in the invocation rather than the body:
-`-f body=@FILE` transmits the literal path, so this block only ever uses `-F body=@`.
+The script writes the sentinel line
+`<!-- harness-ops:lane-telemetry marker=source-control:babysit-loop@<instance> -->` above the body,
+so the file holds the telemetry alone (a file that already opens with that exact line is sent
+as-is). An unset `lane_instance` (empty, or a surviving literal `${user_config.…}` placeholder)
+falls back to the sanitized lowercased hostname, and the script logs the assumption. The id is
+operator-supplied text that ends up in a `jq` program and an API path, so it is validated against
+`^[a-z0-9][a-z0-9-]{0,31}$` and **rejected**, never trimmed into something that looks valid; the
+hostname fallback passes the same check.
 
-Every branch that ends without a verified body says so and skips the duplicate-supersede pass, so a
-cycle whose own write is unproven never tombstones a racing session's comment. A degraded body that
-does land still moves the comment's timestamp, so any consumer keying on that timestamp rather than
-on the body reads the lane as **fresh** while it carries nothing, which is why a refusal, a failed
-write, and a failed verification all have to be carried forward: stderr does not survive the session,
-and the next cycle must see that this one did not report. A lane with durable loop state records it
-there; a lane without one carries it in the cycle's own summary.
+**Only this lane's own comments count.** The sentinel is public and the instance id predictable, so
+anyone who can comment on the tracking issue can post a lookalike. The lookup therefore matches a
+comment only when it opens with the sentinel **and** was written by the script's write identity; a
+foreign sentinel comment is never adopted, edited, or tombstoned, however low its id. The script
+resolves that identity before any lookup:
 
-Known limits, inherited from the wrapper: a PATCH that succeeds while storing the previous body still
-verifies, and `VERIFY` asserts that *some* well-formed telemetry is present, not that *this* cycle's
-write is what is present. Not replicated at all: the 64 KiB cap, the body-file containment checks,
-retries, and the wrapper's distinct non-zero exit codes. Every branch here exits 0 and reports
-through stderr alone.
+1. `gh api user` reporting a `User`: that login (a personal or machine-user token).
+2. That call failing or reporting a `Bot`: the token is treated as a GitHub App's, and the
+   identity is `<slug>[bot]` from `--app-slug <slug>`. A lane running under an App installation
+   token passes `--app-slug` on every call; a workflow that mints the token takes the slug from
+   whatever minted it.
+3. A `Bot` report with no `--app-slug`: the reported login, with the `[bot]` suffix added when
+   missing.
 
-**Creation race reconcile (encoded above).** Two sessions racing the first-ever upsert can both
+Anything else, or a login outside `[A-Za-z0-9-]` plus an optional `[bot]`, exits 5 with nothing
+read or written: an unresolved identity fails closed rather than falling back to matching any
+author. Changing the identity (a user token swapped for an App token, or another account) leaves
+the old comment and its durable state behind: the lane starts unclaimed under the new identity, and
+the operator retires the old comment.
+
+- **Pointer:** what an installation token can call and the login its writes carry,
+  [Authenticating as a GitHub App installation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation);
+  the slug output of the minting action,
+  [actions/create-github-app-token outputs](https://github.com/actions/create-github-app-token#outputs).
+- **As of:** 2026-10-11.
+- **Recheck:** an App token's writes landing under a login other than `<slug>[bot]`, or a lane run
+  under an App token exiting 5 with `--app-slug` passed.
+
+**What the script checks, in order.** The pre-write gate rejects a body that is empty, opens with a
+literal `@`, or carries under 16 bytes below the sentinel: the mechanical form of the `@path`-as-body
+rule owned by `/harness-ops:lanes` ("Never pass a body as an `@path` string"). The lookup reads every
+comment page; a failed lookup writes nothing. The write's own exit status is checked. Then the
+comment is read back and **byte-compared with the body sent** (CR and trailing newlines stripped
+from both sides, nothing else), so a write that reported success but stored something else, an
+earlier body, a concurrent overwrite, a mangled store or a deleted comment, is caught rather than
+accepted because it still looks like telemetry.
+
+**Exit codes.**
+
+| Exit | Meaning | This cycle's telemetry |
+|---|---|---|
+| 0 | written, and the read-back matches the body sent | confirmed |
+| 3 | invalid `--repo`/`--issue`/instance, or the body failed the pre-write gate; nothing written | fix the body composition, do not re-run blind |
+| 4 | `gh` not found; nothing written | unreported |
+| 5 | the write identity, the lookup, the POST, or the PATCH failed, or the POST landed under a login other than the resolved identity (a wrong `--app-slug`: the script deletes that comment and names the login it landed under); the comment holds an earlier body or none | unreported |
+| 6 | the write was sent but is unconfirmed: the created comment was not re-found, the read-back failed, or the stored body differs | unreported |
+
+Any non-zero exit means the lane is **UNREPORTED** for this cycle: carry that forward to the next
+cycle and do not trust the comment's timestamp. A degraded or stale body still moves that timestamp,
+so a consumer keying on it would read the lane as fresh while it carries nothing, and stderr does
+not survive the session. A lane with durable loop state records it there; a lane without one carries
+it in the cycle's own summary. A failed duplicate tombstone after a verified write is reported on
+stderr only and retried next cycle.
+
+**Creation race reconcile (in the script).** Two sessions racing the first-ever upsert can both
 see an empty lookup and both POST, forking the singleton. The upsert converges every cycle
 duplicates are visible: the LOWEST comment id is canonical (numeric sort, deterministic for
 every session), the canonical comment receives the current cycle's full state, and every other
@@ -113,16 +93,33 @@ sentinel comment is edited to a one-line tombstone, only once the canonical writ
 it never matches a lookup again. This covers a racer that died between its POST and its own
 re-list, because the NEXT session's ordinary upsert performs the same reconcile. A crashed
 racer's unmerged counters are an accepted loss (durable state re-derives over a cycle); nothing
-is deleted. The reconcile converges duplicates **within one instance's own sentinel set**; a
-sibling instance's comment carries a different marker and never enters `$LIST`, so it is neither
-made canonical nor tombstoned.
+is deleted. The reconcile converges duplicates **within one instance's own sentinel set**, written
+by its own identity; a sibling instance's comment carries a different marker, and a foreign
+author's carries a different login, so neither matches the lookup, is made canonical, or is
+tombstoned.
+
+## Reading the state block (re-anchor)
+
+Re-anchor and the collision check below read the block through the same filter, never by fetching
+comments directly:
+
+```bash
+bash <plugin-root>/skills/babysit-loop/scripts/telemetry-upsert.sh \
+  --repo <owner/repo> --issue <telemetry issue number> \
+  --instance '${user_config.lane_instance}' --read
+```
+
+Add `--app-slug <slug>` under an App token, as for the write. It prints the canonical comment's
+body, or nothing when this identity has no sentinel comment yet (the marker is unclaimed), and
+writes nothing. A non-zero exit means the state is unknown, not absent: do no work and do not claim
+the marker this cycle.
 
 ## Instance-collision check (cycle start, before any write)
 
 Partitioning is correct only while instance ids are distinct, so a collision is detected rather than
 assumed away. `SKILL.md`'s state block carries the four fields this reads: `writer_nonce` is
 generated once per session, `heartbeat_at` is rewritten every cycle, alongside `lane_instance` and
-`paused_until`. After re-reading the block:
+`paused_until`. After re-reading the block with `--read` (above):
 
 - No block at all → the marker is unclaimed. **Claim it before any work**: upsert a cycle-0 block
   carrying my nonce and heartbeat, immediately re-read, and run the creation-race reconcile above.

@@ -45,7 +45,7 @@ routes rather than halting unconditionally.
   **loud and actionable, never a silent default and never a raw mid-flow `exit 3`**, but it does not halt the
   invocation unconditionally:
   - **Seam coordination verbs** (`create-item`, `get-item`, `claim`, `renew-lease`, `release`, `reclaim`,
-    `link-blocks`, `add-sub-item`, `list-sub-items`, `list-frontier`, `capabilities`) cannot run
+    `link-blocks`, `add-sub-item`, `list-sub-items`, `list-items`, `list-frontier`, `capabilities`) cannot run
     without a binding: the seam hard-errors `exit 3`
     (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Exit codes"). Before the first
     coordination verb, if no binding resolves, surface a message that distinguishes the two ways to
@@ -84,12 +84,12 @@ ways:
 
 | Kind | Where |
 |------|-------|
-| **Coordination**: create, claim (assignee + lease), renew/release/reclaim lease, dependency links, sub-items, child enumeration (`list-sub-items`), frontier selection (incl. `--parent`-scoped), single-item fetch (identity/state/`parent_id`, **not** body) | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher, contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
+| **Coordination**: create, claim (assignee + lease), renew/release/reclaim lease, dependency links, sub-items, child enumeration (`list-sub-items`), listing by state and one exact label (`list-items`), frontier selection (incl. `--parent`-scoped and `--label`-scoped), single-item fetch (identity/state/`parent_id`/`created_at`, **not** body) | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher, contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
 | **Provider mechanics**: list with filters, search, aggregate/count, close, label/assignee edits, comments, **reading an item's body** | The bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`) |
 
 **Single-item fetch does not return a body.** `get-item` yields the normalized item object,
 `schema_version, id, title, state, assignees, labels, type, blocked_by_count,
-blocked_by_wont_do_count, parent_id, url`
+blocked_by_wont_do_count, parent_id, url, created_at`
 (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "JSON output contract"), and there is
 **no `body` field** in it; `--body` exists only as a *write* parameter on `create-item`. `get-item`
 is nonetheless authoritative for `parent_id`, which is how an item reaches its container. Reading
@@ -97,8 +97,7 @@ the text of an item, such as a container's Brief or an item's acceptance criteri
 **provider-mechanic** read (`gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub;
 the provider's REST equivalent otherwise), and a surface that shows a body read must label it as
 such rather than folding it into a seam snippet. That GitHub form is GraphQL-backed and returns
-`HTTP 403` in a sandboxed session (Claude Code on the web, remote execution), which serves only a
-pinned set of GraphQL operations; the adapter's operations reference carries the REST substitute
+`HTTP 403` in a cloud session behind the GitHub proxy, which serves no GraphQL; the adapter's operations reference carries the REST substitute
 under "View item" (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`).
 Provider mechanics run unbound, so the read still
 works where no binding resolves; where the provider exposes no body concept at all

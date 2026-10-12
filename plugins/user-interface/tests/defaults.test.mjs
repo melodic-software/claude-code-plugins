@@ -22,6 +22,15 @@ const CONTRACT = {
     layer: null,
     token_fallback: "ask",
   },
+  animation: {
+    easing: {
+      out: [0.23, 1, 0.32, 1],
+      in_out: [0.77, 0, 0.175, 1],
+      drawer: [0.32, 0.72, 0, 1],
+    },
+    duration_ms: { press: 160, small: 200, medium: 250, large: 500 },
+    gesture: { velocity_threshold: 0.11 },
+  },
 };
 
 test("the shipped defaults hold the contract's layer-1 values", () => {

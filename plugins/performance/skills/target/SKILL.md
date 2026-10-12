@@ -65,6 +65,11 @@ Trace past the headline event too: work no metric covers (background reloads, id
 still costs. For a field report with a recording, follow the diagnosis ladder before theorizing.
 See [diagnose](../../reference/techniques.md#e-diagnose).
 
+To name a candidate's mechanism, find the row of the profile-to-family table in
+[optimization patterns](../../reference/techniques.md#f-optimization-patterns-latency-catalog) that
+the evidence matches; a mechanism with no matching row is not named. A deletion candidate is the
+exception: it comes from reading the path's callers, so it ranks E3 until a measurement covers it.
+
 ## Name the counter, not just the duration
 
 For each ranked candidate, name the **drift-immune counter** that would settle it: process spawns,
@@ -105,6 +110,10 @@ On a re-scan after a MET result, look first for the next slow spot in the same j
   `/performance:snapshot` captures.
 - **Does not root-cause an observed failure.** A specific broken or slow behavior with a
   reproduction is a debugging task, not a candidate ranking.
+- **Does not read a captured profile down to a line.** A CPU profile, trace or heap snapshot
+  already on disk goes to `/debugging:analyze-profile` when the debugging plugin is enabled;
+  otherwise open it in the tool that recorded it. Either way, its finding enters this ranking as
+  E1 or E2 evidence.
 - **Does not diagnose a slow Claude Code installation.** That is
   `/harness-ops:audit-performance`, which this skill consumes as a telemetry source rather than
   duplicating.

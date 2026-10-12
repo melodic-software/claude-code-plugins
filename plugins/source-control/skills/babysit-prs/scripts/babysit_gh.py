@@ -113,15 +113,14 @@ GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
 # through a proxy that refuses GraphQL requests with HTTP 403, whatever the
 # credential. The refusal reads like an expired token or a missing scope and is
 # neither: re-authenticating never clears it, and the only remedy is to source
-# the same fact over REST. The markers are casefolded refusal wordings from the
-# section below: the first is its repository-scope refusal, the second its
-# GraphQL refusal prefix.
+# the same fact over REST. The marker is the casefolded GraphQL refusal prefix
+# from the section below; its repository-scope refusal is a different failure
+# and deliberately not a marker.
 #   Pointer: <https://code.claude.com/docs/en/cloud-environments#github-proxy>
 #   As-of: 2026-10-11.
 #   Recheck trigger: that section stops rejecting GraphQL outright, or changes
 #   the refusal's message prefix.
 GRAPHQL_UNAVAILABLE_MARKERS = (
-    "not enabled for this session",
     "github graphql is not available from claude code sessions",
 )
 
@@ -250,7 +249,7 @@ def parse_repo(value: str) -> str:
 
 
 def rest_list_repos_for_owner(owner: str) -> list[str]:
-    """`gh repo list` rebuilt from REST, for a session served no GraphQL.
+    """`gh repo list` rebuilt from REST, for a session whose GraphQL calls are refused.
 
     `gh repo list --json` is a GraphQL `RepositoryList` query, so it 403s
     alongside `gh pr view` and takes owner-mode discovery with it. REST spells

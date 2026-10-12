@@ -16,7 +16,8 @@ The comment adds nothing beyond the adjacent code, or is actively wrong.
 
 - Restates what the line visibly does (`// increment counter` above `counter++`)
 - Narrates the obvious flow of a block the reader can see
-- Obsolete: describes behavior the code no longer has
+- Obsolete: describes behavior the code no longer has, including a class-C claim the re-check
+  below finds the current code contradicts
 - Commented-out code (version control owns history)
 - Names where the block came from or when it was added (git history owns origin)
 
@@ -86,6 +87,30 @@ A comment survives only if **all three** hold:
    it; `conservative` proposes the rewrite; `aggressive` keeps only a warning of consequence and
    rewrites it to the budget, and `strip` keeps nothing here.
 
+**Re-check the claim before the criteria.** A class-C comment that states a fact about the code (a
+constraint, a warning, a contract, a thread-safety or ordering claim) is checked against the code it
+describes before any criterion runs. The test is whether the claim is true of the code today, which
+criterion 2 does not ask: criterion 2 asks only whether the reasoning can be found elsewhere.
+
+- **Contradicted by the code**: the comment is obsolete, class A. The report names the lines that
+  contradict it, and the deletion carries the same COMMENT-ONLY proof as any class-A deletion. A
+  `# never called concurrently` above a function the code now calls from a worker pool is this case.
+- **Not settled by reading the code**: the claim concerns history, an outside system, or a caller
+  out of scope. Use `/discovery:trace-intent` for the function or variable the comment names, when it is among the available
+  skills. When it is not, or its answer is open, the re-check does not remove the comment and the
+  report marks the claim unverified.
+- **Confirmed or not contradicted**: the criteria below decide as usual.
+
+An unverified claim is not exempt from the criteria. It goes on to them like any class-C comment,
+so under `strict` a rationale that fails criterion 2 is still deleted; the re-check only adds a
+route to class A and never keeps a comment the criteria would remove.
+
+Under `aggressive` and `strip` the survivors listed in `SKILL.md` that state a fact about the code
+(a thread-safety or ordering annotation, and under `aggressive` an outside-constraint comment or a
+warning of consequence) take the same re-check; a contradicted survivor is obsolete, not a survivor.
+The mode still decides what is applied: `safe` and `conservative` apply the class-A deletion, and
+`report` proposes it.
+
 **When the test fails.** A comment that passes criterion 1 and fails criterion 2 is **deleted**
 under `strict`, behind the same COMMENT-ONLY token proof class A uses, with its narrative staged
 first per [safety.md](safety.md). It is not reclassified as class A, since class A is redundancy
@@ -97,7 +122,8 @@ modes apply class-A deletions only, and a comment that reached this branch is cl
 test returned. What the run may apply is set by the mode, never by a verdict reached inside it.
 
 Under `aggressive` and `strip` the criteria are not what decides. The survivor list in `SKILL.md`
-does: an exempt surface, a paired record, and (under `aggressive`) a warning of consequence stay,
+does: an exempt surface, a paired record, and (under `aggressive`) an outside-constraint comment
+or a warning of consequence stay,
 and every other comment here is staged and deleted behind the same token proof, recoverable
 rationale or not. Criterion 2 is not evaluated for them, since its answer changes nothing.
 

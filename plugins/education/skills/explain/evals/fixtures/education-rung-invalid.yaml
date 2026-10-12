@@ -1,0 +1,2 @@
+# Eval fixture: an education.yaml whose explain_starting_rung is outside the key's values.
+explain_starting_rung: expert

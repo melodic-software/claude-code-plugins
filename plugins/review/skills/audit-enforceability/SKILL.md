@@ -3,7 +3,7 @@ description: "Audit which review findings a deterministic check could catch inst
 argument-hint: "<findings-file>"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/emit-stubs.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/emit-stubs.sh\":*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/emit-stubs.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/emit-stubs.sh\":*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -68,9 +68,13 @@ count of classified rows equals the count of rows the table carried.
 
 ## 3. Crosswalk lookup
 
-Class to rung to owner or pointer, from [`context/crosswalk.md`](context/crosswalk.md). The rungs
-sit in a fixed cheapest-first order; take the cheapest rung whose check can actually assert the
-finding, not the cheapest rung imaginable.
+Class to rung to owner or pointer, from [`context/crosswalk.md`](context/crosswalk.md). The rung
+list and this skill's selection rule come from the enforcement ladder,
+[`${CLAUDE_PLUGIN_ROOT}/context/enforcement-ladder.md`](../../context/enforcement-ladder.md): take
+the cheapest rung whose check can actually assert the finding, not the cheapest rung imaginable.
+An `invalid-state` finding is offered `make-impossible` first. The crosswalk writes the plugin's
+root directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`; a file read through the Read
+tool gets no substitution, so put that path in place of the placeholder.
 
 ## 4. Resolve two homes
 
@@ -99,9 +103,50 @@ itself when the memory root is the repository root.
 
 ## 5. Write the stubs
 
+**Resolve `ratchet_offer` first.** It decides whether a stub on a counting rung carries the
+`## Ratchet offer` section ([`context/stub-shape.md`](context/stub-shape.md)). Lowest layer first;
+the later layer wins:
+
+1. The default, `true`.
+2. The user's option, `${user_config.ratchet_offer}`. A literal, unexpanded placeholder means
+   unset; `true` reads as the default.
+3. The `ratchet_offer` key of the repository's `docs/conventions/review.yaml` (schema:
+   [`${CLAUDE_PLUGIN_ROOT}/schemas/review.schema.json`](../../schemas/review.schema.json)). Read
+   it only when the repository root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`)
+   is inside a git working tree and is neither `$HOME` nor an ancestor of it; otherwise skip this
+   layer and say so. Read it with
+   `node "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs" --check --root "<root>"`,
+   which validates the whole file against the schema and writes nothing; `--check` comes first, so
+   the granted command cannot write. It tells an absent key from a present but invalid one:
+   - exit 0 with `INFO ... absent`, or `PASS ratchet_offer: (unset)`: this layer is unset.
+   - exit 0 with `PASS ratchet_offer: true` or `false`: this layer sets that value.
+   - exit 1 with a `PASS ratchet_offer:` line: a WARN sits on another key only. Name it, and read
+     this layer's `ratchet_offer` from the PASS line as above.
+   - exit 1 with no `PASS ratchet_offer:` line: `ratchet_offer` or the whole file is invalid.
+     Each `WARN` line, or the one refusal line, names the file, the
+     key and the value (an empty value, `null`, a quoted `"false"`, a list such as `[]`, a key set
+     twice, an unknown key set twice or holding a map or list, a parse error). The layer is
+     present and invalid: drop it and resolve
+     `true` from the default, never from userConfig.
+   - exit 2, or node is not installed: the layer cannot be read; skip it and say so.
+
+A value other than `true` or `false` in either layer, or an invalid repository file, is named with
+its file or option, the key and the value, and that layer is dropped: a valid higher layer still
+wins, otherwise the default `true`, never a lower layer's value. The run continues. Report one line
+before writing, naming the value and its layer, for example
+`ratchet_offer: false (docs/conventions/review.yaml)`, `ratchet_offer: false (userConfig)` or
+`ratchet_offer: true (default)`. Pass `--ratchet-offer on` for `true` and `--ratchet-offer off`
+for `false`. The resolution is done when that line is printed with one value and one layer. The
+settings page is
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md).
+
 Compose the classification TSV and pass it on stdin inside the same granted command, one line per
-rank, five fields separated by ONE literal tab each: `rank`, `class`, `basis`, `rung`, `owner`.
-Each `<TAB>` below is a single tab character, not that text:
+rank, six fields separated by ONE literal tab each: `rank`, `class`, `basis`, `rung`, `owner`,
+`error text`. The error text is the one line the rung's check would print when it fires, and it
+names the fix (what to change, not only what is wrong). Write it as one line with no tab; when it
+cannot be written that way, leave the sixth field empty and the stub records `none proposed`. The
+writer derives the stub's `earliest-stage` from the rung itself. Each `<TAB>` below is a single
+tab character, not that text:
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/emit-stubs.sh" \
@@ -109,9 +154,10 @@ Each `<TAB>` below is a single tab character, not that text:
   --classes - \
   --out <resolved-stub-home> \
   --scan-dir <resolved-reviews-home> \
-  --memory-root <the memory root the home was composed from> <<'TSV'
-1<TAB>style<TAB>judgment<TAB>editorconfig-severity<TAB>in-repo .editorconfig
-2<TAB>defined-diagnostic<TAB>rule-id<TAB>analyzer-pack-rule<TAB>keep the detector
+  --memory-root <the memory root the home was composed from> \
+  --ratchet-offer <on|off> <<'TSV'
+1<TAB>style<TAB>judgment<TAB>editorconfig-severity<TAB>in-repo .editorconfig<TAB>IDE0011: add braces to this if statement (set by .editorconfig)
+2<TAB>defined-diagnostic<TAB>rule-id<TAB>analyzer-pack-rule<TAB>keep the detector<TAB>
 TSV
 ```
 
@@ -125,16 +171,24 @@ fenced directory, refuses a home carrying a `..` segment or one that escapes `--
 refuses a home whose last path segment sits outside `[a-z0-9._-]` (that segment is the branch
 slug, composed from operator-supplied frontmatter; a charset miss is an unsanitized value
 reaching the path), and re-reads every stub it wrote, removing all of them if any carries a
-findings-file marker. Its exit codes are `2` usage or a non-conforming input, `3` a refused home,
+findings-file marker. It refuses the whole TSV, writing nothing, when a line has other than five
+or six fields, its first field is not a rank in the table, or its rung is outside the closed set. Its exit codes are `2` usage or a
+non-conforming input (findings file or TSV), `3` a refused home,
 `4` a forbidden marker. Surface a non-zero exit verbatim; never retry it into a different
 directory.
 
 ## 6. Report
 
-A table with one row per finding: rank, class, class basis, rung, owner, stub path. Then the
+The `ratchet_offer` line from step 5 first. Then a table with one row per finding: rank, class,
+class basis, rung, earliest stage, owner, stub path. Then the
 writer's own line, `N findings → N stubs in <home>`. Then, grouped per rung, the next step, each
-with its gate and its fallback:
+with its gate and its fallback. With the offer on, a counting rung's next step ends with the
+offer: once the rule exists, a count above zero goes to `/review:ratchet`, and a zero count lands
+the rule.
 
+- **`make-impossible`**: name the type, data structure or API whose shape lets the invalid state
+  exist, and the change that would remove it. Hand that proposal to `/architecture:improve` when
+  that skill is available; otherwise to `/planning:design`. Nothing is redesigned here.
 - **`editorconfig-severity`**: name the setting and the file; no plugin is involved.
 - **`analyzer-pack-rule`**: name the diagnostic id and the config file that raises its severity.
   Where the producing detector already is the deterministic check, the next step is to keep it.
@@ -144,9 +198,7 @@ with its gate and its fallback:
   .NET-only; the same invariant elsewhere belongs on the Semgrep rung.
 - **`semgrep-rule`**: invoke `/semgrep-rule-creator:semgrep-rule-creator` (if the
   `semgrep-rule-creator` plugin is installed); otherwise the stub points at Semgrep's rule-writing
-  documentation (<https://docs.semgrep.dev/writing-rules/overview>) and stops. Print the install
-  recipe in the report only: `/plugin marketplace add trailofbits/skills` then
-  `/plugin install semgrep-rule-creator@trailofbits`.
+  documentation (<https://docs.semgrep.dev/writing-rules/overview>) and stops.
 - **`architecture-test`**: point at ArchUnitNET (<https://archunitnet.readthedocs.io/>) for .NET
   and the dependency-cruiser repository docs (<https://github.com/sverweij/dependency-cruiser>)
   for JS/TS.
