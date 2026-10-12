@@ -31,8 +31,9 @@ claude plugin eval . \
   [hub's CI section](../SKILL.md#ci). The pinned values are the operator's choice and carry their
   own refresh cadence: review them whenever the provider retires or renames a model, and record the swap alongside the
   trend so a step change in scores has a cause.
-- `--threshold 0.8` rather than the default, which demands a perfect case score: then every
-  stochastic near-miss is a red build, and exit 1 stops carrying information.
+- `--threshold 0.8` rather than the default (read it at the Command options pointer under
+  **Exit codes**). A threshold that demands a perfect case score makes every stochastic near-miss
+  a red build, and exit 1 stops carrying information.
 - `--no-publish` keeps the HTML report local. It is a single self-contained file that makes no
   external requests, so attach it to the job.
 - `--max-cost-usd` is the ceiling the job cannot exceed. Prefer it over tight per-run limits.

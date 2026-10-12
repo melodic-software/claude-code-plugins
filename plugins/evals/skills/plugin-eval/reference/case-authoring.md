@@ -144,10 +144,9 @@ tools.
 
 - [ ] `runs`, `max_turns`, and `timeout_seconds` are inside their bounds. Hitting `max_turns` is a
       run error, not a low score.
-- [ ] `allowed_tools` requests only what the case needs. Read-only tools (`Read`, `Glob`, `Grep`,
-      `NotebookRead`, `Skill`, `AskUserQuestion`, `Agent`, `TodoWrite`, `TaskCreate`, `TaskGet`,
-      `TaskList`, `TaskUpdate`, `TaskStop`; see the record in the validator's `READ_ONLY_TOOLS`)
-      need no operator grant;
+- [ ] `allowed_tools` requests only what the case needs. Read-only tools (the set in the
+      validator's `READ_ONLY_TOOLS`, which mirrors the Grant tools pointer above) need no operator
+      grant;
       anything else needs `--allow-tools`, and a grant that runs sandboxed also needs a sandbox
       backend on the machine (the Grant tools record above, in
       [Frontmatter bounds](#frontmatter-bounds); it has no heading of its own. As of 2026-10-11.

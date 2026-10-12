@@ -463,8 +463,8 @@ behavior.
 
 The `reference/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them is not substituted, and a command carrying one can fail. Where placeholders resolve is the
+writing it into a brief. Those files arrive through the Read tool as plain bytes, and we do not
+rely on a `${…}` token in them being substituted. Where placeholders resolve is the
 record in [evidence-packet.md](reference/evidence-packet.md#layout-and-files). As of 2026-10-11.
 Recheck trigger: that record's pointer section adds supporting files read through the Read tool to
 where `${…}` resolves, or the record moves out of that section.

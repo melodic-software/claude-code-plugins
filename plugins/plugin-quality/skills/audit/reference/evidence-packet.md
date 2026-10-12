@@ -35,11 +35,13 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
     `CLAUDE_PLUGIN_ROOT`.
 
   Should it
-  arrive unexpanded, derive the directory deterministically per the same page:
-  `~/.claude/plugins/data/<plugin-id>/`, where `<plugin-id>` is this plugin's install identifier
-  with characters outside `[A-Za-z0-9_-]` replaced by `-` (marketplace install →
-  `plugin-quality-<marketplace-name>`; a `--plugin-dir` dev load gets its own id such as
-  `plugin-quality-inline`). Before the first write, list `~/.claude/plugins/data/` and use the
+  arrive unexpanded, derive the directory deterministically from the `${CLAUDE_PLUGIN_DATA}` row
+  of [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables),
+  fetched live, which gives the path and how this plugin's install identifier becomes `<plugin-id>`
+  (marketplace install → `plugin-quality-<marketplace-name>`; a `--plugin-dir` dev load gets its
+  own id such as `plugin-quality-inline`). As of 2026-10-11. Recheck trigger: that row stops giving
+  the data directory's path or how its id is formed. Before the first write, list the parent
+  directory that row names and use the
   matching entry; if none exists yet, create the id-form directory for this install.
 - `<target-slug>` = one **resolved** target from the list above. `<plugin>` or
   `<plugin>-<component>`. Sanitized to `[A-Za-z0-9_-]` (every other character → `-`, the same
@@ -164,8 +166,10 @@ It may not fire at all in a given context, which is why the naming rule is the p
 the rename fallback is the backstop. This is the record the `auditor` agent cites.
 
 - **Pointer**: when checking whether the report-filename guardrail is now documented, fetch
-  [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools) live; no docs
-  page describes the guardrail as of the date below.
+  [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools) live. The
+  sub-agents reference was checked 2026-07-26 and that section re-read 2026-10-11: it documents
+  write restriction only at tool-access granularity (`tools` and `disallowedTools`) and names no
+  report-filename guardrail.
 - **As of**: 2026-10-11
 - **Recheck trigger**: that section, or any Claude Code page, starts describing a subagent write
   guardrail on report-like file names, or a release note names one.
