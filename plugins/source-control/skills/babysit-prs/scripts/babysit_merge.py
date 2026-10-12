@@ -2813,7 +2813,12 @@ def upsert_risk_comment(
         newest = max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
         if str(newest.get("body") or "") == body:
             return "unchanged"
-        args = ["api", "-X", "PATCH", f"repos/{repo}/issues/comments/{newest.get('id')}"]
+        args = [
+            "api",
+            "-X",
+            "PATCH",
+            f"repos/{repo}/issues/comments/{newest.get('id')}",
+        ]
         outcome = "updated"
     else:
         args = ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
@@ -2856,7 +2861,9 @@ def unattended_writes(
                 repo, branch, identity, numbers=numbers, dequeued=report["dequeued"]
             )
             if unknown:
-                report["errors"].append(f"{unknown} queue entries have an unknown enqueuer")
+                report["errors"].append(
+                    f"{unknown} queue entries have an unknown enqueuer"
+                )
     except (postmerge.PostMergeReadError, postmerge.PostMergeWriteError) as exc:
         report["errors"].append(f"dequeue: {exc}")
     # A stopped path (demoted, capped off, switched off) merges nothing, so a
@@ -2904,7 +2911,9 @@ def _identity_queue_entries(
         for n in nodes
         if merge_policy.actor_key(n.get("enqueuer")) == identity.casefold()
     ]
-    return sorted(mine, key=lambda n: (str(n.get("enqueuedAt")), n.get("position") or 0))
+    return sorted(
+        mine, key=lambda n: (str(n.get("enqueuedAt")), n.get("position") or 0)
+    )
 
 
 def _graphql_write(query: str, node_id: str) -> bool:
@@ -2970,9 +2979,7 @@ def unattended_enqueue(
         return hold(f"the pin comment could not be posted ({proc.stderr.strip()})")
     step["pinned"] = True
     result["action"] = "enqueue"
-    record = async_merge(
-        repo, number, sha=pin, merge_action="merge_queue", method=None
-    )
+    record = async_merge(repo, number, sha=pin, merge_action="merge_queue", method=None)
     result["merge"] = record
     result["enqueued"] = record["success"] and record["status"] == "enqueued"
     if pending_path is not None:
@@ -3368,7 +3375,8 @@ def main() -> int:
         ]
         if widening:
             return _refuse(
-                "--unattended refuses " + ", ".join(widening)
+                "--unattended refuses "
+                + ", ".join(widening)
                 + ": an unattended merge never merges a dependency-manager PR, "
                 "arms auto-merge, merges an unpinned head, lands a stack or "
                 "merges onto an unprotected base",

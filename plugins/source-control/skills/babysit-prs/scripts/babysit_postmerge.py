@@ -708,9 +708,7 @@ def check(
                 ctx,
                 full_runs=full_runs,
                 canary_runs=canary_runs,
-                pinned=pinned_sha(merge)
-                if pinned_sha and merge.by_identity
-                else None,
+                pinned=pinned_sha(merge) if pinned_sha and merge.by_identity else None,
                 now=now,
                 tally=tally,
             )
@@ -1189,9 +1187,7 @@ def verdict_exit(verdict: PostMergeVerdict) -> int:
     return 0
 
 
-def default_floor(
-    repo: str, identity: str, self_logins: Collection[str]
-) -> datetime:
+def default_floor(repo: str, identity: str, self_logins: Collection[str]) -> datetime:
     """The merge gate's floor at the default branch head
     (`babysit_merge_policy.merged_since_floor`). Raises `PolicyReadError`."""
     _, head = policy._default_branch_head(repo)

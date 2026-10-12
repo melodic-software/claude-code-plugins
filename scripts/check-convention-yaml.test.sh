@@ -195,6 +195,7 @@ for i in "${!names[@]}"; do
   fi
 done
 label="tab, CR and plain UTF-8 text are not a separator finding"
+# spellchecker:ignore-next-line
 new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put docs/conventions/alpha.yaml $'a: "x\ty"\r\nb: caf\303\251'
 run_sut
 if [[ $RC -eq 0 && "$LOG" == *alpha.yaml* ]]; then ok "$label"; else fail "$label: $(state)"; fi

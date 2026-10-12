@@ -723,7 +723,7 @@ class GateReviewFixes(Unattended):
         }
 
     def test_a_refused_credential_reruns_no_review(self) -> None:
-        # A mis-launched lane holding the operator's token must not re-run a
+        # A wrongly launched lane holding the operator's token must not re-run a
         # workflow as the operator.
         self.credentials = "other-account-listed"
         code, _ = self.run_main()

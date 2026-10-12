@@ -907,7 +907,9 @@ def credential_refusal(identity: str) -> str | None:
     except (RuntimeError, ValueError, OSError):
         hosts = None
     hosts = json_object(json_object(hosts).get("hosts"))
-    entries = [json_object(e) for accounts in hosts.values() for e in json_array(accounts)]
+    entries = [
+        json_object(e) for accounts in hosts.values() for e in json_array(accounts)
+    ]
     if not entries:
         return "credentials-unreadable"
     wanted = identity.strip().casefold()
@@ -1602,7 +1604,9 @@ def changed_files(
         "headRefOid": json_object(pr.get("head")).get("sha"),
         "changedFiles": pr.get("changed_files"),
     }
-    return _changed_files(owner, name, shaped, str(json_object(pr.get("base")).get("sha")))
+    return _changed_files(
+        owner, name, shaped, str(json_object(pr.get("base")).get("sha"))
+    )
 
 
 # --- Promotion evidence -----------------------------------------------------------------------
@@ -1690,7 +1694,10 @@ def read_promotion_options(
                 value = options.get(option)
                 if value in (None, ""):
                     continue
-                if not isinstance(value, str) or found.setdefault(option, value) != value:
+                if (
+                    not isinstance(value, str)
+                    or found.setdefault(option, value) != value
+                ):
                     return None, f"option-conflict:{option}"
     missing = [o for o in PROMOTION_OPTIONS.values() if o not in found]
     if missing:
@@ -1743,7 +1750,10 @@ def read_promotion(
         at = window_start.isoformat()
         events = [
             *events,
-            *({"cell": cell, "event": "gate-failure", "at": at} for cell in PROMOTABLE_CELLS),
+            *(
+                {"cell": cell, "event": "gate-failure", "at": at}
+                for cell in PROMOTABLE_CELLS
+            ),
         ]
     with tempfile.TemporaryDirectory() as tmp:
         copy = Path(tmp).resolve() / "promotion-evidence.json"
