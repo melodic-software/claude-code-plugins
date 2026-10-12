@@ -105,10 +105,10 @@ SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 # C0 and C1 controls and the Unicode line and paragraph separators.
 _SEPARATOR = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 WRITE_PERMISSIONS = frozenset({"admin", "write"})
-# The merged-PR read for the in-flight rule: pages of 100, at most 10 pages.
+# The merged-PR read for the in-flight rule: pages of 100, at most 30 pages (about five weeks of merges here).
 # A history it cannot read to its end (or to the merged-since floor) is not clear.
 MERGED_PAGE_SIZE = 100
-MERGED_PAGE_LIMIT = 10
+MERGED_PAGE_LIMIT = 30
 # The demotion candidates read per filer: at most 10 pages of 100 issues. A
 # filer whose issues run past it holds the rung off.
 ISSUES_PAGE_LIMIT = 10

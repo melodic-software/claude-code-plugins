@@ -1018,8 +1018,27 @@ earlier identity entry sits in the queue, the new one dequeues itself. A later r
 `--state-dir` that reads the entry back merged at its pin dispatches the full `pr-require-checks`
 run.
 
-It refuses `--allow-dependency`, `--auto`, `--allow-unpinned-head`, `--stacked-prs` and a merge
-without `--expected-head`. No tier passes the flag. Separately, plain `--merge` refuses at exit 10
+Named residuals:
+
+- `performed_via_github_app` is checked on label events only. A GraphQL thread resolution, a
+  comment and a demotion record's close carry no such field, so an agent acting through an App on a
+  human's token passes there. Lanes hold only the identity token (D9), which closes it for lanes.
+- A human close of any demotion record restarts the floor in full: earlier auto-merges that were
+  never verified are no longer judged.
+- A demotion record transferred out of the repository or deleted stops holding the rung. Only a
+  person with write permission can do either; a failure the post-merge check still finds refuses on
+  its own and files a new record.
+- After a dispatch deadline with no unedited pin comment, an identity merge fails the read-back and
+  a demotion record is filed.
+
+Operator runbook: the refusal `in-flight:merged-history-truncated` (or an unreadable post-merge
+verdict naming the read limit) means more merges landed since the floor than the history read
+covers (30 pages of 100). Restart the floor: close a demotion record directly as a human, or merge
+a commit that re-enables the path in `docs/conventions/pr-pipeline.yaml` (the floor is the start
+of the current enabled run, so turn the path off and on again).
+
+It refuses `--allow-dependency`, `--auto`, `--allow-unpinned-head`, `--stacked-prs`,
+`--allow-unprotected` and a merge without `--expected-head`. No tier passes the flag. Separately, plain `--merge` refuses at exit 10
 when the token's login is the repository's configured `merge.agent-identity`: that identity may
 merge only through `--unattended`.
 

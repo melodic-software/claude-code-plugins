@@ -87,8 +87,8 @@ Contract enforced here (encoded as code, not convention):
   auto-merge disarm (`disablePullRequestAutoMerge`) and a pin comment; a
   later run that reads the queued entry back as merged at that head
   dispatches the full run. It refuses `--allow-dependency`, `--auto`,
-  `--allow-unpinned-head` and `--stacked-prs`. Absent the flag the gate is
-  unchanged, except that plain `--merge` refuses at exit 10 when the token's
+  `--allow-unpinned-head`, `--stacked-prs` and `--allow-unprotected`. Absent
+  the flag the gate is unchanged, except that plain `--merge` refuses at exit 10 when the token's
   acting login is the policy's configured agent identity, or cannot be read
   while one is configured.
 
@@ -2987,15 +2987,33 @@ def unattended_enqueue(
         # Another host's entry came first, or the order cannot be read: this
         # entry leaves so only one unattended merge is in flight.
         mine = next(
-            (e for e in entries or [] if json_object(e.get("pullRequest")).get("number") == number),
+            (
+                e
+                for e in entries or []
+                if json_object(e.get("pullRequest")).get("number") == number
+            ),
             None,
         )
-        node_id = str(json_object((mine or {}).get("pullRequest")).get("id") or "")
+        node_id = str(
+            json_object((mine or {}).get("pullRequest")).get("id")
+            or inputs["pr"].get("node_id")
+            or ""
+        )
         step["dequeuedSelf"] = bool(node_id) and _graphql_write(
             postmerge.DEQUEUE_MUTATION, node_id
         )
-        result["enqueued"] = False
-        return hold("another unattended merge is in flight; this entry dequeued itself")
+        why = (
+            "another unattended merge is in flight"
+            if entries is not None
+            else "the queue could not be re-read whole"
+        )
+        if step["dequeuedSelf"]:
+            result["enqueued"] = False
+            return hold(f"{why}; this entry dequeued itself")
+        return hold(
+            f"{why}; this entry could not be dequeued and may still merge -- "
+            "escalate to a human"
+        )
     print(json.dumps(result, indent=2))
     return 0
 
@@ -3191,7 +3209,7 @@ def main() -> int:
             "check-only reports the decision; with --merge a LOW, eligible, "
             "promoted pull request is enqueued at the pinned head under the "
             "configured merge.agent-identity. Refuses --allow-dependency, "
-            "--auto, --allow-unpinned-head and --stacked-prs"
+            "--auto, --allow-unpinned-head, --stacked-prs and --allow-unprotected"
         ),
     )
     parser.add_argument(
@@ -3344,6 +3362,7 @@ def main() -> int:
                 ("--auto", args.auto),
                 ("--allow-unpinned-head", args.allow_unpinned_head),
                 ("--stacked-prs", args.stacked_prs),
+                ("--allow-unprotected", args.allow_unprotected),
             )
             if given
         ]
@@ -3351,7 +3370,8 @@ def main() -> int:
             return _refuse(
                 "--unattended refuses " + ", ".join(widening)
                 + ": an unattended merge never merges a dependency-manager PR, "
-                "arms auto-merge, merges an unpinned head or lands a stack",
+                "arms auto-merge, merges an unpinned head, lands a stack or "
+                "merges onto an unprotected base",
                 2,
             )
         if args.merge and not args.expected_head:
@@ -3570,9 +3590,16 @@ def main() -> int:
             }
             # The read-back held: the head that landed is the pinned one. The
             # full run the post-merge check verifies this merge with is
-            # dispatched now, under the identity.
+            # dispatched now, under the identity, while no identity,
+            # credential, kill-switch or post-merge refusal stands.
             inputs = (unattended.inputs or {}) if unattended is not None else {}
-            if args.unattended and args.merge and inputs.get("identity"):
+            if (
+                args.unattended
+                and args.merge
+                and unattended is not None
+                and unattended.enabled
+                and inputs.get("identity")
+            ):
                 try:
                     postmerge.dispatch_full_run(repo, ref=str(inputs["branch"]))
                     result["unattended"]["dispatched"] = True
@@ -3606,7 +3633,12 @@ def main() -> int:
     arm_auto = go and args.auto and not result["ready"]
     if not go:
         result["merge"] = {"attempted": False, "reason": "not ready"}
-        result["aiReviewReruns"] = rerun_rate_limited_reviews(repo, result)
+        # Under --unattended a re-run is a write: only a session that passed
+        # the identity and credential chokepoint makes it.
+        if not args.unattended or (
+            unattended is not None and (unattended.inputs or {}).get("identity")
+        ):
+            result["aiReviewReruns"] = rerun_rate_limited_reviews(repo, result)
         print(json.dumps(result, indent=2))
         return 10
     if arm_auto:

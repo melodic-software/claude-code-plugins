@@ -69,7 +69,7 @@ TRACKER_CONFIG = ".work-item-tracker.json"
 # the same prefix, so either filer's note is a sighting to the other.
 FAILURE_NOTE = "The post-merge check found this failure again: "
 MERGED_PAGE_SIZE = 100
-MERGED_PAGE_LIMIT = 10
+MERGED_PAGE_LIMIT = 30
 
 SIGNAL_SCHEDULE = "schedule"
 SIGNAL_DISPATCH = "dispatch"
@@ -562,7 +562,20 @@ def _judge(
     ]
 
     if merge.by_identity and pinned is None:
-        pending.append("read-back-unrecorded")
+        # A missing or edited pin is pending until the dispatch deadline, then
+        # a failure, so a demotion record is filed and a human close restarts
+        # the floor instead of the lane holding forever.
+        if now > merged_at + DISPATCH_DEADLINE:
+            failures.append(
+                Failure(
+                    SIGNAL_READ_BACK,
+                    merge,
+                    None,
+                    "no unedited pin comment by the agent identity",
+                )
+            )
+        else:
+            pending.append("read-back-unrecorded")
     elif merge.by_identity and pinned != merge.head_ref_oid:
         failures.append(
             Failure(
@@ -841,10 +854,14 @@ def dequeue_identity_entries(
 # host stores.
 PIN_RE = re.compile(r"^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$")
 PIN_QUERY = (
-    "query PostMergePin($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){comments(last:100){nodes{"
+    "query PostMergePin($o:String!,$r:String!,$n:Int!,$c:String){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){comments(first:100,after:$c){"
+    "pageInfo{hasNextPage endCursor} nodes{"
     "author{__typename login} body lastEditedAt}}}}}"
 )
+# Comment pages the pin read walks: 3000 comments. A longer thread reads as
+# no pin, which fails the read-back once the dispatch deadline passes.
+PIN_PAGE_LIMIT = 30
 
 
 def pin_comment(sha: str) -> str:
@@ -856,28 +873,42 @@ def pin_comment(sha: str) -> str:
 
 def read_pin(repo: str, number: int, identity: str) -> str | None:
     """The head SHA the agent identity pinned for `number`: its newest pin
-    comment among the last 100 comments, or None when there is none or that
-    comment was edited (anyone with write access can edit it)."""
+    comment, read through every comment page, or None when there is none,
+    the thread runs past `PIN_PAGE_LIMIT` pages, or that comment was edited
+    (anyone with write access can edit it)."""
     owner, name = _split_repo(repo)
-    args = ["api", "graphql", "-f", f"query={PIN_QUERY}", "-f", f"o={owner}"]
-    args += ["-f", f"r={name}", "-F", f"n={number}"]
-    payload = _read(args, f"#{number} pin")
-    if not is_json_object(payload) or payload.get("errors"):
-        raise PostMergeReadError(f"#{number} pin: the response carried no data")
-    pull = json_object(
-        json_object(json_object(payload.get("data")).get("repository")).get(
-            "pullRequest"
+    pins: list[dict[str, Any]] = []
+    cursor: str | None = None
+    for _ in range(PIN_PAGE_LIMIT):
+        args = ["api", "graphql", "-f", f"query={PIN_QUERY}", "-f", f"o={owner}"]
+        args += ["-f", f"r={name}", "-F", f"n={number}"]
+        if cursor:
+            args += ["-f", f"c={cursor}"]
+        payload = _read(args, f"#{number} pin")
+        if not is_json_object(payload) or payload.get("errors"):
+            raise PostMergeReadError(f"#{number} pin: the response carried no data")
+        pull = json_object(
+            json_object(json_object(payload.get("data")).get("repository")).get(
+                "pullRequest"
+            )
         )
-    )
-    nodes = json_object(pull.get("comments")).get("nodes")
-    if not is_json_array(nodes):
-        raise PostMergeReadError(f"#{number} pin: no comment list")
-    pins = [
-        node
-        for node in map(json_object, nodes)
-        if _actor_key(node.get("author")) == _login_key(identity)
-        and PIN_RE.match(_first_line(node.get("body")))
-    ]
+        page = json_object(pull.get("comments"))
+        nodes, info = page.get("nodes"), json_object(page.get("pageInfo"))
+        if not is_json_array(nodes) or not isinstance(info.get("hasNextPage"), bool):
+            raise PostMergeReadError(f"#{number} pin: no comment page")
+        pins += [
+            node
+            for node in map(json_object, nodes)
+            if _actor_key(node.get("author")) == _login_key(identity)
+            and PIN_RE.match(_first_line(node.get("body")))
+        ]
+        cursor = info.get("endCursor")
+        if not info["hasNextPage"]:
+            break
+        if not isinstance(cursor, str) or not cursor:
+            raise PostMergeReadError(f"#{number} pin: a next page with no cursor")
+    else:
+        return None
     if not pins or pins[-1].get("lastEditedAt"):
         return None
     match = PIN_RE.match(_first_line(pins[-1].get("body")))
