@@ -236,6 +236,13 @@ async page => {
     await page.click("main.detail h3"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
     const ev4 = await last();
     ok("an armed alternative survives a Reconfirm row shifting the key numbers: (b) stays armed once stale and saves alt b", /^\(b\)/.test(a0) && wasStale && /^\(b\)/.test(a1) && ev4.id === "P2" && ev4.kind === "alt" && ev4.alt === "b", a0 + " / " + a1 + " " + JSON.stringify(ev4));
+    // Reconfirm of a person-held deferral with a new name typed over the kept one stays person-held
+    await restale({kind: "defer", text: "someone else decides: Dana"}, {kind: "alt", alt: "b"});
+    await page.fill("#note", "Lee, the architect");
+    await page.click("main.detail h3"); await page.keyboard.press("a");
+    const r7 = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const ev7 = await last();
+    ok("Reconfirm of a person-held deferral with a new name keeps the someone else decides prefix", /^Reconfirm/.test(r7) && ev7.id === "P2" && ev7.kind === "defer" && ev7.text === "someone else decides: Lee, the architect", r7 + " " + JSON.stringify(ev7));
     // Reconfirm with a note typed over the kept one records the typed note
     await restale({kind: "alt", alt: "b", text: "Only on weekends"}, {kind: "accept"});
     await page.fill("#note", "Weekdays too");
@@ -500,7 +507,8 @@ async page => {
     ok("a fresh answer, with no watcher silent for 30 s yet, reads Sent to Claude", /Sent to Claude/.test(await chip()), await chip());
     const quiet = await page.waitForFunction(() => /No session is listening; type next in the terminal/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 45000}).then(() => true).catch(() => false);
     ok("with no watcher holding the lease, an unhandled answer reads as not delivered", quiet && !/Sent to Claude/.test(await chip()), await chip());
-    ok("the receipt line says the same", /No session is listening/.test(await page.textContent("#claudeLine")), await page.textContent("#claudeLine"));
+    const line = await page.waitForFunction(() => /No session is listening/.test(document.getElementById("claudeLine").textContent), null, {timeout: 5000}).then(() => true).catch(() => false);
+    ok("the receipt line says the same", line, await page.textContent("#claudeLine"));
     // The watcher claims the lease; the shell handles the event a few seconds later.
     const r = await page.request.get(base + "api/wait?after=handled&timeout=1&watcher=w1", {headers: {"X-Interview-Token": await token()}});
     const back = await page.waitForFunction(() => /Sent to Claude/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 12000}).then(() => true).catch(() => false);
