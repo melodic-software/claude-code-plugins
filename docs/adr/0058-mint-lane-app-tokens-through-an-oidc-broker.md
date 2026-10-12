@@ -6,6 +6,7 @@
   condition 3
 - Closes: the App key part of the secret-set residual in
   [ADR 0055](0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md)
+- Canary: pr-unblock end-to-end test line; this pull request is closed, not merged
 
 ## Context
 
