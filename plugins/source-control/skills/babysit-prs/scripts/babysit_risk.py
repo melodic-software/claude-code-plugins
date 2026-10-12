@@ -15,9 +15,12 @@ place of it. Every glob matches case-insensitively, because a lane host on a
 case-insensitive filesystem treats `Claude.md` as `CLAUDE.md`.
 
 Paths are normalised before matching (`\\` to `/`, empty and `.` segments
-dropped, `..` resolved). A path that could still hide a floor path after that
-(empty, absolute, escaping the root, or with a segment ending in `.` or a space,
-which Windows strips) rates HIGH as `high-path:**`: it could be any path.
+dropped). A path that could hide a floor path rates HIGH as `high-path:**`,
+because it could be any path: empty, absolute, ending in `/`, or with a `..`
+segment, a `:` (an NTFS stream), a `~<digit>` (an 8.3 short name) or a segment
+ending in `.` or a space (Windows strips both). Git emits none of these. A
+configured glob that names no path (`''`, `.`, `./`) makes the configured HIGH
+set unreadable.
 Malformed values have no code of their own in the contract, so each maps to the
 nearest existing code: per-file data and the listing to `files-incomplete`, an
 unknown rung to `class-above-rung` (read as off), an unreadable line limit to
@@ -126,6 +129,8 @@ _STRUCTURAL = frozenset({"removed", "renamed", "copied", "changed"})
 
 UNSAFE_PATH_CODE = "high-path:**"
 
+_SHORT_NAME = re.compile(r"~[0-9]")  # a Windows 8.3 name such as GITHUB~1
+
 _CLASS_RANK = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5}
 
 
@@ -142,18 +147,17 @@ def normalize_path(path: Any) -> tuple[str, bool]:
     if not isinstance(path, str):
         return "", False
     raw = path.replace("\\", "/")
-    safe = not raw.startswith("/")
+    safe = not raw.startswith("/") and not raw.endswith("/")
     segments: list[str] = []
     for segment in raw.split("/"):
         if segment in ("", "."):
             continue
-        if segment == "..":
-            if segments:
-                segments.pop()
-            else:
-                safe = False
-            continue
-        if segment.endswith((".", " ")):
+        if (
+            segment == ".."
+            or ":" in segment
+            or _SHORT_NAME.search(segment)
+            or segment.endswith((".", " "))
+        ):
             safe = False
         segments.append(segment)
     return "/".join(segments), safe and bool(segments)
@@ -250,7 +254,10 @@ def _check_file(changed: Any) -> _File:
 def _high_path_reasons(inp: RiskInput, files: list[_File]) -> list[Reason]:
     unsafe = [raw for f in files for raw in f.unsafe]
     configured = _sequence(inp.high_paths)
-    if configured is None or not all(isinstance(p, str) for p in configured):
+    if configured is None or not all(
+        isinstance(p, str) and _normalize_glob(p).strip("/") not in ("", ".")
+        for p in configured
+    ):
         unsafe.append(f"configured HIGH set unreadable: {inp.high_paths!r}")
         configured = tuple(p for p in configured or () if isinstance(p, str))
     reasons = []

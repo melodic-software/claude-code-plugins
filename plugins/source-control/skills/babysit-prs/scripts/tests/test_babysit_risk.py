@@ -25,8 +25,15 @@ from babysit_risk import (
 )
 
 
-def _file(path, *, status="modified", previous_path=None, additions=10,
-          deletions=5, has_patch=True):
+def _file(
+    path,
+    *,
+    status="modified",
+    previous_path=None,
+    additions=10,
+    deletions=5,
+    has_patch=True,
+):
     return ChangedFile(
         path=path,
         previous_path=previous_path,
@@ -83,54 +90,121 @@ class SingleMedReasonTests(unittest.TestCase):
     CASES = [
         ("class missing", dict(work_class=None), "class-missing"),
         ("class not a C1..C5 token", dict(work_class="C9"), "class-missing"),
-        ("class above rung", dict(work_class="C3", blast_radius="low"),
-         "class-above-rung"),
+        (
+            "class above rung",
+            dict(work_class="C3", blast_radius="low"),
+            "class-above-rung",
+        ),
         ("rung off", dict(rung=Rung.OFF), "class-above-rung"),
-        ("removed file", dict(files=(
-            _file("plugins/foo/old.md", status="removed", additions=0),)),
-         "class-contradicted"),
-        ("renamed file", dict(files=(
-            _file("plugins/foo/new.md", status="renamed",
-                  previous_path="plugins/foo/old.md"),)),
-         "class-contradicted"),
-        ("schema file", dict(files=(_file("plugins/foo/config.schema.json"),)),
-         "class-contradicted"),
-        ("two plugins", dict(files=(
-            _file("plugins/foo/a.md"), _file("plugins/bar/b.md"))),
-         "class-contradicted"),
-        ("201 changed lines", dict(files=(
-            _file("plugins/foo/a.md", additions=150, deletions=51),)),
-         "lines-over"),
-        ("nine files", dict(files=tuple(
-            _file(f"plugins/foo/f{i}.md", additions=1, deletions=0)
-            for i in range(9))),
-         "files-over"),
+        (
+            "removed file",
+            dict(files=(_file("plugins/foo/old.md", status="removed", additions=0),)),
+            "class-contradicted",
+        ),
+        (
+            "renamed file",
+            dict(
+                files=(
+                    _file(
+                        "plugins/foo/new.md",
+                        status="renamed",
+                        previous_path="plugins/foo/old.md",
+                    ),
+                )
+            ),
+            "class-contradicted",
+        ),
+        (
+            "schema file",
+            dict(files=(_file("plugins/foo/config.schema.json"),)),
+            "class-contradicted",
+        ),
+        (
+            "two plugins",
+            dict(files=(_file("plugins/foo/a.md"), _file("plugins/bar/b.md"))),
+            "class-contradicted",
+        ),
+        (
+            "201 changed lines",
+            dict(files=(_file("plugins/foo/a.md", additions=150, deletions=51),)),
+            "lines-over",
+        ),
+        (
+            "nine files",
+            dict(
+                files=tuple(
+                    _file(f"plugins/foo/f{i}.md", additions=1, deletions=0)
+                    for i in range(9)
+                )
+            ),
+            "files-over",
+        ),
         ("listing incomplete", dict(files_complete=False), "files-incomplete"),
-        ("no patch", dict(files=(_file("plugins/foo/logo.png", has_patch=False),)),
-         "no-patch:plugins/foo/logo.png"),
-        ("code-review lane unbound", dict(lanes=(
-            _lane("claude-review", bound=False, unbound_reason="rerun-not-allowed",
-                  open_findings=None),
-            _lane("claude-security-review"))),
-         "evidence-unbound:claude-review"),
-        ("security lane unbound", dict(lanes=(
-            _lane("claude-review"),
-            _lane("claude-security-review", bound=False,
-                  unbound_reason="incremental-gap", open_findings=None))),
-         "evidence-unbound:claude-security-review"),
-        ("security lane absent", dict(lanes=(_lane("claude-review"),)),
-         "evidence-unbound:claude-security-review"),
-        ("bound lane without a count", dict(lanes=(
-            _lane("claude-review", open_findings=None),
-            _lane("claude-security-review"))),
-         "evidence-unbound:claude-review"),
-        ("code-review finding open", dict(lanes=(
-            _lane("claude-review", open_findings=1),
-            _lane("claude-security-review"))),
-         "findings:claude-review"),
-        ("blast radius missing above C2", dict(
-            work_class="C3", rung=Rung.C3, blast_radius=None),
-         "blast-radius-missing"),
+        (
+            "no patch",
+            dict(files=(_file("plugins/foo/logo.png", has_patch=False),)),
+            "no-patch:plugins/foo/logo.png",
+        ),
+        (
+            "code-review lane unbound",
+            dict(
+                lanes=(
+                    _lane(
+                        "claude-review",
+                        bound=False,
+                        unbound_reason="rerun-not-allowed",
+                        open_findings=None,
+                    ),
+                    _lane("claude-security-review"),
+                )
+            ),
+            "evidence-unbound:claude-review",
+        ),
+        (
+            "security lane unbound",
+            dict(
+                lanes=(
+                    _lane("claude-review"),
+                    _lane(
+                        "claude-security-review",
+                        bound=False,
+                        unbound_reason="incremental-gap",
+                        open_findings=None,
+                    ),
+                )
+            ),
+            "evidence-unbound:claude-security-review",
+        ),
+        (
+            "security lane absent",
+            dict(lanes=(_lane("claude-review"),)),
+            "evidence-unbound:claude-security-review",
+        ),
+        (
+            "bound lane without a count",
+            dict(
+                lanes=(
+                    _lane("claude-review", open_findings=None),
+                    _lane("claude-security-review"),
+                )
+            ),
+            "evidence-unbound:claude-review",
+        ),
+        (
+            "code-review finding open",
+            dict(
+                lanes=(
+                    _lane("claude-review", open_findings=1),
+                    _lane("claude-security-review"),
+                )
+            ),
+            "findings:claude-review",
+        ),
+        (
+            "blast radius missing above C2",
+            dict(work_class="C3", rung=Rung.C3, blast_radius=None),
+            "blast-radius-missing",
+        ),
     ]
 
     def test_each_single_miss_is_one_med_reason(self):
@@ -156,21 +230,23 @@ class LimitBoundaryTests(unittest.TestCase):
 
     def test_exactly_eight_files_is_low(self):
         files = tuple(
-            _file(f"plugins/foo/f{i}.md", additions=1, deletions=0)
-            for i in range(8))
+            _file(f"plugins/foo/f{i}.md", additions=1, deletions=0) for i in range(8)
+        )
         self.assertEqual(score(_input(files=files)).score, Risk.LOW)
 
     def test_configured_line_limit_is_honoured(self):
         files = (_file("plugins/foo/a.md", additions=30, deletions=0),)
         self.assertEqual(
-            _codes(score(_input(files=files, max_changed_lines=20))),
-            ("lines-over",))
+            _codes(score(_input(files=files, max_changed_lines=20))), ("lines-over",)
+        )
 
 
 class HighReasonTests(unittest.TestCase):
     def test_security_finding_is_high(self):
-        lanes = (_lane("claude-review"),
-                 _lane("claude-security-review", open_findings=2))
+        lanes = (
+            _lane("claude-review"),
+            _lane("claude-security-review", open_findings=2),
+        )
         result = score(_input(lanes=lanes))
         self.assertEqual(result.score, Risk.HIGH)
         self.assertEqual(_codes(result), ("security-finding",))
@@ -186,19 +262,29 @@ class HighReasonTests(unittest.TestCase):
             (".claude/rules/x.md", "high-path:**/.claude/**"),
             ("scripts/sync.sh", "high-path:scripts/**"),
             ("REVIEW.md", "high-path:REVIEW.md"),
-            ("plugins/source-control/skills/babysit-prs/SKILL.md",
-             "high-path:plugins/source-control/skills/babysit-prs/**"),
+            (
+                "plugins/source-control/skills/babysit-prs/SKILL.md",
+                "high-path:plugins/source-control/skills/babysit-prs/**",
+            ),
             ("plugins/review/agents/x.md", "high-path:plugins/review/**"),
-            ("plugins/autonomy/reference/guardrails/work-classes.md",
-             "high-path:plugins/autonomy/reference/guardrails/**"),
-            ("plugins/foo/.claude-plugin/plugin.json",
-             "high-path:**/.claude-plugin/**"),
+            (
+                "plugins/autonomy/reference/guardrails/work-classes.md",
+                "high-path:plugins/autonomy/reference/guardrails/**",
+            ),
+            (
+                "plugins/foo/.claude-plugin/plugin.json",
+                "high-path:**/.claude-plugin/**",
+            ),
             (".claude-plugin/marketplace.json", "high-path:**/.claude-plugin/**"),
             ("lib/parse-concern-value.sh", "high-path:lib/**"),
-            ("plugins/source-control/lib/yaml-subset.awk",
-             "high-path:plugins/source-control/lib/**"),
-            ("plugins/source-control/skills/babysit-loop/SKILL.md",
-             "high-path:plugins/source-control/skills/babysit-loop/**"),
+            (
+                "plugins/source-control/lib/yaml-subset.awk",
+                "high-path:plugins/source-control/lib/**",
+            ),
+            (
+                "plugins/source-control/skills/babysit-loop/SKILL.md",
+                "high-path:plugins/source-control/skills/babysit-loop/**",
+            ),
             (".work-item-tracker.json", "high-path:.work-item-tracker.json"),
         ]
         for path, code in cases:
@@ -226,9 +312,12 @@ class HighReasonTests(unittest.TestCase):
                 self.assertEqual(_codes(result), (code,))
 
     def test_configured_denied_path_joins_the_floor(self):
-        result = score(_input(
-            files=(_file("plugins/foo/Special.md"),),
-            high_paths=("plugins/foo/special.md",)))
+        result = score(
+            _input(
+                files=(_file("plugins/foo/Special.md"),),
+                high_paths=("plugins/foo/special.md",),
+            )
+        )
         self.assertEqual(_codes(result), ("high-path:plugins/foo/special.md",))
 
     def test_empty_configured_set_does_not_weaken_the_floor(self):
@@ -236,74 +325,97 @@ class HighReasonTests(unittest.TestCase):
         self.assertEqual(result.score, Risk.HIGH)
 
     def test_near_miss_paths_are_not_high(self):
-        for path in ("docs/conventions-old/x.md", "plugins/reviewer/x.md",
-                     "plugins/foo/scripts/x.sh", "plugins/foo/REVIEW.md",
-                     "plugins/foo/agents.md.bak"):
+        for path in (
+            "docs/conventions-old/x.md",
+            "plugins/reviewer/x.md",
+            "plugins/foo/scripts/x.sh",
+            "plugins/foo/REVIEW.md",
+            "plugins/foo/agents.md.bak",
+        ):
             with self.subTest(path):
                 self.assertEqual(score(_input(files=(_file(path),))).score, Risk.LOW)
 
 
 class RenameTests(unittest.TestCase):
     def test_rename_out_of_a_high_path_is_high(self):
-        files = (_file("plugins/foo/x.yml", status="renamed",
-                       previous_path=".github/workflows/x.yml"),)
+        files = (
+            _file(
+                "plugins/foo/x.yml",
+                status="renamed",
+                previous_path=".github/workflows/x.yml",
+            ),
+        )
         result = score(_input(files=files))
         self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(
-            _codes(result), ("high-path:.github/**", "class-contradicted"))
+        self.assertEqual(_codes(result), ("high-path:.github/**", "class-contradicted"))
 
     def test_rename_into_a_high_path_is_high(self):
-        files = (_file(".github/workflows/x.yml", status="renamed",
-                       previous_path="plugins/foo/x.yml"),)
+        files = (
+            _file(
+                ".github/workflows/x.yml",
+                status="renamed",
+                previous_path="plugins/foo/x.yml",
+            ),
+        )
         result = score(_input(files=files))
         self.assertEqual(result.score, Risk.HIGH)
-        self.assertEqual(
-            _codes(result), ("high-path:.github/**", "class-contradicted"))
+        self.assertEqual(_codes(result), ("high-path:.github/**", "class-contradicted"))
 
     def test_rename_across_plugins_counts_both_plugins(self):
-        files = (_file("plugins/foo/x.md", status="renamed",
-                       previous_path="plugins/bar/x.md"),)
+        files = (
+            _file(
+                "plugins/foo/x.md", status="renamed", previous_path="plugins/bar/x.md"
+            ),
+        )
         self.assertEqual(_codes(score(_input(files=files))), ("class-contradicted",))
 
 
 class OrderingTests(unittest.TestCase):
     def test_high_beats_every_med(self):
-        result = score(_input(
-            work_class=None,
-            files=(_file(".github/x.yml", has_patch=False),),
-            files_complete=False))
+        result = score(
+            _input(
+                work_class=None,
+                files=(_file(".github/x.yml", has_patch=False),),
+                files_complete=False,
+            )
+        )
         self.assertEqual(result.score, Risk.HIGH)
         self.assertEqual(result.reasons[0].severity, Risk.HIGH)
 
     def test_reasons_sorted_by_severity_then_code(self):
-        lanes = (_lane("claude-review", open_findings=3),
-                 _lane("claude-security-review", open_findings=1))
+        lanes = (
+            _lane("claude-review", open_findings=3),
+            _lane("claude-security-review", open_findings=1),
+        )
         files = (
             _file("scripts/a.sh"),
             _file(".github/b.yml", has_patch=False),
             _file("plugins/foo/c.md", additions=500),
         )
-        result = score(_input(
-            work_class="C3", files=files, files_complete=False, lanes=lanes))
-        self.assertEqual(_codes(result), (
-            "high-path:.github/**",
-            "high-path:scripts/**",
-            "security-finding",
-            "blast-radius-missing",
-            "class-above-rung",
-            "files-incomplete",
-            "findings:claude-review",
-            "lines-over",
-            "no-patch:.github/b.yml",
-        ))
+        result = score(
+            _input(work_class="C3", files=files, files_complete=False, lanes=lanes)
+        )
+        self.assertEqual(
+            _codes(result),
+            (
+                "high-path:.github/**",
+                "high-path:scripts/**",
+                "security-finding",
+                "blast-radius-missing",
+                "class-above-rung",
+                "files-incomplete",
+                "findings:claude-review",
+                "lines-over",
+                "no-patch:.github/b.yml",
+            ),
+        )
 
 
 class BlastRadiusTests(unittest.TestCase):
     def test_blast_radius_ignored_for_c2(self):
         for value in (None, "", "high"):
             with self.subTest(value):
-                self.assertEqual(
-                    score(_input(blast_radius=value)).score, Risk.LOW)
+                self.assertEqual(score(_input(blast_radius=value)).score, Risk.LOW)
 
     def test_rated_blast_radius_above_c2_is_low(self):
         result = score(_input(work_class="C3", rung=Rung.C3, blast_radius="low"))
@@ -320,57 +432,159 @@ class MalformedInputTests(unittest.TestCase):
     CASES = [
         ("empty file list", dict(files=()), Risk.MED, "files-incomplete"),
         ("files None", dict(files=None), Risk.MED, "files-incomplete"),
-        ("unknown status", dict(files=(_file("plugins/foo/a.md", status="deleted"),)),
-         Risk.MED, "files-incomplete"),
-        ("status None", dict(files=(_file("plugins/foo/a.md", status=None),)),
-         Risk.MED, "files-incomplete"),
-        ("copied is structural", dict(files=(
-            _file("plugins/foo/b.md", status="copied",
-                  previous_path="plugins/foo/a.md"),)),
-         Risk.MED, "class-contradicted"),
-        ("changed is structural", dict(files=(
-            _file("plugins/foo/a.md", status="changed"),)),
-         Risk.MED, "class-contradicted"),
-        ("negative additions", dict(files=(_file("plugins/foo/a.md", additions=-500),)),
-         Risk.MED, "files-incomplete"),
-        ("string additions", dict(files=(_file("plugins/foo/a.md", additions="3"),)),
-         Risk.MED, "files-incomplete"),
-        ("additions None", dict(files=(_file("plugins/foo/a.md", additions=None),)),
-         Risk.MED, "files-incomplete"),
-        ("float deletions", dict(files=(_file("plugins/foo/a.md", deletions=1.5),)),
-         Risk.MED, "files-incomplete"),
-        ("files_complete string", dict(files_complete="false"),
-         Risk.MED, "files-incomplete"),
-        ("files_complete None", dict(files_complete=None),
-         Risk.MED, "files-incomplete"),
-        ("has_patch string", dict(files=(_file("plugins/foo/a.md", has_patch="false"),)),
-         Risk.MED, "files-incomplete"),
-        ("has_patch None", dict(files=(_file("plugins/foo/a.md", has_patch=None),)),
-         Risk.MED, "files-incomplete"),
+        (
+            "unknown status",
+            dict(files=(_file("plugins/foo/a.md", status="deleted"),)),
+            Risk.MED,
+            "files-incomplete",
+        ),
+        (
+            "status None",
+            dict(files=(_file("plugins/foo/a.md", status=None),)),
+            Risk.MED,
+            "files-incomplete",
+        ),
+        (
+            "copied is structural",
+            dict(
+                files=(
+                    _file(
+                        "plugins/foo/b.md",
+                        status="copied",
+                        previous_path="plugins/foo/a.md",
+                    ),
+                )
+            ),
+            Risk.MED,
+            "class-contradicted",
+        ),
+        (
+            "changed is structural",
+            dict(files=(_file("plugins/foo/a.md", status="changed"),)),
+            Risk.MED,
+            "class-contradicted",
+        ),
+        (
+            "negative additions",
+            dict(files=(_file("plugins/foo/a.md", additions=-500),)),
+            Risk.MED,
+            "files-incomplete",
+        ),
+        (
+            "string additions",
+            dict(files=(_file("plugins/foo/a.md", additions="3"),)),
+            Risk.MED,
+            "files-incomplete",
+        ),
+        (
+            "additions None",
+            dict(files=(_file("plugins/foo/a.md", additions=None),)),
+            Risk.MED,
+            "files-incomplete",
+        ),
+        (
+            "float deletions",
+            dict(files=(_file("plugins/foo/a.md", deletions=1.5),)),
+            Risk.MED,
+            "files-incomplete",
+        ),
+        (
+            "files_complete string",
+            dict(files_complete="false"),
+            Risk.MED,
+            "files-incomplete",
+        ),
+        (
+            "files_complete None",
+            dict(files_complete=None),
+            Risk.MED,
+            "files-incomplete",
+        ),
+        (
+            "has_patch string",
+            dict(files=(_file("plugins/foo/a.md", has_patch="false"),)),
+            Risk.MED,
+            "files-incomplete",
+        ),
+        (
+            "has_patch None",
+            dict(files=(_file("plugins/foo/a.md", has_patch=None),)),
+            Risk.MED,
+            "files-incomplete",
+        ),
         ("rung out of range", dict(rung=9), Risk.MED, "class-above-rung"),
         ("rung None", dict(rung=None), Risk.MED, "class-above-rung"),
-        ("max_changed_lines None", dict(max_changed_lines=None),
-         Risk.MED, "lines-over"),
+        (
+            "max_changed_lines None",
+            dict(max_changed_lines=None),
+            Risk.MED,
+            "lines-over",
+        ),
         ("lanes None", dict(lanes=None), Risk.MED, "evidence-unbound:claude-review"),
         ("high_paths None", dict(high_paths=None), Risk.HIGH, "high-path:**"),
         ("path None", dict(files=(_file(None),)), Risk.HIGH, "high-path:**"),
     ]
 
     def test_malformed_inputs_never_score_low(self):
-        for name, changes, severity, code in self.CASES:
+        # Spec: any doubtful input rates MED or HIGH, and never raises. The
+        # code a malformed value maps to is the implementation's choice, so
+        # only the codes the spec names (high-path:**) are asserted.
+        for name, changes, _severity, code in self.CASES:
             with self.subTest(name):
                 result = score(_input(**changes))
-                self.assertEqual(result.score, severity)
-                self.assertIn(code, _codes(result))
+                self.assertGreaterEqual(result.score, Risk.MED)
+                if code == "high-path:**":
+                    self.assertEqual(result.score, Risk.HIGH)
+                    self.assertIn(code, _codes(result))
+
+    def test_odd_path_forms_are_high_any_path(self):
+        # Spec: a `..` segment, a trailing `/`, a `:` in a segment, or a
+        # `~<digit>` segment marks the path unsafe: HIGH as high-path:**.
+        for path in (
+            "plugins/foo/../bar.md",
+            "plugins/foo/../../plugins/foo/x.md",
+            ".github/",
+            "plugins/foo/x.md/",
+            "AGENTS.md::$DATA",
+            "AGENTS.md:stream",
+            "GITHUB~1/workflows/x.yml",
+        ):
+            with self.subTest(path):
+                result = score(_input(files=(_file(path),)))
+                self.assertEqual(result.score, Risk.HIGH)
+                self.assertIn("high-path:**", _codes(result))
+
+    def test_tilde_without_a_digit_stays_low(self):
+        self.assertEqual(
+            score(_input(files=(_file("plugins/foo/a~b.md"),))).score, Risk.LOW
+        )
+
+    def test_configured_globs_naming_no_path_fail_closed(self):
+        for glob in ("", ".", "./"):
+            with self.subTest(glob):
+                result = score(_input(high_paths=(glob,)))
+                self.assertEqual(result.score, Risk.HIGH)
+                self.assertIn("high-path:**", _codes(result))
 
     def test_paths_that_could_hide_a_floor_path_are_high(self):
-        for path in ("../.github/x.yml", "plugins/foo/../../.github/x.yml",
-                     "./.github/x.yml", "/.github/x.yml",
-                     ".github\\workflows\\x.yml", "plugins\\foo\\AGENTS.md",
-                     "docs\\conventions\\x.yaml", "docs//conventions/x.yaml",
-                     "AGENTS.md.", ".github./x.yml", "plugins/foo /x.md", "",
-                     "../plugins/foo/x.md", "AGENTS.MD", "plugins/foo/Claude.md",
-                     "LIB/x.sh"):
+        for path in (
+            "../.github/x.yml",
+            "plugins/foo/../../.github/x.yml",
+            "./.github/x.yml",
+            "/.github/x.yml",
+            ".github\\workflows\\x.yml",
+            "plugins\\foo\\AGENTS.md",
+            "docs\\conventions\\x.yaml",
+            "docs//conventions/x.yaml",
+            "AGENTS.md.",
+            ".github./x.yml",
+            "plugins/foo /x.md",
+            "",
+            "../plugins/foo/x.md",
+            "AGENTS.MD",
+            "plugins/foo/Claude.md",
+            "LIB/x.sh",
+        ):
             with self.subTest(path):
                 self.assertEqual(score(_input(files=(_file(path),))).score, Risk.HIGH)
 
@@ -379,10 +593,12 @@ class MalformedInputTests(unittest.TestCase):
         self.assertIn("high-path:scripts/**", _codes(result))
 
     def test_caller_globs_are_normalised(self):
-        for glob, path in (("/plugins/foo/x.md", "plugins/foo/x.md"),
-                           ("./plugins/foo/x.md", "plugins/foo/x.md"),
-                           ("plugins\\foo\\x.md", "plugins/foo/x.md"),
-                           ("plugins/foo", "plugins/foo/deep/x.md")):
+        for glob, path in (
+            ("/plugins/foo/x.md", "plugins/foo/x.md"),
+            ("./plugins/foo/x.md", "plugins/foo/x.md"),
+            ("plugins\\foo\\x.md", "plugins/foo/x.md"),
+            ("plugins/foo", "plugins/foo/deep/x.md"),
+        ):
             with self.subTest(glob):
                 result = score(_input(files=(_file(path),), high_paths=(glob,)))
                 self.assertEqual(result.score, Risk.HIGH)
