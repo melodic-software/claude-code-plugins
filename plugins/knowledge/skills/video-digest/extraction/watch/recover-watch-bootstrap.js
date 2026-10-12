@@ -158,6 +158,22 @@ function pickCaptionName(vttNames, infoPath, captionClass) {
 }
 
 /**
+ * The names belonging to the media entry `videoName` (`<id>.mp4`) heads, by
+ * yt-dlp's `%(id)s.%(ext)s` template, so a multi-video work dir (an X post)
+ * never pairs one entry's video with another entry's caption or info.json.
+ * All `names` when none carry that prefix.
+ *
+ * @param {string[]} names
+ * @param {string} videoName
+ * @returns {string[]}
+ */
+function scopeToEntry(names, videoName) {
+  const prefix = `${videoName.slice(0, -".mp4".length)}.`;
+  const scoped = names.filter((name) => name.startsWith(prefix));
+  return scoped.length > 0 ? scoped : names;
+}
+
+/**
  * @param {string} workDir
  * @param {import('../acquisition/select-caption.js').CaptionClass} [captionClass] the source adapter's declared class
  * @returns {{ videoPath: string, vttPath: string, infoPath: string }}
@@ -165,12 +181,17 @@ function pickCaptionName(vttNames, infoPath, captionClass) {
 export function resolveWorkArtifacts(workDir, captionClass = "manual-and-auto") {
   const entries = fs.readdirSync(workDir);
   const videoPath = entries.find((name) => name.endsWith(".mp4"));
-  const infoPath = entries.find((name) => name.endsWith(".info.json"));
+  const infoNames = entries.filter((name) => name.endsWith(".info.json"));
   const vttNames = entries.filter((name) => name.endsWith(".vtt"));
-  if (!videoPath || vttNames.length === 0 || !infoPath) {
+  if (!videoPath || vttNames.length === 0 || infoNames.length === 0) {
     throw new Error(`Missing mp4/vtt/info.json in ${workDir}`);
   }
-  const vttPath = pickCaptionName(vttNames, path.join(workDir, infoPath), captionClass);
+  const infoPath = scopeToEntry(infoNames, videoPath)[0];
+  const vttPath = pickCaptionName(
+    scopeToEntry(vttNames, videoPath),
+    path.join(workDir, infoPath),
+    captionClass,
+  );
   return {
     videoPath: path.join(workDir, videoPath),
     vttPath: path.join(workDir, vttPath),

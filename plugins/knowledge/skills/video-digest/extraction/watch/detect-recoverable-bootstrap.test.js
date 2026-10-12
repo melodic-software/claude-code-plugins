@@ -218,4 +218,16 @@ describe("resolveWorkArtifacts", () => {
       expect(resolveWorkArtifacts(workDir).vttPath).toBe(path.join(workDir, "x.fr.vtt"));
     });
   });
+
+  it("scopes caption and info.json to the video's media entry in a multi-video work dir", () => {
+    const workDir = mkTmp("video-extraction-");
+    for (const name of ["111.mp4", "111.und.vtt", "111.info.json", "222.en.vtt", "222.info.json"]) {
+      fs.writeFileSync(path.join(workDir, name), name.endsWith(".json") ? "{}" : "x");
+    }
+
+    const artifacts = resolveWorkArtifacts(workDir, "platform-asr");
+
+    expect(artifacts.vttPath).toBe(path.join(workDir, "111.und.vtt"));
+    expect(artifacts.infoPath).toBe(path.join(workDir, "111.info.json"));
+  });
 });
