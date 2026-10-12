@@ -1,0 +1,59 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "implementation:implement-dispatch",
+            "args": ".work/late-fee/PLAN.md"
+          }
+        }
+      ],
+      "why": "the setting sent the main-window phase to implement-dispatch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".work/late-fee/PLAN.md"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "implementation:implement-dispatch"
+          }
+        }
+      ],
+      "why": "plan read first, then the hand-off"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "ledger/fees.py",
+            "old_string": "return 0",
+            "new_string": "return min(2 * days_overdue, 30) if days_overdue > 0 else 0"
+          }
+        }
+      ],
+      "why": "edited inline: the setting was ignored"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "toolchain:check"
+          }
+        }
+      ],
+      "why": "a different skill, never the hand-off"
+    }
+  ]
+}

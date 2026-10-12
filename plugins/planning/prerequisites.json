@@ -1,27 +1,6 @@
 {
   "requires": [
     {
-      "id": "gh",
-      "kind": "cli",
-      "need": "optional",
-      "for": [
-        "skill:wayfind"
-      ],
-      "detect": {
-        "any": [
-          "gh"
-        ]
-      },
-      "degrade": "Without gh, /planning:wayfind shows no current user or open maps and cannot read or write the tracker; the other planning skills still work.",
-      "install": {
-        "docs": "https://cli.github.com/",
-        "brew": "gh",
-        "winget": "GitHub.cli",
-        "apt": "gh"
-      },
-      "check": "/harness-ops:prerequisites"
-    },
-    {
       "id": "jq",
       "kind": "cli",
       "need": "optional",
@@ -94,14 +73,15 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "plugin"
+        "plugin",
+        "skill:setup"
       ],
       "detect": {
         "any": [
           "node"
         ]
       },
-      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported; the plugin's own skills are unaffected.",
+      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported, and /planning:setup cannot check or write docs/conventions/planning.yaml; the planning skills still read that file themselves.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",

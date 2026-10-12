@@ -1,6 +1,6 @@
 ---
-description: "Backlog CRUD through the bound tracker: stats, list, add, start, done, due, recheck, search, audit, link (default: stats). Use when the user wants to add, claim, or close a work item, ticket, or issue; list, search, or see a dashboard of open items; check what is due on the recurring schedule; or audit stale claims and labels. New bug reports go to /bugs:write first. Picking and executing the next item is /work-items:work; raw intake is /work-items:triage."
-argument-hint: "[stats|list|add|start|done|due|recheck|search|audit|link|help] [args]"
+description: "Backlog CRUD through the bound tracker: stats, list, add, start, done, due, recheck, search, audit, publish-plan, link (default: stats). Use when the user wants to add, claim, or close a work item, ticket, or issue; list, search, or see a dashboard of open items; check what is due on the recurring schedule; or audit stale claims and labels. New bug reports go to /bugs:write first. Picking and executing the next item is /work-items:work; raw intake is /work-items:triage."
+argument-hint: "[stats|list|add|start|done|due|recheck|search|audit|publish-plan|link|view|edit|changes…] [args]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -10,7 +10,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. `[stats|list|add|start|done|due|recheck|search|audit|link|help] [args]`. The default action is stats. The actions are stats, list, add, start, done, due, recheck, search, audit, link, and help.
+Arguments: `$ARGUMENTS`. `[stats|list|add|start|done|due|recheck|search|audit|publish-plan|link|view|edit|changes|labels|help] [args]`. The default action is stats. The actions are stats, list, add, start, done, due, recheck, search, audit, publish-plan, link, view, edit, changes, labels, and help.
 
 ## Shared tracker context
 
@@ -59,8 +59,8 @@ matching action section of
 `<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`), a memory-tier write
 ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 "Memory-tier writes" owns the slug and the self-ignore guard).
-Tick each step as completed. Single-action reads (`stats`, `list`, `search`, `audit`, `due`) don't
-need a checklist.
+Tick each step as completed. Single-action reads (`stats`, `list`, `search`, `audit`, `due`, `view`, `changes`,
+`labels`) and `edit` don't need a checklist.
 
 ## Next
 
@@ -82,7 +82,12 @@ Parse `$ARGUMENTS` to extract the action (first token) and remaining arguments.
 | `recheck` | Update `last_checked`/`next_due` in recurring schedule after a periodic check | [actions/recheck.md](actions/recheck.md) |
 | `search` | Full-text search across items (open + closed) | [actions/search.md](actions/search.md) |
 | `audit` | Detect stale claims, orphaned recurring entries, label hygiene | [actions/audit.md](actions/audit.md) |
+| `publish-plan` | Post an approved PLAN.md to an item as one marked comment, edited in place on re-publish | [actions/publish-plan.md](actions/publish-plan.md) |
 | `link` | The adapter's text linking a change to an item, from an id or a branch name | [actions/link.md](actions/link.md) |
+| `view` | One item's title, state, labels and body | [actions/view.md](actions/view.md) |
+| `edit` | Change an item's title, body or labels, add a blocked-by edge, or comment | [actions/edit.md](actions/edit.md) |
+| `changes` | Change requests the tracker links as closing an item | [actions/changes.md](actions/changes.md) |
+| `labels` | The live label set, or which named labels are missing | [actions/labels.md](actions/labels.md) |
 | `help` | Show the action table above | *(inline)* |
 
 If `$ARGUMENTS` is empty, run `stats` (the default dashboard). If the action is unknown, show the

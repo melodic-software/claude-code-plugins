@@ -35,7 +35,7 @@ the `audit` and `audit-automation-gaps` skills in the `harness-config` plugin).
 | Rules | `.claude/rules/**/*.md` | Every session (unconditional) or on-demand (path-scoped) | Yes |
 | **User instructions** | `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` | Every session, full, in **every** project | Yes |
 | **User rules** | `${CLAUDE_CONFIG_DIR:-~/.claude}/rules/**/*.md` | Same as project rules, in every project | Yes |
-| Auto-memory | `~/.claude/projects/<project>/memory/` | The M1 budget: first 200 lines / 25KB of MEMORY.md | Yes |
+| Auto-memory | `~/.claude/projects/<project>/memory/` | The start of MEMORY.md, up to the M1 gate's firing values | Yes |
 | Nested `AGENTS.md` | `**/AGENTS.md` below the root | Reachable unless a `CLAUDE.md`-family file on its path displaces it without importing or symlinking it (N1) | Reachability only (N1); content is not audited |
 | Settings, hooks, MCP, agents, skills | Various | Various | No. Use `harness-config`'s `audit` / `audit-automation-gaps` |
 

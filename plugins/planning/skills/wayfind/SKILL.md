@@ -3,11 +3,6 @@ description: "Chart a too-big, still-foggy effort as a decision map on the work-
 argument-hint: "[chart|work] [topic]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools:
-  - "Bash(gh issue list*)"
-  - "Bash(gh issue view*)"
-  - "Bash(gh api user*)"
-  - "Bash(gh label list*)"
 shell: bash
 metadata:
   workflow-stage: contract
@@ -18,8 +13,9 @@ metadata:
 
 ## Pre-computed context
 
-Current user: !`gh api user --jq '.login' 2>/dev/null || echo "unknown"`
-Open maps (an ERROR line here means `config.container_label` is not a string; fix `.work-item-tracker.json` before continuing): !`l=$(jq -r 'if .config.container_label == null then "work-map" elif (.config.container_label | type) == "string" then .config.container_label else "ERROR: config.container_label must be a string (got \(.config.container_label | type))" end' .work-item-tracker.json 2>/dev/null || echo "work-map"); if [ "${l#ERROR:}" != "$l" ]; then echo "$l"; else gh issue list --label "$l" --state open --json number,title --jq '.[] | "#\(.number) \(.title)"' 2>/dev/null || echo "none"; fi`
+Container label (an ERROR line here means `config.container_label` is not a string; fix `.work-item-tracker.json` before continuing): !`jq -r 'if .config.container_label == null then "work-map" elif (.config.container_label | type) == "string" then .config.container_label else "ERROR: config.container_label must be a string (got \(.config.container_label | type))" end' .work-item-tracker.json 2>/dev/null || echo "work-map"`
+
+Open maps: list them at the start of every action with `/work-items:track list --label '<container label>' --state open`, invoked via the Skill tool ([`context/tracker-mechanics.md`](context/tracker-mechanics.md)). Without the `work-items` plugin, wayfind cannot reach the tracker: say so and stop.
 
 ## Variables
 
@@ -66,7 +62,7 @@ unblocked-but-unphrasable worry is fog.
 
 In everything the human reads (chart report, work frontier, map-body index lines), name
 each item by **title**, number as a link or suffix. Never a wall of bare `#42, #43, #44`.
-Pre-computed context already prints `"#<number> <title>"`; keep both halves.
+The map listing already prints each item with its title; keep both halves.
 
 ## Action Router
 
@@ -118,7 +114,7 @@ session. Do not fabricate a map.
    **Decisions-so-far** (a *pointer index* of resolved-in-scope decisions. Each home is its own item's
    resolution comment, never recopied here; wrongly scoped closures do not get a pointer) /
    **Not-yet-specified** (fog, prose. Fog never graduates into Out-of-scope) /
-   **Out-of-scope** (scope exclusions, not unphraseable fog). Template + exact `gh` calls: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
+   **Out-of-scope** (scope exclusions, not unphraseable fog). Template and the tracker actions: [`context/tracker-mechanics.md`](context/tracker-mechanics.md).
 3. **Create typed decision items** as sub-issues of the map, one per sharp question. Type
    label sets the routing target and the default mode (the type table in Work mode step 4). Wire `blocked-by` edges where
    one decision genuinely gates another. Never invent edges to impose false order.
@@ -145,8 +141,8 @@ session. Do not fabricate a map.
    non-interactive session, further filter OUT `needs-human` items; if that empties the
    frontier, STOP with a truthful "all remaining decisions need a human". Never resolve a
    HITL item by standing in for the human.
-3. **Pick one and claim it** (sibling claim model. `@me` assignee + claim-comment lease with
-   comment-order collision check, no claim label; see [`context/tracker-mechanics.md`](context/tracker-mechanics.md)).
+3. **Pick one and claim it** (sibling claim model through `/work-items:track start`: assignee + lease with a
+   race-safe back-off, no claim label; see [`context/tracker-mechanics.md`](context/tracker-mechanics.md)).
    One item per session, with one exception: **`research`-typed items may be burned down in
    parallel.** They are autonomous-capable by construction, so when the frontier holds
    several, claim each one individually (same protocol, one claim per item) and dispatch
@@ -239,7 +235,7 @@ the marketplace repository states it with rationale.
 
 ## Reference
 
-- [`context/tracker-mechanics.md`](context/tracker-mechanics.md). The `gh` commands for map
+- [`context/tracker-mechanics.md`](context/tracker-mechanics.md). The `/work-items:track` actions for map
   creation, typed-item creation, edges, frontier query, and the claim protocol
 - [`context/map-anatomy.md`](context/map-anatomy.md). The map body template, the five
   sections, and the graduation/closure invariants

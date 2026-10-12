@@ -9,11 +9,17 @@ disable-model-invocation: true
 
 Bring the knowledge plugin to a working state: confirm the effective `library_dir` against this
 repository's artifact convention, and verify (or provision) the extraction pipelines'
-prerequisites. `library_dir` is a personal `userConfig` option. Claude Code prompts for it when
-the plugin is enabled, stores non-sensitive options in user settings, and ignores project/local
-`pluginConfigs` entries on current releases.
+prerequisites. `library_dir` is a personal `userConfig` option that Claude Code prompts for and
+stores; this skill reports where the effective value came from and never writes it.
 
-Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
+- **Pointer**: when deciding where a `library_dir` value is stored and which settings scopes are
+  read for it, fetch
+  <https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored> and
+  <https://code.claude.com/docs/en/settings-reference#pluginconfigs> live; the option contract is
+  <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes where non-sensitive option values are stored or
+  which settings scopes a `pluginConfigs` entry is read from.
 
 Check-centric per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and

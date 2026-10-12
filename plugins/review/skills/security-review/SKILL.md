@@ -11,15 +11,12 @@ metadata:
 # CI security review (`/review:security-review`)
 
 Org-owned security review logic for the `claude-security-review` reusable
-workflow. Built-in `/security-review` is unusable in CI
-(origin/HEAD unresolvable under the Actions checkout action; cannot post). The vendor's error
-reference carries the mechanism: that command builds its review context by diffing the branch
-against `origin/HEAD`, and when the ref does not exist the git commands that gather the diff fail
-and the review stops before it starts. The same entry names CI checkouts as a case that fetches
-too narrow a refspec for git to create the ref. Verified 2026-09-06 against Claude Code 2.1.263
-and <https://code.claude.com/docs/en/errors> as fetched that day; recheck when that entry stops
-naming CI checkouts, when the command gains a diff base that does not need `origin/HEAD`, or when
-a release note names `/security-review`. This org-authored skill is the CI path. The lane wrapper supplies `REPO` /
+workflow. We treat built-in `/security-review` as unusable in CI: it cannot post, and the
+Actions checkout leaves it without the diff base it needs. Pointer: why it fails there is read at
+[errors: /security-review fails without origin/HEAD](https://code.claude.com/docs/en/errors#security-review-fails-without-origin-head).
+As of: 2026-10-11. Recheck trigger: that entry stops naming CI checkouts, the command gains a diff
+base a CI checkout provides, or a release note names `/security-review`. This org-authored skill is
+the CI path. The lane wrapper supplies `REPO` /
 `PR NUMBER` / `HEAD SHA` and installs the inline-comment MCP server via
 `claude_args`; this skill owns **what to hunt for**.
 
@@ -30,8 +27,11 @@ request:
 
 - **`security-review` (native command)**: the installed binary registers it plugin-backed, and the
   commands table gives it no Skill label. A developer runs it in their session for a single security
-  pass over the current branch, diffed against `origin`'s default branch; it takes no flags and no
-  target argument. It cannot run under the Actions checkout (the opening paragraph carries that
+  pass over the current branch, with no PR target this lane could hand it. Pointer: the first row
+  of
+  [reference/bundled-security-review.md](reference/bundled-security-review.md#the-native-security-review-command-verification-record)
+  carries that record. As of: 2026-10-11. Recheck trigger: that row moves or stops carrying its own
+  pointer and trigger. It cannot run under the Actions checkout (the opening paragraph carries that
   record).
 - **This skill (marketplace plugin).** The security logic the `claude-security-review` reusable
   workflow runs in CI. The wrapper supplies the target and owns posting; this skill owns what to
@@ -72,8 +72,10 @@ CI lane alone gets, so it is not used here; on the seat the transcript is the re
 
 ## Gotchas
 
-- Skill frontmatter cannot install the inline-comment MCP server. Only the
-  action's `claude_args` can. Rely on the wrapper grant.
+- This skill's frontmatter does not install the inline-comment MCP server; the action's
+  `claude_args` does. Rely on the wrapper grant. Pointer: the keys skill frontmatter accepts are
+  read at [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
+  As of: 2026-10-11. Recheck trigger: that section adds a key that declares an MCP server.
 - Report **security issues only**. No style, naming, test-coverage, or general
   code-quality commentary (that is `/review:code-review`).
 

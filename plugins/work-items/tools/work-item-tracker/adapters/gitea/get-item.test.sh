@@ -44,6 +44,7 @@ assert_eq "state normalized" "open" "$(jq -r '.state' <<<"$(gitea_out)")"
 assert_eq "assignees are logins" "kyle" "$(jq -r '.assignees[0]' <<<"$(gitea_out)")"
 assert_eq "labels are names" "type: fix" "$(jq -r '.labels[0]' <<<"$(gitea_out)")"
 assert_eq "url" "https://git.example.invalid/acme/webapp/issues/12" "$(jq -r '.url' <<<"$(gitea_out)")"
+assert_eq "created_at is created_at shifted to UTC" "2026-03-01T10:30:00Z" "$(jq -r '.created_at' <<<"$(gitea_out)")"
 # Gitea has no issue-type registry and no parent field, so these are structurally null
 # for this provider — not "unmapped".
 assert_eq "type is null (gitea has no type axis)" "null" "$(jq -r '.type' <<<"$(gitea_out)")"

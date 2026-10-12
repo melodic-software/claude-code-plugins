@@ -95,6 +95,29 @@ unrecognized value, so a repo that declares nothing sees no change in output.
 
 **`surface`.** A value other than `terminal` or `page` falls back to `terminal`.
 
+**`plan_store`.** A repository sets it for everyone with `plan_store: local` or `plan_store: tracker`
+in `docs/conventions/planning.yaml` (schema: `schemas/planning.schema.json`), which wins over this
+option. Any other value resolves `local`. `tracker` needs the work-items plugin and a claimed item.
+
+**`phase_order`.** Decides the order of a plan's phases after the build technique is chosen.
+`composed` removes dead code the change touches first (a bug fix skips this), then builds the
+integration slice, then the riskiest remaining unknown, then scaffold, then the remaining features.
+`subtraction-first` runs dead-code removal, then scaffold, then features. `riskiest-first` puts the
+step whose failure would invalidate the most later work first. A repository sets it for everyone
+with the `phase_order` key in `docs/conventions/planning.yaml`, which wins over this option. A value
+outside the three is named and that layer is dropped; with no valid layer left the plan uses
+`composed`. `/planning:setup apply phase_order=<value>` writes the repository file. All keys and
+layers: [`reference/config.md`](reference/config.md).
+
+**`scaffold_stubs`.** Off by default. When on, `/planning:design` lists each new file the design
+needs with the signatures it will declare, and `/planning:plan` turns that list into one stub phase
+right after the dead-code removal step (first when there is none). Stub bodies use the language's
+ordinary not-implemented form, and a stub phase that leaves the build or tests red declares it with
+a `**Planned breakage:**` line. A repository sets it for everyone with `scaffold_stubs: true` or
+`scaffold_stubs: false` (bare booleans; a quoted `"true"` is invalid and that layer is dropped) in
+`docs/conventions/planning.yaml`, which wins over this option.
+`/planning:setup apply scaffold_stubs=true` writes it.
+
 **`use_emoji_question_markers`.** On the page surface the anchors sit on the question title and
 the Recommendation heading; the terminal line they lead is `My recommendation:`. Q<N> numbering
 stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the
@@ -114,6 +137,9 @@ reads it from.
 | `surface` | string | `"terminal"` | `CLAUDE_PLUGIN_OPTION_SURFACE` | Where /planning:interview renders its question rounds: terminal (default, inline in the conversation) or page (a local 127.0.0.1 page the session watches, where each question is answered and every save reaches the session). Applies only to /planning:interview. |
 | `use_ask_user_question` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_ASK_USER_QUESTION` | When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of up to 4 independent questions through the AskUserQuestion tool instead of inline prose. Default: inline prose (dictation-friendly). |
 | `use_emoji_question_markers` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_EMOJI_QUESTION_MARKERS` | When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text. |
+| `plan_store` | string | `"local"` | `CLAUDE_PLUGIN_OPTION_PLAN_STORE` | Where /planning:plan keeps an approved plan: local (default, PLAN.md in the memory slice only) or tracker (also posted as one comment on the claimed work item). A repository's docs/conventions/planning.yaml plan_store key overrides this value. |
+| `phase_order` | string | `"composed"` | `CLAUDE_PLUGIN_OPTION_PHASE_ORDER` | How /planning:plan orders phases: composed (default: dead-code removal, integration slice, riskiest unknown, scaffold, features), subtraction-first (removal, scaffold, features) or riskiest-first. A repository's docs/conventions/planning.yaml phase_order key overrides this value. |
+| `scaffold_stubs` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SCAFFOLD_STUBS` | When on, /planning:design hands off the stub files and signatures a change needs, and /planning:plan puts one stub phase right after dead-code removal (first when there is none). Default: off. A repository's docs/conventions/planning.yaml scaffold_stubs key overrides this value. |
 
 ### How to set these
 

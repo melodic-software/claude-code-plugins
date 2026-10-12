@@ -1,0 +1,8 @@
+"use strict";
+const { formatPrice } = require("../pricing/format");
+
+function renderLineItems(items, currency) {
+  return items.map((item) => `${item.name} x${item.qty}: ${formatPrice(item.cents * item.qty, currency)}`);
+}
+
+module.exports = { renderLineItems };
