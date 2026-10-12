@@ -114,6 +114,8 @@ def bind(
         if not isinstance(head_sha, str) or not SHA_RE.match(head_sha):
             raise Unbound("bad-head")
         # Thread ids already standing for a recorded finding in some lane.
+        # LANES order matters: claude-review claims first, so a doubtful
+        # untagged thread leaves the count on the security lane.
         claimed: set[str] = set()
         return tuple(
             _bind_lane(lane, head_sha, runs, comments, threads, is_human, claimed)

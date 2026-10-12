@@ -700,6 +700,24 @@ class CountTests(Base):
             1,
         )
 
+    def test_doubtful_untagged_thread_leaves_the_count_on_security(self) -> None:
+        # The security lane's thread is gone; claude-review's untagged thread
+        # lies in both windows and a human resolved it.
+        runs = [whole(lane, S, n=1, k=1) for lane in LANES]
+        threads = [thread(resolved=True, resolved_by=MAINTAINER)]
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+        self.assertEqual(result["claude-security-review"].open_findings, 1)
+
+    def test_lane_with_no_inline_finding_claims_no_thread(self) -> None:
+        runs = [
+            whole("claude-review", S, n=1, k=0),
+            whole("claude-security-review", S, n=1, k=1),
+        ]
+        threads = [thread(resolved=True, resolved_by=MAINTAINER)]
+        result = self.bind(runs, threads=threads)
+        self.assertEqual(result["claude-security-review"].open_findings, 0)
+
     def test_unread_threads_unbind(self) -> None:
         result = self.bind([whole("claude-review", S)], threads=None)
         self.assertUnbound(result["claude-review"], "threads-unread")
