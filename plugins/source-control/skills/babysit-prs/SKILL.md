@@ -146,7 +146,8 @@ never routed around. Advisory-only fix attempts are bounded per PR (the fix-roun
 never merged autonomously in ANY tier, the merge gate refuses it absent `--allow-dependency`,
 which is passed only on an explicit user instruction to merge that specific PR.
 
-**Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge") is held in ANY tier:
+**Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge"), or has a line
+starting `Hold:`, is held in ANY tier:
 the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
 label is held the same way: the gate blocks on that label unconditionally, and `--block-labels`
 adds further labels in the autopilot merge tier. The PR is reported and left unmerged. The
