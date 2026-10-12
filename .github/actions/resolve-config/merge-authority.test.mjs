@@ -90,6 +90,19 @@ test("an agent-identity that is not a GitHub login fails the schema", () => {
   );
 });
 
+test("an agent-identity without the [bot] suffix fails the schema: it must be a GitHub App", () => {
+  rejectedFor(
+    withMerge({ authority: "local-babysit", "agent-identity": "some-user" }),
+    /\/merge\/agent-identity must match pattern/,
+  );
+});
+
+test("a GitHub App [bot] login validates as agent-identity", () => {
+  assert.doesNotThrow(() =>
+    run(withMerge({ authority: "local-babysit", "agent-identity": "my-app[bot]" })),
+  );
+});
+
 test("resolveMerge output for valid.yaml is unchanged", () => {
   assert.deepEqual(run(read("./fixtures/valid.yaml")).merge, VALID_MERGE);
 });

@@ -321,7 +321,8 @@ that fails counts as a refusal.
 
 - **Authority and identity.** `merge.authority` reads `local-babysit` and `merge.agent-identity`
   names the login the lane acts as. The schema rejects `local-babysit` without an identity. The
-  identity is a GitHub App, so its actions never pass as a human's. With no `merge:` block the
+  identity must be a GitHub App's `[bot]` login, and the schema rejects any other login: a machine
+  user is a GitHub user and would pass every human test. With no `merge:` block the
   rung is `off` and the wrapper merges nothing.
 - **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key in
   `.claude/source-control.md`, the cap variable, and `off` while any demotion issue is open.

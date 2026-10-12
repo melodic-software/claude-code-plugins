@@ -7,7 +7,7 @@ The config names its merge authority and the identity the local babysit lane act
 
 - `merge.authority` (`local-babysit` or `pr-merge`, no default) names the repository's one merge
   authority.
-- `merge.agent-identity` (a GitHub login) names the login the local babysit lane acts as. The
+- `merge.agent-identity` (a GitHub App's `[bot]` login; any other login fails the schema) names the login the local babysit lane acts as. The
   schema requires it when `merge.authority` is `local-babysit`.
 - `resolve-config` ignores both keys, so its resolved output is unchanged.
 - README "Merge authority" gains "The local babysit lane": the effective rung, the human-only cap
