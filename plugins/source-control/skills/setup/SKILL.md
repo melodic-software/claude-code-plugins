@@ -66,7 +66,7 @@ subject_pattern            ^[A-Z]+-\d+: .+             team
 pr_title_pattern           Same as subject_pattern      team
 trailer_policy             none                         local overlay
 pr_body_attribution        none                         local overlay
-pr_body_required_sections  Summary, Test plan           plugin default
+pr_body_required_sections  briefing                     plugin default
 branch_issue_pattern       ^[^/]+/([0-9]+)-             team
 ```
 
@@ -87,11 +87,12 @@ there is reported correctly; the script ignores the literal placeholder when the
 `pr_body_required_sections` is a **list**-valued key (like `type_list`, and unlike every scalar row
 above it), render it comma-joined for this report regardless of how many lines the winning layer's
 file spells it across. When every layer leaves it unset, the row still resolves, to the plugin's
-portable default, `Summary` and `Test plan`, so `won by` reads `plugin default` rather than the row
+portable default, the keyword `briefing`, so `won by` reads `plugin default` rather than the row
 going blank; this is the one key whose "no layer sets it" state is itself a reportable, named value,
 not a bare absence. A winning layer declaring the literal keyword `none` renders the row's value as
 `none (no required sections)` with that layer in `won by`, a resolved value distinct from the unset
-row above, per config-resolution.md.
+row above, per config-resolution.md. A winning `briefing` or `summary-test-plan` keyword renders as
+that keyword with its layer in `won by`.
 
 Per-layer verdicts:
 
@@ -244,13 +245,13 @@ the step UNKNOWN with remediation, never green.
 
    - **GraphQL reachability (a different wall, probed the same way).** The two canaries above prove
      the lane's own scripts reach the classifier; this one proves the forge will answer them.
-     Sandboxed sessions (Claude Code on the web and remote execution) serve only a pinned set of
-     GraphQL operations and refuse the rest with `HTTP 403`, and the forge CLI's PR reads run over
-     GraphQL. Probe it read-only against the repository itself with the viewer-login query in the
-     [GitHub provider reference](../../reference/providers/github/README.md) "Sandboxed sessions".
+     A cloud session behind the GitHub proxy can refuse GraphQL, and the forge CLI's PR reads run
+     over GraphQL. Probe it read-only against the repository itself with the viewer-login query in
+     the [GitHub provider reference](../../reference/providers/github/README.md) "Sandboxed
+     sessions", which holds the upstream pointer.
 
-     A login means GraphQL is served and the lane runs at full fidelity. A `403`, or a message
-     saying the operation is not enabled for this session, is INFO rather than FAILED: the engine
+     A login means GraphQL is served and the lane runs at full fidelity. A `403` is INFO rather
+     than FAILED: the engine
      re-sources its pull-request reads over REST by itself and keeps running. Report the one thing
      the operator loses, because it is the thing that stops merges: review-thread **resolution** has
      no REST equivalent, so the merge gate reports `threadResolutionProven: false` and holds every

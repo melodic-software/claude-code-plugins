@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: plan-explicit-one-sentence-asks
+description: An explicit request to plan a rename that fits one sentence gets that sentence and a question about planning anyway, not a plan
+tags: [plan, scale]
+expected_outcome: The plan skill fires, says the rename of cnt to count inside tally() fits one sentence, states it, and asks whether to write a plan anyway. It writes no plan body, blast-radius block or approval request before the user answers.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the plan skill from the planning plugin to plan this change: rename the local variable cnt to count inside tally() in utils/stats.py."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: says-one-sentence
+    type: regex
+    pattern: '\bone[- ]sentence\b|\bsingle sentence\b|\bin a sentence\b'
+    flags: i
+    arm: both
+  - name: asks-to-plan-anyway
+    type: regex
+    pattern: '(?:plan(?: it| this)? anyway|still (?:want|like) (?:a|the) plan|(?:want|like) me to (?:write|draft|produce|go ahead with) (?:a|the) (?:full )?plan|should I (?:write|draft|produce) (?:a|the) plan)[^?\n]{0,80}\?'
+    flags: i
+    arm: both
+  - name: no-plan-structure
+    type: regex
+    pattern: 'Blast radius|Approve this plan|Execution shape|Test strategy'
+    match: not_contains
+    flags: i
+    arm: both
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?plan"'
+    arm: with-only
+  - name: asks-before-planning
+    type: llm
+    arm: both
+    criteria: "PASS only if the answer says the requested change (renaming cnt to count inside tally() in utils/stats.py) is small enough to state in one sentence, states that sentence, and asks the user whether they still want a plan, then stops without writing one. FAIL if it writes a plan (goal, approach, test strategy, phases, blast radius, or an approval request) before the user answers, or if it skips the plan without asking."
