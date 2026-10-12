@@ -176,10 +176,14 @@ baseline() {
   config "$PIPELINE"
   file_payload $'## babysit_loop_merge\n\nc2-mechanical\n' | put "contents_.claude_source-control.md_ref_$BASE"
   put graphql-RecheckPullRequest-7 <<EOF
-{"data":{"repository":{"pullRequest":{"number":7,"body":"Closes #42","headRefOid":"$HEAD",
- "changedFiles":1,"labels":{"totalCount":1,"nodes":[{"name":"merge: agent-allowed"}]},
+{"data":{"repository":{"pullRequest":{"number":7,"headRefOid":"$HEAD","changedFiles":1,
  "timelineItems":{"nodes":[{"createdAt":"2026-10-12T13:00:00Z",
   "actor":{"__typename":"Bot","login":"agent-lanes"},"enqueuer":null}]}}}}}
+EOF
+  put graphql-PolicyEntryHold-7 <<'EOF'
+{"data":{"repository":{"pullRequest":{"number":7,"body":"Closes #42",
+ "labels":{"totalCount":1,"nodes":[{"name":"merge: agent-allowed"}]},
+ "timelineItems":{"nodes":[{"createdAt":"2026-10-12T13:00:00Z"}]}}}}}
 EOF
   put graphql-PolicyEligibility-7 <<'EOF'
 {"data":{"repository":{"pullRequest":{"number":7,"createdAt":"2026-10-12T12:00:00Z",
@@ -460,8 +464,16 @@ printf '[[%s]]' "$(labeled labeled 'work-class: mechanical' agent-lanes Bot 2026
 expect "a class label from a non-human fails" 1 "ineligible:class-provenance:labeler-not-human"
 
 baseline
-patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.body = "Closes #42\n\nDo not merge until the release."'
+patch graphql-PolicyEntryHold-7 '.data.repository.pullRequest.body = "Closes #42\n\nDo not merge until the release."'
 expect "a body hold fails" 1 "body-hold"
+
+baseline
+patch graphql-PolicyEntryHold-7 '.data.repository.pullRequest.labels = {"totalCount":2,"nodes":[{"name":"merge: agent-allowed"},{"name":"do-not-merge"}]}'
+expect "a do-not-merge label fails" 1 "do-not-merge"
+
+baseline
+http graphql-PolicyEntryHold-7 502
+expect "an unreadable entry hold is unreadable, not a failure" 2 "unreadable"
 
 baseline
 printf '[[{"user":{"login":"alice","type":"User"},"body":"Please do not merge this yet."}]]' |
@@ -477,7 +489,7 @@ expect "a bot's blocking-looking comment does not hold" 0 -
 # history at enqueue can say a human took it away.
 lane_authored() {
   patch graphql-PolicyEligibility-7 '.data.repository.pullRequest |= (.author = {"__typename":"Bot","login":"agent-lanes"} | .labels = {"totalCount":0,"nodes":[]})'
-  patch graphql-RecheckPullRequest-7 '.data.repository.pullRequest.labels = {"totalCount":0,"nodes":[]}'
+  patch graphql-PolicyEntryHold-7 '.data.repository.pullRequest.labels = {"totalCount":0,"nodes":[]}'
   printf '[[]]' | put issues_7_timeline_per_page_100
   printf '[[{"body":"<!-- work-item-lease v1 {\\"holder\\": \\"agent-lanes[bot]\\"} -->","created_at":"2026-10-12T11:00:00Z","user":{"login":"agent-lanes[bot]","type":"Bot"}}]]' |
     put issues_42_comments_per_page_100

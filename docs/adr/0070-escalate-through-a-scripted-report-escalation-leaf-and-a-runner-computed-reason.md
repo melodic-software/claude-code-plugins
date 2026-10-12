@@ -60,5 +60,5 @@ point 4).
   trigger to start a run on the new head
   ([#7172](https://github.com/melodic-software/claude-code-plugins/pull/7172)).
 - The job runs under `!cancelled()`, not the default `success()`, so a later red step in the
-  `resolve-conflicts` run, such as the revoke step, still escalates
+  `resolve-conflicts` run, such as a failed verdict upload, still escalates
   ([#7227](https://github.com/melodic-software/claude-code-plugins/pull/7227)).

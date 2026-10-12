@@ -54,7 +54,7 @@ No workflow holds the App key. A write activity gets its token from a broker:
    `DELETE /installation/token`, then calls `GET /installation/repositories` with it, and fails red
    unless they return 204 and then 401. It is a backstop for an honest activity that did not clean
    up, not a control against a hostile one: the activity holds the token and can write the
-   runner's files.
+   runner's files. (Amended 2026-10-12 below: the step no longer fails the job.)
 6. `pr-run-activity-read.yml` is unchanged: no key, no `id-token`, no broker call. Its guarantee is
    structural, so it stays. (Amended 2026-10-11 below: a separate job now calls the broker.)
 
@@ -145,3 +145,18 @@ from its own run attempt, and still holds no key and no OIDC token, so the struc
 point 6 holds for the job that runs head code. Any broker answer but an allow fails the check.
 `scripts/check-read-caller-keys.sh` allows `id-token` in the read file only in that job and checks
 its shape. The contract is in `pr-run-activity.md`, "The broker-check job".
+
+## Amendment (2026-10-12): the revoke step never fails the job
+
+Point 5's read-back failed 2 of 7 live pr-unblock runs where `DELETE /installation/token` returned
+204 and an immediate `GET /installation/repositories` still returned 200. A backstop should not
+turn a run red, so the step now sets `continue-on-error: true`. Basis: issue
+[#7319](https://github.com/melodic-software/claude-code-plugins/issues/7319) and pr-unblock runs
+[38264027753](https://github.com/melodic-software/claude-code-plugins/actions/runs/38264027753) and
+[38273508717](https://github.com/melodic-software/claude-code-plugins/actions/runs/38273508717),
+each red only on this step.
+
+A green lane check is therefore no proof the token was revoked. Annotations report only failure
+or uncertainty: a DELETE other than 204 is a warning, and a 204 whose read-back is not 401 is a
+notice. A confirmed revoke, 204 then 401, raises no annotation and is recorded in the step log.
+The contract is in `pr-run-activity.md`, run job step 14.

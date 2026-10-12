@@ -8,8 +8,11 @@ request's eligibility, and whether an earlier unattended merge is still in
 flight. Every reader fails closed: an unreadable or unexpected answer is off,
 refuse or not clear, never permissive.
 
-`resolve()`, which `babysit_merge.py` calls, returns `assess()`, which composes
-the readers and never enables the path: no merge is connected to them yet.
+`assess()` composes the readers for one pull request in the wiring order and
+is what `babysit_merge.py --unattended` builds its decision on; it takes the
+post-merge check as a callable, because that module depends on this one.
+`resolve()` reads only the config, for the plain `--merge` refusal of the
+agent identity.
 
 `recheck` (the CLI, `recheck()` here) is the merge-group backstop that
 pr-require-checks.yml's `unattended-recheck` job runs from the queue's base: it
@@ -34,7 +37,7 @@ import re
 import sys
 import tempfile
 from collections.abc import Callable, Collection, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -63,7 +66,9 @@ from babysit_util import (
 )
 
 AUTHORITY_UNCONFIGURED = "authority-unconfigured"
-MERGE_UNCONNECTED = "merge-unconnected"
+DEFAULT_BRANCH_UNREADABLE = "default-branch-unreadable"
+# `resolve()` reads only the config: it names the identity, never permits.
+NOT_ASSESSED = "not-assessed"
 
 CONFIG_PATH = "docs/conventions/pr-pipeline.yaml"
 SOURCE_CONTROL_PATH = repo_config.CONFIG_PATH
@@ -106,10 +111,10 @@ SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 # C0 and C1 controls and the Unicode line and paragraph separators.
 _SEPARATOR = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 WRITE_PERMISSIONS = frozenset({"admin", "write"})
-# The merged-PR read for the in-flight rule: pages of 100, at most 10 pages.
+# The merged-PR read for the in-flight rule: pages of 100, at most 30 pages (about five weeks of merges here).
 # A history it cannot read to its end (or to the merged-since floor) is not clear.
 MERGED_PAGE_SIZE = 100
-MERGED_PAGE_LIMIT = 10
+MERGED_PAGE_LIMIT = 30
 # The demotion candidates read per filer: at most 10 pages of 100 issues. A
 # filer whose issues run past it holds the rung off.
 ISSUES_PAGE_LIMIT = 10
@@ -121,36 +126,60 @@ class PolicyReadError(RuntimeError):
 
 @dataclass(frozen=True)
 class UnattendedPolicy:
-    """The unattended merge policy for one repository.
+    """The unattended merge policy for one pull request.
 
-    `reason` names the refusal that keeps the path inert; only None enables it,
-    and it has no default, so no policy is enabled by omission.
-    `agent_identity` is the configured `merge.agent-identity` login, stripped of
-    surrounding whitespace, or None when unset or blank. `details` carries the
-    readers' answers for the report.
+    `reason` names the first refusal of an unattended merge; only None lets
+    one proceed, and it has no default, so no policy permits a merge by
+    omission. `enabled` (Design T20) means the path is configured and no
+    identity, credential, kill-switch or post-merge refusal stands; left None
+    it follows `reason`. `promoted` is the promotion-evidence read for the
+    pull request's class, None when not read; a merge needs both.
+    `agent_identity` is the configured `merge.agent-identity` login, stripped
+    of surrounding whitespace, or None when unset or blank. `details` carries
+    the readers' answers for the report; `inputs` carries what the later steps
+    (evidence, score, enqueue) read, and is not reported.
     """
 
     reason: str | None
     agent_identity: str | None = None
     details: Mapping[str, Any] | None = None
+    enabled: bool | None = None
+    promoted: bool | None = None
+    inputs: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         identity = (self.agent_identity or "").strip() or None
         object.__setattr__(self, "agent_identity", identity)
-
-    @property
-    def enabled(self) -> bool:
-        return self.reason is None
+        if self.enabled is None:
+            object.__setattr__(self, "enabled", self.reason is None)
 
     def report(self) -> dict[str, Any]:
-        return {"enabled": self.enabled, "reason": self.reason, **(self.details or {})}
+        return {
+            "enabled": self.enabled,
+            "promoted": self.promoted,
+            "reason": self.reason,
+            **(self.details or {}),
+        }
 
 
-def resolve(repo: str) -> UnattendedPolicy:
-    """The unattended policy for `repo` at its default branch head: `assess()`,
-    so inert in every case. Raises `PolicyReadError` when the pipeline config
-    cannot be read or parsed."""
-    return assess(repo)
+def resolve(repo: str, number: int | None = None) -> UnattendedPolicy:
+    """The configured agent identity, for the plain `--merge` refusal: the
+    pipeline config at the pull request's base SHA (the default branch head
+    without a number). It never permits a merge. Raises `PolicyReadError`
+    when the pipeline config cannot be read or parsed."""
+    if number is None:
+        _, sha = _default_branch_head(repo)
+    else:
+        sha = str(json_object(pull_request(repo, number).get("base")).get("sha"))
+    config = read_config_at(repo, sha)
+    if config.error:
+        raise PolicyReadError(f"{CONFIG_PATH} at {sha}: {config.error}")
+    reason = (
+        NOT_ASSESSED
+        if (config.authority or "pr-merge") == "local-babysit"
+        else AUTHORITY_UNCONFIGURED
+    )
+    return UnattendedPolicy(reason, config.agent_identity, enabled=False)
 
 
 # --- Bash, for the shared YAML reader -----------------------------------------
@@ -670,7 +699,7 @@ DEMOTION_RECORD = (
     "author{__typename login} "
     "userContentEdits(first:100){totalCount nodes{editedAt deletedAt editor{__typename login} diff}} "
     "timelineItems(itemTypes:[CLOSED_EVENT],last:1){nodes{... on ClosedEvent{"
-    "actor{__typename login} closer{__typename}}}}}}}"
+    "createdAt actor{__typename login} closer{__typename}}}}}}}"
 )
 
 
@@ -679,6 +708,11 @@ class Demotion:
     active: bool
     reason: str | None
     records: tuple[int, ...]
+    # The newest record's creation, which restarts the promotion evidence
+    # window, and the newest human close among cleared records, which restarts
+    # the post-merge floor. Read only while no record holds.
+    newest_created: datetime | None = None
+    cleared_at: datetime | None = None
 
 
 def _candidate_issues(owner: str, name: str, filer: str) -> list[int]:
@@ -777,6 +811,8 @@ def read_demotion(
         permission=permission,
     )
     records: list[int] = []
+    created: list[datetime] = []
+    cleared: list[datetime] = []
     try:
         candidates = sorted(
             {n for f in filers for n in _candidate_issues(owner, name, f)}
@@ -806,9 +842,18 @@ def read_demotion(
             hold = _record_hold(issue, human)
             if hold:
                 return Demotion(True, f"#{number} {hold}", tuple(records))
+            created.append(_time(issue.get("createdAt")))
+            closes = json_array(json_object(issue.get("timelineItems")).get("nodes"))
+            cleared.append(_time(json_object(closes[-1]).get("createdAt")))
     except PolicyReadError as exc:
         return Demotion(True, f"demotion-unreadable: {exc}", tuple(records))
-    return Demotion(False, None, tuple(records))
+    return Demotion(
+        False,
+        None,
+        tuple(records),
+        max(created, default=None),
+        max(cleared, default=None),
+    )
 
 
 # --- Identity -----------------------------------------------------------------------------
@@ -852,6 +897,40 @@ def read_acting_login() -> str:
     return login
 
 
+def credential_refusal(identity: str) -> str | None:
+    """Why the session's gh credentials refuse the unattended path, or None.
+
+    `gh auth status --json hosts` must list, on every host, only the agent
+    identity: any other account listed (active or not) refuses, and so does
+    an entry with no login that is not the active one. The active github.com
+    entry must be the identity; when gh names no login for it (an App
+    installation token), `resolve_identity`'s acting-login read decides. A
+    session that holds only the identity cannot act as a human anywhere, a
+    thread resolution included."""
+    try:
+        proc = gh_capture(["auth", "status", "--json", "hosts"])
+        hosts = json.loads(proc.stdout) if proc.returncode == 0 else None
+    except (RuntimeError, ValueError, OSError):
+        hosts = None
+    hosts = json_object(json_object(hosts).get("hosts"))
+    entries = [
+        json_object(e) for accounts in hosts.values() for e in json_array(accounts)
+    ]
+    if not entries:
+        return "credentials-unreadable"
+    wanted = identity.strip().casefold()
+    active = 0
+    for entry in entries:
+        login = str(entry.get("login") or "").strip().casefold()
+        if login and login != wanted:
+            return "other-account-listed"
+        if entry.get("active") is True:
+            active += entry.get("host") == "github.com"
+        elif not login:
+            return "unknown-account-listed"
+    return None if active == 1 else "identity-not-active"
+
+
 # --- Eligibility --------------------------------------------------------------------------
 
 ELIGIBILITY = (
@@ -891,15 +970,12 @@ def _label_provenance(
     timelines: dict[int, list[dict[str, Any]]],
 ) -> str | None:
     """Why `label` on `number` is not trusted: its latest `labeled` event must
-    come from a human, and the body must not be edited after it."""
-    if number not in timelines:
-        timelines[number] = _paginated(
-            f"repos/{owner}/{name}/issues/{number}/timeline?per_page=100",
-            f"#{number} timeline",
-        )
+    come from a human acting in person (no `performed_via_github_app`: an
+    agent driving a human's token through an App is not the human), and the
+    body must not be edited after it."""
     events = [
         e
-        for e in timelines[number]
+        for e in _timeline(owner, name, number, timelines)
         if e.get("event") == "labeled"
         and json_object(e.get("label")).get("name") == label
     ]
@@ -908,9 +984,44 @@ def _label_provenance(
     latest = max(events, key=lambda e: _time(e.get("created_at")))
     if not human(_rest_actor(latest.get("actor"))):
         return "labeler-not-human"
+    if latest.get("performed_via_github_app") is not None:
+        return "labeler-via-app"
     if edited_at and _time(edited_at) > _time(latest.get("created_at")):
         return "body-edited-after-label"
     return None
+
+
+def _timeline(
+    owner: str, name: str, number: int, timelines: dict[int, list[dict[str, Any]]]
+) -> list[dict[str, Any]]:
+    if number not in timelines:
+        timelines[number] = _paginated(
+            f"repos/{owner}/{name}/issues/{number}/timeline?per_page=100",
+            f"#{number} timeline",
+        )
+    return timelines[number]
+
+
+def _class_removed_by_non_human(
+    owner: str,
+    name: str,
+    number: int,
+    human: Callable[[Any], bool],
+    timelines: dict[int, list[dict[str, Any]]],
+) -> bool:
+    """A `work-class:` label was ever removed by a non-human, or through an
+    App: removing a stricter class can leave a lower one standing."""
+    return any(
+        e.get("event") == "unlabeled"
+        and str(json_object(e.get("label")).get("name") or "").startswith(
+            WORK_CLASS_PREFIX
+        )
+        and (
+            not human(_rest_actor(e.get("actor")))
+            or e.get("performed_via_github_app") is not None
+        )
+        for e in _timeline(owner, name, number, timelines)
+    )
 
 
 def _claimed_before(
@@ -958,9 +1069,10 @@ def eligibility(
     In order: not a fork; not a dependency manager's; authored by the agent
     identity, or carrying `merge: agent-allowed` from a human; exactly one
     linked issue, in this repository; a work class whose every `work-class:`
-    label a human applied (the agent identity never counts) with no body edit
-    after it, the strictest one counting; and, for a lane-authored PR, the
-    identity's claim on that issue predating the PR.
+    label a human applied in person (the agent identity never counts, nor an
+    App acting for a human) with no body edit after it, the strictest one
+    counting, and no `work-class:` label ever removed by a non-human; and, for
+    a lane-authored PR, the identity's claim on that issue predating the PR.
     """
     owner, name = _split_repo(repo)
     permission = permission or permission_reader(repo)
@@ -1041,6 +1153,8 @@ def eligibility(
             )
             if untrusted:
                 return Eligibility(False, f"class-provenance:{untrusted}")
+        if _class_removed_by_non_human(owner, name, issue_number, human, timelines):
+            return Eligibility(False, "class-label-removed-by-non-human")
         work_class = max(
             (WORK_CLASS_LABELS[label] for label in class_labels),
             key=lambda c: int(c[1]),
@@ -1065,8 +1179,9 @@ RECENT_MERGES_QUERY = (
     "query PolicyRecentMerges($o:String!,$r:String!,$b:String!,$c:String){"
     "repository(owner:$o,name:$r){pullRequests(baseRefName:$b,states:MERGED,"
     f"first:{MERGED_PAGE_SIZE},after:$c,orderBy:{{field:UPDATED_AT,direction:DESC}}){{"
-    "pageInfo{hasNextPage endCursor} nodes{number mergedAt updatedAt headRefOid "
-    "mergeCommit{oid} timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
+    "pageInfo{hasNextPage endCursor} nodes{number url mergedAt updatedAt headRefOid "
+    "mergedBy{__typename login} mergeCommit{oid} "
+    "timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
     "... on AddedToMergeQueueEvent{actor{__typename login} enqueuer{__typename login}}}}}}}}"
 )
 
@@ -1074,45 +1189,116 @@ RECENT_MERGES_QUERY = (
 def _merged_since(
     owner: str, name: str, branch: str, since: datetime
 ) -> list[dict[str, Any]] | None:
-    """Merged pull requests on `branch`, newest update first, read until one was
-    last updated before `since` (a merge updates the PR, so every PR merged
-    since then comes first) or the history ends. None when the page limit is
-    reached first."""
+    """Pull requests merged into `branch` at or after `since`, as the post-merge
+    check counts them. Read newest update first until one was last updated
+    before `since` (a merge updates the PR, so every PR merged since then comes
+    first) or the history ends; a PR merged earlier and updated since is
+    skipped. A PR updated mid-read jumps to page 1 and can slip past a walk of
+    more than one page, so page 1 is then read again: a merge there the walk
+    missed makes the history unreadable. None when the page limit is reached
+    first."""
     found: list[dict[str, Any]] = []
     cursor: str | None = None
-    for _ in range(MERGED_PAGE_LIMIT):
-        data = _graphql(
-            RECENT_MERGES_QUERY,
-            "merged pull requests",
-            o=owner,
-            r=name,
-            b=branch,
-            c=cursor,
-        )
-        page = json_object(json_object(data.get("repository")).get("pullRequests"))
-        info = page.get("pageInfo")
-        if not is_json_array(page.get("nodes")) or not is_json_object(info):
-            raise PolicyReadError("merged pull requests: no page")
-        for pr in map(json_object, page["nodes"]):
+    for pages in range(1, MERGED_PAGE_LIMIT + 1):
+        nodes, info = _merged_page(owner, name, branch, cursor)
+        done = False
+        for pr in nodes:
             if _time(pr.get("updatedAt")) < since:
-                return found
-            found.append(pr)
-        if not _has_next_page(info, "merged pull requests"):
-            return found
+                done = True
+                break
+            if _time(pr.get("mergedAt")) >= since:
+                found.append(pr)
+        if done or not _has_next_page(info, "merged pull requests"):
+            break
         cursor = info.get("endCursor")
         if not isinstance(cursor, str) or not cursor:
             raise PolicyReadError("merged pull requests: a next page with no cursor")
-    return None
+    else:
+        return None
+    if pages > 1:
+        numbers = {pr.get("number") for pr in found}
+        for pr in _merged_page(owner, name, branch, None)[0]:
+            if _time(pr.get("updatedAt")) < since:
+                break
+            if _time(pr.get("mergedAt")) >= since and pr.get("number") not in numbers:
+                raise PolicyReadError(
+                    "merged pull requests: the history changed while it was read"
+                )
+    return found
+
+
+def _merged_page(
+    owner: str, name: str, branch: str, cursor: str | None
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    data = _graphql(
+        RECENT_MERGES_QUERY, "merged pull requests", o=owner, r=name, b=branch, c=cursor
+    )
+    page = json_object(json_object(data.get("repository")).get("pullRequests"))
+    info = page.get("pageInfo")
+    if not is_json_array(page.get("nodes")) or not is_json_object(info):
+        raise PolicyReadError("merged pull requests: no page")
+    return [json_object(pr) for pr in page["nodes"]], info
 
 
 @dataclass(frozen=True)
 class AutoMerge:
-    """A merged pull request whose merge-queue enqueue was not a human's."""
+    """A merged pull request a human did not land: its merge-queue enqueue was
+    not a human's, or it bypassed the queue and its `mergedBy` is not human."""
 
     number: int
     merge_commit: str | None
     head_ref_oid: str | None
     merged_at: str | None
+    url: str | None = None
+    # The agent identity landed it, so the wrapper pinned its head; any other
+    # actor has no pin and verifies on the dispatch and canary runs alone.
+    by_identity: bool = False
+    queued: bool = True
+
+
+def actor_key(actor: Any) -> str:
+    """A GraphQL actor in REST spelling, compared exactly: a `Bot` login gains
+    the `[bot]` suffix GraphQL omits, and any other type keeps its login, so a
+    User who owns the bare slug `app` is never the App `app[bot]`."""
+    item = json_object(actor)
+    login = str(item.get("login") or "").strip().casefold()
+    if login and item.get("__typename") == "Bot" and not login.endswith("[bot]"):
+        login += "[bot]"
+    return login
+
+
+def derive_auto_merge(
+    pr: Mapping[str, Any], human: Callable[[Any], bool], identity: str
+) -> AutoMerge | str | None:
+    """The one derivation `in_flight` and the post-merge check share.
+
+    A merge whose latest `AddedToMergeQueueEvent` has a null or non-human
+    `actor` or `enqueuer` is an AutoMerge. A merge with no queue event bypassed
+    the queue: it is the warning `unqueued-merge:#N` when its `mergedBy` is
+    human, and an AutoMerge (`queued` False) when that is null or non-human.
+    A human enqueue is None."""
+    number = pr.get("number")
+    events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
+    if events:
+        event = json_object(events[-1])
+        actors = (event.get("actor"), event.get("enqueuer"))
+        if all(human(a) for a in actors):
+            return None
+    else:
+        actors = (pr.get("mergedBy"),)
+        if human(actors[0]):
+            return f"unqueued-merge:#{number}"
+    if not isinstance(number, int) or isinstance(number, bool):
+        raise PolicyReadError(f"merged pull request: no number {number!r}")
+    return AutoMerge(
+        number=number,
+        merge_commit=json_object(pr.get("mergeCommit")).get("oid"),
+        head_ref_oid=pr.get("headRefOid"),
+        merged_at=pr.get("mergedAt"),
+        url=pr.get("url"),
+        by_identity=identity.strip().casefold() in {actor_key(a) for a in actors},
+        queued=bool(events),
+    )
 
 
 @dataclass(frozen=True)
@@ -1156,8 +1342,8 @@ def in_flight(
     merged_since: datetime | None = None,
 ) -> InFlight:
     """Clear only when no merge-queue entry is the agent identity's and every
-    auto-merge (an enqueue whose event `actor` or `enqueuer` is null or
-    non-human) merged into `branch` since `merged_since` is verified. With no
+    auto-merge (`derive_auto_merge`: a non-human enqueue, or a queue-bypassing
+    merge by a non-human) merged into `branch` since `merged_since` is verified. With no
     floor it is not clear and reads nothing; a history the read cannot reach
     the floor or end of is not clear. `verified` judges one auto-merge;
     without it none is, so any auto-merge keeps the path not clear."""
@@ -1184,23 +1370,148 @@ def in_flight(
         if merges is None:
             return InFlight(False, "merged-history-truncated")
         for pr in merges:
-            events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
-            if not events:
+            merge = derive_auto_merge(pr, human, agent_identity)
+            if not isinstance(merge, AutoMerge):
                 continue
-            event = json_object(events[-1])
-            if human(event.get("actor")) and human(event.get("enqueuer")):
-                continue
-            merge = AutoMerge(
-                number=pr.get("number"),
-                merge_commit=json_object(pr.get("mergeCommit")).get("oid"),
-                head_ref_oid=pr.get("headRefOid"),
-                merged_at=pr.get("mergedAt"),
-            )
             if verified is None or not verified(merge):
                 return InFlight(False, f"unverified-auto-merge:#{merge.number}")
     except PolicyReadError as exc:
         return InFlight(False, f"unreadable: {exc}")
     return InFlight(True, None)
+
+
+# --- Holds on a queued entry -------------------------------------------------------------------
+
+ENTRY_HOLD_QUERY = (
+    "query PolicyEntryHold($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){number body labels(first:100){totalCount nodes{name}} "
+    "timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
+    "... on AddedToMergeQueueEvent{createdAt}}}}}}"
+)
+
+
+def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[str]:
+    """Logins of humans whose comment, review or inline comment on the pull
+    request reads as blocking, by the autopilot tier's predicates."""
+    from babysit_merge import HUMAN_MERGE_VETO_RE  # noqa: PLC0415 - import cycle
+
+    corpus = [
+        item
+        for kind in ("issues/{n}/comments", "pulls/{n}/reviews", "pulls/{n}/comments")
+        for item in _paginated(
+            f"repos/{owner}/{name}/{kind.format(n=number)}?per_page=100",
+            f"#{number} {kind.split('/')[-1]}",
+        )
+    ]
+    found = set()
+    for item in corpus:
+        author = _rest_actor(item.get("user"))
+        login = str((author or {}).get("login") or "")
+        if actor_kind({"author": author}) != "human" or _login_key(login) in {
+            _login_key(identity),
+            *AUTOMATION_LOGINS,
+        }:
+            continue
+        body = str(item.get("body") or "")
+        if (
+            has_blocking_text(body)
+            or has_blocking_severity(body)
+            or HUMAN_MERGE_VETO_RE.search(body)
+        ):
+            found.add(login or "unknown")
+    return sorted(found)
+
+
+def _opt_in_hold(
+    owner: str,
+    name: str,
+    pr: dict[str, Any],
+    enqueued_at: Any,
+    human: Callable[[Any], bool],
+) -> str | None:
+    """Why the opt-in label no longer stands as it did at enqueue: it was on
+    the pull request then and is gone now, or it changed since and its latest
+    application is not a human's in person (`_label_provenance`), so a
+    non-human cannot restore an opt-in a human revoked."""
+    labels = _label_names(pr)
+    if labels is None:
+        raise PolicyReadError(f"#{pr.get('number')}: labels unreadable")
+    number = int(pr.get("number") or 0)
+    at = _time(enqueued_at)
+    timelines: dict[int, list[dict[str, Any]]] = {}
+    events = sorted(
+        (
+            e
+            for e in _timeline(owner, name, number, timelines)
+            if e.get("event") in ("labeled", "unlabeled")
+            and json_object(e.get("label")).get("name") == OPT_IN_LABEL
+        ),
+        key=lambda e: _time(e.get("created_at")),
+    )
+    present = False
+    for event in events:
+        if _time(event.get("created_at")) > at:
+            break
+        present = event.get("event") == "labeled"
+    if OPT_IN_LABEL not in labels:
+        return "opt-in-label-removed" if present else None
+    # The label read and the timeline read are not atomic: a removal the
+    # timeline already shows wins over the label snapshot.
+    if events and events[-1].get("event") == "unlabeled":
+        return "opt-in-label-removed"
+    if not any(_time(e.get("created_at")) > at for e in events):
+        return None
+    untrusted = _label_provenance(
+        owner, name, number, OPT_IN_LABEL, None, human, timelines
+    )
+    return f"opt-in-label:{untrusted}" if untrusted else None
+
+
+def entry_hold(
+    repo: str,
+    number: int,
+    identity: str,
+    *,
+    self_logins: Collection[str] = frozenset(),
+    permission: Permission | None = None,
+) -> str | None:
+    """Why a queued entry of the agent identity must leave the queue (D3): the
+    `do-not-merge` label, a body hold, a human blocking comment, or the opt-in
+    label removed since the enqueue or put back by a non-human. An unreadable
+    entry is a hold."""
+    from babysit_merge import BODY_MERGE_HOLD_RE, MERGE_HOLD_LABEL  # noqa: PLC0415
+
+    owner, name = _split_repo(repo)
+    permission = permission or permission_reader(repo)
+    human = lambda actor: is_human(  # noqa: E731
+        actor,
+        repo=repo,
+        agent_identity=identity,
+        self_logins=self_logins,
+        permission=permission,
+    )
+    try:
+        data = _graphql(ENTRY_HOLD_QUERY, f"#{number}", o=owner, r=name, n=number)
+        pr = json_object(json_object(data.get("repository")).get("pullRequest"))
+        labels = _label_names(pr)
+        events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
+        if labels is None or not events:
+            return "unreadable"
+        if any(label.casefold() == MERGE_HOLD_LABEL for label in labels):
+            return MERGE_HOLD_LABEL
+        if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
+            return "body-hold"
+        blockers = _human_blockers(owner, name, number, identity)
+        if blockers:
+            return f"human-blocking-comment:{','.join(blockers)}"
+        opt_in = _opt_in_hold(
+            owner, name, pr, json_object(events[-1]).get("createdAt"), human
+        )
+        if opt_in:
+            return opt_in
+    except PolicyReadError as exc:
+        return f"unreadable: {exc}"
+    return None
 
 
 # --- Composition ------------------------------------------------------------------------------
@@ -1230,125 +1541,75 @@ def _default_branch_head(repo: str) -> tuple[str, str]:
     return branch, sha
 
 
-def assess(
-    repo: str,
-    *,
-    base_sha: str | None = None,
-    pr_number: int | None = None,
-    acting_login: str | None = None,
-    self_logins: Collection[str] = frozenset(),
-    verified: Callable[[AutoMerge], bool] | None = None,
-) -> UnattendedPolicy:
-    """The readers composed into one policy, always inert in this version.
+def pull_request(repo: str, number: int) -> dict[str, Any]:
+    """The pull request's REST record, with a base and head SHA that are full
+    commit ids."""
+    owner, name = _split_repo(repo)
+    status, payload = _get(f"repos/{owner}/{name}/pulls/{number}")
+    pr = json_object(payload) if status == 200 else {}
+    base, head = json_object(pr.get("base")), json_object(pr.get("head"))
+    if not (
+        SHA_RE.fullmatch(str(base.get("sha")))
+        and SHA_RE.fullmatch(str(head.get("sha")))
+        and isinstance(base.get("ref"), str)
+        and isinstance(head.get("ref"), str)
+    ):
+        raise PolicyReadError(f"#{number} could not be read (status {status})")
+    return pr
 
-    The reason names the first reader that refuses, in order: authority,
-    identity, kill switch, effective rung, in flight, then the pull request's
-    eligibility and its work class against the rung when `pr_number` is given;
-    with none refusing it is
-    `merge-unconnected`. Raises `PolicyReadError` when the pipeline config
-    cannot be read or parsed, because the agent identity is then unknown.
 
-    `self_logins` names only lane or bot self identities (see `is_human`); it
-    reaches every human test. `verified` judges one auto-merge for `in_flight`;
-    without it every auto-merge counts as unverified.
-    """
-    branch, head = _default_branch_head(repo)
-    sha = base_sha or head
-    config = read_config_at(repo, sha)
-    if config.error:
-        raise PolicyReadError(f"{CONFIG_PATH} at {sha}: {config.error}")
-    identity = config.agent_identity
-    if (config.authority or "pr-merge") != "local-babysit":
-        return UnattendedPolicy(AUTHORITY_UNCONFIGURED, identity)
-    if acting_login is None:
-        try:
-            acting_login = read_acting_login()
-        except PolicyReadError:
-            acting_login = None
-    resolved = resolve_identity(identity, acting_login, self_logins)
-    if resolved.reason:
-        return UnattendedPolicy(resolved.reason, identity)
+# --- The post-merge floor -----------------------------------------------------------------------
 
-    permission = permission_reader(repo)
-    readers = {
-        "agent_identity": identity,
-        "self_logins": self_logins,
-        "permission": permission,
-    }
-    kill = read_kill_switch(repo)
-    cap = read_rung_cap(repo)
-    demotion = read_demotion(repo, **readers)
-    rung = effective_rung(
-        config_rung=config.rung,
-        loop_merge=config.loop_merge,
-        cap=cap.value,
-        demoted=demotion.active,
+# The pipeline file's commits read for the enabling commit: one page. A run of
+# enabled commits longer than that has no readable start, which refuses.
+CONFIG_HISTORY_LIMIT = 100
+
+
+def enabled_since(repo: str, base_sha: str) -> datetime:
+    """When the unattended path's current enabled run began: the committer
+    date of the oldest commit in the unbroken run of pipeline-file commits,
+    newest first from `base_sha`, whose config sets `merge.authority:
+    local-babysit`. A later edit that keeps it enabled does not move the
+    floor, so no merge since enabling escapes the check. Commits reach the
+    default branch through the merge queue, whose squash commits GitHub dates.
+    Raises `PolicyReadError` when no start can be read."""
+    owner, name = _split_repo(repo)
+    status, commits = _get(
+        f"repos/{owner}/{name}/commits?sha={base_sha}"
+        f"&path={quote(CONFIG_PATH, safe='')}&per_page={CONFIG_HISTORY_LIMIT}"
     )
-    flight = in_flight(repo, **readers, verified=verified, branch=branch)
-    eligible = (
-        eligibility(repo, pr_number, **readers) if pr_number is not None else None
-    )
-    details = {
-        "baseSha": sha,
-        "rung": rung.rung,
-        "rungInputs": dict(rung.inputs),
-        "killSwitch": {"proceed": kill.proceed, "reason": kill.reason},
-        "rungCap": {"value": cap.value, "reason": cap.reason},
-        "demotion": {
-            "active": demotion.active,
-            "reason": demotion.reason,
-            "records": list(demotion.records),
-        },
-        "identity": resolved.login,
-        "inFlight": {"clear": flight.clear, "reason": flight.reason},
-        "eligibility": None
-        if eligible is None
-        else {
-            "eligible": eligible.eligible,
-            "reason": eligible.reason,
-            "workClass": eligible.work_class,
-        },
-    }
-    refusals = (
-        (not kill.proceed, f"kill-switch:{kill.reason}"),
-        (rung.rung == "off", f"rung-off:{rung.limited_by}"),
-        (not flight.clear, f"in-flight:{flight.reason}"),
-        (
-            eligible is not None and not eligible.eligible,
-            f"ineligible:{eligible and eligible.reason}",
-        ),
-        # The rung is a work-class ceiling: C4 and C5 never merge unattended.
-        (
-            eligible is not None
-            and eligible.eligible
-            and CLASS_RANK.get(eligible.work_class or "", 99) > RUNG_RANK[rung.rung],
-            f"class-above-rung:{eligible and eligible.work_class}>{rung.rung}",
-        ),
-    )
-    reason = next((text for refused, text in refusals if refused), MERGE_UNCONNECTED)
-    return UnattendedPolicy(reason, identity, details)
+    if status != 200 or not is_json_array(commits) or not commits:
+        raise PolicyReadError(f"{CONFIG_PATH} history could not be read")
+    start: dict[str, Any] | None = None
+    for commit in map(json_object, commits):
+        sha = str(commit.get("sha"))
+        config = read_config_at(repo, sha)
+        if config.error or (config.authority or "pr-merge") != "local-babysit":
+            break
+        start = commit
+    else:
+        if len(commits) >= CONFIG_HISTORY_LIMIT:
+            raise PolicyReadError(
+                f"more than {CONFIG_HISTORY_LIMIT} enabled {CONFIG_PATH} commits"
+            )
+    if start is None:
+        raise PolicyReadError(f"{CONFIG_PATH} at {base_sha} does not enable the path")
+    committer = json_object(json_object(start.get("commit")).get("committer"))
+    return _time(str(committer.get("date")).replace("Z", "+00:00"))
 
 
-# --- The merge-group recheck ------------------------------------------------------------------
-
-RECHECK_PASS, RECHECK_FAIL, RECHECK_UNREADABLE = 0, 1, 2
-RECHECK_PULL_REQUEST = (
-    "query RecheckPullRequest($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){number body headRefOid changedFiles "
-    "labels(first:100){totalCount nodes{name}} "
-    "timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
-    "... on AddedToMergeQueueEvent{createdAt actor{__typename login} "
-    "enqueuer{__typename login}}}}}}}"
-)
-# Scorer reasons that come from the review lanes' evidence. The wrapper binds
-# that evidence to the head before it enqueues; a merge group has none to bind.
-LANE_REASON_CODES = ("evidence-unbound:", "findings:claude-review", "security-finding")
+def merged_since_floor(repo: str, base_sha: str, demotion: Demotion) -> datetime:
+    """The post-merge floor: the later of the enabling commit and the newest
+    human close of a demotion record, so a human clear restarts the window
+    and a deleted or transferred record moves nothing. Raises
+    `PolicyReadError` when the enabling commit cannot be read."""
+    floor = enabled_since(repo, base_sha)
+    if demotion.cleared_at is not None:
+        floor = max(floor, demotion.cleared_at)
+    return floor
 
 
-@dataclass(frozen=True)
-class Recheck:
-    code: int
-    reasons: tuple[str, ...]
+# --- Changed files with git modes -------------------------------------------------------------
 
 
 def _tree_modes(owner: str, name: str, sha: str) -> dict[str, str] | None:
@@ -1368,8 +1629,8 @@ def _changed_files(
     owner: str, name: str, pr: dict[str, Any], base_sha: str
 ) -> tuple[tuple[ChangedFile, ...], bool]:
     """The pull request's files with git modes from the trees API (the files
-    API carries none): the head side at its head, the previous side at the
-    queue base. Complete only when every listing reads to its end."""
+    API carries none): the head side at its head, the previous side at
+    `base_sha`. Complete only when every listing reads to its end."""
     number, head = pr.get("number"), pr.get("headRefOid")
     if not SHA_RE.fullmatch(str(head)):
         raise PolicyReadError(f"#{number}: no head commit")
@@ -1405,6 +1666,381 @@ def _changed_files(
     return tuple(files), complete
 
 
+def changed_files(
+    repo: str, pr: Mapping[str, Any]
+) -> tuple[tuple[ChangedFile, ...], bool]:
+    """`_changed_files` for a REST pull request record, the previous side read
+    at its base SHA."""
+    owner, name = _split_repo(repo)
+    shaped = {
+        "number": pr.get("number"),
+        "headRefOid": json_object(pr.get("head")).get("sha"),
+        "changedFiles": pr.get("changed_files"),
+    }
+    return _changed_files(
+        owner, name, shaped, str(json_object(pr.get("base")).get("sha"))
+    )
+
+
+# --- Promotion evidence -----------------------------------------------------------------------
+
+PLUGIN_NAME = "source-control"
+# Resolver flag -> the babysit-loop plugin option that names its surface.
+PROMOTION_OPTIONS = {
+    "--binding": "promotion_evidence_binding",
+    "--probe-evidence-root": "promotion_evidence_root",
+    "--evidence": "promotion_evidence_source",
+    "--checker": "promotion_evidence_checker",
+}
+PROMOTION_RESOLVER = (
+    Path(__file__).resolve().parents[2]
+    / "babysit-loop"
+    / "scripts"
+    / "resolve-promotion-evidence.mjs"
+)
+PROMOTABLE_CELLS = ("C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking")
+# The cells a work class needs effective-promoted (promotion-evidence-resolution.md
+# "Promotable cells and rung mapping"); C4 and C5 have none and never merge.
+CLASS_CELLS = {
+    "C1": ("C2-auto-merge",),
+    "C2": ("C2-auto-merge",),
+    "C3": PROMOTABLE_CELLS,
+}
+
+
+def managed_settings_files() -> list[Path]:
+    """The platform's managed settings file and its `managed-settings.d/`
+    drop-ins, at fixed paths no repository or environment can redirect.
+
+    - Pointer: when checking the managed-settings paths, fetch
+      https://code.claude.com/docs/en/managed-settings#deploy-a-managed-settings-file
+      live.
+    - As of: 2026-10-12.
+    - Recheck trigger: that section moves a platform's managed-settings path or
+      the drop-in directory.
+    """
+    if sys.platform == "darwin":
+        base = Path("/Library/Application Support/ClaudeCode/managed-settings.json")
+    elif sys.platform == "win32":
+        base = Path(r"C:\Program Files\ClaudeCode\managed-settings.json")
+    elif sys.platform.startswith("linux"):
+        base = Path("/etc/claude-code/managed-settings.json")
+    else:
+        return []
+    drop_ins = base.parent / "managed-settings.d"
+    extra = sorted(drop_ins.glob("*.json")) if drop_ins.is_dir() else []
+    return [path for path in (base, *extra) if path.is_file()]
+
+
+def _lane_writable(path: Path) -> bool:
+    """The lane user can write the file, or replace it through its directory."""
+    if os.access(path, os.W_OK) or os.access(path.parent, os.W_OK):
+        return True
+    getuid = getattr(os, "getuid", None)
+    return getuid is not None and path.stat().st_uid == getuid()
+
+
+def read_promotion_options(
+    settings_file: Path | None,
+    *,
+    managed: Callable[[], list[Path]] = managed_settings_files,
+    writable: Callable[[Path], bool] = _lane_writable,
+) -> tuple[dict[str, str] | None, str | None]:
+    """The four bootstrap option values from `pluginConfigs` in managed
+    settings, plus the executor-owned `--settings` file the operator names,
+    never from argv or the environment. A source the lane user can write
+    refuses, as do conflicting values and an unset option."""
+    sources = managed() + ([settings_file] if settings_file is not None else [])
+    found: dict[str, str] = {}
+    for path in sources:
+        try:
+            if writable(path):
+                return None, f"settings-lane-writable:{path}"
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None, f"settings-unreadable:{path}"
+        for key, entry in json_object(json_object(data).get("pluginConfigs")).items():
+            if key != PLUGIN_NAME and not key.startswith(f"{PLUGIN_NAME}@"):
+                continue
+            options = json_object(json_object(entry).get("options"))
+            for option in PROMOTION_OPTIONS.values():
+                value = options.get(option)
+                if value in (None, ""):
+                    continue
+                if (
+                    not isinstance(value, str)
+                    or found.setdefault(option, value) != value
+                ):
+                    return None, f"option-conflict:{option}"
+    missing = [o for o in PROMOTION_OPTIONS.values() if o not in found]
+    if missing:
+        return None, "options-unset:" + ",".join(missing)
+    return found, None
+
+
+@dataclass(frozen=True)
+class Promotion:
+    """Each promotable cell's effective state, or the fail-closed reason."""
+
+    cells: Mapping[str, str] | None
+    reason: str | None
+
+    def promoted(self, work_class: str | None) -> bool:
+        needed = CLASS_CELLS.get(work_class or "")
+        return bool(
+            self.cells
+            and needed
+            and all(self.cells.get(cell) == "promoted" for cell in needed)
+        )
+
+
+def read_promotion(
+    *,
+    settings_file: Path | None,
+    checkout: Path,
+    window_start: datetime | None,
+    options: tuple[dict[str, str] | None, str | None] | None = None,
+) -> Promotion:
+    """Run the babysit-loop promotion resolver on the bootstrap surfaces.
+
+    The evidence the resolver reads is a copy written outside `checkout`: the
+    source's events plus, when a demotion record exists, one `gate-failure`
+    per promotable cell at the newest record's creation. That restarts the
+    evidence window: a cell stays unpromoted until it is re-ratified after the
+    demotion. No source event is dropped. Anything doubtful is unpromoted."""
+    values, reason = options or read_promotion_options(settings_file)
+    if values is None:
+        return Promotion(None, reason)
+    try:
+        events = json.loads(
+            Path(values["promotion_evidence_source"]).read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return Promotion(None, "evidence-unreadable")
+    if not isinstance(events, list):
+        return Promotion(None, "evidence-not-an-array")
+    if window_start is not None:
+        at = window_start.isoformat()
+        events = [
+            *events,
+            *(
+                {"cell": cell, "event": "gate-failure", "at": at}
+                for cell in PROMOTABLE_CELLS
+            ),
+        ]
+    with tempfile.TemporaryDirectory() as tmp:
+        copy = Path(tmp).resolve() / "promotion-evidence.json"
+        if copy.is_relative_to(checkout.resolve()):
+            return Promotion(None, "evidence-copy-inside-checkout")
+        copy.write_text(json.dumps(events), encoding="utf-8")
+        argv = ["node", str(PROMOTION_RESOLVER), "--checkout", str(checkout)]
+        for flag, option in PROMOTION_OPTIONS.items():
+            argv += [flag, str(copy) if flag == "--evidence" else values[option]]
+        try:
+            proc = run_command(argv, allowed_executables=("node",), check=False)
+            result = json_object(json.loads(proc.stdout))
+        except (RuntimeError, ValueError, OSError) as exc:
+            return Promotion(None, f"resolver-failed: {exc}")
+    if proc.returncode != 0 or result.get("failClosedReason") is not None:
+        return Promotion(None, str(result.get("failClosedReason") or "resolver-failed"))
+    cells = {
+        cell: json_object(state).get("effective")
+        for cell, state in json_object(result.get("cells")).items()
+    }
+    return Promotion({c: str(v) for c, v in cells.items()}, None)
+
+
+@dataclass(frozen=True)
+class PostMergeGate:
+    """The post-merge check's answer, as `assess()` consumes it: a refusal
+    (a failure or an unreadable verdict) or None, the verdict's report, and
+    the `verified` callable `in_flight` judges each auto-merge with."""
+
+    refusal: str | None
+    report: Mapping[str, Any]
+    verified: Callable[[AutoMerge], bool] | None
+
+
+def assess(
+    repo: str,
+    number: int,
+    *,
+    acting_login: str | None = None,
+    self_logins: Collection[str] = frozenset(),
+    post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
+    promotion: Callable[[datetime | None], Promotion] | None = None,
+) -> UnattendedPolicy:
+    """The policy readers for one pull request, in the wiring order.
+
+    Config at the pull request's base SHA, then authority, identity, the
+    credential chokepoint, the kill switch, a base that is the default
+    branch, and the post-merge check: any
+    refusal there stops the reads and leaves the path not `enabled`, so no
+    later read can lead to a write. Then the rung (demotion and cap), the
+    in-flight rule, the promotion evidence and the pull request's
+    eligibility and class: each refuses a merge, and all are reported.
+
+    `post_merge(floor, identity)` runs the post-merge check from the floor
+    (`merged_since_floor`) and must be given: without it the path refuses.
+    `promotion(window_start)` reads the promotion evidence with the newest
+    demotion record's creation as the window restart; without it nothing is
+    promoted. `self_logins` names only lane or bot self identities (see
+    `is_human`). Raises `PolicyReadError` when the pull request or the
+    pipeline config cannot be read, because the agent identity is then
+    unknown.
+    """
+    pr = pull_request(repo, number)
+    base_ref = str(json_object(pr.get("base")).get("ref"))
+    base_sha = str(json_object(pr.get("base")).get("sha"))
+    config = read_config_at(repo, base_sha)
+    if config.error:
+        raise PolicyReadError(f"{CONFIG_PATH} at {base_sha}: {config.error}")
+    identity = config.agent_identity
+    details: dict[str, Any] = {"baseSha": base_sha}
+    inputs: dict[str, Any] = {"pr": pr, "config": config, "branch": base_ref}
+    stopped = UnattendedPolicy(
+        AUTHORITY_UNCONFIGURED, identity, details, enabled=False, inputs=inputs
+    )
+    if (config.authority or "pr-merge") != "local-babysit":
+        return stopped
+    if acting_login is None:
+        try:
+            acting_login = read_acting_login()
+        except PolicyReadError:
+            acting_login = None
+    resolved = resolve_identity(identity, acting_login, self_logins)
+    details["identity"] = resolved.login
+    if resolved.reason or resolved.login is None:
+        return replace(stopped, reason=resolved.reason)
+    credentials = credential_refusal(resolved.login)
+    details["credentials"] = credentials or "identity-only"
+    if credentials:
+        return replace(stopped, reason=f"credentials:{credentials}")
+    # From here the session holds only the identity: a refusal below may still
+    # dequeue the identity's own entries (`inputs["identity"]`).
+    inputs["identity"] = resolved.login
+    kill = read_kill_switch(repo)
+    details["killSwitch"] = {"proceed": kill.proceed, "reason": kill.reason}
+    if not kill.proceed:
+        return replace(stopped, reason=f"kill-switch:{kill.reason}")
+    # The post-merge check, its dispatch and the scheduled full run judge the
+    # default branch only, so a merge into any other base would go unjudged.
+    # An unreadable default branch is a stop (the identity's entries leave).
+    try:
+        default = _default_branch(repo)
+    except PolicyReadError:
+        return replace(stopped, reason=DEFAULT_BRANCH_UNREADABLE)
+    if base_ref != default:
+        return replace(stopped, reason=f"base-not-default:{base_ref}")
+
+    permission = permission_reader(repo)
+    readers = {
+        "agent_identity": identity,
+        "self_logins": self_logins,
+        "permission": permission,
+    }
+    inputs.update(permission=permission, self_logins=self_logins)
+    demotion = read_demotion(repo, **readers)
+    details["demotion"] = {
+        "active": demotion.active,
+        "reason": demotion.reason,
+        "records": list(demotion.records),
+    }
+    try:
+        floor = merged_since_floor(repo, base_sha, demotion)
+    except PolicyReadError as exc:
+        return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
+    details["mergedSince"] = floor.isoformat()
+    gate = (
+        post_merge(floor, resolved.login)
+        if post_merge is not None
+        else PostMergeGate("unchecked", {}, None)
+    )
+    details["postMerge"] = dict(gate.report)
+    if gate.refusal:
+        return replace(stopped, reason=f"post-merge:{gate.refusal}")
+
+    cap = read_rung_cap(repo)
+    rung = effective_rung(
+        config_rung=config.rung,
+        loop_merge=config.loop_merge,
+        cap=cap.value,
+        demoted=demotion.active,
+    )
+    flight = in_flight(
+        repo, **readers, verified=gate.verified, branch=base_ref, merged_since=floor
+    )
+    promo = (
+        promotion(demotion.newest_created)
+        if promotion is not None
+        else Promotion(None, "promotion-unread")
+    )
+    eligible = eligibility(repo, number, **readers)
+    promoted = promo.promoted(eligible.work_class)
+    details.update(
+        rung=rung.rung,
+        rungInputs=dict(rung.inputs),
+        rungCap={"value": cap.value, "reason": cap.reason},
+        inFlight={"clear": flight.clear, "reason": flight.reason},
+        promotion={
+            "cells": dict(promo.cells) if promo.cells is not None else None,
+            "reason": promo.reason,
+        },
+        eligibility={
+            "eligible": eligible.eligible,
+            "reason": eligible.reason,
+            "workClass": eligible.work_class,
+        },
+    )
+    inputs.update(rung=rung.rung, eligibility=eligible)
+    # What refuses this pull request itself, whatever else does: its own
+    # queued entry leaves the queue on it.
+    own = (
+        (not eligible.eligible, f"ineligible:{eligible.reason}"),
+        # The rung is a work-class ceiling: C4 and C5 never merge unattended.
+        (
+            CLASS_RANK.get(eligible.work_class or "", 99) > RUNG_RANK[rung.rung],
+            f"class-above-rung:{eligible.work_class}>{rung.rung}",
+        ),
+        (not promoted, f"promotion-unqualified:{eligible.work_class}"),
+    )
+    inputs["own_refusal"] = next((text for refused, text in own if refused), None)
+    refusals = (
+        (rung.rung == "off", f"rung-off:{rung.limited_by}"),
+        (not flight.clear, f"in-flight:{flight.reason}"),
+        (
+            promo.cells is None,
+            f"promotion-unqualified:{promo.reason}",
+        ),
+        *own,
+    )
+    reason = next((text for refused, text in refusals if refused), None)
+    return UnattendedPolicy(
+        reason, identity, details, enabled=True, promoted=promoted, inputs=inputs
+    )
+
+
+# --- The merge-group recheck ------------------------------------------------------------------
+
+RECHECK_PASS, RECHECK_FAIL, RECHECK_UNREADABLE = 0, 1, 2
+RECHECK_PULL_REQUEST = (
+    "query RecheckPullRequest($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){number headRefOid changedFiles "
+    "timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
+    "... on AddedToMergeQueueEvent{createdAt actor{__typename login} "
+    "enqueuer{__typename login}}}}}}}"
+)
+# Scorer reasons that come from the review lanes' evidence. The wrapper binds
+# that evidence to the head before it enqueues; a merge group has none to bind.
+LANE_REASON_CODES = ("evidence-unbound:", "findings:claude-review", "security-finding")
+
+
+@dataclass(frozen=True)
+class Recheck:
+    code: int
+    reasons: tuple[str, ...]
+
+
 def _grouping(owner: str, name: str, branch: str) -> set[str]:
     rules = _paginated(
         f"repos/{owner}/{name}/rules/branches/{quote(branch, safe='')}?per_page=100",
@@ -1415,69 +2051,6 @@ def _grouping(owner: str, name: str, branch: str) -> set[str]:
         for rule in rules
         if rule.get("type") == "merge_queue"
     }
-
-
-def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[str]:
-    """Logins of humans whose comment, review or inline comment on the pull
-    request reads as blocking, by the autopilot tier's predicates."""
-    from babysit_merge import HUMAN_MERGE_VETO_RE  # noqa: PLC0415 - import cycle
-
-    corpus = [
-        item
-        for kind in ("issues/{n}/comments", "pulls/{n}/reviews", "pulls/{n}/comments")
-        for item in _paginated(
-            f"repos/{owner}/{name}/{kind.format(n=number)}?per_page=100",
-            f"#{number} {kind.split('/')[-1]}",
-        )
-    ]
-    found = set()
-    for item in corpus:
-        author = _rest_actor(item.get("user"))
-        login = str((author or {}).get("login") or "")
-        if actor_kind({"author": author}) != "human" or _login_key(login) in {
-            _login_key(identity),
-            *AUTOMATION_LOGINS,
-        }:
-            continue
-        body = str(item.get("body") or "")
-        if (
-            has_blocking_text(body)
-            or has_blocking_severity(body)
-            or HUMAN_MERGE_VETO_RE.search(body)
-        ):
-            found.add(login or "unknown")
-    return sorted(found)
-
-
-def _opt_in_removed(
-    owner: str, name: str, pr: dict[str, Any], enqueued_at: Any
-) -> bool:
-    """The opt-in label was on the pull request at enqueue and is gone now."""
-    labels = _label_names(pr)
-    if labels is None:
-        raise PolicyReadError(f"#{pr.get('number')}: labels unreadable")
-    if OPT_IN_LABEL in labels:
-        return False
-    at = _time(enqueued_at)
-    timeline = _paginated(
-        f"repos/{owner}/{name}/issues/{pr.get('number')}/timeline?per_page=100",
-        f"#{pr.get('number')} timeline",
-    )
-    events = sorted(
-        (
-            e
-            for e in timeline
-            if e.get("event") in ("labeled", "unlabeled")
-            and json_object(e.get("label")).get("name") == OPT_IN_LABEL
-        ),
-        key=lambda e: _time(e.get("created_at")),
-    )
-    present = False
-    for event in events:
-        if _time(event.get("created_at")) > at:
-            break
-        present = event.get("event") == "labeled"
-    return present
 
 
 @dataclass(frozen=True)
@@ -1523,8 +2096,9 @@ def recheck(
     excluded) it passes without reading any term. Otherwise the effective rung
     and the kill switches come first, then eligibility and the class against
     the rung, another queued identity entry, ALLGREEN grouping, the scorer's
-    terms except the review-lane evidence, a body hold, a human blocking
-    comment and an opt-in label removed since enqueue. Config is read at
+    terms except the review-lane evidence, and `entry_hold` (the
+    `do-not-merge` label, a body hold, a human blocking comment, or the opt-in
+    label removed since enqueue or put back by a non-human). Config is read at
     `base_sha`; nothing is read from the merge group's tree. `lanes_disabled`,
     when given, is `vars.CLAUDE_LANES_DISABLED` and must be exactly `false`.
     With `vars_context` the rung cap and both kill switches come from it
@@ -1616,15 +2190,11 @@ def _recheck(
         for r in risk.reasons
         if not r.code.startswith(LANE_REASON_CODES)
     ]
-    from babysit_merge import BODY_MERGE_HOLD_RE  # noqa: PLC0415 - import cycle
-
-    if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
-        reasons.append("body-hold")
-    blockers = _human_blockers(owner, name, number, identity)
-    if blockers:
-        reasons.append(f"human-blocking-comment:{','.join(blockers)}")
-    if _opt_in_removed(owner, name, pr, event.get("createdAt")):
-        reasons.append("opt-in-label-removed")
+    hold = entry_hold(repo, number, identity, permission=readers["permission"])
+    if hold and hold.startswith("unreadable"):
+        raise PolicyReadError(f"#{number} entry hold: {hold}")
+    if hold:
+        reasons.append(hold)
     if reasons:
         return Recheck(RECHECK_FAIL, tuple(reasons))
     return Recheck(RECHECK_PASS, ("non-human enqueue meets every term",))

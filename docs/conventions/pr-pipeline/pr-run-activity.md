@@ -208,10 +208,12 @@ the broker request, and no other permission; it never holds `checks: write` or `
     `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
 14. Write file only, `if: always()` whenever step 6 output a token: `actions/github-script`,
     pinned by SHA, so no binary resolved through `PATH` or `BASH_ENV` runs with the token, sends
-    `DELETE /installation/token` with it, then `GET /installation/repositories`, and fails red
-    unless they return 204 and 401. It is a backstop for an honest activity that did not clean
-    up, not a control against a hostile one: the activity holds the token and can write the
-    runner's files.
+    `DELETE /installation/token` with it, then `GET /installation/repositories`. It never fails
+    the job (`continue-on-error: true`): a DELETE other than 204 is a `::warning::`, and a 204
+    whose GET is not yet refused with 401 is a `::notice::`; a confirmed revoke, 204 then 401,
+    raises no annotation and is recorded in the step log. It is a backstop for an honest
+    activity that did not clean up, not a control against a hostile one: the activity holds the
+    token and can write the runner's files.
 
 A stacked PR, one whose base is not the default branch, gets a failure check from step 4. Retarget
 it to the default branch to run its lanes.

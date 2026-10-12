@@ -12,6 +12,7 @@
 - [Merge authority](#merge-authority)
 - [Trust-root paths](#trust-root-paths)
 - [Loop caps](#loop-caps)
+- [Planning lane work](#planning-lane-work)
 - [Changing this config](#changing-this-config)
 - [Outside this repository](#outside-this-repository)
 - [Names](#names)
@@ -445,6 +446,17 @@ One counter per PR, in the findings store, is shared by every lane. After `loop.
 full review rounds, one more high-severity-only pass runs; if it still has findings, the PR
 escalates. Separately, after `loop.no-progress` lane runs in a row that change nothing, the PR
 escalates.
+
+## Planning lane work
+
+Size the process to the change:
+
+- A sub-topic of lane work gets a one-page plan.
+- Run `/planning:design`, the plan review and `/planning:devils-advocate` only for a change that
+  moves a trust boundary.
+- Record an ADR only for a trust-boundary or irreversible choice; `/architecture:record-decision`'s
+  admission test still applies, and a reversible choice goes in the PR body.
+- When the owner pre-approved the recommended options, stop only on the items the owner reserved.
 
 ## Changing this config
 

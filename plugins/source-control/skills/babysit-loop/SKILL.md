@@ -177,6 +177,9 @@ Read [reference/cycle-shape.md](reference/cycle-shape.md) at the start of the fi
 again whenever the loop resumes after an interrupt: it owns the per-cycle step order, what each
 step may mutate at the resolved autonomy tier, and where the escalation and no-progress checks
 attach. The stop modes above decide whether a cycle runs; that file decides what one is.
+Every cycle runs the post-merge check (`babysit-postmerge.sh`, cycle-shape step 1) before any merge; anything but exit 0 means no merge that cycle (exit 5: an auto-merge is not yet verified).
+
+**Unattended merges.** Where the target's `pr-pipeline.yaml` sets `merge.authority: local-babysit` and a `merge.agent-identity`, the only merge route is the gate's `--unattended --merge --expected-head <pin>` under that identity (never `--auto`), and its code enforces the post-merge check, the promotion gate below and the rest ([babysit-prs safety](../babysit-prs/reference/safety.md#unattended-merge-path)). The launch line adds `--promotion-settings <file>` (executor-owned, not lane-writable) when the four options below are not in managed settings; `--merge human-only` still keeps every merge off.
 
 **Promotion-evidence gate (trusted seam, fail-closed).** This one condition stays here rather than
 in that file, because it decides whether anything merges at all. A PR is merge-eligible when its
@@ -190,7 +193,7 @@ the seam needs are in
 [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md); a
 report-only lane-start preflight names each missing one. With a compliant bootstrap, cycle-shape
 step 3 runs the resolution helper and the seam returns a qualified read; otherwise every cell stays
-effective-unpromoted. The three-arm resolver, what counts as
+effective-unpromoted. On the unattended route this gate is code: the merge gate reads the four options from managed settings or `--promotion-settings` (never this block, argv or the environment), restarts the window at the newest demotion record, and reports `unattended.promoted`. The three-arm resolver, what counts as
 qualified evidence, and the forgeable surfaces it refuses are in
 [reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md); read it
 before resolving the first cell of a run.

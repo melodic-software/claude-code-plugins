@@ -95,6 +95,13 @@ mutually exclusive with a safer cap by grammar: every merge-dimension argument v
 `human-only` merge rung merges nothing. The resolution order is tracked rung, then the paired
 raise, then the C4/C5 ceiling.
 
+**The paired raise never widens an unattended merge.** The unattended merge path
+(`/source-control:babysit-prs`, the merge gate's `--unattended`) takes its rung only from tracked
+files read at the pull request's base SHA, `merge.rung` in `docs/conventions/pr-pipeline.yaml` and
+the tracked merge rung, lowered by the human-set rung cap and any demotion record. No invocation
+argument reaches it, so `autopilot --merge c3-this-run` widens a worker-tier run and never an
+unattended merge.
+
 **The C4/C5 floor tests the PR, not the item's stamp.** `work-classes.md` assigns a class from the
 risk-property bundle, "not the task's surface description", so a lane implementing the floor derives
 both from the pull request before comparing any recorded class to the rung. C5 follows the code's

@@ -1,6 +1,6 @@
 # Changelog for the PR pipeline convention
 
-## 1.10.3 - 2026-10-12
+## 1.10.5 - 2026-10-12
 
 README "Merge authority": corrects 1.10.0, which named `pr-automerge-dependabot.yml` as the one
 exception to a single merge authority. That workflow only armed auto-merge with `GITHUB_TOKEN`,
@@ -8,6 +8,20 @@ which cannot add a pull request to a merge queue (GitHub's Dependabot docs), so 
 retires it. A human queues Dependabot pull requests and the merge-group recheck passes them on its
 human path, until the unattended lane gains a Dependabot class (#7337). There is no exception.
 `version` stays 1.
+
+## 1.10.4 - 2026-10-12
+
+README gains "Planning lane work": a one-page plan per sub-topic, design and stress tests only for
+trust-boundary changes, ADRs only for trust-boundary or irreversible choices, and stops limited to
+owner-reserved items when the owner pre-approved the recommendations. `version` stays 1.
+
+## 1.10.3 - 2026-10-12
+
+`pr-run-activity.md` run job step 14: the lane-token revoke step never fails the job. A DELETE
+other than 204 is a `::warning::`, and a 204 whose `GET /installation/repositories` is not yet
+refused with 401 is a `::notice::`. A confirmed revoke is recorded in the step log.
+`scripts/write-runner-revoke-step.test.sh` runs the step's script against each case. `version`
+stays 1.
 
 ## 1.10.2 - 2026-10-12
 

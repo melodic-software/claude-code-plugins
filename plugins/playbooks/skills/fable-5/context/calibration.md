@@ -105,6 +105,14 @@ A session has no single correct effort level; each decision inside it does. Budg
 - STOP TRIGGERS, any one of which is sufficient: the next unit of analysis cannot alter what you do next; you are comparing options on dimensions where they do not differ; you are on a third pass over unchanged evidence; the concern is hypothetical with no concrete trigger anywhere in the actual task.
 - SURVEY DEPTH = PURSUIT DEPTH: enumerate options only as deep as you would actually pursue them. When a hard constraint eliminates a class of options, do not cost out members of that class. A comparison you will not act on is decoration.
 
+## Price optional hardening against what the attacker already holds
+
+- TRIGGER: about to recommend an optional security hardening, one no failing check or reported exploit demands.
+- RULE: state what the attacker must already hold to exploit the gap and what that holding already grants. If it already grants equal power, recommend against building it.
+
+> Weak: a forged dispatch record could start a lane run → recommend signing the record.
+> Strong: "Forging the record needs a workflow holding this repository's write token, which can already push to the branch the lane runs from. Not worth building."
+
 ## Settled means settled
 
 Facts established this session are fixed points: build on them, and reopen one only when contradicting evidence arrives, never on data-free doubt. Re-deriving held ground burns context and invites a second answer that may silently disagree with the first.
