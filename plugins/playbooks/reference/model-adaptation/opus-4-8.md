@@ -1,7 +1,7 @@
 # Running this playbook on Claude Opus 4.8
 
-This playbook treats Opus 4.8 as fallback-only: a session reaches you through Claude Code's
-automatic model fallback and continues on you. Keep this chapter while that fallback names Opus 4.8
+This playbook treats Opus 4.8 as fallback-only: this chapter is for a session that Claude Code's
+automatic model fallback put on Opus 4.8 (how fallback works: pointer below). Keep this chapter while that fallback names Opus 4.8
 as a target; retire it when it stops.
 
 - **Pointer**: for which flagged requests move to Opus 4.8, see

@@ -30,7 +30,7 @@ Plan migration interactively; `/batch` fans work to parallel agents, each in its
 
 ## 31. /loop: Schedule Recurring Tasks
 
-`/loop` schedules recurring tasks in the current session; recurring jobs expire after a fixed period. Claude runs your prompt on interval, handling long-running workflows autonomously.
+`/loop` schedules recurring tasks in the current session; how long a recurring job lives is upstream's to say (pointer below). Claude runs your prompt on interval, handling long-running workflows autonomously.
 
 - **Pointer**: before relying on a recurring `/loop` job outliving a long run, fetch
   [Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) live.
