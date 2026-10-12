@@ -99,8 +99,8 @@ The delta pass found no other conflict between the post and an official page.
 
 ## Handed to other sessions
 
-- #4588 tracks the promotion-evidence seam behind the merge rung. It was reopened on 2026-10-02 so
-  its Phase 3 decision runs as its own security-reviewed effort. Until the seam returns a qualified
+- #4588 tracks the promotion-evidence source behind the merge rung. It was reopened on 2026-10-02 so
+  its Phase 3 decision runs as its own security-reviewed effort. Until that source returns a qualified
   read, the merge lane stays human-only (row F16).
 - #5684 owns the tree-wide no-copy retrofit; this pass converted only the files it touched.
 - The session acting on the Sonnet 5.5 prompting guide left the performance catalog, glossary and
