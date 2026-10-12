@@ -91,7 +91,12 @@ FIXTURES: list[tuple[str, dict[str, Any], str, Any]] = [
     ("changes requested", fixtures._pr(reviewDecision="CHANGES_REQUESTED"), HEAD, None),
     ("body hold", fixtures._pr(body="Do not merge yet"), HEAD, None),
     ("hold label", fixtures._pr(labels=[{"name": "do-not-merge"}]), HEAD, None),
-    ("dependency author", fixtures._pr(author={"login": "dependabot[bot]"}), HEAD, None),
+    (
+        "dependency author",
+        fixtures._pr(author={"login": "dependabot[bot]"}),
+        HEAD,
+        None,
+    ),
     ("head moved", fixtures._pr(), fixtures.STALE, None),
     ("closed", fixtures._pr(state="CLOSED"), HEAD, None),
     (
@@ -168,7 +173,9 @@ class EvaluateWithoutPolicyIsUnchanged(unittest.TestCase):
         for name, pr, expected, tier in FIXTURES:
             with self.subTest(name):
                 result = _evaluate(pr, expected, tier, unattended=None)
-                self.assertIs(result["ready"], name in READY_FIXTURES, result["blockers"])
+                self.assertIs(
+                    result["ready"], name in READY_FIXTURES, result["blockers"]
+                )
                 self.assertEqual(result["blockers"] == [], name in READY_FIXTURES)
                 self.assertEqual(frozenset(result), PRE_UNATTENDED_KEYS)
 
@@ -183,7 +190,9 @@ class EvaluateWithInertPolicyHolds(unittest.TestCase):
                 self.assertFalse(result["autoMerge"]["ready"])
                 self.assertIn(INERT_BLOCKER, result["autoMerge"]["blockers"])
                 self.assertIs(result["unattended"]["enabled"], False)
-                self.assertEqual(result["unattended"]["reason"], "authority-unconfigured")
+                self.assertEqual(
+                    result["unattended"]["reason"], "authority-unconfigured"
+                )
 
     def test_other_blockers_are_still_reported(self) -> None:
         # The freshness hold is evaluated only once no other hold stands, so an
@@ -240,16 +249,44 @@ class EvaluateWithInertPolicyHolds(unittest.TestCase):
         self.assertEqual(layer_calls[0]["unattended"], INERT)
 
 
-class ResolveStubIsInert(unittest.TestCase):
-    def test_resolve_returns_inert_without_network(self) -> None:
-        # The process seams every gh read reaches, whichever module makes it.
+class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
+    def test_no_merge_block_resolves_authority_unconfigured(self) -> None:
+        # The default branch head, then the two config files at it: neither
+        # exists in a readable tree, so there is no merge block.
+        sha = "a" * 40
+        answers = {
+            "repos/owner/repo": {"default_branch": "main"},
+            "repos/owner/repo/commits/main": {"sha": sha},
+            f"repos/owner/repo/contents?ref={sha}": [],
+        }
+        calls: list[list[str]] = []
+
+        def fake_gh(args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+            calls.append(args)
+            if args[1] in answers:
+                return subprocess.CompletedProcess(
+                    [], 0, json.dumps(answers[args[1]]), ""
+                )
+            if args[1].startswith("repos/owner/repo/contents/"):
+                return subprocess.CompletedProcess(
+                    [], 1, "", "gh: Not Found (HTTP 404)"
+                )
+            raise AssertionError(f"unexpected gh call: {args}")
+
+        # The process seams every real gh read reaches, whichever module makes it.
         with (
+            mock.patch.object(policy, "gh_capture", side_effect=fake_gh),
             mock.patch.object(gh, "_run_gh", side_effect=AssertionError("gh call")),
             mock.patch.object(
                 subprocess, "run", side_effect=AssertionError("subprocess")
             ),
         ):
             resolved = policy.resolve("owner/repo")
+        config_read = [
+            "api",
+            f"repos/owner/repo/contents/{policy.CONFIG_PATH}?ref={sha}",
+        ]
+        self.assertIn(config_read, calls)
         self.assertIs(resolved.enabled, False)
         self.assertEqual(resolved.reason, "authority-unconfigured")
         self.assertIsNone(resolved.agent_identity)
@@ -334,7 +371,11 @@ class UnattendedMergeNeverReachesTheMergeCall(MainHarness):
     def test_an_enabled_policy_still_never_merges(self) -> None:
         enabled = policy.UnattendedPolicy(reason=None, agent_identity=IDENTITY)
         code, _ = self._main(
-            "--merge", "--unattended", "--expected-head", HEAD, resolved=enabled,
+            "--merge",
+            "--unattended",
+            "--expected-head",
+            HEAD,
+            resolved=enabled,
             login=IDENTITY,
         )
         self.assertEqual(code, 10)
@@ -430,7 +471,11 @@ class AgentIdentityCannotUsePlainMerge(MainHarness):
 
     def test_another_login_still_merges(self) -> None:
         code, _ = self._main(
-            "--merge", "--expected-head", HEAD, resolved=self.CONFIGURED, login="operator"
+            "--merge",
+            "--expected-head",
+            HEAD,
+            resolved=self.CONFIGURED,
+            login="operator",
         )
         self.assertEqual(code, 0)
         self.assertTrue(self.evaluate.called)

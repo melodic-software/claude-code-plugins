@@ -336,6 +336,38 @@ class FetchReviewThreadsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             gh.fetch_review_threads("owner/repo", 1, comments_first=101)
 
+    def test_query_asks_who_resolved_each_thread(self) -> None:
+        response = _graphql([_thread([_comment()], total=1)])
+        with mock.patch.object(gh, "gh_json", return_value=response) as seam:
+            gh.fetch_review_threads("owner/repo", 1)
+        query = next(arg for arg in seam.call_args.args[0] if arg.startswith("query="))
+        self.assertIn("resolvedBy{__typename login}", query)
+
+    def test_record_carries_the_resolver(self) -> None:
+        resolver = {"__typename": "Bot", "login": "some-app"}
+        response = _graphql(
+            [_thread([_comment()], total=1, isResolved=True, resolvedBy=resolver)]
+        )
+        with mock.patch.object(gh, "gh_json", return_value=response):
+            threads = gh.fetch_review_threads("owner/repo", 1, include_resolved=True)
+        self.assertEqual(threads[0]["resolvedBy"], resolver)
+
+    def test_open_thread_has_no_resolver(self) -> None:
+        response = _graphql([_thread([_comment()], total=1, resolvedBy=None)])
+        with mock.patch.object(gh, "gh_json", return_value=response):
+            threads = gh.fetch_review_threads("owner/repo", 1)
+        self.assertIsNone(threads[0]["resolvedBy"])
+
+    def test_malformed_resolver_fails_closed(self) -> None:
+        response = _graphql(
+            [_thread([_comment()], total=1, isResolved=True, resolvedBy="someone")]
+        )
+        with (
+            mock.patch.object(gh, "gh_json", return_value=response),
+            self.assertRaises(RuntimeError),
+        ):
+            gh.fetch_review_threads("owner/repo", 1, include_resolved=True)
+
 
 class FetchPullRequestCommitsTests(unittest.TestCase):
     """`fetch_pull_request_commits` (#2265): the signature-verification read
