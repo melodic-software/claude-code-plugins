@@ -1229,6 +1229,66 @@ def fetch_review_threads(
     return threads
 
 
+def collect_lane_runs(
+    repo: str,
+    number: int,
+    head_ref: str,
+    lanes: Iterable[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    """The `runs` input of `babysit_review_evidence.bind()` for one pull request.
+
+    `lanes` gives each lane's (caller workflow path, lane job name suffix).
+    Each workflow's `pull_request` runs are listed by `head_ref` with no
+    `head_sha` filter and kept when their `pull_requests` name `number`, so
+    earlier heads' reviews are included. Each kept run's attempt count comes
+    from a fresh `GET actions/runs/{id}` taken after the listing; each attempt
+    carries its jobs, and each lane job its check run's annotations. Any read
+    failure, a deleted or expired run included, raises `RuntimeError`, which
+    the caller turns into unbound evidence.
+    """
+    runs: list[dict[str, Any]] = []
+    for path, job_suffix in lanes:
+        workflow = quote(path.rsplit("/", 1)[-1], safe="")
+        listing = fetch_paginated_api(
+            f"repos/{repo}/actions/workflows/{workflow}/runs"
+            f"?branch={quote(head_ref, safe='')}&event=pull_request&per_page=100",
+            f"{workflow} runs",
+            items_key="workflow_runs",
+        )
+        for item in listing:
+            if not any(
+                json_object(pr).get("number") == number
+                for pr in json_array(item.get("pull_requests"))
+            ):
+                continue
+            run_id = item.get("id")
+            if not isinstance(run_id, int) or isinstance(run_id, bool):
+                raise RuntimeError(f"{workflow} run without an id")
+            latest = json_object(
+                gh_json(["api", f"repos/{repo}/actions/runs/{run_id}"])
+            )
+            count = latest.get("run_attempt")
+            if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+                raise RuntimeError(f"run {run_id}: no attempt count")
+            attempts = []
+            for n in range(1, count + 1):
+                base = f"repos/{repo}/actions/runs/{run_id}/attempts/{n}"
+                attempt = json_object(gh_json(["api", base]))
+                jobs = fetch_paginated_api(
+                    f"{base}/jobs?per_page=100", f"run {run_id} jobs", items_key="jobs"
+                )
+                for job in jobs:
+                    if str(job.get("name") or "").rsplit(" / ", 1)[-1] == job_suffix:
+                        job["annotations"] = fetch_paginated_api(
+                            f"repos/{repo}/check-runs/{job.get('id')}/annotations"
+                            "?per_page=100",
+                            f"job {job.get('id')} annotations",
+                        )
+                attempts.append({**attempt, "jobs": jobs})
+            runs.append({**item, "attempts": attempts})
+    return runs
+
+
 def fetch_unresolved_review_comments(repo: str, number: int) -> list[dict[str, Any]]:
     """Fetch unresolved inline review comments (gh pr view omits these).
 

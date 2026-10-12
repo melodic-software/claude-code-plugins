@@ -1112,5 +1112,70 @@ class ThreadResolutionFailsClosedTests(unittest.TestCase):
         self.assertEqual(comments[0]["author"]["login"], "reviewer")
 
 
+class CollectLaneRunsTests(unittest.TestCase):
+    """The bind() input collector (the Phase 9 caller contract): runs listed
+    by branch with no head_sha filter, kept by PR number, attempts counted
+    from a fresh run read, annotations on the lane job only."""
+
+    REPO = "owner/repo"
+    LANES = [(".github/workflows/pr-review-hosted.yml", "claude-review-status")]
+
+    def answers(self, *, fresh_attempts: int = 2) -> dict[str, Any]:
+        base = f"repos/{self.REPO}/actions/runs/7"
+        listing = f"repos/{self.REPO}/actions/workflows/pr-review-hosted.yml/runs"
+        mine = {"id": 7, "run_attempt": 1, "pull_requests": [{"number": 5}]}
+        other = {"id": 8, "run_attempt": 1, "pull_requests": [{"number": 6}]}
+        answers: dict[str, Any] = {
+            f"{listing}?branch=feat%2Fx&event=pull_request&per_page=100": [
+                {"workflow_runs": [mine, other]}
+            ],
+            base: {"id": 7, "run_attempt": fresh_attempts},
+        }
+        for n in range(1, fresh_attempts + 1):
+            answers[f"{base}/attempts/{n}"] = {"id": 7, "run_attempt": n}
+            answers[f"{base}/attempts/{n}/jobs?per_page=100"] = [
+                {
+                    "jobs": [
+                        {"id": 100 + n, "name": "pr-review / claude-review-status"},
+                        {"id": 200 + n, "name": "pr-review / other"},
+                    ]
+                }
+            ]
+            answers[
+                f"repos/{self.REPO}/check-runs/{100 + n}/annotations?per_page=100"
+            ] = [[{"title": "claude-lane-review-complete"}]]
+        return answers
+
+    def collect(self, answers: dict[str, Any]) -> list[dict[str, Any]]:
+        def fake(args: list[str]) -> Any:
+            if args[1] not in answers:
+                raise RuntimeError(f"gh: Not Found (HTTP 404) {args[1]}")
+            return answers[args[1]]
+
+        with mock.patch.object(gh, "gh_json", side_effect=fake):
+            return gh.collect_lane_runs(self.REPO, 5, "feat/x", self.LANES)
+
+    def test_keeps_the_pull_requests_runs_with_fresh_attempts(self) -> None:
+        runs = self.collect(self.answers())
+        self.assertEqual([r["id"] for r in runs], [7])
+        # The listing said attempt 1; the fresh read found 2, and both are kept
+        # so bind() sees the re-run that started after the listing.
+        self.assertEqual(runs[0]["run_attempt"], 1)
+        self.assertEqual([a["run_attempt"] for a in runs[0]["attempts"]], [1, 2])
+
+    def test_annotations_are_read_for_the_lane_job_only(self) -> None:
+        jobs = self.collect(self.answers(fresh_attempts=1))[0]["attempts"][0]["jobs"]
+        self.assertEqual(
+            jobs[0]["annotations"], [{"title": "claude-lane-review-complete"}]
+        )
+        self.assertNotIn("annotations", jobs[1])
+
+    def test_a_deleted_or_expired_attempt_raises(self) -> None:
+        answers = self.answers()
+        del answers[f"repos/{self.REPO}/actions/runs/7/attempts/1"]
+        with self.assertRaises(RuntimeError):
+            self.collect(answers)
+
+
 if __name__ == "__main__":
     unittest.main()

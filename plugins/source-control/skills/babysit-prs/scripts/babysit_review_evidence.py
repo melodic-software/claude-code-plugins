@@ -34,6 +34,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from babysit_risk import LaneEvidence
+
 # Lane id -> (caller workflow path, lane job name suffix). Fixed in code: a
 # weaker table could only come from a file a pull request can edit.
 LANES: dict[str, tuple[str, str]] = {
@@ -67,14 +69,6 @@ MAX_CHAIN = 100
 
 
 @dataclass(frozen=True)
-class LaneEvidence:
-    lane: str
-    bound: bool
-    unbound_reason: str | None
-    open_findings: int | None  # None when not bound
-
-
-@dataclass(frozen=True)
 class _Record:
     sha: str
     findings: int | None = None
@@ -98,21 +92,30 @@ def bind(
     threads: Sequence[Mapping[str, Any]] | None,
     *,
     is_human: Callable[[Any], bool],
+    base_changed: bool = False,
 ) -> tuple[LaneEvidence, ...]:
     """Evidence for every lane in `LANES`, in that order.
 
-    Caller contract: list each lane workflow's runs by branch, with no
-    `head_sha` filter, and keep those whose `pull_requests` name this pull
-    request, so the earlier whole reviews an incremental chain leads back to
-    are included. Read each run's attempt numbers from a fresh
-    `GET actions/runs/{id}` taken after the listing, not from the listing's
-    `run_attempt`, so a re-run that starts in between is seen. `is_human`
-    takes one actor: bind the merge policy's keyword arguments first (for
-    example with `functools.partial`).
+    Caller contract (`babysit_gh.collect_lane_runs` meets it): list each lane
+    workflow's runs by branch, with no `head_sha` filter, and keep those whose
+    `pull_requests` name this pull request, so the earlier whole reviews an
+    incremental chain leads back to are included. Read each run's attempt
+    numbers from a fresh `GET actions/runs/{id}` taken after the listing, not
+    from the listing's `run_attempt`, so a re-run that starts in between is
+    seen. `is_human` takes one actor and must return False for the agent
+    identity, the pull request's author and its head pushers. `base_changed`
+    is True when the pull request was ever retargeted: the reviews read a
+    diff against another base, so no lane binds.
+
+    A lane binds only when every head its reviewed-head markers name still
+    has a listed run: a deleted or expired run would drop its findings from
+    the count, so it unbinds the lane rather than lowering the count.
     """
     try:
         if not isinstance(head_sha, str) or not SHA_RE.match(head_sha):
             raise Unbound("bad-head")
+        if base_changed is not False:
+            raise Unbound("base-retargeted")
         # Thread ids already standing for a recorded finding in some lane.
         # LANES order matters: claude-review claims first, so a doubtful
         # untagged thread leaves the count on the security lane.
@@ -139,6 +142,7 @@ def _bind_lane(
         lane_runs = _lane_runs(lane, runs)
         _resolve(lane, head, lane_runs)
         _require_marker(lane, head, comments)
+        _require_marked_runs(lane, lane_runs, comments)
         count = _open_findings(lane, lane_runs, threads, is_human, claimed)
     except Unbound as exc:
         return LaneEvidence(lane, False, exc.reason, None)
@@ -359,6 +363,24 @@ def _require_marker(
             newest = key
     if newest is None or newest[2] != head:
         raise Unbound("no-marker")
+
+
+def _require_marked_runs(
+    lane: str,
+    lane_runs: list[Mapping[str, Any]],
+    comments: Sequence[Mapping[str, Any]],
+) -> None:
+    """Every head a reviewed-head marker of the lane names has a listed run, so
+    no reviewed run's findings are missing from the count."""
+    listed = {item["head_sha"] for item in lane_runs}
+    for comment in comments:
+        user = comment.get("user")
+        if not isinstance(user, Mapping) or user.get("login") != MARKER_AUTHOR:
+            continue
+        first_line = str(comment.get("body") or "").split("\n", 1)[0].rstrip("\r")
+        match = MARKER_RE.match(first_line)
+        if match and match[1] == lane and match[2] not in listed:
+            raise Unbound("run-missing")
 
 
 def _open_findings(

@@ -255,6 +255,40 @@ class Base(unittest.TestCase):
         self.assertIsNone(item.open_findings)
 
 
+class LostEvidenceTests(Base):
+    """A review whose findings can no longer be counted unbinds the lane; it
+    never lowers the count (the #7325 security review's carry-forward)."""
+
+    def test_a_retargeted_pull_request_binds_no_lane(self) -> None:
+        result = by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                both_markers(),
+                [],
+                is_human=is_human,
+                base_changed=True,
+            )
+        )
+        for lane in LANES:
+            self.assertUnbound(result[lane], "base-retargeted")
+
+    def test_a_reviewed_head_whose_run_is_gone_unbinds_the_lane(self) -> None:
+        # S0 was reviewed (its marker stands) but its run, and the findings it
+        # recorded, no longer list: deleted or expired.
+        runs = [whole(lane, S) for lane in LANES]
+        comments = [marker("claude-review", S0), *both_markers()]
+        result = self.bind(runs, comments)
+        self.assertUnbound(result["claude-review"], "run-missing")
+        self.assertTrue(result["claude-security-review"].bound)
+
+    def test_every_marked_head_listed_still_binds(self) -> None:
+        runs = [whole(lane, S) for lane in LANES] + [whole("claude-review", S0, n=2)]
+        comments = [marker("claude-review", S0), *both_markers()]
+        result = self.bind(runs, comments)
+        self.assertEqual(result["claude-review"].open_findings, 2)
+
+
 class RunSelectionTests(Base):
     def test_both_lanes_whole_reviews_bind(self) -> None:
         result = self.bind([whole(lane, S) for lane in LANES])
@@ -747,6 +781,14 @@ class FailClosedTests(Base):
                 self.assertFalse(item.bound)
                 self.assertIsNotNone(item.unbound_reason)
                 self.assertIsNone(item.open_findings)
+
+    def test_evidence_is_the_scorers_lane_evidence(self) -> None:
+        import babysit_risk
+
+        result = ev.bind(
+            S, [whole(lane, S) for lane in LANES], both_markers(), [], is_human=is_human
+        )
+        self.assertTrue(all(isinstance(r, babysit_risk.LaneEvidence) for r in result))
 
     def test_pinned_head_must_be_a_full_sha(self) -> None:
         result = ev.bind(
