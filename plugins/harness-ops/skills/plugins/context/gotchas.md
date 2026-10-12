@@ -217,7 +217,7 @@ session start, and every `fleet-state.sh` call for the rest of that run came fro
 Not a crash: Claude Code marks the previous version directory orphaned and removes it only after a
 grace period, so a session that already loaded the old version keeps running and the old script
 stays readable to the end of the run. Grace period and sweep conditions:
-`code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions` (as of 2026-10-11; recheck
+<https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions> (as of 2026-10-11; recheck
 when that section stops saying a session that loaded the old version keeps running). And the
 *resolution* half is already handled: `fleet-state.sh`'s default-marketplace resolver carries a
 version-agnostic fallback whose comment names this exact scenario, which is why the bare
