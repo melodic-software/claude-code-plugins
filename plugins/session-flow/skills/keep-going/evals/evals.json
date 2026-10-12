@@ -115,6 +115,19 @@
         "When no live reading is obtainable, asks the operator which account is active and whether it has headroom, and does not conclude still-blocked",
         "Does not invent a reset window from the date-bearing form, and does not treat an unparsed checker exit as lifted"
       ]
+    },
+    {
+      "id": 10,
+      "name": "resume-another-agents-trail-names-a-verdict",
+      "prompt": "keep going on the cache migration. A background agent worked on it overnight on branch feat/cache-v2; its last message says the migration is done and recommends switching the default store, but it never opened a PR.",
+      "expected_output": "The overnight work is located through feat/cache-v2, its commits and any PR; an agent id plays no part. The original goal is tested against that trail, and the agent's \"migration is done\" message is verified on the branch before anything rests on it. Exactly one of the four verdicts follows (ratify, ship the finished recommendation, continue, restart). Here the recommendation was finished but never delivered, so once the migration checks out the expected verdict is ship the finished recommendation. The report keeps work carried over from the trail apart from work done again, and each piece done again has its reason.",
+      "files": [],
+      "expectations": [
+        "Verifies the \"migration is done\" message against feat/cache-v2 before relying on it",
+        "Locates the overnight work through its branch, its commits or a PR, not through an agent or task id",
+        "Names a single verdict, with its reason, from the four: ratify, ship the finished recommendation, continue, restart",
+        "The report lists work carried over from the trail apart from work done again"
+      ]
     }
   ]
 }

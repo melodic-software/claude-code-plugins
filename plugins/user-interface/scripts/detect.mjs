@@ -276,8 +276,16 @@ function checkRouting(out) {
     if (!Array.isArray(routing[key])) fail([`routing.${key}: must be an array, dropped`]) && delete routing[key];
     else routing[key] = routing[key].filter((v, i) => !fail(check(v, `routing.${key}[${i}]`)));
   };
-  filter("rows", (v, at) => validate(isMapping(v) && needsFull(strip(full.properties, v, at)) ? full : partial, v, at));
-  filter("disable", (v, at) => validate(disable, strip(disable.properties, v, at), at));
+  // A valid entry whose concern no bundled row has is kept, with a note in the layer's `warnings`
+  // (not `errors`, which mean a dropped value): it is most often a renamed concern, so a disable
+  // entry naming it silently stops disabling anything.
+  const concerns = new Set([...bundled].map((k) => k.split("\0")[0]));
+  const warnConcern = (errors, v, at) => {
+    if (errors.length === 0 && !concerns.has(v.concern)) (team.warnings ??= []).push(`team (${team.path}): ${at}.concern: ${v.concern} names no bundled concern; kept as a new concern (if it is an old id that was renamed, use the new one)`);
+    return errors;
+  };
+  filter("rows", (v, at) => warnConcern(validate(isMapping(v) && needsFull(strip(full.properties, v, at)) ? full : partial, v, at), v, at));
+  filter("disable", (v, at) => warnConcern(validate(disable, strip(disable.properties, v, at), at), v, at));
   filter("deny", (v, at) => validate({ type: "string", minLength: 1 }, v, at));
 }
 

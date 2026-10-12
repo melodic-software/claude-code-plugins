@@ -129,8 +129,10 @@ plugins/context-guard/hooks/zone.ts
 .work/*
 
 # Repository top-level prose and licensing, already covered by *.md above; the
-# bare LICENSE file has no extension, so it needs its own line.
+# bare LICENSE files (the root one and a plugin's own notice) have no extension,
+# so they need their own lines.
 LICENSE
+plugins/*/LICENSE
 
 # Eval data: input the evals read, never code a suite runs, whatever its
 # extension (a fixture repository's .js and .py, a case's scaffold.sh).
@@ -150,6 +152,13 @@ LICENSE
 # A file under an evals/ tree that a suite genuinely names is still selected by
 # the reference rule before this line is consulted.
 plugins/*/evals/*
+
+# A skill's paste-in assets (plugins/<p>/skills/<s>/assets/): fragments the skill inlines into
+# output it generates, such as the explore-directions variant switcher. No suite runs them; the
+# skill's own evals (plugins/*/skills/*/evals/evals.json, gated by
+# plugins/skill-quality/scripts/check-evals-quality.sh) cover the output they end up in, and a
+# fragment fails check-html-assets.sh's doctype rule by design, so it is not registered there.
+plugins/*/skills/*/assets/*
 
 # Kept-trace fixtures for the evals plugin's result checkers. test_run_validity.py
 # and test_calibrate_judge.py read them through their fixture directories, never

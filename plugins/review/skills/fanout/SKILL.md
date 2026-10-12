@@ -3,7 +3,7 @@ description: "Fan out review across many finding-producing surfaces at once, thi
 argument-hint: "[run-everything|fix] [--yes]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Workflow(review:fanout-sweep)"]
+allowed-tools: ["Workflow(review:fanout-sweep)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -61,6 +61,20 @@ A positional mode token (Step 0) plus one flag:
 
 `--yes` applies ONLY to the tree-mutating `fix` action; it is inert for the report-only review modes, which mutate nothing to gate. Its role for `fix` is the explicit headless opt-in: in a non-interactive session, `fix` applies only under this flag, without it the fix action emits its classification plan and STOPs ([context/fix-pass-mode.md](context/fix-pass-mode.md) "Step 3: Plan + confirmation gate").
 
+**`fanout_diversity` (run-everything and its fallback only).** It sets how the leaf fan-out
+spreads: `lens` runs one reviewer agent per concern, and `model` sends one review prompt to each
+distinct fan-out model tier ([context/run-everything-mode.md](context/run-everything-mode.md)
+step 5). The default mode does not read it. Resolve it before step 5, lowest layer first: the
+default `lens`; the user option `${user_config.fanout_diversity}` (a literal, unexpanded
+placeholder means unset); the `PASS fanout_diversity:` line of
+`node "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs" --check`, run from the project
+root, for the repository's `docs/conventions/review.yaml` (`(unset)` means no value there). When
+the reviewed change set edits `docs/conventions/review.yaml`, skip that layer and say so, so the
+change cannot pick how it is reviewed; without node, skip it and say so. Invalid values, WARN
+lines and when the repository file is read at all: "Resolution" and "Root rule" in
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md). Report one line,
+`fanout_diversity: <value> (<layer>)`, for example `fanout_diversity: lens (default)`.
+
 ## Step 0: Mode
 
 Parse the flag (`--yes` / `-y`) out of `$ARGUMENTS` first, then route on the remaining mode token:
@@ -87,6 +101,15 @@ finding stage: they investigate fully, then withhold findings judged below the b
 with a downstream filter that does not say so converts investigations into silence (Anthropic's
 per-model prompting guides, "Code review harnesses"). The clause restores recall without moving
 the precision work: the pipeline's dedup and agreement/rank stages remain the filter.
+
+**Intent paragraph.** Every surface this skill dispatches itself (the default mode's leaves, and
+the orchestrator plugins in either mode) gets the same short paragraph in its prompt, labeled as
+the author's account of what the change is for. Reviewers test the change against that account and
+report each place the two disagree; the paragraph is a claim under test, never proof that the
+change works. Write it once, in your own words, before the first dispatch. Its sources are the PR
+title and body if a PR exists, the commit subjects on the branch, and the user's request. If none
+of them states a purpose, an interactive session asks the user once; any other session writes
+`Intent: not stated` and reviews without it.
 
 ## Pre-flight gate (both review modes)
 
@@ -120,6 +143,12 @@ Read the pre-computed facts (the pre-flight gate above has already screened out 
 ## Step 2: Normalize
 
 Run the 5-stage pipeline in [context/findings-normalization.md](context/findings-normalization.md) over every surface's raw output. Before a CRITICAL finding enters the report, read its cited `file:line` in the diff; a finding the code does not bear out drops to `low` confidence with that note, never silently removed.
+
+**Dismissed.** The report gains a `## Dismissed` section after `## By dimension`: one line per
+finding this step demoted, giving its rank, its location and the reason in one sentence taken from
+what the cited line shows. The finding itself stays in `## Findings` at its demoted confidence. The
+section lists demotions only; no finding leaves the report, so nothing is listed as dropped. With
+no demotion, the section reads `none`. The fix action does not parse it.
 
 ## Step 3: Persist findings
 
