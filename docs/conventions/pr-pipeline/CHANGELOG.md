@@ -7,15 +7,18 @@ The config names its merge authority and the identity the local babysit lane act
 
 - `merge.authority` (`local-babysit` or `pr-merge`, no default) names the repository's one merge
   authority.
-- `merge.agent-identity` (a GitHub App's `[bot]` login; any other login fails the schema) names
-  the login the local babysit lane acts as. The schema requires it when `merge.authority` is
-  `local-babysit`.
+- `merge.agent-identity` (the `[bot]` login of a dedicated GitHub App; any other login, and the
+  shared `github-actions[bot]` and `dependabot[bot]`, fail the schema) names the login the local
+  babysit lane acts as. The schema requires it when `merge.authority` is `local-babysit`.
 - `resolve-config` ignores both keys, so its resolved output is unchanged.
-- README "Merge authority" gains "The local babysit lane": the effective rung, the human-only cap
+- README "Merge authority" gains "The local babysit lane": the effective rung, same-repository
+  heads only, LOW risk only, review evidence bound to the pinned head SHA, the human-only cap
   variable `CLAUDE_LANES_MERGE_RUNG_CAP` and its 404 rule, the kill-switch reads, the demotion
   issue and how a human clears it, the opt-in label `merge: agent-allowed`, the HIGH path floor,
-  one merge in flight, and `pr-automerge-dependabot.yml` as the one exception to a single merge
-  authority. "Outside this repository" gains the agent identity row.
+  the merge queue with `--match-head-commit`, one merge in flight, and
+  `pr-automerge-dependabot.yml` as the one exception to a single merge authority. A verdict
+  carried over by content fingerprint now applies to `pr-merge` only. "Outside this repository"
+  gains the agent identity row.
 - The example config shows both keys, commented out.
 
 ## 1.9.1 - 2026-10-12

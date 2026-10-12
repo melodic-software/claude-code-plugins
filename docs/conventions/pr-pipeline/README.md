@@ -306,8 +306,9 @@ highest work class that authority merges without a human. Work classes are defin
   automatically: when the default branch fails after a lane merge, that lane's merge rights turn off
   through a repository variable that can only lower the rung, and a `needs-human` issue is filed.
   The local babysit lane falls through a demotion issue instead (below).
-- A merge needs a review verdict on the final commit, or a verdict carried over by content
-  fingerprint.
+- A `pr-merge` merge needs a review verdict on the final commit, or a verdict carried over by
+  content fingerprint. The local babysit lane accepts only evidence bound to the pinned head SHA
+  (below).
 - `merge.stack-landing` defaults to `manual`.
 - A repository has one merge authority. The one exception is
   `.github/workflows/pr-automerge-dependabot.yml`, which merges Dependabot pull requests on its own
@@ -324,9 +325,14 @@ that fails counts as a refusal.
 
 - **Authority and identity.** `merge.authority` reads `local-babysit` and `merge.agent-identity`
   names the login the lane acts as. The schema rejects `local-babysit` without an identity. The
-  identity must be a GitHub App's `[bot]` login, and the schema rejects any other login: a machine
-  user is a GitHub user and would pass every human test. With no `merge:` block the
-  rung is `off` and the wrapper merges nothing.
+  identity must be the `[bot]` login of a GitHub App dedicated to this lane, and the schema rejects
+  any other login: a machine user is a GitHub user and would pass every human test, and the shared
+  `github-actions[bot]` and `dependabot[bot]` are refused. With no `merge:` block the rung is `off`
+  and the wrapper merges nothing.
+- **Same repository.** The pull request's head is in this repository, never a fork.
+- **Risk score.** Only a diff the risk scorer rates LOW merges; MEDIUM and HIGH are refused.
+- **Review evidence.** For each review lane, the newest run of the lane's caller workflow on the
+  pinned head SHA concluded success and carries the lane's completion record for that SHA.
 - **Effective rung.** The lowest of `merge.rung`, the `babysit_loop_merge` key in
   `.claude/source-control.md`, the cap variable, and `off` while any demotion issue is open.
 - **Cap variable.** `CLAUDE_LANES_MERGE_RUNG_CAP` (`off`, `C2` or `C3`) is a repository variable
@@ -348,6 +354,9 @@ that fails counts as a refusal.
 - **HIGH path floor.** A fixed set of paths in the wrapper's code, joined with
   `merge.diff-check.denied-paths` and matched case-insensitively. A diff that touches any of them
   scores HIGH and is never merged unattended.
+- **Merge queue.** The wrapper enqueues with `--match-head-commit`, never `--auto`, and only when
+  every required check is green. An armed auto-merge request on the pull request is a refusal, and
+  the wrapper disarms it.
 - **One merge in flight.** The wrapper refuses while the identity has an entry in the merge queue,
   or while an earlier unattended merge has not passed its post-merge check.
 - **Dependabot.** A dependency-manager author is never eligible for an unattended merge. Those pull
