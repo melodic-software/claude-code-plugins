@@ -3,8 +3,8 @@
 ## 1.9.1 - 2026-10-12
 
 The lanes token broker denies a repository whose `CLAUDE_LANES_REPO_DISABLED` variable is absent,
-on both its token and check endpoints (`kill-switch`, `not-false: the repository switch
-CLAUDE_LANES_REPO_DISABLED is not set`; azure-iac#24). `version` stays 1. Every repository on the
+on both its token and check endpoints, with reason `kill-switch` (the detail reads
+`not-false: the repository switch CLAUDE_LANES_REPO_DISABLED is not set`; azure-iac#24). `version` stays 1. Every repository on the
 broker's allowlist must declare the variable as `false`.
 
 ## 1.9.0 - 2026-10-11
