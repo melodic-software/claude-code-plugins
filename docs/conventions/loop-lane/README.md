@@ -154,16 +154,37 @@ App installed on that repository only: a machine user is a `User` and would pass
 - **Launch.** A lane starts in an environment whose only GitHub credential is the identity's
   installation token. Delivering and refreshing that token on each lane host is provisioning
   outside this repository.
-- **Preflight.** At lane start, before any write, the babysit lane and the worker lane check that
-  the session acts as `merge.agent-identity` and holds no other account. The rule is the merge
-  gate's: `resolve_identity` and `credential_refusal` in
+- **Identity gate, every cycle.** At the start of every cycle, the first included and before any
+  write, the babysit lane and the worker lane read `docs/conventions/pr-pipeline.yaml` fresh from
+  the target's default branch through the forge's contents read, never from a local checkout. A
+  read that fails (any answer but the content or not-found), a body that does not decode, or a
+  file that does not parse as YAML is a refusal. A readable file that names no
+  `merge.agent-identity`, or no file at all, skips the gate (the residual below). Running it every
+  cycle catches a lane that was already running when the identity was configured, or whose
+  credential changed mid-run.
+- **The rule** is the merge gate's: `resolve_identity` and `credential_refusal` in
   `plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py`, which read the
-  acting login (GraphQL `viewer { login }`) and the session's account listing (`gh auth status`).
-  The babysit lane runs them through `babysit-postmerge.sh --preflight`; the worker lane, in
-  another plugin, makes the same two reads and applies the same rule. Any refusal or unreadable
-  read means the lane writes nothing at all, telemetry and escalations included: it reports the
-  reason in its own session output and stops. Whether `viewer` returns the App's login on an
-  installation token is unprobed until the identity exists.
+  acting login (GraphQL `viewer { login }`) and the session's account listing
+  (`gh auth status --json hosts`). The babysit lane runs them through `babysit-postmerge.sh
+  --preflight`; the worker lane, in another plugin, makes the same two reads and applies the same
+  rule. Each of these refuses (the preflight prints the code shown):
+  - `agent-identity-unconfigured`: the named identity is empty.
+  - `agent-identity-invalid`: the identity is not a GitHub App login (`<slug>[bot]`, letters,
+    digits and single inner hyphens), or is the shared `github-actions[bot]` or
+    `dependabot[bot]`.
+  - `agent-identity-self-login`: the identity is one of the lane's own self logins.
+  - `acting-login-unreadable`: the `viewer` read failed or returned no login.
+  - `acting-login-mismatch`: the acting login is not the identity (compared case-insensitively).
+  - `credentials:credentials-unreadable`: `gh auth status` failed, did not parse, or lists no
+    account.
+  - `credentials:other-account-listed`: any listed account, active or not, on any host, has a
+    login other than the identity.
+  - `credentials:unknown-account-listed`: an inactive entry has no login.
+  - `credentials:identity-not-active`: there is not exactly one active `github.com` entry.
+
+  Any refusal means the lane writes nothing that cycle, telemetry and escalations included: it
+  reports the reason in its own session output and stops. Whether `viewer` returns the App's login
+  on an installation token is unprobed until the identity exists.
 - **No identity configured.** The merge path stays inert and the lanes run as before, under
   whatever credential the session holds, and that credential's writes read as human. Named
   residual.

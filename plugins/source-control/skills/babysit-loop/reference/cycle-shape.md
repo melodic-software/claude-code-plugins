@@ -5,15 +5,32 @@ mutate at the resolved autonomy tier, and where the escalation and no-progress c
 stop modes in [`../SKILL.md`](../SKILL.md) decide whether a cycle runs; this file decides what one
 is.
 
-0. **Lane-start preflight (once per lane, before the first cycle).** **Identity first, before any
-   write.** When the target's `docs/conventions/pr-pipeline.yaml` names a `merge.agent-identity`,
-   run `bash <plugin-root>/skills/babysit-prs/scripts/babysit-postmerge.sh --repo <owner/repo>
-   --agent-identity <merge.agent-identity> --preflight`. It applies the merge gate's identity and
-   credential rules alone: the session must act as that identity and hold no other account. On
-   any exit but 0, write nothing (no telemetry, escalation, fix, thread resolution or merge),
-   report the printed `error` in the session output and stop the lane: the convention's "Lane
-   write identity" (§1). With no `merge.agent-identity`, skip it.
-   Keep step 5's unconditional
+**Identity gate (every cycle, first, before any write).** The gate runs at the start of every
+cycle, the first included (ahead of step 0), so a lane that was already running when the target
+adopted an identity, or whose credential changed mid-run, is caught on its next cycle. Read the
+target's `docs/conventions/pr-pipeline.yaml` fresh from its default branch through the forge's
+contents read (provider reference: [GitHub](../../../reference/providers/github/README.md), "Read
+a tracked file from a repository's default branch"), never from the local checkout, the same
+source the worker lane reads. Then:
+
+- **Unreadable or unparsable is a refusal, never a skip.** A failed read (any answer but the
+  content or not-found), a body that does not decode, or a file that does not parse as YAML stops
+  the lane as below.
+- **A readable config that names no `merge.agent-identity` skips the gate**, and so does a
+  not-found answer (no file means no merge block, as the merge gate reads it). The lane then runs
+  under whatever credential the session holds (the convention's named residual).
+- **A named identity runs the preflight:** `bash
+  <plugin-root>/skills/babysit-prs/scripts/babysit-postmerge.sh --repo <owner/repo>
+  --agent-identity <merge.agent-identity> --preflight`. It applies the merge gate's identity and
+  credential rules alone: the session must act as that identity and hold no other account (every
+  refusal it can print: the convention's "Lane write identity", §1).
+
+On a refusal or any exit but 0, the lane writes nothing that cycle (no telemetry, escalation, fix,
+thread resolution, dequeue or merge), reports the reason (the printed `error`, or the config
+read's failure) in the session output, and stops: no `ScheduleWakeup`.
+
+0. **Lane-start preflight (once per lane, before the first cycle, after its identity gate).** Keep
+   step 5's unconditional
    record write out of the tracked tree, per §2: if `git check-ignore -q .claude/lane-escalations/`
    reports the path unignored, append `/.claude/lane-escalations/` to the clone's untracked
    `$(git rev-parse --git-common-dir)/info/exclude`. Skipped outside a git checkout, which the
@@ -57,14 +74,15 @@ is.
    the snapshot failure and its stderr reason and a fresh `heartbeat_at`, then schedule the next
    wakeup at the current backoff. The drain exit and
    the open-PR and open-issue counts every later step uses come only from an exit-0 snapshot.
-   **Post-merge check (every cycle, before any merge).** When the target's
-   `docs/conventions/pr-pipeline.yaml` names a `merge.agent-identity`, run
+   **Post-merge check (every cycle, before any merge).** When this cycle's identity gate read a
+   `merge.agent-identity`, run
    `bash <plugin-root>/skills/babysit-prs/scripts/babysit-postmerge.sh --repo <owner/repo>
    --agent-identity <merge.agent-identity>`. With no `--since` it computes the merge gate's floor:
    the commit that enabled the unattended path, or the newest human close of a demotion record
    when later. It judges every merge since the floor that a human did not
    enqueue or merge (Dependabot and sync-App merges included) and prints a JSON verdict. Add
-   `--remediate`, since step 0's identity preflight passed: it then triggers the one attribution
+   `--remediate`, since this cycle's identity gate passed (a refusal would have stopped the lane
+   before this step): it then triggers the one attribution
    re-run, dispatches one full run on the branch tip when an unverified merge has no identity
    dispatch run covering it, dequeues the identity's queue entries, and files or comments on the
    demotion issue.
@@ -186,7 +204,9 @@ is.
      `--expected-head` (the lane pin; `babysit-prs/reference/safety.md`, "Lane-pinned merge
      authorization"), and the brief tells it to merge only through the gate's `--unattended
      --merge`, never `--auto`: `--unattended` refuses `--auto`, and a plain `--merge` refuses the
-     identity's token (same file, "Unattended Merge Path"). Where the target does not configure
+     identity's token (same file, "Unattended Merge Path"). A plain `--merge` under the operator's
+     token cannot reach this step either: wherever the target names an identity, this cycle's
+     identity gate already stopped a lane not acting as it. Where the target does not configure
      that path, the gate refuses and the PR is reported merge-ready for a human. Every other
      non-report-only PR is invoked at `safe` (fixes and reports; never resolves threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
      Under the explicit-`autopilot` widening, a merge-eligible PR blocked on a machine-escalated

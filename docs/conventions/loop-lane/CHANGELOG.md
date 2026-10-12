@@ -5,16 +5,18 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
-## [11.1.0] - 2026-10-12
+## [12.0.0] - 2026-10-12
 
-Minor. A new §1 rule that binds only once a repository names `merge.agent-identity`; with none
-configured, no lane behaves differently.
+Major. A new loop-layer invariant (§1): where a repository names `merge.agent-identity`, a lane
+not acting as it stops and writes nothing. With none configured, no lane behaves differently.
 
 - **Lane write identity (§1).** Unattended lanes write only under `merge.agent-identity`, a GitHub
   App installed on that repository alone, launched with its token as the only GitHub credential.
-  The babysit and worker lanes run the merge gate's identity and credential rules at lane start and
-  write nothing, telemetry and escalations included, when they refuse. Interactive sessions stay
-  under the operator, and their label writes count as human provenance (named residual).
+  At the start of every cycle the babysit and worker lanes read `pr-pipeline.yaml` from the
+  target's default branch and run the merge gate's identity and credential rules; a refusal, or
+  an unreadable or unparsable config, means the lane writes nothing that cycle, telemetry and
+  escalations included, and stops. §1 lists every refusal. Interactive sessions stay under the
+  operator, and their label writes count as human provenance (named residual).
 
 ## [11.0.1] - 2026-10-11
 

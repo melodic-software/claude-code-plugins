@@ -1273,7 +1273,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help=(
             "check only that the session acts as the identity and holds no other "
-            "account (the lane-start preflight); exit 0 or 2"
+            "account (the lane identity gate, run every cycle); exit 0 or 2"
         ),
     )
     args = parser.parse_args(argv)
