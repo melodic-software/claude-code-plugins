@@ -85,7 +85,7 @@ value and its unset fallback.
   git config is consulted, so a remote the PR checkout pointed at the base repository, another
   host or SSH cannot misdirect the push or write a same-named branch on base. An attended run
   takes the operator's own path: the resolved push remote, with the operator's hooks and
-  credentials, refused unless every push URL ends in the PR's head repository. A cross-repo head's OWNER must
+  credentials, refused unless every push URL is the PR's head repository on its forge host. A cross-repo head's OWNER must
   still be within `<watched-owners>`, else read-only (Stop And Ask, below): an external-fork head
   with maintainer edits enabled must not receive a push just because it is reachable. Because
   `HEAD` equaled the PR head and you only added commits on top, this push is a fast-forward; never

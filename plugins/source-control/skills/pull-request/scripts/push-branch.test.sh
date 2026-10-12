@@ -48,7 +48,10 @@ BRANCH="feat/x"
 # fails when PB_LOGIN_FAIL is set. `repo view` names the base repository, and
 # `pr view` the PR's head branch and repository: push-branch.sh's own read
 # (`-q`, one line) and lane-push.sh's (`-R`, two lines). Lane cases add a git
-# stand-in that records a push instead of sending it.
+# stand-in that records a push instead of sending it. With PB_GITHUB_ROOT set,
+# the git stand-in sends a push for https://github.com/<path> to
+# $PB_GITHUB_ROOT/<path>, so a remote can carry a github.com URL (what
+# `git remote get-url` reports) and still push into a local bare repository.
 REAL_GIT="$(type -P git)"
 SHIM="$WORKDIR/shim"
 LOG="$WORKDIR/log"
@@ -78,6 +81,9 @@ for a in "\$@"; do
     printf '%s\n' "\$@" >"$LOG/push.argv"
     pwd -P >"$LOG/push.cwd"
     exit 0
+  fi
+  if [[ \$a == push && -n \${PB_GITHUB_ROOT:-} ]]; then
+    exec "$REAL_GIT" -c "url.\$PB_GITHUB_ROOT/.insteadOf=https://github.com/" "\$@"
   fi
 done
 exec "$REAL_GIT" "\$@"
@@ -239,9 +245,12 @@ check "merge-only: origin received the branch" "$(has_branch "$WORKDIR/merge-onl
 #    the PR being readied is on worktree B (feat/b), whose new commit is not yet
 #    pushed. `--pr <n>` must push the PR's head branch (from a stubbed
 #    `gh pr view`), never A's branch, and a PR whose head has no local branch
-#    must exit non-zero instead of pushing the cwd's branch.
+#    must exit non-zero instead of pushing the cwd's branch. origin carries the
+#    github.com URL of the PR's head repository, as a real checkout does.
 wc=$(make_clone pr-worktree)
 git -C "$wc" push -q -u origin "$BRANCH" 2>/dev/null
+git -C "$wc" remote set-url origin https://github.com/pr-worktree/origin.git
+export PB_GITHUB_ROOT="$WORKDIR"
 wt_b="$WORKDIR/pr-worktree/wt-b"
 git -C "$wc" worktree add -q -b feat/b "$wt_b" 2>/dev/null
 git -C "$wt_b" commit -q --allow-empty -m "merge base into b"
@@ -294,12 +303,26 @@ check "pr-worktree: --dir pushed that checkout's detached HEAD to the PR head br
 # The head-repository check reads the URL the push goes to: a push URL that is
 # not the PR's head repository refuses even when the fetch URL is.
 git init -q --bare "$WORKDIR/pr-worktree/other.git"
-git -C "$wc" remote set-url --push origin "$WORKDIR/pr-worktree/other.git"
+git -C "$wc" remote set-url --push origin https://github.com/pr-worktree/other.git
 pushurl_exit=zero
 (cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 42) >/dev/null 2>&1 || pushurl_exit=nonzero
 check "pr-worktree: push URL other than the PR head repository exits non-zero" "$pushurl_exit" "nonzero"
 check "pr-worktree: the other push URL did not receive the branch" \
   "$(git -C "$WORKDIR/pr-worktree/other.git" rev-parse --verify --quiet refs/heads/feat/b || echo none)" "none"
+# The head repository is a github.com repository: a push URL on another host,
+# or a longer github.com path, that merely ends in owner/repo refuses.
+git init -q --bare "$WORKDIR/elsewhere/pr-worktree/origin.git"
+for url in "$WORKDIR/elsewhere/pr-worktree/origin.git" \
+  https://github.com/elsewhere/pr-worktree/origin.git; do
+  git -C "$wc" remote set-url --push origin "$url"
+  host_exit=zero
+  (cd "$wc" && PATH="$stub:$PATH" bash "$PUSH_BRANCH" --pr 42) >/dev/null 2>&1 || host_exit=nonzero
+  check "pr-worktree: push URL $url, not the github.com head repository, exits non-zero" \
+    "$host_exit" "nonzero"
+  check "pr-worktree: push URL $url did not receive the branch" \
+    "$(git -C "$WORKDIR/elsewhere/pr-worktree/origin.git" rev-parse --verify --quiet refs/heads/feat/b || echo none)" "none"
+done
+unset PB_GITHUB_ROOT
 
 # 9. Inside a lane, meaning the acting gh login is a GitHub App login
 #    (`<slug>[bot]`, the loop-lane identity contract), the push goes to

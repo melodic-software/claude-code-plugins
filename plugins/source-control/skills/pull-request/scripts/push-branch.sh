@@ -54,8 +54,8 @@
 # `gh pr view`, whatever worktree the caller runs in. Branch refs are shared
 # across worktrees, so the push carries the commits made in the PR's worktree.
 # A head branch with no local ref, a name starting with '-', or a push remote
-# any of whose push URLs is not the PR's head repository exits non-zero rather
-# than pushing.
+# any of whose push URLs is not the PR's head repository on github.com (https,
+# ssh:// or scp-style) exits non-zero rather than pushing.
 #
 # `--dir <checkout>` runs from that checkout and pushes its HEAD, detached
 # included, to the branch by refspec, never with `-u`; with `--pr` the head
@@ -165,13 +165,21 @@ fi
 
 PUSH_REMOTE=$(bash "$RESOLVER" --push "$BRANCH") || exit 1
 # A same-named local branch is not the PR's head unless every URL the push
-# writes to is the PR's head repository (a fork PR's head lives on the fork).
+# writes to is the PR's head repository on github.com (a fork PR's head lives
+# on the fork). The URLs are read after insteadOf rewriting, as git pushes them.
 if [[ -n "${HEAD_REPO:-}" ]]; then
   URLS=$(git remote get-url --push --all "$PUSH_REMOTE" 2>/dev/null)
   while IFS= read -r URL; do
     URL="${URL%/}"
     URL="${URL%.git}"
-    if [[ -z "$URL" || "${URL,,}" != *[:/]"${HEAD_REPO,,}" ]]; then
+    URL_REPO=""
+    case "${URL,,}" in
+      https://github.com/*) URL_REPO="${URL:19}" ;;
+      ssh://git@github.com/*) URL_REPO="${URL:21}" ;;
+      git@github.com:*) URL_REPO="${URL:15}" ;;
+      *) ;;
+    esac
+    if [[ -z "$URL_REPO" || "${URL_REPO,,}" != "${HEAD_REPO,,}" ]]; then
       echo "push-branch.sh: '$BRANCH' pushes to '$PUSH_REMOTE' ($URL), not PR '$PR' head repository '$HEAD_REPO'; not pushing" >&2
       exit 1
     fi

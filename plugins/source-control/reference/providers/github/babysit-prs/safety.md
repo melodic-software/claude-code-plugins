@@ -17,7 +17,7 @@ The spoke's Checkout And Push Invariants:
 - The push is `push-branch.sh --dir <checkout> --pr <N>`. In a lane its destination is
   `lane-push.sh`'s own read, `gh pr view <N> -R <owner/repo> --json headRepository,headRefName`,
   from which it builds `https://github.com/<nameWithOwner>.git`; attended, it is the resolved push
-  remote, whose push URLs must each end in the PR's head repository (`gh pr view <N> --json
+  remote, whose push URLs must each be the PR's head repository on github.com (`gh pr view <N> --json
   headRepository,headRepositoryOwner`).
 
 ## CLI merge
