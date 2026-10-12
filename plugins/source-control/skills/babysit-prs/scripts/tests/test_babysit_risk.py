@@ -44,7 +44,7 @@ def _file(
 ):
     if previous_mode is _UNSET:
         # A well-formed two-sided change carries its base-side mode.
-        two_sided = status in ("changed", "renamed", "copied")
+        two_sided = status in ("modified", "changed", "renamed", "copied")
         previous_mode = "100644" if two_sided else None
     return ChangedFile(
         path=path,
@@ -686,9 +686,9 @@ class MalformedInputTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.LOW)
 
     def test_two_sided_change_needs_a_previous_mode(self):
-        # Spec: changed, renamed or copied with previous_mode None, malformed
+        # Spec: modified, changed, renamed or copied with previous_mode None, malformed
         # or '000000' (absent) is HIGH, at a class where nothing else fires.
-        for status in ("changed", "renamed", "copied"):
+        for status in ("modified", "changed", "renamed", "copied"):
             for previous_mode in (None, "777", "000000"):
                 with self.subTest((status, previous_mode)):
                     result = score(
@@ -707,7 +707,9 @@ class MalformedInputTests(unittest.TestCase):
                         )
                     )
                     self.assertEqual(result.score, Risk.HIGH)
-                    self.assertIn("high-path:**", _codes(result))
+                    unsafe = [r for r in result.reasons if r.code == "high-path:**"]
+                    self.assertEqual(len(unsafe), 1)
+                    self.assertIn("previous mode", unsafe[0].detail)
 
     def test_absent_previous_mode_is_allowed_only_for_an_added_file(self):
         added = _file("plugins/foo/a.md", status="added", previous_mode="000000")
@@ -1053,7 +1055,7 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
     def test_lane_evidence_naming_no_known_lane_is_a_miss(self):
         # Spec: unrecognized data is a miss, never a pass.
         clean = (_lane("claude-review"), _lane("claude-security-review"))
-        for extra in ("claude-docs-review", "", None, 7):
+        for extra in ("claude-docs-review", "", None, 7, ["claude-review"]):
             with self.subTest(extra):
                 result = score(_input(lanes=(*clean, _lane(extra))))
                 self.assertEqual(result.score, Risk.MED)

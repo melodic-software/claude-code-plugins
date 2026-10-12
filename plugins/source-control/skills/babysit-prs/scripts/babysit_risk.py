@@ -74,7 +74,7 @@ class ChangedFile:
     # omits it, so the caller fills it from the git trees API or
     # `git diff --raw`.
     mode: str
-    # The base-side mode. Required for a changed, renamed or copied file. The
+    # The base-side mode. Required for a modified, changed, renamed or copied file. The
     # caller passes None for an absent side; "000000" (git's absent mode) is
     # read as absent and accepted only for an added file.
     previous_mode: str | None = None
@@ -182,7 +182,9 @@ _C1_RANK = _CLASS_RANK["C1"]
 _C2_RANK = _CLASS_RANK["C2"]
 
 _ABSENT_MODE = "000000"
-_TWO_SIDED = frozenset({"changed", "renamed", "copied"})  # need a previous mode
+_TWO_SIDED = frozenset(
+    {"modified", "changed", "renamed", "copied"}
+)  # need a previous mode
 # Git file modes by type. Only regular files may stay below HIGH.
 _MODE_TYPES = {
     "100644": "regular",
@@ -368,7 +370,9 @@ def _mode_problems(changed: Any, raw_path: Any, status: str | None) -> list[str]
             found.append(f"{_show(raw_path)} {status} with no previous mode")
     else:
         before = _MODE_TYPES.get(previous) if isinstance(previous, str) else None
-        if before != kind:
+        if before is None:
+            found.append(f"{_show(raw_path)} malformed previous mode {_show(previous)}")
+        elif before != kind:
             found.append(
                 f"{_show(raw_path)} mode {_show(previous)} -> {_show(mode)}"
                 " changes type"
@@ -486,10 +490,9 @@ def _size_reasons(inp: RiskInput, files: list[_File] | None) -> list[Reason]:
 def _lane_reasons(raw_lanes: Any) -> list[Reason]:
     lanes = _sequence(raw_lanes) or ()
     reasons = []
+    names = [getattr(lane, "lane", None) for lane in lanes]
     unknown = [
-        _show(getattr(lane, "lane", None))
-        for lane in lanes
-        if getattr(lane, "lane", None) not in LANES
+        _show(name) for name in names if not (isinstance(name, str) and name in LANES)
     ]
     if unknown:
         reasons.append(Reason("evidence-unbound:unknown", Risk.MED, ", ".join(unknown)))
