@@ -446,6 +446,9 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
 
     def by_author(variables: dict[str, str]) -> dict[str, Any]:
         nodes = []
+        # Shape per GitHub's GraphQL createdBy filter, which matches the [bot]
+        # login: probed, "github-actions[bot]" returned this repository's issues
+        # and "github-actions" and "app/github-actions" returned none.
         if variables["a"] == IDENTITY:
             nodes = [
                 {
@@ -525,11 +528,65 @@ class ReadDemotion(unittest.TestCase):
         self.assertTrue(result.active)
 
     def test_role_label_removed_is_still_off(self) -> None:
-        # Records are found by author and marker; labels play no part.
-        demotion_fake(
-            self, state="OPEN", labels={"nodes": []}, timelineItems={"nodes": []}
+        # Records are found by author and marker: neither query reads labels,
+        # so a record with its role label removed is still found and held.
+        gh = demotion_fake(
+            self,
+            timelineItems={"nodes": [{"actor": bot("agent-lanes"), "closer": None}]},
         )
-        self.assertTrue(read_demotion().active)
+        result = read_demotion()
+        self.assertEqual((result.active, result.records), (True, (9,)))
+        queries = [a for call in gh.calls for a in call if a.startswith("query=")]
+        self.assertEqual(len(queries), 3)
+        for query in queries:
+            self.assertNotIn("labels", query)
+
+    def test_only_the_earliest_revision_at_creation_is_the_original(self) -> None:
+        # A second identity revision stamped at createdAt is an edit, not the
+        # original body, even when a human edited after it.
+        edits = {
+            "totalCount": 3,
+            "nodes": [
+                {
+                    "editedAt": "2026-10-12T11:00:00Z",
+                    "deletedAt": None,
+                    "editor": user(OPERATOR),
+                    "diff": DEMOTION_BODY + " note",
+                },
+                {
+                    "editedAt": "2026-10-12T10:00:00Z",
+                    "deletedAt": None,
+                    "editor": bot("agent-lanes"),
+                    "diff": DEMOTION_BODY + " rewritten",
+                },
+                {
+                    "editedAt": "2026-10-12T10:00:00Z",
+                    "deletedAt": None,
+                    "editor": bot("agent-lanes"),
+                    "diff": DEMOTION_BODY,
+                },
+            ],
+        }
+        demotion_fake(self, lastEditedAt="2026-10-12T11:00:00Z", userContentEdits=edits)
+        result = read_demotion()
+        self.assertEqual(result.reason, "#9 edited-by-non-human")
+
+    def test_a_null_author_or_editor_is_never_the_original(self) -> None:
+        original = {
+            "editedAt": "2026-10-12T10:00:00Z",
+            "deletedAt": None,
+            "editor": None,
+            "diff": DEMOTION_BODY,
+        }
+        for name, author, editor in (
+            ("both null", None, None),
+            ("null editor", bot("agent-lanes"), None),
+            ("null author", None, bot("agent-lanes")),
+        ):
+            with self.subTest(name):
+                edits = {"totalCount": 1, "nodes": [original | {"editor": editor}]}
+                demotion_fake(self, author=author, userContentEdits=edits)
+                self.assertEqual(read_demotion().reason, "#9 edited-by-non-human")
 
     def test_any_non_human_edit_is_off(self) -> None:
         for editor in (bot("renovate"), user("reader"), None):
@@ -661,6 +718,8 @@ def eligibility_fake(
     } | (pr or {})
     gh = GhFake().install(case)
     gh.graphql["PolicyEligibility"] = {"repository": {"pullRequest": pull}}
+    # REST issue timeline `labeled` event: `actor` is a REST user object
+    # (`login`, `type`), the field label-provenance.sh reads as `.actor.login`.
     gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"] = [
         {
             "event": "labeled",
@@ -669,14 +728,23 @@ def eligibility_fake(
             "created_at": "2026-10-11T09:00:00Z",
         },
     ]
-    lease = {"holder": IDENTITY, "acquired_at": "2026-10-12T11:00:00Z"}
     gh.rest[f"repos/{REPO}/issues/{ISSUE}/comments?per_page=100"] = [
-        {
-            "body": f"{policy.LEASE_MARKER}{json.dumps(lease)} -->",
-            "created_at": "2026-10-12T11:00:00Z",
-        },
+        lease_comment(IDENTITY, "2026-10-12T11:00:00Z")
     ]
     return gh
+
+
+def lease_comment(
+    holder: str, created_at: str, poster: dict[str, str] | None = None
+) -> dict[str, Any]:
+    """A REST issue comment carrying a work-item lease; `user` is the REST user
+    object of whoever posted it, the identity's App by default."""
+    lease = {"holder": holder, "acquired_at": created_at}
+    return {
+        "body": f"{policy.LEASE_MARKER}{json.dumps(lease)} -->",
+        "created_at": created_at,
+        "user": poster or {"login": IDENTITY, "type": "Bot"},
+    }
 
 
 def eligibility() -> Any:
@@ -779,6 +847,18 @@ class Eligibility(unittest.TestCase):
         ]
         self.assertEqual(eligibility().reason, "claim-missing")
 
+        for poster in (
+            {"login": "stranger", "type": "User"},
+            {"login": OPERATOR, "type": "User"},
+            {"login": "agent-lanes", "type": "User"},
+            {"login": "other-app[bot]", "type": "Bot"},
+        ):
+            with self.subTest(poster):
+                gh.rest[f"repos/{REPO}/issues/{ISSUE}/comments?per_page=100"] = [
+                    lease_comment(IDENTITY, "2026-10-12T11:00:00Z", poster)
+                ]
+                self.assertEqual(eligibility().reason, "claim-missing")
+
         other = {"holder": OPERATOR}
         gh.rest[f"repos/{REPO}/issues/{ISSUE}/comments?per_page=100"] = [
             {
@@ -798,16 +878,32 @@ def queue_fake(
             "mergeQueue": {"entries": {"totalCount": len(entries), "nodes": entries}}
         }
     }
-    gh.graphql["PolicyRecentMerges"] = {
-        "repository": {"pullRequests": {"nodes": merges}}
-    }
+    gh.graphql["PolicyRecentMerges"] = merge_pages([merges])
     return gh
 
 
-def merged(number: int, actor: Any, enqueuer: Any) -> dict[str, Any]:
+def merge_pages(pages: list[list[dict[str, Any]]], *, endless: bool = False) -> Any:
+    """Answer the merged-PR read one page per cursor: page i+1 at cursor "p<i>"."""
+
+    def answer(variables: dict[str, str]) -> dict[str, Any]:
+        index = int(variables["c"][1:]) + 1 if "c" in variables else 0
+        more = endless or index + 1 < len(pages)
+        page = {
+            "pageInfo": {"hasNextPage": more, "endCursor": f"p{index}"},
+            "nodes": pages[index] if index < len(pages) else [],
+        }
+        return {"repository": {"pullRequests": page}}
+
+    return answer
+
+
+def merged(
+    number: int, actor: Any, enqueuer: Any, updated: str = "2026-10-12T09:00:00Z"
+) -> dict[str, Any]:
     return {
         "number": number,
-        "mergedAt": "2026-10-12T09:00:00Z",
+        "mergedAt": updated,
+        "updatedAt": updated,
         "headRefOid": "c" * 40,
         "mergeCommit": {"oid": "d" * 40},
         "timelineItems": {"nodes": [{"actor": actor, "enqueuer": enqueuer}]},
@@ -845,6 +941,33 @@ class InFlight(unittest.TestCase):
                 queue_fake(self, [], [merged(2, actor, enqueuer)])
                 self.assertEqual(self.flight().reason, "unverified-auto-merge:#2")
                 self.assertTrue(self.flight(verified=lambda m: m.number == 2).clear)
+
+    def test_an_auto_merge_past_the_first_page_is_found(self) -> None:
+        gh = queue_fake(self, [], [])
+        human = merged(2, user(OPERATOR), user(OPERATOR))
+        gh.graphql["PolicyRecentMerges"] = merge_pages(
+            [[human], [merged(1, bot("agent-lanes"), None, "2026-10-01T09:00:00Z")]]
+        )
+        self.assertEqual(self.flight().reason, "unverified-auto-merge:#1")
+
+    def test_a_history_longer_than_the_read_bound_is_not_clear(self) -> None:
+        gh = queue_fake(self, [], [])
+        human = merged(2, user(OPERATOR), user(OPERATOR))
+        gh.graphql["PolicyRecentMerges"] = merge_pages([[human]], endless=True)
+        self.assertEqual(self.flight().reason, "merged-history-truncated")
+
+    def test_the_read_stops_at_the_merged_since_floor(self) -> None:
+        gh = queue_fake(self, [], [])
+        human = merged(2, user(OPERATOR), user(OPERATOR))
+        older = merged(1, bot("agent-lanes"), None, "2026-09-01T09:00:00Z")
+        gh.graphql["PolicyRecentMerges"] = merge_pages([[human], [older]], endless=True)
+        floor = policy.datetime.fromisoformat("2026-10-01T00:00:00Z")
+        result = policy.in_flight(
+            REPO, agent_identity=IDENTITY, permission=HUMANS, merged_since=floor
+        )
+        self.assertTrue(result.clear, result.reason)
+        reads = [c for c in gh.calls if any("PolicyRecentMerges" in a for a in c)]
+        self.assertEqual(len(reads), 2)
 
     def test_an_unreadable_queue_is_not_clear(self) -> None:
         gh = queue_fake(self, [], [])
@@ -905,9 +1028,7 @@ class Assess(unittest.TestCase):
         gh.graphql["PolicyMergeQueue"] = {
             "repository": {"mergeQueue": {"entries": {"totalCount": 0, "nodes": []}}}
         }
-        gh.graphql["PolicyRecentMerges"] = {
-            "repository": {"pullRequests": {"nodes": []}}
-        }
+        gh.graphql["PolicyRecentMerges"] = merge_pages([[]])
         result = policy.assess(REPO, base_sha=SHA, acting_login=IDENTITY)
         self.assertFalse(result.enabled)
         self.assertEqual(result.reason, "merge-unconnected")

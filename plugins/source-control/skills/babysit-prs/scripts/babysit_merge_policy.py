@@ -92,7 +92,10 @@ USER_LOGIN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}$")
 AUTOMATION_LOGINS = frozenset({"github-actions"})
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 WRITE_PERMISSIONS = frozenset({"admin", "write"})
-RECENT_MERGES = 50
+# The merged-PR read for the in-flight rule: pages of 100, at most 10 pages.
+# A history it cannot read to its end (or to the merged-since floor) is not clear.
+MERGED_PAGE_SIZE = 100
+MERGED_PAGE_LIMIT = 10
 
 
 class PolicyReadError(RuntimeError):
@@ -685,19 +688,27 @@ def _record_hold(issue: dict[str, Any], human: Callable[[Any], bool]) -> str | N
         return "closed-by-reference"
     if not human(close.get("actor")):
         return "closed-by-non-human"
+    if any(edit.get("deletedAt") or edit.get("diff") is None for edit in nodes):
+        return "edit-history-deleted"
+    # GitHub lists the original body as the author's edit at creation time,
+    # newest edit first. Only the earliest revision can be that original, and
+    # only when both its editor and the issue author are named.
     author = json_object(issue.get("author"))
-    for edit in nodes:
-        if edit.get("deletedAt") or edit.get("diff") is None:
-            return "edit-history-deleted"
-        editor = json_object(edit.get("editor"))
-        # GitHub lists the original body as the author's edit at creation time.
-        original = (
-            edit.get("editedAt") == issue.get("createdAt")
-            and editor.get("__typename") == author.get("__typename")
-            and _login_key(editor.get("login")) == _login_key(author.get("login"))
+    earliest = json_object(nodes[-1]) if nodes else {}
+    editor = json_object(earliest.get("editor"))
+    original_is_earliest = bool(
+        earliest.get("editedAt") == issue.get("createdAt")
+        and author.get("login")
+        and editor.get("login")
+        and editor.get("__typename") == author.get("__typename")
+        and _login_key(editor.get("login")) == _login_key(author.get("login"))
+        and all(
+            _time(e.get("editedAt")) >= _time(earliest.get("editedAt")) for e in nodes
         )
-        if not original and not human(edit.get("editor")):
-            return "edited-by-non-human"
+    )
+    judged = nodes[:-1] if original_is_earliest else nodes
+    if any(not human(edit.get("editor")) for edit in judged):
+        return "edited-by-non-human"
     return None
 
 
@@ -860,13 +871,19 @@ def _label_provenance(
 def _claimed_before(
     owner: str, name: str, issue: int, identity: str, created: datetime
 ) -> bool:
-    """A work-item lease comment held by the identity on `issue`, posted before
-    `created` (server time; commit dates are client-set)."""
+    """A work-item lease comment held by the identity on `issue`, posted by the
+    identity's App before `created` (server time; commit dates are
+    client-set). The holder is text anyone can write, so the poster decides."""
     comments = _paginated(
         f"repos/{owner}/{name}/issues/{issue}/comments?per_page=100",
         f"#{issue} comments",
     )
     for comment in comments:
+        poster = json_object(comment.get("user"))
+        if poster.get("type") != "Bot" or _login_key(poster.get("login")) != _login_key(
+            identity
+        ):
+            continue
         body = str(comment.get("body") or "").strip()
         if not (body.startswith(LEASE_MARKER) and body.endswith("-->")):
             continue
@@ -999,12 +1016,47 @@ MERGE_QUEUE = (
     "enqueuer{__typename login} pullRequest{number}}}}}}"
 )
 RECENT_MERGES_QUERY = (
-    "query PolicyRecentMerges($o:String!,$r:String!,$b:String!){repository(owner:$o,name:$r){"
-    f"pullRequests(baseRefName:$b,states:MERGED,first:{RECENT_MERGES},"
-    "orderBy:{field:UPDATED_AT,direction:DESC}){nodes{number mergedAt headRefOid "
+    "query PolicyRecentMerges($o:String!,$r:String!,$b:String!,$c:String){"
+    "repository(owner:$o,name:$r){pullRequests(baseRefName:$b,states:MERGED,"
+    f"first:{MERGED_PAGE_SIZE},after:$c,orderBy:{{field:UPDATED_AT,direction:DESC}}){{"
+    "pageInfo{hasNextPage endCursor} nodes{number mergedAt updatedAt headRefOid "
     "mergeCommit{oid} timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
     "... on AddedToMergeQueueEvent{actor{__typename login} enqueuer{__typename login}}}}}}}}"
 )
+
+
+def _merged_since(
+    owner: str, name: str, branch: str, since: datetime | None
+) -> list[dict[str, Any]] | None:
+    """Merged pull requests on `branch`, newest update first, read until one was
+    last updated before `since` (a merge updates the PR, so every PR merged
+    since then comes first) or the history ends. None when the page limit is
+    reached first."""
+    found: list[dict[str, Any]] = []
+    cursor: str | None = None
+    for _ in range(MERGED_PAGE_LIMIT):
+        data = _graphql(
+            RECENT_MERGES_QUERY,
+            "merged pull requests",
+            o=owner,
+            r=name,
+            b=branch,
+            c=cursor,
+        )
+        page = json_object(json_object(data.get("repository")).get("pullRequests"))
+        info = page.get("pageInfo")
+        if not is_json_array(page.get("nodes")) or not is_json_object(info):
+            raise PolicyReadError("merged pull requests: no page")
+        for pr in map(json_object, page["nodes"]):
+            if since is not None and _time(pr.get("updatedAt")) < since:
+                return found
+            found.append(pr)
+        if info.get("hasNextPage") is not True:
+            return found
+        cursor = info.get("endCursor")
+        if not isinstance(cursor, str) or not cursor:
+            raise PolicyReadError("merged pull requests: a next page with no cursor")
+    return None
 
 
 @dataclass(frozen=True)
@@ -1031,14 +1083,19 @@ def in_flight(
     permission: Permission | None = None,
     verified: Callable[[AutoMerge], bool] | None = None,
     branch: str = "main",
+    merged_since: datetime | None = None,
 ) -> InFlight:
     """Clear only when no merge-queue entry is the agent identity's and every
-    recent auto-merge (an enqueue whose event `actor` or `enqueuer` is null or
-    non-human) is verified. `verified` judges one auto-merge; without it none
-    is, so any auto-merge keeps the path not clear."""
+    auto-merge (an enqueue whose event `actor` or `enqueuer` is null or
+    non-human) merged into `branch` since `merged_since` (all history when
+    None) is verified. A history the read cannot reach the end of is not
+    clear. `verified` judges one auto-merge; without it none is, so any
+    auto-merge keeps the path not clear."""
     owner, name = _split_repo(repo)
     if not agent_identity:
         return InFlight(False, "agent-identity-unconfigured")
+    if merged_since is not None and merged_since.utcoffset() is None:
+        return InFlight(False, "merged-since-not-timezone-aware")
     human = lambda actor: is_human(  # noqa: E731
         actor,
         repo=repo,
@@ -1060,11 +1117,10 @@ def in_flight(
                 return InFlight(False, f"entry-enqueuer-unknown:#{number}")
             if _login_key(enqueuer.get("login")) == _login_key(agent_identity):
                 return InFlight(False, f"identity-entry-queued:#{number}")
-        data = _graphql(RECENT_MERGES_QUERY, "recent merges", o=owner, r=name, b=branch)
-        merges = json_object(json_object(data.get("repository")).get("pullRequests"))
-        if not is_json_array(merges.get("nodes")):
-            return InFlight(False, "recent-merges-unreadable")
-        for pr in map(json_object, merges["nodes"]):
+        merges = _merged_since(owner, name, branch, merged_since)
+        if merges is None:
+            return InFlight(False, "merged-history-truncated")
+        for pr in merges:
             events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
             if not events:
                 continue
