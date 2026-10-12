@@ -495,7 +495,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const DEAF_AFTER = 30; // seconds with no watcher poll before the rung 5 message
   const LINE_CAP = 500; // the server's one-line cap, which a hedged condition must fit
   const PERSON = "someone else decides: "; // a defer whose text names the person who holds the decision
-  const personOf = d => !!d && d.decision === "defer" && String(d.text || "").startsWith(PERSON);
+  const named = t => String(t || "").replace(/^someone else decides:\s*/i, "").trim(); // the person a note names, without a repeated label
+  const personOf = d =>!!d && d.decision === "defer" && String(d.text || "").startsWith(PERSON);
   const FREEZE_MS = 10000; // longest wrap-up freeze on decision saves
   const KEYS = [["Ctrl/Cmd+Enter", "Save the armed choice with the note"], ["Ctrl/Cmd+Shift+Enter", "Ask Claude, no decision"], ["1 to 9", "Arm the Nth row of Decide, counted from the top"],
     ["a", "Arm Rec; on a stale question with a decision, Reconfirm it (the first row)"], ["o", "Arm Own answer and focus the note"], ["d", "Arm Defer"], ["h", "Arm Hedged (accept with a condition) and focus the note"], ["r", "Reopen"], ["i", "Focus the note"],
@@ -1145,7 +1146,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const armed = armedOf(cs);
     $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && !c.wn && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
       '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
-    const needText = armed && needsNote(armed) && !text, frozen = wrapFreeze() > 0;
+    const needText = armed && needsNote(armed) && !(armed.who ? named(text) : text), frozen = wrapFreeze() > 0;
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + (armed.kind === "accept" && !armed.re && (armed.wn || withNote(q, armed)) ? "Accept with note" : armed.label) : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
     $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (shut ? closedWhy() : frozen ? "Wrapping up" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : armed.who ? "Name who decides in the note" : "Own answer needs a note") : "Ctrl+Enter") + "</span>" +
@@ -1666,13 +1667,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const keep = keptText(c);
     if (c.kind === "accept" && waitingReply(q) && !await confirmAccept()) return;
     const note = keep !== undefined ? keep : $("note").value.trim();
-    if ((noteKind(c.kind) || c.wn || c.who) && !note) { toast(c.kind === "hedged" ? "Hedged needs a condition in the note." : c.wn ? "Accept with note needs a note." : c.who ? "Name who decides in the note." : "Own answer needs a note.", true); $("note").focus(); return; }
+    if ((noteKind(c.kind) || c.wn || c.who) && !(c.who ? named(note) : note)) { toast(c.kind === "hedged" ? "Hedged needs a condition in the note." : c.wn ? "Accept with note needs a note." : c.who ? "Name who decides in the note." : "Own answer needs a note.", true); $("note").focus(); return; }
     if (c.kind === "hedged" && note.length > LINE_CAP) { toast("The condition is too long: at most " + LINE_CAP + " characters.", true); $("note").focus(); return; }
     if (c.kind === "own" && keep === undefined) { // own text that starts from a card label is most often an accept with a remark
       const r = await resolveRef(q, note, "Save as own answer"); if (r === false) return;
       if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; }
     }
-    await send(c.kind, c.alt, undefined, c.who ? PERSON + note.replace(/^someone else decides:\s*/i, "") : keep, withNote(q, c));
+    await send(c.kind, c.alt, undefined, c.who ? PERSON + named(note) : keep, withNote(q, c));
   }
   function confirmAccept(){ // Claude has not answered your ask yet, so the recommendation may still change
     const dlg = $("dlg");

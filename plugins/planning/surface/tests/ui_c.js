@@ -126,7 +126,9 @@ async page => {
     // Someone else decides: a defer that names the person who holds the decision
     await pick("Q3"); await page.click('.choice:has-text("Someone else decides")'); await page.waitForTimeout(150);
     ok("Someone else decides needs a note naming who before it saves", /Someone else decides/.test(await armed()) && await page.$eval("[data-save]", el => el.disabled) && /Name who decides/.test(await page.textContent("#decideRow")), await armed());
-    await page.click("#note"); await page.keyboard.type("Someone else decides: Dana, the DBA"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(700);
+    await page.click("#note"); await page.keyboard.type("Someone else decides:"); await page.waitForTimeout(150);
+    ok("a note that only repeats the label names nobody, so Save stays off", await page.$eval("[data-save]", el => el.disabled) && /Name who decides/.test(await page.textContent("#decideRow")), await page.textContent("#decideRow"));
+    await page.keyboard.type(" Dana, the DBA"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(700);
     const ep = await events(), pd = ep[ep.length - 1];
     ok("Someone else decides posts a defer whose text names the person once, even when the note repeats the label", pd.id === "Q3" && pd.kind === "defer" && pd.text === "someone else decides: Dana, the DBA", JSON.stringify(pd));
     await pick("Q3");
