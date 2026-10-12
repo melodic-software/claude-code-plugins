@@ -210,7 +210,8 @@ the broker request, and no other permission; it never holds `checks: write` or `
     pinned by SHA, so no binary resolved through `PATH` or `BASH_ENV` runs with the token, sends
     `DELETE /installation/token` with it, then `GET /installation/repositories`. It never fails
     the job (`continue-on-error: true`): a DELETE other than 204 is a `::warning::`, and a 204
-    whose GET is not yet refused with 401 is a `::notice::`. It is a backstop for an honest
+    whose GET is not yet refused with 401 is a `::notice::`; a confirmed revoke, 204 then 401,
+    raises no annotation and is recorded in the step log. It is a backstop for an honest
     activity that did not clean up, not a control against a hostile one: the activity holds the
     token and can write the runner's files.
 

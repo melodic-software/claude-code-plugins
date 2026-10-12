@@ -4,8 +4,9 @@
 
 `pr-run-activity.md` run job step 14: the lane-token revoke step never fails the job. A DELETE
 other than 204 is a `::warning::`, and a 204 whose `GET /installation/repositories` is not yet
-refused with 401 is a `::notice::`. `scripts/write-runner-revoke-step.test.sh` runs the step's
-script against each case. `version` stays 1.
+refused with 401 is a `::notice::`. A confirmed revoke is recorded in the step log.
+`scripts/write-runner-revoke-step.test.sh` runs the step's script against each case. `version`
+stays 1.
 
 ## 1.10.2 - 2026-10-12
 

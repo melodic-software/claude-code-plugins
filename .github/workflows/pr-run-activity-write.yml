@@ -1087,6 +1087,8 @@ jobs:
               core.warning(`the lane token was not revoked (DELETE ${revoke}); it expires within the hour`);
             } else if (after !== 401) {
               core.notice(`DELETE returned 204 but the read-back was not yet refused (GET ${after}); the lane token expires within the hour`);
+            } else {
+              core.info('the lane token is confirmed revoked (DELETE 204, GET 401)');
             }
 
   report:

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Behavior test: the "Revoke the lane token" step in pr-run-activity-write.yml
-# never fails the job (issue #7319; ADR 0058 calls the revoke a backstop). A
-# DELETE other than 204 is a warning; a 204 whose GET read-back is not yet 401
-# is a notice. Runs the step's github-script body with a stub `github` that
+# never fails the job (ADR 0058 calls the revoke a backstop). A DELETE other
+# than 204 is a warning; a 204 whose GET read-back is not yet 401 is a notice;
+# a 204 then 401 logs the confirmed revoke. Runs the step's github-script body with a stub `github` that
 # answers each route with a canned status and a stub `core` that records calls.
 # test-scope: .github/workflows/pr-run-activity-write.yml .github/standards/runner-policy/package.json
 set -uo pipefail
@@ -27,7 +27,7 @@ say(step?.["continue-on-error"] === true, "the revoke step sets continue-on-erro
 const AsyncFunction = (async () => {}).constructor;
 // answers: route -> status number, or { throws: status|undefined }
 async function run(answers) {
-  const calls = { failed: [], warning: [], notice: [], error: [] };
+  const calls = { failed: [], warning: [], notice: [], error: [], info: [] };
   const github = {
     request: async (route) => {
       const a = answers[route];
@@ -45,7 +45,7 @@ async function run(answers) {
     },
   };
   const core = {
-    info: () => {},
+    info: (m) => calls.info.push(m),
     setFailed: (m) => calls.failed.push(m),
     warning: (m) => calls.warning.push(m),
     notice: (m) => calls.notice.push(m),
@@ -67,10 +67,12 @@ const quiet = (r) => !r.threw && r.failed.length === 0 && r.error.length === 0;
 let r = await run({ [DEL]: 204, [GET]: 401 });
 say(quiet(r) && r.warning.length === 0 && r.notice.length === 0,
   "DELETE 204 then GET 401: no failure, warning or notice");
+say(r.info.some((m) => /confirmed revoked/.test(m)),
+  "DELETE 204 then GET 401: the step log records the confirmed revoke");
 
 r = await run({ [DEL]: 204, [GET]: 200 });
-say(quiet(r) && r.warning.length === 0 && r.notice.length === 1,
-  "DELETE 204 then GET 200: one notice, no failure or warning");
+say(quiet(r) && r.warning.length === 0 && r.notice.length === 1 && !r.info.some((m) => /confirmed revoked/.test(m)),
+  "DELETE 204 then GET 200: one notice, no failure, warning or confirmed-revoke log");
 
 r = await run({ [DEL]: 404, [GET]: 200 });
 say(quiet(r) && r.warning.length === 1 && r.notice.length === 0,
