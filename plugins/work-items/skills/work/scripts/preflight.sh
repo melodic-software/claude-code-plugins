@@ -521,7 +521,7 @@ fi
 
 if [[ "$cov_local" == "no-local" ]]; then
   if [[ -n "$main_is_proj_base" ]]; then
-    echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes this main checkout's settings.local.json: since Claude Code v2.1.211 its rules apply in every worktree, the fresh worker included."
+    echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes this main checkout's settings.local.json: where approvals save at the repository root its rules apply in every worktree, the fresh worker included."
   elif [[ "$main_state" == "verified" ]]; then
     echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read includes the main checkout's settings.local.json ('$main_root', shared across worktrees where approvals save at the repository root) but excludes this worktree's own local file, which a fresh worker would not inherit; deny rules still include it."
   else

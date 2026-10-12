@@ -186,6 +186,7 @@ that worktree. Two cases:
   in the preflight detects it: it never probes the running Claude Code version. This is a floor on
   the *harness*, not on the repository layout, so wherever the installed Claude Code saves
   repository-wide it is a documentation-completeness matter rather than a live defect.
+  Observation: the machine this was verified against ran v2.1.222.
 - **`--separate-git-dir` is ambiguous in git itself. It is NOT a preflight defect, and not maskable
   in silence.** For a repository created with `--separate-git-dir <path>/.git`, the main working tree is
   the directory holding the `.git` *file*, but git records no back-pointer to it. A recursive search
