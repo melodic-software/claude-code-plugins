@@ -2554,7 +2554,12 @@ def queued_entry_hold(
 RISK_MARKER = "<!-- babysit-merge-risk -->"
 UNATTENDED_REFUSED = "unattended merge refused: "
 # Refusals that stop the path: the identity's own queued entries leave the queue.
-STOP_REFUSALS = ("kill-switch:", "post-merge:", "rung-off:")
+STOP_REFUSALS = (
+    "kill-switch:",
+    "post-merge:",
+    "rung-off:",
+    merge_policy.DEFAULT_BRANCH_UNREADABLE,
+)
 UNATTENDED_QUEUE_QUERY = (
     "query($o:String!,$r:String!,$b:String!){repository(owner:$o,name:$r){"
     "mergeQueue(branch:$b){entries(first:100){totalCount nodes{enqueuedAt position "
@@ -2723,8 +2728,8 @@ def assess_unattended(
     promotion_settings: Path | None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
-    identity, the credential chokepoint, the kill switch, the post-merge
-    check, demotion and cap, in flight, promotion evidence, eligibility, then
+    identity, the credential chokepoint, the kill switch, a default-branch
+    base, the post-merge check, demotion and cap, in flight, promotion evidence, eligibility, then
     the review evidence and the score. Raises `PolicyReadError` when the
     pull request or its pipeline config cannot be read."""
 
@@ -2813,7 +2818,12 @@ def upsert_risk_comment(
         newest = max(mine, key=lambda c: (str(c.get("created_at")), c.get("id") or 0))
         if str(newest.get("body") or "") == body:
             return "unchanged"
-        args = ["api", "-X", "PATCH", f"repos/{repo}/issues/comments/{newest.get('id')}"]
+        args = [
+            "api",
+            "-X",
+            "PATCH",
+            f"repos/{repo}/issues/comments/{newest.get('id')}",
+        ]
         outcome = "updated"
     else:
         args = ["api", "-X", "POST", f"repos/{repo}/issues/{number}/comments"]
@@ -2831,7 +2841,8 @@ def unattended_writes(
 
     A stop refusal (kill switch, post-merge, rung off) dequeues every entry
     the identity enqueued; otherwise each queued identity entry carrying a
-    hold (D3) leaves the queue. Then the reasons comment for an eligible
+    hold (D3) leaves the queue, as does this pull request's own entry when
+    this run refused it for itself (`own_refusal`). Then the reasons comment for an eligible
     MED or HIGH pull request on a path not stopped. Nothing is written before
     the identity and the credential chokepoint passed (`inputs["identity"]`)."""
     inputs = policy.inputs or {}
@@ -2848,15 +2859,31 @@ def unattended_writes(
             report["holds"] = {
                 n: hold
                 for n in queued
-                if (hold := merge_policy.entry_hold(repo, n, identity))
+                if (
+                    hold := merge_policy.entry_hold(
+                        repo,
+                        n,
+                        identity,
+                        self_logins=inputs.get("self_logins") or frozenset(),
+                        permission=inputs.get("permission"),
+                    )
+                )
             }
+            # This run's own read of a queued entry also counts: the pull
+            # request it just found ineligible, above the rung or unpromoted
+            # for its class leaves the queue.
+            own = inputs.get("own_refusal")
+            if number in queued and own:
+                report["holds"].setdefault(number, own)
             numbers = set(report["holds"])
         if numbers is None or numbers:
             unknown = postmerge.dequeue_identity_entries(
                 repo, branch, identity, numbers=numbers, dequeued=report["dequeued"]
             )
             if unknown:
-                report["errors"].append(f"{unknown} queue entries have an unknown enqueuer")
+                report["errors"].append(
+                    f"{unknown} queue entries have an unknown enqueuer"
+                )
     except (postmerge.PostMergeReadError, postmerge.PostMergeWriteError) as exc:
         report["errors"].append(f"dequeue: {exc}")
     # A stopped path (demoted, capped off, switched off) merges nothing, so a
@@ -2904,7 +2931,9 @@ def _identity_queue_entries(
         for n in nodes
         if merge_policy.actor_key(n.get("enqueuer")) == identity.casefold()
     ]
-    return sorted(mine, key=lambda n: (str(n.get("enqueuedAt")), n.get("position") or 0))
+    return sorted(
+        mine, key=lambda n: (str(n.get("enqueuedAt")), n.get("position") or 0)
+    )
 
 
 def _graphql_write(query: str, node_id: str) -> bool:
@@ -2940,6 +2969,9 @@ def unattended_enqueue(
         print(json.dumps(result, indent=2))
         return 10
 
+    scored = str((inputs["pr"].get("head") or {}).get("sha") or "")
+    if not merge_policy.SHA_RE.match(pin) or pin != scored:
+        return hold("the head to enqueue is not the head the policy scored")
     if result.get("mergeAction") != "merge_queue":
         return hold("the base has no merge queue; unattended merges only enqueue")
     queue = read_merge_queue(repo, number)
@@ -2970,13 +3002,24 @@ def unattended_enqueue(
         return hold(f"the pin comment could not be posted ({proc.stderr.strip()})")
     step["pinned"] = True
     result["action"] = "enqueue"
-    record = async_merge(
-        repo, number, sha=pin, merge_action="merge_queue", method=None
-    )
+    record = async_merge(repo, number, sha=pin, merge_action="merge_queue", method=None)
     result["merge"] = record
     result["enqueued"] = record["success"] and record["status"] == "enqueued"
     if pending_path is not None:
         _record_pending(pending_path, repo, number, record, pin, result)
+    if record["success"] and record["status"] == "merged":
+        # The queue landed it before the poll ended and `async_merge` read it
+        # back at the pin: dispatch the verifying full run now, as a later run
+        # does after its read-back.
+        result["merged"] = True
+        try:
+            postmerge.dispatch_full_run(repo, ref=branch)
+            result["unattended"]["dispatched"] = True
+        except postmerge.PostMergeWriteError as exc:
+            result["unattended"]["dispatched"] = False
+            result["unattended"]["dispatchError"] = str(exc)
+        print(json.dumps(result, indent=2))
+        return 0
     if not result["enqueued"]:
         print(json.dumps(result, indent=2))
         return 10
@@ -3368,7 +3411,8 @@ def main() -> int:
         ]
         if widening:
             return _refuse(
-                "--unattended refuses " + ", ".join(widening)
+                "--unattended refuses "
+                + ", ".join(widening)
                 + ": an unattended merge never merges a dependency-manager PR, "
                 "arms auto-merge, merges an unpinned head, lands a stack or "
                 "merges onto an unprotected base",

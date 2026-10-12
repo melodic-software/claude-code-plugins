@@ -61,6 +61,7 @@ from babysit_util import (
 )
 
 AUTHORITY_UNCONFIGURED = "authority-unconfigured"
+DEFAULT_BRANCH_UNREADABLE = "default-branch-unreadable"
 # `resolve()` reads only the config: it names the identity, never permits.
 NOT_ASSESSED = "not-assessed"
 
@@ -907,7 +908,9 @@ def credential_refusal(identity: str) -> str | None:
     except (RuntimeError, ValueError, OSError):
         hosts = None
     hosts = json_object(json_object(hosts).get("hosts"))
-    entries = [json_object(e) for accounts in hosts.values() for e in json_array(accounts)]
+    entries = [
+        json_object(e) for accounts in hosts.values() for e in json_array(accounts)
+    ]
     if not entries:
         return "credentials-unreadable"
     wanted = identity.strip().casefold()
@@ -1181,35 +1184,55 @@ RECENT_MERGES_QUERY = (
 def _merged_since(
     owner: str, name: str, branch: str, since: datetime
 ) -> list[dict[str, Any]] | None:
-    """Merged pull requests on `branch`, newest update first, read until one was
-    last updated before `since` (a merge updates the PR, so every PR merged
-    since then comes first) or the history ends. None when the page limit is
-    reached first."""
+    """Pull requests merged into `branch` at or after `since`, as the post-merge
+    check counts them. Read newest update first until one was last updated
+    before `since` (a merge updates the PR, so every PR merged since then comes
+    first) or the history ends; a PR merged earlier and updated since is
+    skipped. A PR updated mid-read jumps to page 1 and can slip past a walk of
+    more than one page, so page 1 is then read again: a merge there the walk
+    missed makes the history unreadable. None when the page limit is reached
+    first."""
     found: list[dict[str, Any]] = []
     cursor: str | None = None
-    for _ in range(MERGED_PAGE_LIMIT):
-        data = _graphql(
-            RECENT_MERGES_QUERY,
-            "merged pull requests",
-            o=owner,
-            r=name,
-            b=branch,
-            c=cursor,
-        )
-        page = json_object(json_object(data.get("repository")).get("pullRequests"))
-        info = page.get("pageInfo")
-        if not is_json_array(page.get("nodes")) or not is_json_object(info):
-            raise PolicyReadError("merged pull requests: no page")
-        for pr in map(json_object, page["nodes"]):
+    for pages in range(1, MERGED_PAGE_LIMIT + 1):
+        nodes, info = _merged_page(owner, name, branch, cursor)
+        done = False
+        for pr in nodes:
             if _time(pr.get("updatedAt")) < since:
-                return found
-            found.append(pr)
-        if not _has_next_page(info, "merged pull requests"):
-            return found
+                done = True
+                break
+            if _time(pr.get("mergedAt")) >= since:
+                found.append(pr)
+        if done or not _has_next_page(info, "merged pull requests"):
+            break
         cursor = info.get("endCursor")
         if not isinstance(cursor, str) or not cursor:
             raise PolicyReadError("merged pull requests: a next page with no cursor")
-    return None
+    else:
+        return None
+    if pages > 1:
+        numbers = {pr.get("number") for pr in found}
+        for pr in _merged_page(owner, name, branch, None)[0]:
+            if _time(pr.get("updatedAt")) < since:
+                break
+            if _time(pr.get("mergedAt")) >= since and pr.get("number") not in numbers:
+                raise PolicyReadError(
+                    "merged pull requests: the history changed while it was read"
+                )
+    return found
+
+
+def _merged_page(
+    owner: str, name: str, branch: str, cursor: str | None
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    data = _graphql(
+        RECENT_MERGES_QUERY, "merged pull requests", o=owner, r=name, b=branch, c=cursor
+    )
+    page = json_object(json_object(data.get("repository")).get("pullRequests"))
+    info = page.get("pageInfo")
+    if not is_json_array(page.get("nodes")) or not is_json_object(info):
+        raise PolicyReadError("merged pull requests: no page")
+    return [json_object(pr) for pr in page["nodes"]], info
 
 
 @dataclass(frozen=True)
@@ -1380,24 +1403,27 @@ def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[s
     return sorted(found)
 
 
-def _opt_in_removed(
-    owner: str, name: str, pr: dict[str, Any], enqueued_at: Any
-) -> bool:
-    """The opt-in label was on the pull request at enqueue and is gone now."""
+def _opt_in_hold(
+    owner: str,
+    name: str,
+    pr: dict[str, Any],
+    enqueued_at: Any,
+    human: Callable[[Any], bool],
+) -> str | None:
+    """Why the opt-in label no longer stands as it did at enqueue: it was on
+    the pull request then and is gone now, or it changed since and its latest
+    application is not a human's in person (`_label_provenance`), so a
+    non-human cannot restore an opt-in a human revoked."""
     labels = _label_names(pr)
     if labels is None:
         raise PolicyReadError(f"#{pr.get('number')}: labels unreadable")
-    if OPT_IN_LABEL in labels:
-        return False
+    number = int(pr.get("number") or 0)
     at = _time(enqueued_at)
-    timeline = _paginated(
-        f"repos/{owner}/{name}/issues/{pr.get('number')}/timeline?per_page=100",
-        f"#{pr.get('number')} timeline",
-    )
+    timelines: dict[int, list[dict[str, Any]]] = {}
     events = sorted(
         (
             e
-            for e in timeline
+            for e in _timeline(owner, name, number, timelines)
             if e.get("event") in ("labeled", "unlabeled")
             and json_object(e.get("label")).get("name") == OPT_IN_LABEL
         ),
@@ -1408,16 +1434,43 @@ def _opt_in_removed(
         if _time(event.get("created_at")) > at:
             break
         present = event.get("event") == "labeled"
-    return present
+    if OPT_IN_LABEL not in labels:
+        return "opt-in-label-removed" if present else None
+    # The label read and the timeline read are not atomic: a removal the
+    # timeline already shows wins over the label snapshot.
+    if events and events[-1].get("event") == "unlabeled":
+        return "opt-in-label-removed"
+    if not any(_time(e.get("created_at")) > at for e in events):
+        return None
+    untrusted = _label_provenance(
+        owner, name, number, OPT_IN_LABEL, None, human, timelines
+    )
+    return f"opt-in-label:{untrusted}" if untrusted else None
 
 
-def entry_hold(repo: str, number: int, identity: str) -> str | None:
+def entry_hold(
+    repo: str,
+    number: int,
+    identity: str,
+    *,
+    self_logins: Collection[str] = frozenset(),
+    permission: Permission | None = None,
+) -> str | None:
     """Why a queued entry of the agent identity must leave the queue (D3): the
     `do-not-merge` label, a body hold, a human blocking comment, or the opt-in
-    label removed since the enqueue. An unreadable entry is a hold."""
+    label removed since the enqueue or put back by a non-human. An unreadable
+    entry is a hold."""
     from babysit_merge import BODY_MERGE_HOLD_RE, MERGE_HOLD_LABEL  # noqa: PLC0415
 
     owner, name = _split_repo(repo)
+    permission = permission or permission_reader(repo)
+    human = lambda actor: is_human(  # noqa: E731
+        actor,
+        repo=repo,
+        agent_identity=identity,
+        self_logins=self_logins,
+        permission=permission,
+    )
     try:
         data = _graphql(ENTRY_HOLD_QUERY, f"#{number}", o=owner, r=name, n=number)
         pr = json_object(json_object(data.get("repository")).get("pullRequest"))
@@ -1432,8 +1485,11 @@ def entry_hold(repo: str, number: int, identity: str) -> str | None:
         blockers = _human_blockers(owner, name, number, identity)
         if blockers:
             return f"human-blocking-comment:{','.join(blockers)}"
-        if _opt_in_removed(owner, name, pr, json_object(events[-1]).get("createdAt")):
-            return "opt-in-label-removed"
+        opt_in = _opt_in_hold(
+            owner, name, pr, json_object(events[-1]).get("createdAt"), human
+        )
+        if opt_in:
+            return opt_in
     except PolicyReadError as exc:
         return f"unreadable: {exc}"
     return None
@@ -1602,7 +1658,9 @@ def changed_files(
         "headRefOid": json_object(pr.get("head")).get("sha"),
         "changedFiles": pr.get("changed_files"),
     }
-    return _changed_files(owner, name, shaped, str(json_object(pr.get("base")).get("sha")))
+    return _changed_files(
+        owner, name, shaped, str(json_object(pr.get("base")).get("sha"))
+    )
 
 
 # --- Promotion evidence -----------------------------------------------------------------------
@@ -1690,7 +1748,10 @@ def read_promotion_options(
                 value = options.get(option)
                 if value in (None, ""):
                     continue
-                if not isinstance(value, str) or found.setdefault(option, value) != value:
+                if (
+                    not isinstance(value, str)
+                    or found.setdefault(option, value) != value
+                ):
                     return None, f"option-conflict:{option}"
     missing = [o for o in PROMOTION_OPTIONS.values() if o not in found]
     if missing:
@@ -1743,7 +1804,10 @@ def read_promotion(
         at = window_start.isoformat()
         events = [
             *events,
-            *({"cell": cell, "event": "gate-failure", "at": at} for cell in PROMOTABLE_CELLS),
+            *(
+                {"cell": cell, "event": "gate-failure", "at": at}
+                for cell in PROMOTABLE_CELLS
+            ),
         ]
     with tempfile.TemporaryDirectory() as tmp:
         copy = Path(tmp).resolve() / "promotion-evidence.json"
@@ -1790,7 +1854,8 @@ def assess(
     """The policy readers for one pull request, in the wiring order.
 
     Config at the pull request's base SHA, then authority, identity, the
-    credential chokepoint, the kill switch and the post-merge check: any
+    credential chokepoint, the kill switch, a base that is the default
+    branch, and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
     later read can lead to a write. Then the rung (demotion and cap), the
     in-flight rule, the promotion evidence and the pull request's
@@ -1839,6 +1904,15 @@ def assess(
     details["killSwitch"] = {"proceed": kill.proceed, "reason": kill.reason}
     if not kill.proceed:
         return replace(stopped, reason=f"kill-switch:{kill.reason}")
+    # The post-merge check, its dispatch and the scheduled full run judge the
+    # default branch only, so a merge into any other base would go unjudged.
+    # An unreadable default branch is a stop (the identity's entries leave).
+    try:
+        default = _default_branch(repo)
+    except PolicyReadError:
+        return replace(stopped, reason=DEFAULT_BRANCH_UNREADABLE)
+    if base_ref != default:
+        return replace(stopped, reason=f"base-not-default:{base_ref}")
 
     permission = permission_reader(repo)
     readers = {
@@ -1846,7 +1920,7 @@ def assess(
         "self_logins": self_logins,
         "permission": permission,
     }
-    inputs["permission"] = permission
+    inputs.update(permission=permission, self_logins=self_logins)
     demotion = read_demotion(repo, **readers)
     details["demotion"] = {
         "active": demotion.active,
@@ -1900,13 +1974,9 @@ def assess(
         },
     )
     inputs.update(rung=rung.rung, eligibility=eligible)
-    refusals = (
-        (rung.rung == "off", f"rung-off:{rung.limited_by}"),
-        (not flight.clear, f"in-flight:{flight.reason}"),
-        (
-            promo.cells is None,
-            f"promotion-unqualified:{promo.reason}",
-        ),
+    # What refuses this pull request itself, whatever else does: its own
+    # queued entry leaves the queue on it.
+    own = (
         (not eligible.eligible, f"ineligible:{eligible.reason}"),
         # The rung is a work-class ceiling: C4 and C5 never merge unattended.
         (
@@ -1914,6 +1984,16 @@ def assess(
             f"class-above-rung:{eligible.work_class}>{rung.rung}",
         ),
         (not promoted, f"promotion-unqualified:{eligible.work_class}"),
+    )
+    inputs["own_refusal"] = next((text for refused, text in own if refused), None)
+    refusals = (
+        (rung.rung == "off", f"rung-off:{rung.limited_by}"),
+        (not flight.clear, f"in-flight:{flight.reason}"),
+        (
+            promo.cells is None,
+            f"promotion-unqualified:{promo.reason}",
+        ),
+        *own,
     )
     reason = next((text for refused, text in refusals if refused), None)
     return UnattendedPolicy(

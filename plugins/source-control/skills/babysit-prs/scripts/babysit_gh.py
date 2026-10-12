@@ -120,9 +120,7 @@ GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
 #   As-of: 2026-10-11.
 #   Recheck trigger: that section stops rejecting GraphQL outright, or changes
 #   the refusal's message prefix.
-GRAPHQL_UNAVAILABLE_MARKERS = (
-    "graphql is not available from claude code sessions",
-)
+GRAPHQL_UNAVAILABLE_MARKERS = ("graphql is not available from claude code sessions",)
 
 
 class GraphQLUnavailableError(RuntimeError):
@@ -881,7 +879,9 @@ def base_requires_merge_queue(repo: str, base_ref: str) -> bool | None:
     that cycle and the next snapshot reads the rules again.
     """
     try:
-        rules = gh_json(["api", f"repos/{repo}/rules/branches/{quote(base_ref, safe='')}"])
+        rules = gh_json(
+            ["api", f"repos/{repo}/rules/branches/{quote(base_ref, safe='')}"]
+        )
     except (RuntimeError, json.JSONDecodeError):
         return None
     if not is_json_array(rules):

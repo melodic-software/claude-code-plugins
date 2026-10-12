@@ -74,8 +74,9 @@ for path in ${files+"${files[@]}"}; do
   # The unattended merge policy (babysit_merge_policy.py `_SEPARATOR`) refuses
   # a config value holding a C0 or C1 control or U+2028/U+2029, and with it
   # every plain --merge. Read byte-wise as the policy's reader runs
-  # (LC_ALL=C); tab, CR and LF are allowed.
-  if separator="$(LC_ALL=C awk '/[\001-\010\013\014\016-\037\177]|\302[\200-\237]|\342\200[\250\251]/ { print NR; exit }' "$path")" &&
+  # (LC_ALL=C); only LF and a line-ending CR, which the reader strips, are
+  # allowed.
+  if separator="$(LC_ALL=C awk '/[\001-\011\013\014\016-\037\177]|\015./ || /\302[\200-\237]|\342\200[\250\251]/ { print NR; exit }' "$path")" &&
     [[ -n "$separator" ]]; then
     printf '%s: line %s carries a control or line-separator character the unattended merge policy refuses\n' "$path" "$separator" >&2
     findings=$((findings + 1))

@@ -1326,6 +1326,93 @@ class EntryHold(unittest.TestCase):
         ]
         self.assertEqual(self.hold(), "opt-in-label-removed")
 
+    def relabeled(self, actor: dict[str, Any], via_app: Any = None) -> str | None:
+        # A human opts in, the entry is queued (10:00), the human revokes the
+        # opt-in (10:30), then `actor` puts the label back (10:45).
+        gh = self.fake(
+            labels={"totalCount": 1, "nodes": [{"name": policy.OPT_IN_LABEL}]}
+        )
+        label = {"name": policy.OPT_IN_LABEL}
+        human = {"login": OPERATOR, "type": "User"}
+        gh.rest[f"repos/{REPO}/issues/5/timeline?per_page=100"] = [
+            {
+                "event": "labeled",
+                "label": label,
+                "actor": human,
+                "created_at": "2026-10-12T09:00:00Z",
+            },
+            {
+                "event": "unlabeled",
+                "label": label,
+                "actor": human,
+                "created_at": "2026-10-12T10:30:00Z",
+            },
+            {
+                "event": "labeled",
+                "label": label,
+                "actor": actor,
+                "performed_via_github_app": via_app,
+                "created_at": "2026-10-12T10:45:00Z",
+            },
+        ]
+        return policy.entry_hold(REPO, 5, IDENTITY, permission=HUMANS)
+
+    def test_a_revoked_opt_in_restored_by_a_non_human_is_a_hold(self) -> None:
+        # The claude-security-review finding on #7335: presence alone let a bot
+        # silently restore a consent the human had withdrawn.
+        for name, actor, via_app, hold in (
+            (
+                "a bot",
+                {"login": "some-app[bot]", "type": "Bot"},
+                None,
+                "opt-in-label:labeler-not-human",
+            ),
+            (
+                "the identity",
+                {"login": IDENTITY, "type": "Bot"},
+                None,
+                "opt-in-label:labeler-not-human",
+            ),
+            (
+                "a human's token through an App",
+                {"login": OPERATOR, "type": "User"},
+                {"slug": "some-app"},
+                "opt-in-label:labeler-via-app",
+            ),
+        ):
+            with self.subTest(name):
+                self.assertEqual(self.relabeled(actor, via_app), hold)
+
+    def test_a_removal_the_timeline_shows_beats_the_label_snapshot(self) -> None:
+        # The labels were read before a human removed the label; the timeline,
+        # read after, already shows the removal (local review of ed841af72).
+        gh = self.fake(
+            labels={"totalCount": 1, "nodes": [{"name": policy.OPT_IN_LABEL}]}
+        )
+        label = {"name": policy.OPT_IN_LABEL}
+        human = {"login": OPERATOR, "type": "User"}
+        gh.rest[f"repos/{REPO}/issues/5/timeline?per_page=100"] = [
+            {
+                "event": "labeled",
+                "label": label,
+                "actor": human,
+                "created_at": "2026-10-12T09:00:00Z",
+            },
+            {
+                "event": "unlabeled",
+                "label": label,
+                "actor": human,
+                "created_at": "2026-10-12T10:30:00Z",
+            },
+        ]
+        self.assertEqual(
+            policy.entry_hold(REPO, 5, IDENTITY, permission=HUMANS),
+            "opt-in-label-removed",
+        )
+
+    def test_a_revoked_opt_in_restored_by_a_human_is_no_hold(self) -> None:
+        self.assertIsNone(self.relabeled({"login": "maintainer", "type": "User"}))
+
     def test_an_unreadable_entry_is_a_hold(self) -> None:
         self.fake(timelineItems={"nodes": []})
         self.assertEqual(self.hold(), "unreadable")
@@ -1474,7 +1561,45 @@ class InFlight(unittest.TestCase):
         )
         self.assertTrue(result.clear, result.reason)
         reads = [c for c in gh.calls if any("PolicyRecentMerges" in a for a in c)]
-        self.assertEqual(len(reads), 2)
+        # Two pages walked, then page 1 again for a PR that moved mid-read;
+        # the endless third page is never read.
+        self.assertEqual(len(reads), 3)
+
+    def test_a_merge_that_jumped_to_page_one_mid_read_is_not_clear(self) -> None:
+        # Local review of ed841af72: an unverified auto-merge on a later page
+        # updated during the walk moves to page 1 behind the cursor.
+        gh = queue_fake(self, [], [])
+        human = merged(2, user(OPERATOR), user(OPERATOR))
+        jumped = merged(1, bot("agent-lanes"), None, "2026-10-01T09:00:00Z")
+        older = merged(0, user(OPERATOR), user(OPERATOR), "2025-12-01T09:00:00Z")
+        reads: list[str] = []
+
+        def answer(variables: dict[str, str]) -> dict[str, Any]:
+            first = "c" not in variables
+            reads.append(variables.get("c", "first"))
+            if first and len(reads) > 1:
+                nodes, more = [jumped, human], True  # the re-read of page 1
+            elif first:
+                nodes, more = [human], True
+            else:
+                nodes, more = [older], False  # #1 left this page mid-read
+            info = {"hasNextPage": more, "endCursor": "p0"}
+            return {"repository": {"pullRequests": {"pageInfo": info, "nodes": nodes}}}
+
+        gh.graphql["PolicyRecentMerges"] = answer
+        result = self.flight()
+        self.assertFalse(result.clear)
+        self.assertTrue(result.reason.startswith("unreadable"), result.reason)
+
+    def test_a_merge_before_the_floor_updated_after_it_is_not_judged(self) -> None:
+        # Codex P1 on #7335: a comment on an old bot-queued merge moves its
+        # updatedAt past the floor, but it merged before the path was enabled,
+        # so the post-merge verdict never judges it and in_flight must not.
+        old = merged(2, bot("agent-lanes"), None, "2025-12-01T09:00:00Z")
+        old["updatedAt"] = "2026-10-12T09:00:00Z"
+        queue_fake(self, [], [old])
+        result = self.flight()
+        self.assertTrue(result.clear, result.reason)
 
     def test_an_unreadable_queue_is_not_clear(self) -> None:
         gh = queue_fake(self, [], [])
@@ -1520,6 +1645,7 @@ class Assess(unittest.TestCase):
             "base": {"ref": "trunk", "sha": SHA},
             "head": {"ref": "feat", "sha": "e" * 40},
         }
+        gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
         return gh
 
     def readable(self) -> GhFake:
@@ -1628,6 +1754,35 @@ class Assess(unittest.TestCase):
         self.assertEqual(result.reason, "post-merge:failure:#7")
         self.assertIs(result.enabled, False)
         flight.assert_not_called()
+
+    def test_a_base_other_than_the_default_branch_refuses_before_any_write(
+        self,
+    ) -> None:
+        # Codex P1 on #7335: the post-merge check, its dispatch and the
+        # scheduled full run all judge the default branch, so a merge into any
+        # other base would go unjudged. The refusal comes after the kill
+        # switch with the identity accepted, so the identity's queued entries
+        # can still be held or dequeued (local review of ed841af72).
+        for name, answer, reason in (
+            ("another branch", {"default_branch": "main"}, "base-not-default:trunk"),
+            ("unreadable", 502, "default-branch-unreadable"),
+        ):
+            with self.subTest(name):
+                gh = self.readable()
+                gh.rest[f"repos/{REPO}"] = answer
+                result = self.assess(post_merge=mock.Mock(side_effect=AssertionError))
+                self.assertEqual(result.reason, reason)
+                self.assertIs(result.enabled, False)
+                self.assertEqual(result.inputs["identity"], IDENTITY)
+
+    def test_the_kill_switch_is_read_before_the_default_branch(self) -> None:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/actions/variables/CLAUDE_LANES_REPO_DISABLED"] = {
+            "value": "true"
+        }
+        gh.rest[f"repos/{REPO}"] = 502
+        result = self.assess(post_merge=mock.Mock(side_effect=AssertionError))
+        self.assertEqual(result.reason, "kill-switch:repo-switch-not-false")
 
     def test_without_a_post_merge_check_the_path_refuses(self) -> None:
         self.readable()

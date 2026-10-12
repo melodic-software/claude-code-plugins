@@ -339,6 +339,19 @@ class Unattended(unittest.TestCase):
         self.entries_total: int | None = -1
         self.node_id = "PR_self"
         self.rerun = mock.Mock(return_value=[])
+        self.dispatch_error: Exception | None = None
+        self.scored_head = HEAD
+        self.default_branch: str | None = "main"
+
+    def _default_branch(self, repo: str) -> str:
+        if self.default_branch is None:
+            raise policy.PolicyReadError("the default branch could not be read")
+        return self.default_branch
+
+    def _dispatch(self, repo: str, ref: str) -> None:
+        self.log.append("dispatch")
+        if self.dispatch_error is not None:
+            raise self.dispatch_error
 
     def run_main(
         self, *flags: str, merge_flag: bool = True
@@ -347,16 +360,14 @@ class Unattended(unittest.TestCase):
             "number": PR,
             "node_id": self.node_id,
             "base": {"ref": "main", "sha": BASE},
-            "head": {"ref": "feat", "sha": HEAD},
+            "head": {"ref": "feat", "sha": self.scored_head},
             "user": {"login": IDENTITY, "type": "Bot"},
         }
         kills = list(self.kill)
         self.capture = mock.Mock(side_effect=self._capture)
         self.async_merge = mock.Mock(side_effect=self._async_merge)
         self.dequeue = mock.Mock(side_effect=self._dequeue)
-        self.dispatch = mock.Mock(
-            side_effect=lambda repo, ref: self.log.append("dispatch")
-        )
+        self.dispatch = mock.Mock(side_effect=self._dispatch)
 
         def gh_json(args: list[str]) -> Any:
             if args[:2] == ["pr", "view"]:
@@ -392,6 +403,9 @@ class Unattended(unittest.TestCase):
         patches = [
             mock.patch.object(sys, "argv", argv),
             mock.patch.object(policy, "pull_request", return_value=pr_record),
+            mock.patch.object(
+                policy, "_default_branch", side_effect=self._default_branch
+            ),
             mock.patch.object(policy, "read_config_at", return_value=self.config),
             mock.patch.object(policy, "read_acting_login", return_value=self.acting),
             mock.patch.object(
@@ -416,7 +430,9 @@ class Unattended(unittest.TestCase):
             mock.patch.object(policy, "eligibility", return_value=self.eligible),
             mock.patch.object(policy, "changed_files", return_value=self.files),
             mock.patch.object(
-                policy, "entry_hold", side_effect=lambda r, n, i: self.holds.get(n)
+                policy,
+                "entry_hold",
+                side_effect=lambda r, n, i, **_: self.holds.get(n),
             ),
             mock.patch.object(
                 merge, "_lane_evidence", return_value=(self.lanes, self.comments)
@@ -495,6 +511,15 @@ class AllInputsGood(Unattended):
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
         self.assertIs(out["enqueued"], True)
 
+    def test_a_head_that_moved_after_scoring_is_not_enqueued(self) -> None:
+        # The policy scored one head; the gate's later read sees another that
+        # still matches the --expected-head prefix. That head was never scored.
+        self.scored_head = HEAD[:12] + "d" * 28
+        code, out = self.run_main()
+        self.assertEqual(code, 10)
+        self.assertEqual(self.log, [])
+        self.assertTrue(any("scored" in b for b in out["blockers"]), out["blockers"])
+
     def test_check_only_reports_the_decision_and_writes_nothing(self) -> None:
         code, out = self.run_main(merge_flag=False)
         self.assertEqual(code, 0)
@@ -520,6 +545,73 @@ class AllInputsGood(Unattended):
         self.assertEqual(self.log, ["dispatch"])
         self.dispatch.assert_called_once_with("owner/repo", ref="main")
         self.assertIs(out["unattended"]["dispatched"], True)
+        self.assertEqual(code, 10)
+
+    def test_a_failed_dispatch_is_reported_and_left_to_the_remediate_check(
+        self,
+    ) -> None:
+        # The pending record is already cleared, so the next cycle's
+        # `babysit-postmerge.sh --remediate` is what dispatches again.
+        self.flight = policy.InFlight(False, f"unverified-auto-merge:#{PR}")
+        self.pr_view = fixtures._pr(state="MERGED")
+        self.prior = {
+            "queued": True,
+            "head": HEAD,
+            "status": "merged",
+            "verification": {"verified": True, "mismatches": []},
+            "requestedAt": "2026-10-12T10:00:00Z",
+        }
+        self.dispatch_error = postmerge.PostMergeWriteError("HTTP 500")
+        with tempfile.TemporaryDirectory() as state:
+            code, out = self.run_main("--state-dir", state)
+        self.assertIs(out["merged"], True)
+        self.assertIs(out["unattended"]["dispatched"], False)
+        self.assertEqual(out["unattended"]["dispatchError"], "HTTP 500")
+        self.assertEqual(code, 10)
+
+    def merged_on_enqueue(self, landed_head: str) -> tuple[int, dict[str, Any]]:
+        # The queue landed the entry before async_merge stopped polling, so the
+        # enqueue itself returns `merged` with the read-back already done.
+        record = {
+            **ENQUEUED,
+            "status": "merged",
+            "verifiedMerged": True,
+            "mergedHead": landed_head,
+            "success": landed_head == HEAD,
+        }
+
+        def landed(repo: str, number: int, **kwargs: Any) -> dict[str, Any]:
+            self.log.append(f"enqueue:{kwargs['sha']}:{kwargs['merge_action']}")
+            return dict(record)
+
+        self._async_merge = landed  # type: ignore[method-assign]
+        with tempfile.TemporaryDirectory() as state:
+            return self.run_main("--state-dir", state)
+
+    def test_an_enqueue_that_returns_merged_dispatches_the_full_run(self) -> None:
+        # Codex P1 on #7335: without this the merge had no verifying dispatch.
+        code, out = self.merged_on_enqueue(HEAD)
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue", "dispatch"])
+        self.dispatch.assert_called_once_with("owner/repo", ref="main")
+        self.assertIs(out["merged"], True)
+        self.assertIs(out["unattended"]["dispatched"], True)
+        self.assertEqual(code, 0)
+
+    def test_a_failed_dispatch_after_a_merged_enqueue_is_reported(self) -> None:
+        # The merge is this run's own outcome, so the exit stays 0; the next
+        # `babysit-postmerge.sh --remediate` cycle dispatches the run.
+        self.dispatch_error = postmerge.PostMergeWriteError("HTTP 500")
+        code, out = self.merged_on_enqueue(HEAD)
+        self.assertIs(out["merged"], True)
+        self.assertIs(out["unattended"]["dispatched"], False)
+        self.assertEqual(out["unattended"]["dispatchError"], "HTTP 500")
+        self.assertEqual(code, 0)
+
+    def test_an_enqueue_merged_at_another_head_dispatches_nothing(self) -> None:
+        # The read-back did not hold: as on a later run, no dispatch, exit 10.
+        code, out = self.merged_on_enqueue("f" * 40)
+        self.dispatch.assert_not_called()
+        self.assertNotIn("dispatched", out["unattended"])
         self.assertEqual(code, 10)
 
     def test_a_read_back_that_did_not_hold_dispatches_nothing(self) -> None:
@@ -589,6 +681,13 @@ class EachRefusalMakesNoMergeCall(Unattended):
                 "demotion",
                 policy.Demotion(True, "#9 open", (9,)),
                 "rung-off:demotion",
+            ),
+            # Local review of ed841af72: a doubtful default-branch read must
+            # not skip the dequeue a hold or the kill switch would make.
+            "default branch unreadable": (
+                "default_branch",
+                None,
+                "default-branch-unreadable",
             ),
         }
         for name, (field, value, reason) in cases.items():
@@ -708,6 +807,48 @@ class OneUnattendedMergeInFlight(Unattended):
         self.assertEqual(self.log, ["dequeue:[5]"])
         self.assertEqual(out["unattended"]["writes"]["holds"], {"5": "do-not-merge"})
 
+    def test_a_queued_entry_this_run_finds_ineligible_dequeues_itself(self) -> None:
+        # claude-security-review on #7335: the fresh eligibility read of the
+        # queued pull request itself refuses (a non-human restored its opt-in
+        # label), so its own entry leaves the queue even though no entry hold
+        # fired.
+        self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
+        self.queued = [PR]
+        self.eligible = policy.Eligibility(False, "opt-in-label:labeler-not-human")
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [f"dequeue:[{PR}]"])
+        self.assertEqual(
+            out["unattended"]["writes"]["holds"],
+            {str(PR): "ineligible:opt-in-label:labeler-not-human"},
+        )
+
+    def test_a_queued_entry_whose_class_rose_above_the_rung_dequeues_itself(
+        self,
+    ) -> None:
+        # Local review of ed841af72: a human relabels the linked issue C4 after
+        # the enqueue. Eligibility still passes, so only the class ceiling says
+        # it must never merge unattended.
+        self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
+        self.queued = [PR]
+        self.eligible = policy.Eligibility(True, None, "C4", 40)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        # The scorer rates C4 HIGH, so the reasons comment follows the dequeue.
+        self.assertEqual(self.log, [f"dequeue:[{PR}]", "risk-comment:POST"])
+        self.assertEqual(
+            out["unattended"]["writes"]["holds"], {str(PR): "class-above-rung:C4>C2"}
+        )
+
+    def test_a_non_default_base_still_holds_the_identitys_entries(self) -> None:
+        self.default_branch = "trunk"
+        self.queued = [5]
+        self.holds = {5: "do-not-merge"}
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "base-not-default:main")
+        self.assertEqual(self.log, ["dequeue:[5]"])
+
 
 class GateReviewFixes(Unattended):
     """Phase 13 Fable gate findings, red first."""
@@ -723,7 +864,7 @@ class GateReviewFixes(Unattended):
         }
 
     def test_a_refused_credential_reruns_no_review(self) -> None:
-        # A mis-launched lane holding the operator's token must not re-run a
+        # A wrongly launched lane holding the operator's token must not re-run a
         # workflow as the operator.
         self.credentials = "other-account-listed"
         code, _ = self.run_main()

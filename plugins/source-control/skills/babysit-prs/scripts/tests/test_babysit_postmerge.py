@@ -1454,7 +1454,10 @@ class PinnedHead(CheckCase):
     def test_a_pin_behind_100_later_comments_is_found(self) -> None:
         chatter = [{"author": HUMAN, "body": "lgtm", "lastEditedAt": None}] * 100
         self.gh.pin_pages = [
-            {"pageInfo": {"hasNextPage": True, "endCursor": "c1"}, "nodes": [pin(HEAD_SHA)]},
+            {
+                "pageInfo": {"hasNextPage": True, "endCursor": "c1"},
+                "nodes": [pin(HEAD_SHA)],
+            },
             {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": chatter},
         ]
         self.assertEqual(pm.read_pin(REPO, 7001, IDENTITY), HEAD_SHA)
@@ -1503,7 +1506,14 @@ class ExitCodes(CheckCase):
             mock.patch.object(pm, "_default_is_human", return_value=human),
         ):
             return pm.main(
-                ["--repo", REPO, "--agent-identity", IDENTITY, "--since", SINCE.isoformat()]
+                [
+                    "--repo",
+                    REPO,
+                    "--agent-identity",
+                    IDENTITY,
+                    "--since",
+                    SINCE.isoformat(),
+                ]
             )
 
     def test_an_unverified_auto_merge_exits_5(self) -> None:

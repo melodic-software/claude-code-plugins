@@ -708,9 +708,7 @@ def check(
                 ctx,
                 full_runs=full_runs,
                 canary_runs=canary_runs,
-                pinned=pinned_sha(merge)
-                if pinned_sha and merge.by_identity
-                else None,
+                pinned=pinned_sha(merge) if pinned_sha and merge.by_identity else None,
                 now=now,
                 tally=tally,
             )
@@ -733,9 +731,11 @@ def check(
 
 
 def dispatch_full_run(repo: str, *, ref: str) -> None:
-    """Dispatch the full `pr-require-checks` run on `ref`; called only by
-    `--remediate` when the verdict needs a dispatch. Without `--remediate` under
-    the identity nobody dispatches, so each auto-merge fails at the deadline."""
+    """Dispatch the full `pr-require-checks` run on `ref`; called by
+    `--remediate` when the verdict needs a dispatch, and by the unattended
+    merge gate (`babysit_merge.py`) once a landed merge reads back at its pin.
+    When neither dispatches under the identity, each auto-merge fails at the
+    deadline."""
     owner, name = _split_repo(repo)
     _write(
         [
@@ -1189,9 +1189,7 @@ def verdict_exit(verdict: PostMergeVerdict) -> int:
     return 0
 
 
-def default_floor(
-    repo: str, identity: str, self_logins: Collection[str]
-) -> datetime:
+def default_floor(repo: str, identity: str, self_logins: Collection[str]) -> datetime:
     """The merge gate's floor at the default branch head
     (`babysit_merge_policy.merged_since_floor`). Raises `PolicyReadError`."""
     _, head = policy._default_branch_head(repo)
