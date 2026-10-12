@@ -276,25 +276,45 @@
     "merge": {
       "type": "object",
       "additionalProperties": false,
-      "description": "How far pr-merge may merge without a human. A lane-power setting: raised only by a merged change to this file. Any rung above off requires a diff-check with denied paths.",
-      "if": {
-        "required": ["rung"],
-        "properties": { "rung": { "enum": ["C2", "C3"] } }
-      },
-      "then": {
-        "required": ["diff-check"],
-        "properties": {
-          "diff-check": {
-            "required": ["denied-paths", "max-changed-lines"],
-            "properties": { "denied-paths": { "minItems": 1 } }
+      "description": "How far the repository's merge authority may merge without a human. A lane-power setting: raised only by a merged change to this file. Any rung above off requires a diff-check with denied paths; authority local-babysit requires an agent-identity.",
+      "allOf": [
+        {
+          "if": {
+            "required": ["rung"],
+            "properties": { "rung": { "enum": ["C2", "C3"] } }
+          },
+          "then": {
+            "required": ["diff-check"],
+            "properties": {
+              "diff-check": {
+                "required": ["denied-paths", "max-changed-lines"],
+                "properties": { "denied-paths": { "minItems": 1 } }
+              }
+            }
           }
+        },
+        {
+          "if": {
+            "required": ["authority"],
+            "properties": { "authority": { "const": "local-babysit" } }
+          },
+          "then": { "required": ["agent-identity"] }
         }
-      },
+      ],
       "properties": {
         "rung": {
           "enum": ["off", "C2", "C3"],
           "default": "off",
-          "description": "Highest work class pr-merge merges. C1 produces no PR; C4 and C5 need a human (README.md, Merge authority)."
+          "description": "Highest work class the merge authority merges. C1 produces no PR; C4 and C5 need a human (README.md, Merge authority)."
+        },
+        "authority": {
+          "enum": ["local-babysit", "pr-merge"],
+          "description": "The one lane that merges for this repository: the local babysit wrapper or the pr-merge lane. No default; the babysit wrapper merges only when this reads local-babysit (README.md, Merge authority)."
+        },
+        "agent-identity": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*(\\[bot\\])?$",
+          "description": "GitHub login the unattended merge lane acts as, a GitHub App's [bot] login. Absent: the unattended path stays inert. Required when authority is local-babysit."
         },
         "diff-check": {
           "type": "object",
