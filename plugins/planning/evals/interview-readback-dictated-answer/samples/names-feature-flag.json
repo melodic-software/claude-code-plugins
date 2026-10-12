@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Q2: I read \"fee chair flag\" as a feature flag, turned on for staff before everyone else. Is that right?",
+      "why": "names the interpreted feature flag"
+    },
+    {
+      "answer": "Q2 understood as: a feature-flag rollout, staff first.",
+      "why": "hyphenated form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Q2 recorded: behind the fee chair flag, staff first.",
+      "why": "keeps the dictation error and never names the feature flag"
+    }
+  ]
+}
