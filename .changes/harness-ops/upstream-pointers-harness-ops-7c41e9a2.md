@@ -10,6 +10,7 @@ bump: patch
 - `reference/surfaces.md` stops claiming that the absence of `image-cache/` or `feedback-bundles/` proves the sweep ran, and stops stating that `history.jsonl` is never trimmed.
 - The `plugins` gotchas no longer quote a sentence about the previous-version orphan sweep that the plugin loading page does not contain; they point at its cleanup section instead. `behavior-probes` anchors its authoritative-denial gotcha, and `observability` drops a restated raw-API-body truncation limit beside its pointer.
 - The `plugins` scope reference re-derives its "nothing reaps project-scope records" claim now that the swept-path list names paths under `~/.claude/plugins/`.
+- `/harness-ops:audit-performance`'s evidence base keeps its v2.1.228 bundle reading of the retention sweep's timing and the `~/.claude.json` poll rate as a dated Probe record, and `reference/surfaces.md` points the `image-cache/` firing rule at the docs row that states the cross-session sweep.
 
 ### Changed
 
