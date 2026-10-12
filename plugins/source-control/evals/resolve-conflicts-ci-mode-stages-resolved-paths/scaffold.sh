@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # The lane's runner merged main into the PR head with --no-commit; src/http/retry.ts and
-# docs/retry.md conflict. A post-index-change hook records, on every index write, which paths
-# are still unmerged and which have unstaged edits, so the graders read the final index state.
+# docs/retry.md conflict. Graders read the final .git/index directly: git hooks do not run in
+# the eval sandbox, so nothing here may depend on one.
 set -euo pipefail
 
 git init -q -b main
@@ -96,18 +96,3 @@ git checkout -q feature/jitter
 git merge --no-commit --no-ff main >/dev/null 2>&1 || true
 test -f .git/MERGE_HEAD
 test "$(git diff --name-only --diff-filter=U | sort | tr '\n' ' ')" = "docs/retry.md src/http/retry.ts "
-
-cat > .git/hooks/post-index-change <<'SH'
-#!/bin/sh
-[ -n "${EVAL_INDEX_HOOK:-}" ] && exit 0
-EVAL_INDEX_HOOK=1
-export EVAL_INDEX_HOOK
-{
-  echo unmerged:
-  git ls-files -u | cut -f2 | sort -u
-  echo unstaged:
-  git diff --name-only
-  echo end
-} > "$(git rev-parse --git-dir)/eval-index-state"
-SH
-chmod +x .git/hooks/post-index-change
