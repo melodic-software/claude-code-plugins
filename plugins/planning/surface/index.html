@@ -2113,7 +2113,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   });
   window.addEventListener("resize", () => grow($("note")));
   let wasUnheard = false;
-  setInterval(() => { if (!S.loaded) return; if (unheard() !== wasUnheard) { wasUnheard = unheard(); renderRail(); } renderHeader(); }, 2000); // header last: unheard() only turns true as time passes, so a header read after the rail never lags it
+  setInterval(() => { if (!S.loaded) return; renderHeader(); const u = unheard(); if (u !== wasUnheard) { wasUnheard = u; renderRail(); renderHeader(); } }, 2000); // unheard() turns true as time passes, so the header is redrawn after the rail on the tick it flips
 
   applySettings();
   refresh().then(() => setOnline(true)).catch(() => { setOnline(false); restoreFinish(); }).finally(connect);
