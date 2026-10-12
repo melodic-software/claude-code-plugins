@@ -19,10 +19,10 @@ out entirely are upstream behavior; read them live before relying on the listing
 - **Recheck trigger**: any of those sections changes what the listing drops or omits, or renames a
   budget key; re-derive this section then.
 
-Our premise: the skills an operator has forgotten are the ones they invoke least, and manual-only
-skills never reach the model through the listing. Both cut against this skill's purpose in the
-same direction, so a recommender sourced from the listing alone is blindest precisely where the
-operator needs it most, and it cannot tell that it is blind.
+Our premise: the skills an operator has forgotten are the ones the listing serves worst, by
+whatever the pointer sections above say it shortens, drops or omits. A recommender sourced from
+the listing alone is blindest precisely where the operator needs it most, and it cannot tell that
+it is blind.
 
 ## Ladder A: names (completeness)
 
