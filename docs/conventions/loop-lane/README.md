@@ -604,9 +604,8 @@ Every inline branch exits 0.
 
 **Lane-instance identity (#1295).** The marker names the **writer**, not the lane type. A marker
 that names only the lane makes two concurrent instances resolve one comment and clobber each other's
-durable state under last-writer-wins, including `first_drain_complete`, whose loss silently ends
-one instance's earn-trust ratification period because a different machine finished a drain. The
-marker therefore carries a lane-instance suffix, the lane-type marker becoming its prefix:
+durable state under last-writer-wins, so one machine's adaptive cap and streaks overwrite
+another's. The marker therefore carries a lane-instance suffix, the lane-type marker becoming its prefix:
 
 ```text
 MARKER="<lane-marker>@<lane_instance>"
@@ -655,18 +654,16 @@ per-session random `writer_nonce`, an ISO-8601 UTC `heartbeat_at` rewritten ever
 `paused_until` is not the rate-limit latch and does not replace it: the latch says *do not claim
 work*, `paused_until` says *do not read my silence as death*. A lane entering a rate-limit pause
 writes it before pausing, so a paused lane is never adopted as a dead one. Detection runs before any
-write, so an id collision degrades to a stopped lane rather than a silently clobbered
-`first_drain_complete`.
+write, so an id collision degrades to a stopped lane rather than silently clobbered durable state.
 
 **Adopting the partition (one-time).** No pre-existing comment matches an instance's new sentinel,
-so the first cycle after adoption posts a fresh block from defaults, including
-`first_drain_complete:false` for every lane. That is intended and fails closed; it produces one
-burst of ratification queue comments on the next drain and is not a regression. The legacy
+so the first cycle after adoption posts a fresh block from defaults. That is intended and fails
+closed. The legacy
 un-suffixed comment is left in place and **never adopted, edited, or tombstoned by a lane**: its
 marker names no writer, so no instance can prove it owns it, and a lane that adopted it would
 reintroduce exactly the shared-comment clobber this rule removes. Retiring it is an operator action.
 Until then it remains readable, and stale: `morning-brief` will show it aging past the staleness
-threshold, which is the honest reading: nothing is writing it.
+threshold, because nothing is writing it.
 
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
 adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, its
@@ -737,9 +734,13 @@ session exposes, see [Available data](https://code.claude.com/docs/en/statusline
 As of: 2026-07-28. Recheck trigger: a Claude Code release adds or changes a token or cost field in
 the status line input.
 
-**Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
-persisted config, or tier defaults, and logs the assumption. The interactive path may run a
-mini-interview and offer to persist the answer; the headless path never waits on one.
+**Headless-config floor.** A headless lane launch never blocks on an interview and never reads run
+config back from its own telemetry state block, which the lane can edit. The work-loop lane takes run
+config from its launch args only; when the stop mode (`--drain` or `--standing`) is absent it stops
+before any cycle work with a message naming the relaunch tokens, and only `shard`, `scope` and
+`ordering` fall back to their defaults. The babysit loop takes launch args, then its tracked config
+seam, then tier defaults, and logs the assumption. The interactive path may run a mini-interview and
+offer to persist the answer; the headless path never waits on one.
 
 **Provider backoff (seam exit 8).** A tracker-seam exit 8, meaning the provider is unavailable or
 secondary forge limits are hit under one credential, is handled as backoff-and-retry and counted as a **dirty** signal for
@@ -875,6 +876,23 @@ have not moved is rewritten no sooner than the floor interval after the file's l
 session on the machine wrote it, while a whole-point move writes at once, so a lane's own turn that
 moves a window can wake it once.
 A lane may set the guard's report mode with `--settings`; this is optional.
+
+**Pausing is opt-in.** By default a lane never pauses, slows, or stops on a window reading, and a
+reading never lowers its model, effort, or review depth: at the pause threshold it keeps working
+and reports the window, its percentage and reset time, and the operator's options, as the floor's
+**Drain-then-pause** bullet words them. An operator who wants drain-then-pause sets the floor's
+opt-in variable in the lane session's environment, for example through an `env` entry in
+`--settings` at launch. The rest of the floor (pause end, Monitor, account switch, latch) applies
+only to an opted-in lane. Reactive-only backoff on a rate-limit error the session itself hits is
+unchanged: that is the API refusing, not a lane choosing to stop. A default pause stopped every
+lane at the threshold and led sessions to read a usage reading as a reason to stop or to ration
+quality ([#7118](https://github.com/melodic-software/claude-code-plugins/issues/7118)).
+
+**An account switch is the operator's act.** A lane never performs or scripts one. The
+[claude-code-account-rotation](https://github.com/melodic-software/claude-code-account-rotation)
+tool switches only on a human click, and its README lists running the loop lanes while rotating as
+outside its first version: a lane whose operator switches accounts relies on the floor's
+**Account switch** bullet and the known gaps below.
 
 **A named check enforces the rule.** `scripts/check-loop-lane-floor-drift.sh` extracts the floor
 block from the reader contract and compares it against an explicit registry of every surface that

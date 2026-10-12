@@ -216,13 +216,23 @@ The fleet contract gate fails an unescaped `\$<digit>` in a skill that admits ar
 non-empty `argument-hint`, an `arguments` key, or an unescaped `\$ARGUMENTS` in the body). A
 no-argument skill is not in that gate. `argument-hint` spelling is a different concern.
 
+## Closing report (Melodic Software addition)
+
+The last reply of a run that creates or changes a skill has three parts, in this order:
+
+- **Checks**: `/skill-quality:check`, the evals, and any other check, each with its result; a check
+  that did not run is listed as not run.
+- **Choices**: the category, the split between `SKILL.md`, reference files and scripts, and the
+  description's trigger phrases, each with the reason it was chosen.
+- **The skill**: one or two sentences on what it does and the requests it should fire on.
+
 ## Next
 
 `/skill-quality:check <skill>`. A skill just authored is checked before publication.
 
 ## Skill-tool composition (Melodic Software addition)
 
-The Skill tool takes one skill per call; a step needing two skills is two calls. A skill with
+Each Skill tool call loads exactly one skill, so a step that uses two skills makes two calls. A skill with
 `disable-model-invocation: true` is user-invoked only and unreachable via the Skill tool; tell the
 user to run `/plugin:skill` instead of attempting the call.
 

@@ -1,5 +1,64 @@
 # Changelog for the PR pipeline convention
 
+## 1.6.0 - 2026-10-11
+
+The write runner performs `prepare: merge-base` and takes the pr-unblock lane's inputs. `version`
+stays 1.
+
+- `pr-run-activity-write.yml` passes `prepare-supported: true` to resolve-config and runs a
+  `prepare: merge-base` leaf around a merge of the trusted base: the base's `prepare.sh` before
+  any model turn (a clean merge skips the skill), the skill without the commit tool, `post.sh`,
+  then a two-parent merge commit through the Git Data API, promoted onto the PR branch.
+  `collect-base-activity` takes a `prepare` input that leaves out the commit tool and the
+  instruction to commit. Paths and checks: `pr-run-activity.md`, "prepare: merge-base".
+- New inputs `dispatcher-run-id` (passed to `check-trusted-trigger` with no dispatcher or
+  dispatched workflow named, so every `github-actions[bot]` dispatch stops `untrusted-actor` until
+  the dispatcher change names both), `trusted-base` (`pr-base` or `default-tip`, passed to
+  `check-trusted-base` as `mode`; `default-tip` trusts the default branch tip for config, actions
+  and the merge's second parent) and `escalation-reason` (enum-checked, exported to a script as
+  `ESCALATION_REASON`). New `workflow_call` output `escalation-reason`.
+- The write runner sends `dispatcher-run-id` to the lanes token broker as `dispatcher_run_id`, a
+  positive JSON integer that the broker reads only for a run sent by `github-actions[bot]`
+  (broker side: azure-iac#20).
+- Every `mutate-branch` activity re-reads its PR branch from `git/ref` before the mint; a moved
+  branch skips neutral `superseded-sha` with no token and no model turn. This changes pr-refine:
+  such a run used to run the skill and then fail at promote.
+- The promote step confirms the PR branch through `git/ref` after moving it, and the report job
+  re-reads `GET /pulls/{n}` until its head matches that ref, at most 5 reads 2 s apart.
+- New scripted leaf `.github/scripts/pr-unblock/report-escalation.sh` (effect
+  `publish-artifact`): labels the PR with the human-gated role label and posts one comment with
+  the reason and a resume key. The write runner hands a script the base's
+  `.work-item-tracker.json` as `TRACKER_CONFIG`, copied before the head checkout and hash-checked.
+- Hardening of the merge-base steps: workflow commands stop while the merge scripts and git run,
+  `GIT_NO_REPLACE_OBJECTS=1`, an allowlisted environment and absolute binaries in the commit
+  step, a fresh label read that stops the commit on `do-not-merge` or the human-gated label, and
+  a promote that moves the PR branch only to the commit step's own commit.
+- `scripts/write-runner-never-rules.test.sh` asserts the write runner's structure against the
+  resolve-conflicts `never` row: no forced ref update, no commit unless `post.sh` cleared the
+  merge, the mint before the head checkout, and base scripts run only after their hash check.
+
+## 1.5.0 - 2026-10-11
+
+Composite activities, three new predicates and the `unblock` stage. `version` stays 1: no config
+in this repository or the sandbox used the removed `respond` stage or the retired lanes.
+
+- The `respond` stage is now `unblock`. `lane-rules.json` gains `pr-unblock` (stage `unblock`,
+  forbidden effect `merge`) and drops `pr-address-feedback`, `pr-fix-ci` and `pr-update`, so a
+  config that still names one of those lanes fails `lane-stage`.
+- An activity is a leaf or a composite. A composite lists `children:` slots and may set
+  `applies-when`; it declares no effect. The reader expands it into its leaves, applies lane rules
+  to each, ANDs `enabled` down the path, requires every predicate on the path to match, and
+  rejects an undefined child, a non-sibling `needs:`, a cycle, a composite inside a composite, and
+  a leaf that appears twice in a lane. `resolveGrant` grants a leaf only.
+- A leaf may set `prepare: merge-base` (a writing skill only); resolve-config outputs it.
+- New predicates: `mergeable` (`conflicting`, `clean`; read only from `GET /pulls/{n}` at the new
+  `head-sha` input, re-read while unknown, then `prerequisite-missing`), `labels-absent` (a listed
+  label on the PR skips with `awaiting-human`) and `draft`.
+- New trust-root `resolve-config/activity-rules.json`: per-leaf `never` text and optional
+  `forbidden-effects`. A leaf with no row is valid.
+- The example config replaces the three `respond` lanes with `pr-unblock` and its
+  `resolve-conflicts` and `report-escalation` leaves.
+
 ## 1.4.2 - 2026-10-10
 
 Docs only. `version` stays 1.
