@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: Scope cut. For each item, if it is not delivered this quarter, is the portal cancelled or worked around? My recommended buckets:\n- Must: service catalog, on-call schedules, onboarding guides\n- Should: team scorecards, incident timeline\n- Could: API explorer, cloud cost dashboards\n- Won't this quarter: plugin system\nMust is about half the effort. Everything outside Must goes to /planning:wayfind to chart once this cut is agreed.",
+      "why": "per-item buckets from the Must test, Must under 60%, the rest routed to wayfind"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This is too big and still foggy for one interview. I recommend /planning:wayfind to chart it as a decision map.",
+      "why": "wayfind with no scope cut"
+    },
+    {
+      "answer": "All eight are must-haves for the portal to be useful. Q1: Which do you want first?",
+      "why": "every item treated as Must"
+    }
+  ]
+}

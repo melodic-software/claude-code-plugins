@@ -1,5 +1,6 @@
 ---
-description: "Re-anchor: deterministic sub-work (counts, diffs, transforms, arithmetic) gets a script; reason over its output. Use when: 'script the deterministic work', 'you should have scripted that', 'don't eyeball that', 'you counted that by hand', 'compute that, don't estimate', 'diff it with a tool', 'stop hand-tallying', 'run it instead of guessing', or at conversation start on count-, diff-, transform-heavy work. Fires on drift, not a work order ('script it', 'diff these files', 'count the routes')."
+description: "Re-anchor: deterministic sub-work (counts, diffs, transforms, arithmetic) gets a script; reason over its output. Use when: 'script the deterministic work', 'you should have scripted that', 'don't eyeball that', 'you counted that by hand', 'compute that, don't estimate', 'diff it with a tool', 'stop hand-tallying', 'run it instead of guessing', or at conversation start on count-, diff-, transform-heavy work. Fires on drift, not a work order ('script it', 'diff these files', 'count the routes'). Mode lever-check plus a block summary: answers build-a-lever or edit-by-hand for one change repeated across sites."
+argument-hint: "[lever-check <block summary>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -100,6 +101,9 @@ Name concrete, located findings (per the method doc's step 2, self-audit):
   a script, so a judgment is dressed as a computed fact. This is the same
   boundary crossed in the other direction; the audit hunts both ways, not just
   hand-work that should have been scripted.
+- one change applied by hand at many sites where a lever was the cheaper and
+  checkable route, or a lever run across every site with no hand-edited site
+  to compare it against (the Lever check below sets the rule).
 
 Correct each forward now: write and run the script or tool, read its real
 output, and re-derive the conclusion from that output. Do not keep the
@@ -126,6 +130,71 @@ is to make a script *now*, often throwaway, feed it the input, and reason
 over its output. Recurring → a standing hook; one-off in flight → script it
 this turn.
 
+## Lever check (`lever-check <block summary>`)
+
+`$ARGUMENTS` whose first word is `lever-check` selects this mode; any other
+text runs the corrector above, with the text read as the request. The mode
+answers one question for a block of work that applies one change at several
+sites: build a lever (a script or tool that makes the change at every site),
+or edit each site by hand. `/implementation:implement` calls it before a
+block that applies one change at three or more sites, and
+`/implementation:implement-dispatch` calls it before it fans one change out
+to workers. The block summary names the change, the sites, and how many
+there are.
+
+1. **Resolve `lever_scope`**, once per call, lowest layer first: the default
+   `deterministic`; the user's option, `${user_config.lever_scope}` (empty or
+   a literal, unexpanded placeholder means unset); and the `lever_scope` key
+   of the repository's `docs/conventions/discipline.yaml`, which wins when
+   set, read only under the root rule in
+   [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
+   A value other than `deterministic` or `non-trivial` is named with its file
+   or option, the key and the value, and that layer is dropped: a valid
+   repository value still wins over an invalid user value, and an invalid
+   repository value resolves `deterministic`, never the user's value. An
+   invalid value never stops the check. Report one line, for example
+   `lever_scope: non-trivial (docs/conventions/discipline.yaml)`.
+2. **Classify the change.** It is mechanical when the edit at each site
+   follows from that site's text alone, with no reading of the surrounding
+   intent: a rename, a fixed rewrite of a call shape, a moved import path, a
+   format conversion. It needs judgment when two sites with the same text
+   could need different edits.
+3. **Answer `build-a-lever` or `edit-by-hand`, with the reason.**
+   - Under `deterministic`: `build-a-lever` for a mechanical change; a
+     throwaway script is enough. `edit-by-hand` for a change that needs
+     judgment, naming the kind of site that needs it.
+   - Under `non-trivial`: a mechanical change gets the same answer as under
+     `deterministic`. A change that needs judgment also gets
+     `build-a-lever`, unless it is a few one-line edits that cost less to
+     make than a tool would cost to set up. For it the lever is an
+     established codemod or refactoring tool for the language (a
+     language-server rename, a structural search-and-replace tool, the
+     ecosystem's codemod runner), never a refactoring script written from
+     scratch for this change. When no such tool covers the change, answer
+     `edit-by-hand` and say that no tool fit.
+4. **Pilot before the rest.** With `build-a-lever`, under either value, the
+   caller edits the first site by hand, runs the lever on a clean copy of
+   that site, and diffs the two results. A difference means the lever is
+   wrong: fix it and diff again before it touches any other site.
+5. **One pass or a fan-out.** When the caller is about to fan the change out
+   to workers, also answer `one-pass: yes` or `one-pass: no`. `yes` means a
+   single run of the lever covers every unit, so the caller dispatches one
+   worker that builds, pilots and runs the lever over all of them instead of
+   one worker per unit editing by hand. `no` names the units the lever cannot
+   reach.
+
+Report the result as these lines, then return to the caller:
+
+```text
+lever_scope: <value> (<layer>)
+answer: build-a-lever | edit-by-hand
+reason: <one sentence>
+one-pass: yes | no   (fan-out calls only)
+```
+
+The mode answers and stops. It writes no lever and edits no file; the caller
+does the work under its own cadence.
+
 ## What this skill does NOT do
 
 - **Does not script a judgment call.** Scripting reasoning-only work, or
@@ -138,6 +207,11 @@ this turn.
 - **Does not fabricate a finding.** Work whose deterministic parts were
   already scripted audits clean; say so rather than inventing hand-work to
   correct.
+
+## Next
+
+- A lever-check answer goes back to its caller: /implementation:implement
+- A deterministic check that recurs needs a standing hook: /harness-config:audit-automation-gaps
 
 ## Gotchas
 

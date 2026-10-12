@@ -1,5 +1,14 @@
 # Changelog for the standards convention
 
+## 1.1.0 - 2026-10-04
+
+Additive. The Surface column gains the recommended kind `paved-path`, and a new Paved paths
+section says what that row's file holds (per concern: the chosen way and the check that enforces
+it) and who reads it: review's `quality-gate` and `fanout` pass the file to the `code-reviewer`
+agent, and discipline's `reuse-or-replace` reads it on demand. No plugin ships default paved
+paths. The index shape, the resolution ladder and the migration rules are otherwise unchanged. An
+index at 1.0.3 or earlier is older than the bundled contract, so setup offers the guided migration.
+
 ## 1.0.3 - 2026-10-10
 
 Wording only. The `.claude/rules` seam no longer says a rule fires only on a file read: it says a

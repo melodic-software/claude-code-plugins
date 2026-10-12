@@ -23,8 +23,8 @@ Keys, layers and the fan-out guard are owned by
 - `<role|all>`: one of `orchestrator`, `worker`, `verifier`, `retrieval`, or
   `all` for the whole map.
 - `code|research|mechanical`: optional workload; applies the role's
-  `workloads.<w>` keys, which only a config layer sets; the bundled defaults
-  set none.
+  `workloads.<w>` keys. The bundled defaults set only `mechanical`, which runs
+  the worker on `sonnet`; any other workload key comes from a config layer.
 - `session=<alias>`: the session model's alias. When the caller did not pass
   one, fill it from your own model ID: the family name in it (`opus`,
   `sonnet`, `haiku`, `fable`) is the alias. When you cannot tell, omit it; the
@@ -51,7 +51,13 @@ role in this form:
 
 Write `inherit: omit the model option` wherever a variant's `omit_model` is
 true, so a caller copying the line passes no model and the agent runs on the
-session model. Then list every entry of `notes` (a skipped layer, a rejected
+session model. After the per-role lines, write this line as is:
+
+```text
+Effort above maxEffortLevel runs at the cap; see reference/config.md "Hard cap".
+```
+
+Then list every entry of `notes` (a skipped layer, a rejected
 value, an ignored key, a role that resolves to haiku) as written. A haiku note
 means the role runs on a model no role here has passed the routing eval on;
 the rule is in
@@ -105,5 +111,10 @@ Rechecks a default that looks wrong for the current models.
   over the definition's pins, see the pointer record under Output. Keeping a
   named agent such as `scoped-implementer` off a frontier session model is
   that dispatcher's rule to keep.
+- The route output never reflects `maxEffortLevel`; the cap applies at run
+  time ("Hard cap" in the config page linked under Purpose).
+- The `mechanical` workload runs the worker on `sonnet` by default, while
+  `code` keeps the role's model. A caller that wants the session model for
+  mechanical work sets `roles.worker.workloads.mechanical.model: inherit`.
 - Team and overlay layers resolve against the repository root of the working
   directory. Inside a second worktree, run from that worktree.

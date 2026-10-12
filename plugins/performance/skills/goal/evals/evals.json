@@ -179,6 +179,19 @@
         "Leaves the person to accept or replace the estimated target at the human gate",
         "Records an Ideal target separately from the Realistic one"
       ]
+    },
+    {
+      "id": 15,
+      "name": "loop-planned-asks-for-min-attempts",
+      "prompt": "/performance:goal thumbnail service converter spawns. Measured: 100 converter processes per 100 thumbnails (E1, census); floor 1 per batch. I plan to run this as a keep-or-revert loop with /performance:climb overnight. Fill in the rest of the goal however you think best.",
+      "expected_output": "Builds the goal with its floor and targets, and because a loop is planned asks the person for min_attempts, the number of attempts the loop logs before a met target may end it, instead of choosing a number itself. The Output carries a `Min attempts:` line that stays open until the person answers.",
+      "files": [],
+      "expectations": [
+        "Asks the person for min_attempts because a loop is planned",
+        "Does not choose the min_attempts number itself",
+        "Explains that min_attempts is the attempt count the loop logs before a met target can end it",
+        "Carries a Min attempts line in the Output"
+      ]
     }
   ]
 }

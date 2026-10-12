@@ -18,6 +18,14 @@
 #                   after a letter, digit, _, . / or -, so a repo folder such as
 #                   Domain/Users/ or src/home/ passes, but one right after a colon,
 #                   pipe or comma fails
+#   planned-breakage  every `**Planned breakage:**` line (a list marker before it
+#                   is allowed) sits in a phase section and reads
+#                   `<build|tests|lint> red until Phase <M> for <paths or test
+#                   filter>: <reason>`, where Phase <M> is a later `### Phase`
+#                   heading by position, so 2.5, 3a and IV compare by heading order.
+#                   A plan with no such line passes. Failures are listed as
+#                   `invalid=<line>:<reason>`, the reason one of kind, until, for,
+#                   missing-phase, not-later, last-phase or outside-phase
 #
 # "Every brief scope-item maps to a phase" is judgment and stays in the skill's
 # prose; this gate does not claim it.
@@ -140,6 +148,10 @@ structural="$(
         phases++
         in_phase = 1
         phase_sanity = 0
+        phase_id = heading
+        sub(/^###[ \t]+Phase[ \t]+/, "", phase_id)
+        sub(/[ \t]*:.*/, "", phase_id)
+        if (!(phase_id in phase_pos)) phase_pos[phase_id] = phases
         phase_name = heading
         sub(/^###[ \t]+/, "", phase_name)
         sub(/[ \t]*:.*/, "", phase_name)
@@ -154,6 +166,14 @@ structural="$(
       if (tolower(heading) ~ /blast[- ]radius/) { blast_open = 4; if (heading ~ /(LOW|MEDIUM|HIGH|CRITICAL)/) blast_level = 1 }
       next
     }
+    /^[ \t]*([-*+][ \t]+)?\*\*Planned breakage:\*\*/ {
+      breakages++
+      breakage_line[breakages] = NR
+      breakage_phase[breakages] = in_phase ? phases : 0
+      text = $0
+      sub(/^[ \t]*([-*+][ \t]+)?\*\*Planned breakage:\*\*[ \t]*/, "", text)
+      breakage_text[breakages] = text
+    }
     {
       if (in_phase && $0 ~ /Sanity Check/) phase_sanity = 1
       if ($0 ~ /^[ \t]*\|[ \t]*Decision[ \t]*\|[ \t]*What it changes/) { in_table = 1; decisions_table = 1; next }
@@ -163,8 +183,29 @@ structural="$(
       if (tolower($0) ~ /^[ \t*_-]*blast[- ]radius[ \t*_]*:/) { blast_open = 1; if ($0 ~ /(LOW|MEDIUM|HIGH|CRITICAL)/) blast_level = 1 }
       else if (blast_open > 0 && $0 ~ /[^ \t]/) { if ($0 ~ /(LOW|MEDIUM|HIGH|CRITICAL)/) blast_level = 1; blast_open-- }
     }
+    function breakage_reason(i,    text, target) {
+      if (breakage_phase[i] == 0) return "outside-phase"
+      text = breakage_text[i]
+      if (text !~ /^(build|tests|lint)[ \t]/) return "kind"
+      sub(/^[a-z]+/, "", text)
+      if (!match(text, /^[ \t]+red[ \t]+until[ \t]+Phase[ \t]+([0-9]+(\.[0-9]+)?[A-Za-z]?|[IVXLC]+)/)) return "until"
+      target = substr(text, RSTART, RLENGTH)
+      sub(/.*Phase[ \t]+/, "", target)
+      text = substr(text, RSTART + RLENGTH)
+      if (text !~ /^[ \t]+for[ \t]+[^ \t:].*:[ \t]+[^ \t]/) return "for"
+      if (breakage_phase[i] == phases) return "last-phase"
+      if (!(target in phase_pos)) return "missing-phase"
+      if (phase_pos[target] <= breakage_phase[i]) return "not-later"
+      return ""
+    }
     END {
       flush_phase()
+      for (i = 1; i <= breakages; i++) {
+        reason = breakage_reason(i)
+        if (reason != "") breakage_invalid = breakage_invalid " " breakage_line[i] ":" reason
+      }
+      printf "breakages=%d\n", breakages
+      printf "breakage_invalid=%s\n", breakage_invalid
       printf "phases=%d\n", phases
       printf "untagged=%s\n", untagged
       printf "missing_sanity=%s\n", missing_sanity
@@ -185,6 +226,8 @@ tagged="$(field tagged)"
 decisions_table="$(field decisions_table)"
 decision_rows="$(field decision_rows)"
 blast_level="$(field blast_level)"
+breakages="$(field breakages)"
+breakage_invalid="$(field breakage_invalid)"
 
 failed=0
 report() {
@@ -231,6 +274,13 @@ if [[ "$blast_level" -eq 1 ]]; then
   report blast-radius pass "level=named"
 else
   report blast-radius fail "level=missing (no Blast radius line naming LOW, MEDIUM, HIGH or CRITICAL)"
+fi
+
+if [[ -z "${breakage_invalid// /}" ]]; then
+  report planned-breakage pass "declarations=$breakages"
+else
+  invalid="${breakage_invalid# }"
+  report planned-breakage fail "invalid=${invalid// /,}"
 fi
 
 readonly max_path_hits=20
