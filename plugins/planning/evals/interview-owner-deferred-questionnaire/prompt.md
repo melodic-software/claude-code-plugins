@@ -1,5 +1,5 @@
 ---
-description: "Contract case for the questionnaire hand-off. Why hard: the Brief is locked and the natural handoff is /planning:plan alone, so the one question only the partner's ops lead can answer stays parked in the Brief with nobody asked to answer it."
+description: "Contract case for the questionnaire hand-off on a `tenant` item whose owner is not the user (the partner endpoint's accepted SSH key type). Why hard: the Brief is locked and the natural handoff is /planning:plan alone, so the one question only the partner's ops lead can answer stays parked in the Brief with nobody asked to answer it."
 tags: [interview, handoff, questionnaire]
 runs: 3
 max_turns: 12
