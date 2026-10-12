@@ -153,6 +153,17 @@ line above it, or inside the body, the same recorded-decision shape as the repo 
 `discriminating-skip-ok`. In a Playwright config it is file-scoped: one `cant-fail-ok:` anywhere in
 the file suppresses every config finding. Exemptions are counted in the coverage block, never silent.
 
+Type tests never reach the scan: no adapter claims `*.test-d.ts` or `*.test-d.tsx`, since the
+type checker evaluates those files and nothing runs them (basis: vitest.dev/guide/testing-types and
+the tsd README at github.com/tsdjs/tsd; as-of 2026-10-10; recheck when either changes its default
+type-test file pattern or starts running those files).
+
+Agreement between rows of a table the test declares itself is a valid exemption reason. Such a
+test, for example one asserting that each shipping band ends at the weight where the next band
+starts, calls no code under test, so `rule-constant-restatement` reports it. What it guards is
+that agreement, so keep the test as written and annotate the assertion, on its line or the line
+above, with `cant-fail-ok: relation across rows`.
+
 ## What this skill does NOT do
 
 - **Edit, repair, or delete tests.** Findings propose an assertion; the repair itself is the

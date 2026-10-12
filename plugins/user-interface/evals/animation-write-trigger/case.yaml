@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: animation-write-trigger
+description: "Routine: a request to animate a component's entrance invokes write-animation"
+tags: [write-animation, trigger, routine]
+runs: 3
+expected_outcome: "A Skill call reaches user-interface:write-animation, and the answer animates the notification panel's entrance with a reduced-motion variant"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Animate the notification panel in src/notifications.css so it slides in when it opens and feels smoother. This run cannot write files, so put the code in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 25
+  timeout_seconds: 600
