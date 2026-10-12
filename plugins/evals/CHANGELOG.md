@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.7.5] - 2026-10-11
+
+### Fixed
+
+- `plugin-eval`: the cloud-session route for `Bash`-granting suites now takes the session's host and missing sandbox packages from the upstream Installed tools section at run time, through a pointer, as-of date and recheck trigger.
+
 ## [0.7.4] - 2026-10-11
 
 ### Changed
