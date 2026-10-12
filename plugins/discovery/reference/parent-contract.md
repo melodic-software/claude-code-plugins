@@ -712,7 +712,7 @@ The source-applicability checker ships as Python only, with no `.sh` twin. Where
 from any open lane; a session that can run no Python interpreter halts on criterion 13.
 
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/…"` remains valid where a direct exec is awkward. On a session
-whose Bash tool is blocked by another skill's PreToolUse belt but whose PowerShell lane (or another
+whose Bash tool is blocked by another skill's PreToolUse hook but whose PowerShell lane (or another
 open shell) still runs, invoke the **same** scripts from that open lane, including the coverage
 ledger's Python twin (`check-coverage-complete.py`) when `python3` is what that lane can run. The
 twin is the non-bash alternative for criterion 11; it shares the `.sh` exit contract (0 / 1 / 2)
