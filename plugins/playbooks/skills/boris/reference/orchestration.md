@@ -61,7 +61,7 @@ Thariq: sometimes more useful for non-technical work. Migrations/refactors (Bun'
 
 ## 85. Pair Workflows with /goal, /loop, and Token Budgets
 
-`/goal` sets the exit condition, the workflow does the parallel work, `/loop` keeps it going. Cap token spend by prompting a budget directly ("use 10k tokens"). When a long run eats limits faster than expected, `/usage` breaks down which skills/MCPs/plugins are spending. "Quick workflow" works for small jobs (fast adversarial review of one assumption). When NOT: most traditional coding tasks don't need a panel of 5 reviewers.
+`/goal` sets the exit condition, the workflow does the parallel work, `/loop` keeps it going. Cap token spend by prompting a budget directly; the example prompt is in Thariq and Sid's [Token usage budgets](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#token-usage-budgets) (published 2026-06-02, as of 2026-10-11). The docs' [Cost](https://code.claude.com/docs/en/workflows#cost) section does not document prompted budgets; recheck when it does. When a long run eats limits faster than expected, `/usage` breaks down which skills/MCPs/plugins are spending. "Quick workflow" works for small jobs (fast adversarial review of one assumption). When NOT: most traditional coding tasks don't need a panel of 5 reviewers.
 
 ## 86. Saving and Sharing Workflows
 

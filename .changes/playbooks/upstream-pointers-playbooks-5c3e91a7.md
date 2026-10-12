@@ -5,6 +5,7 @@ bump: patch
 ### Fixed
 
 - `/playbooks:boris` no longer tells readers to use a `fork: true` skill key, a removed auto-mode launch flag, or a stale Remote Control plan list; each tip now carries an amendment pointing at the live docs section.
+- `/playbooks:boris` no longer says Apple Terminal and Warp need `/terminal-setup` for Shift+Enter newlines (the tip carries an amendment pointing at the live terminal-config section), and its workflow token-budget tip cites the blog section it comes from.
 - `/playbooks:repo-sweep` no longer says settings and hook edits under `~/.claude` need a restart; the step report says which ones do, from the live settings page.
 
 ### Changed

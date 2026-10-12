@@ -15,6 +15,17 @@ Quick settings to make Claude Code feel right:
 - **Newlines:** In IDE terminal, Apple Terminal, Warp, or Alacritty, `/terminal-setup` enables shift+enter for newlines (no need to type `\`)
 - **Vim mode:** `/vim`
 
+> **Amended:** the newline bullet is out of date: several of the terminals it names now take
+> Shift+Enter without `/terminal-setup`. Read which terminals still need the command rather than this
+> tip.
+>
+> - **Pointer**: before running `/terminal-setup` for newlines, fetch
+>   [Enter multiline prompts](https://code.claude.com/docs/en/terminal-config#enter-multiline-prompts)
+>   live.
+> - **As of**: 2026-10-11
+> - **Recheck trigger**: that section's terminal table changes which terminals need
+>   `/terminal-setup`.
+
 ---
 
 ## 17. Effort Level
