@@ -24,7 +24,8 @@ uses only `[A-Za-z0-9._-]` and does not end in `.` (Windows strips it); every
 tracked path in this repository passes. Any other path rates HIGH as
 `high-path:**`, because it could alias any path: `..`, `:` (an NTFS stream),
 `~1` (an 8.3 short name), whitespace, control or non-ASCII characters. So does
-a rename or copy with no previous path, and a file whose git mode is missing,
+a rename or copy with no previous path, a change, rename or copy with no
+previous mode, and a file whose git mode is missing,
 unknown, a symlink or submodule, or changes type. A configured glob outside the
 same set (plus `*` and whole `**` segments), read exactly as written, makes the
 configured HIGH set unreadable, and then only the floor is matched.
@@ -73,7 +74,10 @@ class ChangedFile:
     # omits it, so the caller fills it from the git trees API or
     # `git diff --raw`.
     mode: str
-    previous_mode: str | None = None  # the base-side mode on a rename or change
+    # The base-side mode. Required for a changed, renamed or copied file. The
+    # caller passes None for an absent side; "000000" (git's absent mode) is
+    # read as absent and accepted only for an added file.
+    previous_mode: str | None = None
 
 
 @dataclass(frozen=True)
@@ -131,8 +135,12 @@ HIGH_FLOOR: tuple[str, ...] = (
     "plugins/work-items/**",
     "plugins/*/hooks/**",
     "prompts/**",
-    "package.json",
-    "package-lock.json",
+    "plugins/*/lib/**",  # synced copies of lib/ that hooks run
+    # Hook-run scripts outside hooks/.
+    "plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py",
+    "plugins/disk-hygiene/skills/clean/scripts/engine_context.py",
+    "plugins/disk-hygiene/skills/clean/scripts/guard_launch_monitor.py",
+    "**/package.json",
     "**/package-lock.json",
     ".node-version",
     ".python-version",
@@ -173,6 +181,8 @@ _CLASS_RANK = {"C1": 1, "C2": 2, "C3": 3, "C4": 4, "C5": 5}
 _C1_RANK = _CLASS_RANK["C1"]
 _C2_RANK = _CLASS_RANK["C2"]
 
+_ABSENT_MODE = "000000"
+_TWO_SIDED = frozenset({"changed", "renamed", "copied"})  # need a previous mode
 # Git file modes by type. Only regular files may stay below HIGH.
 _MODE_TYPES = {
     "100644": "regular",
@@ -224,10 +234,11 @@ def normalize_path(path: Any) -> tuple[str, bool]:
 def _safe_glob(pattern: str) -> bool:
     """A configured glob must name a path in the same character set, exactly as
     written: no `./` or `/` prefix, no `\\`, no segment ending in `.`, and `**`
-    only as a whole segment."""
+    only as a whole segment. A bare `**` names every path, which is no denied
+    path at all, so it is unreadable too."""
     if pattern.endswith("/"):
         pattern = pattern[:-1]
-    return all(
+    return pattern != "**" and all(
         _SAFE_GLOB_SEGMENT.fullmatch(segment)
         and not segment.endswith(".")
         and ("**" not in segment or segment == "**")
@@ -313,7 +324,7 @@ def _check_file(changed: Any) -> _File:
     status = raw_status if isinstance(raw_status, str) else None
     if status in ("renamed", "copied") and previous is None:
         unsafe.append(f"{_show(raw_path)} {status} with no previous path")
-    unsafe.extend(_mode_problems(changed, raw_path))
+    unsafe.extend(_mode_problems(changed, raw_path, status))
     problems = []
     if status not in STATUSES:
         problems.append(f"status {_show(raw_status)}")
@@ -341,7 +352,7 @@ def _check_file(changed: Any) -> _File:
     )
 
 
-def _mode_problems(changed: Any, raw_path: Any) -> list[str]:
+def _mode_problems(changed: Any, raw_path: Any, status: str | None) -> list[str]:
     """Only a regular file that stays regular may rate below HIGH."""
     mode = getattr(changed, "mode", None)
     previous = getattr(changed, "previous_mode", None)
@@ -349,7 +360,13 @@ def _mode_problems(changed: Any, raw_path: Any) -> list[str]:
     found = []
     if kind != "regular":
         found.append(f"{_show(raw_path)} mode {_show(mode)} ({kind or 'unknown'})")
-    if previous is not None:
+    if previous == _ABSENT_MODE:
+        if status != "added":
+            found.append(f"{_show(raw_path)} {status} with an absent previous mode")
+    elif previous is None:
+        if status in _TWO_SIDED:
+            found.append(f"{_show(raw_path)} {status} with no previous mode")
+    else:
         before = _MODE_TYPES.get(previous) if isinstance(previous, str) else None
         if before != kind:
             found.append(
@@ -502,33 +519,17 @@ def _lane_reasons(raw_lanes: Any) -> list[Reason]:
     return reasons
 
 
-def _merge_by_code(reasons: list[Reason]) -> list[Reason]:
-    """One reason per code: the first, at the highest severity seen, with each
-    distinct later detail appended."""
-    merged: dict[str, Reason] = {}
-    for reason in reasons:
-        seen = merged.setdefault(reason.code, reason)
-        if seen is reason:
-            continue
-        detail = seen.detail
-        if reason.detail not in detail.split("; "):
-            detail = f"{detail}; {reason.detail}"
-        severity = max(seen.severity, reason.severity)
-        merged[reason.code] = Reason(reason.code, Risk(severity), detail)
-    return list(merged.values())
-
-
 def _score(inp: RiskInput) -> RiskResult:
     raw_files = _sequence(inp.files)
     files = None if raw_files is None else [_check_file(f) for f in raw_files]
-    reasons = _merge_by_code(
-        [
-            *_class_reasons(inp, files or []),
-            *_size_reasons(inp, files),
-            *_lane_reasons(inp.lanes),
-            *_high_path_reasons(inp, files or []),
-        ]
-    )
+    # Each producer emits a code at most once, and the only code two of them
+    # could share (high-path:**) is refused as a configured glob.
+    reasons = [
+        *_class_reasons(inp, files or []),
+        *_size_reasons(inp, files),
+        *_lane_reasons(inp.lanes),
+        *_high_path_reasons(inp, files or []),
+    ]
     reasons.sort(key=lambda reason: (-reason.severity, reason.code))
     worst = max((reason.severity for reason in reasons), default=Risk.LOW)
     return RiskResult(Risk(worst), tuple(reasons))

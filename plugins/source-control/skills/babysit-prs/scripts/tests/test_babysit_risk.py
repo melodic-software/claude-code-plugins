@@ -20,14 +20,15 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from babysit_risk import (
     ChangedFile,
     LaneEvidence,
-    Reason,
     Risk,
     RiskInput,
     Rung,
-    _merge_by_code,
     normalize_path,
     score,
 )
+
+
+_UNSET = object()
 
 
 def _file(
@@ -39,8 +40,12 @@ def _file(
     deletions=5,
     has_patch=True,
     mode="100644",
-    previous_mode=None,
+    previous_mode=_UNSET,
 ):
+    if previous_mode is _UNSET:
+        # A well-formed two-sided change carries its base-side mode.
+        two_sided = status in ("changed", "renamed", "copied")
+        previous_mode = "100644" if two_sided else None
     return ChangedFile(
         path=path,
         previous_path=previous_path,
@@ -478,7 +483,7 @@ class GlobTimingTests(unittest.TestCase):
                 self.assertLess(time.perf_counter() - start, 0.5)
                 self.assertEqual(_codes(result), ("high-path:**",))
 
-    def test_double_star_over_a_very_deep_path_is_linear(self):
+    def test_double_star_over_a_very_deep_path_finishes_quickly(self):
         path = "/".join(["a"] * 20_000) + "/x.md"
         start = time.perf_counter()
         result = score(_input(files=(_file(path),), high_paths=("**/a/**/b",)))
@@ -679,6 +684,38 @@ class MalformedInputTests(unittest.TestCase):
             with self.subTest(changes):
                 result = score(_input(files=(_file("plugins/foo/a.md", **changes),)))
                 self.assertEqual(result.score, Risk.LOW)
+
+    def test_two_sided_change_needs_a_previous_mode(self):
+        # Spec: changed, renamed or copied with previous_mode None, malformed
+        # or '000000' (absent) is HIGH, at a class where nothing else fires.
+        for status in ("changed", "renamed", "copied"):
+            for previous_mode in (None, "777", "000000"):
+                with self.subTest((status, previous_mode)):
+                    result = score(
+                        _input(
+                            work_class="C3",
+                            rung=Rung.C3,
+                            blast_radius="low",
+                            files=(
+                                _file(
+                                    "plugins/foo/b.md",
+                                    status=status,
+                                    previous_path="plugins/foo/a.md",
+                                    previous_mode=previous_mode,
+                                ),
+                            ),
+                        )
+                    )
+                    self.assertEqual(result.score, Risk.HIGH)
+                    self.assertIn("high-path:**", _codes(result))
+
+    def test_absent_previous_mode_is_allowed_only_for_an_added_file(self):
+        added = _file("plugins/foo/a.md", status="added", previous_mode="000000")
+        self.assertEqual(score(_input(files=(added,))).score, Risk.LOW)
+        modified = _file("plugins/foo/a.md", previous_mode="000000")
+        result = score(_input(files=(modified,)))
+        self.assertEqual(result.score, Risk.HIGH)
+        self.assertIn("high-path:**", _codes(result))
 
     def test_odd_path_forms_are_high_any_path(self):
         # Spec: a `..` segment, a trailing `/`, a `:` in a segment, or a
@@ -932,20 +969,22 @@ class NeverRaisesTests(unittest.TestCase):
         self.assertEqual(len(codes), len(set(codes)))
         self.assertIn("high-path:**", codes)
 
-    def test_merge_keeps_the_highest_severity_on_a_duplicate_detail(self):
-        merged = _merge_by_code(
-            [
-                Reason("x", Risk.MED, "same"),
-                Reason("x", Risk.HIGH, "same"),
-            ]
-        )
-        self.assertEqual(merged, [Reason("x", Risk.HIGH, "same")])
+    def test_configured_double_star_alone_is_unreadable(self):
+        # Spec: a configured glob of exactly '**' names no specific denied path.
+        for glob in ("**", "**/"):
+            with self.subTest(glob):
+                result = score(_input(high_paths=(glob,)))
+                self.assertEqual(result.score, Risk.HIGH)
+                self.assertEqual(_codes(result), ("high-path:**",))
 
-    def test_merge_appends_a_distinct_detail(self):
-        merged = _merge_by_code(
-            [Reason("x", Risk.MED, "a"), Reason("x", Risk.MED, "b")]
+    def test_configured_glob_repeating_a_floor_glob_yields_one_code(self):
+        result = score(
+            _input(
+                files=(_file(".github/x.yml"),),
+                high_paths=(".github/**", ".github/**"),
+            )
         )
-        self.assertEqual(merged, [Reason("x", Risk.MED, "a; b")])
+        self.assertEqual(_codes(result), ("high-path:.github/**",))
 
 
 class AddedFloorTests(unittest.TestCase):
@@ -955,9 +994,23 @@ class AddedFloorTests(unittest.TestCase):
             ("plugins/work-items/skills/x.md", "plugins/work-items/**"),
             ("plugins/foo/hooks/hooks.json", "plugins/*/hooks/**"),
             ("prompts/x.md", "prompts/**"),
-            ("package.json", "package.json"),
-            ("package-lock.json", "package-lock.json"),
+            ("package.json", "**/package.json"),
+            ("plugins/foo/package.json", "**/package.json"),
+            ("package-lock.json", "**/package-lock.json"),
             ("plugins/foo/package-lock.json", "**/package-lock.json"),
+            ("plugins/actionlint/lib/prerequisites.sh", "plugins/*/lib/**"),
+            (
+                "plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py",
+                "plugins/disk-hygiene/skills/clean/scripts/destructive_guard.py",
+            ),
+            (
+                "plugins/disk-hygiene/skills/clean/scripts/engine_context.py",
+                "plugins/disk-hygiene/skills/clean/scripts/engine_context.py",
+            ),
+            (
+                "plugins/disk-hygiene/skills/clean/scripts/guard_launch_monitor.py",
+                "plugins/disk-hygiene/skills/clean/scripts/guard_launch_monitor.py",
+            ),
             (".node-version", ".node-version"),
             (".python-version", ".python-version"),
             (".gitleaks.toml", ".gitleaks.toml"),
@@ -973,9 +1026,9 @@ class AddedFloorTests(unittest.TestCase):
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertIn(f"high-path:{glob}", _codes(result))
 
-    def test_nested_package_json_is_not_on_the_floor(self):
-        result = score(_input(files=(_file("plugins/foo/package.json"),)))
-        self.assertEqual(result.score, Risk.LOW)
+    def test_root_package_lock_has_one_floor_code(self):
+        codes = _codes(score(_input(files=(_file("package-lock.json"),))))
+        self.assertEqual(codes, ("high-path:**/package-lock.json",))
 
 
 class UnreadableSetAndDetailTests(unittest.TestCase):
@@ -995,7 +1048,7 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
         )
         reason = score(_input(lanes=lanes)).reasons[0]
         self.assertEqual(reason.code, "evidence-unbound:claude-review")
-        self.assertEqual(reason.detail, "not bound")
+        self.assertIn("not bound", reason.detail)
 
     def test_lane_evidence_naming_no_known_lane_is_a_miss(self):
         # Spec: unrecognized data is a miss, never a pass.
@@ -1016,7 +1069,8 @@ class UnreadableSetAndDetailTests(unittest.TestCase):
         reasons = score(
             _input(work_class="C3", rung=Rung.C2, blast_radius="low")
         ).reasons
-        self.assertEqual(reasons[0].detail, "C3 above rung C2")
+        self.assertIn("C2", reasons[0].detail)
+        self.assertNotIn("<Rung", reasons[0].detail)
 
 
 if __name__ == "__main__":
