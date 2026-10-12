@@ -41,9 +41,10 @@ you cannot inspect it, don't assume it is empty.
   apply settings precedence to `autoMemoryEnabled`, in the order
   [Settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) lists; a
   `--settings` value the snapshot cannot see ranks among those levels, so say so when the session
-  was started with one. With no scope setting it, report auto memory on, and name any session kind
+  was started with one. With no scope setting it, the default applies: read
   [Enable or disable auto memory](https://code.claude.com/docs/en/memory#enable-or-disable-auto-memory)
-  says starts with it off. Both pointers: as of 2026-10-11; recheck when the precedence list
+  for which session kinds start with it off, and report off (naming that kind) when the current
+  session is one of them, on otherwise. Both pointers: as of 2026-10-11; recheck when the precedence list
   changes or that section changes which sessions start with auto memory off. When the env var and the setting disagree, report the effective state as
   the env var dictates and call out the disagreement so the user can align them.
 - **Store location.** If any scope sets `autoMemoryDirectory`, the effective directory is that

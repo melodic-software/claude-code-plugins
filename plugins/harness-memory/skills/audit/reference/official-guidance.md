@@ -313,15 +313,14 @@ and prices a recommended move with that destination's row:
 | CLAUDE.md | Full load | Project-root re-injected; nested reload on demand | Nested: file read, write or edit in that subdirectory |
 | Path-scoped rules | Matching paths only | Re-injected when paths match again | File read, write or edit |
 | Unscoped rules | Full load | Re-injected | None |
-| Skills | Name + description | Listing re-injected; recently invoked bodies re-attached within a budget, older ones can drop | `/skill` or model choice |
+| Skills | Name + description | Listing re-injected; invoked bodies only partly (priced below) | `/skill` or model choice |
 | Subagents | Name + description | Listing re-injected (our model; no docs row covers it) | Dispatch |
 | Hooks | N/A (deterministic) | N/A | Every tool call |
 | Auto-memory MEMORY.md | The start of the file, up to the load limit ([Auto-memory limits](#auto-memory-limits)) | Re-injected from disk | None |
 | Output style | If non-default | Persists for session | `/config` |
 
-We price a move into a skill as surviving compaction only partly: a large body comes back cut
-short, and in a session that invokes many skills an older one may not come back at all. The caps
-are read at the pointer, not here.
+We price a move into a skill as surviving compaction only partly. How much of an invoked body
+comes back, and which bodies come back at all, is read at the pointer at run time, not here.
 
 - **Pointer**: [What survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction),
   [Instructions seem lost after `/compact`](https://code.claude.com/docs/en/memory#instructions-seem-lost-after-/compact),
