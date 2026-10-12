@@ -13,6 +13,10 @@
 # and the -c list is the one the convention names.
 set -uo pipefail
 
+# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect the fixture's `git init` / `git config` into the caller's repository.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lane-push.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -82,11 +86,11 @@ export LP_LOGIN="example-lane[bot]"
 # A hostile global config that GIT_CONFIG_GLOBAL=/dev/null must drop.
 cat >"$HOME/.gitconfig" <<'EOF'
 [credential]
-	helper = store
+    helper = store
 [url "ssh://git@github.com/"]
-	pushInsteadOf = https://github.com/
+    pushInsteadOf = https://github.com/
 [http]
-	extraHeader = Authorization: basic leaked
+    extraHeader = Authorization: basic leaked
 EOF
 
 new_repo() {
