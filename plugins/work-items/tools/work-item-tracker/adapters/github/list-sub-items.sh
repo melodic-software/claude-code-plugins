@@ -92,13 +92,14 @@ if [[ -n "$unattributed" ]]; then
 fi
 
 if [[ "$child_nums" == "[]" ]]; then
-  jq -cn --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: []}'
+  jq -cn --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: [], truncated: false}'
   exit 0
 fi
 
 # Reuse list-items' normalized envelope, then keep only the child rows and stamp
 # the known parent (list rows carry parent_id: null — GitHub omits it in bulk).
-# $() swallows the sibling's exit-on-error; propagate its code.
+# $() swallows the sibling's exit-on-error; propagate its code. A child past the
+# list-items ceiling is invisible to the intersect, so its `truncated` carries over.
 items_env="$(bash "$WIT_GH_ADAPTER_DIR/list-items.sh" --state "$state" --repo "$target_repo")" || exit "$?"
 jq -c --argjson nums "$child_nums" --arg pid "$id" '{
   schema_version: .schema_version,
@@ -106,5 +107,6 @@ jq -c --argjson nums "$child_nums" --arg pid "$id" '{
     .items[]
     | select((.id | split("#")[-1] | tonumber) as $n | $nums | index($n))
     | .parent_id = $pid
-  ]
+  ],
+  truncated: .truncated
 }' <<<"$items_env"

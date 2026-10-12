@@ -15,9 +15,10 @@ name: pr-review-hosted
 # elevate it).
 #
 # The reusable skips fork PRs (they receive no secrets and a read-only token)
-# and every `[bot]` actor, so neither is reviewed by design. On a public
-# repository that means the lane reviews only pull requests from branches of
-# this repository: fork and Dependabot pull requests get no secrets.
+# and every `[bot]` actor whose sender id is not in `allowed-bot-sender-ids`
+# (below), so neither is reviewed by design. On a public repository that means
+# the lane reviews only pull requests from branches of this repository: fork
+# and Dependabot pull requests get no secrets.
 #
 # RUNNER PLACEMENT: hosted shape. This file runs the lane on the GitHub-hosted
 # `ubuntu-24.04` runner, which the standards `runner-policy` component admits
@@ -80,9 +81,14 @@ jobs:
                              # reviewed-head marker comment
       id-token: write        # OIDC, mints the Claude GitHub App token (required
                              # even with an OAuth/API-key credential)
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review.yml@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review.yml@a92020292976c2e9b50f7adc922693a45a6c1226 # v0.40.0
     with:
       runner: ubuntu-24.04
+      # Bot senders this lane reviews, by numeric user id: the
+      # automation-lanes App, so a commit it pushes to a pull request is
+      # reviewed. Where the repository does not set this variable the value is
+      # empty and the reusable reviews no bot.
+      allowed-bot-sender-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
     # Pass only the one named secret (least privilege) rather than
     # `secrets: inherit`, which would forward every parent secret to the
     # called workflow.

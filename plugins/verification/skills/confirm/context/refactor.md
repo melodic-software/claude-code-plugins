@@ -36,6 +36,7 @@ What behavior should be preserved? This defines what to test:
 - **Side effects**: do same database writes, events, logs, notifications still occur?
 - **Error behavior**: do same inputs still produce same errors?
 - **Performance characteristics**: is refactored code still within acceptable performance bounds?
+- **Equivalence for a large reshape**: when the refactor is a High-risk type in the table above, or moves code across several modules or entry points, some of what moved lies outside what its tests exercise directly, so a passing suite does not settle it. Ask for equivalence evidence of either kind and report it beside the test results: outputs recorded from the old code and checked against what the new code returns for the same calls, or a differential run that feeds identical inputs to both versions and compares what comes out. A Replace already needs this as differential evidence (above)
 
 ### 3. Run the full test suite
 

@@ -1,0 +1,2 @@
+# Eval fixture: a repository's docs/conventions/source-control.yaml that pins PRs to open as drafts.
+pr_open_state: draft
