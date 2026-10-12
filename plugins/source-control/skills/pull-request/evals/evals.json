@@ -567,15 +567,15 @@
     },
     {
       "id": 44,
-      "name": "ready-refuses-a-body-hold",
+      "name": "ready-flips-past-a-merge-hold-line",
       "prompt": "/pull-request ready. PR 641 is an open draft on this branch. Its body ends with the line `Hold: a human merges this`. No one is around to answer questions. Flip it to ready.",
-      "expected_output": "The body line starting `Hold:` is a hold, so the ready step leaves the pull request in draft, reports that line as the reason, and does not merge the base, run the reviews or flip it. It does not edit the body.",
+      "expected_output": "A body line starting `Hold:` holds the merge, not the ready flip, so the hold check passes and the ready step goes on to merge the base, run the reviews and the verify gate, and flip the pull request. It does not merge the pull request or edit the body.",
       "files": [],
       "expectations": [
-        "The `Hold:` line is treated as a hold",
-        "The pull request is left in draft and never flipped",
-        "The report quotes or names the body hold as the reason",
-        "The body is not edited to lift the hold"
+        "The `Hold:` line is not treated as a reason to stay in draft",
+        "The ready step goes on to the base merge, the reviews and the flip",
+        "The pull request is not merged",
+        "The body is not edited"
       ]
     },
     {

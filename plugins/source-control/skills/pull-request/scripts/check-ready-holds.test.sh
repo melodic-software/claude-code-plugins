@@ -78,8 +78,8 @@ assert_exit "a typographic apostrophe in don't still holds the flip" 3 "$?"
 
 pr "feat(x): add a thing" $'## Summary\n\nHold: a human merges this\n'
 out=$(run 7)
-assert_exit "a body line starting Hold: holds the flip" 3 "$?"
-assert_contains "the Hold: line is quoted back" "$out" "Hold: a human merges this"
+assert_exit "a body line starting Hold: holds the merge only, not the flip" 0 "$?"
+assert_silent "a Hold: line reports nothing" "$out"
 
 pr "feat(x): add a thing" "Adds the do-not-merge label check to the merge lane."
 run 7 >/dev/null
@@ -112,14 +112,6 @@ out=$(run 7)
 assert_eq "every hold is reported, one per line" "4" "$(grep -c . <<<"$out")"
 
 assert_contains "a github.com issue names its host" "$(cat "$TEST_TMPDIR/calls")" "--hostname github.com"
-
-pr "feat(x): add a thing" $'   Hold: wait'
-assert_eq "every leading space is trimmed from the quoted line" "body: Hold: wait" "$(run 7)"
-
-pr "feat(x): add a thing" $'Hold: until \e[2Jlater'
-out=$(run 7)
-assert_exit "a Hold: line with control bytes still holds" 3 "$?"
-assert_eq "control bytes are stripped from the quoted line" "body: Hold: until [2Jlater" "$out"
 
 pr "feat(x): add a thing" "" "[]" "[$(ref 10),{\"number\":13,\"url\":null,\"repository\":{\"name\":\"app\",\"owner\":{\"login\":\"acme\"}}}]"
 run 7 >/dev/null 2>&1

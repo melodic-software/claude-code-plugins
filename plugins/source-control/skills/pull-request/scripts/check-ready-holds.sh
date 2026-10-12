@@ -3,8 +3,9 @@
 #
 # The `ready` action runs this before it touches the branch. A pull request is
 # held when it carries the do-not-merge label (any case), its body says "do not
-# merge" or "don't merge" or has a line starting "Hold:", or its title carries
-# WIP as a word. It is superseded when an issue it closes is already closed.
+# merge" or "don't merge", or its title carries WIP as a word. A body line
+# starting "Hold:" holds the merge only, so it does not hold the flip. It is
+# superseded when an issue it closes is already closed.
 #
 # Usage:
 #   check-ready-holds.sh <pr> [--repo <owner/repo>]
@@ -63,7 +64,6 @@ facts=$(gh pr view "$PR" ${repo_args[@]+"${repo_args[@]}"} --json title,body,lab
 reasons=$(jq -r '
   ([.labels[]?.name | select(ascii_downcase == "do-not-merge")] | if length > 0 then "label: the pull request carries do-not-merge" else empty end),
   (.body // "" | if test("\\bdo(?:n['"'"'\u2019]?t| not)\\s+merge\\b"; "i") then "body: it says do not merge" else empty end),
-  (.body // "" | split("\n")[] | sub("\r$"; "") | select(test("^\\s*hold:"; "i")) | "body: \(sub("^\\s+"; "") | gsub("[[:cntrl:]]"; ""))"),
   (.title // "" | if test("\\bwip\\b"; "i") then "title: a WIP marker in \"\(.)\"" else empty end)
 ' <<<"$facts") || die 2 "cannot parse the pull request facts"
 
