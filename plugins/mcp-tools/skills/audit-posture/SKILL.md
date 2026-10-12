@@ -86,15 +86,14 @@ full output is in hand.
 that file, and `-` for a server the user configured.
 
 `provided_by` is informational: it is a reported column so the operator can tell
-organization-provided servers, which the user cannot remove, from user-configured ones, and no
-P1-P5 criterion reads it.
+organization-provided servers from user-configured ones, and no P1-P5 criterion reads it.
 
 - **Pointer**: when explaining an organization-provided row or what happens on removal, fetch
   [Provide servers through managed settings](https://code.claude.com/docs/en/managed-mcp#provide-servers-through-managed-settings)
   live.
 - **As of**: 2026-10-11
-- **Recheck trigger**: that section stops attributing the servers to managed settings, or
-  `claude mcp remove` starts removing an organization-provided server.
+- **Recheck trigger**: that section changes how organization-provided servers are attributed or
+  removed, or is renamed.
 
 ### Phase 2: Evaluate P1-P5
 
