@@ -127,8 +127,7 @@ one, and never a guessed-from-memory model name.
 The skill knows its own main model, stated in the system prompt. It reads effort from
 `${CLAUDE_EFFORT}` in its body, or from `CLAUDE_EFFORT` in a Bash subprocess, and treats an absent
 value as a model without effort support rather than an unset level. The user can work with the
-advisor through `/advisor` (in a terminal a bare `/advisor` opens a model picker; where there is no
-picker it prints the current advisor), but the skill has no way to read it from inside its
+advisor through `/advisor` (what a bare `/advisor` shows is read live), but the skill has no way to read it from inside its
 own session, so it treats advisor state as unknown and may suggest the user check it.
 
 - **Pointer**: for the effort values, see
