@@ -90,6 +90,9 @@ out=$(run 7)
 assert_exit "a WIP marker after the type prefix holds the flip" 3 "$?"
 assert_contains "the WIP hold names the title" "$out" "WIP"
 
+pr $'WIP: thing \e[2Jnow' ""
+assert_eq "control bytes are stripped from the quoted title" 'title: a WIP marker in "WIP: thing [2Jnow"' "$(run 7)"
+
 pr "wip(guardrails): wrapper-argv resolver" ""
 run 7 >/dev/null
 assert_exit "a wip type holds the flip" 3 "$?"
