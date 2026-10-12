@@ -79,6 +79,15 @@ class AsyncMergeHarness(unittest.TestCase):
 
     def setUp(self) -> None:
         RepoConfigFake().install(self)
+        self.enterContext(
+            mock.patch.object(
+                merge.merge_policy,
+                "resolve",
+                return_value=merge.merge_policy.UnattendedPolicy(
+                    reason="authority-unconfigured"
+                ),
+            )
+        )
         self.captures: list[list[str]] = []
         self.polls: list[list[str]] = []
         self.sleeps: list[float] = []

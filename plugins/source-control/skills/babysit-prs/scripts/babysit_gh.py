@@ -1103,7 +1103,8 @@ def fetch_review_threads(
     resolution state, re-source those over REST
     (`fetch_unresolved_review_comments`).
 
-    Each thread record carries: `id`, `isResolved`, `isOutdated`, `comments`
+    Each thread record carries: `id`, `isResolved`, `isOutdated`, `resolvedBy`
+    ({__typename login}, or None when open or the resolver is unknown), `comments`
     (each with author{__typename login}, body, path, url, createdAt, updatedAt,
     databaseId), `comments_total_count`, and `comments_truncated`. Resolved
     threads are dropped unless `include_resolved`. `projection` maps each
@@ -1116,7 +1117,7 @@ def fetch_review_threads(
         "query($o:String!,$r:String!,$n:Int!,$cursor:String){"
         "repository(owner:$o,name:$r){pullRequest(number:$n){"
         "reviewThreads(first:100,after:$cursor){pageInfo{hasNextPage endCursor} "
-        "nodes{id isResolved isOutdated "
+        "nodes{id isResolved isOutdated resolvedBy{__typename login} "
         f"comments(first:{comments_first})"
         "{totalCount pageInfo{hasNextPage} "
         "nodes{author{__typename login} body path url createdAt updatedAt databaseId}}}}}}}"
@@ -1159,6 +1160,10 @@ def fetch_review_threads(
                 or not isinstance(thread.get("id"), str)
                 or not isinstance(thread.get("isResolved"), bool)
                 or not isinstance(thread.get("isOutdated"), bool)
+                or not (
+                    thread.get("resolvedBy") is None
+                    or is_json_object(thread["resolvedBy"])
+                )
             ):
                 raise RuntimeError(f"Malformed review thread for {repo}#{number}")
             if thread["isResolved"] and not include_resolved:
@@ -1210,6 +1215,7 @@ def fetch_review_threads(
                 "id": thread["id"],
                 "isResolved": thread["isResolved"],
                 "isOutdated": thread["isOutdated"],
+                "resolvedBy": thread.get("resolvedBy"),
                 "comments": comments,
                 "comments_total_count": total_count,
                 "comments_truncated": bool(comment_page_info["hasNextPage"]),

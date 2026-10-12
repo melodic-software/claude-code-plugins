@@ -991,7 +991,7 @@ announced operator step.
 
 `--unattended` on the merge gate runs it under the unattended merge policy, which nothing enables
 yet. Check-only reports the blocker `unattended merge inert: <reason>` and
-`unattended.enabled: false`; with `--merge` the gate refuses at exit 10 before any network call.
+`unattended.enabled: false`; with `--merge` the gate refuses at exit 10 before any write.
 It refuses `--allow-dependency` and `--auto`. No tier passes the flag. Separately, plain `--merge`
 refuses at exit 10 when the token's login is the repository's configured `merge.agent-identity`:
 that identity may merge only through `--unattended`.
