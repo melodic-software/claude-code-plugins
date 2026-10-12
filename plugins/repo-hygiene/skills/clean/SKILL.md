@@ -264,6 +264,12 @@ hook can put its own data directory there under that name.
   `/machine-health:audit` records an observation that disagrees with this table on the Bash tool; a
   run that reconciles the two is also a trigger.
 
+## Next
+
+- Linked worktrees no longer needed, which no tier removes: /source-control:worktree cleanup --dry-run.
+- Branches or worktrees across many repositories: /repo-fleet-hygiene:audit.
+- Disk still short after `scan` or a batch: /disk-hygiene:clean.
+
 ## Integration
 
 | Surface | Relationship |
