@@ -72,6 +72,10 @@ pr "feat(x): add a thing" "Please don't merge until the migration lands."
 run 7 >/dev/null
 assert_exit "a \"don't merge\" body holds the flip" 3 "$?"
 
+pr "feat(x): add a thing" $'Please don’t merge yet.'
+run 7 >/dev/null
+assert_exit "a typographic apostrophe in don't still holds the flip" 3 "$?"
+
 pr "feat(x): add a thing" $'## Summary\n\nHold: a human merges this\n'
 out=$(run 7)
 assert_exit "a body line starting Hold: holds the flip" 3 "$?"
