@@ -337,9 +337,9 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   `managed-only`; the skill keeps the shims in both cases for that reason. Condition D: the sessions
   that read `CLAUDE.md` files only are the ones
   [memory § When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable)
-  lists, as bullets and in the version note after them. The difference table adds that
-  for "Directories you add with `--add-dir` while `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` is
-  set", "Their `AGENTS.md` doesn't load"; for "An `@path` import of a file outside your working
+  lists, as bullets and in the version note after them. The difference table,
+  [memory § Where AGENTS.md differs from CLAUDE.md](https://code.claude.com/docs/en/memory#where-agents-md-differs-from-claude-md),
+  adds a row for directories added with `--add-dir`; for "An `@path` import of a file outside your working
   directory" (condition E), an `AGENTS.md` read through the setting "Loads only if you already
   approved external imports for this project, with no prompt"; and for `InstructionsLoaded` hooks
   (condition F), "Don't fire. They fire as usual for an `AGENTS.md` that a `CLAUDE.md` imports or
@@ -349,8 +349,9 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   section's settings-panel signal covers only its bulleted sessions, not the version note after
   them, so the skill does not attach the signal to the note. The page does not mention the Agent SDK, cloud or web sessions, or `claude-code-action`, so
   condition D asks the operator about each rather than inferring coverage. Condition E's bound:
-  "Imported files can recursively import other files, with a maximum depth of four hops" (line
-  104), the same limit `scripts/lib/discover.sh` `_ip_reaches` encodes. Condition F's per-session
+  the import depth limit in
+  [memory § Import additional files](https://code.claude.com/docs/en/memory#import-additional-files),
+  the same limit `scripts/lib/discover.sh` `_ip_reaches` encodes. Condition F's per-session
   plugins, from [plugins/create](https://code.claude.com/docs/en/plugins/create) "Develop without
   a marketplace" (fetched 2026-10-01, 25,706 bytes, first heading "Create a Claude Code plugin",
   slug in `llms.txt`; the `plugins` page, which has no "Test your plugins locally" heading on this
@@ -386,10 +387,10 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   entry dates the change, so the skill trusts the exemption only from 2.1.287.
 - **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-10-01 by the rung-1
   route (50,074 bytes; slug in `llms.txt`; first heading "How Claude remembers your project"),
-  sections "When Claude Code reads AGENTS.md" (line 363), "Choose which instruction files load"
-  (line 381), "When AGENTS.md support is unavailable" (line 406), "Where
-  AGENTS.md differs from CLAUDE.md" (line 416), "Remove an earlier AGENTS.md workaround" (line
-  426) and "Share one file with other coding tools" (line 435). [settings-reference](https://code.claude.com/docs/en/settings-reference), fetched
+  sections `#when-claude-code-reads-agents-md`, `#choose-which-instruction-files-load`,
+  `#when-agents-md-support-is-unavailable`, `#where-agents-md-differs-from-claude-md`,
+  `#remove-an-earlier-agents-md-workaround` and `#share-one-file-with-other-coding-tools`
+  (anchors re-read 2026-10-11). [settings-reference](https://code.claude.com/docs/en/settings-reference), fetched
   2026-10-01, `pluginConfigs`: "Built-in plugins store their options under the same key with an
   `@builtin` suffix"; fetched again 2026-10-02 (416,824 bytes, first heading "All settings"),
   "What runs under `allowManagedHooksOnly`" (line 4008) and "`disableAllHooks`" (line 4021).
