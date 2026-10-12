@@ -69,6 +69,7 @@ house rule, chosen to match what Anthropic's own plugins and examples do.
 | `stdin_read_timeout` | Hook stdin read timeout (seconds) |
 | `lane_instance` | Lane instance ID |
 | `output_dir` | Output directory |
+| `model_notices` | Model notices |
 
 ## Descriptions
 

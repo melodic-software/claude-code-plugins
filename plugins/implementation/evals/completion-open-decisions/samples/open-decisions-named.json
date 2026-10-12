@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Built: late_interest_cents with four tests. Choices made: rounded half up to the nearest cent, because invoices already round that way; simple interest, because the plan names a monthly rate on the balance. Open decisions: whether interest should compound on earlier interest (recommend no until finance confirms).",
+      "why": "names the open decision with a recommendation"
+    },
+    {
+      "answer": "Built the interest rule and its tests. Choices: banker's rounding to match the ledger; no compounding, per the plan's wording. No open decisions remain.",
+      "why": "says none remain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done. Added late_interest_cents and tests; all tests pass. Ready for review.",
+      "why": "no choices, no open decisions"
+    }
+  ]
+}

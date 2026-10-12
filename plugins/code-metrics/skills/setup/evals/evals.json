@@ -37,7 +37,7 @@
         "Interviews one key at a time, leading with a recommendation and its provenance",
         "Preserves keys already present in the existing team file",
         "Recommends the recursive .claude/**/*.local.* line rather than editing .gitignore",
-        "Writes only .claude/code-metrics.yaml, never the user-global or local layers"
+        "Writes only docs/conventions/code-metrics.yaml, never the user-global or local layers"
       ]
     }
   ]

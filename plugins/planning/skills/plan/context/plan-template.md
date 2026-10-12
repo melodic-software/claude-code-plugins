@@ -11,6 +11,8 @@
 - [Execution-Shape Analysis](#execution-shape-analysis)
 - [Large-scale changes (migrations, library swaps, broad refactoring)](#large-scale-changes-migrations-library-swaps-broad-refactoring)
 - [Phase Review tags (optional per phase)](#phase-review-tags-optional-per-phase)
+- [Planned breakage (optional per phase)](#planned-breakage-optional-per-phase)
+- [Visual parity (optional per phase)](#visual-parity-optional-per-phase)
 - [Phase-entry checks for tracker writes](#phase-entry-checks-for-tracker-writes)
 - [Checkbox inventory pattern](#checkbox-inventory-pattern)
 - [Domain-specialist skills during planning](#domain-specialist-skills-during-planning)
@@ -216,7 +218,7 @@ For plans with ≥2 phases. Single-phase plans and trivial fixes skip this secti
 - <Phase C activates a hook that affects Phase D's commit>
 - <Phase E is independent of A, B, D>
 - (or one-liner: "all phases sequential, semantic-source-first ordering")
-- Integration-first ordering is a third axis beyond dependency-order and parallelism: among phases not forced by a dependency, the integration slice goes first.
+- `phase_order` (plan Step 2) is a third axis beyond dependency order and parallelism: among phases no dependency forces, it sets the order (under the default `composed`: dead-code removal, then the integration slice, then the riskiest unknown, then scaffold, then the remaining features).
 
 ### Recommended shape
 
@@ -262,12 +264,28 @@ Document a one-line fallback path if parallel orchestration fails:
 
 ### Per-phase routing table
 
-Assign each phase an execution surface and a model:
+Assign each phase an execution surface, a model and an attempts mark:
 
-| Phase | Surface | Model | Basis |
-|---|---|---|---|
-| <N> | <main-session / sub-agent worker> | <sonnet / opus / frontier> | <one-line task-shape rationale> |
-| 2 (example) | sub-agent worker | sonnet | Closed file list, grep checks |
+| Phase | Surface | Model | Attempts | Basis |
+|---|---|---|---|---|
+| <N> | <main-session / sub-agent worker> | <sonnet / opus / frontier> | <blank / multi-shape> | <one-line task-shape rationale> |
+| 2 (example) | sub-agent worker | sonnet | | Closed file list, grep checks |
+
+The `Attempts` column is blank for a phase with one plausible shape, which means one attempt. Write
+`multi-shape` when Step 4.5 finds more than one plausible shape the design left open for the phase:
+two or more ways to build it that each meet the design and the acceptance criteria, with nothing in
+the design or the codebase to choose between them. A marked phase's body carries two more lines,
+written before any dispatch:
+
+- **Attempt constraints:** one stated constraint per attempt, each steering that attempt toward a
+  different shape (for example "attempt 1: compute in one SQL query; attempt 2: compute in the
+  service layer from cached rows").
+- **Selection rule:** how a passing attempt is picked, as one of `first pass` (the first attempt
+  whose verifier passes), `rank all` (every passing attempt ranked on named criteria) or `best-of`
+  with its criteria (the passing attempt that scores best on them).
+
+The mark records what the plan found and reads no setting; whether marked phases get several
+attempts is decided at dispatch, by `/implementation:implement-dispatch`.
 
 - **Main-session:** judgment-heavy, tightly coupled to conversation context, or requires user interaction
 - **Sub-agent worker:** mechanical, file-disjoint volume work that returns a summary; every worker row implies a dispatch brief carrying the scope fence + the divergence-escalation clause above
@@ -317,7 +335,7 @@ Per Kent Beck: separate structural commits (renames, extracts, reorganizations) 
 
 ## Phase Review tags (optional per phase)
 
-When a phase touches a review concern that should be caught at the phase boundary (not deferred to PR), add a `Review:` line immediately under the phase header. Implementation dispatches a fresh-context sub-agent review before the phase commit.
+When a phase touches a review concern that should be caught at the phase boundary (not deferred to PR), add a `Review:` line immediately under the phase header. For the four concern tags below, implementation dispatches a fresh-context sub-agent review before the phase commit; that phase-boundary review applies to these tags only.
 
 ```markdown
 ### Phase N: <name> [TODO]
@@ -327,7 +345,46 @@ Review: concurrency    # races, shared state
 Review: code-design    # configurability, testability, observability
 ```
 
+A phase that changes what users see or do can also carry one optional evidence value, written as a plain description of the evidence:
+
+```markdown
+Review: screenshots of each changed screen, plus a short recording of the changed interaction
+```
+
+Leave out the recording when no interaction changes. No reviewer runs on this value at the phase boundary: the evidence is gathered when the pull request is marked ready (`/source-control:pull-request ready`, when it is among the available skills; otherwise attach it by hand) and linked from the pull request. A phase that must leave its screens unchanged uses [Visual parity](#visual-parity-optional-per-phase) instead.
+
 Omit `Review:` when the phase is docs-only or trivial with no new types/contracts.
+
+## Planned breakage (optional per phase)
+
+When a phase knowingly leaves the build, the tests or the lint red until a later phase lands (stub signatures before their callers, a schema change before its readers), declare it in that phase so implementation tells the planned failure from a regression:
+
+```markdown
+### Phase N: <name> [TODO]
+**Planned breakage:** <build | tests | lint> red until Phase <M> for <failing paths or test filter>: <reason>
+```
+
+- `<M>` is a later `### Phase` heading; order is the heading order, so `2.5`, `3a` and `IV` all work. The span runs from this phase to the end of Phase `<M>`, where the named failures must be green.
+- The `for` clause names exactly what may fail: paths (`src/billing/`) or a test filter (`-k invoice_totals`). Implementation treats any failure outside it as a real failure.
+- One line per kind. The last phase cannot declare one: nothing after it closes the span.
+- Step 4.7's `planned-breakage` criterion fails a line with another kind, no `until Phase`, no `for` clause, or a target phase that is missing or not later.
+
+Omit the line when every phase ends green.
+
+## Visual parity (optional per phase)
+
+When a phase must leave the UI looking exactly as it did (a refactor, a component-library swap, a
+styling migration), list the screens and states it holds:
+
+```markdown
+### Phase N: <name> [TODO]
+**Parity contract:** <screen (state)>, <screen (state)>, ...
+```
+
+Implementation's refactor mode captures those states before the phase's first edit and compares
+them at each green checkpoint through `/testing:check-visual-parity`, when it is among the
+available skills. Name states a capture can reach, such as `order list (empty)` or
+`checkout (card declined)`. Omit the line when the phase may change how the UI looks.
 
 ## Phase-entry checks for tracker writes
 
@@ -391,7 +448,7 @@ Load this section from Step 4.5. The hub states the agent-team routing rule and 
 6. **Author scope-fencing tables**. For each parallel agent: ALLOWED files (whitelist) + explicit FORBIDDEN (PLAN.md, other agents' territory) per "Scope-fencing tables" above
 7. **Surface the cost**. Parallel agents multiply token usage; state "N agents parallel vs sequential" so the user picks consciously
 8. **Document sequential fallback**. An explicit path back to sequential ordering if parallel orchestration fails (scope-fence violation, concurrent-edit race, an agent reports it cannot complete)
-9. **Assign per-phase execution surface and model**. Give each phase a routing row (`Phase | Surface | Model | Basis`): main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Set `Model` per "Per-phase routing table" above: `sonnet` only when every eligibility condition holds, otherwise `opus`, and `frontier` for security-surface work. Route to agent team only when the environment has agent teams enabled (an experimental, default-off surface; the dated record is in the parallelism section below); otherwise fall back to sub-agent workers or sequential
+9. **Assign per-phase execution surface and model**. Give each phase a routing row (`Phase | Surface | Model | Attempts | Basis`), with `Attempts` blank (one attempt) or `multi-shape` per "Per-phase routing table" above: main-session for judgment-heavy or tightly-coupled work, sub-agent worker for mechanical or file-disjoint volume work, agent team for parallel-safe workers that must message each other. Set `Model` per "Per-phase routing table" above: `sonnet` only when every eligibility condition holds, otherwise `opus`, and `frontier` for security-surface work. Route to agent team only when the environment has agent teams enabled (an experimental, default-off surface; the dated record is in the parallelism section below); otherwise fall back to sub-agent workers or sequential
 
 **Output:** an Execution-Shape Analysis subsection in the plan body (parallelism shape + per-phase routing table) + scope-fencing tables in "Handoff to implementation". The user approves the shape at Step 5.
 

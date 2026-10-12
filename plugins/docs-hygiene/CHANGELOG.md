@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [1.0.0] - 2026-10-11
+
+### Changed
+
+- **Breaking:** the inlined rate-limit floor makes pausing opt-in. A lane pauses at 95% only when its session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1`. Without it, the lane keeps working at the same model, effort and review depth, and reports the window, its reset time and the options: continue, switch accounts, or opt in (#7118).
+
 ## [0.27.4] - 2026-10-10
 
 ### Fixed
