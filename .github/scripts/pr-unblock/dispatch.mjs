@@ -9,8 +9,10 @@
 // of times), skips a PR whose current head already carries a pr-unblock check
 // run, and dispatches pr-unblock.yml on main for at most maxDispatch of them,
 // lowest PR number first. Labels and authors are left to the lane's own
-// config and gate. Logs carry PR numbers, SHAs and run ids only.
+// config and gate. Logs carry PR numbers, SHAs and run ids only. The run ids
+// it dispatched become the step output run-ids, which the workflow records.
 
+import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 export const DEFAULTS = Object.freeze({
@@ -27,6 +29,9 @@ export const DEFAULTS = Object.freeze({
   unknownRetries: 5,
   unknownDelayMs: 10_000,
 });
+
+// The run id form the record's readers accept.
+const RUN_ID = /^[1-9][0-9]{0,14}$/;
 
 function isCandidate(node, base) {
   return (
@@ -126,10 +131,16 @@ export async function dispatchConflicting({
         ref: `refs/heads/${base}`,
         inputs: { "pr-number": String(node.number), "dispatcher-run-id": String(runId) },
       });
-      dispatched.push({ number: node.number, workflowRunId });
-      log(
-        `dispatched #${node.number} head ${node.headRefOid} workflow_run_id=${workflowRunId ?? "unreported"}`,
-      );
+      // The dispatched run's gate and the broker refuse a run this run did not
+      // record, so a dispatch with no usable id counts as failed.
+      const id = String(workflowRunId);
+      if (!RUN_ID.test(id)) {
+        failed += 1;
+        log(`::error::#${node.number}: dispatch returned no valid workflow_run_id`);
+        continue;
+      }
+      dispatched.push({ number: node.number, workflowRunId: id });
+      log(`dispatched #${node.number} head ${node.headRefOid} workflow_run_id=${id}`);
     } catch (error) {
       failed += 1;
       log(`::error::#${node.number}: dispatch failed: ${error.message}`);
@@ -230,25 +241,39 @@ export function createGitHubApi({
   };
 }
 
-async function main(env) {
-  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID"]) {
+// Writes the dispatched run ids, lowest PR first, as the step output run-ids,
+// which the workflow records as an artifact on this run.
+export async function main(
+  env,
+  {
+    api,
+    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    log = (line) => console.log(line),
+  } = {},
+) {
+  for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
   }
-  const api = createGitHubApi({
-    token: env.GITHUB_TOKEN,
-    repository: env.GITHUB_REPOSITORY,
-    apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
-    graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
-  });
   const { dispatched, failed } = await dispatchConflicting({
-    api,
+    api:
+      api ??
+      createGitHubApi({
+        token: env.GITHUB_TOKEN,
+        repository: env.GITHUB_REPOSITORY,
+        apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
+        graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      }),
     runId: env.GITHUB_RUN_ID,
-    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-    log: (line) => console.log(line),
+    sleep,
+    log,
   });
-  console.log(`dispatched ${dispatched.length} run(s), ${failed} failure(s)`);
+  if (dispatched.length > 0) {
+    const ids = dispatched.map((run) => run.workflowRunId).join(" ");
+    appendFileSync(env.GITHUB_OUTPUT, `run-ids=${ids}\n`);
+  }
+  log(`dispatched ${dispatched.length} run(s), ${failed} failure(s)`);
   return failed === 0 ? 0 : 1;
 }
 
