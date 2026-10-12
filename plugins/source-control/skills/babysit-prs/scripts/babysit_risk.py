@@ -24,7 +24,7 @@ uses only `[A-Za-z0-9._-]` and does not end in `.` (Windows strips it); every
 tracked path in this repository passes. Any other path rates HIGH as
 `high-path:**`, because it could alias any path: `..`, `:` (an NTFS stream),
 `~1` (an 8.3 short name), whitespace, control or non-ASCII characters. So does
-a rename or copy with no previous path, a change, rename or copy with no
+a rename or copy with no previous path, a modification, change, rename or copy with no
 previous mode, and a file whose git mode is missing,
 unknown, a symlink or submodule, or changes type. A configured glob outside the
 same set (plus `*` and whole `**` segments), read exactly as written, makes the
