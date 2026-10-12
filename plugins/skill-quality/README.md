@@ -42,16 +42,16 @@ the reviewer to confirm the description still names that intent, or to restore t
     <https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill> live.
     **As of**: 2026-10-11. **Recheck trigger**: the spec's validator, the upload requirements, or
     a Claude Code release changing either rule.
-- `description` + `when_to_use` within the **per-skill** listing-entry cap (overflow truncates
-  that entry). A different, narrower limit from the shared budget below.
+- `description` + `when_to_use` within the **per-skill** listing-entry cap. A different, narrower
+  limit from the shared budget below.
   - **Pointer**: for the cap's default, fetch
     <https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars> live. **As of**:
     2026-10-11. **Recheck trigger**: that section moving the default, which re-derives
     `DESC_CHAR_CAP` in `scripts/check-skill.sh`.
 - `description` alone within the Agent Skills spec's `description` field maximum, counted in
   **codepoints**. A separate limit at a separate layer from the listing-entry cap above: a
-  description can sit under the combined cap and still breach the field maximum on its own, which
-  the Skills API rejects at upload. Over the maximum FAILs;
+  description can sit under the combined cap and still breach the field maximum on its own. Over
+  the maximum FAILs;
   within 32 codepoints of it WARNs, naming the skill and how much room is left, so an author sees
   the ceiling before the next added trigger phrase hits it. Counted in codepoints, not bytes, so a
   non-ASCII description is measured the way the spec states the limit.
