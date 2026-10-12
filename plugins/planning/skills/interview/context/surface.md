@@ -217,7 +217,7 @@ Every question states its decision in plain words. Before `add-round`, scan each
 
 - **Dedicated session.** When a page session starts in a heavy context, offer once, in one line, to run the interview in a small dedicated session so each wake is cheap. Never force it.
 - **Decomposition at wrap-up (R6).** When enabled, name `/work-items:decompose` as a step the user runs; never run it. The local outputs are `export-brief` and `export-report`. `/planning:wayfind` is not a wrap-up offer: it is named only where SKILL.md's Stance and Step 5 name it, for an effort too big and still too foggy to phrase as questions.
-- **Someone else decides.** The page's `Someone else decides` choice records a `defer` whose `text` starts `someone else decides: ` and names who holds the decision; the summary lists these under the same heading. Count them with SKILL.md Step 5's person-held deferrals: in an engineering session, name `/planning:questionnaire` (if enabled) in the `finish` op's `next` when any exist; a general session stays terminal.
+- **Someone else decides.** The page's `Someone else decides` choice records a `defer` whose `text` starts `someone else decides:` and a space, then names who holds the decision; the summary lists these under the same heading. Count them with SKILL.md Step 5's person-held deferrals: in an engineering session, name `/planning:questionnaire` (if enabled) in the `finish` op's `next` when any exist; a general session stays terminal.
 
 ## Wrap-up
 
