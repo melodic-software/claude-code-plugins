@@ -56,8 +56,9 @@ fails closed like every other guard-relevant unknown in this plugin.
    `command` to `node` and put `hooks/exec-bash.mjs`, then `hooks/run-python-hook.sh` and that
    script's arguments, in `args`. `node` resolves to `node.exe`. FAIL if `command` is bare `bash`,
    `sh`, or `python3`, or if the script path is `command` with no `args`: on Windows bare `bash` is
-   the WSL relay and a `.sh` path is not a spawnable executable, the launch fails, and with no
-   failure option set on any registration the guard silently enforces nothing. Also FAIL if
+   the WSL relay and a `.sh` path is not a spawnable executable, so the guard cannot start; this
+   plugin treats a guard that cannot start as enforcing nothing (what a failed launch does to the
+   call: the pointer below). Also FAIL if
    `exec-bash.mjs` or the launcher is missing.
    - **Pointer**: when checking how exec form spawns `command`, or what a hook that fails to start
      does to the call, fetch [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form)

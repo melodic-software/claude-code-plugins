@@ -480,10 +480,10 @@ and what the guard does when no Python resolves → "Hook launch form".
   redirections, aliases, and exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
   invocations, and turning known deletion spellings into a hook-issued `ask`
-  (`permissionDecision: "ask"`), relied on to put each deletion in front of the user rather than
-  let a mode approve it silently. Add an explicit `permissions.ask` rule for those spellings if the
-  manual handoff must not depend on hook-`ask` surfacing, and leave `dontAsk` first if the per-path
-  handoff confirm must appear. **Pointer:** when checking how a hook `ask` or a `permissions.ask`
+  (`permissionDecision: "ask"`): each deletion needs the user's explicit confirmation. Whether that
+  `ask` reaches the user in the active mode is upstream behavior: fetch the pointed sections before
+  relying on it, and add an explicit `permissions.ask` rule for those spellings, or change mode,
+  when they show it would not. **Pointer:** when checking how a hook `ask` or a `permissions.ask`
   rule behaves in each mode, fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
   [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode) and
   [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)

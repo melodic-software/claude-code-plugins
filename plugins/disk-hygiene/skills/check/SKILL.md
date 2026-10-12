@@ -14,7 +14,7 @@ metadata:
 
 Run the read-only check. Do not run `apply`. Do not install or download.
 
-This skill is the model-invocable check while `setup` stays manual, because invocation control is set per skill, not per action.
+This skill is the model-invocable check while `setup` stays manual; why they are split: the pointer below.
 
 - **Pointer**: when checking what `disable-model-invocation` controls, fetch [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live. **As of**: 2026-10-11. **Recheck trigger**: a Claude Code release adds a per-action invocation flag, or that field stops applying to the whole skill.
 
