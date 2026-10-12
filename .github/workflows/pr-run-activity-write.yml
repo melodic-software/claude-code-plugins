@@ -209,12 +209,10 @@ jobs:
           pr-number: ${{ inputs.pr-number }}
           denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           triggering-actor: ${{ github.triggering_actor }}
-          # A dispatch from github-actions[bot] proceeds only when it names a
-          # pr-unblock-dispatch.yml run on the default branch that sent it to
-          # pr-unblock.yml; any other run passes no id and the bot stays unlisted.
+          # No dispatcher or dispatched workflow is named yet, so a run that
+          # passes a dispatcher run id stops untrusted-actor; the dispatcher
+          # change names both once pr-unblock.yml and its dispatcher exist.
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
-          dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
-          dispatched-workflow: .github/workflows/pr-unblock.yml
 
       # The trusted base is the config, actions and trusted-actor source and,
       # in prepare: merge-base mode, the merge's second parent.
