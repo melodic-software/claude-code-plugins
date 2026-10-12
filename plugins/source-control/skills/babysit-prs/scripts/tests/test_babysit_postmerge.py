@@ -211,6 +211,8 @@ class FakeGh:
             if "-X" in args:
                 return completed({"id": 1})
             return completed([self.comments.get(number, [])])
+        if "-X" in args and args[args.index("-X") + 1] == "PATCH":
+            return completed({"state": "open"})
         if endpoint.startswith(f"repos/{REPO}/issues?"):
             creator = endpoint.split("creator=")[1].split("&")[0]
             from urllib.parse import unquote
@@ -739,9 +741,80 @@ class Remediation(CheckCase):
         marker = f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=read-back -->"
         self.gh.issues = [{"number": 8001, "body": marker, "user": {"login": IDENTITY}}]
         detail = verdict.failures[0].detail
-        self.gh.comments[8001] = [{"body": f"seen: {detail}"}]
+        self.gh.comments[8001] = [
+            {"body": f"seen: {detail}", "user": {"login": "github-actions[bot]"}}
+        ]
         pm.remediate(REPO, verdict, agent_identity=IDENTITY)
         self.assertEqual(self.gh.writes(), [])
+
+    def test_an_outside_comment_naming_the_sighting_does_not_suppress_it(
+        self,
+    ) -> None:
+        verdict = self.failing_verdict()
+        marker = f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=read-back -->"
+        self.gh.issues = [{"number": 8001, "body": marker, "user": {"login": IDENTITY}}]
+        detail = verdict.failures[0].detail
+        self.gh.comments[8001] = [
+            {"body": f"seen: {detail}", "user": {"login": "drive-by"}}
+        ]
+        pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertTrue(
+            any(f"repos/{REPO}/issues/8001/comments" in w for w in self.gh.writes())
+        )
+
+    def test_closed_record_with_a_new_sighting_is_reopened_then_commented(
+        self,
+    ) -> None:
+        verdict = self.failing_verdict()
+        marker = f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=read-back -->"
+        self.gh.issues = [
+            {
+                "number": 8001,
+                "state": "closed",
+                "body": marker,
+                "user": {"login": IDENTITY},
+            }
+        ]
+        report = pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        writes = [
+            w for w in self.gh.writes() if "dequeuePullRequest" not in " ".join(w)
+        ]
+        self.assertEqual(
+            writes[0],
+            ["api", "-X", "PATCH", f"repos/{REPO}/issues/8001", "-f", "state=open"],
+        )
+        self.assertIn(f"repos/{REPO}/issues/8001/comments", writes[1])
+        self.assertEqual(len(writes), 2)
+        self.assertEqual(report["reopened"], [8001])
+
+    def test_closed_record_with_an_already_seen_sighting_stays_closed(self) -> None:
+        verdict = self.failing_verdict()
+        marker = f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=read-back -->"
+        detail = verdict.failures[0].detail
+        self.gh.issues = [
+            {
+                "number": 8001,
+                "state": "closed",
+                "body": f"{marker}\n- Detail: {detail}",
+                "user": {"login": IDENTITY},
+            }
+        ]
+        pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertEqual(self.gh.writes(), [])
+
+    def test_open_record_is_not_reopened(self) -> None:
+        verdict = self.failing_verdict()
+        marker = f"<!-- babysit-merge-demotion sha={MERGE_SHA} signal=read-back -->"
+        self.gh.issues = [
+            {
+                "number": 8001,
+                "state": "open",
+                "body": marker,
+                "user": {"login": IDENTITY},
+            }
+        ]
+        pm.remediate(REPO, verdict, agent_identity=IDENTITY)
+        self.assertFalse(any("PATCH" in w for w in self.gh.writes()))
 
     def test_no_failure_means_no_write(self) -> None:
         self.all_green()

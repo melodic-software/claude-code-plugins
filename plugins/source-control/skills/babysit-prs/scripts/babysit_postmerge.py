@@ -847,13 +847,16 @@ def remediate(
 ) -> dict[str, Any]:
     """Act on the verdict's failures: dequeue every merge-queue entry the agent
     identity enqueued, then file one demotion issue per (signal, merge SHA) or
-    comment on the existing one, then record the number of new issues as
+    comment on the existing one (reopening it first when closed and the sighting
+    is new; only the filers' own comments count as a prior sighting), then
+    record the number of new issues as
     `demotion_events`. Each step runs even when an earlier one failed; errors are
     listed in the report. No failure, no write."""
     report: dict[str, Any] = {
         "dequeued": [],
         "issues": [],
         "comments": [],
+        "reopened": [],
         "telemetry": {"demotion_events": 0},
         "errors": [],
     }
@@ -871,6 +874,7 @@ def remediate(
 
     created = 0
     try:
+        filers = {_login_key(f) for f in (agent_identity, *DEMOTION_FILERS)}
         existing = _demotion_issues(owner, name, (agent_identity, *DEMOTION_FILERS))
         role_label = label or _role_label(owner, name)
         seen: set[str] = set()
@@ -908,9 +912,26 @@ def remediate(
             )
             key = _sighting(failure)
             if key in str(match.get("body") or "") or any(
-                key in str(c.get("body") or "") for c in comments
+                key in str(c.get("body") or "")
+                for c in comments
+                if _login_key(json_object(c.get("user")).get("login")) in filers
             ):
                 continue
+            if match.get("state") != "open":
+                # A record a human closed must hold the rung again on a new
+                # failure; a reopen is no content edit, so a later close clears.
+                _write(
+                    [
+                        "api",
+                        "-X",
+                        "PATCH",
+                        f"repos/{owner}/{name}/issues/{number}",
+                        "-f",
+                        "state=open",
+                    ],
+                    f"reopen #{number}",
+                )
+                report["reopened"].append(number)
             _write(
                 [
                     "api",

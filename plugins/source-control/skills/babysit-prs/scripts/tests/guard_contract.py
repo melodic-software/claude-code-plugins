@@ -1448,7 +1448,7 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutates_what=(
             "re-runs failed jobs of a red full run; dispatches a full run when none "
             "covers an unverified auto-merge; dequeues the agent identity's "
-            "merge-queue entries; files or comments on the demotion issue"
+            "merge-queue entries; files, reopens, or comments on the demotion issue"
         ),
         gate="--remediate",
         claim="Read-only without --remediate.",
