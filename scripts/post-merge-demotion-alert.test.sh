@@ -52,7 +52,7 @@ if [[ "$(grep -c 'issues: write' "$WORKFLOW")" -eq 1 ]] && grep -q '^permissions
 else
   fail "permissions are not exactly issues: write"
 fi
-if grep -qE '^\s*-?\s*uses:' "$WORKFLOW"; then
+if grep -qE '^[[:space:]]*-?[[:space:]]*uses:' "$WORKFLOW"; then
   fail "the workflow runs an action; it must check out and run nothing"
 else
   ok "no action and no checkout"
