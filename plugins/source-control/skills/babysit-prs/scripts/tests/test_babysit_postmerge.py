@@ -160,6 +160,8 @@ class FakeGh:
         self.viewer = IDENTITY
         # The pull request's last comments, as the pin read returns them.
         self.pin_comments: list[dict[str, Any]] = []
+        # Comment pages served in order, one per pin read, when set.
+        self.pin_pages: list[dict[str, Any]] = []
 
     def add_runs(self, workflow: str, event: str, *runs: dict[str, Any]) -> None:
         self.runs.setdefault((workflow, event), []).extend(runs)
@@ -249,8 +251,16 @@ class FakeGh:
     def _graphql(self, joined: str) -> subprocess.CompletedProcess[str]:
         if "PolicyViewer" in joined:
             return completed({"data": {"viewer": {"login": self.viewer}}})
+        if "PostMergePin" in joined and self.pin_pages:
+            comments = self.pin_pages.pop(0)
+            return completed(
+                {"data": {"repository": {"pullRequest": {"comments": comments}}}}
+            )
         if "PostMergePin" in joined:
-            comments = {"nodes": self.pin_comments}
+            comments = {
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                "nodes": self.pin_comments,
+            }
             return completed(
                 {"data": {"repository": {"pullRequest": {"comments": comments}}}}
             )
@@ -1374,6 +1384,32 @@ class PinnedHead(CheckCase):
                     self.assertEqual(
                         [f.signal for f in verdict.failures], [pm.SIGNAL_READ_BACK]
                     )
+
+    def test_a_pin_behind_100_later_comments_is_found(self) -> None:
+        chatter = [{"author": HUMAN, "body": "lgtm", "lastEditedAt": None}] * 100
+        self.gh.pin_pages = [
+            {"pageInfo": {"hasNextPage": True, "endCursor": "c1"}, "nodes": [pin(HEAD_SHA)]},
+            {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": chatter},
+        ]
+        self.assertEqual(pm.read_pin(REPO, 7001, IDENTITY), HEAD_SHA)
+        reads = [c for c in self.gh.calls if any("PostMergePin" in a for a in c)]
+        self.assertEqual(len(reads), 2)
+        self.assertIn("c=c1", reads[1])
+
+    def test_an_unrecorded_pin_past_the_deadline_is_a_failure(self) -> None:
+        # Gate finding 3: a missing or edited pin must not hold the lane forever
+        # with no record; past the dispatch deadline it files one.
+        self.all_green()
+        self.gh.merged = [identity_merge()]
+        for now, failed in (
+            (datetime(2026, 10, 12, 11, 0, tzinfo=UTC), False),
+            (datetime(2026, 10, 12, 16, 1, tzinfo=UTC), True),
+        ):
+            with self.subTest(now=now):
+                verdict = self.check(now=now, pinned=None)
+                signals = [f.signal for f in verdict.failures]
+                self.assertEqual(signals, [pm.SIGNAL_READ_BACK] if failed else [])
+                self.assertFalse(verdict.merges[0].verified)
 
     def test_a_merge_the_identity_did_not_land_reads_no_pin(self) -> None:
         self.all_green()

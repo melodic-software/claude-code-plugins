@@ -335,13 +335,17 @@ class Unattended(unittest.TestCase):
         self.prior: dict[str, Any] | None = None
         self.log: list[str] = []
         self.rules = QUEUE_RULES
+        # -1: the queue re-read is whole; any other count truncates it.
+        self.entries_total: int | None = -1
+        self.node_id = "PR_self"
+        self.rerun = mock.Mock(return_value=[])
 
     def run_main(
         self, *flags: str, merge_flag: bool = True
     ) -> tuple[int, dict[str, Any]]:
         pr_record = {
             "number": PR,
-            "node_id": "PR_self",
+            "node_id": self.node_id,
             "base": {"ref": "main", "sha": BASE},
             "head": {"ref": "feat", "sha": HEAD},
             "user": {"login": IDENTITY, "type": "Bot"},
@@ -363,7 +367,12 @@ class Unattended(unittest.TestCase):
                     "data": {
                         "repository": {
                             "mergeQueue": {
-                                "entries": {"totalCount": len(nodes), "nodes": nodes}
+                                "entries": {
+                                    "totalCount": len(nodes)
+                                    if self.entries_total == -1
+                                    else self.entries_total,
+                                    "nodes": nodes,
+                                }
                             }
                         }
                     }
@@ -431,7 +440,7 @@ class Unattended(unittest.TestCase):
             mock.patch.object(merge, "repository_default_branch", return_value="main"),
             mock.patch.object(merge, "read_merge_queue", return_value=self.queue),
             mock.patch.object(merge, "async_merge", self.async_merge),
-            mock.patch.object(merge, "rerun_rate_limited_reviews", return_value=[]),
+            mock.patch.object(merge, "rerun_rate_limited_reviews", self.rerun),
             contextlib.redirect_stdout(out),
         ]
         if self.prior is not None:
@@ -698,6 +707,64 @@ class OneUnattendedMergeInFlight(Unattended):
         self.assert_no_merge(code)
         self.assertEqual(self.log, ["dequeue:[5]"])
         self.assertEqual(out["unattended"]["writes"]["holds"], {"5": "do-not-merge"})
+
+
+class GateReviewFixes(Unattended):
+    """Phase 13 Fable gate findings, red first."""
+
+    def landed(self) -> None:
+        self.pr_view = fixtures._pr(state="MERGED")
+        self.prior = {
+            "queued": True,
+            "head": HEAD,
+            "status": "merged",
+            "verification": {"verified": True, "mismatches": []},
+            "requestedAt": "2026-10-12T10:00:00Z",
+        }
+
+    def test_a_refused_credential_reruns_no_review(self) -> None:
+        # A mis-launched lane holding the operator's token must not re-run a
+        # workflow as the operator.
+        self.credentials = "other-account-listed"
+        code, _ = self.run_main()
+        self.assertEqual(code, 10)
+        self.rerun.assert_not_called()
+
+    def test_a_live_refusal_still_reruns_a_rate_limited_review(self) -> None:
+        self.flight = policy.InFlight(False, "identity-entry-queued:#5")
+        self.run_main()
+        self.rerun.assert_called_once()
+
+    def test_an_unreadable_queue_re_read_still_dequeues_by_node_id(self) -> None:
+        self.entries_total = 5  # the read is truncated
+        code, out = self.run_main()
+        self.assertEqual(code, 10)
+        self.assertIn("dequeue-self:id=PR_self", self.log)
+        self.assertIs(out["unattended"]["enqueue"]["dequeuedSelf"], True)
+
+    def test_a_self_dequeue_not_sent_says_so(self) -> None:
+        self.entries_total = 5
+        self.node_id = ""
+        code, out = self.run_main()
+        self.assertEqual(code, 10)
+        self.assertNotIn("dequeue-self:id=", " ".join(self.log))
+        self.assertIs(out["unattended"]["enqueue"]["dequeuedSelf"], False)
+        refusal = [b for b in out["blockers"] if b.startswith("unattended merge")]
+        self.assertTrue(any("could not be dequeued" in b for b in refusal), refusal)
+
+    def test_a_stopped_path_dispatches_nothing_after_the_read_back(self) -> None:
+        self.landed()
+        self.kill = [policy.KillSwitch(False, "org-switch-not-false")]
+        with tempfile.TemporaryDirectory() as state:
+            _, out = self.run_main("--state-dir", state)
+        self.dispatch.assert_not_called()
+        self.assertNotIn("dispatched", out["unattended"])
+
+    def test_allow_unprotected_is_refused(self) -> None:
+        code, out = self.run_main("--allow-unprotected")
+        self.assertEqual(code, 2)
+        self.assertIn("--allow-unprotected", out["error"])
+        self.async_merge.assert_not_called()
 
 
 class ReasonsComment(Unattended):
