@@ -682,8 +682,8 @@ directive names, which the added clause leaves untouched.
 `<UUID>` = this session's `$CLAUDE_CODE_SESSION_ID` (the frontmatter `session_id`). It lets a
 fresh session or `/session-flow:retro` chain-walker locate the transcript later, and it is the id
 the below-rail `claude --resume <UUID>` line reopens. On the full path the script refuses a
-missing or non-UUID value (a bridge session's `cse_…` id, never read from
-`CLAUDE_CODE_BRIDGE_SESSION_ID`); the save-point then takes the prompt-only path with the reason
+missing or non-UUID value (such as a Remote Control bridge id; `CLAUDE_CODE_BRIDGE_SESSION_ID`
+is never read); the save-point then takes the prompt-only path with the reason
 stated ("no session UUID available; chain gap accepted"), never a hand-written shape-2 file.
 
 After the rails prompt is emitted, control returns to the citing skill's delivery step.

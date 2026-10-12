@@ -89,9 +89,9 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   record of one moment, so wrapping the directive would have every later tick re-read that frozen
   file and replay a remainder already done, instead of doing the loop's actual recurring job.
   - **Pointer**: [Run prompts on a schedule § Limitations](https://code.claude.com/docs/en/scheduled-tasks#limitations),
-    for which tasks a resume restores; [Commands](https://code.claude.com/docs/en/commands),
-    the introduction above § Commands across a typical workflow, for where a command is
-    recognized.
+    for which tasks a resume restores;
+    [Commands § Commands across a typical workflow](https://code.claude.com/docs/en/commands#commands-across-a-typical-workflow),
+    the introduction paragraph before that section that says where a command is recognized.
   - **As of**: 2026-10-11
   - **Recheck trigger**: the Limitations section changes which tasks a resume restores, the
     Commands introduction changes where a command is recognized, or a release note names
@@ -104,8 +104,8 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   doc, "Emit the copy/paste resume prompt"). Never emit a leading `/goal` line between any rails.
   - **Pointer**: [Keep Claude working toward a goal § Set a goal](https://code.claude.com/docs/en/goal#set-a-goal),
     for the command syntax and the active-goal indicator;
-    [Commands](https://code.claude.com/docs/en/commands), the introduction above § Commands
-    across a typical workflow, for where a command is recognized.
+    [Commands § Commands across a typical workflow](https://code.claude.com/docs/en/commands#commands-across-a-typical-workflow),
+    the introduction paragraph before that section that says where a command is recognized.
   - **As of**: 2026-10-11
   - **Recheck trigger**: the Set a goal section changes the `/goal` syntax or the indicator, or
     the Commands introduction changes where a command is recognized.

@@ -56,9 +56,9 @@ Two separate needs, resolved separately. Detail, formats, and failure behavior:
 [`context/candidate-ladder.md`](context/candidate-ladder.md).
 
 **Names. Completeness is a correctness property.** The in-context skill listing is *not* an
-acceptable sole source: it leaves manual-only skills out and, over its budget, sheds the
-descriptions of the least-invoked skills, the forgotten ones this skill exists to surface (pointer
-record and live sections:
+acceptable sole source: it is budgeted and does not carry every skill, and our premise is that
+the skills an operator has forgotten are the ones it serves worst (pointer record and live
+sections:
 [candidate-ladder § Why the in-context listing cannot be the sole source](context/candidate-ladder.md#why-the-in-context-listing-cannot-be-the-sole-source);
 as of 2026-10-11; recheck trigger: that section's pointer record or its recheck trigger
 changes). Ladder:
@@ -198,7 +198,7 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
 
 ## Gotchas
 
-- The skills most worth surfacing are the ones whose listing descriptions vanish first (record:
+- Our premise: the skills most worth surfacing are the ones the listing serves worst (record:
   [candidate-ladder § Why the in-context listing cannot be the sole source](context/candidate-ladder.md#why-the-in-context-listing-cannot-be-the-sole-source);
   as of 2026-10-11; recheck trigger: that section's pointer record or its recheck trigger
   changes). Sourcing names from the listing alone quietly inverts this skill's purpose.
