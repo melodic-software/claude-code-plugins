@@ -43,23 +43,25 @@ When it is unset, invoke the script plain. It falls back to `${CLAUDE_PROJECT_DI
 
 **Gating a marketplace-installed skill.** A `plugin:skill` name (e.g. `source-control:setup`) is
 not auto-resolved: the checker resolves a bare skill name under one root and does not walk Claude
-Code's plugin cache to locate an install. The cache keeps each installed version of a copied plugin
-in its own directory, `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>`, and the previous
-version stays on disk for a grace period after an update
-([Cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions), verified 2026-10-07;
-recheck when that section changes), so more than one candidate can exist and the checker
-will not guess which one you mean. To gate an installed skill, point the root at its installed
-skills dir explicitly:
+Code's plugin cache to locate an install. More than one installed version can be on disk at once,
+and the checker will not guess which one you mean. To gate an installed skill, point the root at
+the `skills` dir of the installed version you mean:
+
+- **Pointer**: when locating an installed version on disk, or judging which versions stay there,
+  fetch <https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk> and
+  <https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions> live.
+  **As of**: 2026-10-11. **Recheck trigger**: either section changing the cache layout or how
+  long a previous version stays on disk.
 
 ```shell
-CHECK_SKILL_SKILLS_ROOT=~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills \
+CHECK_SKILL_SKILLS_ROOT=<installed-version-dir>/skills \
   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh" <skill-leaf-name>
 ```
 
 The cache is a **copy, not a git checkout**, so the git-backed checks (3 trigger-preservation, 8
 vendor byte-identity, 9 stale-metadata, 13 committed-artifact scan) no-op against it. A "new skill /
 skipped" result is expected there, not a defect. Passing a `plugin:skill` name unresolved prints
-this exact guidance.
+guidance to this effect.
 
 ## Arguments
 
@@ -180,32 +182,37 @@ baseline arm: `/evals:design` says when one is required, and `/evals:plugin-eval
    script exiting 0 alone is not the done-condition (it is advisory and always exits 0 on a
    successful run). `--help` lists the settings scopes it reads and their order.
 
-This is a **different, cross-skill limit** from `check`'s per-skill entry cap (`description` +
-`when_to_use` <= 1536 chars, the documented default of `skillListingMaxDescChars` per
-<https://code.claude.com/docs/en/skills#frontmatter-reference>, verified 2026-08-31; recheck
-trigger: that page or the settings page moving either default re-derives this sentence and the
-scripts' constants): the shared budget every loaded skill draws from together
-(`skillListingBudgetFraction`, default 1% of the model's context window).
-The script exits 0 regardless of overflow, because the live budget depends on the model's context
-window, which no file records, and on managed policy, which it does not read. Point `/doctor` at the
-live session for the authoritative resolved cost. The budget's basis, its default fraction, and the
-environment override are on <https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short>
-and <https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction>, verified
-2026-10-04; recheck trigger: either section changing the basis, the default, or the override.
+This is a **different, cross-skill limit** from `check`'s per-skill listing-entry cap
+(`description` + `when_to_use`): the shared budget every loaded skill draws from together
+(`skillListingBudgetFraction`). The script exits 0 regardless of overflow, because the live budget
+depends on the model's context window, which no file records, and on managed policy, which it does
+not read. Point `/doctor` at the live session for the authoritative resolved cost. The scripts'
+encoded constants are recorded once each: in the comment above `DESC_CHAR_CAP=` in
+[`${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh`](../../scripts/check-skill.sh) and in the header
+of [`${CLAUDE_PLUGIN_ROOT}/scripts/check-listing-budget.sh`](../../scripts/check-listing-budget.sh)
+(scripts, so no section anchor; as of 2026-10-11; recheck trigger: `DESC_CHAR_CAP` being renamed
+or either record's pointer changing).
 
-**Only listing-eligible skills count.** A skill with `disable-model-invocation: true` has its
-description kept out of the model-visible listing entirely, so it spends none of the shared budget
-and the report skips it. Counting those would overstate the aggregate. A consumer's
-`skillOverrides` can free further descriptions by collapsing entries to `"name-only"`, which
-repository content cannot reveal, so the reported figure is an upper bound for anyone who sets it.
-A missing explicit root and a nonnumeric override are both environment errors (exit 2), never a
-silent skip or a coerced-to-zero budget.
+- **Pointer**: when you need the per-entry cap, the shared budget's basis, its default, or its
+  override, fetch <https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars>,
+  <https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction> and
+  <https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short> live. **As of**:
+  2026-10-11. **Recheck trigger**: any of those sections changing a default, the budget's basis,
+  or the override.
 
-Both claims are verified 2026-09-06 against Claude Code 2.1.263 and the skills page
-(<https://code.claude.com/docs/en/skills>, the invocation-mode table row for
-`disable-model-invocation: true`, "Description not in context", and "Skill descriptions are cut
-short", which names `"name-only"` as the way to free budget). Recheck when either section stops
-carrying its statement, or when a release note names skill listing budget or `skillOverrides`.
+**Only listing-eligible skills count.** The report skips a skill with
+`disable-model-invocation: true` and counts the rest, so a skill whose description never reaches
+the listing does not inflate the aggregate. A consumer's `skillOverrides` can free further
+description characters, which repository content cannot reveal, so the reported figure is an
+upper bound for anyone who sets it. A missing explicit root and a nonnumeric override are both
+environment errors (exit 2), never a silent skip or a coerced-to-zero budget.
+
+- **Pointer**: when deciding which skills' descriptions reach the listing, fetch
+  <https://code.claude.com/docs/en/skills#control-who-invokes-a-skill> and
+  <https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings> live. **As
+  of**: 2026-10-11. **Recheck trigger**: either section changing which frontmatter or setting
+  keeps a description out of the listing, or a release note naming the skill listing budget or
+  `skillOverrides`.
 
 ## Action: measure-invocation
 
@@ -232,12 +239,13 @@ Model-graded `claude plugin eval` cases are emitted on demand. Contract:
    `compare <baseline> <treatment>` prints per-skill train and validation deltas, each trigger-rate
    delta with a 95% interval and a "within noise" line when the interval contains 0.
    `emit-plugin-eval [--runs N] <probes-dir> <out-dir>` writes `claude plugin eval` cases into an
-   empty or new `<out-dir>`, 3 runs per case unless `--runs` says otherwise.
-   Claim: each case is a directory holding `prompt.md` (frontmatter fields, body is the prompt)
-   and `graders/`, and a `tool_used` grader with `tool: Skill` and an `input_match` on the skill
-   name checks that the skill fired. Basis: <https://code.claude.com/docs/en/plugin-evals>, the
-   case layout and `tool_used` grader sections. As of: 2026-09-28. Recheck: that page changes the
-   case layout, the `prompt.md` fields, or the `tool_used` grader fields.
+   empty or new `<out-dir>`, 3 runs per case unless `--runs` says otherwise. Each emitted case
+   checks that the target skill fired through a `tool_used` grader on the `Skill` tool.
+   - **Pointer**: when an emitted case fails to load or its grader shape is in doubt, fetch
+     <https://code.claude.com/docs/en/plugin-evals#write-a-case-manually> and
+     <https://code.claude.com/docs/en/plugin-evals#grader-types> live. **As of**: 2026-10-11.
+     **Recheck trigger**: either section changing the case layout, the `prompt.md` fields, or the
+     `tool_used` grader fields.
 3. Report per skill, per split (`train` and `validation`): `trigger_rate` and
    `false_trigger_rate`, sample size, and the method name. A rewrite is compared with `compare`
    against `probes/baselines/listing-overlap.json` (or a later model-graded snapshot); a delta
@@ -252,15 +260,17 @@ The seed probe set is two skills chosen for competitor density (`skill-quality:c
 
 ## Cross-skill invocation (doctrine)
 
-The Skill tool executes one skill within the main conversation, so a step needing two skills is two
-calls. Do not instruct Skill-tool invocation of a `disable-model-invocation: true`
-(user-invoked-only) target. Tell the user to run `/plugin:skill` instead. Verified 2026-09-06
-against Claude Code 2.1.263 and two pages: the tools reference
-(<https://code.claude.com/docs/en/tools-reference>, the `Skill` row) and the skills page
-(<https://code.claude.com/docs/en/skills>, "to keep Claude from invoking it through the Skill tool,
-set `disable-model-invocation: true`"). Recheck when the `Skill` row describes more than one skill
-per call, when the skills page stops carrying that sentence, or when a release note names the Skill
-tool. This gate does not automate that reachability check; author and review against the invariant.
+Make one Skill call per skill a step needs. Do not instruct Skill-tool invocation of a
+`disable-model-invocation: true` (user-invoked-only) target. Tell the user to run `/plugin:skill`
+instead. This gate does not automate that reachability check; author
+and review against the invariant.
+
+- **Pointer**: when deciding whether the Skill tool can reach a target, or how many skills one
+  call runs, fetch <https://code.claude.com/docs/en/skills#control-who-invokes-a-skill> live (the
+  tools reference's `Skill` row links to it and has no section anchor of its own). **As of**:
+  2026-10-11. **Recheck trigger**: that section or the `Skill` row changing how many skills one
+  call runs or which frontmatter blocks Skill-tool invocation, or a release note naming the Skill
+  tool.
 
 ## Next
 
@@ -309,12 +319,12 @@ tool. This gate does not automate that reachability check; author and review aga
   ref before the change (e.g. `HEAD^` or a merge-base) and run on a clean tree; it reroutes checks 3/8/9.
 - Check 1 accepts any frontmatter `model` that is a single non-empty token (`inherit`, an alias, or
   a model id, including provider ids with `:`, `/` or `@` such as Bedrock ids and ARNs) and fails an
-  empty or whitespace-containing value. The field is optional. Auto mode keeps the session model
-  when the named model is one auto mode does not support; that is runtime behavior, not a second
-  finding. Claim: the page defines no grammar beyond "the same values as `/model`, or `inherit`",
-  and the auto-mode exception. Basis:
-  <https://code.claude.com/docs/en/skills#frontmatter-reference>, the `model` row. As of:
-  2026-09-29. Recheck: that row defines a grammar for the value or changes the auto-mode exception.
+  empty or whitespace-containing value. The field is optional. What the runtime does with a named
+  model it will not use is runtime behavior, not a second finding.
+  - **Pointer**: when the accepted values or the runtime fallback are in doubt, fetch
+    <https://code.claude.com/docs/en/skills#frontmatter-reference> (the `model` row) live. **As
+    of**: 2026-10-11. **Recheck trigger**: that row defining a grammar for the value or changing
+    its fallback.
 - Check 1 also fails an unquoted plain `description` with a colon followed by a space on any line,
   or a line ending in a colon (a YAML mapping indicator). A quoted or block-scalar description may
   contain it.

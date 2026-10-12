@@ -10,5 +10,6 @@
 .github/actions/report-check-run
 .github/actions/request-lane-token
 .github/actions/select-trusted-text
+.github/scripts/pr-unblock
 plugins/knowledge/vendor/repo-analysis
 plugins/knowledge/vendor/video-digestion

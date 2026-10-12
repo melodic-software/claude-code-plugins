@@ -54,6 +54,10 @@ parser recognized, and it is a bug report about the detector, not a finding abou
   estimate. There is no measurement behind one.
 - **Fan-out:** batch the capped set to fresh-context subagents. If spawn depth is exhausted, say so
   and adjudicate inline at the same cap. Silently shrinking the set is the failure mode to avoid.
+  Pointer for the depth limit and what a subagent at it can spawn:
+  [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
+  As of: 2026-10-11. Recheck trigger: that section changes the depth default or what a subagent
+  at the limit can spawn.
 
 ## Suppression formats
 
