@@ -8,6 +8,8 @@ project's existing look, reuses the design tools already installed, and fills on
 |---|---|
 | `/user-interface:design` | Detect the project's design system and the installed design tools, route each concern to the best present source, and supply the plugin's own guidance where nothing covers it |
 | `/user-interface:write-css` | Write or review CSS in any stack: discover the project's tokens, browser targets, lint rules and conventions first, fill only the gaps with modern techniques, and name each default used; review mode lints and reports without editing |
+| `/user-interface:write-animation` | Decide whether an element should animate at all, then write one interface animation in the project's stack from its motion tokens and the stack's current docs, with reduced motion included; CSS goes through write-css |
+| `/user-interface:audit-animation` | Review interface animation read-only: the diff (default), the whole tree, where animation would help or must not go, or why one drops frames; each finding with severity and evidence, and `--fix` one at a time after a yes |
 | `/user-interface:setup` | Show each setting's value and the layer it came from, or change one key in one layer (user-invoked) |
 
 ## How it routes
@@ -60,10 +62,15 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `css.important` | `avoid` | `avoid`, `utilities-only`, `allow` |
 | `css.layer` | `null` (the project's own layer order) | a cascade layer name |
 | `css.token_fallback` | `ask` | `ask`, `propose-token`, `literal` |
+| `animation.easing.out`, `.in_out`, `.drawer` | four cubic Bezier control points each, in `defaults.yaml` | a list of four numbers |
+| `animation.duration_ms.press`, `.small`, `.medium`, `.large` | `160`, `200`, `250`, `500` | milliseconds |
+| `animation.gesture.velocity_threshold` | `0.11` | px/ms for a small element's swipe to dismiss |
 | `routing` | none | route rows, `disable` and `deny`, team layer only |
 
 The `css` keys are read by `/user-interface:write-css`; its
-[`configuration.md`](skills/write-css/reference/configuration.md) says what each one changes.
+[`configuration.md`](skills/write-css/reference/configuration.md) says what each one changes. The
+`animation` keys are taste defaults that apply only where the project has no motion tokens of its
+own; `/user-interface:write-animation` reads them all, and write-css reads the curves and durations.
 `routing` is validated and shown by `/user-interface:setup check`, but `/user-interface:design`
 does not apply it yet: it routes from the bundled rows only.
 
