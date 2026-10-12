@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Discovery wrapper: scripts/run-plugin-tests.sh finds plugins/**/*.test.sh, so
 # this hands off to the Node suite. SKIPs (exit 0) when Node is unavailable.
-# test-scope: plugins/user-interface/tests/fixtures/*/package.json
+# test-scope: plugins/user-interface/tests/fixtures/*/package.json plugins/user-interface/tests/fixtures/*/conventions/*.yaml
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

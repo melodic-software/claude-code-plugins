@@ -115,7 +115,9 @@ naming, EnterWorktree, post-create setup checks), `status` (porcelain parse,
 batched PR cross-reference, staleness classification, unclaimed-lock
 report), `cleanup`
 (file-lock-aware removal that never counts a Windows husk as deleted, emits
-destructive branch deletion for the user), `audit` (configuration health,
+destructive branch deletion for the user, reports the disk space freed, and on a
+macOS host with `xcrun` lists Xcode build output and unavailable simulators,
+deleting each only on its own yes), `audit` (configuration health,
 including linked worktrees with no lock reason).
 
 Supported interface: `scripts/worktree-create.sh --existing-branch <name>` checks out
@@ -168,7 +170,8 @@ A mod can also approve a call they blocked, because its `tool.check` hook runs a
 A `PreToolUse` hook on the Bash tool. When a `gh pr create` / `gh pr edit`
 carries a PR body the hook can read statically, it validates that body against
 the same contract the repository's required PR-contract check enforces,
-a closing keyword (or an explicit no-linked-issue marker) plus four non-empty
+a closing keyword, a tracker's link line as `/work-items:track link` prints it
+(`Closes ENG-123`, `Refs: SW2-12`), or an explicit no-linked-issue marker, plus four non-empty
 contract sections (`## Summary`, `## Fix`, `## Verification`, `## Related`),
 and blocks the call with every missing or empty requirement named, so the
 failure surfaces before the PR exists rather than a CI round trip later.
@@ -242,7 +245,9 @@ path. Unset `HOOK_TELEMETRY_SINK` → no-op.
 
 The MCP-surface sibling of `pr-body-linkage-gate`: a `PreToolUse` hook on the
 GitHub MCP server's `create_pull_request` / `update_pull_request` tools, which
-is how cloud/remote sessions, where the `gh` CLI doesn't exist, open PRs. It
+is how cloud/remote sessions open PRs: `gh pr create` there is either absent or
+refused by the cloud GitHub proxy (see
+[docs/cloud-sessions.md](../../docs/cloud-sessions.md#github-mcp-tools-vs-the-gh-cli)). It
 covers both the `mcp__github__<tool>` names and the
 `mcp__plugin_<plugin>_github__<tool>` names of a plugin-bundled server.
 Same contract, same authority (a workflow in the consuming repository's own
@@ -433,7 +438,8 @@ The plugin-scope finding-classification gate accepts extra posting identities vi
 a workflow that uses the `pr-contract` composite step.
 
 **`pr_linkage_mcp_gate_enabled`.** The MCP-surface sibling of `pr-body-linkage-gate`, covering
-cloud and remote sessions that open PRs without the `gh` CLI. It checks the same closing keyword
+cloud and remote sessions that open PRs through MCP tools rather than `gh` (see
+[docs/cloud-sessions.md](../../docs/cloud-sessions.md#github-mcp-tools-vs-the-gh-cli)). It checks the same closing keyword
 and non-empty sections, with the same policy scope: enforced only in a repository whose
 `.github/workflows` carry a workflow that uses the `pr-contract` composite step.
 
@@ -529,6 +535,7 @@ reads it from.
 | `pr_body_linkage_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED` | Blocks a gh pr create or gh pr edit whose statically readable PR body would fail the repository's required PR-contract check: no closing keyword, or a missing or empty Summary, Fix, Verification, or Related section. On by default. A body the hook cannot read statically always passes. |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED` | Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body would fail the repository's required PR-contract check, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names. |
 | `branch_issue_pattern` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN` | Deprecated fallback: set branch_issue_pattern in .claude/source-control.md instead, which wins. A POSIX ERE whose last capture group extracts the numeric GitHub issue number from the branch name. Absent: the built-in <type>/<N>-<slug> (and routine-issue-<N>) convention. |
+| `pr_open_state` | string | `"draft"` | `CLAUDE_PLUGIN_OPTION_PR_OPEN_STATE` | State /source-control:pull-request create opens a PR in. draft (default) opens a draft that the ready action flips later; ready opens it for review at once. A repository's pr_open_state in docs/conventions/source-control.yaml wins over this value. |
 | `fetch_logs_max_bytes` | number<br>*min 1* | `52428800` | `CLAUDE_PLUGIN_OPTION_FETCH_LOGS_MAX_BYTES` | Aborts a CI-log ZIP fetch larger than this many bytes. Default 52428800 (50 MiB). |
 | `worktree_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT` | External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug>, a path outside every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir. Never the in-repo .claude/worktrees/ default. |
 | `worktree_stale_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_WORKTREE_STALE_DAYS` | Days since last commit before /worktree status classifies a worktree as stale. Default 14. |

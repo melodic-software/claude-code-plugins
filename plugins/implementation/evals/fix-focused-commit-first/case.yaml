@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: fix-focused-commit-first
+description: a bug with a sibling occurrence lands the focused fix in its own commit first and the sibling fix in a later commit
+tags: [fix, commit-order, implement]
+expected_outcome: implement in fix mode reproduces the refund rounding bug with a failing test, commits the refund fix with its test alone, then fixes the credit-note sibling with its own test in a separate later commit; the two fixes never share a commit.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /implementation:implement fix refunds round half-cents down instead of to the nearest cent. payments/refund.py refund_cents truncates with int(); payments/credit_note.py credit_cents does the same. Fix the refund bug and that sibling. Committing on the current branch is allowed. Do not push.
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: two-commits
+    type: tool_used
+    tool: Bash
+    input_match: 'git\b[^|;&]*\bcommit\b'
+    min: 2
+    arm: both
+  - name: focused-fix-first
+    type: llm
+    focus: trace
+    arm: both
+    criteria: "PASS only if the change to payments/refund.py is committed in a commit that does not include any change to payments/credit_note.py, and the credit_note.py fix is committed in a later, separate commit. A failing-test commit before the refund fix is allowed. FAIL if both files are fixed in one commit, if credit_note.py is committed first, or if either fix is left uncommitted."

@@ -1,0 +1,76 @@
+{
+  "requires": [
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "skill:reduce"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python",
+          "py"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "Python ([0-9.]+)",
+          "min": "3.9"
+        }
+      },
+      "degrade": "Without Python 3.9 or later, /coupling:reduce cannot run its change-mode inventory (value-sites.py) or its second-list check (derivable-list.py), so those steps stop.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "gh",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:reduce"
+      ],
+      "detect": {
+        "any": [
+          "gh"
+        ]
+      },
+      "degrade": "Without gh, /coupling:reduce cannot read pull requests, so the collision-hotspot lens does not run and the scan ranks co-change from version-control history instead.",
+      "install": {
+        "docs": "https://cli.github.com/",
+        "brew": "gh",
+        "winget": "GitHub.cli",
+        "apt": "gh"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "jq",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:reduce"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, /coupling:reduce cannot pair pull requests, so the collision-hotspot lens does not run and the scan ranks co-change from version-control history instead.",
+      "install": {
+        "docs": "https://jqlang.org/download/",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "apt": "jq"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

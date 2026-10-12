@@ -8,6 +8,7 @@
 - [Cross-PR Dependency Signaling](#cross-pr-dependency-signaling)
 - [Main Agent Responsibilities](#main-agent-responsibilities)
 - [Fix-Round Cap](#fix-round-cap)
+- [Flake Cap](#flake-cap)
 - [Merge Conflict Resolution](#merge-conflict-resolution)
 - [Worker Contract](#worker-contract)
 - [Worker Prompt Template](#worker-prompt-template)
@@ -406,12 +407,12 @@ same-worktree protections.
   addressed-but-unresolvable thread named. Never resolve past a refusal, and never reach around the
   wrapper.
 - A merge the gate reported `"action": "enqueue"` (`enqueued: true`) is queued, not merged,
-  whether the async API or `gh pr merge` put it there. Keep the PR and its worktree, and let a
+  whether the async API or the CLI merge ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#a-cli-merge-the-queue-took)) put it there. Keep the PR and its worktree, and let a
   later cycle's gate run read its queue entry: still queued (`mergeQueue.position`) is "queued,
   may still land"; merged ends it like any merge; `dequeued: true` is reported as dequeued, and the
   next cycle gates it again. A merge reported
   `status: pending`, or any run reporting `"action": "merge-pending"` (`mergeQueue.unconfirmed:
-  true` included: a `gh pr merge` the queue has not shown yet), is still live on GitHub
+  true` included: a CLI merge the queue has not shown yet), is still live on GitHub
   and may land whatever the gate now says: report it as "merge may still land", keep the PR, and
   let the next cycle read it again. `mergeUnconfirmed: true` or `stackVerification.verified` other
   than `true` goes to a human (`safety.md`, §Async Merge Path).
@@ -452,6 +453,38 @@ This cap never applies to failing CI or `P0`/`P1`/regression-severity findings. 
 as many rounds as it takes within the cycle. When a PR has both blocking and advisory findings
 outstanding, only the advisory-finding rounds count against this ceiling; continue blocking-defect
 rounds uncapped.
+
+## Flake Cap
+
+A failing check gets one rerun per PR head. If it fails again on that same head, the failure is
+real: fix it as a branch-owned failure or report it, and do not rerun it a second time. A push
+that changes the head gives every check one new rerun, because the cap is counted per PR, head
+SHA, and check (type, name, and workflow).
+
+Whoever triggers the rerun, orchestrator or worker, records it first, write-ahead, under that
+PR's worker lease:
+
+```bash
+python "<skill-dir>/scripts/manage_feedback_ledger.py" record-rerun --pr owner/repo#42 --expected-head-sha <head-sha> --check-id <rerun-id> --lease-token <worker-token> --state-dir <state-dir> --apply
+```
+
+`<rerun-id>` is the 32-character lowercase hex `rerun_id` the snapshot lists for that check. In
+the text output each failing check has its own line, `failing check: rerun_id=<id> name="<name>"`,
+and the id is the hex right after `rerun_id=` at the start of that line; the name after it is
+JSON-escaped and is never a source for the id. In `--json` output it is the entry's `rerun_id`
+under `checks.failing_identities`. Copy only the hex id,
+never the name beside it. Never put a check or workflow name in this command or any other shell
+text: a fork PR names its own jobs, so the name is attacker-controlled, and double quotes still run
+`$(...)` and backticks inside it. The helper exits 2 if two different failing checks share the id;
+report that PR and record nothing. The helper resolves the id against the stored snapshot
+and accepts only a check that snapshot lists as failing at that head; it exits 2 on a malformed
+or unknown id. It exits 4 when the check already had its rerun at this head; treat exit 4 as the
+cap firing, not as a tool failure to retry. Without `--apply` it reports the same verdict and
+records nothing. The record lives in the durable mutation ledger, so a rerun from an earlier cycle
+or an earlier session counts.
+
+This cap counts reruns only. Fixing a failing check is uncapped, as the Fix-Round Cap above
+states.
 
 ## Merge Conflict Resolution
 
@@ -529,7 +562,7 @@ re-verify anyway.
   immediately after the fetch): it becomes the merge commit's second parent, and the orchestrator
   verifies exactly that before pushing.
 - **Assert the head, merge, never rebase.** Before merging, assert the worktree's `HEAD` equals the
-  true PR head (`gh pr view --json headRefOid`), and refuse to resolve onto a stale or head-mismatched
+  true PR head ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#read-the-true-pr-head)), and refuse to resolve onto a stale or head-mismatched
   tip. A detached HEAD that equals the head is fine. That is the sibling-locked case
   (`reference/safety.md`, Checkout And Push Invariants). Resolve with `git merge origin/<base-branch>`
   into the PR branch. This is deliberate: a rebase rewrites the branch's commit history and would
@@ -637,8 +670,7 @@ On the conflict worker's return, and before pushing anything:
   the **second parent** (`git -C <worktree> rev-parse HEAD^2`) to equal the fetched base SHA the
   worker reported. Two parents alone proves a merge happened, not that it merged the intended
   base; a wrong-ref merge passes every other check here. Then re-read the live PR head
-  (`GH_REPO=<owner>/<repo> gh pr view <N> --json headRefOid`, or the equivalent
-  `--repo <owner>/<repo>` spelling) and require it to equal that commit's
+  with an explicit remote target ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#read-the-true-pr-head)) and require it to equal that commit's
   **first parent** (`git -C <worktree> rev-parse HEAD^1`): the assigned-worktree head assertion
   (`safety.md`, Checkout And Push Invariants) is checked one commit back, because `HEAD` is the
   merge commit now. Both head checks in this section take the explicit remote target the Worker
@@ -647,8 +679,8 @@ On the conflict worker's return, and before pushing anything:
   assigned worktree to `cd` into. If the live head moved while the conflict worker worked, do not
   push. The resolution was computed against a superseded tip. Recovering means returning the worktree to a
   clean checkout of the new head, re-acquired through the same fork-aware path the checkout
-  contract uses: `origin` only for a same-repo head, and for a cross-repo head `gh pr checkout` or
-  a fetch from the validated fork remote (`safety.md`, Checkout And Push Invariants). A
+  contract uses: `origin` only for a same-repo head, and for a cross-repo head the PR checkout
+  ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#re-acquire-a-cross-repo-head)) or a fetch from the validated fork remote (`safety.md`, Checkout And Push Invariants). A
   `git fetch origin <headRefName>` on a fork PR either finds nothing or fetches an unrelated
   same-named base-repo branch. Then re-checkout that head (discarding the superseded merge
   commit), re-snapshot, and dispatch a fresh conflict worker. Never hand a new conflict worker a worktree still sitting on the superseded merge
@@ -704,7 +736,8 @@ On the conflict worker's return, and before pushing anything:
      round.
   2. **Head.** The head comparison in the bullet above happened before the verification re-run,
      which can take as long as the repo's test suite, so repeat it now:
-     `GH_REPO=<owner>/<repo> gh pr view <N> --json headRefOid` ==
+     the live PR head read with an explicit remote target
+     ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#read-the-true-pr-head)) ==
      `git -C <worktree> rev-parse HEAD^1`; a mismatch is the same superseded-tip no-push as above.
   3. **Push.** `git -C <worktree> push "$PUSH_REMOTE" HEAD:<headRefName>`,
      where `PUSH_REMOTE` resolves **fail-closed** per `reference/safety.md` (Checkout And Push
@@ -815,8 +848,8 @@ Each worker must:
     comment fetcher). `GH_REPO` selects the *remote* repository only. `gh help environment` scopes
     it to "commands that otherwise operate on a local repository," not to the local working tree,
     so it is the escape for read-only and remote-only `gh` calls (`pr view`, `pr checks`,
-    `api`, `pr comment`). Any `gh` call that mutates the local checkout, such as `gh pr checkout`, whose
-    own help reads "Check out a pull request in git", takes a same-call `cd` into the worktree
+    `api`, `pr comment`). Any `gh` call that mutates the local checkout, such as checking out
+    the PR head ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#remote-target-for-gh-calls)), takes a same-call `cd` into the worktree
     regardless, because `GH_REPO` would leave it fetching and switching branches in whatever
     directory cwd happens to be.
 
@@ -832,11 +865,15 @@ Each worker must:
   source-of-truth repo
 - stop and report, never resolve, a merge conflict discovered mid-fix-round; hand off to a
   dedicated fresh conflict worker instead (see Merge Conflict Resolution above)
+- rerun a failing check at most once per head, recording it first with
+  `manage_feedback_ledger.py record-rerun --check-id <rerun-id>` (Flake Cap above); a check the
+  ledger refuses with exit 4 failed after its rerun, so fix it or report it
 - commit and push only clear branch-owned fixes, except a conflict worker, which commits its
   resolution locally and never pushes (Merge Conflict Resolution above)
 - disarm auto-merge before every push (ahead of the pre-push head re-check) and again right after
-  it: when `gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest // empty'` prints anything, run
-  `gh pr merge <N> --disable-auto`, and do not push if either command fails; never re-arm
+  it: read whether auto-merge is armed and, when it is, disable it
+  ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#disarm-auto-merge)), and do not push if either the read or the disable fails;
+  never re-arm
   (`safety.md`, "Merge-lane auto-merge")
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
@@ -918,13 +955,13 @@ the target repository's own build/test/lint commands), either re-cd into the wor
 same call or pass the command its explicit target (GH_REPO=owner/repo for gh,
 FETCH_COMMENTS_OWNER/FETCH_COMMENTS_REPO for the comment fetcher). GH_REPO selects the remote
 repository only, so use it for read-only and remote-only gh calls (pr view, pr checks, api,
-pr comment); any gh call that mutates the local checkout, such as gh pr checkout, takes a
+pr comment); any gh call that mutates the local checkout, such as checking out the PR head, takes a
 same-call cd into the worktree instead, or it will fetch and switch branches wherever cwd is.
 Follow the repository's signing, commit-message, attribution, and push conventions. Never add a co-author
 trailer unless explicitly required. Re-check the PR head SHA before editing and before pushing.
 Before that pre-push re-check and again right after the push, when
-`gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest // empty'` prints anything, run
-`gh pr merge <N> --disable-auto`; do not push if either fails, and never re-arm.
+<!-- portability-ok: verbatim worker prompt; the dispatched worker runs this disarm as written, with no link to follow -->
+`gh pr view <N> --json autoMergeRequest --jq '.autoMergeRequest // empty'` prints anything, run `gh pr merge <N> --disable-auto`; do not push if either fails, and never re-arm.
 Stop unless branch writes are allowed. Fix only clear branch-owned CI or bot-review issues.
 Never refresh branches, post review triggers, merge, enable auto-merge, force-push, change
 GitHub settings, or auto-fix human-authored feedback. Classify, reply with evidence, and
@@ -945,7 +982,9 @@ or looping worker, not a normal limit on legitimate fix work. Keep iterating tow
 through as many advisory rounds as it takes, for as long as real progress is being made or real
 findings remain; only if the ledger reports the cap reached should you stop and report final
 state instead. Blocking defects, meaning failing CI, P0/P1, and regressions, are never capped; keep fixing
-those. If you hit a merge conflict, do not resolve it yourself. Stop, report which files and
+those. A failing check you judge flaky gets one rerun at this head, recorded first as the Flake
+Cap in this skill's orchestration reference describes; if the ledger refuses, the check already
+had its rerun, so fix it or report it. If you hit a merge conflict, do not resolve it yourself. Stop, report which files and
 what the conflicting hunks appear to be about, and leave it for a dedicated fresh
 conflict worker.
 
