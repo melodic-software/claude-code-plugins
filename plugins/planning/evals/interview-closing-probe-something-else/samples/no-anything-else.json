@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Is there something else about this job that would change these recommendations?",
+      "why": "something-else wording"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply holds no anything-else; the other grader fails it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Anything else I should know?",
+      "why": "anything else"
+    },
+    {
+      "answer": "Is there anything else that would change these?",
+      "why": "anything else inside a longer probe"
+    }
+  ]
+}

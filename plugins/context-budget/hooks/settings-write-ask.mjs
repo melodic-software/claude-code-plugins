@@ -3,10 +3,11 @@
 // surface returns permissionDecision "ask", forcing a prompt even in
 // auto mode (the classifier may still deny; it cannot silently approve).
 //
-// This is a CHECKPOINT, NOT A GUARANTEE — documented as such in the audit
-// skill: a PermissionRequest hook can still allow the call, and
-// disableAllHooks removes non-managed hooks. Empirically (headless -p, Linux,
-// Claude Code 2.1.263, re-read 2026-09-06): the ask fires and blocks in a
+// This is a CHECKPOINT, NOT A GUARANTEE: other hooks, settings, and permission
+// modes decide what happens to its ask. README "Hook" holds the pointer record
+// for those limits (relayed as of 2026-10-11; recheck this relay when that
+// heading moves or its record's trigger fires). Probe (headless -p runs of this hook, Linux,
+// Claude Code 2.1.263, 2026-09-06): the ask fires and blocks in a
 // headless run that skips permissions, under default, auto, and
 // bypassPermissions, surfacing as a tool error carrying the
 // permissionDecisionReason. Headless "ask" degrades to block-with-reason
@@ -25,12 +26,13 @@
 // `.claude/settings.json` passes silently). Those are settings.json in the user
 // settings directory ($CLAUDE_CONFIG_DIR, else ~/.claude); settings(.local).json
 // in `.claude/` under the session's project directory or the payload cwd;
-// settings.local.json at the main checkout's root (Claude Code keeps it there
-// when a session starts in a subdirectory or a linked worktree); plus
-// managed-settings.json and managed-settings.d/*.json in the managed system
-// directory. Paths:
-// https://code.claude.com/docs/en/settings and /docs/en/managed-settings, as of
-// 2026-10-09; recheck when either page moves a settings path. The matcher sees
+// settings.local.json at the main checkout's root; plus managed-settings.json
+// and managed-settings.d/*.json in the managed system directory. Where Claude
+// Code keeps each file:
+// https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect and
+// https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository,
+// https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy,
+// as of 2026-10-11; recheck when any of these sections moves a settings file. The matcher sees
 // file-editing tool calls only: a settings write through Bash/PowerShell, or one
 // rendered into place by another program, never reaches this script, and the
 // hook is deliberately not widened to the shell lane (#3864; README "Hook"

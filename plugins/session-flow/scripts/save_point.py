@@ -180,8 +180,9 @@ HANDOFF_NAME_RE = re.compile(r"^\d{8}T\d{6}Z-handoff-[^/\\]+\.md$")
 SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 TAG_RE = re.compile(r"^\[h(\d+)\]\s*")
-# The Read tool returns at most 25k tokens per call; at about 70 tokens a line that is
-# about 355 lines, so 300 leaves margin.
+# Keeps a save-point within one Read call at about 70 tokens a line; the per-call cap
+# pointer is in reference/structure.md#cumulative-sections-and-provenance-tags ("Size").
+# As of 2026-10-11. Recheck when that "Size" entry changes its pointer or threshold.
 MAX_READABLE_LINES = 300
 UNVERIFIED_PRED_RE = re.compile(r"^UNVERIFIED \(predecessor failed validation\):\s*")
 BULLET_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
@@ -1792,7 +1793,7 @@ def cmd_new(args: argparse.Namespace) -> int:
     if not UUID_RE.match(session_id):
         return _die(
             1,
-            f"session id {session_id!r} is not a UUID (bridge ids such as cse_… are refused; never read CLAUDE_CODE_BRIDGE_SESSION_ID); take the prompt-only path",
+            f"session id {session_id!r} is not a UUID (Remote Control bridge ids are refused; never read CLAUDE_CODE_BRIDGE_SESSION_ID); take the prompt-only path",
         )
     session_id = session_id.lower()
 
