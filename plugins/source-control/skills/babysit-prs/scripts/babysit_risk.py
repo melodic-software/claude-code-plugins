@@ -5,10 +5,10 @@
 The caller reads the PR, its linked issue's class, the base-SHA config and the
 review-lane evidence, and hands them in; this module only judges them. Only a
 LOW score may merge unattended, so every doubtful input rates MED or HIGH:
-missing or unrecognised data is a miss, never a pass, and it never raises: input
+missing or unrecognized data is a miss, never a pass, and it never raises: input
 it cannot read at all rates HIGH as `high-path:**`. Inputs are plain built-in
 types (str, int, bool, None, list, tuple) built from parsed JSON; subclasses
-that override their own behaviour are out of scope. A count outside
+that override their own behavior are out of scope. A count outside
 0..10**9 is malformed. Each reason code appears once.
 
 The HIGH path floor and the lane table are fixed here on purpose. A weaker value
@@ -18,7 +18,7 @@ configured `merge.diff-check.denied-paths` is joined to the floor, never in
 place of it. Every glob matches case-insensitively, because a lane host on a
 case-insensitive filesystem treats `Claude.md` as `CLAUDE.md`.
 
-Paths are normalised before matching (`\\` to `/`, empty and `.` segments
+Paths are normalized before matching (`\\` to `/`, empty and `.` segments
 dropped). A path is safe only when every `/`-separated segment is non-empty,
 uses only `[A-Za-z0-9._-]` and does not end in `.` (Windows strips it); every
 tracked path in this repository passes. Any other path rates HIGH as
@@ -210,7 +210,7 @@ def _sequence(value: Any) -> tuple[Any, ...] | None:
 
 
 def normalize_path(path: Any) -> tuple[str, bool]:
-    """Return (normalised path, safe). Unsafe means it could hide a floor path."""
+    """Return (normalized path, safe). Unsafe means it could hide a floor path."""
     if not isinstance(path, str):
         return "", False
     safe = all(
@@ -287,7 +287,7 @@ def glob_match(pattern: str, path: str) -> bool:
 
 @dataclass(frozen=True)
 class _File:
-    """A changed file after validation: normalised paths plus its problems."""
+    """A changed file after validation: normalized paths plus its problems."""
 
     path: str
     paths: tuple[str, ...]

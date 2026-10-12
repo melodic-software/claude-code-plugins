@@ -246,7 +246,7 @@ class LimitBoundaryTests(unittest.TestCase):
         )
         self.assertEqual(score(_input(files=files)).score, Risk.LOW)
 
-    def test_configured_line_limit_is_honoured(self):
+    def test_configured_line_limit_is_honored(self):
         files = (_file("plugins/foo/a.md", additions=30, deletions=0),)
         self.assertEqual(
             _codes(score(_input(files=files, max_changed_lines=20))), ("lines-over",)
@@ -533,7 +533,7 @@ class BlastRadiusTests(unittest.TestCase):
 
 
 class MalformedInputTests(unittest.TestCase):
-    """Missing or unrecognised data is a miss: never LOW, and never a raise."""
+    """Missing or unrecognized data is a miss: never LOW, and never a raise."""
 
     CASES = [
         ("empty file list", dict(files=()), Risk.MED, "files-incomplete"),
