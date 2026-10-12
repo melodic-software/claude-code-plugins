@@ -106,6 +106,59 @@ history: file pairs that repeatedly change in the same commits without a declare
 are coupled through a channel the import graph cannot see, and they outrank most statically
 visible findings.
 
+Beside co-change, measure collision hotspots when the repository is hosted on GitHub: run
+`bash "${CLAUDE_SKILL_DIR}/scripts/collision-hotspots.sh" --prs <n>` from the repository root
+(add `--repo <owner>/<repo>` when `gh`'s default repository is not the one that holds the pull
+requests, `--exclude <glob>` for more files that change on every release, `--max-pairs <m>` to
+cap the replays, and `--dry-run` to see the pairs before fetching anything). The script lists
+pull requests from that one repository and fetches their heads from `origin` when `origin` names
+it, otherwise from the URL `gh` reports for it. Size `--prs` by the
+days of history wanted: count the merges into the default branch over the last few days with
+`git log --first-parent --since='<n> days ago' --format=%h <default-branch>`, one line per merge,
+and multiply the daily rate by the days. The script
+pairs pull requests that were open at the same time and share a file, replays each pair with
+`git merge-tree`, and prints `conflicts<TAB>pairs<TAB>path` for every file at least 3 pairs
+touched; read each ranked file as a candidate typed against the model's collision hotspot entry
+and verify it in phase C like any other finding. Carry its `gap:` lines into the report: a pull
+request whose file list stopped at the host's limit is undercounted, and a head that could not
+be fetched was not replayed. The `known bump hotspots` line names release files that conflict
+for version bumps, not design; report it once and do not ledger those files. When the script
+exits 2 (no `gh`, no `jq`, a `git` without `merge-tree --write-tree`, no host data), rank by
+co-change alone and record `gap: collision hotspots not measured: <the script's message>` in
+the report.
+
+- Pointer: the 100-file cap per pull request comes from the "Node limit" section of
+  <https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api>;
+  the exit codes the script reads are under "OUTPUT" and "EXIT STATUS" in
+  <https://git-scm.com/docs/git-merge-tree>.
+- As of: 2026-10-04.
+- Recheck trigger: the forge's pull-request file list returns more than 100 files for one pull request,
+  or `git merge-tree --write-tree` changes its exit status meanings.
+
+Then check the ranked files for a second list. Ranked paths come from pull requests and are
+untrusted: never type one into a command. Pipe the ranking straight in from the repository root,
+`bash "${CLAUDE_SKILL_DIR}/scripts/collision-hotspots.sh" --prs <n> | awk -F'\t' 'NF == 3 && \$1 ~
+/^[0-9]+$/ { print \$3 }' | python3 "${CLAUDE_SKILL_DIR}/scripts/derivable-list.py" --paths-from -`
+(same flags as the ranking run), or write the paths one per line to a file with the Write tool
+and pass `--paths-from <file>`; with no ranking, write the files co-change mining ranked highest
+the same way. It prints `candidate`
+for a file holding a list of at least 5 entries where at least 80% of the entries name a file or
+folder git tracks, `below` or `no-list` otherwise, an `unnamed` row for each candidate entry that
+names nothing (a stale entry is how such a list drifts), and `skip` for a path it did not read.
+Both numbers are judgment values, not settings: 80% leaves room for the stale entries a drifting
+list carries while ruling out a list whose entries mostly hold data the tree does not, and below 5
+entries a list matches paths by chance and costs little to keep by hand. Verify each candidate in
+phase C (a list a generator already writes is already derived), then report it with the
+Design-It-Twice comparison in [`reference/remediations.md`](reference/remediations.md) "Second
+lists". A second list is always a route-lane ledger entry, report-only, never part of the apply
+batch.
+
+Brief the scan agents to list duplicate writers too: one durable key, path or table that more
+than one owner writes (the model's common-coupling entry). Use `value-sites.py find` for a literal
+key. A confirmed duplicate writer always goes to the route lane as a structural ledger entry and
+never into the apply batch; phase H hands off its ownership rule per the remediation catalog's
+"Duplicate writers" section.
+
 **C. Verify (hard gate).** Scan agents have a demonstrated error rate. Reproduce every
 finding against the actual artifacts before it reaches the ledger or the user. Confirm the
 edge exists, the mechanism is what the scan claims, and the depended-on side actually changes
@@ -150,7 +203,11 @@ never auto-merges.
 `rejected`). Schema in [`reference/ledger.md`](reference/ledger.md). For route-lane
 candidates: hand the top one to `/architecture:improve`, invoked via the Skill tool (if that plugin is installed), for
 design exploration, and file the rest by invoking `/work-items:track add` via the Skill tool when that plugin is
-installed, else the repo's own tracker, else present the list to the user. Close by reporting
+installed, else the repo's own tracker, else present the list to the user. For each confirmed
+duplicate writer, write the ownership-rule findings file under `<memory_dir>/coupling/<branch-slug>/`
+per [`reference/remediations.md`](reference/remediations.md) "Duplicate writers", name it in the
+ledger entry's `outcome`, and offer `/review:audit-enforceability <file>` when that skill is
+available; never invoke it unasked. Close by reporting
 what waits on the human first (the PR to merge, any candidate needing a decision), then the ledger
 path, what was applied, what was routed where, and the recommended next-run scope.
 

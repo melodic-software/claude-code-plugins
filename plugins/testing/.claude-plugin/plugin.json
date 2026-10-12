@@ -56,6 +56,27 @@
       "description": "Most judge runs one session may start (one run judges one file). Unset means no limit.",
       "min": 1
     },
+    "e2e_driver": {
+      "type": "string",
+      "title": "E2E driver",
+      "description": "Who drives /testing:run-e2e: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended runs only). A repository's docs/conventions/testing.yaml wins.",
+      "default": "auto",
+      "options": ["auto", "harness", "run", "playwright", "chrome"]
+    },
+    "reuse_running_instance": {
+      "type": "string",
+      "title": "Reuse a running app",
+      "description": "true, or auto (default) when attended: /testing:run-e2e drives an app that already answers. With a Workspace environment entry, false and unattended auto start the run's own instance; without one, unattended auto reuses it with labeled evidence and false stops. docs/conventions/testing.yaml wins.",
+      "default": "auto",
+      "options": ["auto", "true", "false"]
+    },
+    "pixel_tolerance": {
+      "type": "number",
+      "title": "Visual parity pixel tolerance",
+      "description": "Differing pixels per image /testing:check-visual-parity accepts. It can only lower the repository's pixel_tolerance in docs/conventions/testing.yaml, never raise it. 0 by default.",
+      "default": 0,
+      "min": 0
+    },
     "stdin_read_timeout": {
       "type": "number",
       "title": "Hook stdin read timeout (seconds)",

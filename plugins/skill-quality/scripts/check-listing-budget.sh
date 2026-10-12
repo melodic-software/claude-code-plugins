@@ -5,35 +5,37 @@
 #
 # Claude Code loads a listing of every skill's name + description into context
 # each turn. Two independent limits apply to it:
-#   - Per-entry cap (skillListingMaxDescChars, default 1536): check-skill.sh
-#     check 2 already guards this.
-#   - Shared/aggregate cap (skillListingBudgetFraction, default 0.01 = 1% of
-#     the model's context window): NOTHING checks this before now. When the
-#     aggregate overflows, Claude Code drops descriptions for the
-#     least-invoked skills first (name-only), degrading their auto-invocation
-#     with no local signal that it happened.
-# https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short
-# https://code.claude.com/docs/en/settings (skillListingBudgetFraction,
-#   skillListingMaxDescChars, SLASH_COMMAND_TOOL_CHAR_BUDGET) — fetched and
-#   verified current at authoring time.
+#   - Per-entry cap (skillListingMaxDescChars): check-skill.sh check 2 already
+#     guards this, and the comment above `DESC_CHAR_CAP=` in check-skill.sh
+#     owns that constant (a script, so no section anchor; as of 2026-10-11;
+#     recheck trigger: that constant being renamed or its pointer changing).
+#   - Shared/aggregate cap (skillListingBudgetFraction): NOTHING checks this
+#     before now. An overflowing aggregate degrades some skills'
+#     auto-invocation with no local signal that it happened.
+# Pointer: for both limits, their defaults, and what an overflow drops, fetch
+# https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction,
+# https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars
+# and https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short
+# live. As of: 2026-10-11. Recheck trigger: any of those sections changing a
+# default, the budget's basis, or what an overflow drops.
 #
 # What counts, and what deliberately does not:
-#   - This models DESCRIPTION characters only. The listing "always contains
-#     every skill name" (docs, above), so names are a floor this report does
-#     not estimate; the budget is spent on description + when_to_use text,
-#     which is what is summed here.
-#   - Skills with `disable-model-invocation: true` are SKIPPED. Per
-#     https://code.claude.com/docs/en/skills the invocation-control table
-#     records "Description not in context" for that frontmatter, and "Hide
-#     individual skills" states it "removes the skill from Claude's context
-#     entirely" — such a skill spends none of the shared description budget,
-#     so counting it overstates the aggregate. (Fetched and verified current
-#     when this filter was added.)
-#   - A consumer's `skillOverrides` can collapse further entries to
-#     `"name-only"`, which also frees their description characters. That is
-#     consumer settings.json state, not repository content, so a static check
-#     cannot observe it — this report is therefore an UPPER bound for any
-#     consumer who sets it.
+#   - This models DESCRIPTION characters only. Names are a floor this report
+#     does not estimate; it takes the budget as spent on description +
+#     when_to_use text, which is what is summed here (pointer above).
+#   - Skills with `disable-model-invocation: true` are SKIPPED: this report
+#     treats such a skill's description as outside the listing, so counting
+#     it would overstate the aggregate. Pointer: for which skills'
+#     descriptions reach the listing, fetch
+#     https://code.claude.com/docs/en/skills#control-who-invokes-a-skill live.
+#     As of: 2026-10-11. Recheck trigger: that section changing whether that
+#     frontmatter keeps a description out of the listing.
+#   - A consumer's `skillOverrides` can free further description characters
+#     (pointer: https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings,
+#     as of 2026-10-11; recheck trigger: that section changing what an override
+#     frees). That is consumer settings.json state, not repository content, so
+#     a static check cannot observe it; this report is therefore an UPPER
+#     bound for any consumer who sets it.
 #
 # The aggregate budget is inherently a MACHINE-DEPENDENT estimate: it scales
 # with the live model's context window and the resolved
@@ -70,28 +72,31 @@
 #
 # Four-part record for every upstream constant this script encodes (1536
 # per-entry cap, 0.01 budget fraction, 8000-char fallback, the " - " joiner
-# and drop order): basis
-# https://code.claude.com/docs/en/skills#frontmatter-reference,
-# https://code.claude.com/docs/en/settings and
-# https://code.claude.com/docs/en/env-vars (SLASH_COMMAND_TOOL_CHAR_BUDGET);
-# verified 2026-08-31. Recheck trigger: any of those pages moving a default
-# re-derives the matching constant here and in check-skill.sh; each fleet
-# audit re-runs this record.
+# and drop order): pointer
+# https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars,
+# https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction,
+# https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short and
+# https://code.claude.com/docs/en/env-vars (SLASH_COMMAND_TOOL_CHAR_BUDGET; that
+# page has no per-variable anchor). As of: 2026-10-11 for the settings and
+# skills sections; the env-vars basis was last derived 2026-08-31 and is
+# deferred until that page gains an anchor. Recheck trigger: any of those
+# sections moving a default re-derives the matching constant here and in
+# check-skill.sh; each fleet audit re-runs this record.
 #
-# Record for the --from-settings inputs. Claim: the settings file scopes and
-# their order (managed, command line, project local, shared project, user),
-# skillListingBudgetFraction being settable in any file, CLAUDE_CONFIG_DIR
-# relocating ~/.claude, and SLASH_COMMAND_TOOL_CHAR_BUDGET setting a fixed
-# character count. That the env var outranks the fraction is inferred from
-# the docs calling it an override; no page states the order. The 200000 and
-# 1000000 band windows and 4 chars/token are this script's assumptions, not
-# documented values. Basis: https://code.claude.com/docs/en/settings
-# (settings precedence), https://code.claude.com/docs/en/settings-reference
-# (skillListingBudgetFraction), https://code.claude.com/docs/en/env-vars
-# (CLAUDE_CONFIG_DIR, SLASH_COMMAND_TOOL_CHAR_BUDGET),
-# https://code.claude.com/docs/en/skills (skill descriptions are cut short).
-# As of 2026-10-04. Recheck trigger: any of those pages changing a scope, its
-# order, the env var's meaning, or the budget's basis.
+# Record for the --from-settings inputs. The file order read above is this
+# script's decision, derived from the documented settings precedence; that
+# the env var outranks the fraction is inferred from the docs calling it an
+# override, since no page states the order. The 200000 and 1000000 band
+# windows and 4 chars/token are this script's assumptions, not documented
+# values. Pointer: when re-deriving the scopes, their order, or where a
+# setting may live, fetch
+# https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect,
+# https://code.claude.com/docs/en/settings#settings-precedence and
+# https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction
+# live; CLAUDE_CONFIG_DIR and SLASH_COMMAND_TOOL_CHAR_BUDGET are on
+# https://code.claude.com/docs/en/env-vars, which has no per-variable anchor.
+# As of: 2026-10-11. Recheck trigger: any of those sections changing a scope,
+# its order, an env var's meaning, or the budget's basis.
 #
 # Usage:
 #   check-listing-budget.sh [--from-settings] [<skills-root> ...]

@@ -71,6 +71,11 @@ jobs:
             args: --check
             drift: "exit:1"
             unverifiable: "exit:2"
+          - skill: user-interface:write-animation
+            script: plugins/user-interface/scripts/check-emilkowalski-drift.sh
+            args: --check
+            drift: "exit:1"
+            unverifiable: "exit:2"
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

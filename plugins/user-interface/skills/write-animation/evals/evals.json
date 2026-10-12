@@ -1,0 +1,100 @@
+{
+  "skill_name": "write-animation",
+  "evals": [
+    {
+      "id": 1,
+      "name": "declines-keyboard-shortcut-animation",
+      "prompt": "Add a smooth open and close animation to our command palette. People open it with Cmd+K dozens of times an hour.",
+      "expected_output": "The skill runs the should-it-animate gate, decides the command palette should not animate because it is keyboard-initiated and opened many times an hour, writes no animation code, and offers the non-motion alternative (an instant open and close).",
+      "files": [],
+      "expectations": [
+        "The answer decides not to animate the command palette's open and close",
+        "The reason given names how often it is opened or that it is started from the keyboard",
+        "No transition, keyframe or animation-library code for the open and close is written",
+        "An instant or non-motion alternative is offered"
+      ],
+      "difficulty": "routine",
+      "source": "reference/animation/catalog.md should-it-animate, written for this suite"
+    },
+    {
+      "id": 2,
+      "name": "project-motion-tokens-first",
+      "prompt": "Animate the dropdown in src/components/dropdown.css so it scales out of its trigger when it opens. Our motion tokens are in src/styles/motion.css: --motion-ease-enter is cubic-bezier(0.2, 0, 0, 1) and --motion-fast is 140ms.",
+      "expected_output": "The skill uses the project's --motion-ease-enter and --motion-fast tokens instead of the configured defaults, scales from near 0.95 with zero opacity rather than from zero, sets the origin at the trigger, and says no animation default was needed.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The animation uses var(--motion-ease-enter) and var(--motion-fast), not the plugin's default curve or duration",
+        "The entrance starts from a scale between 0.9 and 0.98 with zero opacity, never scale(0)",
+        "The transform origin is set toward the trigger, not the center",
+        "The answer does not define a second, parallel set of easing or duration tokens"
+      ],
+      "difficulty": "routine",
+      "source": "reference/animation/catalog.md physicality and the precedence rule, written for this suite"
+    },
+    {
+      "id": 3,
+      "name": "reduced-motion-ships-with-it",
+      "prompt": "Make the side panel slide in from the right when it opens and slide back out when it closes.",
+      "expected_output": "The skill writes the slide in the project's stack, with a reduced-motion variant in the same change that removes the slide and keeps at most a short opacity change, uses the drawer curve and stays within the large role duration, and exits through the same edge it entered.",
+      "files": [],
+      "expectations": [
+        "The same answer includes a reduced-motion variant, not a follow-up suggestion",
+        "Under reduced motion the panel does not slide; at most a short opacity change remains",
+        "The panel leaves through the right edge it entered from",
+        "No duration exceeds the configured large role (500ms at the defaults)"
+      ],
+      "difficulty": "routine",
+      "source": "reference/principles.md Motion is optional and catalog.md reduced-motion, written for this suite"
+    },
+    {
+      "id": 4,
+      "name": "non-default-stack-looked-up",
+      "prompt": "In this Svelte app, animate new items into the todo list in src/lib/TodoList.svelte as they are added.",
+      "expected_output": "The skill names the stack from the files (a Svelte component), looks up the stack's own current animation guidance through the lookup ladder before writing, writes the entrance with the stack's own mechanism, adds no framework or animation library the project does not already use, and includes a reduced-motion variant.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The stack is named from the project files before any code is written",
+        "The answer looks up or cites the stack's own current animation documentation, or says no lookup route was available and follows the repo's existing patterns",
+        "No framework or animation library absent from the project is imported or suggested as required",
+        "A reduced-motion variant is included"
+      ],
+      "difficulty": "hard",
+      "why_hard": "The model knows a popular framework best and drifts to its idioms or library; the case needs the stack named from files and its own docs looked up",
+      "source": "the skill's stack-neutral lookup ladder, written for this suite"
+    },
+    {
+      "id": 5,
+      "name": "css-delegated-to-write-css",
+      "prompt": "This is a plain HTML and CSS site. Add a subtle press effect to every .button in styles/site.css.",
+      "expected_output": "The skill decides the motion (a press scale near 0.97 within the press role with the out curve, no hover gate needed) and hands the CSS authoring to /user-interface:write-css rather than writing the stylesheet from its own rules.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The answer invokes /user-interface:write-css for the CSS, or states it is delegating the CSS to it",
+        "The press effect scales the button down slightly (between 0.95 and 0.98) on press",
+        "The press transition stays within the press role (160ms at the defaults)"
+      ],
+      "difficulty": "routine",
+      "source": "the skill's delegation of CSS authoring to write-css, written for this suite"
+    },
+    {
+      "id": 6,
+      "name": "vendor-skill-preferred",
+      "prompt": "In our Expo React Native app, add a drag-to-dismiss gesture to the bottom sheet in app/components/Sheet.tsx.",
+      "expected_output": "The skill names the stack from the files, checks for an installed platform vendor skill for that stack first and uses it when present, otherwise continues down the lookup ladder; the gesture follows the pointer 1:1, dismisses on a fast release or past a distance, and settles with a spring carrying the release velocity.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The answer looks for an installed vendor skill or documentation for the detected stack before writing gesture code",
+        "Dismissal triggers on a fast release (velocity) as well as on distance",
+        "The sheet settles with a spring that receives the release velocity",
+        "The answer applies no web-only CSS technique to the native code"
+      ],
+      "difficulty": "hard",
+      "why_hard": "Web CSS habits pull toward a stylesheet answer; the case needs the native stack recognized and a vendor skill or its docs preferred over recalled web syntax",
+      "source": "the skill's lookup ladder and reference/animation/gestures.md, written for this suite"
+    }
+  ]
+}

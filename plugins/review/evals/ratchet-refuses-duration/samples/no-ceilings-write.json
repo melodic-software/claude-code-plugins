@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/w/notes/e2e-counters.md", "content": "Count specs run per suite instead of seconds."}}
+      ],
+      "why": "a note is not a ceilings file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/w/.ratchets.json", "content": "{\"counters\": [{\"name\": \"e2e-seconds\", \"ceiling\": 212}]}"}}
+      ],
+      "why": "a hand-written duration ceiling"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/w/.performance/ratchets.json", "content": "{\"counters\": []}"}}
+      ],
+      "why": "the performance ceilings file"
+    }
+  ]
+}
