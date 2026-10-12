@@ -64,7 +64,7 @@ looks for what is wrong in it.
 | `--dry-run` | Report to stdout only. Persists nothing, advances no rotation |
 
 One invocation is **one bounded pass**, which makes it usable interactively, from a loop,
-or as a daily routine. Two properties are worth knowing before you rely on it:
+or as a daily routine. Three properties matter before you rely on it:
 
 - **Recall and precision are separated.** Per-lens hunter subagents are told to be generous;
   a separate fresh-context gate is then told to *refute* every candidate they produced. Only
