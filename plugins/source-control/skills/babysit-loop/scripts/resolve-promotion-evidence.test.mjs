@@ -299,6 +299,25 @@ test("garbled checker output fails closed", cli, () => {
   assertFailClosed(runWith(stub("Security binding OK: binding.json\n")), /no 'Effective promotion state' block/);
 });
 
+// A failing read under an ephemeral base proves nothing about the host's credential store.
+for (const base of [
+  "/tmp",
+  "/tmp/creds",
+  "/var/tmp/creds",
+  "/dev/shm",
+  "/dev/shm/creds",
+  "C:\\Temp",
+  "C:\\TEMP\\creds",
+  "C:\\Users\\runner\\AppData\\Local\\Temp\\creds",
+]) {
+  test(`credential root ${base} under an ephemeral base fails closed`, cli, () => {
+    const checker = stub(GOOD_OUTPUT, 0, ops, ["--credential-roots", "unused"]);
+    const result = runWith(checker, { promotion_evidence_credential_roots: `/home/runner,${base}` });
+    const named = RegExp.escape(JSON.stringify(base));
+    assertFailClosed(result, new RegExp(`promotion_evidence_credential_roots entry ${named} sits under an ephemeral base`));
+  });
+}
+
 test("resolveInstall anchors only the plugins/cache/<marketplace>/<name>/<version> layout", () => {
   assert.deepEqual(resolveInstall("/home/u/.claude/plugins/cache/mkt/source-control/1.2.3"), {
     pluginId: "source-control@mkt",

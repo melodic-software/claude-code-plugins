@@ -174,10 +174,16 @@ function hostPath(value) {
   return drive ? { anchor: slashed.slice(0, 2).toLowerCase(), segments: segments.map((s) => s.toLowerCase()) } : { anchor: "", segments };
 }
 
+// Path segments naming an ephemeral base (/tmp, /var/tmp, /dev/shm, C:\Temp, ...\AppData\Local\
+// Temp), compared case-insensitively. Restates EPHEMERAL_SEGMENTS in the autonomy plugin's
+// check-security-binding.mjs, which refuses a credential probe expanded under one; recheck when
+// that set changes.
+const EPHEMERAL_SEGMENTS = new Set(["tmp", "temp", "shm"]);
+
 // The checker's --credential-roots argument, or none when the option is unset or empty. The roots
 // name locations on the probe host, which need not exist here, so each entry is judged lexically
-// and never resolved: absolute, not a filesystem root, no ".." segment, and not inside the
-// checkout or a worktree root. A root containing the checkout is allowed (/home/runner holds a
+// and never resolved: absolute, not a filesystem root, no ".." segment, no ephemeral-base
+// segment, and not inside the checkout or a worktree root. A root containing the checkout is allowed (/home/runner holds a
 // hosted runner's checkout).
 function credentialRootsArgs(value, roots) {
   if (value === undefined || value.trim() === "") return [];
@@ -194,6 +200,9 @@ function credentialRootsArgs(value, roots) {
       if (lane?.anchor === path.anchor && lane.segments.every((s, n) => path.segments[n] === s)) {
         emit(source, `${named} is inside ${root}`);
       }
+    }
+    if (path.segments.some((s) => EPHEMERAL_SEGMENTS.has(s.toLowerCase()))) {
+      emit(source, `${named} sits under an ephemeral base (tmp, temp, shm)`);
     }
   }
   return ["--credential-roots", value];

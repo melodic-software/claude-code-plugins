@@ -189,8 +189,10 @@ absent. A set value is compliant only when it is:
 
 `promotion_evidence_credential_roots` differs: it is optional, empty reads as unset, and it holds a
 comma-separated list of probe-host paths. Each entry must be absolute (`/...` or a drive path such
-as `C:\...`, never a `//` share), must not be a filesystem root, must have no `..` segment, and
-must not be inside the checkout or a worktree root. The checks are lexical, with no symlink
+as `C:\...`, never a `//` share), must not be a filesystem root, must have no `..` segment, must
+not sit under an ephemeral base (any `tmp`, `temp` or `shm` segment, in any case: `/tmp`,
+`/var/tmp`, `/dev/shm`, `C:\Temp`, a Windows `%TEMP%`; the checker refuses a probe expanded there
+for the same reason), and must not be inside the checkout or a worktree root. The checks are lexical, with no symlink
 resolution. A root that contains the checkout is allowed: a hosted runner's home holds its
 checkout. A bad entry fails closed under a reason naming it.
 
