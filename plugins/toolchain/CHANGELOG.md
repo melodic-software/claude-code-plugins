@@ -3,6 +3,30 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- The pre-compute note points at the skills page's injected-commands section and the gather-block record, with an as-of date and recheck trigger.
+
+### Fixed
+
+- `/toolchain:check` no longer states that a command's whole output always returns inline; it points at the Bash tool's output-limits section and keeps the bound in the pipe.
+
+- `/toolchain:lint` reports a missing tool as `skip (tool missing: <tool>)` and reads `INCOMPLETE` when nothing failed but an environment skip remains, matching `/toolchain:check`, so `/verification:confirm` no longer reaches `CONFIRMED` on a lint-only environment gap (#6192).
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.16.0] - 2026-10-06
 
 ### Changed

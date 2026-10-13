@@ -5,6 +5,41 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.14.5] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **`/harness-config:audit-automation-gaps` reads the enforcement hierarchy from the shared enforcement ladder.** The skill carries a generated copy of the enforcement-ladder convention at `context/enforcement-ladder.md` and points at it instead of listing the levels inline. The ladder adds a `make-impossible` rung above compiler settings and a `canonical-helper` rung below the linters. A consuming repository's own order in its project instructions still overrides the default.
+
+- **Copied upstream specifics across the plugin's skills and references become anchored pointer records.** Listing-budget constants, debug-log locations, matcher character rules, `strictPluginOnlyCustomization` values, mod-plane key scopes, permission-lock and parse-failure behavior, auto-mode classifier scopes, hook timeout defaults, `/auto-mode-setup` plan and version requirements, output-style behavior, subagent nesting depth and the pruning doctrine are read live at the section that owns them instead of being restated. The duplicated `C6-malformed` and `C6-literalPath` lint rows are merged.
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.
+
+- **Residency, precedence and liveness rules point at the live docs sections instead of quoting them.** The cross-surface conflict criteria, the Phase A inventory, the `/doctor` handoff, the AGENTS.md liveness record and the audit checklist had copied upstream text that has since changed: subagents can now opt out of CLAUDE.md, user and project rules no longer have a stated winner, CLAUDE.md files have a size limit, another hook event's stdout reaches context, skill preloading is capped, skill-frontmatter hooks live for the rest of the session, Haiku 5.5 has its own default effort, `DISABLE_DOCTOR_COMMAND` is documented again, the built-in AGENTS.md plugin has a new settings id, and managed sources can merge. Each rule now states our decision and fetches the specific from an anchored pointer with an as-of date and a recheck trigger.
+- **`audit-pass` no longer calls the `disallowed-tools` restriction mechanical.** It narrows the editing surface for a span the skills page bounds, so the read-and-report contract is instruction-held, matching `audit-instructions` and `audit-prompting-postures`.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The setup skill loads under `claude -p` again.** Each pre-computed tool probe was a brace group
+  holding a quoted fallback (`{ command -v jq 2>/dev/null || echo "absent"; }`), which Claude Code's
+  shell permission check refuses (`Contains brace with quote character (expansion obfuscation)`).
+  Outside auto mode that aborts the whole skill with no output and exit 0. The rows are now
+  `command -v <tool> 2>/dev/null || echo absent`, which render the same value, and each `command -v`
+  probe is pre-approved in the skill's `allowed-tools`, without which the render still aborts in
+  default permission mode. Probed headless on Claude Code 2.1.296.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [1.14.4] - 2026-10-11
 
 ### Fixed

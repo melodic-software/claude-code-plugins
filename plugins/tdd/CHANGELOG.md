@@ -3,6 +3,16 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1] - 2026-10-13
+
+### Changed
+
+- **`test-doubles.md`'s boundary-interface section is rewritten with its own example.** The section is now headed "One Function per Remote Operation" and uses a shipping-service example in place of the upstream user-and-orders one; the "Replace, Don't Layer" paragraph is reworded. The guidance and its subordination to "mock only unmanaged dependencies" are unchanged.
+
+### Fixed
+
+- **Implement routes to the Test stage before review.** `/implementation:implement` and `/implementation:implement-dispatch` now name the Test-stage skills in `## Next` (`/testing:plan`, `/testing:audit`, `/testing:run-e2e`), with `/review:quality-gate` once tests are planned, checked and green; the `testing`, `tdd` and `mutation-testing` skills that hand off name their successors too, so the graph runs implement, test, review, verify.
+
 ## [0.5.0] - 2026-10-06
 
 ### Added

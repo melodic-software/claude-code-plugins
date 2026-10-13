@@ -3,6 +3,36 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.10] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **Shared `parse-concern-value.sh` synced, with its parser `yaml-subset.awk` beside it.** The reader takes dotted keys, `--list`, stdin (`-`), a validated `--ref` and `--strict`; every existing root-key read resolves as before, and a file the parser rejects now yields the fallback with one stderr line.
+
+- The audit and stateless references point at the exact live docs sections for upstream specifics (import depth, `claudeMdExcludes`, rule loading, auto-memory load limits and storage, settings precedence, managed-settings locations, retention and `claude purge`) instead of restating them, each with an as-of date and a recheck trigger.
+
+### Fixed
+
+- **The shared `yaml-subset.awk` parser trims trailing blanks and strips trailing comments (a `#` after a space) in one pass**, where two regexes rescanned a long run of spaces from every start; a 200,000-space line now parses in well under a second with the same records.
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.
+- **The shared `yaml-subset.awk` refuses a tab indent and an unquoted colon followed by a space in a value (`key: a: b`).** Both parsed before although a YAML loader rejects them; a file holding either now reads as a parse error, so quote a value that holds a colon followed by a space. A tab in a markdown fence's base indent is still accepted.
+
+- `/harness-memory:audit` no longer prices a move into a skill as losing its body after compaction: the compaction model now records that recently invoked skill bodies come back within a budget, and points at the docs section that owns the caps.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- The always-loaded-set stats (`instruction-load-stats`) no longer count a path-scoped rule as always loaded when `grep -q` closes the pipe on the rule's frontmatter before the writer finishes, which made the token estimate jump and the test fail intermittently with `printf: write error: Broken pipe`.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [1.1.9] - 2026-10-10
 
 ### Fixed
