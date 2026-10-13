@@ -184,7 +184,7 @@ above, with `cant-fail-ok: relation across rows`.
 - A finding names a test that needs a real assertion: `/testing:write`.
 - Findings cover a folder of low-value tests to rewrite or prune: `/testing:cleanup <folder>`.
 - Findings are persisted with `--persist-findings`: `/review:fanout fix`.
-- No findings: `/review:quality-gate`.
+- No findings and no other Test-stage check (coverage plan, end to end) still pending: `/review:quality-gate`.
 
 ## Gotchas
 
