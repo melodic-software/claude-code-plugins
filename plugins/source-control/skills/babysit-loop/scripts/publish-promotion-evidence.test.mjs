@@ -75,7 +75,11 @@ const labelEvent = (event, name, at, login = "kyle-sexton", type = "User") => ({
 // newest first), and throws on any other, so an unexpected or mutating call fails the case.
 // A run marked `superseded` was re-run: only `filter=all` returns it.
 // `bumpOnPage2` updates that PR (a comment, a label) between the listing's first and second page.
-function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, bumpOnPage2 }) {
+// `workflowRuns`: {<workflow file>: [run]}; `attempts`: {<run id>: {<n>: run}}; `history`: the
+// default branch's commits oldest first (linear, as a merge-queue branch is), defaulting to the
+// merge commits in merge order.
+function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, workflowRuns = {}, attempts = {}, history, bumpOnPage2 }) {
+  const branch = history ?? [...pulls].sort((a, b) => a.graph.mergedAt.localeCompare(b.graph.mergedAt)).map((p) => p.graph.mergeCommit.oid);
   const page = (items, path) => {
     const n = Number(/[?&]page=(\d+)/.exec(path)[1]);
     return items.slice((n - 1) * 100, n * 100);
@@ -88,6 +92,7 @@ function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issue
       assert.doesNotMatch(graphql.query, /mutation/);
       return { data: { repository: { pullRequest: pulls.find((p) => p.graph.number === graphql.variables.number).graph } } };
     }
+    if (path === `repos/${REPO}`) return REC.repo;
     const prefix = `repos/${REPO}/`;
     assert.ok(path.startsWith(prefix), path);
     const rest = path.slice(prefix.length);
@@ -107,6 +112,18 @@ function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issue
     }
     if ((m = /^commits\/([0-9a-f]{40})\/statuses\?/.exec(rest))) return page(statuses[parseInt(m[1], 16)] ?? [], rest);
     if ((m = /^issues\/(\d+)\/events\?/.exec(rest))) return page(issueEvents[m[1]] ?? [], rest);
+    if ((m = /^actions\/workflows\/([\w.-]+)\/runs\?event=(\w+)&branch=main&created=%3E%3D[^&]+&/.exec(rest))) {
+      const runs = (workflowRuns[m[1]] ?? []).filter((r) => r.event === m[2]);
+      return { total_count: runs.length, workflow_runs: page(runs, rest) };
+    }
+    if ((m = /^actions\/runs\/(\d+)\/attempts\/(\d+)$/.exec(rest))) return attempts[m[1]][m[2]];
+    if ((m = /^compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})\?/.exec(rest))) {
+      const [base, head] = [branch.indexOf(m[1]), branch.indexOf(m[2])];
+      assert.ok(base >= 0 && head >= 0, `compare outside the recorded history: ${rest}`);
+      const status = head > base ? "ahead" : head === base ? "identical" : "behind";
+      const ahead = head > base ? branch.slice(base + 1, head + 1).map((sha) => ({ sha })) : [];
+      return { ...REC.compare, status, ahead_by: ahead.length, total_commits: ahead.length, commits: page(ahead, rest) };
+    }
     throw new Error(`unrecorded gh api call: ${path}`);
   };
 }
@@ -119,6 +136,105 @@ function run(fixture, extra = {}) {
 }
 
 const termOf = (result, cell, name) => result.cells[cell].terms.find((t) => t.term === name);
+
+const FULL = "pr-require-checks.yml";
+const CANARY = "post-merge-detect-silent-revert.yml";
+const wfRun = (id, event, sha, created, { conclusion = "success", status = "completed", attempt = 1, actor = "github-merge-queue[bot]", triggering = actor, updated = later(created, 8) } = {}) => ({
+  ...REC.workflowRun,
+  id,
+  event,
+  head_sha: sha,
+  created_at: created,
+  updated_at: updated,
+  status,
+  conclusion: status === "completed" ? conclusion : null,
+  run_attempt: attempt,
+  actor: { login: actor },
+  triggering_actor: { login: triggering },
+});
+const gateEvents = (at, ...cells) => cells.map((cell) => ({ cell, event: "gate-failure", at }));
+
+test("a red full run on a later SHA containing two merges yields gate-failure for each", () => {
+  const tip = shaOf(0xa001);
+  const result = run({
+    pulls: [pr(1301, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1302, "2026-09-02T00:00:00Z", { labels: [SCOPED] })],
+    history: [shaOf(1301), shaOf(1302), tip],
+    workflowRuns: { [FULL]: [wfRun(1, "schedule", tip, "2026-09-03T00:00:00Z", { conclusion: "failure" })] },
+  });
+  assert.deepEqual(result.events, gateEvents("2026-09-03T00:08:00Z", "C2-auto-merge", "C3-auto-merge"));
+  assert.deepEqual(
+    result.gateFailures.map((g) => [g.number, g.check, g.conclusion]),
+    [
+      [1301, `${FULL} schedule`, "failure"],
+      [1302, `${FULL} schedule`, "failure"],
+    ],
+  );
+});
+
+test("a run on a SHA without the merge, or created before the merge, is not its evidence", () => {
+  const older = shaOf(0xa002);
+  // Run 3 on #1303's own SHA predates #1303's merge, so it is evidence for #1309 only.
+  const result = run({
+    pulls: [pr(1309, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1303, "2026-09-02T00:00:00Z", { labels: [SCOPED] })],
+    history: [older, shaOf(1309), shaOf(1303)],
+    workflowRuns: {
+      [FULL]: [wfRun(2, "schedule", older, "2026-09-03T00:00:00Z", { conclusion: "failure" }), wfRun(3, "schedule", shaOf(1303), "2026-09-01T12:00:00Z", { conclusion: "failure" })],
+    },
+  });
+  assert.deepEqual(result.events, gateEvents("2026-09-01T12:08:00Z", "C2-auto-merge"));
+});
+
+test("a red full run is a flake only when a lane identity's re-run passed", () => {
+  const tip = shaOf(0xa003);
+  const rerun = (id, triggering) => wfRun(id, "schedule", tip, "2026-09-02T00:00:00Z", { attempt: 2, triggering, updated: "2026-09-02T01:00:00Z" });
+  const firstAttempt = (id) => ({ 1: wfRun(id, "schedule", tip, "2026-09-02T00:00:00Z", { conclusion: "failure" }) });
+  const result = run({
+    pulls: [pr(1304, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })],
+    history: [shaOf(1304), tip],
+    workflowRuns: { [FULL]: [rerun(4, LANE), rerun(5, "kyle-sexton")] },
+    attempts: { 4: firstAttempt(4), 5: firstAttempt(5) },
+  });
+  assert.deepEqual(result.events, gateEvents("2026-09-02T01:00:00Z", "C2-auto-merge"));
+});
+
+test("a red run after a merge was verified by a green lane dispatch and canary is not that merge's", () => {
+  const [s1, s2] = [shaOf(0xa004), shaOf(0xa005)];
+  const result = run({
+    pulls: [pr(1305, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1306, "2026-09-01T12:00:00Z", { labels: [SCOPED] })],
+    history: [shaOf(1305), s1, shaOf(1306), s2],
+    workflowRuns: {
+      [FULL]: [wfRun(6, "workflow_dispatch", s1, "2026-09-01T01:00:00Z", { actor: LANE }), wfRun(7, "schedule", s2, "2026-09-02T00:00:00Z", { conclusion: "failure" })],
+      [CANARY]: [wfRun(8, "push", s1, "2026-09-01T01:05:00Z")],
+    },
+  });
+  assert.deepEqual(result.events, gateEvents("2026-09-02T00:08:00Z", "C3-auto-merge"));
+});
+
+test("a red canary run on a SHA containing the merge yields gate-failure", () => {
+  const result = run({
+    pulls: [pr(1307, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })],
+    workflowRuns: { [CANARY]: [wfRun(9, "push", shaOf(1307), "2026-09-01T00:01:00Z", { conclusion: "failure" })] },
+  });
+  assert.deepEqual(result.events, gateEvents("2026-09-01T00:09:00Z", "C2-auto-merge"));
+});
+
+test("a red full run awaiting its re-run is unsettled for 6 hours, then a failure", () => {
+  const tip = shaOf(0xa006);
+  const red = (id, updated) => wfRun(id, "schedule", tip, later(updated, -8), { conclusion: "failure", updated });
+  const recent = run({
+    pulls: [pr(1308, "2026-10-04T00:00:00Z", { labels: [MECHANICAL] })],
+    history: [shaOf(1308), tip],
+    workflowRuns: { [FULL]: [red(10, "2026-10-04T23:00:00Z")] },
+  });
+  assert.deepEqual(recent.events, []);
+  assert.equal(termOf(recent, "C2-auto-merge", "deterministic-gate pass").detail.unsettled, 1);
+  const stale = run({
+    pulls: [pr(1308, "2026-10-04T00:00:00Z", { labels: [MECHANICAL] })],
+    history: [shaOf(1308), tip],
+    workflowRuns: { [FULL]: [red(10, "2026-10-04T17:00:00Z")] },
+  });
+  assert.deepEqual(stale.events, gateEvents("2026-10-04T17:00:00Z", "C2-auto-merge"));
+});
 
 test("only the named gate checks and status contexts are gate evidence", () => {
   const other = (name, conclusion) => ({ ...REC.checkRun, name, conclusion, completed_at: "2026-09-01T00:10:00Z" });

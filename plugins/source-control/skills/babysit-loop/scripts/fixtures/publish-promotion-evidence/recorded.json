@@ -138,5 +138,36 @@
       }
     ],
     "number": 6007
+  },
+  "repo": {
+    "default_branch": "main"
+  },
+  "workflowRun": {
+    "actor": {
+      "login": "github-merge-queue[bot]"
+    },
+    "conclusion": "failure",
+    "created_at": "2026-10-12T16:32:14Z",
+    "event": "schedule",
+    "head_branch": "main",
+    "head_sha": "2dc6ef1cef19870b4f15ba796f970980bcb48cf8",
+    "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/38278079868",
+    "id": 38278079868,
+    "run_attempt": 1,
+    "status": "completed",
+    "triggering_actor": {
+      "login": "github-merge-queue[bot]"
+    },
+    "updated_at": "2026-10-12T16:40:40Z"
+  },
+  "compare": {
+    "ahead_by": 1,
+    "commits": [
+      {
+        "sha": "aad0b2b69bc22154c61b0857307a183d0c7821a8"
+      }
+    ],
+    "status": "ahead",
+    "total_commits": 1
   }
 }
