@@ -144,11 +144,32 @@ make_bundle "$TMP/bundle-true" '!0'
 # A fake CLI, so the canary legs cost nothing. `met` echoes the scratch
 # directory's own AGENTS.md, which is what a loaded file looks like; `unmet`
 # answers NONE; `unreach` exits non-zero.
+#
+# Given `--tools Write`, the nested write probe's turn, each fake acts out one
+# outcome: `met` writes the file and echoes both AGENTS.md files (the nested
+# one loaded on Write); `write-noload` writes it and echoes the root file only;
+# `write-nowrite` echoes both without writing, which no Write can have
+# triggered; `write-silent` writes it and echoes nothing either file holds.
+# Every fake logs its arguments, so a case can check the turn's tool set.
 mkdir -p "$TMP/bin"
-printf '#!/usr/bin/env bash\ncat AGENTS.md\n' >"$TMP/bin/claude-met"
+fake_claude() { # <name> <the Write-turn body>
+  cat >"$TMP/bin/claude-$1" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/claude-args.log"
+case " \$* " in
+*" --tools Write "*) $2 ;;
+*) cat AGENTS.md ;;
+esac
+EOF
+  chmod +x "$TMP/bin/claude-$1"
+}
+fake_claude met 'echo hello >sub/canary.txt; cat AGENTS.md sub/AGENTS.md'
+fake_claude write-noload 'echo hello >sub/canary.txt; cat AGENTS.md'
+fake_claude write-nowrite 'cat AGENTS.md sub/AGENTS.md'
+fake_claude write-silent 'echo hello >sub/canary.txt; echo NONE'
 printf '#!/usr/bin/env bash\necho NONE\n' >"$TMP/bin/claude-unmet"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$TMP/bin/claude-unreach"
-chmod +x "$TMP/bin/claude-met" "$TMP/bin/claude-unmet" "$TMP/bin/claude-unreach"
+chmod +x "$TMP/bin/claude-unmet" "$TMP/bin/claude-unreach"
 
 CANARY_ROOTS=(--canary-home-root "$TMP/canary-home" --canary-alt-root "$TMP/canary-alt")
 
@@ -568,7 +589,47 @@ OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
   --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
 assert_contains "no rows and no file is MET" "$OUT" "no path detection"
 
-# --- Case 8: nothing is written -------------------------------------------
+# --- Case 8: the nested write probe, reported and not graded ---------------
+
+write_probe_run() { # <fake name>; the clean repository, every graded condition met
+  rc=0
+  OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
+    --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" \
+    --claude-bin "$TMP/bin/claude-$1" "${CANARY_ROOTS[@]}") || rc=$?
+  PROBE=$(printf '%s\n' "$OUT" | awk '/^Nested write trigger/ { f = 1 } f && /^$/ { exit } f')
+}
+
+: >"$TMP/claude-args.log"
+write_probe_run met
+assert_contains "a nested load on Write reports LOADS" "$PROBE" "[LOADS]"
+assert_contains "and the summary line carries it" "$OUT" "Nested write trigger (not graded): LOADS"
+assert_contains "the probe turn is offered the Write tool" "$(cat "$TMP/claude-args.log")" "--tools Write --permission-mode"
+assert_not_contains "and never the Read tool" "$(cat "$TMP/claude-args.log")" "Read"
+assert_eq "the probe's scratch directory is gone" "" "$(ls "$TMP/canary-home" 2>/dev/null)"
+
+write_probe_run write-noload
+assert_contains "a root-only answer after a real write reports NO-LOAD" "$PROBE" "[NO-LOAD]"
+assert_contains "and names what a nested shim carries" "$PROBE" "a nested shim carries that load"
+assert_eq "NO-LOAD is not graded, so the run still exits 0" 0 "$rc"
+assert_contains "and the graded verdict is unchanged" "$OUT" "every graded condition MET"
+
+write_probe_run write-nowrite
+assert_contains "a quote with no file written is UNREACH, never LOADS" "$PROBE" "[UNREACH]"
+assert_not_contains "and does not claim a load" "$PROBE" "[LOADS]"
+assert_contains "and says no Write took place" "$PROBE" "never written"
+
+write_probe_run write-silent
+assert_contains "a session that loaded neither file is UNREACH, never NO-LOAD" "$PROBE" "[UNREACH]"
+assert_not_contains "and does not claim the trigger is missing" "$PROBE" "[NO-LOAD]"
+
+write_probe_run unreach
+assert_contains "a CLI that fails is UNREACH" "$PROBE" "[UNREACH]"
+
+OUT=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary)
+assert_contains "--skip-canary skips the probe too" "$OUT" "--skip-canary: the probe did not run"
+
+# --- Case 9: nothing is written -------------------------------------------
 
 assert_eq "the checked repository is untouched" "" "$(cd "$CLEAN" && git status --porcelain)"
 
