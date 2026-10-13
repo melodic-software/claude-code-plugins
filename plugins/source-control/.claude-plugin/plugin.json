@@ -267,7 +267,7 @@
     "promotion_evidence_credential_roots": {
       "type": "string",
       "title": "Promotion-evidence credential roots",
-      "description": "Comma-separated absolute paths the checker trusts as credential stores (--credential-roots): no filesystem root, no .. segment, none under tmp, temp or shm, none inside the repository or lane worktrees. User or managed settings only. Absent: credential-probe isolation proofs stay unproven."
+      "description": "Comma-separated absolute paths trusted as credential stores (--credential-roots): no filesystem root, no .. segment, none under tmp/temp/shm or inside the repository or lane worktrees. User or managed settings only; --settings does not count. Absent: credential-probe isolation proofs stay unproven."
     },
     "setup_inference_window": {
       "type": "string",
