@@ -260,6 +260,22 @@ out="$(ip_discover_nested_instructions "$tfixt")"
 assert_has "a nested file outside a tests/fixtures tree is discovered" "$out" "svc/AGENTS.md"
 assert_lacks "a nested file inside a tests/fixtures tree is excluded" "$out" "plugins/demo/tests/fixtures/home/AGENTS.md"
 
+# A fixture alias of a real rule, shallower than the real path, must not win the
+# realpath dedupe and then be filtered out, taking the real rule with it.
+if host_makes_symlinks; then
+  falias="$(mktemp -d "$TMP/x.XXXX")"
+  git -C "$falias" init -q .
+  rule_file "$falias/packages/product/backend/.claude/rules/shared.md" 'src/**' 'Shared rule'
+  mkdir -p "$falias/tests/fixtures/.claude/rules"
+  ln -s "$falias/packages/product/backend/.claude/rules/shared.md" "$falias/tests/fixtures/.claude/rules/shared.md"
+  commit_all "$falias"
+  out="$(ip_discover_rules "$falias")"
+  assert_has "a real rule with a shallower tests/fixtures alias is still discovered" "$out" "packages/product/backend/.claude/rules/shared.md"
+  assert_lacks "and its tests/fixtures alias is not" "$out" "tests/fixtures/.claude/rules/shared.md"
+else
+  skip "a real rule with a shallower tests/fixtures alias is still discovered" "ln -s copies instead of linking"
+fi
+
 # Root-level instruction files already load at session start — never "nested".
 root_files="$(mktemp -d "$TMP/x.XXXX")"
 git -C "$root_files" init -q .

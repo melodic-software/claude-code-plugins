@@ -173,7 +173,10 @@ ip_discover_rules() {
   # One entry per REAL file. When a symlink loop or a duplicate link exposes the
   # same file under several paths, keep the shallowest, then the lexically first
   # — so a loop reports `.claude/rules/ok.md`, never `.claude/rules/loop/ok.md`.
-  LC_ALL=C sort "$seen_file" | awk -F'\t' '
+  # Fixture paths drop before that choice, so a shallower fixture alias of a real
+  # rule cannot win and then take the real rule out with it.
+  LC_ALL=C sort "$seen_file" | awk -F'\t' -v fixture="$IP_FIXTURE_ERE" '
+    $2 ~ fixture { next }
     {
       depth = gsub(/\//, "/", $2)
       if (!($1 in best) || depth < bestdepth[$1] ||
@@ -183,7 +186,7 @@ ip_discover_rules() {
       }
     }
     END { for (k in best) print best[k] }
-  ' | awk -v fixture="$IP_FIXTURE_ERE" '$0 !~ fixture' | LC_ALL=C sort
+  ' | LC_ALL=C sort
 
   rm -f "$seen_file"
 }
