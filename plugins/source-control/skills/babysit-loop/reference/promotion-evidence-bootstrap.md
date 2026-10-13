@@ -15,6 +15,7 @@ on launch lines; lifting it is the owner's call after Phase 3 of the plan.
 - [Allowed source class](#allowed-source-class)
 - [The options](#the-options)
 - [Value shape](#value-shape)
+- [Deployment requirements by host](#deployment-requirements-by-host)
 - [Out of scope](#out-of-scope)
 - [Verification record](#verification-record)
 
@@ -52,7 +53,8 @@ So a stub checker or forged surface the lane keeps outside the checkout cannot s
 operator's value: the helper rejects path arguments, and the environment mirror and repository
 files never reach it. What the helper cannot see reads as unset and fails closed: a value supplied
 only through a session's `--settings` file, a server-managed (remote) policy, or an MDM policy.
-Configure the options in managed settings or user settings.
+Configure the options in managed settings or user settings; only managed settings can serve an
+unattended lane ([Deployment requirements by host](#deployment-requirements-by-host)).
 
 The helper can also read a managed file Claude Code itself skips. When a higher-ranked managed
 source (a remote policy, or an MDM or HKLM policy) delivers policy keys, Claude Code by default
@@ -85,8 +87,8 @@ stays unknown. Never put a secret in one of these options.
 The options say where a surface is; they do not make it unwritable. A user settings file is
 writable by any agent running as that user, so a location kept there is only as protected as that
 file. Managed settings keep the location out of the agent's reach too, where the managed system
-directory itself is not writable by the lane's identity (the managed settings page notes that on
-WSL `/etc/claude-code` is user-writable). Whether a deployment meets the requirement is the operator's to establish. This
+directory itself is not writable by the lane's identity (not the case on WSL by default; see
+[Deployment requirements by host](#deployment-requirements-by-host)). Whether a deployment meets the requirement is the operator's to establish. This
 file states the requirement and does not certify a deployment.
 
 ## The options
@@ -205,6 +207,82 @@ not sit under an ephemeral base (any `tmp`, `temp` or `shm` segment, in any case
 for the same reason), and must not be inside the checkout or a worktree root. The checks are lexical, with no symlink
 resolution. A root that contains the checkout is allowed: a hosted runner's home holds its
 checkout. A bad entry fails closed under a reason naming it.
+
+## Deployment requirements by host
+
+What a host must provide before an unattended lane's promotion read can be trusted. The threat
+model: the lane identity can write anything its OS user owns anywhere on the host, not only in the
+checkout; it controls the argv, the environment and the checkout of every process it starts; and it
+runs under `--permission-mode auto`. A host that does not meet its row runs the lane attended,
+with `--merge human-only` on the launch line.
+
+Common rules, on every host:
+
+- **Options only in managed settings.** A user settings file sits under a directory the lane user
+  owns, so it can only ever serve an attended lane.
+- **Admin-owned surfaces.** The binding, the probe evidence root, the events file and the checker
+  copy each sit in a directory an administrator owns, and the lane identity neither owns nor can
+  write that directory or any directory above it. A checker in the plugin cache under the lane
+  user's config directory never qualifies; the administrator installs a copy.
+- **The lane is not the owner and not an administrator.** The lane's OS identity owns no surface
+  and holds no administrator rights: no sudo rule (with or without `NOPASSWD`; why: sudo
+  credential caching, pointer records below), and no membership in the macOS admin group or the
+  Windows Administrators group.
+- **Tool restriction is recommended, not required.** Where the rules above hold, OS ownership is
+  the control. Running the lane with `--permission-mode dontAsk` and an allowlist, or with
+  `--restricted`, is defense in depth where its tool set allows it.
+- **No promotion keys in managed files on a remote or MDM policy host.** Where a remote or MDM
+  source delivers the policy, the managed settings files the helper reads may be ones Claude Code
+  no longer applies (above). So no `promotion_evidence_*` key goes in any managed file on such a
+  host, and with the user scope ruled out for unattended use, that host runs the lane attended.
+
+| Host | Unattended | Requirements beyond the common rules |
+|---|---|---|
+| Linux | Allowed | The managed settings directory and every surface are root-owned, and so is every directory above them. The lane runs as a dedicated non-root user. |
+| macOS | Allowed | The managed settings directory and every surface are owned by root or an administrator, and so is every directory above them. The lane runs as a standard (non-admin) account. |
+| WSL | Refused, unless every exception item holds | Exception items: the lane runs as a separate Linux user with no sudo rule; the managed directory and every surface are root-owned; `/etc/wsl.conf` sets `[interop] enabled=false`; `wslInheritsWindowsSettings` is off. The operator records how each item was checked. Why each item is required: pointer records below. |
+| Windows | Refused | The resolution helper refuses every call (`writability-unverifiable-on-win32`, [Value shape](#value-shape)), and the unattended gate's writability check does not read ACLs. Why: pointer records below. |
+
+Residuals no row closes, named so an operator does not read the table as covering them:
+
+- The merge gate and the resolution helper run from the plugin install and the environment the
+  lane starts them with. The helper limits only the checker's environment, so a preload such as
+  `NODE_OPTIONS` still reaches the helper itself, and a lane that can write the install can change
+  the gate.
+- The events file's freshness is instructed (publication requirements, above), not checked.
+
+Pointer records for the upstream behavior these rows rely on. Each names the topic; the linked
+section states the behavior.
+
+- Why the WSL exception requires `wslInheritsWindowsSettings` off: where WSL reads managed
+  settings, and the Windows policy chain:
+  [managed settings, "When an admin document counts as present"](https://code.claude.com/docs/en/managed-settings#present-admin-documents)
+  and the
+  [`wslInheritsWindowsSettings` entry](https://code.claude.com/docs/en/settings-reference#wslinheritswindowssettings).
+  As of 2026-10-12. Recheck trigger: either changes what it says about the WSL managed directory or
+  where WSL reads managed settings.
+- Why WSL is refused for the Windows user that owns the distribution, and why the exception
+  requires a separate non-sudo Linux user and interop off: how a Windows user enters a
+  distribution as root, and what the `wsl.conf` interop key controls:
+  [Set up your Linux username and password](https://learn.microsoft.com/en-us/windows/wsl/setup/environment#set-up-your-linux-username-and-password),
+  [Run as a specific user](https://learn.microsoft.com/en-us/windows/wsl/basic-commands#run-as-a-specific-user)
+  and [Interop settings](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#interop-settings).
+  As of 2026-10-12. Recheck trigger: any of those sections changes how root is entered or what the
+  interop key controls.
+- Why Windows is refused: how the gate's write-access test (`os.access` in
+  `babysit_merge_policy.py` `_lane_writable`) works on Windows, the `MS_WINDOWS` branch of
+  `os_access_impl` in
+  [CPython `Modules/posixmodule.c`](https://github.com/python/cpython/blob/64018ac45cbc3f408412ab2c37f47f46bc8f84a1/Modules/posixmodule.c).
+  As of 2026-10-12. Recheck trigger: that branch starts reading ACLs, or the gate stops using
+  `os.access`.
+- Why no sudo rule is allowed, with or without `NOPASSWD`: sudo credential caching,
+  [sudoers, "SUDOERS OPTIONS"](https://www.sudo.ws/docs/man/sudoers.man/#SUDOERS_OPTIONS)
+  (`timestamp_type`, `timestamp_timeout`). As of 2026-10-12. Recheck trigger: a release changes
+  how time stamp records are shared between sessions.
+- What tool restriction removes or denies:
+  [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
+  and the `--restricted` row of [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags).
+  As of 2026-10-12. Recheck trigger: either changes what it removes or denies.
 
 ## Out of scope
 
