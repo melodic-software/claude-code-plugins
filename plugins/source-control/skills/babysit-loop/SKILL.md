@@ -179,7 +179,7 @@ step may mutate at the resolved autonomy tier, and where the escalation and no-p
 attach. The stop modes above decide whether a cycle runs; that file decides what one is.
 Every cycle runs the post-merge check (`babysit-postmerge.sh`, cycle-shape step 1) before any merge; anything but exit 0 means no merge that cycle (exit 5: an auto-merge is not yet verified).
 
-**Unattended merges.** Where the target's `pr-pipeline.yaml` sets `merge.authority: local-babysit` and a `merge.agent-identity`, the only merge route is the gate's `--unattended --merge --expected-head <pin>` under that identity (never `--auto`), and its code enforces the post-merge check, the promotion gate below and the rest ([babysit-prs safety](../babysit-prs/reference/safety.md#unattended-merge-path)). The launch line adds `--promotion-settings <file>` (executor-owned, not lane-writable) when the four options below are not in managed settings; `--merge human-only` still keeps every merge off.
+**Unattended merges.** Where the target's `pr-pipeline.yaml` sets `merge.authority: local-babysit` and a `merge.agent-identity`, the only merge route is the gate's `--unattended --merge --expected-head <pin>` under that identity (never `--auto`), and its code enforces the post-merge check, the promotion gate below and the rest ([babysit-prs safety](../babysit-prs/reference/safety.md#unattended-merge-path)). The launch line adds `--promotion-settings <file>` (executor-owned, not lane-writable) when the four options below are not in managed settings; `--merge human-only` still keeps every merge off. **Every lane write runs under `merge.agent-identity`:** where the target names one, launch the lane with the identity's installation token as its only GitHub credential. Cycle-shape's identity gate, first in every cycle, reads the config from the target's default branch and runs the merge gate's identity and credential rules and `lane-push.sh --check` before any write; a refusal, or an unreadable config, stops the lane, writing nothing. Every lane push then goes through `lane-push.sh`, which builds the https URL itself and pushes only as the identity; the lane never runs a bare `git push`. The contract and its residuals are the convention's ("Lane write identity", §1).
 
 **Promotion-evidence gate (trusted seam, fail-closed).** This one condition stays here rather than
 in that file, because it decides whether anything merges at all. A PR is merge-eligible when its
@@ -206,7 +206,9 @@ only: never the `CLAUDE_PLUGIN_OPTION_*` environment mirror, and never `.claude/
 or any other repository file. The reasons and their verification record are in
 [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md#allowed-source-class),
 which also says what each surface must be. The lane-start preflight in
-[reference/cycle-shape.md](reference/cycle-shape.md) steps 0 and 3 read this block.
+[reference/cycle-shape.md](reference/cycle-shape.md) step 0 reads this block. The resolution helper
+step 3 runs takes none of these values from the lane: it reads them from the operator's managed
+and user settings itself.
 
 | Option | Value |
 | --- | --- |
@@ -217,10 +219,8 @@ which also says what each surface must be. The lane-start preflight in
 
 ## do-not-merge
 
-A do-not-merge label, or a PR body that says "do not merge", is respected by default in every tier
-and at every rung, the PR is reported, never merged, and the label is never removed. Stripping it happens only behind the explicit
-`--strip-do-not-merge` invocation flag: a per-invocation direct order, never a config key, never
-persisted.
+A do-not-merge label, or a PR body that says "do not merge" or has a line starting `Hold:`, is respected by default in every tier and at every rung: the PR is reported, never merged, and the label is never removed.
+Stripping it happens only behind the explicit `--strip-do-not-merge` invocation flag: a per-invocation direct order, never a config key, never persisted.
 
 ## Escalation
 
@@ -309,12 +309,14 @@ block, re-read at every cycle start:
  "no_progress_streak":0,"stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
  "rate_limit_latch":false,"guard_mode":"proactive","effort":"unset","lane_instance":"melo-lap-001",
  "writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z","paused_until":null,
- "latched_account":null,"loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
+ "latched_account":null,"loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,"demotion_events":0,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
  "five_hour_delta_pct":1.8}}
 ```
 
-`cycle`, `backoff_level`, and `no_progress_streak` are the loop's durable counters;
+`cycle`, `backoff_level`, `no_progress_streak` and `demotion_events` are the loop's durable counters;
+`demotion_events` totals the demotion issues this instance's post-merge check filed (cycle-shape
+step 1), and a block without it reads as 0;
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. Every counter
 is **per-instance**, the marker partitions the block, so each measures *this* instance's experience
