@@ -90,8 +90,11 @@ marketplace follows:
 
 - Its description is one short sentence with no trigger phrases, so the model
   has little to route on.
-- Its `SKILL.md` body is 489 lines, close to the 500-line ceiling, and carries
-  the whole command reference inline, so every invocation loads all of it.
+- Its `SKILL.md` body is 489 lines, close to the size the skill-authoring
+  guidance tells authors to stay under, and carries the whole command reference
+  inline, so every invocation loads all of it. For that size guidance, see
+  [Skills: Add supporting files](https://code.claude.com/docs/en/skills#add-supporting-files)
+  (as of 2026-10-11; recheck when that section changes its size tip).
 - Seven of its ten reference files run past 100 lines (up to 433) with no
   contents list.
 

@@ -18,15 +18,22 @@ invocation:
 - Changed files (staged+unstaged), `git diff --name-only HEAD`
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+bounds nothing: the cap applies only after the command's output has come back. What a large output
+returns is in [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
+As of: 2026-10-11. Recheck trigger: that section changes what a valid result returns.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the `source-control` plugin's
-[worktree/reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
-"The pre-compute block runs as one shell invocation".
+separate body Bash calls rather than pre-compute lines, so a worktree-isolated session screens each
+git read on its own. The dated record for why a pre-compute block that carries git is refused is
+kept by `/source-control:worktree`, in its gather-block reference under "The pre-compute block
+runs as one shell invocation". It is cited by skill name, not by path or link, so it carries no
+anchor; that record holds its own as-of date and recheck trigger. Relay as of 2026-10-11; recheck
+when that skill drops or renames that section.
+
+Pointer for how injected commands run:
+[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
+As of: 2026-10-11. Recheck trigger: that section documents how a block's commands are grouped into
+shell invocations.
 
 ## Variables
 
@@ -133,9 +140,11 @@ Never hardcode a repo layout; read a declared value, infer-and-record, or ask.
 ### Effort, which dimensions this run covers
 
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
-one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
-skill-loaded, so the substitution never ran: treat the run as `high` and audit every resolved
-dimension.
+an effort level, this body was read directly instead of skill-loaded, so the substitution never
+ran: treat the run as `high` and audit every resolved dimension. Pointer for the token and the
+levels it carries:
+[Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
+As of: 2026-10-11. Recheck trigger: that section renames the token or changes its levels.
 
 Effort selects a **prefix of the resolved dimension list**, in the declaration order the ladder above
 settled. It never adds a dimension the config removed, and never reorders one:
@@ -170,9 +179,15 @@ delegated to the `implementation`/`verification` lanes and is not part of this c
 Before auditing, load what "correct" looks like in this repo:
 
 1. **Read the consuming repo's `.claude/rules/` files** (where present). Conventions, naming rules,
-   enforcement expectations. The root `CLAUDE.md` / `AGENTS.md` are always loaded and already in
-   context, in each dispatched agent too; the rule files are not, they reach a context only when a
-   file they cover is read, and this phase needs the whole convention set before any file is opened.
+   enforcement expectations. Read every one of them here, whether or not it is already in context:
+   a path-scoped rule may not have loaded yet, and this phase needs the whole convention set before
+   any file is opened. Do not assume a dispatched agent carries the instruction files either; which
+   ones reach it depends on the agent. Pointers: when a rule file loads,
+   [Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules); what a
+   dispatched agent receives,
+   [What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup).
+   As of: 2026-10-11. Recheck trigger: either section changes when rule files or CLAUDE.md files
+   load.
 2. **Resolve the audit config** per the dimension seam above; read the convention files its
    `verification-sources` name.
 

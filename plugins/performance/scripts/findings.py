@@ -55,7 +55,13 @@ full text but shown with secret-shaped values (credential headers, Bearer values
 variables, flags and arguments, URL credentials, signed-URL signatures, known token prefixes)
 replaced by *** and backticks by quotes, cut to 60 characters; a shown text that differs from the
 command ends in " #" and the first 8 hex digits of the redacted text's SHA-256. Repeats that show
-alike add up. Repeated file paths are shown the same way, without the cut or tag.
+alike add up. Repeated file paths are shown the same way, without the cut or tag. A Read is keyed by
+its path plus any offset, limit or pages it set, so paged reads of one file are not repeats. A call
+repeats an earlier one only when its arguments and its result are both identical: a different
+result means its input changed. A read of a background task's output file (tasks/<id>.output),
+by Read or by a command naming it, is never a repeat. Identical calls where any result is missing
+from the transcript go to unverified_repeated_reads and unverified_repeated_commands instead, since
+a change between them cannot be ruled out.
 
 Field names are the finding record in agents/go-faster-sweeper.md. Exit 0 is success, 1 a refusal
 the caller acts on (an invalid finding, a held lock, a failed gh call), 2 a usage or input error,
@@ -739,6 +745,61 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 
 INVOKED = "<command-name>/performance:go-faster"
+# A background task's output file grows while the task runs, so reading it again is never a repeat.
+TASK_OUTPUT = re.compile(r"(?:^|[/\\\s'\"=])tasks[/\\][^/\\\s'\"]+\.output(?![\w.])")
+# A Read of a file unchanged since its last Read returns a stub instead of the file; the stub
+# vouches for the earlier result, so it counts as that result.
+UNCHANGED = "file_unchanged"
+
+
+def read_key(args: dict) -> str:
+    """A Read as repeats key it: the path and its window, kept apart so no path can pose as one."""
+    window = ", ".join(
+        f"{name} {args[name]}"
+        for name in ("offset", "limit", "pages")
+        if args.get(name) is not None
+    )
+    return json.dumps([args["file_path"], window])
+
+
+def shown_reads(counts: dict[str, int]) -> dict[str, int]:
+    """Repeated reads keyed as shown; two reads that show alike get distinct labels, never a sum."""
+    out: dict[str, int] = {}
+    for key, n in counts.items():
+        if n > 1:
+            path, window = json.loads(key)
+            label = shown = inert(f"{path} ({window})" if window else path)
+            seq = 1
+            while label in out:
+                seq += 1
+                label = f"{shown} #{seq}"
+            out[label] = n
+    return out
+
+
+def repeats(
+    results: dict[str, list[str | None]],
+) -> tuple[dict[str, int], dict[str, int]]:
+    """Split identical calls into repeats whose results matched and ones that cannot be told.
+
+    A call whose result differs from an earlier one's read changed input, so it repeats nothing.
+    Where any of a key's results is missing, a change cannot be ruled out: those calls go to the
+    second map, all of them, for a reader to record as later.
+    """
+    same: dict[str, int] = {}
+    unknown: dict[str, int] = {}
+    for key, digests in results.items():
+        if None in digests:
+            unknown[key] = len(digests)
+            continue
+        tally: dict[str | None, int] = {}
+        last = None
+        for digest in digests:
+            digest = last if digest == UNCHANGED and last is not None else digest
+            last = digest
+            tally[digest] = tally.get(digest, 0) + 1
+        same[key] = sum(n for n in tally.values() if n > 1)
+    return same, unknown
 
 
 def parse_ts(value: object) -> float | None:
@@ -870,7 +931,8 @@ def transcript_counts(path: Path) -> dict:
             if not isinstance(block, dict):
                 continue
             if block.get("type") == "tool_use" and str(block.get("id")) not in calls:
-                name, args = str(block.get("name")), block.get("input") or {}
+                name, args = str(block.get("name")), block.get("input")
+                args = args if isinstance(args, dict) else {}
                 if name == "Skill" and str(args.get("skill", "")).endswith("go-faster"):
                     cut_record, cut_call = i, len(calls)
                 calls[str(block.get("id"))] = {"name": name, "args": args, "at": stamp}
@@ -879,13 +941,20 @@ def transcript_counts(path: Path) -> dict:
                 if call is None or "error" in call:
                     continue
                 call["error"] = bool(block.get("is_error"))
+                outcome = record.get("toolUseResult")
+                if isinstance(outcome, dict) and outcome.get("type") == UNCHANGED:
+                    call["result"] = UNCHANGED
+                elif "content" in block:
+                    call["result"] = hashlib.sha256(
+                        json.dumps(block["content"], sort_keys=True).encode("utf-8")
+                    ).hexdigest()
                 if call["at"] is not None and stamp is not None:
                     call["until"] = stamp
     prior_calls = list(calls.values())[:cut_call]
     prior = records[:cut_record]
     tools: dict[str, dict[str, int]] = {}
-    reads: dict[str, int] = {}
-    commands: dict[str, int] = {}
+    reads: dict[str, list[str | None]] = {}  # read key -> each call's result digest
+    commands: dict[str, list[str | None]] = {}
     skills: dict[str, int] = {}
     waits: dict[str, list[tuple[float, float]]] = {}
     for call in prior_calls:
@@ -895,14 +964,25 @@ def transcript_counts(path: Path) -> dict:
         tool["errors"] += call.get("error", False)
         if "until" in call:
             waits.setdefault(name, []).append((call["at"], call["until"]))
-        if name == "Read" and isinstance(args.get("file_path"), str):
-            reads[args["file_path"]] = reads.get(args["file_path"], 0) + 1
-        if name == "Bash" and isinstance(args.get("command"), str):
-            commands[args["command"]] = commands.get(args["command"], 0) + 1
+        read_path, command = args.get("file_path"), args.get("command")
+        if (
+            name == "Read"
+            and isinstance(read_path, str)
+            and not TASK_OUTPUT.search(read_path)
+        ):
+            reads.setdefault(read_key(args), []).append(call.get("result"))
+        if (
+            name == "Bash"
+            and isinstance(command, str)
+            and not TASK_OUTPUT.search(command)
+        ):
+            commands.setdefault(command, []).append(call.get("result"))
         if name == "Skill" and isinstance(args.get("skill"), str):
             skills[args["skill"]] = skills.get(args["skill"], 0) + 1
     for name, spans in waits.items():
         tools[name]["wait_ms"] = round(union_seconds(spans) * 1000)
+    same_reads, unknown_reads = repeats(reads)
+    same_commands, unknown_commands = repeats(commands)
     ledger = tr.UsageLedger()
     for record in prior:
         ledger.add(record)
@@ -930,8 +1010,10 @@ def transcript_counts(path: Path) -> dict:
         "work_before_invocation": len(prior_calls),
         "tokens": ledger.totals(),
         "tools": tools,
-        "repeated_reads": merged(reads, inert),
-        "repeated_commands": merged(commands, shown_command),
+        "repeated_reads": shown_reads(same_reads),
+        "repeated_commands": merged(same_commands, shown_command),
+        "unverified_repeated_reads": shown_reads(unknown_reads),
+        "unverified_repeated_commands": merged(unknown_commands, shown_command),
         "skills": skills,
         "subagents": sum(started_before_cut(s.path) for s in tr.iter_subagents(path)),
     }

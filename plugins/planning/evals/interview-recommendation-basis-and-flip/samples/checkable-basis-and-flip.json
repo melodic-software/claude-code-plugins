@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: Where should the counters live?\nMy recommendation: the existing Redis 7 instance.\nBasis: you said Redis 7 is already deployed for sessions.\nWould change if: that instance cannot absorb about 2,000 extra writes a second at peak.\n\nQ2: What is the limit unit?\nMy recommendation: per API key, 1,000 requests per minute.\nBasis: your published partner terms, as you quoted them.\nWould change if: the terms also bind anonymous callers.",
+      "why": "each recommendation has a checkable basis and a flip condition"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: Where should the counters live?\nMy recommendation: Redis.\nBasis: judgment\n\nQ2: What is the limit unit?\nMy recommendation: per API key.\nBasis: judgment",
+      "why": "no checkable basis, no flip condition"
+    },
+    {
+      "answer": "Q1: Where should the counters live?\nMy recommendation: Redis, since you said it is deployed.\n\nQ2: Which algorithm?\nMy recommendation: token bucket. Would change if you need strict per-minute windows.",
+      "why": "Q1 has no flip condition and Q2 has no checkable basis"
+    }
+  ]
+}

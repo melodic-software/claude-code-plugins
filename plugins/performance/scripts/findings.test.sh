@@ -327,8 +327,9 @@ use() { # <second> <msg-id> <tool-id> <name> <input-json> <output-tokens>
   printf '{"type":"assistant","timestamp":"%s","message":{"id":"%s","content":[{"type":"tool_use","id":"%s","name":"%s","input":%s}],"usage":{"input_tokens":10,"output_tokens":%s}}}\n' \
     "$(ts "$1")" "$2" "$3" "$4" "$5" "$6"
 }
-result() { # <second> <tool-id> <is_error>
-  printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"%s","is_error":%s}]}}\n' "$(ts "$1")" "$2" "$3"
+result() { # <second> <tool-id> <is_error> [content-json, default "ok"]
+  printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"%s","is_error":%s,"content":%s}]}}\n' \
+    "$(ts "$1")" "$2" "$3" "${4:-\"ok\"}"
 }
 {
   printf '{"type":"user","timestamp":"%s","message":{"content":"speed this up"}}\n' "$(ts 0)"
@@ -1007,7 +1008,11 @@ LONGCMD="echo $(printf 'z%.0s' {1..100})"
 TR2="$WORK/secrets.jsonl"
 : >"$TR2"
 n=0
-bash_use() { n=$((n + 1)); use "$n" "s$n" "x$n" Bash "$(jq -cn --arg c "$1" '{command: $c}')" 5 >>"$TR2"; }
+bash_use() {
+  n=$((n + 1))
+  use "$n" "s$n" "x$n" Bash "$(jq -cn --arg c "$1" '{command: $c}')" 5 >>"$TR2"
+  result "$n" "x$n" false >>"$TR2"
+}
 for c in "npm test" "npm test" "npm test" "$BEARER" "$BEARER" "$EXPORT" "$EXPORT" \
   "$USERINFO" "$USERINFO" "$FLAG" "$FLAG" "$LONGCMD" "$LONGCMD" \
   'curl -H "Authorization: Bearer one111"' 'curl -H "Authorization: Bearer two222"'; do
@@ -1075,7 +1080,11 @@ assert_eq "a flag-only finding that loosens a guard passes" "0" "$RUN_RC"
 TR3="$WORK/secrets2.jsonl"
 : >"$TR3"
 n=0
-bash_use3() { n=$((n + 1)); use "$n" "t$n" "y$n" "$1" "$2" 5 >>"$OUT"; }
+bash_use3() {
+  n=$((n + 1))
+  use "$n" "t$n" "y$n" "$1" "$2" 5 >>"$OUT"
+  result "$n" "y$n" false >>"$OUT"
+}
 SHAPES=(
   'curl -u admin:''hunter3 https://x' 'curl --user=a:''pw4444 https://x'
   "curl -H 'X-Api-Key: key5555' https://x" 'curl -H "PRIVATE-TOKEN: tok6666" https://x'
@@ -1122,5 +1131,80 @@ start=$SECONDS
 run render "$WORK/spaces.json"
 assert_eq "a title of 20k spaces renders in under 5 seconds" "yes" \
   "$([[ "$RUN_RC" == 0 && $((SECONDS - start)) -lt 5 ]] && echo yes || echo "no (rc $RUN_RC, $((SECONDS - start))s)")"
+
+# --- 41. transcript-counts: paged reads and re-reads of changing input are not repeats ---
+# Only a call whose arguments AND result match an earlier one is a repeat: reusing its output is
+# then safe. Paged reads of one file, a background task's growing output file, and a command whose
+# result changed between runs all fail that test. Identical calls the transcript holds no result
+# for cannot be checked, so they are reported apart as unverified.
+PG="$WORK/paged.jsonl"
+{
+  use 1 p1 r1 Read '{"file_path":"big.md","offset":1,"limit":100}' 5
+  result 2 r1 false '"part one"'
+  use 3 p2 r2 Read '{"file_path":"big.md","offset":101,"limit":100}' 5
+  result 4 r2 false '"part two"'
+  use 5 p3 r3 Read '{"file_path":"big.md","offset":201,"limit":100}' 5
+  result 6 r3 false '"part three"'
+  use 7 p4 r4 Bash '{"command":"cat /tmp/x/tasks/b1.output"}' 5
+  result 8 r4 false '"line 1"'
+  use 9 p5 r5 Bash '{"command":"cat /tmp/x/tasks/b1.output"}' 5
+  result 10 r5 false '"line 1"'
+  use 11 p6 r6 Read '{"file_path":"/tmp/x/tasks/b2.output"}' 5
+  result 12 r6 false '"started"'
+  use 13 p7 r7 Read '{"file_path":"/tmp/x/tasks/b2.output"}' 5
+  result 14 r7 false '"started"'
+  use 15 p8 r8 Bash '{"command":"git status --short"}' 5
+  result 16 r8 false '"M a.py"'
+  use 17 p9 r9 Bash '{"command":"git status --short"}' 5
+  result 18 r9 false '[{"type":"text","text":"M a.py\nM b.py"}]'
+  use 19 p10 r10 Read '{"file_path":"big.md","offset":1,"limit":100}' 5
+  result 20 r10 false '"part one"'
+  use 21 p11 r11 Bash '{"command":"make lint"}' 5
+  printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"r11","is_error":false}]}}\n' "$(ts 22)"
+  use 23 p12 r12 Bash '{"command":"make lint"}' 5
+  printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"r12","is_error":false}]}}\n' "$(ts 24)"
+  # A relative task-output path, run from the session's task directory's parent.
+  use 25 p13 r13 Bash '{"command":"tail tasks/b9.output"}' 5
+  result 26 r13 false '"step 3"'
+  use 27 p14 r14 Bash '{"command":"tail tasks/b9.output"}' 5
+  result 28 r14 false '"step 3"'
+} >"$PG"
+run transcript-counts "$PG"
+assert_eq "transcript-counts exits 0 on paged and changing reads" "0" "$RUN_RC"
+assert_eq "paged reads of one file, a task's output and a changed result are not repeats" \
+  '{"big.md (offset 1, limit 100)":2}' "$(q '.repeated_reads | tojson')"
+assert_eq "no command repeated with an unchanged result" '{}' "$(q '.repeated_commands | tojson')"
+assert_eq "an identical command with no result in the transcript is unverified, not a repeat" \
+  '{"make lint":2}' "$(q '.unverified_repeated_commands | tojson')"
+assert_eq "no read is unverified when every result is held" '{}' "$(q '.unverified_repeated_reads | tojson')"
+
+# A whole-file re-read of an unchanged file returns a file_unchanged stub, never the same text:
+# that is a repeat. A tool call whose input is not an object is counted, never a crash.
+UC="$WORK/unchanged.jsonl"
+{
+  use 1 u1 s1 Read '{"file_path":"x.py"}' 5
+  result 2 s1 false '"print(1)"'
+  for n in 2 3; do
+    use $((n * 2 + 1)) "u$n" "s$n" Read '{"file_path":"x.py"}' 5
+    printf '{"type":"user","timestamp":"%s","toolUseResult":{"type":"file_unchanged"},"message":{"content":[{"type":"tool_result","tool_use_id":"s%s","is_error":false,"content":"unchanged stub"}]}}\n' "$(ts $((n * 2 + 2)))" "$n"
+  done
+  use 9 u4 s4 Grep '["not an object"]' 5
+  result 10 s4 false
+  # A path that spells a window is not that window of another file.
+  # Each group repeats on its own; a shared label would add the two.
+  use 11 u5 s5 Read '{"file_path":"foo (offset 1)"}' 5
+  result 12 s5 false '"same"'
+  use 13 u6 s6 Read '{"file_path":"foo","offset":1}' 5
+  result 14 s6 false '"same"'
+  use 15 u7 s7 Read '{"file_path":"foo (offset 1)"}' 5
+  result 16 s7 false '"same"'
+  use 17 u8 s8 Read '{"file_path":"foo","offset":1}' 5
+  result 18 s8 false '"same"'
+} >"$UC"
+run transcript-counts "$UC"
+assert_eq "transcript-counts exits 0 on a non-object tool input" "0" "$RUN_RC"
+assert_eq "file_unchanged re-reads count as repeats; a path that spells a window stays apart from it" \
+  '{"foo (offset 1)":2,"foo (offset 1) #2":2,"x.py":3}' "$(q '.repeated_reads | tojson')"
+assert_eq "a tool call with a non-object input is still counted" "1" "$(q '.tools.Grep.calls')"
 
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
