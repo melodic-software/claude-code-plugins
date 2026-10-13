@@ -209,7 +209,9 @@ After writing the PRD, recommend the next step. The recommendation depends on re
 - **Engineering scope still fuzzy** (constraints, untouchable areas, perf budget unclear) → clear context, then `/planning:interview` (it will read the topic's `PRD.md` as scope)
 - **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` if enabled, otherwise whatever codebase-exploration capability the environment provides
 - **Need external research (libs, APIs, comparables)** → `/discovery:research` if enabled, otherwise the strongest research capability available
-- **Engineering scope clear and externals understood** → `/planning:plan`
+- **Engineering scope clear and externals understood** → `/planning:design`, which records a one-line early exit when no design question is open and hands off to `/planning:plan`
+- **The locked PRD is one unit of work that a later session, an AFK lane or another person picks up** → `/work-items:track add --agent-ready`, one tracker item carrying the PRD's acceptance criteria
+- **An open question waits on a stakeholder** → `/planning:questionnaire`, which sends it to the person who holds the answer
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
@@ -350,8 +352,9 @@ Complementary to `/planning:devils-advocate`. Review checks structure and conven
 
 ## Next
 
-- PRD locked and the engineering contract is next: /planning:interview.
-- PRD locked and the Brief already exists: /planning:plan.
+- PRD locked: /planning:interview for the engineering contract, or /planning:design when the Brief already exists.
+- PRD locked and it is one unit of work for a later session, an AFK lane or another person: /work-items:track add --agent-ready.
+- An open question waits on a stakeholder: /planning:questionnaire.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## Gotchas

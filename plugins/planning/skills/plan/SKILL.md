@@ -438,7 +438,7 @@ Write the plan even for small changes; only the one-sentence skip (Purpose) writ
 
 - The approved plan runs in this session: /implementation:implement.
 - The execution shape routes phases to worker subagents: /implementation:implement-dispatch.
-- The plan holds more than one independently shippable ticket: /work-items:decompose.
+- The plan holds more than one independently shippable ticket, or a later session, an AFK lane or another person picks it up: /work-items:decompose.
 
 ## Gotchas
 

@@ -99,6 +99,36 @@ loading at all. Permission refusals are the grant's job, not the fallback's (see
 Use the `|| echo "<fallback>"` form (or the `shell:`-appropriate equivalent) on every
 `` !`command` `` and every line inside a ` ```! ` block.
 
+### No brace group or subshell in an injected command
+
+Write every injected command as a plain list: probes joined by `&&`, `||`, `;` and `|`, with no
+brace group (`{ …; }`) and no subshell (`( … )`). A tool probe is the probe, `||`, and a fallback
+word:
+
+```text
+- `jq`: !`command -v jq 2>/dev/null || echo absent`
+```
+
+We hold this rule because of what a headless probe in default permission mode observed. The shell
+permission check refused every grouped row before it ran, so the skill rendered nothing: a brace
+group with or without a quote inside it, and a subshell with or without one. A narrow
+`allowed-tools` grant for the probe did not lift either refusal. A blanket `Bash` grant did let the
+brace group through, but we never use one to rescue a group, because it breaks
+[Grant every injected command](#grant-every-injected-command). The same row written as a plain list
+rendered once its command was granted, with or without a quoted fallback word, and was refused
+without the grant. `${VAR}` parameter expansion is not a group in this sense. The probe did not
+cover an `if … fi` compound, so prefer a plain list there too.
+
+- **Pointer**: when deciding whether a grouped or ungrouped injected command loads, read the probe
+  command and its rows under "Probe evidence" in
+  [pull request #7068](https://github.com/melodic-software/claude-code-plugins/pull/7068) and rerun
+  them on the current release; for how the render treats a permission check result, fetch
+  [Permission checks on injected commands](https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands)
+  live.
+- **As of**: 2026-10-11 (Claude Code 2.1.296)
+- **Recheck trigger**: a Claude Code release note changes which Bash shapes the permission check
+  can analyze, or that section starts naming syntax the check refuses.
+
 ### Bind the fallback to the probe, not to the pipeline
 
 `||` applies to the whole pipeline, and a pipeline's exit status is its last command's. So
@@ -107,11 +137,16 @@ probe produced twenty lines, one line, or nothing at all. The rendered value is 
 and under a label like `Working tree status:` an empty string reads as a healthy result rather
 than a failed probe.
 
-Put the fallback in a brace group with the probe, and apply the cap outside it:
+Since no group can hold the probe and its fallback together, put a guard that fails on the
+condition in front of the pipeline, and repeat the guard before the fallback:
 
 ```text
-Working tree status (empty = clean): !`{ git status --porcelain 2>/dev/null || echo "(git status unavailable)"; } | head -20`
+Working tree status (empty = clean, or git status failed after the check): !`git rev-parse --is-inside-work-tree >/dev/null 2>&1 && git status --porcelain 2>/dev/null | head -20 || git rev-parse --is-inside-work-tree >/dev/null 2>&1 || echo "(not a git repository)"`
 ```
+
+The list reads `((guard && probe | cap) || guard) || fallback`. When the guard fails, both copies
+fail and the fallback renders. When the guard passes, the fallback never runs, whatever the
+pipeline's status.
 
 Two rules follow from the same reasoning:
 
@@ -122,7 +157,7 @@ Two rules follow from the same reasoning:
 - **Say in the label what empty means**, so a reader can tell a clean tree from a probe that
   produced nothing.
 
-Keep a brace group that contains `git` free of `$`. The worktree-isolation guard blocks a Bash command when it
+Keep a pre-compute block that runs `git` free of `$`. The worktree-isolation guard blocks a Bash command when it
 cannot verify from the command text that any git the command runs stays inside the worktree: a
 command name computed at runtime, syntax it cannot parse, or an expansion such as `${!name}` or
 `${ command; }` that could run a command the text does not spell out. Claude Code 2.1.257 stopped
@@ -140,29 +175,37 @@ shape), `plugins/source-control/skills/worktree/reference/gather-block.md`, and 
 As of: 2026-09-28. Recheck: the Command shape bullet changes which expansions are refused, or a
 release note again changes which Bash forms an isolated session accepts.
 
-### `pipefail` is an open question; the brace group is correct either way
+### Write for either `pipefail` setting; the repeated guard is correct under both
 
-Whether Claude Code runs `!` injections under `set -o pipefail` is **unsettled**. The skills docs
-specify the working directory, stderr merging, timeout, output size, and the exit-code semantics
-of an injected command, but name no shell options. Assume either setting, and write a probe that
-renders the same under both.
+The skills docs specify the working directory, stderr merging, timeout, output size, and the
+exit-code semantics of an injected command, but name no shell options. A headless probe rendered
+a row as it would without `pipefail`, but no page promises that, so write a probe that renders the
+same under both settings.
 
-The brace-group form above does. Its fallback fires on the probe's own exit status and its cap
-sits outside the group, so no downstream stage can change what renders.
+The repeated-guard form above does:
 
-A `guard && probe | filter | head -N || echo "(unavailable)"` shape does not. It is correct under
-exactly one setting, and which one it needs depends on the state:
-
-- **Without `pipefail`** the pipeline's status is `head`'s, so the trailing `|| echo` never fires
-  and a failed filter stage renders empty under a label claiming the opposite.
+- **Without `pipefail`** the pipeline's status is `head`'s, 0, so the fallback stays silent and
+  the capped output renders.
 - **With `pipefail`** `head -N` closes the pipe once it has its N lines, the upstream stage takes
-  SIGPIPE, and the pipeline exits 141, so a healthy at-cap render gains a spurious
-  `(unavailable)` line.
+  SIGPIPE, and the pipeline exits 141. The second guard still passes, so the fallback stays silent
+  here too, and a healthy at-cap render gains no spurious line.
 
-The brace group buys that at a price worth naming. Its final `:` makes the outer `||` unreachable,
-so a failure INSIDE the group also renders empty: a filter binary off PATH, or a second `git`
+A `guard && probe | filter | head -N || echo "(unavailable)"` shape without the second guard is
+correct under exactly one setting: without `pipefail` a failed filter stage renders empty under a
+label claiming the opposite, and with `pipefail` a healthy at-cap render gains a spurious
+`(unavailable)` line.
+
+The repeated guard has a price worth naming. Once the guard passes, the fallback is unreachable,
+so a failure after the guard also renders empty: a filter binary off PATH, or a second `git`
 invocation that fails after the guard's copy succeeded. The label carries that weight instead, and
 must never assert a bare `empty = none`.
+
+- **Pointer**: when deciding whether a row may rely on either `pipefail` setting, fetch
+  [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
+  live; the probe row is under "Probe evidence" in
+  [pull request #7068](https://github.com/melodic-software/claude-code-plugins/pull/7068).
+- **As of**: 2026-10-11 (Claude Code 2.1.296)
+- **Recheck trigger**: that section starts naming the shell options injections run under.
 
 ### Windows / `shell:` awareness
 

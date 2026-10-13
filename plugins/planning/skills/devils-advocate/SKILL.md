@@ -236,6 +236,10 @@ Based on findings, suggest relevant follow-up actions:
 - **Does not generate generic warnings**. Every finding must have specific evidence. "This might break" without a bug number, doc reference, or logical argument is not acceptable
 - **Does not audit a running system's health**. `incumbent` mode is a pre-implementation keep-or-replace decision against alternatives, not a runtime performance / correctness audit of production
 
+## Next
+
+/planning:plan takes the verified findings back into the plan before the user approves it.
+
 ## Workflow position
 
 Runs as the stress-test step between `/planning:plan`'s plan formulation and user approval: ... → `/planning:plan` → **stress-test (this skill)** → targeted research iteration if needed → user approval → execute.
