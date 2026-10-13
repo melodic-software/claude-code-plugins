@@ -1018,6 +1018,17 @@ run_file --file "$B/BlocksTests.cs" --blocks
 assert_matches "--blocks: C# brace body" "$out" '^block BlocksTests\.cs:3-6 1 Adds$'
 assert_matches "--blocks: C# => body" "$out" '^block BlocksTests\.cs:8-9 1 Subs$'
 
+# An escaped quote does not end a test name: the judge is handed the name and
+# matches its verdicts by it, so a cut name gets no verdict.
+printf '%s\n' "Describe 'q' {" "  It 'stops when its parent, the task''s host, exits' {" "    Get-X | Should -Be 1" "  }" \
+  '  It "says `"hi`", then ""bye""" {' "    Get-X | Should -Be 2" "  }" "}" >"$B/Quotes.Tests.ps1"
+run_file --file "$B/Quotes.Tests.ps1" --blocks
+assert_contains "--blocks: a Pester doubled '' stays in the name" "$out" "block Quotes.Tests.ps1:2-4 1 stops when its parent, the task''s host, exits"
+assert_contains "--blocks: a Pester backtick and doubled \"\" stay in the name" "$out" 'block Quotes.Tests.ps1:5-7 1 says `"hi`", then ""bye""'
+printf '%s\n' "it('doesn\\'t stop, then ends', () => {" "  expect(f()).toBe(2);" "});" >"$B/quote.test.ts"
+run_file --file "$B/quote.test.ts" --blocks
+assert_contains "--blocks: a JS backslash-escaped quote stays in the name" "$out" "block quote.test.ts:1-3 1 doesn\\'t stop, then ends"
+
 # A Python block ends on its last code line: the blank line before the next
 # def is not part of it.
 printf '%s\n' "def test_a():" "    assert foo() == 1" "" "def test_b():" "    assert foo() == 2" >"$B/test_blocks.py"

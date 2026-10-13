@@ -744,6 +744,22 @@ for field in published applies_to standing; do
   assert_present "the sources[] schema carries $field" \
     'skills/research/context/artifact-shape.md' "^ {8}${field}: "
 done
+# An undated living doc is dated by a recorded method, never by a serve-time
+# header, and the verifier grades that recorded method (#6069).
+assert_present 'the sources[] schema carries dated_by' \
+  'skills/research/context/artifact-shape.md' '^ {8}dated_by: '
+assert_present 'artifact-shape has the undated-living-doc dating subsection' \
+  'skills/research/context/artifact-shape.md' '^### Dating an undated living doc$'
+assert_present 'artifact-shape says a serve-time header is not a publication date' \
+  'skills/research/context/artifact-shape.md' 'records when the page was served, so it is never a publication date'
+for family in 'code\.claude\.com `/docs/en/` pages' 'Microsoft Learn'; do
+  assert_present "the dating table has a $family row with an as-of date" \
+    'skills/research/context/artifact-shape.md' "^\\| ${family} \\|.*\\| 20[0-9]{2}-[0-9]{2}-[0-9]{2} \\|"
+done
+assert_present 'the verifier grades the recorded dating method' \
+  'agents/research-verifier.md' 'Grade the recorded dating method, never pick your own'
+assert_present 'the dispatch brief tells the verifier to grade the dating method' \
+  'skills/research/context/dispatch.md' 'Brief it on the dating method'
 assert_present 'each claim carries its target applies_to' \
   'skills/research/context/artifact-shape.md' '^ {4}applies_to: '
 assert_present 'the index records evidence_use' \

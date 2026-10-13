@@ -234,12 +234,14 @@ checkout. A bad entry fails closed under a reason naming it.
 - **Claim:** the checker leaves an L2/L3 entry unproven, with a reason beginning
   `no --credential-roots configured`, when a filesystem credential probe is evaluated and the
   `--credential-roots` argument is absent. The lane's helper passes the checker the binding,
-  `--evidence`, and `--probe-evidence-root` only, and a checker exit of 1 fails the helper closed.
+  `--evidence`, and `--probe-evidence-root`, plus `--credential-roots` when
+  `promotion_evidence_credential_roots` is set and every entry passes its lexical checks; a bad
+  entry, or a checker exit of 1, fails the helper closed.
 - **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (`Usage:` comment,
   the `credentialRoots === null` branch of the credential-probe check, `verifyProbeTranscript`);
-  `plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` (the
-  `spawnSync` argv and the non-zero-exit branch), checked 2026-10-01.
-- **As of:** 2026-10-01.
+  `plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs`
+  (`credentialRootsArgs`, the `spawnSync` argv and the non-zero-exit branch), checked 2026-10-13.
+- **As of:** 2026-10-13.
 - **Recheck:** the checker gaining a default for credential roots, or the helper passing more
   arguments.
 
