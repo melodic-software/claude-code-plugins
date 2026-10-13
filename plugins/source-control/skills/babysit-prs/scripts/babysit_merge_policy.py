@@ -1729,6 +1729,9 @@ PROMOTION_OPTIONS = (
     "promotion_evidence_source",
     "promotion_evidence_checker",
 )
+# Optional options whose values are not local paths: the credential roots name
+# the probe host, so only the settings file they came from is checked.
+PROMOTION_SETTINGS_ONLY_OPTIONS = ("promotion_evidence_credential_roots",)
 PROMOTION_RESOLVER = (
     Path(__file__).resolve().parents[2]
     / "babysit-loop"
@@ -1765,7 +1768,8 @@ def _options_refusal(
     """Why the option values the resolver reports, or the settings files they
     came from, are not trusted: one is unreported, or the lane user can write
     it or replace it through a directory above it. A lane that can rewrite the
-    evidence, the checker or the setting naming them decides `promoted`."""
+    evidence, the checker or the setting naming them decides `promoted`. A
+    reported settings-only option checks its settings file alone."""
     for option in PROMOTION_OPTIONS:
         entry = json_object(options.get(option))
         value, source = entry.get("value"), entry.get("file")
@@ -1777,6 +1781,17 @@ def _options_refusal(
                     return f"{label}-lane-writable:{option}"
             except OSError:
                 return f"{label}-unreadable:{option}"
+    for option in PROMOTION_SETTINGS_ONLY_OPTIONS:
+        if option not in options:
+            continue
+        source = json_object(options.get(option)).get("file")
+        if not isinstance(source, str):
+            return f"option-unreported:{option}"
+        try:
+            if writable(Path(source)):
+                return f"settings-lane-writable:{option}"
+        except OSError:
+            return f"settings-unreadable:{option}"
     return None
 
 

@@ -44,16 +44,30 @@ def make_stub(
     capture: Path = CAPTURE,
     exit_code: int = 0,
     argv_log: Path | None = None,
+    max_args: int | None = None,
 ) -> None:
+    """A fake jscpd that writes the capture into `--output`.
+
+    `argv_log` receives the argument vector, then the `--config` file the
+    adapter passed (it carries the file list). With `max_args`, the stub
+    behaves as jscpd did past the Windows command-line limit: more arguments
+    than that and it writes no report, prints nothing, and exits 9.
+    """
     log = f'printf \'%s\\n\' "$*" >>"{argv_log}"\n' if argv_log else ""
+    too_long = (
+        f"if [[ $# -gt {max_args} ]]; then exit 9; fi\n" if max_args is not None else ""
+    )
+    show_config = (
+        f'[[ -n "$config" ]] && cat "$config" >>"{argv_log}"\n' if argv_log else ""
+    )
     write_stub(
         directory / "jscpd",
-        version_gate(version_line) + log + "out=''\n"
+        version_gate(version_line) + too_long + log + "out='' config=''\n"
         "while [[ $# -gt 0 ]]; do\n"
         '  if [[ "$1" == "--output" ]]; then out="$2"; shift 2; continue; fi\n'
+        '  if [[ "$1" == "--config" ]]; then config="$2"; shift 2; continue; fi\n'
         "  shift\n"
-        "done\n"
-        'mkdir -p "$out"\n'
+        "done\n" + show_config + 'mkdir -p "$out"\n'
         f'cp "{capture}" "$out/jscpd-report.json"\n'
         f"exit {exit_code}\n",
     )
@@ -166,6 +180,42 @@ class JscpdAdapterTests(unittest.TestCase):
             self.assertIn("--min-tokens 77", argv)
             self.assertIn("--min-lines 9", argv)
             self.assertIn("--ignore **/vendor/**,**/dist/**", argv)
+
+    def test_a_long_file_list_never_reaches_the_command_line(self) -> None:
+        # Regression for the Windows failure: past the command-line limit jscpd
+        # wrote no report and printed nothing. The stub fails the same way past
+        # a small argument count, so a list carried on argv fails this test.
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "argv.log"
+            listing = Path(tmp) / "paths.txt"
+            files = [ALPHA, BETA] + [
+                f"{CLUSTER}/missing/copy-{index:04d}.sh" for index in range(1000)
+            ]
+            listing.write_text("\n".join(files) + "\n", encoding="utf-8")
+            make_stub(Path(tmp), argv_log=log, max_args=40)
+            result = run(
+                "collect",
+                "bash",
+                "duplication",
+                "--paths-from",
+                str(listing),
+                path_prefix=Path(tmp),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(len(result.stdout.splitlines()), 1)
+            argv, config = log.read_text(encoding="utf-8").split("\n", 1)
+            self.assertNotIn("copy-", argv)
+            listed = json.loads(config)["path"]
+            self.assertEqual(
+                listed, [str(REPO_ROOT / path) for path in files], "one run, every file"
+            )
+
+    def test_a_silent_failure_names_the_jscpd_exit_code(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            write_stub(Path(tmp) / "jscpd", version_gate("jscpd 5.2.0") + "exit 9\n")
+            result = run("collect", "bash", "duplication", ALPHA, path_prefix=Path(tmp))
+            self.assertEqual(result.returncode, 3)
+            self.assertIn("jscpd exit code 9", result.stderr)
 
     def test_no_report_file_is_exit_3_with_the_tool_stderr(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

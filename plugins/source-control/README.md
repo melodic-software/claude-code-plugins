@@ -406,6 +406,7 @@ repo's owner.
 | `promotion_evidence_root` | directory | no probe evidence root; every promotable cell stays effective-unpromoted (absolute path to the protected `--probe-evidence-root` directory, outside the target repository, read-only to the lane) |
 | `promotion_evidence_source` | file | no evidence source; every promotable cell stays effective-unpromoted (absolute path to the operator-published epoch-scoped events file, outside the target repository, read-only to the lane) |
 | `promotion_evidence_checker` | file | no checker; every promotable cell stays effective-unpromoted (absolute path to the autonomy plugin's `check-security-binding.mjs` from an install the operator trusts, outside the target repository, read-only to the lane) |
+| `promotion_evidence_credential_roots` | string | no `--credential-roots`; an isolation proof resting on a filesystem credential probe stays unproven (comma-separated absolute paths on the probe host, each not a filesystem root, with no `..` segment, not under an ephemeral base (`tmp`, `temp`, `shm`), and outside the target repository) |
 | `worktree_root` | directory | `worktrees/` under the plugin data dir (external root for `/source-control:worktree create`; never inside a repository or a repository-discovery root) |
 | `worktree_stale_days` | number | 14 (staleness threshold for `/source-control:worktree status`) |
 | `worktree_reap_after_hours` | number | 48 (last-commit age past which `/source-control:worktree cleanup` proposes a safe worktree by default) |
@@ -518,7 +519,9 @@ The binding is the binding argument of the autonomy plugin's `check-security-bin
 probe root is the protected evidence surface the seam resolves isolation probe transcripts against.
 The checker is the autonomy plugin's `skills/setup/scripts/check-security-binding.mjs`; it decides
 whether a cell is promoted, which is why it must sit outside the target repository and every lane
-worktree.
+worktree. The optional `promotion_evidence_credential_roots`, read the same way, is the checker's
+`--credential-roots`: the probe host's trusted credential locations, checked as text because they
+need not exist on the lane's host.
 
 **`setup_inference_min_commits`.** Still below the threshold after widening, the inference is
 reported low-confidence rather than authoritative.
@@ -573,6 +576,7 @@ reads it from.
 | `promotion_evidence_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_ROOT` | Absolute path to the protected --probe-evidence-root directory isolation probe transcripts resolve against, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
 | `promotion_evidence_source` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_SOURCE` | Absolute path to the operator-published, epoch-scoped promotion-evidence events file (--evidence), outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
 | `promotion_evidence_checker` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_CHECKER` | Absolute path to the check-security-binding.mjs the seam runs, from an autonomy install the operator trusts, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
+| `promotion_evidence_credential_roots` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_CREDENTIAL_ROOTS` | Comma-separated absolute paths trusted as credential stores (--credential-roots): no filesystem root, no .. segment, none under tmp/temp/shm or inside the repository or lane worktrees. User or managed settings only; --settings does not count. Absent: credential-probe isolation proofs stay unproven. |
 | `setup_inference_window` | string | `"1 year"` | `CLAUDE_PLUGIN_OPTION_SETUP_INFERENCE_WINDOW` | git log --since window /source-control:setup samples for commit-subject convention inference; any git approxidate, for example 1 year or 6 months. Default 1 year. |
 | `setup_inference_recency_days` | number<br>*min 1* | `90` | `CLAUDE_PLUGIN_OPTION_SETUP_INFERENCE_RECENCY_DAYS` | Boundary for the recency split in /source-control:setup's convention-inference report: subjects newer than this many days are the recent bucket, weighted as the live convention when its share diverges from the older bucket. Default 90. |
 | `setup_inference_min_commits` | number<br>*min 1* | `50` | `CLAUDE_PLUGIN_OPTION_SETUP_INFERENCE_MIN_COMMITS` | Below this many classifiable subjects in the window, /source-control:setup widens inference to full history; still below it, the inference is reported low-confidence. Default 50. |

@@ -42,11 +42,11 @@ const managedConfigures = managedSettingsFiles().some((file) => {
 const cli = { skip: managedConfigures && "host managed settings configure promotion_evidence_* options" };
 
 let stubCount = 0;
-// A stub checker that exits 9 unless it got exactly the bootstrap argv.
-function stub(stdout, exitCode = 0, dir = ops) {
+// A stub checker that exits 9 unless it got exactly the bootstrap argv, plus `extra`.
+function stub(stdout, exitCode = 0, dir = ops, extra = []) {
   stubCount += 1;
   const path = join(dir, `checker-${stubCount}.mjs`);
-  const expected = [surfaces.binding, "--evidence", surfaces.evidence, "--probe-evidence-root", surfaces.root];
+  const expected = [surfaces.binding, "--evidence", surfaces.evidence, "--probe-evidence-root", surfaces.root, ...extra];
   writeFileSync(
     path,
     `if (JSON.stringify(process.argv.slice(2)) !== ${JSON.stringify(JSON.stringify(expected))}) process.exit(9);
@@ -116,6 +116,41 @@ test("operator settings bootstrap reports the printed cells and leaves an unprin
   });
   assert.equal(result.cells["C3-auto-merge"].effective, "unpromoted");
   assert.deepEqual(result.cells["C3-ai-review-blocking"], { bound: null, effective: "unpromoted", line: null });
+  // Unset credential roots are not a fail-closed reason: the exact-argv stub saw no flag.
+  assert.equal(result.options.promotion_evidence_credential_roots, undefined);
+});
+
+const ROOTS = "/home/runner, C:\\Users\\runner\\.aws,/nonexistent-probe-host/creds";
+const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+test("set credential roots reach the checker as --credential-roots and are reported in options", cli, () => {
+  // The roots name the probe host, so a path absent on this host is still accepted.
+  const checker = stub(GOOD_OUTPUT, 0, ops, ["--credential-roots", ROOTS]);
+  const result = runWith(checker, { promotion_evidence_credential_roots: ROOTS });
+  assert.equal(result.failClosedReason, null);
+  assert.equal(result.cells["C2-auto-merge"].effective, "promoted");
+  assert.deepEqual(result.options.promotion_evidence_credential_roots, { value: ROOTS, scope: "user", file: userSettings });
+});
+
+test("a relative, root, dot-dot, empty or checkout-inside credential root fails closed", cli, () => {
+  const checker = stub(GOOD_OUTPUT, 0, ops, ["--credential-roots", "unused"]);
+  const worktrees = join(ops, "worktrees");
+  const reason = (value, problem) => new RegExp(`promotion_evidence_credential_roots entry ${escapeRe(JSON.stringify(value))} ${problem}`);
+  const cases = [
+    ["home/runner", reason("home/runner", "is not an absolute path")],
+    ["//server/share", reason("//server/share", "is not an absolute path")],
+    ["/", reason("/", "names a filesystem root")],
+    ["/home/runner,C:\\", reason("C:\\", "names a filesystem root")],
+    ["/home/runner/../../etc", reason("/home/runner/../../etc", "has a '\\.\\.' segment")],
+    ["/home/runner,,/run/secrets", /promotion_evidence_credential_roots has an empty entry/],
+    [`/home/runner,${join(checkout, "creds")}`, reason(join(checkout, "creds"), "is inside .*checkout")],
+    [checkout, reason(checkout, "is inside .*checkout")],
+    [join(worktrees, "w1", ".aws"), reason(join(worktrees, "w1", ".aws"), "is inside .*worktrees")],
+  ];
+  for (const [value, pattern] of cases) {
+    const result = runWith(checker, { promotion_evidence_credential_roots: value }, { args: { "worktree-root": worktrees } });
+    assertFailClosed(result, pattern);
+  }
 });
 
 test("a lane-chosen stub checker or forged binding outside the checkout no longer yields promoted", cli, () => {
@@ -264,6 +299,25 @@ test("garbled checker output fails closed", cli, () => {
   assertFailClosed(runWith(stub(garbled)), /did not parse/);
   assertFailClosed(runWith(stub("Security binding OK: binding.json\n")), /no 'Effective promotion state' block/);
 });
+
+// A failing read under an ephemeral base proves nothing about the host's credential store.
+for (const base of [
+  "/tmp",
+  "/tmp/creds",
+  "/var/tmp/creds",
+  "/dev/shm",
+  "/dev/shm/creds",
+  "C:\\Temp",
+  "C:\\TEMP\\creds",
+  "C:\\Users\\runner\\AppData\\Local\\Temp\\creds",
+]) {
+  test(`credential root ${base} under an ephemeral base fails closed`, cli, () => {
+    const checker = stub(GOOD_OUTPUT, 0, ops, ["--credential-roots", "unused"]);
+    const result = runWith(checker, { promotion_evidence_credential_roots: `/home/runner,${base}` });
+    const named = escapeRe(JSON.stringify(base));
+    assertFailClosed(result, new RegExp(`promotion_evidence_credential_roots entry ${named} sits under an ephemeral base`));
+  });
+}
 
 test("resolveInstall anchors only the plugins/cache/<marketplace>/<name>/<version> layout", () => {
   assert.deepEqual(resolveInstall("/home/u/.claude/plugins/cache/mkt/source-control/1.2.3"), {
