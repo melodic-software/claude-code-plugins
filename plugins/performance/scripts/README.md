@@ -72,6 +72,6 @@ Name the check relative to `check.cwd`, which the harness does resolve.
 
 `0` the harness ran and the result is as expected. `1` the subject or the comparison came out
 negative: a mismatch, a check that does not discriminate. `2` the harness could not run, or could not
-have measured what it claims. The `1` and `2` split is load-bearing rather than tidy: conflating "the
+have measured what it claims. Keep the `1` and `2` split even where it looks fussy: conflating "the
 check does not discriminate" with "the check never ran" is what produced four confident wrong
 verdicts in the source run.
