@@ -81,19 +81,25 @@ Shape the composed body for the person who reads the item, bottom line first and
 1. **Create the item** via the seam (`create-item` routes the write through the adapter's identity policy). On org repos pass the resolved native Issue Type via the seam's `--type` passthrough (the adapter maps `Bug`/`Feature`/`Task` to the native GitHub Issue Type); on personal / non-org repos the type instead rode into `{labels}` in the resolve step, so omit `--type`. **When `--recurring` targets a repo with no `.github/recurring-schedule.json` yet, resolve the schedule bootstrap FIRST** (the ask-first path in the next step). If the user declines the new schedule or it cannot be written, create the item **non-recurring** (drop the `[Maintenance]` prefix and the `recurring`/`cadence:` labels) or abort; never create a `[Maintenance]` item that `due`/`recheck` can never reconcile because no schedule row backs it. If `--recurring` and the schedule is in place, prefix the title with `[Maintenance]` to match the convention used by the recurring-issues automation (enables dedup and `recheck` matching). Write the composed body to a temp file with the Write tool and pass it argv-safe. **Never** inline the generated body, which can contain quotes, backticks, or `$()` the shell would interpret before the seam sees it:
 
 ```bash
-BODY_FILE=$(mktemp)
-# Write the composed body to "$BODY_FILE" with the Write tool NOW — before create-item —
-# not via shell interpolation. "$(cat "$BODY_FILE")" then passes the file content as one
-# literal argument the shell never re-parses.
-TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
-[[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
-"$TRACKER" create-item \
+# Call 1: print a fresh temp path. Write the composed body to that path with the Write tool
+# before call 2, never through the shell. --body-file hands the file to the seam as one
+# literal body the shell never re-parses.
+mktemp
+# Call 2: every value spelled out, the temp path from call 1 included.
+"${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh" create-item \
   --title "[Maintenance] {title}" \
-  --body "$(cat "$BODY_FILE")" \
+  --body-file "<temp path from call 1>" \
   --type "{type}" \
-  --labels "{labels}"   # --type: org repos only (native Issue Type); on personal/non-org repos drop it — the type is already a type: label in {labels}
-rm -f "$BODY_FILE"
+  --labels "{labels}"   # --type: org repos only (native Issue Type); on personal/non-org repos drop it, the type is already a type: label in {labels}
+# Call 3: run it whether call 2 succeeded or failed, so no temp file is left behind.
+rm -f "<temp path from call 1>"
 ```
+
+Run each call as its own plain Bash command: no `$(...)`, no `git`, and no `&&` chain around `create-item`, so a worktree-isolated session can run it as written. When call 2 fails, still run call 3, then report the failure; a retry starts again from call 1 with a fresh temp path. If the `${CLAUDE_PLUGIN_ROOT}` tracker path does not exist, run `git rev-parse --show-toplevel` as a separate call and spell out `<that path>/tools/work-item-tracker/work-item-tracker.sh` in call 2.
+
+- **Pointer**: [Worktrees, "How Claude Code enforces isolation"](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation); probe [#6929](https://github.com/melodic-software/claude-code-plugins/issues/6929).
+- **As of**: 2026-10-11
+- **Recheck trigger**: a Claude Code release in which the pre-#6929 snippet (tracker path fallback through `$(git rev-parse --show-toplevel)`, body through `"$(cat "$BODY_FILE")"`) runs from a worktree-isolated session.
 
 For non-recurring items, omit the `[Maintenance]` prefix. Pass `--parent '<id>'` and `--blocked-by '<id>[,<id>]'` through to `create-item` when given; a `--parent` the provider cannot honor exits `6`, which is reported, never dropped. The emitted item object carries the new `id` (fully-qualified) and `number`.
 
