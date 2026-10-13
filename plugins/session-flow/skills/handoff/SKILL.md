@@ -188,7 +188,7 @@ The constraints re-scan attestation is not a cumulative entry. It goes on the `R
 ## Settle in-flight work before writing
 
 Before `save_point.py new` (or the prompt-only rails prompt), sort every still-running item of
-off-thread work this session started per [`reference/settle-in-flight.md`](reference/settle-in-flight.md):
+off-thread work this session started or inherited per [`reference/settle-in-flight.md`](reference/settle-in-flight.md):
 wait for dependent work, record independent work, and on stuck dependent work let the user choose.
 
 ## WIP commit on an explicit pause

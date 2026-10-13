@@ -4,9 +4,12 @@ Hand off only once everything the handoff describes is settled; the failure shap
 `context/gotchas.md`.
 
 Before `save_point.py new` (or, on the prompt-only path, before the rails prompt), take every
-still-running item of off-thread work this session started, the kinds in
-[`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)
-with spawned subagents the usual case, read its real state there, and sort it:
+still-running item of off-thread work this session started or the previous handoff recorded as
+left running, the kinds in the plugin's `reference/off-thread-work.md` (the path `SKILL.md`
+links) with spawned subagents the usual case, read its real state there, and sort it. Judge
+progressing versus stuck by the Active-verification protocol in `/session-flow:keep-going`:
+progress against elapsed time only raises suspicion, and ambiguous evidence means the work is
+alive.
 
 - **The handoff depends on it**: its result would change the brief, the next action, a decision,
   or a completion criterion. When it is progressing and expected to finish, wait for its result,
