@@ -1,6 +1,6 @@
 # MCP Tool Audit Checklist
 
-19 criteria (C1-C19) derived from three upstream authorities, cited so the current text governs. Do
+20 criteria (C1-C20) derived from three upstream authorities, cited so the current text governs. Do
 not recap them here, read them at the source:
 
 - [MCP specification 2026-07-28: Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
@@ -51,16 +51,27 @@ pointer, not decided here. C4 ignores the session-level override
   a release note names MCP description or instructions truncation.
 
 **Spec revision record.** The audit grades its SPEC-tagged criteria against the MCP revision Claude
-Code negotiates by default. Moving to that revision changed no criterion here; tool rules the
-revision added are not yet criteria.
+Code negotiates by default. Of the tool rules that revision added, three were weighed as criteria:
+
+- **`x-mcp-header`** became C20:
+  <https://modelcontextprotocol.io/specification/2026-07-28/server/tools#x-mcp-header>.
+- **The schema dialect default** folded into C16's evaluation, from the `inputSchema` entry of
+  <https://modelcontextprotocol.io/specification/2026-07-28/server/tools#tool>. Validity is already
+  C16's MUST, so a second row would grade the same defect twice.
+- **Deterministic `tools/list` ordering** is declined. It is a SHOULD on the order a running server
+  returns: <https://modelcontextprotocol.io/specification/2026-07-28/server/tools#capabilities>. This audit reads source and never runs the
+  server, and runtime behavior is out of its scope ("What this skill does NOT do" in the skill
+  body), so source can neither show the wire order nor prove it varies.
 
 - **Pointer**: when grading a SPEC-tagged criterion, fetch
   <https://modelcontextprotocol.io/specification/2026-07-28/server/tools> live; for which revision
   Claude Code negotiates, <https://code.claude.com/docs/en/mcp#mcp-client-runtimes>; for what the
   revision changed, <https://modelcontextprotocol.io/specification/2026-07-28/changelog>.
-- **As of**: 2026-10-10
-- **Recheck trigger**: a newer spec revision becomes the one Claude Code negotiates by default, or a
-  release note names the MCP protocol revision.
+- **As of**: 2026-10-11 (the three decisions); 2026-10-10 (the revision Claude Code negotiates)
+- **Recheck trigger**: a newer spec revision becomes the one Claude Code negotiates by default; a
+  release note names the MCP protocol revision; the tools page changes the `x-mcp-header`
+  constraints or the schema dialect default; or this audit gains a mode that queries a running
+  server, which would make the ordering SHOULD observable.
 
 ## Authority tag (provenance) vs severity (impact)
 
@@ -129,7 +140,7 @@ When auditing SOURCE, accept each SDK's native spelling of these hints as satisf
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C16 | **Callable from schema alone; input schema valid**. The tool description plus parameter descriptions let an LLM construct a valid call with zero system prompt, and the tool's input schema is valid | ANTHROPIC + SPEC-MUST | WARN (FAIL if the input schema is missing or invalid) | Graded against the spec's MUST: the wire-level `inputSchema` has to be a valid JSON Schema object (not `null`). When auditing SOURCE (not a live server), SDK-native schema forms count as valid, since the SDK converts them for the protocol: TypeScript Zod schemas / raw shapes (`inputSchema: { boardId: z.string() }`), Python type hints, .NET method signatures. FAIL only when the schema is missing, `null`, or malformed in its own idiom. Self-sufficiency: if you showed only this tool's schema to an LLM with no other context, could it make a valid call? Domain concepts referenced without explanation = warn |
+| C16 | **Callable from schema alone; input schema valid**. The tool description plus parameter descriptions let an LLM construct a valid call with zero system prompt, and the tool's input schema is valid | ANTHROPIC + SPEC-MUST | WARN (FAIL if the input schema is missing or invalid) | Graded against the spec's MUST: the wire-level `inputSchema` has to be a valid JSON Schema object (not `null`). Judge validity in the dialect the schema's `$schema` names, and in the default dialect the spec's Tool data type gives when it names none (Spec revision record), so a keyword valid in that dialect is never flagged as unknown. When auditing SOURCE (not a live server), SDK-native schema forms count as valid, since the SDK converts them for the protocol: TypeScript Zod schemas / raw shapes (`inputSchema: { boardId: z.string() }`), Python type hints, .NET method signatures. FAIL only when the schema is missing, `null`, or malformed in its own idiom. Self-sufficiency: if you showed only this tool's schema to an LLM with no other context, could it make a valid call? Domain concepts referenced without explanation = warn |
 
 ## 7. Claude Code `_meta` annotations (C17-C19)
 
@@ -162,9 +173,21 @@ wire-level field. C18 turns on the value's JSON type, so read it in that languag
 | C18 | **`anthropic/requiresUserInteraction` set, to the effective value, where per-call consent is the point**. A tool that exists to collect a person's go-ahead (granting access, accepting terms), so that approving it without a prompt would defeat its purpose, declares it | OPINION | info (FAIL if set to any value other than the value the Client-behavior record's pointer names) | Missing on a consent-shaped tool = info. Declared with any value other than the value the Client-behavior record's pointer names, read in its JSON type so a string or number spelling of it does not match = FAIL, because the intended consent gate silently never applies. How an honored annotation behaves in each permission mode is read at the Client-behavior record's pointer, not restated here |
 | C19 | **`anthropic/alwaysLoad` reserved for genuinely always-needed tools**. `"anthropic/alwaysLoad": true` opts that one tool out of tool-search deferral | OPINION | info (WARN if over-declared) | Absence is never a finding. Deferral is the correct default, and "needed on every turn" is not inferable from source. Declared `true` on a tool with no every-turn case, or on many of a server's tools (defeating deferral, since each upfront tool spends context), = WARN. Declared `false` is never a finding: it keeps a heavy tool deferred when a user configures the whole server to load upfront, on the server sources the Client-behavior record's pointer names, so it is the opt-out to suggest for a large tool on a server whose docs recommend the server-level `alwaysLoad`. Its absence is not a finding either: make that suggestion in the fix guidance, unscored, never as an info count. That server-level config field itself is client configuration, outside this audit |
 
+## 8. Parameters mirrored into HTTP headers (C20)
+
+A parameter schema can carry an `x-mcp-header` keyword. What it does, the constraints on its value,
+and what a client does with a tool that breaks one are in
+<https://modelcontextprotocol.io/specification/2026-07-28/server/tools#x-mcp-header> (as-of date
+and recheck trigger in the Spec revision record). Read them there; this row only grades against
+them.
+
+| # | Criterion | Authority | Severity | How to evaluate |
+|---|-----------|-----------|----------|-----------------|
+| C20 | **Every `x-mcp-header` meets the spec's constraints, and none marks a sensitive parameter** | SPEC-MUST + SPEC-SHOULD | FAIL (WARN for a sensitive parameter, or for a value source cannot show) | A tool with no `x-mcp-header` passes; the keyword is optional. For each one declared, check its value and the property it sits on against every constraint in the spec section: a violation = FAIL, for the client consequence the section states. Marking a parameter that carries a secret or personal data (password, API key, token, PII) = WARN, per the section's SHOULD NOT. When auditing SOURCE, accept however the SDK attaches an extension keyword to one property's schema (a Zod `.meta()` or JSON Schema override, a Python `Field(json_schema_extra=...)`, a .NET schema attribute). A value built at run time, which source cannot show, = WARN naming the parameter |
+
 ## Scoring
 
-- **19 criteria** across 7 categories.
+- **20 criteria** across 8 categories.
 - Per-tool score: count of PASS / WARN / FAIL / info.
 - Per-server score: those counts aggregated across the server's tools **plus** its server-level
   criterion outcomes (C4's per-server `instructions` clause), so nothing evaluated is dropped. `n/a`

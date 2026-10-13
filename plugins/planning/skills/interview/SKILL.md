@@ -429,12 +429,12 @@ Section schema: write the literal `## Brief` template (TLDR / Goal / Constraints
 
 ### Step 5. Hand off
 
-Route the handoff by what the session produced. **A general (non-engineering) session is terminal**. It produced a shared-understanding summary, not a Brief; deliver that summary and stop, offering no pipeline handoff (nothing downstream consumes it). **An engineering session** wrote a PLAN.md Brief. When the Brief defers a question only a named person other than the user can answer (an assumption-sweep `person` item the user could not answer, or a `tenant` item whose owner is not the user), also recommend `/planning:questionnaire` (if enabled), which turns it into a document that person fills in; it runs beside the next step, not in place of it. Recommend the next step per task shape:
+Route the handoff by what the session produced. **A user who arrived mid-flow, unsure what was settled or which stage the work is in**, gets `/session-flow:workflow`, which works out the stage from what is on disk; recommend it before guessing a pipeline step. **A general (non-engineering) session is terminal**. It produced a shared-understanding summary, not a Brief; deliver that summary and stop, offering no pipeline handoff (nothing downstream consumes it). **An engineering session** wrote a PLAN.md Brief. When the Brief defers a question only a named person other than the user can answer (an assumption-sweep `person` item the user could not answer, or a `tenant` item whose owner is not the user), also recommend `/planning:questionnaire` (if enabled), which turns it into a document that person fills in; it runs beside the next step, not in place of it. Recommend the next step per task shape:
 
 - **Code change with unknowns about the codebase** → clear context, then codebase exploration (`/discovery:explore` if enabled. It reads the Brief as scope)
 - **Code change relying on external libs/APIs/best-practices** → external research (`/discovery:research` if enabled)
-- **Already understand the codebase and the externals** → `/planning:design` when the work is design-significant (new types or contracts, a new module or library, a package-topology, cross-module, or data-model change), whose handoff writes PLAN.md's `## Design` before `/planning:plan`; `/planning:plan` directly when no design question is open
-- **Task is small, not design-significant, and the contract IS the plan** → proceed directly to implementation. Small design-significant work still goes through `/planning:design` first
+- **Already understand the codebase and the externals** → `/planning:design`, whose handoff writes PLAN.md's `## Design` before `/planning:plan`. Design-significant work (new types or contracts, a new module or library, a package-topology, cross-module, or data-model change) gets its design rounds there; work with no design question open records the one-line early exit in one step. **When the task is small, not design-significant, and the contract IS the plan**, proceed directly to implementation (`/implementation:implement` if enabled) instead; small design-significant work still goes through `/planning:design` first
+- **The approved Brief is one unit of work that a later session, an AFK lane or another person picks up** → `/work-items:track add --agent-ready`, one tracker item carrying the Brief's acceptance criteria and any design part it already holds; the session that picks it up runs design and plan from there
 - **Interview outgrew one session (branches keep opening faster than they close, or the user or harness asks for a pause)** → handoff now (`/session-flow:handoff` if enabled, otherwise write a resume note), clear, resume. The ledger + Brief survive; resume continues from the first open branch. Before the first resumed round, resolve the surface through `${CLAUDE_PLUGIN_ROOT}` again (never an absolute path copied from the handoff) and run `round.sh --dir '<memory_dir>/<topic-slug>/interview-surface' doctor --ledger <ledger>`, which lists what the running version needs and the ledger lacks ([`context/surface.md`](context/surface.md) "Resume"). When it outgrew the session because the effort is too big AND still foggy, recommend `/planning:wayfind` instead (Stance, above), which charts from the same ledger
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
@@ -443,11 +443,11 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 Turn the interview's read of complexity and ambiguity into a recommendation for how the session carrying the work forward should be configured. *When* it lands follows from *what* it configures: an engineering interview recommends at the stop/handoff boundary, for the downstream execution session; a terminal interview (a general decision, per Step 5) recommends at the early post-survey surface and again at the stop boundary, for the current session.
 
-Read [`context/session-config.md`](context/session-config.md) at that boundary, before forming the
-recommendation: it owns the two orthogonal knobs and their picking signals, the advisor pairing,
-the rule that current model and effort names are fetched live and never pinned (and that a failed
-fetch degrades rather than halts), the advisory framing, and the per-surface wording. Do not form
-the recommendation from this summary.
+Read [`context/session-config.md`](context/session-config.md) at that boundary, before forming the recommendation: it owns the two orthogonal knobs and their picking signals, the advisor pairing, the rule that current model and effort names are fetched live and never pinned (and that a failed fetch degrades rather than halts), the advisory framing, and the per-surface wording. Do not form the recommendation from this summary.
+
+## Routing by size and fog
+
+Read [`context/routing.md`](context/routing.md) at entry and at every round boundary. It owns why the entry gate is diff size and retry cost, the bigger-than-you-thought check that recommends `/planning:wayfind chart` on fog or `/session-flow:handoff` on context size alone, what the wayfind handoff carries, and the "this is small, ship it" exit with the gates it still runs.
 
 ## What this skill does NOT do
 
@@ -463,8 +463,8 @@ the recommendation from this summary.
 
 ## Next
 
-- Contract locked and the work is design-significant: /planning:design.
-- Contract locked with no design question open: /planning:plan.
+- Contract locked: /planning:design, which records a one-line early exit when no design question is open.
+- A branch defers to another person's decision, or quickly accepted answers want a fresh-context check: /planning:questionnaire or /planning:audit-answers.
 - The interview outgrew one session and the effort is still foggy: /planning:wayfind chart.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
