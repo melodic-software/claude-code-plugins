@@ -209,18 +209,23 @@ judge::load() {
 }
 
 # judge::drop <file>: remove every record in the session set that names the
-# file (judge::load's name, line breaks taken out), while the file is still
-# missing: a write that brings it back records it again.
+# file exactly, while the file is still missing: a write that brings it back
+# records it again. One jq reads every record; only when a malformed record
+# fails it does each record get its own.
 judge::drop() {
-  local s r
+  # shellcheck disable=SC2016 # $f is a jq variable
+  local s r recs=() hits q='objects | select(.file == $f) | input_filename'
   for s in "${SESSIONS[@]}"; do
-    for r in "$DATA/sessions/$PKEY/$s"/*.json; do
-      [[ -f "$r" ]] || continue
-      jq -e --arg f "$1" 'objects | .file | strings | gsub("[\r\n]"; "") == ($f | gsub("[\r\n]"; ""))' "$r" >/dev/null 2>&1 || continue
-      [[ -f "$1" ]] && return 0
-      rm -f -- "$r"
-    done
+    for r in "$DATA/sessions/$PKEY/$s"/*.json; do [[ -f "$r" ]] && recs+=("$r"); done
   done
+  ((${#recs[@]})) || return 0
+  hits="$(jq -r --arg f "$1" "$q" "${recs[@]}" 2>/dev/null)" ||
+    hits="$(for r in "${recs[@]}"; do jq -r --arg f "$1" "$q" "$r" 2>/dev/null; done)"
+  while IFS= read -r r; do
+    [[ -n "$r" ]] || continue
+    [[ -f "$1" ]] && return 0
+    rm -f -- "$r"
+  done <<<"$hits"
 }
 
 # judge::derive <info>: set KEYS to one line per in-doubt block of the file as

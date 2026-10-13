@@ -454,6 +454,17 @@ record s9c w1 "$REPO/src/cr"$'\r'"break.test.ts" null
 stop s9c
 stop s9c
 check "a deleted path with a line break: logged once" '[[ "$(grep -c "break.test.ts no longer exists" "$DATA/test-judge.log")" == 1 ]]'
+# A missing name that equals a live one once its line break is taken out:
+# only the missing file's record is dropped.
+transcript s9l claude-sonnet-5
+L="$REPO/src/ab.test.ts"
+js_file "$L" live
+record s9l w1 "$L" null
+record s9l w2 "$REPO/src/a"$'\n'"b.test.ts" null
+stub_reset
+stop s9l
+check "a missing name that differs from a live one only by a line break: the live record is kept" \
+  '[[ -f "$DATA/sessions/$PKEY/s9l/w1.json" && ! -e "$DATA/sessions/$PKEY/s9l/w2.json" ]]'
 
 # Relay validation: a quote not in the file, and a diff touching another
 # file, are relayed as UNKNOWN.
