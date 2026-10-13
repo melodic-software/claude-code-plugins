@@ -47,7 +47,8 @@ launcher_listed() {
 
 # Any Python starts pydeps.py, which hands over to the first supported Python on PATH or, on
 # Windows, listed by the py launcher, and says so when there is none. A zero-length WindowsApps
-# python alias opens the Store instead of running: skip it. The Python install manager's py is
+# python alias opens the Store instead of running: skip it, and skip a name that resolves but does
+# not run, such as a pyenv shim for a version not enabled. The Python install manager's py is
 # such an alias too, and it runs, so it is only asked to list.
 candidates=(python3.13 python3.12 python3 python)
 case "${OSTYPE:-}" in
@@ -62,6 +63,7 @@ for candidate in "${candidates[@]}"; do
     break
   fi
   [[ "$resolved" == *[Ww]indows[Aa]pps* && ! -s "$resolved" ]] && continue
+  "$candidate" -c 'import sys' >/dev/null 2>&1 </dev/null || continue
   py="$candidate"
   break
 done

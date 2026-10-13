@@ -115,6 +115,21 @@ else
   fail "no data dir: rc=$RC output=[$out]"
 fi
 
+# A candidate that resolves but cannot run (a pyenv shim for a version not enabled) is skipped for the next one.
+shim="$WORK/shim"
+mkdir -p "$shim"
+printf '#!/bin/sh\necho "pyenv: python3.13: command not found" >&2\nexit 127\n' >"$shim/python3.13"
+chmod +x "$shim/python3.13"
+root="$(new_plugin shim "$digest")"
+data="$WORK/data-shim"
+run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")" PATH="$shim:$PATH"
+out="$OUT"
+if [[ "$RC" -eq 0 && -z "$out" && "$(installs "$data")" == 1 ]]; then
+  ok "a candidate that cannot run is skipped for the next one on PATH"
+else
+  fail "unrunnable candidate: rc=$RC installs=$(installs "$data") output=[$out]"
+fi
+
 # No Python on PATH: a notice naming the floor, not a silent skip.
 tools="$WORK/tools"
 mkdir -p "$tools"
