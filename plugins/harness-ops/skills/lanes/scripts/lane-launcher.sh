@@ -1201,6 +1201,7 @@ peek_execution_target() {
   ET_LOADED=1
   local sha
   sha="$(git -C "$REPO" rev-parse --verify --quiet --end-of-options "refs/remotes/origin/HEAD^{commit}" 2>/dev/null)" || return 0
+  ET_SHA="$sha" ET_REF="origin/HEAD"
   ET_TEXT="$(git -C "$REPO" show --end-of-options "$sha:$ET_FILE" 2>/dev/null)" || ET_TEXT=""
   bash "$ET_READER" --strict - default >/dev/null 2>&1 <<<"$ET_TEXT" || ET_TEXT=""
 }
@@ -1856,7 +1857,7 @@ _status_one() {
   printf '  %-12s %-8s %-8s %-8s %s%s\n' \
     "$name" "${model:-–}" "${effort:-–}" "$state" "${sid:-–}" "$pflag"
   peek_execution_target
-  resolve_lane_target "$stage" 2>/dev/null
+  resolve_lane_target "$stage"
   print_lane_mods "$settings" "$LANE_TARGET"
 }
 

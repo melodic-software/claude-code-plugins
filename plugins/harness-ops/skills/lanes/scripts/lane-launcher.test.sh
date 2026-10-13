@@ -1478,6 +1478,8 @@ et_publish 'default: "$(touch PWNED_VALUE)"'
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "an unknown value names the file and the SHA it was read at" "$out" "at default in docs/conventions/execution-target.yaml at origin/main $ET_SHA_NOW; local-worktree"
 assert_contains "an unknown value keeps today's launch" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
+out="$(et_run status 2>&1)"
+assert_contains "status reports an unknown value with the ref and SHA it read" "$out" "at default in docs/conventions/execution-target.yaml at origin/HEAD $ET_SHA_NOW; local-worktree"
 et_publish $'default: [unclosed'
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a file the parser rejects is reported" "$out" "does not parse"
