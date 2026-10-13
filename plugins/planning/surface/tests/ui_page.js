@@ -124,13 +124,24 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.fill("#note", Array.from({length: 600}, (_, i) => "word" + i).join(" ")); await page.waitForTimeout(250);
     const long = await body();
     ok("a 600-word note leaves the question body the share it had, with the recommendation in view", long.share >= short.share - 0.02 && long.top === 0 && long.rec, JSON.stringify({short, long}));
-    ok("the answer panel scrolls inside its limit and Save is reachable in it", await page.evaluate(() => { const a = document.getElementById("answer"); return a.scrollHeight >= a.clientHeight && !!a.querySelector("[data-save]"); }));
+    ok("the answer panel scrolls inside its limit and Save is reachable in it", await page.evaluate(() => { const a = document.getElementById("answer"); const s = a.querySelector("[data-save]"); if (!s) return false; s.scrollIntoView({block: "nearest"}); const b = a.getBoundingClientRect(), r = s.getBoundingClientRect(); return a.scrollHeight > a.clientHeight && ["auto", "scroll"].includes(getComputedStyle(a).overflowY) && r.top >= b.top - 1 && r.bottom <= b.bottom + 1; }));
     await page.evaluate(() => { const c = document.getElementById("conflict"); c.hidden = false; c.innerHTML = "<p>" + "The question changed while you answered. ".repeat(60) + "</p>"; });
     const conf = await body();
     ok("an open conflict box leaves the question body the share it had", conf.share >= short.share - 0.02 && conf.rec, JSON.stringify({short, conf}));
     await page.fill("#note", ""); await page.evaluate(() => { document.getElementById("conflict").hidden = true; }); await page.waitForTimeout(150);
     const back = await body();
     ok("with a short note and no conflict the body keeps the space it had", Math.abs(back.share - short.share) <= 0.02, JSON.stringify({short, back}));
+  }
+  if (PHASE === 9) { // the page decides Q8; the shell then adds Q9 on Q8 and records Q9's decision from the terminal
+    await post({id: "Q8", kind: "accept", alt: null, text: ""}); await page.waitForTimeout(900);
+  }
+  if (PHASE === 10) { // the page replaces Q8's decision after Q9's terminal decision
+    await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
+    await post({id: "Q8", kind: "alt", alt: "a", text: ""}); await page.waitForTimeout(900);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    await pick("Q9");
+    const b9 = await text("#dscroll .banner");
+    ok("#5908: a terminal decision whose prerequisite's earlier page decision was replaced reads 'changed'", /Stale: Q8Notes changed\./.test(b9) && !/decided after you answered/.test(b9), b9);
   }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
