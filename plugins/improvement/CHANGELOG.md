@@ -3,6 +3,22 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-10-13
+
+### Added
+
+- **Copy count and clone trend in `find`.** When `/code-metrics:audit-duplication` is available, `find` runs it with `--json --keep --all` and reads each clone class's copy count and the trend's new and grown classes, never an earlier report; copy count ranks spread in the code dimension. That run keeps one report in code-metrics' data directory as the next trend baseline, and the skill body and README now name both writes. A growing class becomes a candidate whose next step is a lint proposal: `find` writes it to a review-findings file under `<memory_dir>/improvement/<branch-slug>/` with the memory-tier write discipline, names the file in the candidate row, and offers `/review:audit-enforceability` when that skill is available. No CI ceiling is proposed on a total clone count. Without code-metrics the run records a `gap:` line.
+
+### Changed
+
+- `/improvement:improve` points its one-command-per-call rule at the worktrees isolation section instead of restating how a worktree-isolated session treats a compound git command, and the `find` hotspots recipe drops an unsourced claim about cloud clone depth.
+
+### Fixed
+
+- `/improvement:find`'s CI-health access ladder no longer says the GitHub MCP rung is preferred because `gh` is absent in cloud sessions; it points at the cloud-environments sections on GitHub tools and the GitHub proxy instead.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
 ## [0.2.3] - 2026-10-11
 
 ### Changed

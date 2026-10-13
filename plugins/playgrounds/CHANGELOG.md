@@ -3,6 +3,12 @@
 All notable changes to the `playgrounds` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.5] - 2026-10-13
+
+### Changed
+
+- **`/playgrounds:use` reads skill-name resolution and plugin dependency behavior live.** The presence check keeps its decision (judge by install record, invoke the namespaced form) and the install step keeps its commands, while the mechanics behind them point at anchored sections of the skills, plugin dependencies and plugin install pages, with an as-of date and a recheck trigger.
+
 ## [0.2.4] - 2026-10-07
 
 ### Changed

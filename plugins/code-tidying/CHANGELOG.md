@@ -3,6 +3,48 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.0] - 2026-10-13
+
+### Added
+
+- `audit-comment-residue` reports a new Tier 2 shape, `unjustified-workaround`: a comment that names a workaround and gives neither a link (a URL, an issue or PR number, an RFC) nor a removal condition (`until` a version or a release or fix event, `remove when`, `once ... ships`; a bare `until` loop bound is not one). A link or condition on any line of the same comment run justifies the run, and a workaround comment's own issue reference is no longer reported as `ticket-pr-residue`.
+- `audit-comment-residue` and `dissolve-comments` take `--added-since <base>`, which limits the run to comments on lines the branch adds against the merge base of `<base>` and `HEAD`. The ranges come from the new read-only `scripts/added-lines.sh`, which exits 2 rather than print partial rows when a git diff fails. An explicit target is matched to its added lines through git's own repository-relative path, so Git for Windows (`C:/...` against `/c/...`) keeps it.
+- `dissolve-comments` has a `report` token that applies nothing and asks nothing: every treatment is a proposal, a constraint comment gets a regression-test or lint-rule proposal, and lint-rule proposals are written as a findings file under `<memory_dir>/comment-pass/<branch-slug>/` for `/review:audit-enforceability`.
+- `dissolve-comments` lists each workaround comment it removes or proposes to remove as open root-cause work, in every mode.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **`aggressive` keeps two more kinds of comment.** A comment on behavior a dependency, platform, vendor service or protocol forces, and a comment whose issue or RFC link explains a constraint, now survive `aggressive` within `class_c_max_lines`. Before, `aggressive` deleted another system's limit or an upstream's behavior as rationale. A survivor that names a workaround still needs a link or removal condition. `strip` is unchanged.
+- tidy's #14 example workaround comment carries a removal condition, so it no longer reads as an unjustified workaround.
+- **`dissolve-comments` re-checks a kept claim against the code.** Before a constraint, warning, contract or thread-safety comment is kept, step 5 reads the code it describes; a claim the code now contradicts is obsolete (class A) and is deleted or proposed under the mode's class-A rule. A claim the code cannot settle goes to `/discovery:trace-intent` when it is among the available skills; one still open is reported as unverified and then goes through the class-C criteria like any other comment.
+
+- The bundled `simplify` records, the batch-simplify concurrency and spawn-depth notes, the dead-code fan-out, and the dissolve-comments scope and source notes point at the exact upstream sections, each with an as-of date and recheck trigger, instead of quoting or paraphrasing them.
+
+### Fixed
+
+- `tidy` no longer describes the PR body as fixed to `Summary` and `Test plan`; it hands `/source-control:pull-request create` the facts and that skill writes the body from the repo's configured sections. An ad hoc scope's globs and `none (ad hoc)` anchor go into those body facts.
+
+- The tidy self-update guard protects every frontmatter key a skill carries, pointing at the skills page's field list instead of naming an incomplete one.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **`tidy`: the open-PR pre-computed row no longer aborts the skill outside auto mode.** It piped
+  into a brace group holding quotes (`| { grep -E '^(Open tidy|Throttle)' || echo "unknown"; }; :`),
+  which Claude Code's shell permission check refuses. The row is now
+  `open-pr-count.sh 2>/dev/null | grep -E '^(Open tidy|Throttle)' || echo unknown`. Injections ran
+  without `pipefail` in a Claude Code 2.1.296 probe, where it renders as before; under `pipefail` a
+  failed count can add one redundant `unknown` line after the script's own `unknown` lines.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.29.2] - 2026-10-10
 
 ### Fixed

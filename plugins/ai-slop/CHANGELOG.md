@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.14.0] - 2026-10-13
+
+### Added
+
+- **Two rubric tells: `rule-over-compression` and `rule-figure-for-fact`.** Over-compression
+  reports prose for people cut so short that the reader cannot tell what team shorthand stands
+  for, how two steps connect, what a symbol means, or which thing is meant and who acts; tables,
+  references, code, commit subjects and terse agent-facing instruction lists are out of scope.
+  Figure-for-fact reports a comparison to an unrelated scene, a consequence told as a small
+  drama, a program credited with moods, or a slogan, where a literal sentence of about the same
+  length would tell the reader more; a sentence whose only figure is a noun listed by
+  `rule-abstract-metaphor-jargon` goes to that rule. The rewrite guide gains a fix for each, and
+  the catalog's general-prose additions count is 9.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **The README, catalog and rewrite guide no longer point at the upstream ledger.** The
+  provenance line in each is removed; where the general-prose additions came from is recorded only in the
+  marketplace's `docs/upstream/` pages. The rewrite guide's note on the left-out voice technique
+  now says not to re-add it.
+- **Rewrite guide and catalog reworded in their own terms.** The plain-speech questions and the
+  phrase replacements are tables with this repository's own examples, and the voice techniques
+  are grouped by where they apply. The colon-crutch, stacked-hedge and inline-header examples are
+  new; the false-range entry is reworded around its unchanged example. The catalog section that
+  holds the chat-residue, filler, hedging and other general-prose tells is renamed
+  "General-prose additions" (anchor `#general-prose-additions`; update any link to the old
+  anchor), and the detector test fixtures for those rules are renamed to match. No rule,
+  threshold or rule id changed. The README, catalog and guide record where that section's tells
+  came from by pointing at the marketplace's upstream ledger.
+- **The catalog's overlap-map row for plain speech and voice is reworded in our own words.** It now names the rewrite guide's "Plain speech" and "Adding voice" sections and still routes the mechanism-over-feeling case to `rule-mechanism-free-claims`. No rule changed.
+
+- The rubric fan-out's model note and the user-scope script's surface list point at the exact upstream sections, each with an as-of date and recheck trigger, instead of restating how a model alias resolves.
+
+- **`/ai-slop:audit` detection is much faster on a large tree.** `detect.sh` now extracts prose for every target in one awk pass and runs each rule as one grep over all files, instead of forking a pipeline per file per rule. Findings and summary output are unchanged, and stderr notes for NUL bytes and unreadable files are reworded; the process count no longer grows with the number of files.
+
+### Fixed
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.13.7] - 2026-10-10
 
 ### Fixed

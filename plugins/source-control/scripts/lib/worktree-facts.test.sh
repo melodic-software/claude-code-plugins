@@ -12,7 +12,7 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 CASE_NUM=0
-EXPECTED_CASES=21
+EXPECTED_CASES=22
 
 pass() { CASE_NUM=$((CASE_NUM + 1)); printf 'PASS: %s\n' "$1"; }
 fail() {
@@ -36,6 +36,12 @@ git -C "$TEST_TMPDIR/repo" worktree lock --reason "$helper_reason" "$TEST_TMPDIR
 por="$TEST_TMPDIR/list.z"
 git -C "$TEST_TMPDIR/repo" worktree list --porcelain -z >"$por"
 worktree_facts_parse_z "$por"
+# Porcelain paths are git's own spelling of the fixture dir: C:/... on Windows
+# Git Bash, symlinks resolved elsewhere. Build that spelling without the parser
+# under test, not the /tmp/... spelling mktemp returned.
+GIT_TMPDIR="$(cd "$TEST_TMPDIR" && pwd -P)"
+if command -v cygpath >/dev/null 2>&1; then GIT_TMPDIR="$(cygpath -m "$GIT_TMPDIR")"; fi
+assert_eq "main checkout path is git's spelling of the fixture" "${WT_FACT_PATH[0]}" "$GIT_TMPDIR/repo"
 assert_eq "helper lock: reason round-trips through porcelain" "${WT_FACT_LOCKED[1]}" "$helper_reason"
 if worktree_reason_is_ours "${WT_FACT_LOCKED[1]}" sess-owner; then
   pass "helper lock: check-enter token matches the creator"
@@ -53,7 +59,7 @@ git -C "$TEST_TMPDIR/repo" worktree list --porcelain -z >"$por"
 worktree_facts_parse_z "$por"
 plain_reason=""
 for i in "${!WT_FACT_PATH[@]}"; do
-  [[ "${WT_FACT_PATH[$i]}" == "$TEST_TMPDIR/plain" ]] && plain_reason="${WT_FACT_LOCKED[$i]}"
+  [[ "${WT_FACT_PATH[$i]}" == "$GIT_TMPDIR/plain" ]] && plain_reason="${WT_FACT_LOCKED[$i]}"
 done
 assert_eq "claimed after a bare add: the claim written is the claim read" "$plain_reason" "$claim_reason"
 if worktree_reason_is_ours "$plain_reason" sess-other; then
@@ -74,15 +80,15 @@ git -C "$TEST_TMPDIR/repo" worktree list --porcelain -z >"$por"
 worktree_facts_parse_z "$por"
 quoted_got="" backslash_got=""
 for i in "${!WT_FACT_PATH[@]}"; do
-  [[ "${WT_FACT_PATH[$i]}" == "$TEST_TMPDIR/quoted" ]] && quoted_got="${WT_FACT_LOCKED[$i]}"
-  [[ "${WT_FACT_PATH[$i]}" == "$TEST_TMPDIR/backslash" ]] && backslash_got="${WT_FACT_LOCKED[$i]}"
+  [[ "${WT_FACT_PATH[$i]}" == "$GIT_TMPDIR/quoted" ]] && quoted_got="${WT_FACT_LOCKED[$i]}"
+  [[ "${WT_FACT_PATH[$i]}" == "$GIT_TMPDIR/backslash" ]] && backslash_got="${WT_FACT_LOCKED[$i]}"
 done
 assert_eq "a reason wrapped in double quotes round-trips unchanged" "$quoted_got" "$quoted_reason"
 assert_eq "a literal backslash-n and backslash pair round-trip unchanged" "$backslash_got" "$backslash_reason"
 assert_eq "list prints the raw quoted reason in the lock_reason column" \
-  "$(awk -F'\t' -v p="$TEST_TMPDIR/quoted" '$1 == p { print $7 }' <<<"$list_out")" "$quoted_reason"
+  "$(awk -F'\t' -v p="$GIT_TMPDIR/quoted" '$1 == p { print $7 }' <<<"$list_out")" "$quoted_reason"
 assert_eq "list prints the raw backslash reason in the lock_reason column" \
-  "$(awk -F'\t' -v p="$TEST_TMPDIR/backslash" '$1 == p { print $7 }' <<<"$list_out")" "$backslash_reason"
+  "$(awk -F'\t' -v p="$GIT_TMPDIR/backslash" '$1 == p { print $7 }' <<<"$list_out")" "$backslash_reason"
 
 # Bare hub.
 git init --bare -q "$TEST_TMPDIR/hub.git"
@@ -117,7 +123,7 @@ assert_eq "porcelain parse has one home" "$parse_home" "$(realpath "$SCRIPT_DIR/
 # A reasonless lock is still a lock, and `list` prints it.
 git -C "$TEST_TMPDIR/repo" worktree add -q "$TEST_TMPDIR/bare-lock" -b bare-lock
 git -C "$TEST_TMPDIR/repo" worktree lock "$TEST_TMPDIR/bare-lock"
-listed="$(bash "$SCRIPT_DIR/worktree-facts.sh" list "$TEST_TMPDIR/repo" | awk -F'\t' -v p="$TEST_TMPDIR/bare-lock" '$1 == p {print $6 "|" $7}')"
+listed="$(bash "$SCRIPT_DIR/worktree-facts.sh" list "$TEST_TMPDIR/repo" | awk -F'\t' -v p="$GIT_TMPDIR/bare-lock" '$1 == p {print $6 "|" $7}')"
 assert_eq "list: a reasonless lock reads locked=yes, lock_reason=-" "$listed" "yes|-"
 
 # The session parser reads what the encoder writes, and only that.

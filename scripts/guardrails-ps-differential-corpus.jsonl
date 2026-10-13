@@ -853,3 +853,25 @@
 "cmd /c rd /s /q build"
 "rmdir /s /q build\\out"
 "Write-Output \"Remove-Item -Recurse -Force C:\\\""
+# Delete lane, a literal `$` (single-quoted or backtick-escaped) and a Win32
+# `::$INDEX_ALLOCATION` stream suffix on the target, with in-tree controls
+# and an expanding `$` that stays left alone (#6626).
+"Remove-Item -Recurse -Force 'C:\\::$INDEX_ALLOCATION'"
+"Remove-Item -Recurse -Force 'D:\\rdt-x\\dir::$INDEX_ALLOCATION'"
+"Remove-Item -Recurse -Force 'D:\\rdt-x\\dir:$I30:$INDEX_ALLOCATION'"
+"Remove-Item -Recurse -Force \"D:\\rdt-x\\dir::`$INDEX_ALLOCATION\""
+"Remove-Item -LiteralPath 'D:\\rdt-x\\dir::$INDEX_ALLOCATION' -Recurse"
+"Remove-Item -Recurse -Force 'D:\\rdt-x\\a$b'"
+"cmd /c 'rd /s /q D:\\rdt-x\\a$b'"
+"Remove-Item -Recurse '$X'"
+"Remove-Item -Recurse -Force './build$old'"
+"Remove-Item -Recurse -Force './build::$INDEX_ALLOCATION'"
+"Remove-Item -Recurse \"D:\\rdt-x\\$name\""
+# Delete lane, refused before the literal reading of a `$` and still refused:
+# a literal `$env:`, `$HOME\` or `$(` target is also judged the old way (#6626).
+"Remove-Item -Recurse '$env:TEMP'"
+"Remove-Item -Recurse '$env:SystemDrive\\'"
+"Remove-Item -Recurse `$env:TEMP"
+"Remove-Item -Recurse '$HOME\\x'"
+"Remove-Item -Recurse '$(x)'"
+"cmd /c rd /s /q '$env:TEMP'"

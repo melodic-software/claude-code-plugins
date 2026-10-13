@@ -5,6 +5,41 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.19.0] - 2026-10-13
+
+### Added
+
+- `/discipline:reuse-or-replace` reads the project's paved-path file on demand: when the standards index has a `paved-path` row and the work touches a concern it lists, the listed entry is the established way, and replacing it includes updating the entry.
+- **`/discipline:script-the-deterministic-work lever-check <block summary>` and the `lever_scope` setting: `deterministic` (default) or `non-trivial`.** The mode answers `build-a-lever` or `edit-by-hand`, with its reason, for one change repeated across sites; `/implementation:implement` and `/implementation:implement-dispatch` call it before a multi-site block or a fan-out. `deterministic` builds a lever only for a mechanical change; `non-trivial` also builds one for judgment-bearing changes, using an established codemod or refactoring tool and never a refactoring script written for the occasion. Under either value the first site is edited by hand and the lever's result on it is diffed before the lever runs on the rest; for a fan-out the mode also answers whether one run of the lever covers every unit. `lever_scope` is set per user in the new user config option and per repository in `docs/conventions/discipline.yaml`, which wins; the schema ships at `schemas/discipline.schema.json`, and the new `reference/config.md` lists the key, its layers and the root rule. An invalid value is named with its file, key and value and that layer is dropped. The skill gains a `## Next` section and six eval cases.
+- **`/discipline:setup apply lever_scope=<value>` writes `docs/conventions/discipline.yaml`.** `check` also reports `lever_scope` and the repository file (absent, valid, or each problem as a WARN); `apply` validates the whole result against the schema before writing, refuses a duplicate key, an empty or non-scalar value, a key outside the schema, a parse error, a symlinked, hard-linked or out-of-repository path, and a root that is `$HOME` or above it, writes through an exclusive temp file and a rename, and shows a diff and asks before it changes an existing file. Personal options still change only through `/plugin configure`.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **`/discipline:wait-what` states its description and opening instruction in this repository's own words.** A word-overlap check against the skill it was adapted from found both still followed the original's sentences. Behavior is unchanged: re-explain from the missing premise, in ASD-STE100 Simplified Technical English, with the project's domain terms.
+
+- **Subagent behavior is read live from the Claude Code subagents page.** The `SKILL.md` bodies of `setup`, `use-your-skills`, `scrutinize-dont-coast` and `sweep-all` no longer restate fork-mode defaults, fork tool inheritance, or skill-preload rules; each states its own decision and points at the exact section of that page, with an as-of date and a recheck trigger.
+- **`setup` reports whether fork mode is on in this kind of session.** Its full-batch prerequisite step reads the fork-mode section live and reports what it states, instead of printing stored defaults.
+
+### Fixed
+
+- **The shared `yaml-subset.awk` parser trims trailing blanks and strips trailing comments (a `#` after a space) in one pass**, where two regexes rescanned a long run of spaces from every start; a 200,000-space line now parses in well under a second with the same records.
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.
+- **`/discipline:setup` runs the shared `lib/setup-apply.mjs`.** A key the schema does not list in `docs/conventions/discipline.yaml` is named in one warning and ignored: `--check` still prints the valid keys (exit 1), and `apply` writes beside it and keeps its line as written; such a key set twice or holding a map or list is still refused. A symlinked `--root` is resolved first and every path check applies to the resolved directory, a CRLF file is written back with CRLF (one mixing CRLF and LF is refused), and the shared parser now refuses a tab indent and an unquoted colon followed by a space in a value (`key: a: b`). Its key-line and comment scans run in time linear in the line length, where two regexes backtracked quadratically on a long run of spaces.
+
+- `/discipline:sweep-all` batched pass drops a quoted `CLAUDE_CODE_FORK_SUBAGENT` row that no longer matches the live env-vars page and points at the live fork-mode section instead, and no longer restates the concurrent-subagent-limit error string. `/discipline:recheck-against-upstream` fan-out tier points at where plugin variables resolve instead of asserting it.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.18.0] - 2026-10-11
 
 ### Changed

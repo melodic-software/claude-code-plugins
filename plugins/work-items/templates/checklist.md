@@ -15,7 +15,7 @@ Copy into `<memory_dir>/<slug>/work-items-checklist.md` (default `.work/`). Per-
 - [ ] Pre-flight: search-before-create (adapter: "Search items", `--state all`). Pivot if an open/closed match exists (skip if `--force`)
 - [ ] Resolve issue type from `--type` (default `task`): native GitHub Issue Type on org repos (passed via `--type`, not a label); coarse `type: bug`/`type: feature`/`type: task` label on personal/non-org repos
 - [ ] Build labels list; build body (default template, or agent-brief template if `--agent-ready`); write the body to a temp file with the Write tool (argv-safe, never inline generated text)
-- [ ] `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item --title '{title}' --body "$(cat "$BODY_FILE")" --type '{type}' --labels '...'` (`--type` on org repos only; `[Maintenance]` title prefix when `--recurring`)
+- [ ] `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item --title '{title}' --body-file '<temp path>' --type '{type}' --labels '...'` (`--type` on org repos only; `[Maintenance]` title prefix when `--recurring`)
 - [ ] Capture item ID/number for cross-reference
 
 ## Action: start

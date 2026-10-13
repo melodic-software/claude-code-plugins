@@ -3,6 +3,32 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-10-13
+
+### Added
+
+- **Collision-hotspot lens in `reduce`.** `scripts/collision-hotspots.sh` reads recent pull requests through `gh`, pairs those that were open at the same time and share a file, replays each pair with `git merge-tree --write-tree`, and ranks files by measured conflicts once at least 3 pairs touched them. Changelogs, lockfiles and version manifests are left out of the ranking and named on one `known bump hotspots` line; replays are capped by `--max-pairs` (default 200); the repository is resolved once (`--repo`, else `gh`'s default repository) and both the listing and the head fetch use it: heads come from `origin` when its URL names that repository (any https or SSH form), else from `gh`'s URL for it (the SSH one for an SSH `origin`), a GitHub Enterprise repository is listed as host/owner/repo, a fetch never waits on a credential prompt, and an unfetched head's `gap:` line carries git's error; PR heads are fetched into a per-run ref namespace that is deleted on exit. Without `gh`, `jq` or a `git` with `merge-tree --write-tree`, the scan falls back to co-change mining and reports a `gap:` line. The plugin now declares `gh` and `jq` in `prerequisites.json` and ships the prerequisites checker copies.
+- **One-writer-per-value candidate in `reduce`.** The coupling model's common-coupling entry now names the duplicate writer: one durable key, path or table that more than one owner writes. It is always a structural route-lane ledger entry, never part of the apply batch. A confirmed one hands its ownership rule to a review-findings file under `<memory_dir>/coupling/<branch-slug>/`, written with the memory-tier write discipline; the ledger and report name the file and offer `/review:audit-enforceability` when it is available.
+- **Second-list check in `reduce`'s hotspot lens.** `scripts/derivable-list.py` reads each ranked hotspot and flags a hand-kept list of at least 5 entries where at least 80% name a file or folder git tracks (both judgment values, stated in the skill, not settings), listing each entry that names nothing. It takes the ranked paths on stdin or from a file (`--paths-from`), never as command-line words, and skips a tracked symlink that resolves outside the root. The plugin now declares Python 3.9 or later in `prerequisites.json` for `reduce`. A confirmed second list is report-only and route-lane: the report compares keeping the list, build-time discovery where the stack has a loader, and generating the list from the tree with a `--check` drift step, in the new remediation catalog section "Second lists". The control-coupling remedy's "registration table" now points there when each case already has its own file.
+
+### Changed
+
+- **Shared mutable state: split the write target before adding a lock.** The remediation catalog's shared-mutable-state entry gains a first rung: when several writers update one file, row or cache key and the proposed fix is a lock, check whether each writer can own its own target so nothing is shared. The entry's "not when" covers a store holding one value every writer must agree on, which keeps one target and serializes the writes.
+- Reworded the passages of `reduce`'s `reference/remediations.md` adapted from an upstream skill in our own words, and recast the shared-mutable-state first rung as a decision table with its own example; every remedy and condition is unchanged.
+- **`reduce` sizes `--prs` from git history instead of a `gh` query.** The daily merge rate now comes from first-parent commits on the default branch over the last few days, so the skill text names no forge command.
+
+### Fixed
+
+- The prerequisites probe's shared `prerequisites.mjs` and `prerequisites.sh` comments no longer give a wrong reason for always exiting 0 (https://github.com/melodic-software/claude-code-plugins/pull/7242); no other change to this plugin.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.3.5] - 2026-10-04
 
 ### Changed

@@ -3,6 +3,29 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.7] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- The audit and setup skills, the README and the Windows check catalog no longer restate how Claude Code names a plugin's data directory or quote the manifest reference on plugin variables. They point at the live sections with an as-of date and recheck trigger. The setup skill and the README keep the `-inline` name a `--plugin-dir` session gets as an observation the docs do not cover, citing the 0.7.0 CHANGELOG entry and a `setup check` probe as its recheck; the audit skill keeps its observation that the Bash tool can carry another plugin's `CLAUDE_PLUGIN_DATA` and now names the probe step that produced it. The catalog's `$CLAUDE_JOB_DIR/tmp` contrast now cites the agent-view section that documents its cleanup.
+- The Windows check catalog no longer says `DISABLE_AUTOUPDATER` freezes the installed binary; the environment-health note points at the setup page's "Disable auto-updates" section, which says the variable stops only the background check.
+
+### Fixed
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **A failed CISA KEV fetch no longer reads as a clean KEV check in `winget-upgrades` ([#6505](https://github.com/melodic-software/claude-code-plugins/issues/6505)).** `Get-CisaKevCache` now tags its result `fresh`, `stale`, `unavailable` or `empty`, with the list's age and the fetch error. With upgrades pending and no usable KEV list, the check reports `UNKNOWN` with `ran_successfully: false` and the cause in `error`, keeping the measured upgrades in `detail`, where it used to report a count-only `INFO` or `WARN` at full confidence. A stale fallback list keeps its severity but is named in the summary, `notes` and `detail.kev_cache_state`.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.16.6] - 2026-10-10
 
 ### Changed

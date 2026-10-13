@@ -3,6 +3,47 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-10-13
+
+### Added
+
+- **`developer`, `research` and `doctor` in `/firecrawl:firecrawl`.** The commands table and `context/commands.md` cover the coding-agent index search, the paper index (GitHub history goes through `developer`, since the research GitHub endpoint is deprecated), and `doctor <job-id>` for a failed job, with flags read from `firecrawl-cli` 1.26.3 `--help`. A new gotcha says to run `doctor` before retrying a failed job with guessed flags.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5,** so `firecrawl --status` behind a key-injecting wrapper (a secret lookup plus two API calls) no longer false-fails on a slow run. A hung probe now costs at most 20 seconds per entry.
+
+- The native web tools record points at the live WebFetch and WebSearch sections by anchor instead of restating their behavior, and `/firecrawl:update` points at the skills frontmatter reference for the `name` default.
+
+- **First recorded upstream sync.** `/firecrawl:update`'s `upstream.md` records the upstream `SKILL.md` hash from 2026-10-11 and CLI 1.26.3, so `--check` no longer reports upstream drift for it.
+
+### Fixed
+
+- **The auth prerequisite now asks the CLI instead of the session environment.** The `firecrawl-api-key` env entry is replaced by a required `firecrawl-auth` entry that passes when `firecrawl --status` reports Authenticated, the test `/firecrawl:setup` already treats as authoritative. `/harness-ops:prerequisites` no longer reports the firecrawl skill blocked when `FIRECRAWL_API_KEY` is absent from the Claude Code environment but the CLI is authenticated another way (a wrapper that injects the key into the CLI process only, or `firecrawl login`), and still fails when the CLI is unauthenticated. The README requirement says the same.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The `firecrawl init` warning matches what it does now.** It installs upstream's CLI skills globally for every detected agent, plus workflow skills when selected, and registers no MCP server, which the old text said it did. Eval case 4 checks the corrected contract.
+
+- **`firecrawl` and `setup` load under `claude -p` again.** Both pre-computed rows held a brace
+  group, which Claude Code's shell permission check refuses even when quote-free (`A group in braces
+  or double parentheses in this command can't be checked before it runs`); outside auto mode that
+  aborts the skill with no output. `setup`'s probe is now `command -v firecrawl 2>/dev/null || echo
+  absent`, pre-approved in its `allowed-tools`. The status row drops the 0.5.7 brace group and
+  repeats the guard before the fallback instead:
+  `command -v firecrawl >/dev/null 2>&1 && firecrawl --status 2>/dev/null | head -10 || command -v firecrawl >/dev/null 2>&1 || echo "NOT INSTALLED ..."`.
+  It renders the same as the 0.5.7 row with and without `pipefail`, for an absent CLI, output under
+  the cap and output over it (checked with a fake `firecrawl` on `PATH`), and the existing
+  `Bash(command -v firecrawl*)` grant covers both guards.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.6.4] - 2026-10-10
 
 ### Changed

@@ -36,7 +36,8 @@ cm_ladder_tools() {
 cm_ladder_path_bins() {
   local py=python3
   command -v python3 >/dev/null 2>&1 || py=python
-  "$py" -I - "$_CM_LADDER" "$_CM_COLLECTORS" <<'PY'
+  # The CR strip keeps a native Windows Python's CRLF out of the names (#6794).
+  "$py" -I - "$_CM_LADDER" "$_CM_COLLECTORS" <<'PY' | sed $'s/\r$//'
 import ast
 import os
 import sys

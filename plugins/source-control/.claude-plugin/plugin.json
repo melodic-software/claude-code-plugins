@@ -1,6 +1,6 @@
 {
   "name": "source-control",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Git and GitHub delivery: /commit (convention-checked subject, Co-authored-by trailer, surgical staging), /pull-request (prep, create, CI monitoring, review triage, merge, CI logs), /babysit-prs (safe-by-default PR fleet loop, opt-in worker and autopilot tiers), /babysit-loop (merge lane; merge is human until the repo adopts it), /worktree, /resolve-conflicts (intent-first), /check, and /setup (layered source-control.md convention config; Conventional Commits by default).",
   "author": {
     "name": "Melodic Software",
@@ -263,6 +263,11 @@
       "type": "file",
       "title": "Promotion-evidence checker",
       "description": "Absolute path to the check-security-binding.mjs the seam runs, from an autonomy install the operator trusts, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted."
+    },
+    "promotion_evidence_credential_roots": {
+      "type": "string",
+      "title": "Promotion-evidence credential roots",
+      "description": "Comma-separated absolute paths trusted as credential stores (--credential-roots): no filesystem root, no .. segment, none under tmp/temp/shm or inside the repository or lane worktrees. User or managed settings only; --settings does not count. Absent: credential-probe isolation proofs stay unproven."
     },
     "setup_inference_window": {
       "type": "string",
