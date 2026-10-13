@@ -25,6 +25,16 @@ const DISPATCHER_EVENTS = new Set(["push", "workflow_dispatch"]);
 // The dispatcher dispatches within seconds of starting; a longer run must not
 // keep its window open.
 const WINDOW_MS = 10 * 60 * 1000;
+// The artifact the dispatcher run uploads after its dispatch loop, named with
+// every run id it dispatched.
+const RECORD_NAME = /^pr-unblock-dispatched(-[1-9][0-9]{0,14})+$/;
+const RECORD_PREFIX = "pr-unblock-dispatched-";
+// The record can land after this run's gate starts: re-read every 5 s while
+// the dispatcher run is still going, for at most 2 min (judgment).
+const RECORD_WAIT_MS = 5000;
+const RECORD_MAX_SLEEPS = 24;
+
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class GitHubError extends Error {
   constructor(status, what) {
@@ -194,13 +204,63 @@ async function readOrRefuse(github, apiPath) {
   return body;
 }
 
+// Whether the dispatcher run holds an unexpired record of its own whose name
+// lists this run's id. A failed or malformed read refuses.
+async function isRecorded(github, runPath, dispatcherRunId, runId) {
+  const body = await readOrRefuse(github, `${runPath}/artifacts?per_page=100`);
+  if (!Array.isArray(body.artifacts)) {
+    throw new Stop("untrusted-actor");
+  }
+  return body.artifacts.some(
+    (artifact) =>
+      isPlainObject(artifact) &&
+      artifact.expired === false &&
+      Number.isSafeInteger(artifact.workflow_run?.id) &&
+      String(artifact.workflow_run.id) === dispatcherRunId &&
+      typeof artifact.name === "string" &&
+      RECORD_NAME.test(artifact.name) &&
+      artifact.name.slice(RECORD_PREFIX.length).split("-").includes(runId),
+  );
+}
+
+// The dispatcher run records the ids the dispatch API returned to it, so a
+// dispatch it did not send is never in its record. Each read takes the
+// dispatcher run's status before its artifacts, so an upload landing between
+// the two is not refused. While the run is still going, an absent record is
+// re-read after RECORD_WAIT_MS, at most RECORD_MAX_SLEEPS times. At the first
+// completed status one more read follows the same wait, for any lag between
+// the run and its artifact list, and then the gate refuses. That wait counts
+// toward the cap, so the whole wait stays within 2 min.
+async function requireRecorded({ github, repository, dispatcherRunId, runId, sleep }) {
+  const runPath = `/repos/${repository}/actions/runs/${dispatcherRunId}`;
+  for (let sleeps = 0; ; sleeps += 1) {
+    const { status } = await readOrRefuse(github, runPath);
+    if (await isRecorded(github, runPath, dispatcherRunId, runId)) {
+      return;
+    }
+    if (sleeps === RECORD_MAX_SLEEPS) {
+      throw new Stop("untrusted-actor");
+    }
+    console.log(
+      `check-trusted-trigger: dispatcher record: absent, re-read ${sleeps + 1} (dispatcher run ${dispatcherRunId}, run ${runId})`,
+    );
+    await sleep(RECORD_WAIT_MS);
+    if (status === "completed") {
+      if (await isRecorded(github, runPath, dispatcherRunId, runId)) {
+        return;
+      }
+      throw new Stop("untrusted-actor");
+    }
+  }
+}
+
 // A dispatch sent by github-actions[bot] names no human, so it is trusted only
 // through the dispatcher run it names: that workflow, on the default branch,
 // started by a push or a listed human, its head SHA an ancestor of the branch
-// tip, a re-run attempt started by a listed human, and this run, the
-// dispatched workflow on the default branch, created between the dispatcher
-// run's start and the earlier of its last update and WINDOW_MS after its
-// start. Returns this run's own record.
+// tip, a re-run attempt started by a listed human, its record listing this
+// run, and this run, the dispatched workflow on the default branch, created
+// between the dispatcher run's start and the earlier of its last update and
+// WINDOW_MS after its start. Returns this run's own record.
 async function verifyDispatcher({
   github,
   repository,
@@ -211,6 +271,7 @@ async function verifyDispatcher({
   dispatcherWorkflow,
   dispatchedWorkflow,
   runId,
+  sleep,
 }) {
   const defaultBranch = event.repository?.default_branch;
   if (
@@ -274,6 +335,7 @@ async function verifyDispatcher({
   if (comparison.status !== "ahead" && comparison.status !== "identical") {
     throw new Stop("untrusted-actor");
   }
+  await requireRecorded({ github, repository, dispatcherRunId, runId, sleep });
   return own;
 }
 
@@ -325,6 +387,7 @@ export async function evaluateTrigger({
   runId = "",
   dispatchedWorkflow = "",
   github,
+  sleep = defaultSleep,
 }) {
   const { ids } = list;
   if (typeof repository !== "string" || !repository.includes("/")) {
@@ -389,6 +452,7 @@ export async function evaluateTrigger({
       dispatcherWorkflow,
       dispatchedWorkflow,
       runId,
+      sleep,
     });
     checkDispatchedRerunner(list, deniedIds, own);
   } else {
@@ -421,7 +485,7 @@ function stopped(reason) {
   };
 }
 
-export async function main({ env = process.env, github } = {}) {
+export async function main({ env = process.env, github, sleep = defaultSleep } = {}) {
   let result;
   try {
     let list;
@@ -453,6 +517,7 @@ export async function main({ env = process.env, github } = {}) {
       dispatchedWorkflow: env.DISPATCHED_WORKFLOW ?? "",
       runId: env.GITHUB_RUN_ID ?? "",
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
+      sleep,
     });
   } catch (error) {
     if (!(error instanceof Stop)) {

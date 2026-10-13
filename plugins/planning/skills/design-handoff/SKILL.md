@@ -88,8 +88,11 @@ memory:
   topology, boundary, or component artifact the scope produced)
 - **Contracts**: interfaces, type shapes, and signatures, quoted from the type inventory or
   contracts artifact; a typed artifact's first fenced block is copied verbatim with its info string
-- **Variation verdicts**: for each configurability or extension thread, whether the axis is
-  designed to vary (and through which seam) or held fixed, with the recorded reason
+- **Variation verdicts**: for each variation point, configurability, or extension thread, its
+  verdict (abstract now, contain now, or leave inline, per
+  [`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md)),
+  the seam or containing module, and the recorded reason; an abstraction question left to a human
+  is listed with its arbiter
 - **Conventions followed**: repository paths of the existing patterns, rules, and ADRs the design
   follows. Never a memory-slice path: PLAN.md is published, and that path would dangle
 

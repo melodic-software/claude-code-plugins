@@ -82,7 +82,7 @@ jobs:
     concurrency:
       group: pr-review-security-${{ github.event.pull_request.number || github.run_id }}
       cancel-in-progress: false
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@a92020292976c2e9b50f7adc922693a45a6c1226 # v0.40.0
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@a621ef8112677a519b662ec5d2547475c0101f7e # v0.41.0
     with:
       runner: ubuntu-24.04
       # Bot senders this lane reviews, by numeric user id: the

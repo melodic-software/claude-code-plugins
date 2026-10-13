@@ -194,6 +194,60 @@
         "The proposed types are the ones the written call sites need, with no type that no call site uses",
         "Each type lists its read and change paths, and the chosen structure is tied to the most frequent ones"
       ]
+    },
+    {
+      "id": 16,
+      "name": "variation-pass-catches-closed-design-for-known-category",
+      "prompt": "/planning:design integration for signing users in through our first identity provider. The roadmap already lists two more identity providers for next quarter. My sketch: add a column named after the provider to the users table, a sign-in service named after the provider in the domain layer, and an API route with the provider's name in it.",
+      "expected_output": "The skill runs the variation-point pass for the integration scope, treats the identity provider as a variation point whose second variant is known and whose change cost is durable (schema and API), and flags the sketch as a closed design because the provider's name reaches the schema, the domain layer and the public API. It recommends contain (provider code in one module, provider-neutral names, types and storage at the boundary), asks the user whether to abstract now instead of choosing it, and records the outcome as a verdict thread.",
+      "files": [],
+      "expectations": [
+        "Output identifies the identity provider as a variation point and answers both questions: the second variant is known, and the change cost is durable because it reaches stored data and a public API",
+        "Output flags the provider name in the table column, the domain service name and the API route as a closed design",
+        "Output recommends contain now, abstract later, with provider-neutral names, types and storage at the module boundary",
+        "Output asks the user whether to abstract now rather than choosing abstract itself",
+        "Output records a verdict for the variation point as a design thread with a resolution status",
+        "Output points to canonical sources for the patterns it names rather than giving worked code for a specific stack"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "variation-pass-catches-leaky-abstraction",
+      "prompt": "/planning:design module for order history. I want to copy the data-access interface from the popular starter template we like: it exposes the ORM's query builder and change-tracking collection types directly, so handlers can compose any query they need.",
+      "expected_output": "The skill runs the leak test on the proposed interface and reports it failing: implementation types (the ORM's query builder and change-tracking collections) cross the boundary, the interface is named for the technology rather than the consumer's need, and swapping the persistence technology would change it. It says the template's popularity is adoption, not evidence the interface is sound, and proposes a design thread for an interface named in domain words for what order-history handlers need.",
+      "files": [],
+      "expectations": [
+        "Output applies the leak test and names the failing checks: implementation types in the signatures, and a swap of the implementation would change the interface",
+        "Output states that the starter template's popularity does not show the interface is correct",
+        "Output proposes an interface shaped by what the consumer needs, in domain words, as a design thread for the user to resolve",
+        "Output gives no stack-specific code recipe; it names the principle and the canonical source"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "variation-pass-leaves-internal-one-off-inline",
+      "prompt": "/planning:design module for exporting the admin audit log as a CSV file. One format, used by one internal admin screen, no external system involved, and the export is not stored or consumed by anything else.",
+      "expected_output": "The skill runs the variation-point pass, finds no external system and no named domain category, judges the change cost code-only, and records leave inline as the verdict. It adds no port, registry, strategy, or other extension point for hypothetical future formats.",
+      "files": [],
+      "expectations": [
+        "Output records the export format as an internal one-off with a leave-inline verdict and its reason",
+        "Output does NOT introduce an interface, port, registry, plugin point, or strategy for future export formats",
+        "Output does not treat the absence of an abstraction here as a gap to fix"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "variation-pass-unattended-contains-and-records-decision",
+      "prompt": "/planning:design integration, unattended: this run was dispatched from a work loop and nobody will answer questions. Design sending order receipts through our current email provider. The domain glossary calls this capability 'notification channels' and lists only email so far.",
+      "expected_output": "With nobody to answer, the skill applies the contain verdict to the email provider (provider code in one module behind provider-neutral names, types and storage) and records the abstract-now question as a human decision: the thread is resolved with the contain verdict and lists the reserved question tagged arbiter USER-RESERVED, and the tracker's needs-decision status is set when the work is tracked. It never chooses abstract on its own and does not stop the run on the question.",
+      "files": [],
+      "expectations": [
+        "Output applies contain now, abstract later to the email provider",
+        "Output does NOT choose abstract now on its own",
+        "Output records the abstraction question as a human decision (listed inside the resolved contain thread with arbiter USER-RESERVED, or the tracker's needs-decision status)",
+        "The variation thread is recorded resolved (contain, with its rationale), so the design-handoff gate does not bounce it back as unresolved",
+        "Output continues the design rather than blocking on the unanswered question"
+      ]
     }
   ]
 }

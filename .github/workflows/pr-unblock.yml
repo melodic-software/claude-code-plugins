@@ -61,7 +61,7 @@ jobs:
   report-escalation:
     needs: resolve-conflicts
     # escalation-reason is set only by the write runner's own steps. A later
-    # failure in that run (a red revoke step) still escalates.
+    # failure in that run (a failed verdict upload) still escalates.
     if: ${{ !cancelled() && needs.resolve-conflicts.outputs.escalation-reason != '' }}
     permissions:
       contents: read

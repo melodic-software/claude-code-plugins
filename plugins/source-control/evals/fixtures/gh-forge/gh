@@ -141,6 +141,11 @@ case "$cmd $sub" in
     echo "github.com"
     echo "  ✓ Logged in to github.com account eval-fixture (eval fixture forge)"
     ;;
+  "api --hostname")
+    # The acting-login read push-branch.sh makes to tell a lane from an operator; an operator login.
+    [[ "$*" == *"viewer{login}"* ]] || refuse "$@"
+    echo "eval-fixture"
+    ;;
   "--version "*) echo "gh version 0.0.0-eval-fixture" ;;
   *) refuse "$@" ;;
 esac
