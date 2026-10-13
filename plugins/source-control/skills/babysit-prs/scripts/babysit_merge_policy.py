@@ -33,7 +33,7 @@ import sys
 import tempfile
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -106,6 +106,7 @@ SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 # C0 and C1 controls and the Unicode line and paragraph separators.
 _SEPARATOR = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029]")
 WRITE_PERMISSIONS = frozenset({"admin", "write"})
+BLOCKER_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 # The merged-PR read for the in-flight rule: pages of 100, at most 30 pages (about five weeks of merges here).
 # A history it cannot read to its end (or to the merged-since floor) is not clear.
 MERGED_PAGE_SIZE = 100
@@ -1051,6 +1052,70 @@ def _claimed_before(
     return False
 
 
+def _lane_authored(pr: dict[str, Any], agent_identity: str | None) -> bool:
+    author = json_object(pr.get("author"))
+    return bool(
+        agent_identity
+        and author.get("__typename") == "Bot"
+        and _login_key(author.get("login")) == _login_key(agent_identity)
+    )
+
+
+def _opt_in_refusal(
+    owner: str,
+    name: str,
+    number: int,
+    pr: dict[str, Any],
+    agent_identity: str | None,
+    human: Callable[[Any], bool],
+    timelines: dict[int, list[dict[str, Any]]],
+) -> str | None:
+    """Why a pull request the identity did not author lacks a standing opt-in:
+    the label is absent, or its latest application is not a human's in
+    person with no body edit after it. None for a lane-authored one."""
+    if _lane_authored(pr, agent_identity):
+        return None
+    labels = _label_names(pr)
+    if labels is None:
+        return "labels-unreadable"
+    if OPT_IN_LABEL not in labels:
+        return "not-lane-authored-or-opted-in"
+    untrusted = _label_provenance(
+        owner, name, number, OPT_IN_LABEL, pr.get("lastEditedAt"), human, timelines
+    )
+    return f"opt-in-label:{untrusted}" if untrusted else None
+
+
+def recheck_opt_in(
+    repo: str,
+    number: int,
+    *,
+    agent_identity: str | None,
+    self_logins: Collection[str] = frozenset(),
+    permission: Permission | None = None,
+) -> str | None:
+    """The opt-in read again, presence and provenance, right before the
+    enqueue: a removal (or a removal and a non-human re-add) after the
+    eligibility read refuses. None when it stands or is not needed."""
+    owner, name = _split_repo(repo)
+    permission = permission or permission_reader(repo)
+    human = lambda actor: is_human(  # noqa: E731
+        actor,
+        repo=repo,
+        agent_identity=agent_identity,
+        self_logins=self_logins,
+        permission=permission,
+    )
+    try:
+        data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
+        pr = json_object(json_object(data.get("repository")).get("pullRequest"))
+        if not pr:
+            return "pull-request-unreadable"
+        return _opt_in_refusal(owner, name, number, pr, agent_identity, human, {})
+    except PolicyReadError as exc:
+        return f"unreadable: {exc}"
+
+
 def eligibility(
     repo: str,
     number: int,
@@ -1093,28 +1158,12 @@ def eligibility(
         if is_dependency_author(str(author.get("login") or "")):
             return Eligibility(False, "dependency-manager")
         timelines: dict[int, list[dict[str, Any]]] = {}
-        lane_authored = bool(
-            agent_identity
-            and author.get("__typename") == "Bot"
-            and _login_key(author.get("login")) == _login_key(agent_identity)
+        lane_authored = _lane_authored(pr, agent_identity)
+        opt_in = _opt_in_refusal(
+            owner, name, number, pr, agent_identity, human, timelines
         )
-        if not lane_authored:
-            labels = _label_names(pr)
-            if labels is None:
-                return Eligibility(False, "labels-unreadable")
-            if OPT_IN_LABEL not in labels:
-                return Eligibility(False, "not-lane-authored-or-opted-in")
-            untrusted = _label_provenance(
-                owner,
-                name,
-                number,
-                OPT_IN_LABEL,
-                pr.get("lastEditedAt"),
-                human,
-                timelines,
-            )
-            if untrusted:
-                return Eligibility(False, f"opt-in-label:{untrusted}")
+        if opt_in:
+            return Eligibility(False, opt_in)
         linked = json_object(pr.get("closingIssuesReferences"))
         issues = [json_object(n) for n in json_array(linked.get("nodes"))]
         if linked.get("totalCount") != 1 or len(issues) != 1:
@@ -1373,7 +1422,9 @@ ENTRY_HOLD_QUERY = (
 
 def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[str]:
     """Logins of humans whose comment, review or inline comment on the pull
-    request reads as blocking, by the autopilot tier's predicates."""
+    request reads as blocking, by the autopilot tier's predicates. Only an
+    owner, member or collaborator counts: on a public repository anyone can
+    comment, and a stranger's text must not dequeue the identity's entry."""
     from babysit_merge import HUMAN_MERGE_VETO_RE  # noqa: PLC0415 - import cycle
 
     corpus = [
@@ -1392,6 +1443,11 @@ def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[s
             _login_key(identity),
             *AUTOMATION_LOGINS,
         }:
+            continue
+        if (
+            str(item.get("author_association") or "").upper()
+            not in BLOCKER_ASSOCIATIONS
+        ):
             continue
         body = str(item.get("body") or "")
         if (
@@ -1665,14 +1721,14 @@ def changed_files(
 
 # --- Promotion evidence -----------------------------------------------------------------------
 
-PLUGIN_NAME = "source-control"
-# Resolver flag -> the babysit-loop plugin option that names its surface.
-PROMOTION_OPTIONS = {
-    "--binding": "promotion_evidence_binding",
-    "--probe-evidence-root": "promotion_evidence_root",
-    "--evidence": "promotion_evidence_source",
-    "--checker": "promotion_evidence_checker",
-}
+# The four babysit-loop options the resolver reads from the operator's managed
+# and user settings (operator-options.mjs), each naming a surface or the checker.
+PROMOTION_OPTIONS = (
+    "promotion_evidence_binding",
+    "promotion_evidence_root",
+    "promotion_evidence_source",
+    "promotion_evidence_checker",
+)
 PROMOTION_RESOLVER = (
     Path(__file__).resolve().parents[2]
     / "babysit-loop"
@@ -1689,74 +1745,48 @@ CLASS_CELLS = {
 }
 
 
-def managed_settings_files() -> list[Path]:
-    """The platform's managed settings file and its `managed-settings.d/`
-    drop-ins, at fixed paths no repository or environment can redirect.
-
-    - Pointer: when checking the managed-settings paths, fetch
-      https://code.claude.com/docs/en/managed-settings#deploy-a-managed-settings-file
-      live.
-    - As of: 2026-10-12.
-    - Recheck trigger: that section moves a platform's managed-settings path or
-      the drop-in directory.
-    """
-    if sys.platform == "darwin":
-        base = Path("/Library/Application Support/ClaudeCode/managed-settings.json")
-    elif sys.platform == "win32":
-        base = Path(r"C:\Program Files\ClaudeCode\managed-settings.json")
-    elif sys.platform.startswith("linux"):
-        base = Path("/etc/claude-code/managed-settings.json")
-    else:
-        return []
-    drop_ins = base.parent / "managed-settings.d"
-    extra = sorted(drop_ins.glob("*.json")) if drop_ins.is_dir() else []
-    return [path for path in (base, *extra) if path.is_file()]
-
-
 def _lane_writable(path: Path) -> bool:
-    """The lane user can write the file, or replace it through its directory."""
-    if os.access(path, os.W_OK) or os.access(path.parent, os.W_OK):
-        return True
+    """The lane user can write the path, or replace it through any directory
+    above it (written, or owned and so re-permissioned), as given or after
+    symlinks resolve. Raises `OSError` when the path does not exist."""
     getuid = getattr(os, "getuid", None)
-    return getuid is not None and path.stat().st_uid == getuid()
+    for candidate in {path.absolute(), path.resolve(strict=True)}:
+        for node in (candidate, *candidate.parents):
+            if os.access(node, os.W_OK):
+                return True
+            if getuid is not None and node.stat().st_uid == getuid():
+                return True
+    return False
 
 
-def read_promotion_options(
-    settings_file: Path | None,
-    *,
-    managed: Callable[[], list[Path]] = managed_settings_files,
-    writable: Callable[[Path], bool] = _lane_writable,
-) -> tuple[dict[str, str] | None, str | None]:
-    """The four bootstrap option values from `pluginConfigs` in managed
-    settings, plus the executor-owned `--settings` file the operator names,
-    never from argv or the environment. A source the lane user can write
-    refuses, as do conflicting values and an unset option."""
-    sources = managed() + ([settings_file] if settings_file is not None else [])
-    found: dict[str, str] = {}
-    for path in sources:
-        try:
-            if writable(path):
-                return None, f"settings-lane-writable:{path}"
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None, f"settings-unreadable:{path}"
-        for key, entry in json_object(json_object(data).get("pluginConfigs")).items():
-            if key != PLUGIN_NAME and not key.startswith(f"{PLUGIN_NAME}@"):
-                continue
-            options = json_object(json_object(entry).get("options"))
-            for option in PROMOTION_OPTIONS.values():
-                value = options.get(option)
-                if value in (None, ""):
-                    continue
-                if (
-                    not isinstance(value, str)
-                    or found.setdefault(option, value) != value
-                ):
-                    return None, f"option-conflict:{option}"
-    missing = [o for o in PROMOTION_OPTIONS.values() if o not in found]
-    if missing:
-        return None, "options-unset:" + ",".join(missing)
-    return found, None
+def _options_refusal(
+    options: dict[str, Any], writable: Callable[[Path], bool]
+) -> str | None:
+    """Why the option values the resolver reports, or the settings files they
+    came from, are not trusted: one is unreported, or the lane user can write
+    it or replace it through a directory above it. A lane that can rewrite the
+    evidence, the checker or the setting naming them decides `promoted`."""
+    for option in PROMOTION_OPTIONS:
+        entry = json_object(options.get(option))
+        value, source = entry.get("value"), entry.get("file")
+        if not isinstance(value, str) or not isinstance(source, str):
+            return f"option-unreported:{option}"
+        for label, path in (("evidence", value), ("settings", source)):
+            try:
+                if writable(Path(path)):
+                    return f"{label}-lane-writable:{option}"
+            except OSError:
+                return f"{label}-unreadable:{option}"
+    return None
+
+
+def _window_start(at: datetime) -> str:
+    """`at` in the checker's strict form, whole seconds in UTC, rounded up so
+    the restart never lands before the demotion it stands for."""
+    at = at.astimezone(UTC)
+    if at.microsecond:
+        at = at.replace(microsecond=0) + timedelta(seconds=1)
+    return at.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @dataclass(frozen=True)
@@ -1775,55 +1805,61 @@ class Promotion:
         )
 
 
+def worktree_roots(checkout: Path) -> list[str] | None:
+    """Every worktree of the checkout's repository, or None when git cannot
+    list them."""
+    try:
+        proc = run_command(
+            ["git", "-C", str(checkout), "worktree", "list", "--porcelain"],
+            allowed_executables=("git",),
+            check=False,
+        )
+    except (RuntimeError, ValueError, OSError):
+        return None
+    if proc.returncode != 0:
+        return None
+    return [
+        line.removeprefix("worktree ")
+        for line in proc.stdout.splitlines()
+        if line.startswith("worktree ")
+    ]
+
+
 def read_promotion(
     *,
-    settings_file: Path | None,
     checkout: Path,
     window_start: datetime | None,
-    options: tuple[dict[str, str] | None, str | None] | None = None,
+    worktrees: Callable[[Path], list[str] | None] = worktree_roots,
+    writable: Callable[[Path], bool] = _lane_writable,
 ) -> Promotion:
-    """Run the babysit-loop promotion resolver on the bootstrap surfaces.
+    """Run the babysit-loop promotion resolver, which reads the four option
+    values from the operator's managed and user settings itself.
 
-    The evidence the resolver reads is a copy written outside `checkout`: the
-    source's events plus, when a demotion record exists, one `gate-failure`
-    per promotable cell at the newest record's creation. That restarts the
-    evidence window: a cell stays unpromoted until it is re-ratified after the
-    demotion. No source event is dropped. Anything doubtful is unpromoted."""
-    values, reason = options or read_promotion_options(settings_file)
-    if values is None:
-        return Promotion(None, reason)
-    try:
-        events = json.loads(
-            Path(values["promotion_evidence_source"]).read_text(encoding="utf-8")
-        )
-    except (OSError, ValueError):
-        return Promotion(None, "evidence-unreadable")
-    if not isinstance(events, list):
-        return Promotion(None, "evidence-not-an-array")
+    Every worktree of the checkout is a `--worktree-root`, so a surface in a
+    sibling worktree refuses. With a demotion record, `--window-start` is its
+    creation: the checker reads the source's events plus one `gate-failure`
+    per promotable cell then, so a cell stays unpromoted until it is
+    re-ratified after the demotion. A value the resolver reports, or the
+    settings file it came from, that the lane user can write refuses.
+    Anything doubtful is unpromoted."""
+    roots = worktrees(checkout)
+    if roots is None:
+        return Promotion(None, "worktrees-unreadable")
+    argv = ["node", str(PROMOTION_RESOLVER), "--checkout", str(checkout)]
+    for root in roots:
+        argv += ["--worktree-root", root]
     if window_start is not None:
-        at = window_start.isoformat()
-        events = [
-            *events,
-            *(
-                {"cell": cell, "event": "gate-failure", "at": at}
-                for cell in PROMOTABLE_CELLS
-            ),
-        ]
-    with tempfile.TemporaryDirectory() as tmp:
-        copy = Path(tmp).resolve() / "promotion-evidence.json"
-        if copy.is_relative_to(checkout.resolve()):
-            return Promotion(None, "evidence-copy-inside-checkout")
-        copy.write_text(json.dumps(events), encoding="utf-8")
-        argv = ["node", str(PROMOTION_RESOLVER), "--checkout", str(checkout)]
-        for flag, option in PROMOTION_OPTIONS.items():
-            argv += [flag, str(copy) if flag == "--evidence" else values[option]]
-        try:
-            proc = run_command(argv, allowed_executables=("node",), check=False)
-            result = json_object(json.loads(proc.stdout))
-        except (RuntimeError, ValueError, OSError) as exc:
-            return Promotion(None, f"resolver-failed: {exc}")
+        argv += ["--window-start", _window_start(window_start)]
+    try:
+        proc = run_command(argv, allowed_executables=("node",), check=False)
+        result = json_object(json.loads(proc.stdout))
+    except (RuntimeError, ValueError, OSError) as exc:
+        return Promotion(None, f"resolver-failed: {exc}")
     if proc.returncode != 0 or result.get("failClosedReason") is not None:
         return Promotion(None, str(result.get("failClosedReason") or "resolver-failed"))
+    refusal = _options_refusal(json_object(result.get("options")), writable)
+    if refusal:
+        return Promotion(None, refusal)
     cells = {
         cell: json_object(state).get("effective")
         for cell, state in json_object(result.get("cells")).items()
@@ -1912,7 +1948,10 @@ def assess(
     except PolicyReadError:
         return replace(stopped, reason=DEFAULT_BRANCH_UNREADABLE)
     if base_ref != default:
-        return replace(stopped, reason=f"base-not-default:{base_ref}")
+        # Not a stop (other bases keep their entries), but this pull request's
+        # own entry, queued on that base, leaves.
+        inputs["own_refusal"] = f"base-not-default:{base_ref}"
+        return replace(stopped, reason=inputs["own_refusal"])
 
     permission = permission_reader(repo)
     readers = {
