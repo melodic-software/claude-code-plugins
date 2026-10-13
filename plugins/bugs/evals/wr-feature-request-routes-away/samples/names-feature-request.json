@@ -8,6 +8,14 @@
     },
     {
       "answer": "That's a missing capability rather than a defect, so `/bugs:write` does not apply.\n\nNext: track it as an enhancement in your backlog."
+    },
+    {
+      "answer": "I didn't write this up as a bug report because it's a feature request.",
+      "why": "negation in the earlier clause"
+    },
+    {
+      "answer": "What you're describing is a **feature request**, not a defect.",
+      "why": "bold label"
     }
   ],
   "fail": [
@@ -19,6 +27,18 @@
     },
     {
       "answer": "Is this a feature request? Tell me and I will write it up."
+    },
+    {
+      "answer": "I do not think this is a feature request; it is a bug.",
+      "why": "negated"
+    },
+    {
+      "answer": "Whether this is a feature request or a bug, here is the bug report.",
+      "why": "whether"
+    },
+    {
+      "answer": "Feature request: no, this is a defect.",
+      "why": "label answered no"
     }
   ]
 }

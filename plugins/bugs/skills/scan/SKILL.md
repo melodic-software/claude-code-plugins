@@ -121,8 +121,8 @@ than jitter it, because the deterministic floor is what makes daily coverage pre
 - **"Lane exhausted" means the sample is complete, not that the lane is bug-free.** Never claim
   exhaustive coverage.
 
-Zero verified findings is a successful outcome: report it, advance the cursor, and do not refill
-past the cap or invent a finding to justify the run.
+Zero verified findings is a successful outcome: report it, advance the cursor on a rotation or
+named-lane run, and do not refill past the cap or invent a finding to justify the run.
 
 ### Sizing. Model by stage, breadth by scope, effort as the ceiling
 

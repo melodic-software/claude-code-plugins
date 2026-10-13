@@ -5,6 +5,10 @@
     },
     {
       "answer": "Zero verified findings in src/calendar.js. The hunter returned no candidates, which is a valid outcome; nothing reached the gate.\n\n## Refuted candidates\n\nNone — every candidate this run survived the gate."
+    },
+    {
+      "answer": "*No verified findings.*\n\nNo evidence reproduced a fault.",
+      "why": "prose, no label"
     }
   ],
   "fail": [
@@ -16,6 +20,18 @@
     },
     {
       "answer": "**Evidence:** `reproduced`"
+    },
+    {
+      "answer": "*No verified findings.*\n\n| Evidence | reproduced |",
+      "why": "table label"
+    },
+    {
+      "answer": "Evidence - reproduced",
+      "why": "dash label"
+    },
+    {
+      "answer": "*No verified findings.*\n\n### 1. Off-by-one in isLeapYear",
+      "why": "numbered finding heading"
     }
   ]
 }

@@ -24,6 +24,10 @@
     {
       "answer": "## Severity\n\nhigh, not critical until more orders are confirmed",
       "why": "heading form with a non-critical level"
+    },
+    {
+      "answer": "I would not call the severity critical; it is high.",
+      "why": "no severity label"
     }
   ]
 }

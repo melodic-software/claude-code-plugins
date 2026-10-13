@@ -28,13 +28,13 @@ graders:
     target: last_message
   - name: title-not-past-tense
     type: regex
-    pattern: '^[ \t]*(?:#{1,6}[ \t]*)?(?:\*\*)?(?:Bug(?: report)?|Title)(?:\*\*)?[ \t]*[:—–-][^\n]*\b(?:fixed|was broken|were broken|broke|was charging|was applied)\b'
+    pattern: '^[ \t]*(?:#{1,6}[ \t]*)?(?:\*\*)?(?:Bug(?: report)?|Title)(?:\*\*)?[ \t]*[:—–-][^\n]*\b(?:fixed|broke|(?:was|were)[ \t]+(?:\w+ed|\w+ing|broken|\w+en)|(?<!\bis )(?<!\bare )(?<!\bbe )(?<!\bget )(?<!\bgets )(?<!\bbeen )(?<!\bbeing )(?:charged|applied|added|returned|billed)[ \t]+(?:an?|the|\d|\$|customers?|users?|invoices?))\b'
     flags: 'mi'
     match: not_contains
     target: last_message
   - name: no-patch
     type: regex
-    pattern: '```[ \t]*(?:diff|patch)\b|^@@[ \t]|^[ \t]*[+-][ \t]*(?:await|const|return)\b|\b[Cc]hange line \d+\b|\b[Cc]hange `[^`\n]+` to `[^`\n]+`|\b[Rr]eplace `[^`\n]+` with `[^`\n]+`'
+    pattern: '```[ \t]*(?:diff|patch)\b|```[ \t]*(?:ts|tsx|typescript|js|jsx|javascript|mjs|cjs)\b[^\n]*\n(?:(?!```)[^\n]*\n)*?[^\n]*(?:\bfunction\b|\breturn\b|\bif[ \t]*\(|\{[ \t]*$)|^[ \t]*(?:[+-][ \t]*)?(?:export[ \t]+)?(?:(?:async[ \t]+)?function[ \t]+applyLateFee\b|(?:const|let|var)[ \t]+applyLateFee[ \t]*=)|^@@[ \t]|^[ \t]*[+-][ \t]*(?:(?:const|let|var)[ \t]+[\w$]+[ \t]*=|await[ \t]+[\w$.]+|return\b[^\n]*;|throw[ \t]+new\b|if[ \t]*\(|else\b|\})|^[ \t]*(?:if[ \t]*\(|else[ \t]*(?:if\b|\{)|return\b[^\n]*;[ \t]*$|await[ \t]+[\w$.]+[ \t]*\(|\}[ \t]*(?:else\b|$))|\b[Cc]hange line \d+\b|\b(?:[Cc]hange|[Ss]wap|[Ss]witch)[ \t]+(?:the[ \t]+)?`(?![/-]|gh )[^`\n]+`[ \t]+(?:to|for|with)[ \t]+`[^`\n]+`|\b[Rr]eplace[ \t]+(?:the[ \t]+)?`(?![/-]|gh )[^`\n]+`[ \t]+with[ \t]+`[^`\n]+`|\b[Uu]se[ \t]+(?:the[ \t]+)?`(?![/-]|gh )[^`\n]+`[ \t]+instead of[ \t]+`[^`\n]+`|`[^`\n]+`[ \t]+(?:should|must)[ \t]+(?:be|become|read)[ \t]+`[^`\n]+`'
     flags: 'm'
     match: not_contains
     target: last_message

@@ -7,6 +7,17 @@ graders:
     type: tool_used
     tool: Agent
     min: 2
+  - name: gate-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: '[Rr][Ee][Ff][Uu][Tt]'
+    min: 1
+  - name: no-zero-findings-claim
+    type: regex
+    pattern: '^[ \t]*[*_#]*[ \t]*no verified findings\b'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
   - name: finding-names-function
     type: regex
     pattern: '\bfix location\b[^\n]{0,200}\bdiscountRate\b|^[ \t]*#{1,6}[ \t]*(?:Finding\b|\d+[.)])[^\n]*\bdiscountRate\b'
@@ -14,7 +25,7 @@ graders:
     target: last_message
   - name: evidence-label
     type: regex
-    pattern: '\bEvidence\b(?:\*\*)?[ \t]*:?[ \t]*(?:\*\*)?[ \t]*`?(?:reproduced|verified[- ]by[- ]reading)\b'
+    pattern: '\bEvidence\b(?:\*\*)?[ \t]*(?:[:|—–]|-[ \t]|\*\*)[ \t]*(?:\*\*)?[ \t]*`?(?:reproduced|verified[- ]by[- ]reading)\b'
     flags: 'i'
     target: last_message
   - name: path-line-locator

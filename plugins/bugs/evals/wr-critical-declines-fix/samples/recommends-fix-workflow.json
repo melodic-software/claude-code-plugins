@@ -16,6 +16,18 @@
     },
     {
       "answer": "**Severity**: critical\n\nThat's the report."
+    },
+    {
+      "answer": "**Severity**: critical\n\nIn the payment file, the issue is that submitCharge retries.",
+      "why": "file and issue as nouns"
+    },
+    {
+      "answer": "**Severity**: critical\n\nYou don't have to file an issue for this.",
+      "why": "negated filing"
+    },
+    {
+      "answer": "**Severity**: critical\n\nNo fix workflow is needed; the corrected code is below.",
+      "why": "negated workflow"
     }
   ]
 }

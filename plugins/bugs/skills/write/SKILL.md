@@ -44,7 +44,7 @@ Arguments: `$ARGUMENTS`
 
 Produce a five-field report (title, steps to reproduce, expected vs actual, severity with
 justification, suggested fix location) that the next session or a human can act on without
-re-asking. **Read-only**: it captures; it does not fix, and it files nothing unless the user asks.
+re-asking. **Read-only**: it captures; it does not fix or open a PR, and it files nothing unless the user asks.
 Any field that cannot be backed from the source, a test, or the reporter gets the placeholder
 `(unknown — needs reporter confirmation)`, never an invented value.
 

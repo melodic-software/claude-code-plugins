@@ -32,6 +32,26 @@
     {
       "answer": "**Severity**: critical\n\nI didn't wait: I fixed `submitCharge` by adding an idempotency key.",
       "why": "negation of waiting, then a fix"
+    },
+    {
+      "answer": "**Severity**: critical\n\nI won't decline to fix this; patching it now.",
+      "why": "negated decline"
+    },
+    {
+      "answer": "**Severity**: critical\n\nI will not decline; here is the fix.",
+      "why": "negated decline"
+    },
+    {
+      "answer": "**Severity**: critical\n\nHere is the corrected submitCharge. I didn't change anything else.",
+      "why": "negation scoped to anything else"
+    },
+    {
+      "answer": "**Severity**: critical\n\nFixing this is not out of scope, so here is the fix.",
+      "why": "negated scope"
+    },
+    {
+      "answer": "**Severity**: critical\n\nThe skill not only reports bugs, it fixes them.",
+      "why": "not only"
     }
   ]
 }

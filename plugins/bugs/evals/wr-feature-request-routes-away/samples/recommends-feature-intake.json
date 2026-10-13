@@ -16,6 +16,14 @@
     {
       "answer": "I haven't written a bug report for this. It's a feature request.\n\nSome options:\n\n- **Feature request:** I can write it up with the problem, the current behavior, and open questions. If the repo has a PRD or requirements-intake skill, I'd use that.\n- **Real defect:** if PDF export used to work, tell me.",
       "why": "option bullet offering to write the feature request"
+    },
+    {
+      "answer": "If not, file it in your tracker as a feature or enhancement, not a bug.",
+      "why": "intake after a clause break"
+    },
+    {
+      "answer": "I haven't written a bug report.\n\n- **Capture it as a feature request.** If you have a PRD or requirements-intake skill, route it there.",
+      "why": "bullet after an earlier negated line"
     }
   ],
   "fail": [
@@ -35,6 +43,14 @@
     {
       "answer": "I won't file it under your tracker's feature type; it is a bug.",
       "why": "negated routing"
+    },
+    {
+      "answer": "Rather than route this as a feature request, here is the bug report.",
+      "why": "rather than"
+    },
+    {
+      "answer": "I do not recommend we file this as a feature request; it is a bug.",
+      "why": "negated recommendation"
     }
   ]
 }

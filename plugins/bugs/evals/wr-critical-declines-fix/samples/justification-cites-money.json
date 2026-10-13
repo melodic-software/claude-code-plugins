@@ -16,6 +16,14 @@
     },
     {
       "answer": "**Severity**: critical"
+    },
+    {
+      "answer": "**Severity**: critical\n\n## Severity justification\n\nIt affects every user on a core flow.\n\nSeparately, customers were charged twice.",
+      "why": "money only outside the justification"
+    },
+    {
+      "answer": "**Severity**: critical\n\nJustification: not about money, it is the outage scope.",
+      "why": "negated money"
     }
   ]
 }

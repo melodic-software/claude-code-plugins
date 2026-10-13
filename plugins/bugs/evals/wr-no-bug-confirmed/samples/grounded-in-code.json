@@ -16,6 +16,14 @@
     {
       "answer": "*No bug confirmed.*\n\n**What I found**: The output matches the function's own comment (`page 2 => items[pageSize .. 2*pageSize-1]`); with pageSize 3, page 2 is `[3, 4, 5]`.",
       "why": "page 2 begins at items[pageSize]"
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**Verified state**: with 7 items and pageSize 3, page 1 ends at index 2 and page 2 starts at index 3.",
+      "why": "traced indexes"
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**Verified state**: Page 2 starts at index `pageSize`, which is the row right after page 1's last row.",
+      "why": "symbolic start index"
     }
   ],
   "fail": [
@@ -28,6 +36,10 @@
     {
       "answer": "*No bug confirmed.*\n\n**Verified state**: `start = page * pageSize`, which looks fine to me.",
       "why": "wrong math, not the (page - 1) * pageSize grounding"
+    },
+    {
+      "answer": "*No bug confirmed.*\n\nThe comment says the page number is 1-based, and I could not verify the claim either way.",
+      "why": "echoes the prompt comment"
     }
   ]
 }

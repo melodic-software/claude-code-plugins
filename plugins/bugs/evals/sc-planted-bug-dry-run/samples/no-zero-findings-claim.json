@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Finding 1: `discountRate` gives no 10% discount at exactly 10000 cents\n\n**Evidence**: reproduced\n\n## Refuted candidates\n\nNone — every candidate this run survived the gate.",
+      "why": "verified finding"
+    },
+    {
+      "answer": "Zero findings would also have been a valid outcome, but the gate confirmed one.",
+      "why": "prose mention"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "*No verified findings.*\n\n## Finding 1: discountRate excludes the boundary",
+      "why": "zero-findings line"
+    },
+    {
+      "answer": "No verified findings. The file has one function worth a look.",
+      "why": "zero-findings line"
+    }
+  ]
+}

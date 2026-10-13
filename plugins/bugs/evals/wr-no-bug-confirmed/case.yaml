@@ -13,12 +13,12 @@ graders:
     target: last_message
   - name: grounded-in-code
     type: regex
-    pattern: '\(page[ \t]*-[ \t]*1\)[ \t]*\*[ \t]*pageSize|\b(?:1-based|one-based)\b|slice\([ \t]*\d+[ \t]*,[ \t]*\d+[ \t]*\)|\bindex(?:es)? \d+\b|\bslice\([ \t]*pageSize[ \t]*,[ \t]*2[ \t]*\*[ \t]*pageSize[ \t]*\)|\bitems\[[ \t]*pageSize\b|\bstart[ \t]*=[ \t]*pageSize\b'
+    pattern: '\(page[ \t]*-[ \t]*1\)[ \t]*\*[ \t]*pageSize|slice\([ \t]*\d+[ \t]*,[ \t]*\d+[ \t]*\)|\bindex(?:es)?[ \t]+(?:\d+|`?pageSize`?)\b|\bslice\([ \t]*pageSize[ \t]*,[ \t]*2[ \t]*\*[ \t]*pageSize[ \t]*\)|\bitems\[[ \t]*pageSize\b|\bstart[ \t]*=[ \t]*pageSize\b'
     flags: 'i'
     target: last_message
   - name: no-five-field-report
     type: regex
-    pattern: '^[ \t]*(?:#{1,6}[ \t]*|\*\*)?(?:steps to reproduce|reproduction steps|repro steps)\b|^[ \t]*#{1,6}[ \t]*Bug:|^[ \t]*#{1,6}[ \t]*Severity\b|\*\*Severity(?:\*\*[ \t]*:|:\*\*)[ \t]*[`*_(]*(?:critical|high|medium|low|major|minor|blocker|trivial|unknown|sev[- ]?[0-9]|[PS][0-4])\b'
+    pattern: '^[ \t]*(?:(?:#{1,6}|[-*+>|]|\d+[.)])[ \t]*)?(?:\*\*)?(?:steps to reproduce|reproduction steps|repro steps)\b|^[ \t]*(?:#{1,6}[ \t]*)?[*_]{0,2}(?:steps|repro(?:duction)?)[*_]{0,2}[ \t]*:?[ \t]*[*_]{0,2}[ \t]*\n(?:[ \t]*\n)?[ \t]*(?:\d+[.)]|[-*+])[ \t]|^[ \t]*#{1,6}[ \t]*Bug:|^[ \t]*#{1,6}[ \t]*Severity\b|\*\*Severity(?:\*\*[ \t]*:|:\*\*)[ \t]*[`*_(]*(?:critical|high|medium|low|major|minor|blocker|trivial|unknown|sev[- ]?[0-9]|[PS][0-4])\b|^[ \t]*(?:(?:[-*+>]|\d+[.)])[ \t]*)?(?:\|[ \t]*)?[*_]{0,2}Severity[*_]{0,2}[ \t]*(?:[:|—–-]|[*_]{2}[ \t]*:)[ \t]*[*_`(]*[ \t]*(?:critical|high|medium|low|major|minor|blocker|trivial|unknown|sev[- ]?[0-9]|[PS][0-4])\b'
     flags: 'mi'
     match: not_contains
     target: last_message

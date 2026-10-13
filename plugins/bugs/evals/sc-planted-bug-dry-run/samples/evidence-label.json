@@ -8,6 +8,10 @@
     },
     {
       "answer": "**Evidence:** verified by reading"
+    },
+    {
+      "answer": "| Evidence | reproduced |",
+      "why": "table label"
     }
   ],
   "fail": [
@@ -16,6 +20,10 @@
     },
     {
       "answer": "Evidence labels apply only to survivors; the gate could not reproduce anything."
+    },
+    {
+      "answer": "The hunter flagged it, but no evidence reproduced it, so the gate dropped it.",
+      "why": "prose, no label"
     }
   ]
 }

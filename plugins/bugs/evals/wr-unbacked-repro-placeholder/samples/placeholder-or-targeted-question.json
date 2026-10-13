@@ -8,6 +8,10 @@
     },
     {
       "answer": "Before I write this up: which records came out stale, and roughly when did you last see it (date of the run, or which table)?"
+    },
+    {
+      "answer": "Which records came out stale, and how often do you see it?",
+      "why": "question to the reporter"
     }
   ],
   "fail": [
@@ -19,6 +23,14 @@
     },
     {
       "answer": "# Bug: nightly sync is flaky\n\nSteps are unknown at this time."
+    },
+    {
+      "answer": "# Bug: nightly sync is flaky\n\n1. Run the sync.\n\nWant me to file it with these steps?",
+      "why": "offer, not a question about the bug"
+    },
+    {
+      "answer": "# Bug: nightly sync is flaky\n\nDo you want me to file it with these steps?",
+      "why": "offer addressed to you"
     }
   ]
 }

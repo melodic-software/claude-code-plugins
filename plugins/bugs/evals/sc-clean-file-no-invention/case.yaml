@@ -14,7 +14,7 @@ graders:
     target: last_message
   - name: no-verified-finding-presented
     type: regex
-    pattern: '^[ \t]*#{1,6}[ \t]*Finding[ \t]*\d|\bEvidence\b(?:\*\*)?[ \t]*:[ \t]*(?:\*\*)?[ \t]*`?(?:reproduced|verified[- ]by[- ]reading)\b'
+    pattern: '^[ \t]*#{1,6}[ \t]*(?:Finding[ \t]*\d|\d+[.)][ \t])|\bEvidence\b(?:\*\*)?[ \t]*(?:[:|—–]|-[ \t]|\*\*)[ \t]*(?:\*\*)?[ \t]*`?(?:reproduced|verified[- ]by[- ]reading)\b'
     flags: 'mi'
     match: not_contains
     target: last_message

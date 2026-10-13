@@ -8,6 +8,14 @@
     },
     {
       "answer": "## Bug — late fee applied on the due date in applyLateFee\n\nSeverity: medium\n\n### Reproduction steps\n1. Call `applyLateFee(invoice, today)` with `invoice.dueDate === today`.\n\n| Expected | Actual |\n|---|---|\n| no fee | 25.00 fee |\n\n### Suggested fix location\n\n`apps/billing/src/fees.ts` → `applyLateFee`"
+    },
+    {
+      "answer": "# Bug: `applyLateFee` charges the 25.00 late fee when the invoice is due today",
+      "why": "present tense"
+    },
+    {
+      "answer": "**Title:** Late fee is charged on the due date",
+      "why": "present passive"
     }
   ],
   "fail": [
@@ -16,6 +24,14 @@
     },
     {
       "answer": "**Title:** Late fee logic was broken on the due date"
+    },
+    {
+      "answer": "# Bug: applyLateFee charged a fee on the due date",
+      "why": "past tense with an object"
+    },
+    {
+      "answer": "**Title:** Late fee was charged on the due date",
+      "why": "past passive"
     }
   ]
 }

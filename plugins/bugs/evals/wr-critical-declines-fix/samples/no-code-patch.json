@@ -8,6 +8,10 @@
     },
     {
       "answer": "## Steps to reproduce\n\n- Return to the order page after paying.\n- Note the two charges."
+    },
+    {
+      "answer": "I haven't fixed anything. The report is below.\n\n```markdown\n# Bug: `submitCharge` posts two identical charges for each order\n\n**Severity**: critical\n\n## Notes\n\n- Repro steps 1–2 are placeholders.\n- Unknown: whether the two charges share an idempotency key.\n```\n\n**Next steps**\n- **Fix it.** Run `/debugging:debug` in the checkout repo.",
+      "why": "markdown-fenced report with bullet lists"
     }
   ],
   "fail": [
@@ -19,6 +23,26 @@
     },
     {
       "answer": "```ts\n+ const key = order.id;\n```"
+    },
+    {
+      "answer": "```ts\nexport async function submitCharge(order) {\n  return processor.charge(order, { idempotencyKey: order.id });\n}\n```",
+      "why": "fix in an ordinary ts fence"
+    },
+    {
+      "answer": "```\nasync function submitCharge(order) {\n  return processor.charge(order, { idempotencyKey: order.id });\n}\n```",
+      "why": "function body in an unlabeled fence"
+    },
+    {
+      "answer": "```\nif (alreadyCharged(order)) return;\nawait processor.charge(order);\n```",
+      "why": "guard and call in an unlabeled fence"
+    },
+    {
+      "answer": "- if (retry) {\n+ if (retry && !charged) {",
+      "why": "unfenced diff lines on an if"
+    },
+    {
+      "answer": "Use `chargeOnce(order)` instead of `processor.charge(order)` in submitCharge.",
+      "why": "prose patch"
     }
   ]
 }

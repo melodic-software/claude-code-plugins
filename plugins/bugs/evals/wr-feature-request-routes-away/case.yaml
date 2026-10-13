@@ -3,17 +3,17 @@ name: wr-feature-request-routes-away
 graders:
   - name: names-feature-request
     type: regex
-    pattern: '(?<!not )(?<!Not )(?<!n[''’]t )\b(?:is|it[''’]s|this[''’]s|that[''’]s|counts as|classif(?:y|ied)(?: it| this)? as)[ \t]+(?:\*\*)?(?:an?[ \t]+)?(?:\*\*)?(?:feature request|missing[- ]capability|missing feature|feature gap|enhancement)\b|^[ \t]*(?:#{1,6}[ \t]*)?(?:\*\*)?feature request\b(?![^\n]*\?)'
+    pattern: '(?:^|[.;:!?,—(]|\b(?:because|since|so|but|instead)\b)[ \t*_]*(?:(?![.;:!?,—\n])(?!\b(?:not|never|no|whether|rather|if)\b)(?!n[''’]t\b)[^\n])*?(?<!not )(?<!n[''’]t )\b(?:is|it[''’]s|this[''’]s|that[''’]s|counts as|classif(?:y|ied)(?: it| this)? as)[ \t]+(?:\*\*)?(?:an?[ \t]+)?(?:\*\*)?(?:feature request|missing[- ]capability|missing feature|feature gap|enhancement)\b|^[ \t]*(?:#{1,6}[ \t]*)?(?:\*\*)?feature request\b(?![^\n]*\?)(?![ \t]*[*_]*[ \t]*:?[ \t]*[*_]*[ \t]*(?:no|not)\b)'
     flags: 'mi'
     target: last_message
   - name: no-five-field-report
     type: regex
-    pattern: '^[ \t]*(?:#{1,6}[ \t]*|\*\*)?(?:steps to reproduce|reproduction steps|repro steps)\b|^[ \t]*#{1,6}[ \t]*Bug:|^[ \t]*#{1,6}[ \t]*Severity\b|\*\*Severity(?:\*\*[ \t]*:|:\*\*)[ \t]*[`*_(]*(?:critical|high|medium|low|major|minor|blocker|trivial|unknown|sev[- ]?[0-9]|[PS][0-4])\b'
+    pattern: '^[ \t]*(?:(?:#{1,6}|[-*+>|]|\d+[.)])[ \t]*)?(?:\*\*)?(?:steps to reproduce|reproduction steps|repro steps)\b|^[ \t]*(?:#{1,6}[ \t]*)?[*_]{0,2}(?:steps|repro(?:duction)?)[*_]{0,2}[ \t]*:?[ \t]*[*_]{0,2}[ \t]*\n(?:[ \t]*\n)?[ \t]*(?:\d+[.)]|[-*+])[ \t]|^[ \t]*#{1,6}[ \t]*Bug:|^[ \t]*#{1,6}[ \t]*Severity\b|\*\*Severity(?:\*\*[ \t]*:|:\*\*)[ \t]*[`*_(]*(?:critical|high|medium|low|major|minor|blocker|trivial|unknown|sev[- ]?[0-9]|[PS][0-4])\b|^[ \t]*(?:(?:[-*+>]|\d+[.)])[ \t]*)?(?:\|[ \t]*)?[*_]{0,2}Severity[*_]{0,2}[ \t]*(?:[:|—–-]|[*_]{2}[ \t]*:)[ \t]*[*_`(]*[ \t]*(?:critical|high|medium|low|major|minor|blocker|trivial|unknown|sev[- ]?[0-9]|[PS][0-4])\b'
     flags: 'mi'
     match: not_contains
     target: last_message
   - name: recommends-feature-intake
     type: regex
-    pattern: '(?<!not )(?<!n[''’]t )(?<!need to )(?<!never )\b(?:route|capture|file|log|track|record|open|writ(?:e|ten)|draft|treat|raise|submit|add)\b[^\n.]{0,60}?\b(?:feature request|feature (?:type|label|issue|ticket)|PRD|product requirements?|requirements[- ]intake|product intake|enhancement)\b|\*\*feature request:?\*\*:?[ \t]*I(?:[ \t]+(?:can|could|will|would)|[''’](?:ll|d))[ \t]+(?:write|draft|capture|file|log|open)\b|/planning:prd\b'
-    flags: 'i'
+    pattern: '(?:^|[.;:!?,—(]|\b(?:because|since|so|but|instead)\b)[ \t*_]*(?:(?![.;:!?,—\n])(?!\b(?:not|never|no|whether|rather|if)\b)(?!n[''’]t\b)[^\n])*?(?<!not )(?<!n[''’]t )(?<!need to )(?<!never )\b(?:route|capture|file|log|track|record|open|writ(?:e|ten)|draft|treat|raise|submit|add)\b[^\n.]{0,60}?\b(?:feature request|feature (?:type|label|issue|ticket)|PRD|product requirements?|requirements[- ]intake|product intake|enhancement)\b|\*\*feature request:?\*\*:?[ \t]*I(?:[ \t]+(?:can|could|will|would)|[''’](?:ll|d))[ \t]+(?:write|draft|capture|file|log|open)\b|/planning:prd\b'
+    flags: 'mi'
     target: last_message

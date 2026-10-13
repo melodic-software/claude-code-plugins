@@ -12,6 +12,10 @@
     {
       "answer": "*No bug confirmed.*\n\n**Description claimed**: page 2 skips a row.\n**Verified state**: page 2 starts at `pageSize`.\n**Recommendation**: don't file this; a bug report would need a severity, and there is no defect to rate.",
       "why": "mentions severity in prose only"
+    },
+    {
+      "answer": "If you can share a call site, I can write that up as a five-field report with steps to reproduce.",
+      "why": "prose mention"
     }
   ],
   "fail": [
@@ -24,6 +28,18 @@
     {
       "answer": "*No bug confirmed*, but for the record:\n\n**Severity:** low",
       "why": "a severity line with a level"
+    },
+    {
+      "answer": "*No bug confirmed.*\n\nSeverity: low",
+      "why": "plain severity line"
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n| Severity | Low |",
+      "why": "table severity"
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**Steps:**\n1. Call paginate(items, 2, 4).",
+      "why": "bare steps label with a list"
     }
   ]
 }
