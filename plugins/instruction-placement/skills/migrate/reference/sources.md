@@ -27,7 +27,8 @@ Contents: [The remote flag](#the-remote-flag-and-how-its-code-default-is-read) �
 [Hook gap recheck](#page-recheck-of-the-hook-gap) ·
 [Built-in agents-md plugin](#the-built-in-agents-md-plugin) ·
 [Frontmatter hooks](#frontmatter-hooks-and-instructionsloaded) ·
-[Nested path blockers](#blockers-between-the-root-and-a-nested-agentsmd)
+[Nested path blockers](#blockers-between-the-root-and-a-nested-agentsmd) ·
+[Nested write trigger](#the-nested-write-trigger)
 
 ## The remote flag, and how its code default is read
 
@@ -256,7 +257,10 @@ Codex leg, and the rollout check are in
 
 ## What shim removal costs
 
-This is the price of the cutover, and `remove-shims` prints it before it asks.
+This is the price of the cutover, and `remove-shims` prints it before it asks. A repository with a
+nested `AGENTS.md` adds one more line, the nested write-trigger loss recorded under
+[The nested write trigger](#the-nested-write-trigger), and repeats it with the probe's result after
+`cutover-check` runs.
 
 Removing the shims costs the hook-visible load. Without a shim, the `InstructionsLoaded` hook no
 longer reports the `AGENTS.md` load, so `verify-load.sh` and any hook-based audit stop seeing it
@@ -471,3 +475,42 @@ between the repository root and a nested `AGENTS.md` (for example `svc/CLAUDE.lo
 - **As of**: 2026-10-02
 - **Recheck trigger**: that section states which directories' files stop a subdirectory's
   `AGENTS.md` from loading.
+
+## The nested write trigger
+
+The record behind condition G in [`shim-droppable.md`](shim-droppable.md) and the nested write
+probe in `scripts/cutover-check.sh`.
+
+Condition G compares the triggers the memory page gives for a subdirectory's `CLAUDE.md` with the
+ones it gives for a subdirectory's `AGENTS.md` read directly. Where the first list names a trigger
+the second does not, a nested `@AGENTS.md` shim is what carries the nested instructions on that
+trigger, so the shim stays unless the operator accepts the loss. Read both lists live at the
+pointers; this record holds that decision and our own probe results, not the page's wording.
+
+- **Pointer**: <https://code.claude.com/docs/en/memory#how-claude-md-files-load> (a
+  subdirectory's `CLAUDE.md`) and
+  <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> (a subdirectory's
+  `AGENTS.md`), fetched by the rung-1 route on 2026-10-11, slug in `llms.txt`; and the
+  [changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) entry for 2.1.288
+  that added the Write and Edit trigger for nested `CLAUDE.md` files and rules.
+- **Measured**: Claude Code 2.1.296, Linux, 2026-10-11, headless `claude -p` in scratch directories
+  outside any repository, one run each, one tool offered per run, tool calls logged with
+  `--output-format stream-json --verbose`. No run opened an `AGENTS.md` itself. Each file held a
+  unique line, and a line counts as loaded when the reply quoted it.
+
+  | Setup | Trigger | Loaded |
+  |---|---|---|
+  | No `CLAUDE.md`; root and `sub/` `AGENTS.md` | Read `sub/thing.txt` (Read only) | root and nested |
+  | Same | Write `sub/new.txt` (Write only) | root only |
+  | Root `CLAUDE.md` is `@AGENTS.md`; `sub/AGENTS.md` without a shim | Read `sub/thing.txt` (Read only) | root only |
+  | `@AGENTS.md` shims at root and `sub/` | Write `sub/new.txt` (Write only) | root and nested |
+  | Git repository, no `CLAUDE.md`; gitignored unscoped `.claude/rules/personal.local.md` importing `@../../shared.local.md`, also gitignored | none (`--tools ""`) | `AGENTS.md`, the rule and the imported file |
+
+  The last row backs the `CLAUDE.local.md` alternative in `shim-droppable.md` condition A. An `@`
+  import inside a rules file is not documented on the memory page, so that row is a measurement of
+  one build, not a guarantee.
+- **As of**: 2026-10-11, Claude Code 2.1.296.
+- **Recheck trigger**: either memory section changes the triggers it names; a changelog entry names
+  a load trigger for a subdirectory's `AGENTS.md` or an `@` import inside a rules file; or a new
+  Claude Code release, for the import row only, which is undocumented and re-measured per release.
+  `cutover-check`'s nested write probe re-measures the second row on every run.

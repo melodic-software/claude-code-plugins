@@ -166,7 +166,9 @@ async page => {
     await page.click("main.detail h3"); await page.keyboard.press("a");
     ok("a arms Reconfirm, the first row, on a stale question", /^Reconfirm/.test((await armed()).trim()), await armed());
     ok("stale chip in the rail", /Stale/.test(await page.textContent('.qbtn[data-q="P2"]')));
-    ok("upstream-pending dimmed with its Waiting on chip", await page.$eval('.qbtn[data-q="P3"]', el => el.classList.contains("dim") && /Waiting on P2/.test(el.textContent)));
+    ok("upstream-pending dimmed with its Waiting on chip", await page.$eval('.qbtn[data-q="P3"]', el => el.classList.contains("waiting") && !el.classList.contains("dim") && /Waiting on P2/.test(el.textContent)));
+    await pick("P3");
+    ok("#5922: the upstream-pending banner links the stale question and says what clears it", await page.$eval("#dscroll .lockban", el => !!el.querySelector('.ref[data-q="P2"]') && /Reconfirm P2 \(under Review\), or answer this one anyway/.test(el.textContent)));
     await pick("P1"); await page.click("main.detail h3");
     await page.keyboard.press("n");
     ok("AC16: n goes to the next item needing you (stale P2)", await sel() === "P2", await sel());

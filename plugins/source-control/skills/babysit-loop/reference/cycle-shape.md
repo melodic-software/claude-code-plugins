@@ -139,7 +139,7 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    effective rung is merge-capable and step 0's bootstrap check found no problem, run
    `node <plugin-root>/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` with
    `--checkout` the target checkout and one `--worktree-root` per worktree root step 0 names, and
-   nothing else. The helper reads the four `promotion_evidence_*` values from the operator's
+   nothing else. The helper reads the `promotion_evidence_*` values from the operator's
    managed and user settings itself (channel F,
    [the contract](promotion-evidence-bootstrap.md#allowed-source-class)), so the lane passes no
    surface or checker path; it rejects the retired `--binding`, `--probe-evidence-root`,
