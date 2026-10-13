@@ -81,8 +81,10 @@ Each entry gives:
   `command`; record `value` and `unit` as printed and copy `command` into the finding. A number
   whose `samples` is 0 is not recorded as measured. An area left with no recorded number is
   `not-checked`, `no-data`: when the call listed nothing (`runs_listed` or `prs` is 0), with the
-  area's own reason below. Otherwise count the excluded items: the number's `excluded`, plus
-  `runs_excluded` for a `ci-timing` number. Above 0: reason "every timed sample was excluded
+  area's own reason below. When no `ci-timing` workflow has a `success` in its `outcomes`: reason
+  "none of the <runs_listed> completed runs read succeeded; this area times successful runs
+  only". Otherwise count the excluded items: the number's
+  `excluded`, plus its workflow's `runs_excluded` for a `ci-timing` number. Above 0: reason "every timed sample was excluded
   (<that count> excluded): their timestamps were missing or unparsable; this area times only items
   whose GitHub timestamps parse". Zero: reason "the runs
   or pull requests read had no job, step or review to time". Never run
@@ -327,15 +329,19 @@ them live when a command's output, or the files you find, do not match the entry
 
 - **Source**: GitHub Actions run and job timestamps.
 - **Run**: `"$PY" "$ROOT/scripts/findings.py" ci-timing --repo <OWNER/REPO>`. It lists the 20
-  most recent completed runs and fetches jobs for the five newest. Keep its JSON in context;
-  `gates` and `tests` read the same output.
+  most recent completed runs, groups them by workflow under `workflows`, and fetches jobs for each
+  workflow's five newest successful runs. Keep its JSON in context; `gates` and `tests` read the
+  same output.
 - **Owner**: none.
-- **Record**: a measured finding for queue wait from `queue_wait` (per job, `started_at` minus
-  `created_at`, skipped jobs excluded, median across the five runs): unit `wait-ms`, tier E2,
-  workload `ci jobs, last 5 completed runs`, `command` its `command`. A second measured finding
-  for run length from `run_length` (per run, latest job `completed_at` minus earliest job
-  `started_at`, median): unit `ci-minutes`, same tier and workload. Both horizon `later`, route
-  `performance-chain`, `fix_owner` `/performance:goal`.
+- **Record**: for each entry in `workflows`, a measured finding for queue wait from its
+  `queue_wait` (per job, `started_at` minus `created_at`, skipped jobs excluded, median across its
+  timed runs): unit `wait-ms`, tier E2, workload `ci jobs, last 5 successful <workflow> runs`,
+  `command` its `command`. A second measured finding for run length from its `run_length` (per
+  run, latest job `completed_at` minus earliest job `started_at`, median): unit `ci-minutes`, same
+  tier and workload. Each title names the workflow and says the runs were successful ones, and
+  the key ends in `/<workflow>`. Here and in `gates` and `tests`, `<workflow>` is the entry's
+  `workflow` as printed, a code span, and in a key it drops the backticks. Both horizon `later`, route `performance-chain`, `fix_owner`
+  `/performance:goal`. Never combine numbers across workflows.
 - **Not checked**: `runs_listed` is 0: `no-data`, reason "no completed CI runs in this
   repository; this area applies once this repository has completed GitHub Actions runs; this
   sweep reads GitHub Actions only".
@@ -348,19 +354,20 @@ them live when a command's output, or the files you find, do not match the entry
 ## gates
 
 - **Source**: CI step timings for recent runs, from the `ci-cd` job data.
-- **Run**: no new call; read `slowest_step` from the `ci-timing` output `ci-cd` holds.
+- **Run**: no new call; read each workflow's `slowest_step` from the `ci-timing` output `ci-cd` holds.
 - **Owner**: none.
-- **Record**: a measured finding for the slowest step by median duration across those runs
-  (skipped steps excluded): unit `elapsed-ms`, tier E2, workload `ci steps, last 5 completed runs`,
-  title naming its `step` and its `job`, `command` its `command`, horizon `later`, route
+- **Record**: for each entry in `workflows`, a measured finding for its slowest step by median
+  duration across its timed runs (skipped steps excluded): unit `elapsed-ms`, tier E2, workload
+  `ci steps, last 5 successful <workflow> runs`, title naming its `step`, its `job` and the
+  workflow, key ending in `/<workflow>`, `command` its `command`, horizon `later`, route
   `performance-chain`, `fix_owner` `/performance:goal`. Classify the step: a
   verifying check (test, lint, build, type or security check) or a guard. A remedy that runs it on
   fewer changes is `effect: fewer-checks` with a `guard_metric`; one that drops or weakens it goes
   to `/overengineering:audit`; a step you cannot classify is `flag-only` with the reason.
 - **Not checked**: `runs_listed` is 0: `no-data`, reason "no completed CI runs in this
   repository; this area applies once this repository has completed GitHub Actions runs; this
-  sweep reads GitHub Actions only". Runs listed but `slowest_step` has `samples` 0: `no-data`,
-  with the shared samples-0 reason above. GitHub probe failed or `ci-timing` exited 1: `auth-gap`, with that
+  sweep reads GitHub Actions only". Runs listed but every workflow's `slowest_step` has `samples`
+  0: `no-data`, with the shared samples-0 reason above. GitHub probe failed or `ci-timing` exited 1: `auth-gap`, with that
   reason.
 - **Guard**: a step that blocks a merge or a deploy (a required check, an approval gate) is a
   guard; a finding that would skip or relax it is `flag-only`.
@@ -394,14 +401,16 @@ them live when a command's output, or the files you find, do not match the entry
 ## tests
 
 - **Source**: CI re-runs and test step timings, from the `ci-cd` data.
-- **Run**: no new call; read `reruns` and `test_steps` from the `ci-timing` output `ci-cd` holds.
+- **Run**: no new call; read each workflow's `reruns` and `test_steps` from the `ci-timing` output `ci-cd` holds.
 - **Owner**: none.
-- **Record**: a measured finding from `reruns`, unit `count`, value the runs among the 20 with
-  `attempt` above 1, tier E2, workload `ci runs, last 20`, `fix_owner` `/testing:diagnose`,
-  `command` its `command`, horizon `later`, route `next-run`. A measured finding from `test_steps` for the median duration of steps
-  whose name contains `test` (any case), unit `elapsed-ms`, tier E2, workload
-  `ci steps, last 5 completed runs`, `command` its `command`, horizon `later`, route
-  `performance-chain`, `fix_owner` `/performance:goal`. Running fewer tests per change is
+- **Record**: for each entry in `workflows`, a measured finding from its `reruns`, unit `count`,
+  value its runs among the 20 listed with `attempt` above 1, tier E2, workload
+  `<workflow> runs among the last 20 ci runs`, `fix_owner` `/testing:diagnose`, `command` its
+  `command`, horizon `later`, route `next-run`; and a measured finding from its `test_steps` for
+  the median duration of steps whose name contains `test` (any case), unit `elapsed-ms`, tier E2,
+  workload `ci steps, last 5 successful <workflow> runs`, `command` its `command`, horizon
+  `later`, route `performance-chain`, `fix_owner` `/performance:goal`. Each title names the
+  workflow, and each key ends in `/<workflow>`. Running fewer tests per change is
   `effect: fewer-checks` with a `guard_metric`; deleting or weakening tests goes to
   `/overengineering:audit`.
 - **Not checked**: `runs_listed` is 0: `no-data`, reason "no completed CI runs in this

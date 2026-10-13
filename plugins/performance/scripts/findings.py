@@ -20,9 +20,11 @@ folder passed as a literal argument. Subcommands:
     transcript-counts <transcript.jsonl>
     status-timing --data <dir> [--runs N]  time git status in the current repository via trace2
     ci-timing --repo OWNER/REPO [--runs N] [--job-runs M]
-                                        list N completed runs (default 20), fetch jobs for the M
-                                        newest (default 5), print queue wait, run length, slowest
-                                        step, test steps and re-runs as JSON
+                                        list N completed runs (default 20), group them by
+                                        workflow, fetch jobs for each workflow's M newest
+                                        successful runs (default 5), print per workflow its
+                                        outcomes, queue wait, run length, slowest step, test
+                                        steps and re-runs as JSON
     pr-timing [--limit N]               list N merged PRs (default 20), print open to first
                                         review, open to merge and PR size as JSON
     permission-counts --file <path>...  per settings file: status (read, missing, invalid or
@@ -43,6 +45,14 @@ even count, the mean of the two middle ones. A gh call that fails, is missing, o
 something other than JSON exits 1 with one line naming the call. A job or step name is the
 repository's own text, a fork's included, so it leaves as one code span of at most 60 characters,
 whitespace collapsed and backticks turned to quotes.
+
+ci-timing reports each workflow apart, under workflows, most runs listed first: its name (a code
+span, like a job name), runs_listed, outcomes (conclusion to count) and re-runs over every run of
+it listed, runs_excluded (its successful runs with no parseable createdAt), and runs_timed plus
+the job and step numbers over its newest successful runs only. A
+failed, cancelled or skipped run stops early, so its length is not a CI run's length, and a
+median across workflows describes no one pipeline. A workflow with no successful run listed has
+samples 0 in every timed number.
 
 transcript-counts describes the session's work before the latest go-faster invocation (the slash
 command, or a Skill call to go-faster), never the invocation's own setup calls: per-tool calls,
@@ -1139,7 +1149,9 @@ def cmd_status_timing(args: argparse.Namespace) -> int:
     return 0
 
 
-RUN_FIELDS = "databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowName"
+RUN_FIELDS = (
+    "databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowDatabaseId,workflowName"
+)
 JOBS_JQ = (
     "[.jobs[] | {name, conclusion, created_at, started_at, completed_at,"
     " steps: [(.steps // [])[] | {name, conclusion, started_at, completed_at}]}]"
@@ -1215,8 +1227,45 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
         ["run", "list", "--repo", repo, "--limit", str(runs), "--status", "completed"]
         + ["--json", RUN_FIELDS]
     )
+    # Each workflow is its own pipeline, and a failed or cancelled run stops early, so a median
+    # over every run listed describes whichever workflows and failures finished last. Runs are
+    # grouped by workflow, and only successful ones are timed.
+    # A ruleset workflow's run has no workflowName, so runs group on the workflow's id, then its
+    # name, then the run itself; the name is only the label.
+    groups: dict[str, tuple[str, list[dict]]] = {}
+    for run in listed:
+        wf_id, wf_name = run.get("workflowDatabaseId"), run.get("workflowName")
+        if wf_id:
+            key, label = f"id:{wf_id}", str(wf_name or f"(unnamed workflow {wf_id})")
+        elif wf_name:
+            key, label = f"name:{wf_name}", str(wf_name)
+        else:
+            key = f"run:{run.get('databaseId')}"
+            label = f"(unnamed run {run.get('databaseId')})"
+        groups.setdefault(key, (label, []))[1].append(run)
+    workflows = [
+        workflow_timing(repo, label, group, job_runs, list_line)
+        for label, group in sorted(groups.values(), key=lambda g: (-len(g[1]), g[0]))
+    ]
+    return {
+        "repo": repo,
+        "runs_listed": len(listed),
+        "workflows": workflows,
+        "commands": [list_line, *(line for w in workflows for line in w["commands"])],
+    }
+
+
+def workflow_timing(
+    repo: str, name: str, listed: list[dict], job_runs: int, list_line: str
+) -> dict:
+    """One workflow's numbers, timed from its newest successful runs only."""
+    outcomes: dict[str, int] = {}
+    for run in listed:
+        outcome = inert(str(run.get("conclusion") or "unknown"))
+        outcomes[outcome] = outcomes.get(outcome, 0) + 1
     # A run with no parseable createdAt cannot be ordered, so it is never timed.
-    dated = [(t, r) for r in listed if (t := parse_ts(r.get("createdAt"))) is not None]
+    succeeded = [r for r in listed if r.get("conclusion") == "success"]
+    dated = [(t, r) for r in succeeded if (t := parse_ts(r.get("createdAt"))) is not None]
     dated.sort(key=lambda tr: tr[0], reverse=True)
     newest = [r for _, r in dated[:job_runs]]
     waits: list[int] = []
@@ -1254,14 +1303,14 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
             for step in job.get("steps") or []:
                 if step.get("conclusion") == "skipped":
                     continue
-                name = str(step.get("name"))
+                step_name = str(step.get("name"))
                 took = span_ms(step.get("started_at"), step.get("completed_at"))
                 if took is None:
                     no_step += 1
-                    no_test += "test" in name.lower()
+                    no_test += "test" in step_name.lower()
                     continue
-                by_step.setdefault((str(job.get("name")), name), []).append(took)
-                if "test" in name.lower():
+                by_step.setdefault((str(job.get("name")), step_name), []).append(took)
+                if "test" in step_name.lower():
                     tests.append(took)
     jobs_cite = "; ".join(job_lines)
     length = stat(lengths, "ci-minutes", jobs_cite, no_length)
@@ -1281,10 +1330,11 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
         r for r in listed if isinstance(r.get("attempt"), int) and r["attempt"] > 1
     ]
     return {
-        "repo": repo,
+        "workflow": code_span(name),
         "runs_listed": len(listed),
+        "outcomes": outcomes,
         "runs_timed": len(newest),
-        "runs_excluded": len(listed) - len(dated),
+        "runs_excluded": len(succeeded) - len(dated),
         "queue_wait": stat(waits, "wait-ms", jobs_cite, no_wait),
         "run_length": length,
         "slowest_step": slowest,
@@ -1295,7 +1345,7 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
             "samples": len(listed),
             "command": list_line,
         },
-        "commands": [list_line, *job_lines],
+        "commands": job_lines,
     }
 
 

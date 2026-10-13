@@ -93,7 +93,7 @@ Add findings with `"$PY" "$ROOT/scripts/findings.py" add --run "$RUN" --json '<f
 | Field | Rule |
 |---|---|
 | `id` | `<area>-<n>`, unique in the run |
-| `key` | `<area>/<slowdown class>`, stable across runs; baselines and adoptions key on it |
+| `key` | `<area>/<slowdown class>`, plus `/<workflow>` where `reference/areas.md` says so; stable across runs; baselines and adoptions key on it |
 | `area` | one of the sixteen area slugs in `reference/areas.md` |
 | `title` | one line naming the slowdown |
 | `status` | `measured`, `candidate`, `flag-only`, `not-checked` |

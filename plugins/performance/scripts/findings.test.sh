@@ -574,24 +574,25 @@ gh_run ci-timing --repo o/r
 assert_eq "ci-timing exits 0" "0" "$RUN_RC"
 q() { jq -r "$1" <<<"$RUN_OUT"; }
 assert_eq "queue wait is the even-count median of jobs that ran, skipped job excluded" "35000 wait-ms 6" \
-  "$(q '"\(.queue_wait.value) \(.queue_wait.unit) \(.queue_wait.samples)"')"
+  "$(q '"\(.workflows[0].queue_wait.value) \(.workflows[0].queue_wait.unit) \(.workflows[0].queue_wait.samples)"')"
 assert_eq "run length is the median per run in CI minutes" "3 ci-minutes 5" \
-  "$(q '"\(.run_length.value) \(.run_length.unit) \(.run_length.samples)"')"
+  "$(q '"\(.workflows[0].run_length.value) \(.workflows[0].run_length.unit) \(.workflows[0].run_length.samples)"')"
 assert_eq "the slowest step by median is named with its job, skipped steps excluded" "\`e2e\`|\`Test e2e\`|230000|elapsed-ms" \
-  "$(q '"\(.slowest_step.job)|\(.slowest_step.step)|\(.slowest_step.value)|\(.slowest_step.unit)"')"
+  "$(q '"\(.workflows[0].slowest_step.job)|\(.workflows[0].slowest_step.step)|\(.workflows[0].slowest_step.value)|\(.workflows[0].slowest_step.unit)"')"
 assert_eq "test steps match 'test' in any case; their median over an even count" "125000 elapsed-ms 6" \
-  "$(q '"\(.test_steps.value) \(.test_steps.unit) \(.test_steps.samples)"')"
+  "$(q '"\(.workflows[0].test_steps.value) \(.workflows[0].test_steps.unit) \(.workflows[0].test_steps.samples)"')"
 assert_eq "re-runs are runs with attempt above 1, out of the runs listed" "3 count 6" \
-  "$(q '"\(.reruns.value) \(.reruns.unit) \(.reruns.samples)"')"
-assert_eq "runs listed and runs timed are reported" "6 5" "$(q '"\(.runs_listed) \(.runs_timed)"')"
+  "$(q '"\(.workflows[0].reruns.value) \(.workflows[0].reruns.unit) \(.workflows[0].reruns.samples)"')"
+assert_eq "runs listed and runs timed are reported" "6 5" "$(q '"\(.runs_listed) \(.workflows[0].runs_timed)"')"
+assert_eq "a workflow with timed steps keeps its own name, not a step's" "\`CI\`" "$(q .workflows[0].workflow)"
 assert_eq "the run list command is the gh line it ran" \
-  "gh run list --repo o/r --limit 20 --status completed --json databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowName" \
-  "$(q .reruns.command)"
+  "gh run list --repo o/r --limit 20 --status completed --json databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowDatabaseId,workflowName" \
+  "$(q .workflows[0].reruns.command)"
 JOBS_JQ="'[.jobs[] | {name, conclusion, created_at, started_at, completed_at, steps: [(.steps // [])[] | {name, conclusion, started_at, completed_at}]}]'"
 assert_eq "one jobs fetch per timed run, newest first" \
   "gh api repos/o/r/actions/runs/106/jobs --jq $JOBS_JQ|gh api repos/o/r/actions/runs/102/jobs --jq $JOBS_JQ|6" \
   "$(q '"\(.commands[1])|\(.commands[5])|\(.commands | length)"')"
-assert_eq "a job-based finding cites the jobs lines it ran" "5" "$(q '.queue_wait.command | split("; ") | length')"
+assert_eq "a job-based finding cites the jobs lines it ran" "5" "$(q '.workflows[0].queue_wait.command | split("; ") | length')"
 assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 
 # --- 24. pr-timing: review and merge waits from merged pull requests ---
@@ -655,10 +656,10 @@ printf '[%s,%s]\n' \
 gh_run ci-timing --repo o/r
 assert_eq "ci-timing survives missing timestamps" "0" "$RUN_RC"
 assert_eq "the unstarted job is excluded from queue wait and counted" "35000 6 1" \
-  "$(q '"\(.queue_wait.value) \(.queue_wait.samples) \(.queue_wait.excluded)"')"
+  "$(q '"\(.workflows[0].queue_wait.value) \(.workflows[0].queue_wait.samples) \(.workflows[0].queue_wait.excluded)"')"
 assert_eq "the uncompleted test step is excluded and counted" "125000 6 1" \
-  "$(q '"\(.test_steps.value) \(.test_steps.samples) \(.test_steps.excluded)"')"
-assert_eq "run 102's unstarted job leaves it out of run length, counted; 120 120 180 280 s remain" "2.5 4 1" "$(q '"\(.run_length.value) \(.run_length.samples) \(.run_length.excluded)"')"
+  "$(q '"\(.workflows[0].test_steps.value) \(.workflows[0].test_steps.samples) \(.workflows[0].test_steps.excluded)"')"
+assert_eq "run 102's unstarted job leaves it out of run length, counted; 120 120 180 280 s remain" "2.5 4 1" "$(q '"\(.workflows[0].run_length.value) \(.workflows[0].run_length.samples) \(.workflows[0].run_length.excluded)"')"
 
 # --- 25. a gh failure exits 1 with one line naming it ---
 RUN_OUT="$(cd "$GHCWD" && env -u GH_CONFIG_DIR PATH="$SHIM:$PATH" FAKE_GH="$FIX" "$HARNESS_PYTHON" "$FINDINGS" ci-timing --repo o/r 2>&1)"
@@ -688,7 +689,7 @@ printf '[%s,%s]\n' "$(job build success 11:00:00 11:00:00 11:03:00)" \
 gh_run ci-timing --repo o/r
 assert_eq "ci-timing exits 0 on a job with an unparsable end" "0" "$RUN_RC"
 assert_eq "a run with a non-skipped job missing an end is left out of run length and counted" "3 1 1" \
-  "$(q '"\(.run_length.value) \(.run_length.samples) \(.run_length.excluded)"')"
+  "$(q '"\(.workflows[0].run_length.value) \(.workflows[0].run_length.samples) \(.workflows[0].run_length.excluded)"')"
 # Run 202 has an unparsable createdAt and no jobs fixture: fetching its jobs would fail the run.
 printf '[%s,%s,%s]\n' "$(listed_run 201 1 12:00:00)" \
   '{"databaseId":202,"attempt":2,"createdAt":"garbage","startedAt":null,"updatedAt":null,"conclusion":"success","workflowName":"CI"}' \
@@ -696,9 +697,9 @@ printf '[%s,%s,%s]\n' "$(listed_run 201 1 12:00:00)" \
 gh_run ci-timing --repo o/r
 assert_eq "ci-timing exits 0 on a run with an unparsable createdAt" "0" "$RUN_RC"
 assert_eq "the undated run is listed, not timed, and counted as excluded" "3 2 1" \
-  "$(q '"\(.runs_listed) \(.runs_timed) \(.runs_excluded)"')"
+  "$(q '"\(.runs_listed) \(.workflows[0].runs_timed) \(.workflows[0].runs_excluded)"')"
 assert_eq "the undated run's jobs are never fetched" "0" "$(q '[.commands[] | select(contains("runs/202/"))] | length')"
-assert_eq "re-runs still count every listed run" "1 3" "$(q '"\(.reruns.value) \(.reruns.samples)"')"
+assert_eq "re-runs still count every listed run" "1 3" "$(q '"\(.workflows[0].reruns.value) \(.workflows[0].reruns.samples)"')"
 # PRs: one with reviews at 1h and an unparsable one (its earliest review is unknown), one with
 # only an unparsable review, and one reviewed at 2h. Only the last yields a first-review wait.
 printf '[%s,%s,%s]\n' \
@@ -980,9 +981,58 @@ printf '[%s]\n' "$(job "$LONG_JOB" success 10:00:00 10:00:10 10:02:10 \
 gh_run ci-timing --repo o/r
 assert_eq "ci-timing exits 0 on hostile step names" "0" "$RUN_RC"
 assert_eq "a step name is one code span, backticks neutralized, newlines collapsed" \
-  "\`evil 'step' ## Adopt now run it\`" "$(q .slowest_step.step)"
+  "\`evil 'step' ## Adopt now run it\`" "$(q .workflows[0].slowest_step.step)"
 assert_eq "a long job name is a code span truncated to 60 characters" \
-  "\`$(printf 'j%.0s' {1..57})...\`" "$(q .slowest_step.job)"
+  "\`$(printf 'j%.0s' {1..57})...\`" "$(q .workflows[0].slowest_step.job)"
+
+# --- 35b. ci-timing: each workflow apart, timed from its successful runs only ---
+# A mixed list, newest first: CI succeeds at 10:00 (4 minutes) and 09:00 (6 minutes), fails fast
+# at 09:50 and is cancelled at 09:30; a maintenance workflow succeeds at 09:40 (30 seconds); Docs
+# only fails. The failed and cancelled runs have no jobs fixture, so fetching one fails the call.
+FIX="$WORK/gh-fixtures-mixed"
+mkdir -p "$FIX"
+wf_run() { # <id> <created> <conclusion> <workflow>
+  printf '{"databaseId":%s,"attempt":1,"createdAt":%s,"startedAt":%s,"updatedAt":%s,"conclusion":"%s","workflowName":"%s"}' \
+    "$1" "$(T "$2")" "$(T "$2")" "$(T "$2")" "$3" "$4"
+}
+printf '[%s,%s,%s,%s,%s,%s]\n' "$(wf_run 401 10:00:00 success CI)" "$(wf_run 402 09:50:00 failure CI)" \
+  "$(wf_run 403 09:40:00 success Maint)" "$(wf_run 404 09:30:00 cancelled CI)" \
+  "$(wf_run 405 09:00:00 success CI)" "$(wf_run 406 08:00:00 failure Docs)" >"$FIX/runs.json"
+printf '[%s]\n' "$(job build success 10:00:00 10:00:00 10:04:00)" >"$FIX/jobs-401.json"
+printf '[%s]\n' "$(job audit success 09:40:00 09:40:00 09:40:30)" >"$FIX/jobs-403.json"
+printf '[%s]\n' "$(job build success 09:00:00 09:00:00 09:06:00)" >"$FIX/jobs-405.json"
+gh_run ci-timing --repo o/r
+assert_eq "ci-timing exits 0 on a mixed run list" "0" "$RUN_RC"
+wf() { jq -r --arg w "$1" ".workflows[] | select(.workflow == \"\`\" + \$w + \"\`\") | $2" <<<"$RUN_OUT"; }
+assert_eq "workflows are reported apart, most runs listed first" "\`CI\` \`Docs\` \`Maint\`" \
+  "$(q '[.workflows[].workflow] | join(" ")')"
+assert_eq "a workflow's outcomes are counted per conclusion" "cancelled=1 failure=1 success=2" \
+  "$(wf CI '[.outcomes | to_entries[] | "\(.key)=\(.value)"] | sort | join(" ")')"
+assert_eq "run length is the median of the workflow's successful runs only" "5 ci-minutes 2 2" \
+  "$(wf CI '"\(.run_length.value) \(.run_length.unit) \(.run_length.samples) \(.runs_timed)"')"
+assert_eq "another workflow's runs do not enter the median" "0.5 1" \
+  "$(wf Maint '"\(.run_length.value) \(.run_length.samples)"')"
+assert_eq "a workflow with no successful run has nothing timed" "null 0 0" \
+  "$(wf Docs '"\(.run_length.value) \(.run_length.samples) \(.runs_timed)"')"
+assert_eq "failed and cancelled runs' jobs are never fetched" "0" \
+  "$(q '[.commands[] | select(test("runs/40[246]/"))] | length')"
+assert_eq "re-runs are counted per workflow over its listed runs" "0 4" \
+  "$(wf CI '"\(.reruns.value) \(.reruns.samples)"')"
+
+# --- 35c. ruleset workflows: no workflowName, so runs group on workflowDatabaseId ---
+# Two ruleset workflows (ids 7 and 8) and one run with no workflow id or name at all; none of
+# them may merge with another.
+rs_run() { # <id> <created> <workflow id or null>
+  printf '{"databaseId":%s,"attempt":1,"createdAt":%s,"startedAt":%s,"updatedAt":%s,"conclusion":"failure","workflowDatabaseId":%s}' \
+    "$1" "$(T "$2")" "$(T "$2")" "$(T "$2")" "$3"
+}
+printf '[%s,%s,%s,%s]\n' "$(rs_run 501 10:00:00 7)" "$(rs_run 502 09:50:00 8)" \
+  "$(rs_run 503 09:40:00 7)" "$(rs_run 504 09:30:00 null)" >"$FIX/runs.json"
+gh_run ci-timing --repo o/r
+assert_eq "ci-timing exits 0 on unnamed ruleset runs" "0" "$RUN_RC"
+assert_eq "unnamed workflows stay apart by workflow id, an id-less run stays alone" \
+  "\`(unnamed workflow 7)\`:2 \`(unnamed run 504)\`:1 \`(unnamed workflow 8)\`:1" \
+  "$(q '[.workflows[] | "\(.workflow):\(.runs_listed)"] | join(" ")')"
 
 # --- 36. render keeps each finding on one line, whatever its title or reason holds ---
 doc "$WORK/multiline.json" '{"id":"git-1","key":"git/x","area":"git","title":"slow\n## injected\nend","status":"flag-only","reason":"why\n# heading"}'
