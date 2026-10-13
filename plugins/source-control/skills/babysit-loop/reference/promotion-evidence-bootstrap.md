@@ -190,9 +190,9 @@ Common rules, on every host:
   write that directory or any directory above it. A checker in the plugin cache under the lane
   user's config directory never qualifies; the administrator installs a copy.
 - **The lane is not the owner and not an administrator.** The lane's OS identity owns no surface
-  and holds no administrator rights: no sudo rule (with or without `NOPASSWD`), so there is no
-  cached sudo credential to reuse, and no membership in the macOS admin group or the Windows
-  Administrators group.
+  and holds no administrator rights: no sudo rule (with or without `NOPASSWD`; why: sudo
+  credential caching, pointer records below), and no membership in the macOS admin group or the
+  Windows Administrators group.
 - **Tool restriction is recommended, not required.** Where the rules above hold, OS ownership is
   the control. Running the lane with `--permission-mode dontAsk` and an allowlist, or with
   `--restricted`, is defense in depth where its tool set allows it.
@@ -205,8 +205,8 @@ Common rules, on every host:
 |---|---|---|
 | Linux | Allowed | The managed settings directory and every surface are root-owned, and so is every directory above them. The lane runs as a dedicated non-root user. |
 | macOS | Allowed | The managed settings directory and every surface are owned by root or an administrator, and so is every directory above them. The lane runs as a standard (non-admin) account. |
-| WSL | Refused when the lane runs as the same Windows user that owns the distribution | That Windows user can enter the distribution as root, which puts the distribution's managed directory in the lane's reach (pointer records below). The documented exception, every item required: a separate Linux user for the lane with no sudo rule; the managed directory and every surface root-owned; `/etc/wsl.conf` sets `[interop] enabled=false`, so the lane cannot start `wsl.exe` or any other Windows program; and `wslInheritsWindowsSettings` off, because the helper reads only the distribution's managed directory. The operator records how each item was checked. |
-| Windows | Refused | The unattended gate's writability test is not ACL-aware (pointer records below), so it cannot establish the common rules. Refused until an ACL-aware check exists. |
+| WSL | Refused, unless every exception item holds | Exception items: the lane runs as a separate Linux user with no sudo rule; the managed directory and every surface are root-owned; `/etc/wsl.conf` sets `[interop] enabled=false`; `wslInheritsWindowsSettings` is off. The operator records how each item was checked. Why each item is required: pointer records below. |
+| Windows | Refused | Refused until the unattended gate's writability check reads ACLs. Why: pointer records below. |
 
 Residuals no row closes, named so an operator does not read the table as covering them:
 
@@ -218,29 +218,35 @@ Residuals no row closes, named so an operator does not read the table as coverin
 - The babysit-loop prose route runs the helper with no writability check; only the unattended merge
   gate has one.
 
-Pointer records for the upstream behavior these rows rely on:
+Pointer records for the upstream behavior these rows rely on. Each names the topic; the linked
+section states the behavior.
 
-- WSL managed directory and the Windows policy chain:
+- Why the WSL exception requires `wslInheritsWindowsSettings` off: where WSL reads managed
+  settings, and the Windows policy chain:
   [managed settings, "When an admin document counts as present"](https://code.claude.com/docs/en/managed-settings#present-admin-documents)
   and the
   [`wslInheritsWindowsSettings` entry](https://code.claude.com/docs/en/settings-reference#wslinheritswindowssettings).
   As of 2026-10-12. Recheck trigger: either changes what it says about the WSL managed directory or
   where WSL reads managed settings.
-- Entering a WSL distribution as root from the owning Windows user, and what `wsl.conf` controls:
+- Why WSL is refused for the Windows user that owns the distribution, and why the exception
+  requires a separate non-sudo Linux user and interop off: how a Windows user enters a
+  distribution as root, and what the `wsl.conf` interop key controls:
   [Set up your Linux username and password](https://learn.microsoft.com/en-us/windows/wsl/setup/environment#set-up-your-linux-username-and-password),
   [Run as a specific user](https://learn.microsoft.com/en-us/windows/wsl/basic-commands#run-as-a-specific-user)
   and [Interop settings](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#interop-settings).
   As of 2026-10-12. Recheck trigger: any of those sections changes how root is entered or what the
   interop key controls.
-- Windows write-access test: the `MS_WINDOWS` branch of `os_access_impl` in
+- Why Windows is refused: how the gate's write-access test (`os.access` in
+  `babysit_merge_policy.py` `_lane_writable`) works on Windows, the `MS_WINDOWS` branch of
+  `os_access_impl` in
   [CPython `Modules/posixmodule.c`](https://github.com/python/cpython/blob/64018ac45cbc3f408412ab2c37f47f46bc8f84a1/Modules/posixmodule.c).
   As of 2026-10-12. Recheck trigger: that branch starts reading ACLs, or the gate stops using
   `os.access`.
-- Sudo credential caching:
+- Why no sudo rule is allowed, with or without `NOPASSWD`: sudo credential caching,
   [sudoers, "SUDOERS OPTIONS"](https://www.sudo.ws/docs/man/sudoers.man/#SUDOERS_OPTIONS)
   (`timestamp_type`, `timestamp_timeout`). As of 2026-10-12. Recheck trigger: a release changes
   how time stamp records are shared between sessions.
-- Tool restriction:
+- What tool restriction removes or denies:
   [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
   and the `--restricted` row of [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags).
   As of 2026-10-12. Recheck trigger: either changes what it removes or denies.
