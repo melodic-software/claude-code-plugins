@@ -1178,4 +1178,22 @@ assert_eq "an identical command with no result in the transcript is unverified, 
   '{"make lint":2}' "$(q '.unverified_repeated_commands | tojson')"
 assert_eq "no read is unverified when every result is held" '{}' "$(q '.unverified_repeated_reads | tojson')"
 
+# A whole-file re-read of an unchanged file returns a file_unchanged stub, never the same text:
+# that is a repeat. A tool call whose input is not an object is counted, never a crash.
+UC="$WORK/unchanged.jsonl"
+{
+  use 1 u1 s1 Read '{"file_path":"x.py"}' 5
+  result 2 s1 false '"print(1)"'
+  for n in 2 3; do
+    use $((n * 2 + 1)) "u$n" "s$n" Read '{"file_path":"x.py"}' 5
+    printf '{"type":"user","timestamp":"%s","toolUseResult":{"type":"file_unchanged"},"message":{"content":[{"type":"tool_result","tool_use_id":"s%s","is_error":false,"content":"unchanged stub"}]}}\n' "$(ts $((n * 2 + 2)))" "$n"
+  done
+  use 9 u4 s4 Grep '["not an object"]' 5
+  result 10 s4 false
+} >"$UC"
+run transcript-counts "$UC"
+assert_eq "transcript-counts exits 0 on a non-object tool input" "0" "$RUN_RC"
+assert_eq "file_unchanged re-reads count as repeats of the first read" '{"x.py":3}' "$(q '.repeated_reads | tojson')"
+assert_eq "a tool call with a non-object input is still counted" "1" "$(q '.tools.Grep.calls')"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1

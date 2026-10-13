@@ -747,6 +747,9 @@ def cmd_compare(args: argparse.Namespace) -> int:
 INVOKED = "<command-name>/performance:go-faster"
 # A background task's output file grows while the task runs, so reading it again is never a repeat.
 TASK_OUTPUT = re.compile(r"(?:^|[/\\\s'\"=])tasks[/\\][^/\\\s'\"]+\.output(?![\w.])")
+# A Read of a file unchanged since its last Read returns a stub instead of the file; the stub
+# vouches for the earlier result, so it counts as that result.
+UNCHANGED = "file_unchanged"
 
 
 def read_key(args: dict) -> str:
@@ -775,7 +778,10 @@ def repeats(
             unknown[key] = len(digests)
             continue
         tally: dict[str | None, int] = {}
+        last = None
         for digest in digests:
+            digest = last if digest == UNCHANGED and last is not None else digest
+            last = digest
             tally[digest] = tally.get(digest, 0) + 1
         same[key] = sum(n for n in tally.values() if n > 1)
     return same, unknown
@@ -910,7 +916,8 @@ def transcript_counts(path: Path) -> dict:
             if not isinstance(block, dict):
                 continue
             if block.get("type") == "tool_use" and str(block.get("id")) not in calls:
-                name, args = str(block.get("name")), block.get("input") or {}
+                name, args = str(block.get("name")), block.get("input")
+                args = args if isinstance(args, dict) else {}
                 if name == "Skill" and str(args.get("skill", "")).endswith("go-faster"):
                     cut_record, cut_call = i, len(calls)
                 calls[str(block.get("id"))] = {"name": name, "args": args, "at": stamp}
@@ -919,7 +926,10 @@ def transcript_counts(path: Path) -> dict:
                 if call is None or "error" in call:
                     continue
                 call["error"] = bool(block.get("is_error"))
-                if "content" in block:
+                outcome = record.get("toolUseResult")
+                if isinstance(outcome, dict) and outcome.get("type") == UNCHANGED:
+                    call["result"] = UNCHANGED
+                elif "content" in block:
                     call["result"] = hashlib.sha256(
                         json.dumps(block["content"], sort_keys=True).encode("utf-8")
                     ).hexdigest()

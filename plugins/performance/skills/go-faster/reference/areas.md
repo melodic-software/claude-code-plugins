@@ -421,7 +421,7 @@ them live when a command's output, or the files you find, do not match the entry
 - **Owner**: none (a cross-session baseline waits on session-flow).
 - **Record**: a measured finding (tier E1, `command` that same line, workload `transcript counts`)
   for each of: the tool with the most `wait_ms` (unit `wait-ms`), each command in
-  `repeated_commands` and each file in `repeated_reads` (unit `count`), each entry in
+  `repeated_commands` and each entry in `repeated_reads` (unit `count`), each entry in
   `unverified_repeated_commands` and `unverified_repeated_reads` (unit `count`), and any tool whose
   `errors` exceed one (unit `count`). A repeat whose cure changes only how this session works
   (reuse the earlier output while its inputs are unchanged) is horizon `now`, effect `batching`,
