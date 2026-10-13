@@ -57,12 +57,12 @@ cm_resolve_python() {
     if [[ "$lower" == *windowsapps* && ! -s "$resolved" ]]; then
       continue
     fi
-    if out="$("$candidate" -c "$probe" 2>/dev/null)"; then
+    if out="$("$candidate" -I -c "$probe" 2>/dev/null)"; then
       _cm_set_py "$out" "$candidate"
       return 0
     fi
   done
-  if command -v py >/dev/null 2>&1 && out="$(py -3 -c "$probe" 2>/dev/null)"; then
+  if command -v py >/dev/null 2>&1 && out="$(py -3 -I -c "$probe" 2>/dev/null)"; then
     _cm_set_py "$out" py -3
     return 0
   fi

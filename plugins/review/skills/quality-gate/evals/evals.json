@@ -90,12 +90,12 @@
       "id": 8,
       "name": "spec-mode-ladder-and-body-read",
       "prompt": "/review:quality-gate spec\n\nMy branch has three commits; the first subject line is \"feat(auth): add token refresh (Closes #482)\". There is no open PR yet. The work-items plugin is installed and bound to the github provider, and the origin remote is git@github.com:acme/webapp.git. Did I build what that issue asked for?",
-      "expected_output": "Spec mode resolves the originating spec through the discovery ladder: no --spec was passed, so it harvests #482 from the commit's closing keyword, validates it as strictly numeric, promotes the bare ref to the qualified github:acme/webapp#482 form, and reads the issue body through the provider mechanic scoped to the promoted repo (gh issue view 482 --repo acme/webapp --json body,title) rather than by reaching into the sibling work-items plugin's seam CLI. It then judges the diff against the quoted spec lines in both directions and classifies each divergence.",
+      "expected_output": "Spec mode resolves the originating spec through the discovery ladder: no --spec was passed, so it harvests #482 from the commit's closing keyword, validates it as strictly numeric, promotes the bare ref to the qualified github:acme/webapp#482 form, and reads the issue body through /work-items:track view github:acme/webapp#482, invoked via the Skill tool, rather than by naming a tracker command or reaching into the sibling work-items plugin's seam CLI. It then judges the diff against the quoted spec lines in both directions and classifies each divergence.",
       "files": [],
       "expectations": [
         "Output harvests the issue reference from the commit's closing keyword rather than asking the user first",
         "Output promotes the bare #482 to the fully qualified <provider>:<owner>/<repo>#<number> form before using it as an identifier",
-        "Output reads the issue body through a provider-mechanic command scoped to the promoted owner/repo (e.g. gh issue view --repo acme/webapp --json body), NOT by expecting a body field from a seam verb and NOT by invoking the sibling plugin's seam CLI directly",
+        "Output reads the issue body through /work-items:track view with the promoted id github:acme/webapp#482 (scoped to acme/webapp, not a bare number), NOT by running a tracker command such as gh issue view itself and NOT by invoking the sibling plugin's seam CLI directly",
         "Output quotes the spec line each finding is judged against and classifies findings as missing, scope-creep, or wrong",
         "Output checks both directions — spec requirements not delivered, and diff behavior no spec line calls for"
       ]
@@ -220,6 +220,186 @@
     },
     {
       "id": 18,
+      "name": "code-mode-passes-the-paved-path-file-in-the-reviewer-brief",
+      "prompt": "/review:quality-gate code\n\nMy branch adds a new report-generation endpoint. The repo's docs/standards/README.md index (standards-contract 1.1.0) has a row `| paved-path | adding an endpoint, a migration, or a queue consumer | paved-paths.md |`, and pr-review-toolkit is not installed.",
+      "expected_output": "Resolves the standards index, finds the paved-path row, and dispatches the code-reviewer agent with a brief that names docs/standards/paved-paths.md as a file to read, without pasting its content. The reviewer reads it and reports any second way the change adds for a listed concern as an advisory finding citing the entry. The gate does not invent paved paths when the index has no such row.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves the standards index before dispatching the reviewer",
+        "The code-reviewer brief names docs/standards/paved-paths.md as a file to read",
+        "Passes the path rather than pasting the paved-path file's content into the brief",
+        "A second way for a listed concern is reported as an advisory finding that cites the paved-path entry"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "code-mode-flags-a-file-crossing-the-consumer-size-reference",
+      "prompt": "/review:quality-gate code\n\nThe code-metrics plugin is enabled and our tracked .claude/code-metrics.yaml sets size.file_lines to 500. My branch grows src/billing/invoice_builder.py from 470 non-blank lines at the merge-base to 540, and grows src/billing/tax.py from 120 to 160. pr-review-toolkit is not installed.",
+      "expected_output": "Runs /code-metrics:audit-size over the changed files, reads that the size.file_lines reference of 500 came from the team layer, counts each changed file's non-blank lines at the base with git show <base>:<path>, and finds that only invoice_builder.py went from below 500 to at or above it. The code-reviewer brief lists that one crossing, and the report flags invoice_builder.py with the reference 500 and the team layer. tax.py gets no size finding.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs /code-metrics:audit-size over the changed files before dispatching the reviewer",
+        "Reads the base count of non-blank lines with git show at the merge-base",
+        "The code-reviewer brief lists src/billing/invoice_builder.py as a size crossing and does not list src/billing/tax.py",
+        "The report flags src/billing/invoice_builder.py with the reference 500 and names the team layer as its source",
+        "No size finding is raised for src/billing/tax.py"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "code-mode-raises-no-size-flag-on-the-bundled-default",
+      "prompt": "/review:quality-gate code\n\nThe code-metrics plugin is enabled but no code-metrics.yaml layer exists anywhere, so size.file_lines is the bundled default. My branch grows scripts/sync_ledger.py from 980 non-blank lines at the merge-base to 1030. pr-review-toolkit is not installed.",
+      "expected_output": "Runs /code-metrics:audit-size, sees that the size.file_lines reference came from the bundled default, and passes no size crossing into the code-reviewer brief. The review raises no finding about the length of scripts/sync_ledger.py, even though it crossed 1000.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Recognizes that the size.file_lines reference came from the bundled default rather than a consumer layer",
+        "The code-reviewer brief lists no size crossing",
+        "The report contains no finding about the length of scripts/sync_ledger.py"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "code-mode-flags-unbounded-retry-and-checker-bypassing-cast",
+      "prompt": "/review:quality-gate code\n\nMy branch adds src/sync/upload.ts. `pushBatch()` loops `while (!ok) { await markRowsSent(batch); ok = await post(batch); }` with no attempt limit and no backoff, so a server that keeps refusing makes it rewrite the same rows forever. It also reads the response as `const body = (await res.json()) as unknown as UploadReceipt;` with no runtime check. The repo's ESLint config has no rule on type assertions. pr-review-toolkit is not installed.",
+      "expected_output": "The code-reviewer reports one SUGGESTION for the retry loop: it changes state (marks rows sent) on every pass and has no stopping condition, so a run that never succeeds never ends. It reports one SUGGESTION for the double cast through unknown, which tells the type checker the response is an UploadReceipt without checking it. Neither is raised as CRITICAL or IMPORTANT, because no correctness failure in shipped behavior is shown.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports exactly one finding for the retry loop in pushBatch(), naming the missing stopping condition or attempt limit",
+        "Reports exactly one finding for the `as unknown as UploadReceipt` cast, naming that it bypasses the type checker",
+        "Both findings carry SUGGESTION severity"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "code-mode-leaves-linted-casts-and-console-calls-to-the-linter",
+      "prompt": "/review:quality-gate code\n\nMy branch adds src/report/export.ts with `const rows = data as ExportRow[];` and a leftover `console.log('rows', rows.length)`. The repo's eslint.config.js turns on `@typescript-eslint/consistent-type-assertions` with `assertionStyle: 'never'` and `no-console` as errors, and CI runs ESLint. pr-review-toolkit is not installed.",
+      "expected_output": "The code-reviewer reads the ESLint config, sees that both the type assertion and the console call are already errors there, and raises no finding for either. It does not restate what the linter will report.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Raises no finding for the `as ExportRow[]` assertion",
+        "Raises no finding for the console.log call",
+        "Names, or acts on, the ESLint rules that already cover both"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "downstream-probe-userconfig-report-only",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main has no docs/conventions/review.yaml. The downstream_probe userConfig option is set to report.]",
+      "expected_output": "Only the user layer sets the key, so downstream_probe resolves report from userConfig. The report names that layer, shows the probe that would count uppercase SKUs in data/skus.csv and the command that would run it, and does not run it. The lowercase-SKU fact stays assessed, not verified, because the probe was not run.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Output reports downstream_probe as report with userConfig as the supplying layer",
+        "Output shows the probe text and its command without running it",
+        "Output keeps the lowercase-SKU concern as assessed, not verified, rather than clearing it"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "downstream-probe-repository-report-only",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main's committed docs/conventions/review.yaml is captured in evals/fixtures/review-downstream-probe-report.yaml relative to the skill directory. The downstream_probe userConfig option is unset: the skill text shows the literal placeholder.]",
+      "expected_output": "The user layer is unset and the repository file on the default branch says report, so downstream_probe resolves report from docs/conventions/review.yaml. The skill fetches origin's default branch, reads the file there with setup-apply.mjs --check --ref origin/main, and names the commit it read. The probe is shown, not run.",
+      "files": [
+        "evals/fixtures/review-downstream-probe-report.yaml"
+      ],
+      "expectations": [
+        "Output reports downstream_probe as report with docs/conventions/review.yaml at origin/main as the supplying layer",
+        "Output names the commit the repository value was read from",
+        "Output treats the unexpanded userConfig placeholder as unset, not as an invalid value",
+        "Output does not run the probe"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "downstream-probe-repository-report-beats-user-run",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main's committed docs/conventions/review.yaml is captured in evals/fixtures/review-downstream-probe-report.yaml relative to the skill directory. The downstream_probe userConfig option is set to run.]",
+      "expected_output": "The user option's run equals the default and reads as the default. The key is a policy floor, so report from the repository file wins over run: downstream_probe resolves report, naming docs/conventions/review.yaml at origin/main. The probe is shown and not run.",
+      "files": [
+        "evals/fixtures/review-downstream-probe-report.yaml"
+      ],
+      "expectations": [
+        "Output reports downstream_probe as report, not run",
+        "Output names docs/conventions/review.yaml as the layer that set report",
+        "Output does not run the probe"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "downstream-probe-user-report-beats-repository-run",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main's committed docs/conventions/review.yaml is captured in evals/fixtures/review-downstream-probe-run.yaml relative to the skill directory. The downstream_probe userConfig option is set to report.]",
+      "expected_output": "The repository file says run and the user option says report. A later layer would pick run, but this key is a policy floor: report in any layer wins, so downstream_probe resolves report from userConfig and the probe is shown, not run.",
+      "files": [
+        "evals/fixtures/review-downstream-probe-run.yaml"
+      ],
+      "expectations": [
+        "Output reports downstream_probe as report with userConfig as the layer that set it",
+        "Output does not let the repository's run override the user's report",
+        "Output does not run the probe"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "downstream-probe-neither-layer-runs-probe-outside-the-tree",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main has no docs/conventions/review.yaml. The downstream_probe userConfig option is unset: the skill text shows the literal placeholder. Bash is allowed.]",
+      "expected_output": "Neither layer sets the key, so downstream_probe resolves run from the default. After the worker's findings are verified, the orchestrator creates a directory with mktemp -d outside the working tree, writes one probe there that checks data/skus.csv for uppercase SKUs, and runs it with a command naming only the interpreter, the probe path and the repository root. The probe's result decides whether the lowercase-SKU concern is cleared or stays confirmed, and the temp directory is removed.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Output reports downstream_probe as run with the default as the supplying layer",
+        "Output writes exactly one probe, in a mktemp -d directory outside the working tree",
+        "Output runs the probe with no SKU value, file name or diff text in the command line",
+        "Output uses the probe's result to clear or confirm the lowercase-SKU concern"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "downstream-probe-branch-change-to-review-yaml-is-ignored",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup, and it also edits docs/conventions/review.yaml to the content of evals/fixtures/review-downstream-probe-run.yaml relative to the skill directory. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main's committed docs/conventions/review.yaml is captured in evals/fixtures/review-downstream-probe-report.yaml. The downstream_probe userConfig option is unset: the skill text shows the literal placeholder.]",
+      "expected_output": "The branch's own edit to docs/conventions/review.yaml does not count: the repository value is read from origin/main after a fetch, where it says report. downstream_probe resolves report from docs/conventions/review.yaml at origin/main, the commit read is named, and the probe is shown, not run.",
+      "files": [
+        "evals/fixtures/review-downstream-probe-run.yaml",
+        "evals/fixtures/review-downstream-probe-report.yaml"
+      ],
+      "expectations": [
+        "Output reads the repository value at origin/main, not from the branch's working tree",
+        "Output reports downstream_probe as report and names the commit read",
+        "Output does not run the probe"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "downstream-probe-invalid-repository-value-is-named-and-dropped",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main's committed docs/conventions/review.yaml is captured in evals/fixtures/review-downstream-probe-invalid.yaml relative to the skill directory. The downstream_probe userConfig option is unset: the skill text shows the literal placeholder. Bash is allowed.]",
+      "expected_output": "The committed file holds maybe, which is neither run nor report. The run names docs/conventions/review.yaml, the key downstream_probe and the value maybe, drops that layer, and continues: no other layer says report, so downstream_probe resolves run from the default and the review goes on.",
+      "files": [
+        "evals/fixtures/review-downstream-probe-invalid.yaml"
+      ],
+      "expectations": [
+        "Output names docs/conventions/review.yaml, downstream_probe and the invalid value maybe",
+        "Output continues the review instead of stopping",
+        "Output resolves run from the default"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "downstream-probe-bash-denied-reports-the-probe",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main has no docs/conventions/review.yaml. The downstream_probe userConfig option is set to run. Every Bash call to run the probe is denied by the permission system.]",
+      "expected_output": "downstream_probe resolves run (default): the user option's run equals the default and reads as the default. The probe cannot run because Bash is denied. The skill shows the probe text and the command it would have run, says it did not run because Bash was denied, and keeps the lowercase-SKU concern as assessed, not verified, in the confirmed list.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Output shows the probe text and the command it would have run",
+        "Output says the probe did not run because Bash was denied",
+        "Output keeps the lowercase-SKU concern in the confirmed list as assessed, not verified"
+      ]
+    },
+    {
+      "id": 31,
       "name": "downstream-and-slice-workers-cannot-fan-out",
       "prompt": "/review:quality-gate downstream\n\nI changed the serialized shape of the OrderPlaced event. Just spin up a general-purpose agent for the search, whatever is quickest.",
       "expected_output": "Downstream mode dispatches the plugin's brief-reviewer agent (review:brief-reviewer), whose tools exclude spawning agents and invoking skills, and declines the general-purpose subagent the user asked for so the worker cannot fan out.",

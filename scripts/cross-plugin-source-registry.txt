@@ -82,7 +82,36 @@ lib/resolve-convention-pattern.sh -> plugins/*/hooks/resolve-convention-pattern.
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line
 # for the duplication audit: the copies sit at two shapes within a plugin.
-lib/parse-concern-value.sh -> plugins/*/skills/*/scripts/parse-concern-value.sh plugins/*/skills/*/scripts/lib/parse-concern-value.sh
+lib/parse-concern-value.sh -> plugins/*/skills/*/scripts/parse-concern-value.sh plugins/*/skills/*/scripts/lib/parse-concern-value.sh plugins/*/lib/parse-concern-value.sh plugins/*/scripts/parse-concern-value.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/parse-concern-value.sh.
+skills/setup/scripts/parse-concern-value.sh
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/parse-concern-value.sh.
+lib/parse-concern-value.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line
+# for the duplication audit: the parser sits beside each reader copy, plus
+# multi-agent's own resolver copy.
+lib/yaml-subset.awk -> plugins/*/skills/*/scripts/yaml-subset.awk plugins/*/skills/*/scripts/lib/yaml-subset.awk plugins/*/lib/yaml-subset.awk plugins/*/scripts/yaml-subset.awk
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/yaml-subset.awk.
+skills/setup/scripts/yaml-subset.awk
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/yaml-subset.awk.
+lib/yaml-subset.awk
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/yaml-subset.awk.
+scripts/yaml-subset.awk
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/setup-apply.mjs.
+lib/setup-apply.mjs
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for
+# the duplication audit: the root canonical and its copies.
+lib/setup-apply.mjs -> plugins/*/lib/setup-apply.mjs
 
 # No dedicated check: the recommendation-basis contract each adopting plugin
 # ships, because only the plugin directory installs (the convention's
@@ -119,6 +148,18 @@ lib/check-retirements.sh -> plugins/*/lib/check-retirements.sh
 # plugins/repo-fleet-hygiene/scripts/ to fix a drift failure.
 scripts/worktree-root-resolve.sh
 
+# No dedicated check: repository discovery walker, used by the fleet audit and
+# the worktree skill's cross-repository mode. Canonical copy:
+# plugins/repo-fleet-hygiene/scripts/fleet-discovery.sh; copy it into
+# plugins/source-control/scripts/ to fix a drift failure.
+scripts/fleet-discovery.sh
+
+# No dedicated check: repository discovery no-scope ladder, used by the fleet
+# audit and the worktree skill's cross-repository mode. Canonical copy:
+# plugins/repo-fleet-hygiene/scripts/scope-resolve.sh; copy it into
+# plugins/source-control/scripts/ to fix a drift failure.
+scripts/scope-resolve.sh
+
 # No dedicated check: retired worktree-root alias peel, sourced by the
 # resolver. Delete both copies after 2026-12-31. Canonical copy:
 # plugins/source-control/scripts/worktree-root-legacy.sh.
@@ -141,6 +182,14 @@ scripts/context-zone.sh
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/context-zone.sh -> plugins/*/scripts/context-zone.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/yaml-subset.mjs.
+scripts/lib/yaml-subset.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/yaml-subset.mjs -> plugins/*/scripts/lib/yaml-subset.mjs
 
 # No dedicated check: the resolver's contract test, which travels with it.
 # Canonical copy: plugins/context-guard/scripts/context-zone.test.sh; copy it
@@ -411,3 +460,21 @@ scripts/lib/installed.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/installed.mjs -> plugins/*/scripts/lib/installed.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/lane-push.sh, the one way an unattended lane pushes. The source-control
+# (babysit) and work-items (work) plugins carry the generated copies.
+scripts/lane-push.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/lane-push.sh -> plugins/*/scripts/lane-push.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/pydeps.py. animation, speech and explainer-video carry the generated
+# copies; each plugin's settings live in scripts/pydeps.json beside it.
+scripts/pydeps.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/pydeps.py -> plugins/animation/scripts/pydeps.py plugins/speech/scripts/pydeps.py plugins/explainer-video/scripts/pydeps.py

@@ -5,21 +5,30 @@ script with the action's arguments and return its output unchanged:
 
 ```bash
 "<skill-dir>/scripts/read-pr.sh" view [<pr>] [--repo <owner/repo>] [--diff] [--out <file>]
-"<skill-dir>/scripts/read-pr.sh" list [--head <branch>] [--head-match <ERE>] [--state open|closed|merged|all] [--repo <owner/repo>] [--out <file>]
+"<skill-dir>/scripts/read-pr.sh" list [--head <branch>] [--head-match <ERE>] [--search <text>] [--state open|closed|merged|all] [--repo <owner/repo>] [--out <file>]
 ```
 
 Pass each argument in single quotes. Refuse a `<pr>`, `--head`, `--repo` or `--out` value holding
-a character outside `A-Za-z0-9._/-`; only `--head-match` takes regex characters. With `--out` the
-script writes the output to that file itself and prints nothing, so a caller that needs the bytes
-whole (a diff a later gate scans) gets them from the file rather than from a copy of tool output.
+a character outside `A-Za-z0-9._/-`, except a `<pr>` that is a whole
+`https://HOST/OWNER/REPO/pull/<number>` URL, and a `--search` value holding one outside `A-Za-z0-9._/#-`;
+only `--head-match` takes regex characters. With `--out` the script writes the output to that file
+itself and prints nothing, so a caller that needs the bytes whole (a diff a later gate scans) gets
+them from the file rather than from a copy of tool output.
 
 - **`view`** prints one object: `number`, `url`, `state`, `isDraft`, `title`, `baseRefName`,
-  `headRefName`, `baseRefOid`, `headRefOid`, `additions`, `deletions`, `files`, `labels`, and the
-  repository's `visibility` (`PUBLIC`, `PRIVATE`, `INTERNAL`, or `UNKNOWN` when the lookup fails).
-  With no `<pr>` it reads the current branch's PR. `--diff` prints the unified diff instead.
+  `headRefName`, `baseRefOid`, `headRefOid`, `mergeCommit` (`null` until merged), `additions`,
+  `deletions`, `files`, `labels`, and the repository's `visibility` (`PUBLIC`, `PRIVATE`,
+  `INTERNAL`, or `UNKNOWN` when the lookup fails). `<pr>` is a number, a PR URL (which names its own host and
+  repository), or a head branch; with none
+  it reads the current branch's PR. A PR whose head branch is on a fork is not found by branch
+  name, or when no `<pr>` is given, so pass its number. `--diff` prints the unified diff instead. `view` reads through
+  the forge's REST API only. `--repo` also
+  takes `HOST/OWNER/REPO`; without it `view` reads the `origin` remote's host when the forge CLI is
+  logged in to that host, and github.com otherwise.
 - **`list`** prints an array of `number`, `url`, `state`, `isDraft`, `title`, `headRefName`,
   `baseRefName`, `mergeCommit`, open PRs by default, up to 1000 rows. `--head-match` keeps the
-  PRs whose head branch matches the ERE.
+  PRs whose head branch matches the ERE. `--search` keeps the PRs the forge's text search matches,
+  such as those whose text mentions a work item's reference.
 - **Exit codes.** 0 read; 1 bad argument; 2 the forge call failed, which includes a branch with no
   PR; 5 a prerequisite is missing. Report a non-zero exit as it is: a failed read is not an empty
   result.

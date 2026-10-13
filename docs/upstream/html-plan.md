@@ -50,7 +50,7 @@ response back into the chat. The skill stops before building.
 
 ## Attribution table
 
-Relation vocabulary as in [`mattpocock-skills-v12-map.md`](mattpocock-skills-v12-map.md): DERIVED
+Relation vocabulary as in the [`mattpocock-skills.md` Map](mattpocock-skills.md#map): DERIVED
 (attributed port), PARTIAL (specific ideas taken, attributed), CONVERGENT (same territory, no
 provenance), NONE (no counterpart). Nothing is taken yet, so no row is DERIVED or PARTIAL.
 

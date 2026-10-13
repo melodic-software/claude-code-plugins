@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.17] - 2026-10-11
+
+### Changed
+
+- scan: gates now receive the role map's verifier effort as the Agent tool's per-spawn `effort`, and never run at a lower effort than the hunters; hunters still run at the session level. The report and README name each stage's effort as well as its model. With no role map both stages run at the session level.
+
 ## [0.11.16] - 2026-10-07
 
 ### Changed

@@ -1,0 +1,2 @@
+# Eval fixture: a review.yaml that keeps the ratchet offer on for the repository.
+ratchet_offer: true

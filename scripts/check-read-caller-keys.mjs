@@ -10,6 +10,10 @@ import { pathToFileURL } from "node:url";
 
 const WORKFLOWS = ".github/workflows";
 const READ_WORKFLOW = `${WORKFLOWS}/pr-run-activity-read.yml`;
+// The one job of the read workflow that may name id-token. It runs no PR head
+// code, so it may only check out the default branch tip.
+const CHECK_JOB = "broker-check";
+const TIP_REF = "${{ github.event.repository.default_branch }}";
 const REPOSITORY = "melodic-software/claude-code-plugins";
 // A job-level `uses:` naming one of this repository's workflows, in local
 // (`./`) or remote (`owner/repo/...@ref`) form.
@@ -170,8 +174,82 @@ function secretFindings(expression) {
   return findings;
 }
 
+// The read workflow's check job node, or null. Only offsets inside its range
+// may name id-token.
+function checkJobOf(file, doc) {
+  if (file !== READ_WORKFLOW) {
+    return null;
+  }
+  const node = doc.getIn(["jobs", CHECK_JOB], true);
+  return yaml.isMap(node) ? node : null;
+}
+
+const CHECKOUT_WITH = new Set(["ref", "path", "persist-credentials"]);
+
+// The read workflow's shape: an empty top-level grant, an explicit
+// permissions map on every job, and a broker-check job made of steps whose
+// checkouts can only fetch this repository's default branch tip.
+function checkReadShape(file, doc, lineCounter) {
+  const lineOf = (node) =>
+    node?.range ? lineCounter.linePos(node.range[0]).line : 1;
+  const top = doc.get("permissions", true);
+  if (!yaml.isMap(top) || top.items.length > 0) {
+    offenders.push(
+      `${file}:${lineOf(top)}: the read workflow's top-level permissions is not {}`,
+    );
+  }
+  const jobs = doc.get("jobs", true);
+  for (const pair of yaml.isMap(jobs) ? jobs.items : []) {
+    if (
+      !yaml.isMap(pair.value) ||
+      !yaml.isMap(pair.value.get("permissions", true))
+    ) {
+      offenders.push(
+        `${file}:${lineOf(pair.key)}: job ${pair.key?.value} has no explicit permissions map`,
+      );
+    }
+  }
+  const job = checkJobOf(file, doc);
+  if (!job) {
+    return;
+  }
+  const steps = job.get("steps", true);
+  if (job.has("uses") || !yaml.isSeq(steps)) {
+    offenders.push(
+      `${file}:${lineOf(job)}: the ${CHECK_JOB} job must be steps, not a reusable-workflow call`,
+    );
+  }
+  for (const step of yaml.isSeq(steps) ? steps.items : []) {
+    const value = step?.toJSON?.();
+    if (
+      typeof value?.uses !== "string" ||
+      !/^actions\/checkout@/i.test(value.uses.trim())
+    ) {
+      continue;
+    }
+    const withKeys = Object.keys(value.with ?? {});
+    if (
+      value.with?.ref !== TIP_REF ||
+      withKeys.some((key) => !CHECKOUT_WITH.has(key))
+    ) {
+      offenders.push(
+        `${file}:${lineOf(step)}: the ${CHECK_JOB} job checks out something other than this repository's default branch tip`,
+      );
+    }
+  }
+}
+
 function check(file) {
   const { doc, lineCounter } = files.get(file);
+  const checkJob = checkJobOf(file, doc);
+  if (file === READ_WORKFLOW) {
+    checkReadShape(file, doc, lineCounter);
+  }
+  const inCheckJob = (offset) =>
+    checkJob !== null &&
+    offset >= checkJob.range[0] &&
+    offset < checkJob.range[2];
+  const idTokenFinding = `the read workflow names id-token outside its ${CHECK_JOB} job`;
   const lineAt = (node, value, index) => {
     const start = lineCounter.linePos(node.range[0]).line;
     const block = node.type === "BLOCK_LITERAL" || node.type === "BLOCK_FOLDED";
@@ -204,8 +282,22 @@ function check(file) {
           "passes secrets: inherit",
         );
       }
-      if (file === READ_WORKFLOW && /id-token/i.test(key)) {
-        offenders.push(`${file}:${keyLine}: the read workflow names id-token`);
+      if (
+        key === "permissions" &&
+        yaml.isScalar(pair.value) &&
+        String(pair.value.value).trim().toLowerCase() === "write-all"
+      ) {
+        report(
+          lineCounter.linePos(pair.value.range[0]).line,
+          "grants permissions: write-all",
+        );
+      }
+      if (
+        file === READ_WORKFLOW &&
+        /id-token/i.test(key) &&
+        !inCheckJob(pair.key.range[0])
+      ) {
+        offenders.push(`${file}:${keyLine}: ${idTokenFinding}`);
       }
     },
     Scalar(_, node) {
@@ -223,9 +315,9 @@ function check(file) {
         }
       }
       const idToken = /id-token/i.exec(text);
-      if (file === READ_WORKFLOW && idToken) {
+      if (file === READ_WORKFLOW && idToken && !inCheckJob(node.range[0])) {
         offenders.push(
-          `${file}:${lineAt(node, text, idToken.index)}: the read workflow names id-token`,
+          `${file}:${lineAt(node, text, idToken.index)}: ${idTokenFinding}`,
         );
       }
     },

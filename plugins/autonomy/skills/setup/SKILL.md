@@ -115,19 +115,14 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
      draw from metered pools.
 3. **Agent-session wiring (Claude Code specifics)**. `CLAUDE_CODE_ENABLE_TELEMETRY=1`,
    per-signal `OTEL_*_EXPORTER` values, and for work-item-dispatched sessions
-   `OTEL_RESOURCE_ATTRIBUTES` carrying `autonomy.work_item.url=<canonical item URL>`, which
-   lands on every metric datapoint and event. Headless `-p` (and Agent SDK) sessions read
-   inbound `TRACEPARENT`/`TRACESTATE`, and their event records carry the inbound trace ID
-   without the beta flag or a traces exporter. Spans need
-   `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` plus `OTEL_TRACES_EXPORTER`; the slice treats spans
-   as optional and never depends on beta span shapes. Interactive sessions ignore inbound trace
-   context. The slice joins on `autonomy.work_item.url`, since metrics carry no trace IDs;
-   relying on native inbound-context joining is the telemetry contract's recorded migration
-   trigger. Read
+   `OTEL_RESOURCE_ATTRIBUTES` carrying `autonomy.work_item.url=<canonical item URL>`. The
+   slice treats spans as optional and never depends on beta span shapes. It joins on
+   `autonomy.work_item.url`, never on inbound trace context; relying on native inbound-context
+   joining is the telemetry contract's recorded migration trigger. Read
    [`context/agent-session-telemetry.md`](context/agent-session-telemetry.md) when a binding
-   asks about trace context or the join, needs evidence that a guardrail fired, or asks what
-   memory activity is observable: it holds the dated records for these wiring facts, the
-   permission-decision event, its limits, and the memory gap.
+   asks about trace context, spans or the join, needs evidence that a guardrail fired, or asks
+   what memory activity is observable: it holds the pointer records for these wiring decisions,
+   the permission-decision event, and the memory gap.
 4. **Record the binding**. Sink class, endpoint or artifact path, and the semconv pin land
    as the `telemetry` section of the schema-versioned binding.
 5. **Conformance**. Run
@@ -199,10 +194,14 @@ each class) and cost-tier→model names. Vocabulary remaps only, never policy co
 bind in this plugin's `userConfig` rather than either governance surface: the verification lens
 pool, and whether the advisory visual narration lane runs. Neither counts anything, the pool
 contributes to no floor, and the narration lane has no security-binding cell at all, so neither can
-weaken a floor, which is what lets them sit on an operator surface. Plugin options resolve from
-user, `--settings`, and managed settings only; a watched repository's own `.claude/settings.json` is
-not read for them, so a repo cannot dial its own verification. The slice proposes neither as a
-binding field.
+weaken a floor, which is what lets them sit on an operator surface. The placement holds only while
+a watched repository's own settings cannot supply plugin options, so a repo cannot dial its own
+verification. The slice proposes neither as a binding field.
+
+- **Pointer**: when checking which settings scopes plugin options are read from, fetch
+  <https://code.claude.com/docs/en/settings-reference#pluginconfigs> live. **As of**: 2026-10-11.
+  **Recheck trigger**: a Claude Code changelog entry changes the scopes `pluginConfigs` is read
+  from.
 
 **Layered resolution order.** Org-policy-home defaults → settings-as-code per-repo
 security binding → repo-local non-security remaps. Later layers refine earlier ones for
@@ -277,9 +276,8 @@ fails loud on internal failure, never a verdict-shaped fallback.
 2. **`apply`**. Detect-diff-reconcile against existing `prerequisite_resolution`
    declarations; a declaration contradicting a ran-negative probe is a finding (identity
    stays negative while the finding is open). The prose-context pass
-   reads `CLAUDE.md` / `AGENTS.md` (session-reachable by reference wherever a `CLAUDE.md`
-   above it is read instead; the dated record for that platform bound is the
-   prerequisite-resolution contract in this plugin's reference tree) / `README` to
+   reads `CLAUDE.md` / `AGENTS.md` (whether a session loads `AGENTS.md` is a Claude Code
+   rule, recorded in the slice context's "Instruction-file loading" section) / `README` to
    *propose* declarations into **non-security keys only**; the human ratifies; the slice
    writes the additive section (`surface_refs` + `declarations`, no `surfaces` map).
    Narrowing-only enablement: enable in `routines.enabled` only when the verdict clears;

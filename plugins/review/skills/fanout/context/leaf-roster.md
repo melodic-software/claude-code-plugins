@@ -38,5 +38,8 @@ The official Claude Security plugin's `/claude-security` scan is a self-orchestr
 workflow, not a dispatchable leaf. Never add it to the fan-out. When the request is a whole-repo
 security audit rather than a change-set review, recommend it (presence-gated: only when its command
 appears in the skill listing; otherwise suggest installing
-`claude-security@claude-plugins-official`). Contract:
-<https://code.claude.com/docs/en/claude-security>.
+`claude-security@claude-plugins-official`). The pointer record for its jobs, prerequisites, and
+output contract lives once, in the `quality-gate` skill's security context
+([../../quality-gate/context/security.md](../../quality-gate/context/security.md#deep-scan-escalation)).
+As of: 2026-10-11. Recheck trigger: that section moves, is renamed, or stops holding the plugin's
+pointer record.

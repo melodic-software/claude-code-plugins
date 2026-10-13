@@ -10,7 +10,7 @@ Claim a work item through the seam (assignee + lease record).
 
 ## Workflow
 
-1. **Resolve the item.** If a number is given, build its fully-qualified ID (adapter: "Resolve item ID"). If text is given, search for it (adapter: "Search items", bare read). The search emits raw `gh` fields, so take the matched item's `number` and build its fully-qualified ID via "Resolve item ID" (the seam rejects a bare number). If multiple matches, present them and ask the user to clarify; if exactly one, proceed.
+1. **Resolve the item.** A qualified ID (`<provider>:<owner>/<repo>#<n>`) is used as is. If a number is given, build its fully-qualified ID (adapter: "Resolve item ID"). If text is given, search for it (adapter: "Search items", bare read). The search emits raw `gh` fields, so take the matched item's `number` and build its fully-qualified ID via "Resolve item ID" (the seam rejects a bare number). If multiple matches, present them and ask the user to clarify; if exactly one, proceed.
 
 1. **Pre-check + reclaim.** Fetch current state, then clear any stale lease so a crashed session's claim is recoverable. `reclaim` is idempotent, so a live lease is left untouched (matches `work` Step 0):
 
@@ -25,7 +25,7 @@ Claim a work item through the seam (assignee + lease record).
 
    Exit `6` (capability-unsupported, CONTRACT.md "Exit codes") means the bound provider declares `reclaim: false` (e.g. `local-markdown`, whose `claim` already race-checks the lease pre-write, CONTRACT.md "Adapter contract"). That is not an error. Skip the stale-lease check and proceed straight to Claim.
 
-   A **harness denial of the `reclaim` call itself** takes the same posture. Under auto mode the permission classifier can refuse the Bash tool call before the script runs, so no exit code is produced (CONTRACT.md "Exit codes"). Report it once, skip the stale-lease check, and proceed straight to Claim. Never retry the denied call, and never self-widen permissions to work around it (`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer", whose "The dated record for both claims" carries the dated basis for this refusal). A live foreign lease is still caught: `claim` backs off with exit `7`.
+   A **harness denial of the `reclaim` call itself** takes the same posture. Under auto mode a classifier denial lands on the Bash tool call itself, so no exit code is produced (CONTRACT.md "Exit codes"). Report it once, skip the stale-lease check, and proceed straight to Claim. Never retry the denied call, and never self-widen permissions to work around it (`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer", whose "The dated record for both claims" carries the dated basis for this refusal). A live foreign lease is still caught: `claim` backs off with exit `7`.
 
 1. **Claim via the seam.** The `claim` verb runs the full race-safe, same-identity-aware protocol (assign `@me` → re-read → post lease comment → re-read leases → back off on a foreign earlier lease) and emits the claim object, or exits `7` on a lost race:
 

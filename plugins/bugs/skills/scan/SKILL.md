@@ -20,9 +20,13 @@ invocation:
 - Shallow clone, `git rev-parse --is-shallow-repository`
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+separate body Bash calls rather than pre-compute lines: a worktree-isolated session refuses a
+compound command that contains git. The dated record for how the pre-compute block is composed is
+owned by `/source-control:worktree` (its gather-block record, "The pre-compute block runs as one
+shell invocation"); how injected commands run is read at
+[skills: how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
+As of: 2026-10-11. Recheck triggers: the gather-block section moves, is renamed, or changes how the
+block is composed; the skills section changes how a block's commands are run.
 
 ## Pre-computed context
 
@@ -179,7 +183,7 @@ and size the recall stage from it:
 |---|---|---|---|
 | small | 5 files or 1,000 lines or fewer | 1 to 2, the highest-ranked for the surface | 5 |
 | medium | 20 files or 5,000 lines or fewer | 2 to 3 | 10 |
-| large | above | 4 | 10, refill waves allowed |
+| large | above | 4, or 5 when the scope renders user-facing data | 10, refill waves allowed |
 
 A targeted run over one file is small; a full lane is usually large. The scope class, the lens
 count, and the models used go in the report's run metadata.
@@ -190,8 +194,11 @@ within it, never above it. A `low` run over a large lane still dispatches one le
 ### Effort
 
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
-one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
-skill-loaded, so the substitution never ran: treat the run as `high` and use the full budget above.
+an effort level, this body was read directly instead of skill-loaded, so the substitution never
+ran: treat the run as `high` and use the full budget above. Pointer: the substitution and the
+values it can take are read at
+[skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
+As of: 2026-10-11. Recheck trigger: that section renames the variable or changes its values.
 
 Effort scales the **recall stage only**. The verification gate is the precision machinery and never
 relaxes: every candidate still faces a separate fresh-context refuting subagent at every level, and
@@ -201,7 +208,7 @@ relaxes: every candidate still faces a separate fresh-context refuting subagent 
 |---|---|---|---|
 | `low` | 1, the highest-ranked lens for the scope | 0 | first verified finding |
 | `medium` | 2 | 1 | 2 verified findings |
-| `high`, `xhigh`, `max` | up to 4, sized to the scope per the sizing table | 2 | 3 verified findings |
+| `high`, `xhigh`, `max` | up to 5, sized to the scope per the sizing table | 2 | 3 verified findings |
 
 The gate cap per wave (10, or 5 on a small scope) holds at every level. Name the effort level and
 the lens count in the report's run metadata, so a `low` run reads as the narrower sample it is
@@ -232,7 +239,8 @@ the scope class that sizes the rest of the run.
 Dispatch **one subagent per lens** over the resolved scope, on the hunter role the sizing table
 names, each with the four-part contract: objective, output format, tool/source guidance, and task boundaries, spelled out
 in [`context/lenses.md`](context/lenses.md). The scope class picks the lens count and the
-[Effort](#effort) row is the ceiling. Every hunter is read-only, must attach a verbatim evidence quote
+[Effort](#effort) row is the ceiling. Lens 5 is dispatched only when the scope renders
+user-facing data (components, templates, views, messages, reports). Every hunter is read-only, must attach a verbatim evidence quote
 to every candidate, may follow one hop outside the scope (a direct caller or callee of a scoped file)
 and tags such a candidate `out-of-lane`, and is explicitly told that **returning no candidate is a
 valid and expected outcome**.
@@ -386,7 +394,7 @@ verified: say so plainly and name the lane and rung, so the next run rotates on.
 - **`--track` is not `--file`.** `--file` is `/bugs:write`'s flag for persisting a report to
   disk; the same token here would mean tracker mutation. This skill uses `--track` for filing.
 - **Shallow clones degrade, they do not fail.** The hotspot ranking is skipped with a printed notice
-  when history is absent; the four lenses read the scope unranked.
+  when history is absent; the lenses read the scope unranked.
 - **A lane with no verified findings is a result.** Report it, advance the cursor, do not refill past
   the cap looking for something to say.
 - **Consumer `## Gotchas` concatenate after these bullets.** The pre-computed Consumer gotchas block

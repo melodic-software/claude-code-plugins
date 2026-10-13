@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: animation-write-nonreact
+description: "Hard (the model's most familiar framework pulls the other way): in a Svelte project, write-animation uses the stack's own mechanism and adds no framework or animation library the project lacks"
+tags: [write-animation, stack-neutral, hard]
+runs: 3
+expected_outcome: "write-animation fires, names the stack as Svelte from the project files, animates new todo items with Svelte's own mechanism or plain CSS, includes a reduced-motion variant, and imports or installs no framework or animation library absent from package.json"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Animate new items into the todo list in src/lib/TodoList.svelte as they are added. This run cannot write files, so put the code in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ":root { --brand: oklch(55% 0.2 260); }",
+      "why": "oklch value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ":root { --brand: #2563eb; }",
+      "why": "hex"
+    }
+  ]
+}
