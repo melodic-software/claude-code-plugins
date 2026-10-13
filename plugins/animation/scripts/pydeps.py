@@ -130,7 +130,7 @@ def _foreign_env(extra=None):
 
 def loads(packages, probe):
     """Readiness is a load probe: the packages must import, not merely be present."""
-    r = subprocess.run([sys.executable, '-S', '-c', 'import ' + ', '.join(probe)],
+    r = subprocess.run([sys.executable, '-S', '-P', '-c', 'import ' + ', '.join(probe)],
                        env=_env(packages), capture_output=True, text=True)
     return r.returncode == 0
 
@@ -164,13 +164,13 @@ def install(data, requirements=REQUIREMENTS, probe=PROBE):
     target.parent.mkdir(parents=True, exist_ok=True)
     _drop_stale_partials(target)
     partial = target.with_name(f'{target.name}.partial-{os.getpid()}')
-    only_binary = binary_only(requirements)
+    only_binary = binary_only(requirements) if BUILD_FROM_SOURCE else [':all:']
     try:
         if target.exists():
             shutil.rmtree(target)   # present but not loading: rebuild it rather than trust it
         try:
             r = subprocess.run(
-                [sys.executable, '-m', 'pip', 'install', '--require-hashes', '--no-deps',
+                [sys.executable, '-P', '-m', 'pip', 'install', '--require-hashes', '--no-deps',
                  *(['--only-binary', ','.join(only_binary)] if only_binary else []),
                  '--no-input', '--disable-pip-version-check', '--retries', '2', '--timeout', '30',
                  '--target', str(partial), '--requirement', str(requirements)],
@@ -232,7 +232,7 @@ def _runs_supported(path):
     gil_ok = 'True' if ALLOW_FREE_THREADED else 'not sysconfig.get_config_var("Py_GIL_DISABLED")'
     probe = f'import sys, sysconfig; raise SystemExit(not ({version_ok} and {gil_ok}))'
     try:
-        return subprocess.run([path, '-c', probe], env=_foreign_env(), capture_output=True).returncode == 0
+        return subprocess.run([path, '-I', '-c', probe], env=_foreign_env(), capture_output=True).returncode == 0
     except OSError:
         return False
 
@@ -255,7 +255,11 @@ def _launcher_listed():
 
 def interpreter():
     """The first supported interpreter: CANDIDATES on PATH in order, then on Windows each one the py launcher lists.
-    The hook and every run hand over to it, so both resolve the same <interpreter tag> directory."""
+    The hook and every run hand over to it, so both resolve the same <interpreter tag> directory. On Windows,
+    shutil.which searches the working directory first unless NoDefaultCurrentDirectoryInExePath is set, so a
+    python3.bat in the project would run as the interpreter."""
+    if sys.platform == 'win32':
+        os.environ['NoDefaultCurrentDirectoryInExePath'] = '1'
     for name in CANDIDATES:
         found = shutil.which(name)
         if not found or ('windowsapps' in found.lower() and Path(found).stat().st_size == 0):

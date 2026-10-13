@@ -15,6 +15,7 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from unittest import mock
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -200,7 +201,7 @@ class Launcher(unittest.TestCase):
             fake, log = Path(tmp) / 'bin', Path(tmp) / 'log'
             fake.mkdir()
             (fake / 'python3').write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')   # below the floor
-            (fake / 'python').write_text(f'#!/bin/sh\n[ "$1" = -c ] && exit 0\necho "$@" > {log}\n', encoding='utf-8')
+            (fake / 'python').write_text(f'#!/bin/sh\n[ "$1" = -I ] && exit 0\necho "$@" > {log}\n', encoding='utf-8')
             for f in fake.iterdir():
                 f.chmod(0o755)
             code = 'import sys, pydeps; pydeps.MIN_PYTHON = (99, 0); sys.exit(pydeps.main(["run", "--", "x.py"]))'
@@ -208,6 +209,66 @@ class Launcher(unittest.TestCase):
             r = subprocess.run([sys.executable, '-c', code], cwd=HERE, env=env, capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(log.read_text(encoding='utf-8').split(), [str(SCRIPT), 'run', '--', 'x.py'])
+
+    def test_a_python_below_the_floor_with_none_to_hand_over_to_says_which_it_needs(self):
+        code = ('import sys, pydeps; pydeps.MIN_PYTHON = (99, 0); pydeps.interpreter = lambda: None; '
+                'sys.exit(pydeps.main(["install", "--data-dir", "/nowhere"]))')
+        r = subprocess.run([sys.executable, '-c', code], cwd=HERE, capture_output=True, text=True,
+                           env={k: v for k, v in os.environ.items() if k != 'ANIMATION_PYDEPS_INTERPRETER'})
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('animation: Python 99.0 or later is required', r.stderr)
+
+
+def import_pydeps():
+    sys.path.insert(0, str(HERE))
+    try:
+        import pydeps
+    finally:
+        sys.path.remove(str(HERE))
+    return pydeps
+
+
+class UntrustedWorkingDirectory(unittest.TestCase):
+    """The hook and the skills run in the user's project, whose files are not the plugin's."""
+
+    def test_wheels_only_covers_every_package_when_none_may_build_from_source(self):
+        pydeps = import_pydeps()
+        calls = []
+
+        def fake_run(args, **kwargs):
+            calls.append(args)
+            return subprocess.CompletedProcess(args, 1, '', 'refused')
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(pydeps.subprocess, 'run', fake_run):
+            lock = Path(tmp) / 'requirements.txt'
+            lock.write_text('foo[bar]==1.0 \\\n    --hash=sha256:aa\n', encoding='utf-8')
+            with self.assertRaises(pydeps.Broken):
+                pydeps.install(Path(tmp) / 'data', lock)
+        self.assertEqual(calls[0][calls[0].index('--only-binary') + 1], ':all:')
+
+    def test_the_version_probe_imports_nothing_from_the_working_directory(self):
+        pydeps = import_pydeps()
+        with tempfile.TemporaryDirectory() as tmp:
+            marker = Path(tmp) / 'ran'
+            (Path(tmp) / 'sysconfig.py').write_text(f'open({str(marker)!r}, "w").close()\n', encoding='utf-8')
+            old = os.getcwd()
+            os.chdir(tmp)
+            try:
+                pydeps._runs_supported(sys.executable)
+            finally:
+                os.chdir(old)
+            self.assertFalse(marker.exists())
+
+    def test_on_windows_the_interpreter_search_skips_the_working_directory(self):
+        pydeps = import_pydeps()
+        real = sys.platform
+        sys.platform = 'win32'
+        try:
+            with mock.patch.dict(os.environ), mock.patch.object(pydeps.shutil, 'which', return_value=None):
+                os.environ.pop('NoDefaultCurrentDirectoryInExePath', None)
+                pydeps.interpreter()
+                self.assertEqual(os.environ.get('NoDefaultCurrentDirectoryInExePath'), '1')
+        finally:
+            sys.platform = real
 
 
 class NoRuntimeFetch(unittest.TestCase):

@@ -202,7 +202,7 @@ class Launcher(unittest.TestCase):
             fake, log = Path(tmp) / 'bin', Path(tmp) / 'log'
             fake.mkdir()
             (fake / 'python3').write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')   # below the floor
-            (fake / 'python').write_text(f'#!/bin/sh\n[ "$1" = -c ] && exit 0\necho "$@" > {log}\n', encoding='utf-8')
+            (fake / 'python').write_text(f'#!/bin/sh\n[ "$1" = -I ] && exit 0\necho "$@" > {log}\n', encoding='utf-8')
             for f in fake.iterdir():
                 f.chmod(0o755)
             code = 'import sys, pydeps; pydeps.MIN_PYTHON = (99, 0); sys.exit(pydeps.main(["run", "--", "x.py"]))'
