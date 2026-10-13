@@ -1257,4 +1257,51 @@ assert_eq "file_unchanged re-reads count as repeats; a path that spells a window
   '{"foo (offset 1)":2,"foo (offset 1) #2":2,"x.py":3}' "$(q '.repeated_reads | tojson')"
 assert_eq "a tool call with a non-object input is still counted" "1" "$(q '.tools.Grep.calls')"
 
+# --- 42. stop-hook-timing: per-hook Stop p50 and p95 from stop_hook_summary records only ---
+SH="$WORK/stop-hooks.jsonl"
+SECRET_HOOK="curl -H 'Authorization: Bearer s3cr3t""value' https://hooks.example/stop"
+{
+  printf '{"type":"user","timestamp":"%s","message":{"content":"stop_hook_summary hookInfos durationMs"}}\n' "$(ts 0)"
+  printf '{"type":"system","subtype":"other","hookInfos":[{"command":"not-a-stop-hook","durationMs":99999}]}\n'
+  for i in $(seq 1 20); do
+    extra=""
+    ((i <= 3)) && extra+=",{\"command\":\"fast\",\"durationMs\":$((i * 10))}"
+    ((i == 1)) && extra+=",{\"command\":\"once\",\"durationMs\":500}"
+    ((i == 4)) && extra+=",{\"command\":\"fast\"}"
+    ((i == 3)) && extra+=",{\"command\":\"ntfy pub https://ntfy.sh/OtherTopic\",\"durationMs\":9}"
+    ((i == 2)) && extra+=",$(jq -cn --arg c "$SECRET_HOOK" '{command: $c, durationMs: 7}')"
+    ((i == 2)) && extra+=",{\"command\":\"ntfy pub https://ntfy.sh/AbCdPathSecret\",\"durationMs\":8}"
+    printf '{"type":"system","subtype":"stop_hook_summary","timestamp":"%s","hookCount":3,"hookInfos":[{"command":"slow","durationMs":%s},{"command":"Logging the Stop event..."}%s]}\n' \
+      "$(ts "$i")" "$((i * 100))" "$extra"
+  done
+} >"$SH"
+run stop-hook-timing "$SH"
+assert_eq "stop-hook-timing exits 0" "0" "$RUN_RC"
+assert_eq "only stop_hook_summary records are counted" "20" "$(q .records)"
+assert_eq "a hook with 20 timed runs has p50 and p95 by interpolation" "1050 1905 2000 20" \
+  "$(q '.hooks[] | select(.hook == "slow") | "\(.p50_ms) \(.p95_ms) \(.max_ms) \(.samples)"')"
+assert_eq "below 20 runs p95 is null; p50 needs two" "20 null" \
+  "$(q '.hooks[] | select(.hook == "fast") | "\(.p50_ms) \(.p95_ms)"')"
+assert_eq "one run gives no percentile, only its max" "null null 500" \
+  "$(q '.hooks[] | select(.hook == "once") | "\(.p50_ms) \(.p95_ms) \(.max_ms)"')"
+assert_eq "a hook with no recorded duration is untimed, never ranked" "20 0" \
+  "$(q '"\(.untimed["Logging the Stop event..."]) \([.hooks[] | select(.hook == "Logging the Stop event...")] | length)"')"
+assert_eq "a hook with any recorded duration is never also untimed" "null" "$(q '.untimed.fast')"
+assert_eq "hooks sort slowest first: p95, then p50, then max" "slow fast once" \
+  "$(q '[.hooks[] | select(.hook == "slow" or .hook == "fast" or .hook == "once") | .hook] | join(" ")')"
+assert_not_contains "content outside stop_hook_summary records never reaches the output" "not-a-stop-hook" "$RUN_OUT"
+assert_not_contains "a hook command's secret is redacted" "s3cr3tvalue" "$RUN_OUT"
+assert_eq "the redacted hook is still reported with its duration" "7" \
+  "$(q '.hooks[] | select(.hook | startswith("curl -H '"'"'Authorization: ***'"'"'")) | .max_ms')"
+assert_not_contains "a secret in a hook URL's path is redacted" "AbCdPathSecret" "$RUN_OUT"
+assert_contains "a hook URL keeps its host" "https://ntfy.sh/***" "$RUN_OUT"
+assert_eq "two hooks on one host stay apart, each tagged as redacted" "2" \
+  "$(q '[.hooks[] | select(.hook | test("^ntfy pub https://ntfy\\.sh/\\*\\*\\* #[0-9a-f]{8}$"))] | length')"
+run stop-hook-timing "$WORK/missing.jsonl"
+assert_eq "stop-hook-timing on a missing transcript is an input error" "2" "$RUN_RC"
+printf '{"type":"user","message":{"content":"hi"}}\n' >"$WORK/no-stop.jsonl"
+run stop-hook-timing "$WORK/no-stop.jsonl"
+assert_eq "a transcript with no Stop summary reads zero records and no hooks" "0 0" \
+  "$(q '"\(.records) \(.hooks | length)"')"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
