@@ -7,10 +7,6 @@
     {
       "answer": "I'll launch them one at a time and stay attached. Each `claude plugin eval <target> ... --json <file>` call runs in the foreground with `-j 3` for concurrency within that suite, and I don't move on until it exits and its results file exists. Only after the third run exits and I've read all three JSON files do I write the final answer. I won't background them: a headless launcher's exit kills any run still going.",
       "why": "P-short: foreground per suite with -j, waits, reads, then answers."
-    },
-    {
-      "answer": "I'll run a single foreground command that starts the three and blocks until all of them are done:\n\n```bash\nfor p in notes todo search; do claude plugin eval ./plugins/$p --json /tmp/$p.json & done; wait\n```\n\nThe `wait` keeps the session attached until every run exits; then I read the three JSON files and only then answer. I won't return before `wait` returns.",
-      "why": "P-edge: a single foreground command that waits for all three is explicitly allowed by the grader."
     }
   ],
   "fail": [
@@ -29,6 +25,10 @@
     {
       "answer": "Foreground runs one at a time, waiting for each to finish and reading its JSON before the next. Actually, to keep the nightly job short, I'll background the search suite with `&` since it's slowest and finish once notes and todo are done.",
       "why": "F-retract: starts correct, then backgrounds one run and ends with it in flight."
+    },
+    {
+      "answer": "I'll run a single foreground command that starts the three and blocks until all of them are done:\n\n```bash\nfor p in notes todo search; do claude plugin eval ./plugins/$p --json /tmp/$p.json & done; wait\n```\n\nThe `wait` keeps the session attached until every run exits; then I read the three JSON files and only then answer. I won't return before `wait` returns.",
+      "why": "F-wrapper: backgrounds the three runs with `&` inside a waiting wrapper; the contract is one suite at a time in the foreground, with concurrency only through `-j` inside a suite."
     }
   ]
 }
