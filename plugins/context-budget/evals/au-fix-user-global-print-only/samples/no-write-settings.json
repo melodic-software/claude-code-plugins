@@ -5,7 +5,7 @@
         {
           "tool": "Read",
           "input": {
-            "file_path": "/home/u/.claude/settings.json"
+            "file_path": "/home/<user>/.claude/settings.json"
           }
         }
       ],
@@ -16,7 +16,7 @@
         {
           "tool": "Write",
           "input": {
-            "file_path": "/home/u/.claude/plugins/data/context-budget/audit/x/reports/r.md",
+            "file_path": "/home/<user>/.claude/plugins/data/context-budget/audit/x/reports/r.md",
             "content": "report"
           }
         }
@@ -30,7 +30,7 @@
         {
           "tool": "Write",
           "input": {
-            "file_path": "/home/u/.claude/settings.json",
+            "file_path": "/home/<user>/.claude/settings.json",
             "content": "{\"permissions\":{\"deny\":[\"WebFetch\"]}}"
           }
         }

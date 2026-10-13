@@ -5,7 +5,7 @@
         {
           "tool": "Read",
           "input": {
-            "file_path": "/home/u/.claude/settings.json"
+            "file_path": "/home/<user>/.claude/settings.json"
           }
         }
       ],
@@ -31,7 +31,7 @@
         {
           "tool": "Edit",
           "input": {
-            "file_path": "/home/u/.claude/settings.json",
+            "file_path": "/home/<user>/.claude/settings.json",
             "old_string": "\"deny\": []",
             "new_string": "\"deny\": [\"WebFetch\"]"
           }
@@ -44,7 +44,7 @@
         {
           "tool": "Edit",
           "input": {
-            "file_path": "C:\\Users\\u\\.claude\\settings.json",
+            "file_path": "C:\\Users\\<user>\\.claude\\settings.json",
             "old_string": "a",
             "new_string": "b"
           }

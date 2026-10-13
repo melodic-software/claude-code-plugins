@@ -5,11 +5,11 @@
       "why": "env-token form"
     },
     {
-      "answer": "Run: `npm install --prefix /home/u/.claude/plugins/data/context-budget/sdk @anthropic-ai/claude-agent-sdk`",
+      "answer": "Run: `npm install --prefix /home/<user>/.claude/plugins/data/context-budget/sdk @anthropic-ai/claude-agent-sdk`",
       "why": "resolved path"
     },
     {
-      "answer": "npm install --prefix \"C:\\Users\\Jane Doe\\.claude\\sdk\" @anthropic-ai/claude-agent-sdk",
+      "answer": "npm install --prefix \"C:\\Users\\<user>\\Program Data\\.claude\\sdk\" @anthropic-ai/claude-agent-sdk",
       "why": "quoted prefix with a space"
     }
   ],
