@@ -136,7 +136,10 @@ jobs:
   # block-hook-bypass, secret-pattern-detection, run-guards and
   # coverage-manifest. coverage-manifest has no OSTYPE branch, but the native
   # `jq.exe` on a Windows host writes CRLF after every line, so its family and
-  # README lookups miss there and only a Windows run exercises that. A
+  # README lookups miss there and only a Windows run exercises that. The
+  # code-metrics Python resolver is here for the same reason (#6794): native
+  # Windows Python writes CRLF stdout, which the resolver detects and strips
+  # before bash reads a line, and only a Windows run takes that branch. A
   # host-gated case that cannot run must print a counted SKIP line.
   #
   # Keep these jobs SMALL. Adding a platform-agnostic suite here buys no
@@ -160,7 +163,7 @@ jobs:
   #   hooks     markdown-format 114, cloud-bootstrap 69, PyYAML +
   #             exec-form probe 9, exec-bash launcher 5, resolver 1      = 198
   #   lib       block-windows-drive-tmp 85, hook-utils 84, DLSS 5 22,
-  #             Pester + kindle-dedrm 6                                  = 197
+  #             Pester + kindle-dedrm 6, code-metrics resolver ~3 (est.) = 200
   #   worktree  the source-control worktree-claim, worktree-facts and
   #             worktree-root-scan suites and the playbooks repo-sweep
   #             tick and state suites (#6135): git paths come back in
@@ -417,6 +420,9 @@ jobs:
       - name: Run shared lib tests on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'lib/hook-utils.test.sh')
         run: bash lib/hook-utils.test.sh
+      - name: Test the code-metrics Python resolver on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/code-metrics/scripts/python-resolve.test.sh')
+        run: bash plugins/code-metrics/scripts/python-resolve.test.sh
       # Git for Windows names the repository root C:/... while the shell's own
       # paths are /c/..., which the --added-since target matching must survive.
       - name: Test audit-comment-residue detect on Windows

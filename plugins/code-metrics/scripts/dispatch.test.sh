@@ -648,5 +648,55 @@ assert_doc "the row is unavailable with the tool's own reason and no 'collect fa
   'd["status"]=="empty" and d["run"][0]["status"]=="unavailable" and d["run"][0]["collector"]=="eslint-complexity 10.1.0" and "no configuration" in d["run"][0]["reason"] and "eslint.config" in d["run"][0]["reason"] and "collect failed" not in d["run"][0]["reason"] and d["measures"]==[]'
 rm -rf "$noconf" "$ladder"
 
+# 26. An interpreter that writes CRLF, as native Windows Python does (#6794).
+# A stub `python3` ahead of the real one ends every stdout line with exactly
+# one CR (also when the real one already writes CRLF), so
+# a Linux runner sees what Git Bash sees: every path, lane glob, exclusion,
+# scope default, and registry bash reads back from Python would carry a
+# trailing CR. Unhandled, `a.sh<CR>` matches no lane (every file lands in
+# `other` and the run exits 0 having measured nothing) and a configured
+# registry is "not found".
+crlf="$(mktemp -d)"
+real_py="$(command -v python3 || command -v python)"
+for name in python3 python; do
+  cat >"$crlf/$name" <<EOF
+#!/usr/bin/env bash
+"$real_py" "\$@" | sed 's/\r*\$/\r/'
+exit "\${PIPESTATUS[0]}"
+EOF
+  chmod +x "$crlf/$name"
+done
+team="$(mktemp -d)"
+printf 'scope:\n  registries: [plugins/code-metrics/scripts/fixtures/registry/cluster.txt]\n' >"$team/team.yaml"
+"$PY" "$SCRIPT_DIR/resolve-config.py" "$team/team.yaml" --ladder "$SCRIPT_DIR/collector-ladder.tsv" >"$team/resolved.json"
+out="$(PATH="$crlf:$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --config "$team/resolved.json" --all "$SOURCES")"
+rc=$?
+assert_eq "a CRLF interpreter with a configured registry exits 0" 0 "$rc"
+assert_doc "a CRLF interpreter still sorts every fixture into its lane" "$out" \
+  'd["status"]=="complete" and len(d["run"])==6 and all(r["status"]=="ok" for r in d["run"]) and d["summary"]["files"]==8 and d["scope"]["unclassified"]==0 and any(r["file"].endswith("cm-sample.sh") and r["lane"]=="bash" for r in d["measures"])'
+assert_doc "a CRLF interpreter resolves the registry and collapses the copies" "$out" \
+  'len([r for r in d["measures"] if r["file"].endswith("shared-utils.sh")])==1 and next(r for r in d["measures"] if r["file"].endswith("shared-utils.sh"))["replicas"]["count"]==2'
+assert_doc "no CR reaches a measured path" "$out" \
+  'not any("\r" in r["file"] for r in d["measures"])'
+rm -rf "$team"
+# The derived configuration: a scope default, an exclusion, and ecosystem lane
+# globs all travel from Python to bash as lines.
+repo="$(mktemp -d)"
+home="$(mktemp -d)"
+mkdir -p "$repo/.claude/ecosystems" "$repo/gen"
+printf 'scope:\n  default: all\n  exclude: ["gen/**"]\n' >"$repo/.claude/code-metrics.yaml"
+eco_lane=bash
+printf 'globs: ["*.bats"]\n' >"$repo/.claude/ecosystems/$eco_lane.yaml"
+printf 'a = 1\n' >"$repo/a.py"
+printf 'g = 1\n' >"$repo/gen/b.py"
+printf 'run() { :; }\n' >"$repo/x.bats"
+(cd "$repo" && git init -q -b main && git config user.email t@example.com && git config user.name t && git add -A && git commit -q -m fixture)
+out="$(cd "$repo" && PATH="$crlf:$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
+rc=$?
+assert_eq "a CRLF interpreter with a team configuration exits 0" 0 "$rc"
+assert_doc "a CRLF interpreter honors scope.default all, scope.exclude, and lane globs" "$out" \
+  'd["scope"]["mode"]=="all" and d["scope"]["excluded"]==1 and not any(r["file"]=="gen/b.py" for r in d["measures"]) and any(r["file"]=="x.bats" and r["lane"]=="bash" for r in d["measures"]) and any(r["file"]=="a.py" and r["lane"]=="python" for r in d["measures"])'
+rm -rf "$repo" "$home" "$crlf"
+
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))
