@@ -1,0 +1,85 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/context7/skills/lookup/scripts/update.sh\"",
+            "description": "Run the drift check"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/context7/skills/lookup/scripts/update.sh\"",
+            "description": "Run the drift check"
+          }
+        }
+      ],
+      "why": "check only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm view ctx7 version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "npm view is not install"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/update.sh\" --fix",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/update.sh --refresh-baseline",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm install -g ctx7@latest",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm i -g ctx7",
+            "description": "Run command"
+          }
+        }
+      ]
+    }
+  ]
+}

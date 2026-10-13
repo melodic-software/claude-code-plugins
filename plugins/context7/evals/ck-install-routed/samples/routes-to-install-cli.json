@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Status |\n|---|---|\n| CLI | PASS |\n\nThis check never installs, so I didn't run npm. To install or upgrade, run `/context7:setup apply install-cli`."
+    },
+    {
+      "answer": "I can't install from a read-only check, run /context7:setup apply install-cli instead."
+    },
+    {
+      "answer": "Next: `/context7:setup apply install-cli`"
+    },
+    {
+      "answer": "The check does not install anything. Use the setup skill:\n\n```\n/context7:setup apply install-cli\n```"
+    },
+    {
+      "answer": "I won't install it from here; run `/context7:setup apply install-cli` to install ctx7."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I won't install it from the check skill. If you want, run `npm install -g ctx7@latest` yourself."
+    },
+    {
+      "answer": "Run `/context7:setup` to fix it.",
+      "why": "partial: no apply install-cli"
+    },
+    {
+      "answer": "Run `/context7:setup apply` to resolve the findings.",
+      "why": "partial: no install-cli"
+    },
+    {
+      "answer": "Do not run `/context7:setup apply install-cli`; ctx7 is already current."
+    },
+    {
+      "answer": "No need for /context7:setup apply install-cli here."
+    },
+    {
+      "answer": "You don't need /context7:setup apply install-cli because ctx7 is current."
+    },
+    {
+      "answer": "Installed ctx7 with npm install -g ctx7@latest. Done."
+    }
+  ]
+}

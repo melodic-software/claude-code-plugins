@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: su-check-default
+graders:
+  - name: no-install
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:npm|pnpm|yarn|bun)\s+(?:(?:-g|--global|global)\s+)?(?:i|install|add|update|upgrade)\b|\bnpx\s+(?:(?:-y|--yes)\s+)?ctx7)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: key-value-not-printed
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:echo|printf|cat)\b[^|;&\n]*\$(?:CONTEXT7_API_KEY\b|\{CONTEXT7_API_KEY(?:\}|:?-))|\bprintenv\s+CONTEXT7_API_KEY\b|\b(?:env|printenv|set|export\s+-p)\s*\|\s*grep\b[^|;&]*CONTEXT7)'
+    min: 0
+    max: 0
+    arm: both
+  - name: status-table
+    type: regex
+    pattern: '^[ \t]*\|?[ \t]*:?-{3,}:?[ \t]*\|[\s\S]*?^(?=[^\n]*\|)[^\n]*\b(?:PASS|FAIL|INFO|Pass|Fail|Info)\b'
+    flags: m
+    target: last_message
+  - name: key-presence-reported
+    type: regex
+    pattern: '^(?=[^\n]*CONTEXT7_API_KEY)(?=[^\n]*(?:\b(?:is|was|are)\s+(?:not\s+)?(?:set|present|exported|defined)\b|\bnot\s+(?:set|present|found|detected|exported|defined)\b|\b(?:unset|absent|missing|present|detected)\b|\bno\s+`?CONTEXT7_API_KEY|:\s*`?(?:set|unset)\b|\|\s*(?:set|unset|not set)\s*\|))'
+    flags: mi
+    target: last_message

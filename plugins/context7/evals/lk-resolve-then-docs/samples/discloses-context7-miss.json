@@ -1,0 +1,87 @@
+{
+  "pass": [
+    {
+      "answer": "Context7 didn't return anything. The `ctx7` CLI is on the path but crashed with `MODULE_NOT_FOUND`, because its `dist/index.js` isn't readable from this sandbox. The Context7 MCP tools (`mcp__context7__*`) aren't configured in this session either. The answer below comes from my training knowledge, not from current docs.\n\n## `useEffect` cleanup timing in React\n\n**When cleanup runs**\n- **Before the next run of the same effect.** If the dependencies change, React runs the previous render's cleanup first.\n- **On unmount.** The last cleanup runs when the component is removed.\n\nIf you want this checked against current docs, you can fix the `ctx7` install, or run `/context7:setup` to wire up the MCP server. I can then rerun the lookup.",
+      "why": "observed reply, trimmed"
+    },
+    {
+      "answer": "I couldn't reach Context7 (the ctx7 CLI crashed), so this is from training knowledge. Cleanup runs before the next effect and on unmount."
+    },
+    {
+      "answer": "The Context7 lookup failed, so here is what I know from training data: Cleanup runs before the next effect and on unmount."
+    },
+    {
+      "answer": "Context7 isn't available in this session; answering from training knowledge.\n\nCleanup runs before the next effect and on unmount."
+    },
+    {
+      "answer": "Context7 did not cover this topic, so the answer below is from my training knowledge. Cleanup runs before the next effect and on unmount."
+    },
+    {
+      "answer": "Context7 didn't return anything so I will answer from memory. Cleanup runs before the next effect and on unmount.",
+      "why": "later 'will' is not a hypothetical about Context7"
+    },
+    {
+      "answer": "I couldn't look this up in Context7, so the answer below comes from my training knowledge and isn't checked against current docs.",
+      "why": "observed reply"
+    },
+    {
+      "answer": "I couldn't get Context7 docs for this. The `ctx7` CLI fails in this sandbox with `MODULE_NOT_FOUND`"
+    },
+    {
+      "answer": "I was unable to look it up in Context7. Cleanup runs before the next effect and on unmount."
+    },
+    {
+      "answer": "I couldn't check this against Context7, so the answer below comes from my training knowledge.",
+      "why": "observed reply"
+    },
+    {
+      "answer": "I could not verify it with Context7. Cleanup runs before the next effect and on unmount."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Context7 returned the docs below. Cleanup runs before the next effect and on unmount.",
+      "why": "claims success"
+    },
+    {
+      "answer": "If Context7 fails I would fall back to training knowledge. Cleanup runs before the next effect and on unmount.",
+      "why": "hypothetical"
+    },
+    {
+      "answer": "Whenever Context7 is unavailable, the skill falls back to training knowledge. Cleanup runs before the next effect and on unmount.",
+      "why": "warning-only"
+    },
+    {
+      "answer": "Note: Context7 may be unavailable in sandboxes, but here it returned current docs. Cleanup runs before the next effect and on unmount.",
+      "why": "warning-only"
+    },
+    {
+      "answer": "According to Context7, cleanup runs before the next effect and on unmount.",
+      "why": "passing mention"
+    },
+    {
+      "answer": "I looked this up with Context7. Cleanup runs before the next effect and on unmount.",
+      "why": "passing mention"
+    },
+    {
+      "answer": "Context7 returned the docs, and no step failed. Cleanup runs before the next effect and on unmount.",
+      "why": "negative word outside the Context7 clause"
+    },
+    {
+      "answer": "Context7 is available and configured. Cleanup runs before the next effect and on unmount.",
+      "why": "positive availability"
+    },
+    {
+      "answer": "Cleanup runs before the next effect and on unmount.",
+      "why": "no disclosure at all"
+    },
+    {
+      "answer": "I could look this up in Context7 if you want. Cleanup runs before the next effect and on unmount.",
+      "why": "near-miss: offer to look up, not a failed lookup"
+    },
+    {
+      "answer": "I can check this against Context7 if you like. Cleanup runs before the next effect and on unmount.",
+      "why": "near-miss: offer to check, not a failed check"
+    }
+  ]
+}

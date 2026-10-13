@@ -1,0 +1,107 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library react \"useEffect cleanup timing\"",
+            "description": "Resolve React library ID via ctx7"
+          }
+        }
+      ],
+      "why": "observed run: the CLI crashed on the resolve step"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library react \"useEffect cleanup timing\"",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/facebook/react\" \"useEffect cleanup timing\"",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 npx ctx7@latest library react 'useEffect cleanup'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "npx form with env prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which ctx7 && ctx7 library react 'useEffect cleanup'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after a shell separator"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/facebook/react\" \"useEffect cleanup timing\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "docs with a guessed ID, no resolve"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'run ctx7 library first'",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "name only inside echoed text"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "ctx7 library react"
+          }
+        }
+      ],
+      "why": "name only in the description"
+    },
+    {
+      "answer": [],
+      "why": "no command at all"
+    }
+  ]
+}

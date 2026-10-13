@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Status | Detail |\n|---|---|---|\n| CLI | PASS | ctx7 0.6.0, latest |\n| MCP | INFO | not in tool list |\n| Auth | INFO | CONTEXT7_API_KEY not set |"
+    },
+    {
+      "answer": "Context7 check:\n\nCheck | Result\n--- | ---\nctx7 CLI | ✅ Pass\nMCP server | Info: absent"
+    },
+    {
+      "answer": "| Item | Result | Fix |\n| :--- | :---: | --- |\n| At least one path | FAIL | /context7:setup apply install-cli |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "CLI: PASS. MCP: INFO. Auth: INFO.",
+      "why": "no table"
+    },
+    {
+      "answer": "| Check | Detail |\n|---|---|\n| CLI | installed |\n| MCP | absent |",
+      "why": "table without status"
+    },
+    {
+      "answer": "| Check | PASS/FAIL |\n|---|---|\n| CLI | installed |",
+      "why": "status word only in header"
+    },
+    {
+      "answer": "ctx7 is installed and current. Everything passes."
+    }
+  ]
+}

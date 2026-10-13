@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/context7/skills/lookup/scripts/update.sh\"",
+            "description": "Run the drift check"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/context7/skills/lookup/scripts/update.sh\"",
+            "description": "Run the drift check"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "no update.sh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/context7/skills/lookup/scripts/update.sh"
+          }
+        }
+      ],
+      "why": "read, not run"
+    }
+  ]
+}

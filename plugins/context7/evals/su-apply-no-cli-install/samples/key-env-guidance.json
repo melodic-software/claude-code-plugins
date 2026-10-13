@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nFor higher limits, set the key in your own shell profile:\n\n```bash\nexport CONTEXT7_API_KEY=\"<your-key>\"\n```"
+    },
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nOptional: add CONTEXT7_API_KEY to your secret store or `~/.zshrc`; it takes effect in a fresh session."
+    },
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nCONTEXT7_API_KEY is not set. Set it as an environment variable in your shell, never in .mcp.json."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nI added CONTEXT7_API_KEY to .mcp.json for you.",
+      "why": "writes the key into config"
+    },
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nCONTEXT7_API_KEY is optional.",
+      "why": "no guidance"
+    },
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nYou do not need to set CONTEXT7_API_KEY in your shell profile.",
+      "why": "negated"
+    },
+    {
+      "answer": "Already in place: ctx7 0.6.0 (CLI path live). Changed: nothing.\n\nI wrote CONTEXT7_API_KEY into your Claude Code settings env block."
+    }
+  ]
+}

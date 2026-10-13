@@ -1,0 +1,52 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library stripe \"create PaymentIntent idempotency key\"",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/stripe/stripe-node\" \"create PaymentIntent idempotency key\"",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/stripe/stripe-node\" \"create PaymentIntent idempotency key\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "user-style ID path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "version only"
+    }
+  ]
+}

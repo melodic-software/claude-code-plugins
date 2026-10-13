@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: ck-install-routed
+graders:
+  - name: version-checked
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bctx7(?:@[\w.-]+)?\s+--version\b'
+    min: 1
+  - name: no-install
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:npm|pnpm|yarn|bun)\s+(?:(?:-g|--global|global)\s+)?(?:i|install|add|update|upgrade)\b|\bnpx\s+(?:(?:-y|--yes)\s+)?ctx7)'
+    min: 0
+    max: 0
+    arm: both
+  - name: routes-to-install-cli
+    type: regex
+    pattern: '(?:^|[.;!?:,—–(]\s*)(?:(?![.;!?:,—–(]\s)(?!\b(?:not|never|no need|avoid|instead of|rather than|skip)\b)(?!n[''’]t\b)[^\n])*?/context7:setup apply install-cli\b'
+    flags: mi
+    target: last_message

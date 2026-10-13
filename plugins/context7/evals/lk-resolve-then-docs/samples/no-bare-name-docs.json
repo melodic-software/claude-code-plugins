@@ -1,0 +1,88 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library react \"useEffect cleanup timing\"",
+            "description": "Resolve React library ID via ctx7"
+          }
+        }
+      ],
+      "why": "observed run: no docs call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library react \"useEffect cleanup timing\"",
+            "description": "Resolve react to a Context7 ID"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs \"/facebook/react\" \"useEffect cleanup timing\"",
+            "description": "Fetch docs with ctx7 docs"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 library react \"useEffect cleanup timing\"",
+            "description": "Resolve react to a Context7 ID"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs /reactjs/react.dev 'useEffect'",
+            "description": "Run command"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "MSYS_NO_PATHCONV=1 ctx7 docs react \"useEffect cleanup timing\"",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 docs 'react' 'useEffect cleanup'",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 docs --json react q",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "flag then bare name"
+    }
+  ]
+}
