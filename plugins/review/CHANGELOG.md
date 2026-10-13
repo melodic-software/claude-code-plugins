@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1] - 2026-10-13
+
+### Security
+
+- explain-change: `risk_paths` globs now match through a linear-time matcher instead of a compiled regular expression, so a star-heavy glob from a config layer no longer triggers regex backtracking: match time grows with path length times glob length rather than exponentially. A layer's `risk_paths` is invalid, and the layer below supplies it, past 64 globs or a glob longer than 256 characters. (#6110)
+
 ## [0.45.0] - 2026-10-13
 
 ### Added
