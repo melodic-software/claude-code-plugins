@@ -52,7 +52,8 @@ nothing.
    - The PreToolUse checkpoint in `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` registers in exec form
      (`"command": "node"`), resolved on `PATH` in the hook's own environment. A hook that fails to
      launch is non-blocking, so with no `node` the checkpoint silently produces no `ask`, while
-     the option can still read `true`.
+     the option can still read `true`. Name that divergence as exactly what a native
+     configuration prompt cannot tell you.
 
    FAIL when absent. On Windows, `command -v node` is not the hook's environment: a version
    manager can return a per-call path whose directory name contains a process id, which is not

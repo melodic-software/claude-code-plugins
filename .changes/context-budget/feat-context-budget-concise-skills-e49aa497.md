@@ -4,7 +4,7 @@ bump: minor
 
 ### Changed
 
-- `setup` has a one-line description and a shorter body (148 to 131 lines) with the same checks and remediation. The `audit` and `check` skills are unchanged.
+- `setup` has a one-line description and a shorter body (148 to 132 lines) with the same checks and remediation. The `audit` and `check` skills are unchanged.
 
 ### Added
 
