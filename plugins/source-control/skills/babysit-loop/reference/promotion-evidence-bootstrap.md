@@ -144,6 +144,29 @@ Agent-unwritable, because an agent that can write the file can delete a `reverte
 keep its cell promoted. Outside the target repository's blast radius, for the same reason as the
 binding.
 
+#### The publisher
+
+[`scripts/publish-promotion-evidence.mjs`](../scripts/publish-promotion-evidence.mjs) builds the
+events file from GitHub alone, through read-only `gh api` calls: merged pull requests with a
+`work-class:` label, which of them the `--lane-login` identities merged, reverts of those merges,
+check runs on their merge commits, and the missed-blocking label a human applied. Its header
+comment states what counts as each event, including the judgment mappings.
+
+- **Report mode** (no `--out`) prints the events array and the C3 promotion-evidence report to
+  stdout and writes nothing. The report gives each promotable cell's predicate terms from
+  [work-classes.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md)
+  "Suggested default predicates" with counts, window and pass or fail, and lists merged reverts
+  it could not match to a merge.
+- **`--out <dir>`** writes `evidence.json` and the sidecar `evidence.meta.json`
+  (`generated_at`, `through`, `sha256` of the events file, `prev_sha256`), each by a temp file
+  and a rename. It refuses to publish when the new events drop one the previous file held.
+
+Run it as the operator, never from the lane, and point `--out` at a directory the lane cannot
+write. Which host runs it, under which identity and on what schedule is not decided yet: it waits
+on the open decision about the single merge authority
+([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)). Until then the
+resolver does not read the sidecar.
+
 ### `promotion_evidence_checker`
 
 The `check-security-binding.mjs` the helper runs (the autonomy plugin's
