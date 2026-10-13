@@ -4,6 +4,52 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.21.2] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- Replace restated Claude Code behavior (plugin data lifetime, Read page limit, variable substitution, option storage scopes, worktree project directory) with live section pointers, name the probes behind the raw-channel observations, and keep one effort pointer record in dual-verification.md.
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.
+
+- docpage-digest: stop claiming a rendered WebFetch of a long page gives no truncation signal; point at the live WebFetch section instead.
+- map-corpus: resolve a relative `library_dir` against the session working tree, as docpage-digest does, instead of `CLAUDE_PROJECT_DIR`.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **video-digest watch recovery picks the same caption as acquisition.** `resolveWorkArtifacts` in `recover-watch-bootstrap.js` chose the first `.vtt` without `-orig` in its name, so a work dir holding `<id>.en.vtt` and `<id>.en-orig.vtt` with no manual English track in info.json rebuilt the transcript from the possibly machine-translated bare track. It now resolves the caption through `selectCaptionFile` with the `manualLanguages` signal from the work dir info.json and the source adapter caption class, so recovery and acquisition agree. Candidate captions and info.json are scoped to the recovered video's `<id>.` prefix, so a multi-video X work dir never takes another entry's caption; when the recovered entry's own caption or info.json is missing, recovery fails with an error instead of using a sibling's (#6837).
+
+- video-digest records a `--target` passed as a local checkout path in `watch.json` as its portable `owner/repo` name (from the checkout's GitHub `origin`, else the directory name), never the machine path.
+- video-digest documents how the deck harvest types links and fetches them: the session adds a `kind` to each `harvested-links.json` entry, then runs `harvesting/fetch-deck-attachments.js`.
+- video-digest's SKILL.md names which `mark-phase` marker each phase uses, since the skill-session phases share the `vision`, `research` and `close` markers.
+- video-digest's `fetch-deck-attachments.js` skips a `deck` whose `sessionSlug` is not one safe path segment, so a slug such as `../..` can no longer write outside the slice.
+
+- **`course-digest` and `video-digest`: the pre-computed dependency block no longer holds brace
+  groups**, which Claude Code's shell permission check refuses
+  (`Contains brace with quote character (expansion obfuscation)`). Each line is now a plain list:
+  the outer group is gone, and each capped version probe repeats its guard before the fallback
+  (`command -v ffmpeg >/dev/null 2>&1 && ffmpeg -version 2>/dev/null | head -1 || command -v ffmpeg >/dev/null 2>&1 || echo "MISSING ..."`),
+  which renders the same with and without `pipefail`. The block still needs `allowed-tools` grants
+  before it loads outside auto mode; its `node -e` lines have no narrow grant, so that stays open.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+### Security
+
+- video-digest: the resume prompt (`run-state/continuation-prompt.md`) no longer puts the video title in its heading or the source URL on a bare line. Both now sit in a fenced `## Video metadata` block, reduced to one line each with backticks neutralized, under the untrusted-content framing that marks them, and the slice files the resume steps read (`run-state/watch.json`, `source/transcript.txt`, the lane deliverables), as data, never instructions. A publisher-written title can no longer read as part of the resuming session's own prompt. (#6980)
+
+- video-digest: vision-gated promotion refuses a `promotion-decisions.json` `sourceFile` that is not a bare file name, and resolves each promoted frame to its real path, refusing one that sits outside the frames directory (through `..` or a symlink) or is not a regular file. The copy then opens the checked frame with `O_NOFOLLOW` where the platform defines it and refuses it unless the open file is the same regular file the check passed, so a frame swapped for a symlink after the check is not copied. Before, such a value could copy a file from anywhere on disk into the slice. (#6979)
+
 ## [0.21.1] - 2026-10-11
 
 ### Changed

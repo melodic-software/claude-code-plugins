@@ -1,5 +1,10 @@
 # Changelog for the PR pipeline convention
 
+## 1.10.5 - 2026-10-12
+
+README: `ci-status` on a draft passes its skipped lanes; the `ready_for_review` run tests the head
+and the merge queue re-runs every lane before a merge. `version` stays 1.
+
 ## 1.10.4 - 2026-10-12
 
 README gains "Planning lane work": a one-page plan per sub-topic, design and stress tests only for

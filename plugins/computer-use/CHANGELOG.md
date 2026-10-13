@@ -3,6 +3,16 @@
 All notable changes to the `computer-use` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.11] - 2026-10-13
+
+### Changed
+
+- **The screenshot guidance record points at the platform page's best-practices section, with the blog post kept as a correlate note.**
+
+### Fixed
+
+- **`/computer-use:diagnose` and `/computer-use:setup` no longer give an outdated Desktop settings path for enabling computer use.** The restated surface-differences table and eligibility list are replaced by our decision plus anchored pointers to the computer-use page's differences and troubleshooting sections and the Desktop page, with an as-of date and a recheck trigger.
+
 ## [0.1.10] - 2026-10-07
 
 ### Changed

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Bootstrap check: promotion_evidence_binding, promotion_evidence_root, promotion_evidence_source and promotion_evidence_checker are unset, so every promotable cell stays effective-unpromoted."},
+    {"answer": "| Option | Problem |\n|---|---|\n| `promotion_evidence_checker` | unset |\n| `promotion_evidence_source` | unset |\n| `promotion_evidence_root` | unset |\n| `promotion_evidence_binding` | unset |", "why": "table form, reverse order"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "All four promotion_evidence_* options are unset, so nothing merges.", "why": "no option named"},
+    {"answer": "promotion_evidence_binding, promotion_evidence_root and promotion_evidence_source are unset.", "why": "checker option missing"}
+  ]
+}

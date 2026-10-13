@@ -460,3 +460,21 @@ scripts/lib/installed.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/installed.mjs -> plugins/*/scripts/lib/installed.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/lane-push.sh, the one way an unattended lane pushes. The source-control
+# (babysit) and work-items (work) plugins carry the generated copies.
+scripts/lane-push.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/lane-push.sh -> plugins/*/scripts/lane-push.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/pydeps.py. animation, speech and explainer-video carry the generated
+# copies; each plugin's settings live in scripts/pydeps.json beside it.
+scripts/pydeps.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/pydeps.py -> plugins/animation/scripts/pydeps.py plugins/speech/scripts/pydeps.py plugins/explainer-video/scripts/pydeps.py

@@ -260,4 +260,23 @@ assert_contains "both AGENTS.md names are counted: .claude" "$OUT" "project	root
 OUT=$(cd "$DOTAG" && bash "$SCRIPT" --tokens)
 assert_eq "--tokens sums both AGENTS.md files (20 + 23)" "10" "$OUT"
 
+# --- Case: a path-scoped rule is recognized however large its frontmatter ----
+# `grep -q` exits at the first match; a frontmatter larger than the pipe buffer, piped into
+# it under pipefail, turns the writer's broken pipe into "the rule declares no paths", so a
+# scoped rule is counted as always loaded. Small frontmatter hits the same race only some runs.
+
+source "$SCRIPT_DIR/lib/rule-scope.sh"
+BIGFM="$TEST_TMPDIR/bigfm.md"
+{
+  printf -- '---\npaths:\n'
+  for i in $(seq 1 20000); do printf '  - "dir%s/**/*.py"\n' "$i"; done
+  printf -- '---\nbody\n'
+} >"$BIGFM"
+rc=0
+rule_frontmatter_declares "$BIGFM" paths 2>/dev/null || rc=$?
+assert_eq "a rule whose large frontmatter declares paths is path-scoped" "0" "$rc"
+rc=0
+rule_frontmatter_declares "$BIGFM" description 2>/dev/null || rc=$?
+assert_eq "a key the large frontmatter lacks is not declared" "1" "$rc"
+
 report_and_exit

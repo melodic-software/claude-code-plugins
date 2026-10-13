@@ -6,7 +6,6 @@
 lib/check-retirements.sh
 lib/state-key.sh
 plugins/actionlint/hooks/actionlint-check.test.sh
-plugins/ai-slop/skills/audit/scripts/detect.sh
 plugins/ai-slop/skills/audit/scripts/detect.test.sh
 plugins/architecture/skills/map-deployment/scripts/collect-deployment.sh
 plugins/attribution/lib/check-retirements.sh
@@ -50,7 +49,6 @@ plugins/harness-config/skills/audit-permission-state/scripts/automode-entry-diff
 plugins/harness-config/skills/audit-permission-state/scripts/managed-conformance.test.sh
 plugins/harness-config/skills/audit/scripts/audit-engine.sh
 plugins/harness-memory/lib/state-key.sh
-plugins/harness-memory/skills/audit/scripts/lib/rule-scope.sh
 plugins/harness-ops/hooks/measure-hook-log-budget.test.sh
 plugins/harness-ops/lib/check-retirements.sh
 plugins/harness-ops/lib/state-key.sh

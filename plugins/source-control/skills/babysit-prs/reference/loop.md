@@ -156,8 +156,8 @@ A push channel arms for ONE PR at a time. Re-arm for each new PR in the loop.
 
 Run the checkout procedure ([GitHub](../../../reference/providers/github/babysit-prs/loop.md#branch-checkout-and-push-destination)). It takes
 `$PR_NUMBER`, `<headRefName>` and `<watched-owners>`, and sets `CHECKOUT_MODE` (`full` or
-`read-only`), `PUSH_REMOTE`, `INTEGRATION_STATUS`, and the `lane_push` function every later push
-uses. Its rules:
+`read-only`), `INTEGRATION_STATUS`, and the `lane_push` function every later push uses. Its
+rules:
 
 - **Checkout mode.** Decide it by asserting this worktree's HEAD against the TRUE PR head, read
   live from the forge, authoritative for same-repo and fork PRs alike (never a possibly-stale
@@ -180,39 +180,31 @@ uses. Its rules:
     fork-sourced PRs; a genuinely divergent local (unpushed commits) leaves HEAD != the PR head and
     correctly falls to read-only.
   - After either checkout, full mode requires HEAD == the PR head; anything else is read-only.
-- **Push destination.** Resolve it ONCE, for EVERY full-mode push path: the freshness push, the
-  conflict-continue push, and the §5.1.4 fix-cycle push all read `$PUSH_REMOTE`. FAIL CLOSED: a
-  same-repo head pushes to origin; a fork head pushes to the destination whose URL resolves to the
-  PR HEAD repository. Validate the fork destination by URL, NOT by name: the PR checkout wires the
-  branch to whatever remote (or bare URL) reaches the head, and when it cannot create a writable
-  fork remote it may point the branch at the base checkout remote (commonly named `upstream`, but
-  any name), so accepting any non-origin name would push to the BASE repo, writing a same-named
-  branch there instead of updating the fork head (the cross-repo regression this guards;
-  [safety.md](safety.md)). `branch.<b>.pushRemote`/`remote` may hold a remote name OR a URL, and a
-  named remote can carry separate `pushurl`(s) that `git push` honors and writes to EVERY one of,
-  so resolve the actual push URLs (`git remote get-url --push --all`), canonicalize EACH to
-  host + owner/repo (so a same-path remote on a different host does NOT match), and require EVERY
-  one to equal the head repository's own canonical URL, else read-only. A bare-URL config value is
-  not a known remote, so the literal value is validated instead. A cross-repo head is writable
-  only when its owner is within `<watched-owners>` ([safety.md](safety.md) Stop And Ask: an
-  external-fork head outside the watched owners stays read-only even with maintainer edits
-  enabled), enforced before accepting the fork remote so the pure-bash degrade path never pushes
-  to a repository outside the trust boundary. This rejects a same-path remote on a DIFFERENT host,
-  a fork fetch url masking a base pushurl, an extra base/attacker pushurl past a matching first
-  one, and an external-fork head outside the trust boundary.
-- **`lane_push`.** EVERY lane push goes through it: `git push "$PUSH_REMOTE" "HEAD:$BRANCH"`
-  between two auto-merge disarms, one immediately before the push and one right after it (the
-  merge lane may re-arm the old head mid-push), because a push keeps auto-merge armed and the new
-  head could merge on ci-status alone before the AI reviews re-run ([safety.md](safety.md),
-  "Merge-lane auto-merge"). It never re-arms; that stays with the merge lane. A failed read or
-  disarm stops the push.
+- **Push destination.** `push-branch.sh`'s. In a lane, `lane-push.sh` reads the pull request's
+  head repository and branch from the forge and builds `https://github.com/<owner>/<repo>.git`
+  itself, so a remote, `pushRemote` or `pushurl` that the PR checkout wrote, or that points at
+  the base repository or another host, is never pushed to (the cross-repo regression this
+  guards; [safety.md](safety.md)). Attended, it is the resolved push remote, refused unless every
+  push URL is the PR's head repository. A cross-repo head is writable only when its owner is within
+  `<watched-owners>` ([safety.md](safety.md) Stop And Ask: an external-fork head outside the
+  watched owners stays read-only even with maintainer edits enabled).
+- **`lane_push`.** EVERY push goes through it, and it is the only push: pull-request's
+  `push-branch.sh --dir <this checkout> --pr <N>`, which pushes the checkout's HEAD to the PR's head
+  branch. Inside a lane (a `[bot]` login) it hands the push to `lane-push.sh` as the target's
+  `merge.agent-identity` and refuses unless the session acts as it; an attended run takes the
+  operator's own push path (the loop-lane convention's "Lane write identity"). It runs between two auto-merge
+  disarms, one immediately before the push and one right after it (someone may arm the old head
+  mid-push), because a push keeps auto-merge armed and the new head could merge on ci-status
+  alone before the AI reviews re-run ([safety.md](safety.md), "Merge lane: no auto-merge"). It
+  never arms auto-merge; nothing does. A failed read or disarm, or a refusal, stops the push.
+  Never run a bare `git push`.
 - **Branch freshness, MERGE-ONLY (full mode only).** Rebasing would rewrite history and require a
   force-push, which [safety.md](safety.md) ("Never Do Automatically") and orchestration.md's
   never-force-push invariant forbid; the final squash merge flattens interim history, so a merge
   commit here costs nothing the skill cares about. A branch whose HEAD does not contain
   `origin/$DEFAULT_BRANCH` gets `git merge --no-edit "origin/$DEFAULT_BRANCH"`. A clean merge is
-  `integrated`: `lane_push` by refspec (works from a detached HEAD too) to the pre-resolved
-  `$PUSH_REMOTE`, fast-forward given the head assertion, never force; a rejected non-fast-forward
+  `integrated`: `lane_push` by refspec (works from a detached HEAD too), fast-forward given the
+  head assertion, never force; a rejected non-fast-forward
   push means the head moved: re-fetch and stop. A conflicting merge of ≤3 files is
   `conflict-attempting`; more than 3 aborts the merge as `conflict-aborted`. A branch already
   containing the base is `current`.
@@ -225,10 +217,9 @@ uses. Its rules:
   skipped) degrades to read-only rather than granting write access mid-merge.
 
 **Integration conflict handling (graduated).** Freshness is merge-only: integrate a behind-default
-branch via `git merge origin/$DEFAULT_BRANCH` and push by refspec to the branch's configured upstream
-through `lane_push` (`git push "$PUSH_REMOTE" HEAD:$BRANCH` between two auto-merge disarms, where
-`$PUSH_REMOTE` is `origin` for a same-repo head and the fork's remote for a write-allowed cross-repo
-head; fast-forward, never force, since rebasing or force-pushing a PR branch as freshness
+branch via `git merge origin/$DEFAULT_BRANCH` and push by refspec to the PR's head repository
+and branch through `lane_push` (`push-branch.sh` between two auto-merge disarms, for a same-repo
+head and a write-allowed cross-repo head alike; fast-forward, never force, since rebasing or force-pushing a PR branch as freshness
 maintenance is forbidden, safety.md and orchestration.md). Then:
 
 - **Zero conflicts** (`INTEGRATION_STATUS=integrated`): the merge succeeded; `lane_push` and
@@ -321,10 +312,9 @@ validation, run one wave over all of them:
 
 - [ ] For each VALID comment: edit code to fix it, `git add <specific-files>` (never `-A` or
       `.`), `git commit -m "<type>: <description>"`. No push yet
-- [ ] One `lane_push` for the whole wave: the refspec form `git push "$PUSH_REMOTE"
-      HEAD:$BRANCH` against the same pre-resolved `$PUSH_REMOTE` the freshness push used,
-      between two auto-merge disarms; a plain `git push` is rejected from the `--detach`
-      checkout a sibling-locked branch uses
+- [ ] One `lane_push` for the whole wave: `push-branch.sh --dir` (it pushes `HEAD` by refspec to
+      the PR's head branch, from a `--detach` checkout too) between two auto-merge
+      disarms; never a bare `git push`
 - [ ] For each fixed comment, after that push: verify its commit is on the branch (D6 verify
       step, [review-discipline.md](../../../reference/review-discipline.md) §3), then post a
       follow-up reply citing the commit SHA (D7)

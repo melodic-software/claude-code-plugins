@@ -342,6 +342,15 @@ class Unattended(unittest.TestCase):
         self.dispatch_error: Exception | None = None
         self.scored_head = HEAD
         self.default_branch: str | None = "main"
+        # The opt-in re-read beside the second kill-switch read.
+        self.opt_in_recheck: str | None = None
+        # Raised by the lane evidence read in place of its answer.
+        self.lane_error: Exception | None = None
+
+    def _lane_evidence(self, *args: Any) -> Any:
+        if self.lane_error is not None:
+            raise self.lane_error
+        return self.lanes, self.comments
 
     def _default_branch(self, repo: str) -> str:
         if self.default_branch is None:
@@ -434,8 +443,11 @@ class Unattended(unittest.TestCase):
                 "entry_hold",
                 side_effect=lambda r, n, i, **_: self.holds.get(n),
             ),
+            mock.patch.object(merge, "_lane_evidence", side_effect=self._lane_evidence),
             mock.patch.object(
-                merge, "_lane_evidence", return_value=(self.lanes, self.comments)
+                policy,
+                "recheck_opt_in",
+                side_effect=lambda *a, **k: self.opt_in_recheck,
             ),
             mock.patch.object(
                 merge, "_checkout", return_value=pathlib.Path("/checkout")
@@ -750,6 +762,25 @@ class EachRefusalMakesNoMergeCall(Unattended):
             out["blockers"],
         )
 
+    def test_an_opt_in_gone_at_the_pre_enqueue_read_refuses(self) -> None:
+        # #7339 comment 2: the opt-in is read again beside the kill switch.
+        self.opt_in_recheck = "opt-in-label:labeler-not-human"
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [])
+        self.assertIn(
+            "unattended merge refused: ineligible:opt-in-label:labeler-not-human",
+            out["blockers"],
+        )
+
+    def test_an_unproven_head_pusher_refuses(self) -> None:
+        self.lane_error = merge.HeadPusherUnproven("head-pusher-unproven:aaaaaaaaaaaa")
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(
+            out["unattended"]["reason"], "head-pusher-unproven:aaaaaaaaaaaa"
+        )
+
     def test_an_armed_auto_merge_is_disarmed_and_refused(self) -> None:
         self.queue = fixtures._queue_read(required=True, armed=True)
         code, out = self.run_main()
@@ -838,6 +869,40 @@ class OneUnattendedMergeInFlight(Unattended):
         self.assertEqual(self.log, [f"dequeue:[{PR}]", "risk-comment:POST"])
         self.assertEqual(
             out["unattended"]["writes"]["holds"], {str(PR): "class-above-rung:C4>C2"}
+        )
+
+    def test_a_queued_entry_this_run_scores_above_low_dequeues_itself(self) -> None:
+        # #7339 comment 2: an eligible entry rescored MED stayed queued.
+        self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
+        self.queued = [PR]
+        self.lanes = UNBOUND
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [f"dequeue:[{PR}]", "risk-comment:POST"])
+        self.assertEqual(out["unattended"]["writes"]["holds"], {str(PR): "risk:MED"})
+
+    def test_a_queued_entry_on_a_non_default_base_dequeues_itself(self) -> None:
+        # #7339 comment 2: base-not-default refused but left its own entry.
+        self.default_branch = "trunk"
+        self.queued = [PR]
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [f"dequeue:[{PR}]"])
+        self.assertEqual(
+            out["unattended"]["writes"]["holds"], {str(PR): "base-not-default:main"}
+        )
+
+    def test_an_unproven_head_pusher_refuses_and_dequeues_its_entry(self) -> None:
+        # #7339 item 3: an unlinked commit author on a non-force push.
+        self.flight = policy.InFlight(False, f"identity-entry-queued:#{PR}")
+        self.queued = [PR]
+        self.lane_error = merge.HeadPusherUnproven("head-pusher-unproven:aaaaaaaaaaaa")
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(self.log, [f"dequeue:[{PR}]"])
+        self.assertEqual(
+            out["unattended"]["writes"]["holds"],
+            {str(PR): "head-pusher-unproven:aaaaaaaaaaaa"},
         )
 
     def test_a_non_default_base_still_holds_the_identitys_entries(self) -> None:
@@ -976,6 +1041,83 @@ class ReasonsComment(Unattended):
         self.assertNotIn("risk-comment:POST", self.log)
 
 
+class HeadPushers(unittest.TestCase):
+    """#7339 item 3: who pushed a commit is known only through a linked login."""
+
+    def read(self, commits: list[dict[str, Any]], total: Any = None) -> Any:
+        pr = {
+            "head": {"ref": "feat", "sha": HEAD},
+            "user": {"login": IDENTITY},
+            "commits": len(commits) if total is None else total,
+        }
+
+        def paginated(endpoint: str, label: str) -> list[dict[str, Any]]:
+            return commits if endpoint.endswith("/commits?per_page=100") else []
+
+        with (
+            mock.patch.object(merge, "fetch_paginated_api", side_effect=paginated),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            mock.patch.object(merge, "collect_lane_runs", return_value=[]),
+        ):
+            return merge._lane_evidence(
+                "owner/repo",
+                PR,
+                pr,
+                IDENTITY,
+                frozenset(),
+                lambda login: "write",
+            )
+
+    def test_an_unlinked_author_or_committer_is_unproven(self) -> None:
+        bot = {"login": IDENTITY}
+        for name, commit in (
+            ("author", {"sha": "a" * 40, "author": None, "committer": bot}),
+            ("committer", {"sha": "a" * 40, "author": bot, "committer": None}),
+        ):
+            with self.subTest(name):
+                with self.assertRaises(merge.HeadPusherUnproven) as raised:
+                    self.read([commit])
+                self.assertEqual(
+                    str(raised.exception), "head-pusher-unproven:aaaaaaaaaaaa"
+                )
+
+    def test_a_head_longer_than_the_commits_list_is_unproven(self) -> None:
+        # The pull request commits endpoint lists at most 250 commits; a
+        # pusher of commit 251 is in no list, so the head cannot be judged.
+        bot = {"login": IDENTITY}
+        listed = [
+            {"sha": f"{n:040x}", "author": bot, "committer": bot} for n in range(250)
+        ]
+        # An unreadable count is no better than a larger one.
+        for total in (251, "missing", "251"):
+            with self.subTest(total=total):
+                with self.assertRaises(merge.HeadPusherUnproven) as raised:
+                    self.read(listed, total=total)
+                self.assertIn("commits-listed:250", str(raised.exception))
+
+    def test_linked_commits_bind_as_before(self) -> None:
+        bot = {"login": IDENTITY}
+        lanes, _ = self.read([{"sha": "a" * 40, "author": bot, "committer": bot}])
+        self.assertEqual(len(lanes), 2)
+
+
+class QueueRead(unittest.TestCase):
+    def test_the_branch_is_a_raw_string_variable(self) -> None:
+        # #7339 comment 2: `-F` reads `@path` and turns `123` into a number.
+        queue = {
+            "data": {
+                "repository": {
+                    "mergeQueue": {"entries": {"totalCount": 0, "nodes": []}}
+                }
+            }
+        }
+        with mock.patch.object(merge, "gh_json", return_value=queue) as gh_json:
+            merge._identity_queue_entries("owner/repo", "123", IDENTITY)
+        args = gh_json.call_args.args[0]
+        self.assertNotIn("-F", args)
+        self.assertEqual(args[args.index("b=123") - 1], "-f")
+
+
 class MainHarness(unittest.TestCase):
     """Run `main()` with every write seam replaced by a mock that records calls."""
 
@@ -1092,10 +1234,6 @@ class UnattendedRefusesWideningFlags(MainHarness):
         self.assertEqual(code, 2)
         self.assertIn("--expected-head", out["error"])
         self.assess.assert_not_called()
-
-    def test_promotion_settings_need_the_unattended_flag(self) -> None:
-        code, _ = self._main("--promotion-settings", "/etc/x.json")
-        self.assertEqual(code, 2)
 
 
 class AgentIdentityCannotUsePlainMerge(MainHarness):

@@ -62,7 +62,7 @@ row() {
 # shellcheck source=../../../scripts/python-resolve.sh
 source "$SCRIPTS/python-resolve.sh"
 if cm_resolve_python; then
-  row PASS "python" "$("${PY[@]}" -I -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])') (floor $CM_PYTHON_FLOOR) via ${PY[*]}"
+  row PASS "python" "$("${PY[@]}" -I -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])') (floor $CM_PYTHON_FLOOR) via ${CM_PY_NATIVE[*]}"
 else
   row FAIL "python" "no interpreter at or above ${CM_PYTHON_FLOOR} (tried python3, python, py -3); required for every skill"
   printf '\n%d FAIL\n' "$FAILS"
