@@ -23,9 +23,9 @@ One row per constraint, `- C<N> | confirmed|inherited | <constraint> | <source>`
 
 ## Starting point
 
-One line: what the user disclosed at intake about where they start (SKILL.md Stance, "Intake the starting point"). `/planning:wayfind chart` carries it into its map's Notes, so a session cleared between the two skills keeps it (`context/routing.md` "The handoff to wayfind"). Replace the example line with this run's disclosure.
+One line: what the user disclosed at intake about where they start (SKILL.md Stance, "Intake the starting point"). `/planning:wayfind chart` carries it into its map's Notes, so a session cleared between the two skills keeps it (`context/routing.md` "The handoff to wayfind"). Replace the placeholder line with this run's disclosure.
 
-- New to this codebase area; has used the queue library elsewhere
+- <the user's starting-point disclosure>
 
 ## Open-question register
 

@@ -18,7 +18,8 @@ After each reply is recorded and before the next round is written, answer one qu
 turn out larger or foggier than it looked at entry? It is bigger when either trigger holds:
 
 - **The context zone has worsened.** The session's context-guard report (the zone line the module
-  injects, or its `mcp__context-guard__status` tool) puts the session past its best zone. Use only
+  injects, or its `mcp__context-guard__status` tool) puts the session in a worse zone than the one
+  it reported at entry. Use only
   a report the harness already surfaced or that tool; do not poll your own context statistics, and
   write no token or percentage figure here, because the zone thresholds belong to context-guard.
   No report, or `unknown`, is not a trigger.
@@ -28,7 +29,8 @@ turn out larger or foggier than it looked at entry? It is bigger when either tri
 
 On a trigger, recommend `/planning:wayfind chart` to the user in one short block (the trigger and
 its evidence, what it would carry over); never switch on your own. If it is not a trigger, say
-nothing and ask the next round.
+nothing and ask the next round. After the user declines, raise it again only when it escalates:
+the zone worsens further, or the other trigger fires.
 
 ## The handoff to wayfind
 
@@ -41,7 +43,7 @@ where a `/clear` between the two skills cannot lose it:
 - `open`, `deferred` and `blocked` rows: candidate decision items;
 - the `## Constraint ledger`: the constraints the user stated;
 - the `## Starting point` section: the user's starting-point disclosure from intake. When the
-  ledger has none yet, write it now, one line in the user's words or a faithful paraphrase;
+  ledger has none yet, or holds only the template's placeholder, write it now, one line in the user's words or a faithful paraphrase;
 - the session-shorthand glossary.
 
 The recommendation block names the ledger path, so a fresh session that runs
@@ -49,23 +51,29 @@ The recommendation block names the ledger path, so a fresh session that runs
 
 ## Small after all: ship it
 
-At any round boundary the operator can say the work is small ("this is small, ship it"), and the
+At any round boundary the user can say the work is small ("this is small, ship it"), and the
 model can propose the same when the diff now looks quick to review and cheap to retry. The model's
-proposal waits for the operator's yes, because the remaining questions are the operator's to drop.
+proposal waits for the user's yes, because the remaining questions are the user's to drop.
 
 On that yes, stop asking and close out through the normal gates; ship-it drops questions, never a
 gate:
 
-1. Move each `open` row to `deferred`, with the operator's reply as its resolution, so the
+1. Move each `open` row to `deferred`, with the user's reply as its resolution, so the
    register gate passes without inventing an answer. Skip the assumption sweep: it exists to find
-   more questions, which the operator just declined; say so in the restatement.
+   more questions, which the user just declined; say so in the restatement.
 2. **Step 3 still runs, confirmation gate included.** The yes to ship it drops the remaining
    questions; it does not confirm the shared understanding. Run the register gate and the
    `--procedure` check, restate with the register recap (the deferred rows visible in it), and get
    the user's confirmation.
 3. **Step 4 as usual.** An engineering session writes the Brief: each deferred row goes under
    `### Deferred questions`, led by its `Q<N>` id, tagged **arbiter: USER-RESERVED** (the handoff
-   skips `/planning:plan`, so no plan stage would resolve a `/planning:plan` tag), and the
-   `--brief` cross-check must exit 0 before handing off. A general session writes the
-   shared-understanding summary with the deferred rows listed.
-4. Hand off to implementation (`/implementation:implement`), not to `/planning:plan`.
+   skips `/planning:plan`, so no plan stage would resolve a `/planning:plan` tag). No later stage
+   resolves these rows: the user dropped them, and the tag records that only the user re-raises
+   one. The `--brief` cross-check must exit 0 before handing off. A `scope` run writes no Brief:
+   it returns each deferred row as a `Deferred: Q<N> ... (arbiter: USER-RESERVED)` line in its
+   `Scope decisions:` section. A general session writes the shared-understanding summary with the
+   deferred rows listed.
+4. Hand off by what the session produced, never to `/planning:plan`: engineering work that is not
+   design-significant goes to implementation (`/implementation:implement`), design-significant
+   work goes to `/planning:design` first (SKILL.md Step 5), a general session delivers its summary
+   and stops, and a `scope` run returns to its caller.
