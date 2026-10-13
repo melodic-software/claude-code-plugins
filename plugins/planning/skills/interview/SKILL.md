@@ -443,11 +443,11 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 Turn the interview's read of complexity and ambiguity into a recommendation for how the session carrying the work forward should be configured. *When* it lands follows from *what* it configures: an engineering interview recommends at the stop/handoff boundary, for the downstream execution session; a terminal interview (a general decision, per Step 5) recommends at the early post-survey surface and again at the stop boundary, for the current session.
 
-Read [`context/session-config.md`](context/session-config.md) at that boundary, before forming the
-recommendation: it owns the two orthogonal knobs and their picking signals, the advisor pairing,
-the rule that current model and effort names are fetched live and never pinned (and that a failed
-fetch degrades rather than halts), the advisory framing, and the per-surface wording. Do not form
-the recommendation from this summary.
+Read [`context/session-config.md`](context/session-config.md) at that boundary, before forming the recommendation: it owns the two orthogonal knobs and their picking signals, the advisor pairing, the rule that current model and effort names are fetched live and never pinned (and that a failed fetch degrades rather than halts), the advisory framing, and the per-surface wording. Do not form the recommendation from this summary.
+
+## Routing by size and fog
+
+Read [`context/routing.md`](context/routing.md) at entry and at every round boundary. It owns why the entry gate is diff size and retry cost, the bigger-than-you-thought check that recommends `/planning:wayfind chart` on fog or `/session-flow:handoff` on context size alone, what the wayfind handoff carries, and the "this is small, ship it" exit with the gates it still runs.
 
 ## What this skill does NOT do
 
