@@ -2,8 +2,8 @@
 
 A plugin declares every external dependency it needs in one file, `prerequisites.json` at the
 plugin root. One checker reads that file for setup skills, check skills, hooks and the fleet
-report, and one CI gate keeps the file honest. The absence classes, and the rule that a skipped
-feature is never silent, stay in
+report, and one CI gate fails when the file and the plugin's scripts disagree. The absence
+classes, and the rule that a skipped feature is never silent, stay in
 [`docs/plugin-philosophy.md`](../../plugin-philosophy.md#prerequisites-and-failure-behavior); this
 document owns the file, the checker, the gate, and the rule for
 [offering a fix when a check fails](#when-a-check-fails-offer-the-fix-run-it-on-a-yes).
@@ -77,7 +77,7 @@ at its entry point. `optional` means the scope continues with a reduced result a
 | --- | --- | --- |
 | `cli`, `runtime` | `any` (names, first match wins), optional `local_bin` (paths tried upward from the working directory, up to eight levels), optional `version` (`args`, a `pattern` whose first group is the version, `min`), optional `reject_store_alias` (`true` skips Windows `WindowsApps` directories, so a Microsoft Store App Execution Alias never counts) | A name is on `PATH` or a `local_bin` path is executable, and the version is at least `min`. A runtime lists its ladder in `any`, such as `["python3", "python", "py"]`. On Windows a Store App Execution Alias counts as found, except the Python install stub, unless the entry sets `reject_store_alias`. |
 | `system-lib` | `probe`: `args` (the first item is the binary) and `pattern` | The probe output matches the pattern, for example `ffmpeg -encoders` listing `libx264`. |
-| `python-pkg` | `any` (interpreters) and `import` (a module name) | The first interpreter found imports the module. |
+| `python-pkg` | `any` (interpreters) and `import` (a module name) | The first interpreter found imports the module on its own, or, when the plugin commits `requirements.txt`, any listed interpreter on PATH imports it from the set its install hook put in the plugin data directory for that interpreter ([on-demand dependencies, Rule P3](../on-demand-dependencies/README.md#rule-p3-install-into-the-plugin-data-directory-keyed-by-lock-and-interpreter-spec)), imported the way the plugin's launcher runs it. When only that set could hold the module and the data directory is unknown (no `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified`. |
 | `node-pkg` | `module` and `paths` (relative to the plugin root, or starting with `${CLAUDE_PLUGIN_ROOT}` or `${CLAUDE_PLUGIN_DATA}`) | `<path>/<module>/package.json` exists under one of the paths. |
 | `env` | `name` | The variable is set and not empty. The value is never printed. |
 | `mcp` | `server` | Only the agent can tell, from its tool list. The checker reports `agent-check` and never fails on it. |
