@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Code-fix plan — ecosystems: bash (1 file scoped)\n- bash: bash tools/semantic-fix.sh app.sh  (1 file)\n\nNon-interactive session without --yes: stopped after the plan, nothing was changed. Re-run with `--yes` to apply: `/toolchain:lint --code-fix --yes`.",
+      "why": "Re-run with --yes"
+    },
+    {
+      "answer": "Plan: `tools/semantic-fix.sh` on **app.sh**. I mutated nothing. To apply, run it again with --yes.",
+      "why": "run it again with --yes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Applied code-fix in bash: bash tools/semantic-fix.sh app.sh\n\n app.sh | 3 ++-\n--yes was not needed, so I applied the fix directly.",
+      "why": "--yes negated, applied"
+    },
+    {
+      "answer": "Should I apply the semantic fix to app.sh? Reply yes to continue.",
+      "why": "asked instead"
+    },
+    {
+      "answer": "Plan only. The --yes flag does nothing here.",
+      "why": "mentions --yes without telling to re-run"
+    }
+  ]
+}

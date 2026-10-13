@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git symbolic-ref --short refs/remotes/origin/HEAD",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --name-only \"$(git merge-base refs/remotes/origin/trunk HEAD)..HEAD\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "detected trunk"
+    },
+    {
+      "answer": [],
+      "why": "no Bash at all"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git merge-base main HEAD",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hardcoded main"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --name-only origin/main...HEAD",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hardcoded origin/main"
+    }
+  ]
+}

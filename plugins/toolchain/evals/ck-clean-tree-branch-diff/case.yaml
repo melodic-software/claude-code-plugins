@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: ck-clean-tree-branch-diff
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: bash-row-pass
+    type: regex
+    pattern: '\bbash\b[^\n]{0,120}\bPASS\b'
+    target: last_message
+  - name: overall-pass
+    type: regex
+    pattern: 'Overall\W{0,8}PASS\b'
+    target: last_message
+  - name: not-no-changes
+    type: regex
+    pattern: 'No changes found'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: used-merge-base
+    type: tool_used
+    tool: Bash
+    input_match: 'merge-base'
+    arm: both
+  - name: never-named-main
+    type: tool_used
+    tool: Bash
+    input_match: '\bmain\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: ran-test
+    type: tool_used
+    tool: Bash
+    input_match: 'bash\s+\S*tools/test\.sh'
+    arm: both

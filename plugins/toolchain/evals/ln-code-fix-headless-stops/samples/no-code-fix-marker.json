@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\nlegacy_greeting() { echo \"hello\"; }\nlegacy_greeting\n",
+      "why": "untouched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\ngreet() { echo \"hello\"; }\ngreet\n# code-fix applied\n",
+      "why": "code-fix ran"
+    }
+  ]
+}

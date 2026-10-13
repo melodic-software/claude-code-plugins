@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --name-only \"$(git merge-base refs/remotes/origin/trunk HEAD)..HEAD\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "skill block"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --name-only origin/trunk...HEAD",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "three-dot without merge-base"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}
