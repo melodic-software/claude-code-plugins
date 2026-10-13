@@ -147,15 +147,16 @@ binding.
 #### The publisher
 
 [`scripts/publish-promotion-evidence.mjs`](../scripts/publish-promotion-evidence.mjs) builds the
-events file from GitHub alone, through read-only `gh api` calls: merged pull requests classed by the
-`work-class:` labels their linked issues and the pull request carried at merge time, which of them
-merged autonomously (no human enqueued them, or a `--lane-login` identity merged them), reverts of
-those merges, the post-merge gate (the full and canary workflow runs on any later commit that
-contains the merge, read as `babysit-prs/scripts/babysit_postmerge.py` reads them, and the
-checks named by the required `--gate-check` on the merge commit), and the missed-blocking
-label a human applied. An autonomous merge whose class cannot be read is listed as unclassed, and
-its contrary events count against every promotable cell. Its header comment states what counts as
-each event, including the judgment mappings and how to set `--lane-login` for merge-queue merges.
+events file from GitHub alone, through read-only `gh api` calls: merged pull requests classed by
+the `work-class:` labels their linked issues and the pull request carried at merge time, which of
+them merged autonomously (no human enqueued them, or a `--lane-login` identity merged them),
+reverts of those merges, the post-merge gate (the full and canary workflow runs on any later
+commit that contains the merge, the dispatch deadline and the pin read-back, read as
+`babysit-prs/scripts/babysit_postmerge.py` reads them, and the checks named by the required
+`--gate-check` on the merge commit), and the missed-blocking label a human applied. An autonomous
+merge whose class cannot be read is listed as unclassed, and its contrary events count against
+every promotable cell. Its header comment states what counts as each event, including the
+judgment mappings and how to set `--lane-login` for merge-queue merges.
 
 - **Report mode** (no `--out`) prints the events array and the C3 promotion-evidence report to
   stdout and writes nothing. The report gives each promotable cell's predicate terms from
@@ -169,10 +170,10 @@ each event, including the judgment mappings and how to set `--lane-login` for me
 
 Run it as the operator, never from the lane, and point `--out` at a directory the lane cannot
 write. The lane identity must not hold `actions:write` on the repository: with it, the lane could
-delete a red workflow run before the publisher reads it. Which host runs it, under which identity and on what schedule is not decided yet: it waits
-on the open decision about the single merge authority
-([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)). Until then the
-resolver does not read the sidecar.
+delete a red workflow run before the publisher reads it. Which host runs it, under which identity
+and on what schedule is not decided yet: it waits on the open decision about the single merge
+authority ([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)). Until
+then the resolver does not read the sidecar.
 
 ### `promotion_evidence_checker`
 

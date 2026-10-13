@@ -157,7 +157,7 @@ function ms(value, what) {
 
 const PULL_QUERY =
   "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){" +
-  "number mergedAt lastEditedAt mergeCommit{oid} mergedBy{__typename login} labels(first:100){pageInfo{hasNextPage} nodes{name}} " +
+  "number headRefOid mergedAt lastEditedAt mergeCommit{oid} mergedBy{__typename login} labels(first:100){pageInfo{hasNextPage} nodes{name}} " +
   "closingIssuesReferences(first:50){pageInfo{hasNextPage} nodes{number labels(first:100){pageInfo{hasNextPage} nodes{name}}}} " +
   "timelineItems(first:100,itemTypes:[CONNECTED_EVENT,DISCONNECTED_EVENT,ADDED_TO_MERGE_QUEUE_EVENT]){pageInfo{hasNextPage} nodes{__typename " +
   "... on ConnectedEvent{createdAt subject{__typename ... on Issue{number}}} ... on DisconnectedEvent{createdAt subject{__typename ... on Issue{number}}} " +
@@ -219,13 +219,56 @@ function eventKey(event) {
 // that are not its evidence; a compare that is behind means not contained. Only a verified merge
 // with nothing red or pending passes the gate, and only a lane dispatch created within
 // DISPATCH_DEADLINE of the merge verifies it, so a merge with no timely lane dispatch run
-// (check()'s 6-hour failure) stays unsettled. Departures, all toward a failure: a compare that is
-// diverged or unknown refuses the publish (check() reads it as not containing); a red full run whose re-run has not come counts as red
-// once DISPATCH_DEADLINE has passed since it completed (check() waits on it); a red run covering
-// several merges is a failure of each.
+// (check()'s 6-hour failure) is not passed. Departures, all toward a failure: a compare that is
+// diverged or unknown refuses the publish (check() reads it as not containing); a red full run
+// whose re-run has not come counts as red once DISPATCH_DEADLINE has passed since it completed
+// (check() waits on it); a red run covering several merges is a failure of each.
+//
+// Where check() files a Failure, this emits a gate-failure, so demotion counts match: a red full
+// or canary run (at the run's update time); no dispatch run by a lane identity created within
+// DISPATCH_DEADLINE of the merge, once that deadline has passed (at the deadline); and, for a
+// merge a lane identity enqueued, the pin read-back (read_pin): no unedited lane pin once the
+// deadline has passed (at the deadline), or a pinned SHA that is not headRefOid (at the merge).
 const FULL_RUN_WORKFLOW = "pr-require-checks.yml";
 const CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml";
 const DISPATCH_DEADLINE_MS = 6 * 3_600_000;
+
+function isoSeconds(msValue) {
+  return new Date(msValue).toISOString().replace(/\.000Z$/, "Z");
+}
+
+// babysit_postmerge.py read_pin: the newest comment by the identity whose first line is the pin
+// marker, read through at most PIN_PAGE_LIMIT pages; none, an edited one, or a longer thread is
+// no pin.
+const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40}) -->$/;
+const PIN_QUERY =
+  "query($owner:String!,$name:String!,$number:Int!,$c:String){repository(owner:$owner,name:$name){pullRequest(number:$number){" +
+  "comments(first:100,after:$c){pageInfo{hasNextPage endCursor} nodes{author{__typename login} body lastEditedAt}}}}}";
+const PIN_PAGE_LIMIT = 30;
+
+function readPin(gh, owner, name, number, laneExact) {
+  // GraphQL spells an App `app` with __typename Bot; REST and --lane-login spell it `app[bot]`.
+  const author = (a) => {
+    const login = String(a?.login ?? "").trim().toLowerCase();
+    return a?.__typename === "Bot" && login && !login.endsWith("[bot]") ? `${login}[bot]` : login;
+  };
+  const firstLine = (text) => String(text ?? "").trimStart().split("\n", 1)[0].trim();
+  const pins = [];
+  let cursor = null;
+  for (let page = 0; page < PIN_PAGE_LIMIT; page += 1) {
+    const variables = { owner, name, number, ...(cursor ? { c: cursor } : {}) };
+    const comments = gh("graphql", { query: PIN_QUERY, variables })?.data?.repository?.pullRequest?.comments;
+    if (!Array.isArray(comments?.nodes) || typeof comments.pageInfo?.hasNextPage !== "boolean") throw new PublishError(`#${number} pin: no comment page`);
+    pins.push(...comments.nodes.filter((c) => laneExact.has(author(c?.author)) && PIN_RE.test(firstLine(c?.body))));
+    if (!comments.pageInfo.hasNextPage) {
+      const last = pins.at(-1);
+      return last && !last.lastEditedAt ? PIN_RE.exec(firstLine(last.body))[1] : null;
+    }
+    cursor = comments.pageInfo.endCursor;
+    if (typeof cursor !== "string" || !cursor) throw new PublishError(`#${number} pin: a next page with no cursor`);
+  }
+  return null;
+}
 
 function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
   if (merges.length === 0) return () => ({ failures: [], unsettled: false, verified: false });
@@ -294,7 +337,12 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
     );
     const canary = dispatch && canaries.find((run) => outcome(run, false).state === "green" && relevant(run));
     const verifiedAt = canary ? Math.max(dispatch.createdMs, canary.createdMs) : Number.POSITIVE_INFINITY;
+    const deadline = mergedMs + DISPATCH_DEADLINE_MS;
+    const timely = fulls.some((run) => run.event === "workflow_dispatch" && run.createdMs <= deadline && lane.has(loginKey(run.actor?.login)) && relevant(run));
     const result = { failures: [], unsettled: false, verified: Boolean(canary) };
+    if (!timely && throughMs > deadline) {
+      result.failures.push({ check: "dispatch deadline", conclusion: "no dispatch run by a lane identity within 6 h", at: isoSeconds(deadline) });
+    }
     for (const [runs, attributable] of [
       [fulls, true],
       [canaries, false],
@@ -381,7 +429,8 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const autonomousOf = (g, timeline) => {
     const queued = timeline.filter((e) => e.__typename === "AddedToMergeQueueEvent").sort((a, b) => ms(a.createdAt, "a merge-queue event") - ms(b.createdAt, "a merge-queue event"));
     const actors = queued.length > 0 ? [queued.at(-1).actor, queued.at(-1).enqueuer] : [g.mergedBy];
-    return actors.some((actor) => !human(actor)) || lane.has(loginKey(g.mergedBy?.login));
+    const byIdentity = actors.some((actor) => actor && lane.has(loginKey(actor.login)));
+    return { autonomous: actors.some((actor) => !human(actor)) || lane.has(loginKey(g.mergedBy?.login)), byIdentity };
   };
 
   const details = new Map();
@@ -390,14 +439,15 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
       const g = gh("graphql", { query: PULL_QUERY, variables: { owner, name, number } })?.data?.repository?.pullRequest;
       if (!g?.mergedAt) throw new UnresolvableError(`#${number} is not a merged pull request`);
       ms(g.mergedAt, `#${number} mergedAt`);
-      const base = { number, mergedAt: g.mergedAt, sha: g.mergeCommit?.oid, reverted: false };
+      const base = { number, mergedAt: g.mergedAt, sha: g.mergeCommit?.oid, head: g.headRefOid, reverted: false };
       // A page a lane can make incomplete or unreadable leaves the merge unclassed-autonomous.
       try {
         const timeline = onePage(g.timelineItems, `timeline of #${number}`);
-        details.set(number, { ...base, ...classAtMerge(g, timeline), autonomous: autonomousOf(g, timeline) });
+        details.set(number, { ...base, ...classAtMerge(g, timeline), ...autonomousOf(g, timeline) });
       } catch (error) {
         if (!(error instanceof IncompleteError)) throw error;
-        details.set(number, { ...base, cls: null, reason: "a linked-issue, label or timeline page is unreadable or incomplete: class unknown", autonomous: true });
+        // Who enqueued it is unknown too, so it also owes a pin.
+        details.set(number, { ...base, cls: null, reason: "a linked-issue, label or timeline page is unreadable or incomplete: class unknown", autonomous: true, byIdentity: true });
       }
     }
     return details.get(number);
@@ -413,7 +463,11 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const revertsOf = (text) => {
     const targets = [];
     for (const m of (text ?? "").matchAll(/\bReverts\s+(?:([\w.-]+\/[\w.-]+))?#(\d+)/g)) {
-      if (!m[1] || m[1].toLowerCase() === own) targets.push({ number: Number(m[2]) });
+      // A GraphQL Int is at most 2^31 - 1; a longer digit string is never parsed into a Number.
+      if (!m[1] || m[1].toLowerCase() === own) {
+        const valid = /^[1-9]\d{0,9}$/.test(m[2]) && BigInt(m[2]) <= 2147483647n;
+        targets.push(valid ? { number: Number(m[2]) } : { invalid: m[2] });
+      }
     }
     for (const m of (text ?? "").matchAll(/This reverts commit ([0-9a-f]{40})/g)) targets.push({ sha: m[1] });
     return targets;
@@ -433,6 +487,10 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const firstRevert = new Map();
   for (const revert of reverts) {
     if (!inWindow(revert.at)) continue;
+    if (revert.invalid !== undefined) {
+      unresolvedReverts.push({ target: revert.invalid, reason: "not a pull request number (a positive GraphQL Int)" });
+      continue;
+    }
     let number = revert.number;
     if (number === undefined) {
       const known = bySha.get(revert.sha);
@@ -466,6 +524,19 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   }
 
   const judgeWorkflows = postMergeRuns(gh, repo, branch, tracked.filter((c) => c.autonomous), { lane, throughMs });
+  const laneExact = new Set(laneLogins.map((login) => String(login).trim().toLowerCase()));
+
+  // check()'s read-back for a merge a lane identity enqueued.
+  const readBack = (r) => {
+    const deadline = ms(r.mergedAt, `#${r.number} mergedAt`) + DISPATCH_DEADLINE_MS;
+    const pinned = readPin(gh, owner, name, r.number, laneExact);
+    if (pinned === null) {
+      return throughMs > deadline
+        ? { failure: { check: "pin read-back", conclusion: "no unedited pin comment by a lane identity", at: isoSeconds(deadline) } }
+        : { pending: true };
+    }
+    return pinned === r.head ? {} : { failure: { check: "pin read-back", conclusion: `headRefOid ${r.head} is not the pinned ${pinned}`, at: r.mergedAt } };
+  };
 
   // Post-merge gate on each autonomous merge commit: the --gate-check runs and status contexts.
   // A run that did not finish green or red (cancelled, action_required, stale) fails the gate
@@ -473,6 +544,9 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   // Then the post-merge workflow runs on later SHAs containing the merge (postMergeRuns).
   for (const r of tracked.filter((c) => c.autonomous)) {
     const wf = judgeWorkflows(r);
+    const pin = r.byIdentity ? readBack(r) : {};
+    if (pin.failure) wf.failures.push(pin.failure);
+    if (pin.pending) wf.unsettled = true;
     for (const failure of wf.failures) {
       for (const cell of cellsOf(r)) addEvent(cell, "gate-failure", failure.at);
       gateFailures.push({ number: r.number, ...failure });

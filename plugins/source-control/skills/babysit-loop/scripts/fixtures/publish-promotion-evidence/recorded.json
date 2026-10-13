@@ -58,6 +58,7 @@
       "repository": {
         "pullRequest": {
           "number": 7063,
+          "headRefOid": "b6888664c45a19abc91c9cd819770406a6e7616d",
           "mergedAt": "2026-10-13T01:47:44Z",
           "lastEditedAt": "2026-10-13T01:38:02Z",
           "mergeCommit": {
@@ -144,6 +145,30 @@
   },
   "repo": {
     "default_branch": "main"
+  },
+  "commentsPage": {
+    "data": {
+      "repository": {
+        "pullRequest": {
+          "comments": {
+            "pageInfo": {
+              "hasNextPage": true,
+              "endCursor": "Y3Vyc29yOnYyOpHPAAAAAWv4HUQ="
+            },
+            "nodes": [
+              {
+                "author": {
+                  "__typename": "User",
+                  "login": "kyle-sexton"
+                },
+                "body": "`ci-status` is red because this PR is a draft, not because of the change.",
+                "lastEditedAt": null
+              }
+            ]
+          }
+        }
+      }
+    }
   },
   "connectedEventFromCliCli14616": {
     "__typename": "ConnectedEvent",

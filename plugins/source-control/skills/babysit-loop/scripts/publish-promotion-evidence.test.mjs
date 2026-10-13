@@ -42,13 +42,14 @@ const link = (type, issue, at) => ({ ...LINK, __typename: type, createdAt: at, s
 function pr(
   number,
   mergedAt,
-  { labels = [], merger = LANE, title = REC.pullListItem.title, body = REC.pullListItem.body, linked = [], timeline = [], lastEditedAt = null, patch = {}, base = "main" } = {},
+  { labels = [], merger = LANE, title = REC.pullListItem.title, body = REC.pullListItem.body, linked = [], timeline = [], lastEditedAt = null, patch = {}, base = "main", head = shaOf(number + 0x100000) } = {},
 ) {
   const names = labels.map((name) => ({ name }));
   return {
     graph: {
       ...REC.pullGraph.data.repository.pullRequest,
       number,
+      headRefOid: head,
       mergedAt,
       lastEditedAt,
       mergeCommit: { oid: shaOf(number) },
@@ -84,7 +85,15 @@ const labelEvent = (event, name, at, login = "kyle-sexton", type = "User") => ({
 // merge commits in merge order.
 // `diverged`: head SHAs a compare reports as diverged. A PR number not in `pulls` answers with the
 // recorded NOT_FOUND response.
-function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, workflowRuns = {}, attempts = {}, history, diverged = [], bumpOnPage2 }) {
+// The lane posts a pin comment on every PR it enqueues and dispatches a full run after every merge
+// (babysit_merge.py --unattended, babysit_postmerge.py), so each PR gets a correct pin and a green
+// lane dispatch run on its merge commit an hour after merging, unless `comments` sets that PR's
+// comments or `noDefaultDispatch` is set; an explicit run with the same id replaces the default.
+const pinComment = (sha) => ({ author: actorOf(LANE), body: `<!-- babysit-merge-pin sha=${sha} -->\nThe unattended merge path enqueued this pull request at head \`${sha}\`.`, lastEditedAt: null });
+function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, workflowRuns: explicitRuns = {}, attempts = {}, history, diverged = [], comments = {}, noDefaultDispatch = false, bumpOnPage2 }) {
+  const defaultDispatch = noDefaultDispatch ? [] : pulls.map((p) => wfRun(900000 + p.graph.number, "workflow_dispatch", p.graph.mergeCommit.oid, later(p.graph.mergedAt, 60), { actor: LANE }));
+  const explicitIds = new Set(Object.values(explicitRuns).flat().map((r) => r.id));
+  const workflowRuns = { ...explicitRuns, [FULL]: [...defaultDispatch.filter((r) => !explicitIds.has(r.id)), ...(explicitRuns[FULL] ?? [])] };
   const branch = history ?? [...pulls].sort((a, b) => a.graph.mergedAt.localeCompare(b.graph.mergedAt)).map((p) => p.graph.mergeCommit.oid);
   const page = (items, path) => {
     const n = Number(/[?&]page=(\d+)/.exec(path)[1]);
@@ -96,6 +105,14 @@ function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issue
       assert.deepEqual([graphql.variables.owner, graphql.variables.name], REPO.split("/"));
       assert.match(graphql.query, /^query\(/);
       assert.doesNotMatch(graphql.query, /mutation/);
+      if (/comments\(/.test(graphql.query)) {
+        const pull = pulls.find((p) => p.graph.number === graphql.variables.number);
+        const all = comments[graphql.variables.number] ?? [pinComment(pull.graph.headRefOid)];
+        const n = Number(graphql.variables.c ?? 0);
+        const nodes = all.slice(n * 100, (n + 1) * 100);
+        const more = all.length > (n + 1) * 100;
+        return { data: { repository: { pullRequest: { comments: { ...REC.commentsPage.data.repository.pullRequest.comments, pageInfo: { hasNextPage: more, endCursor: more ? String(n + 1) : null }, nodes } } } } };
+      }
       const found = pulls.find((p) => p.graph.number === graphql.variables.number);
       return found ? { data: { repository: { pullRequest: found.graph } } } : REC.pullNotFound;
     }
@@ -228,15 +245,63 @@ test("a post-merge run created after --through still counts", () => {
   assert.deepEqual(result.events, gateEvents("2026-10-06T00:08:00Z", "C2-auto-merge"));
 });
 
-test("a merge is gate-passed only when a green lane dispatch within 6 hours and a green canary both contain it", () => {
+const gateOf = (result, cell = "C2-auto-merge") => termOf(result, cell, "deterministic-gate pass").detail;
+const PASSED = { passed: 1, failed: 0, unsettled: 0, total: 1 };
+const FAILED = { passed: 0, failed: 1, unsettled: 0, total: 1 };
+const UNSETTLED = { passed: 0, failed: 0, unsettled: 1, total: 1 };
+
+test("a merge passes the gate only with a lane dispatch within 6 hours and a green canary; no timely dispatch is a gate failure", () => {
   const pulls = () => [pr(1404, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
-  const gateOf = (result) => termOf(result, "C2-auto-merge", "deterministic-gate pass").detail;
-  const unsettled = { passed: 0, failed: 0, unsettled: 1, total: 1 };
-  assert.deepEqual(gateOf(run({ pulls: pulls() })), unsettled);
-  assert.deepEqual(gateOf(run({ pulls: pulls(), workflowRuns: { [FULL]: verifiedEach(pulls())[FULL] } })), unsettled);
-  assert.deepEqual(gateOf(run({ pulls: pulls(), workflowRuns: { [CANARY]: verifiedEach(pulls())[CANARY] } })), unsettled);
-  assert.deepEqual(gateOf(run({ pulls: pulls(), workflowRuns: verifiedEach(pulls()) })), { passed: 1, failed: 0, unsettled: 0, total: 1 });
-  assert.deepEqual(gateOf(run({ pulls: pulls(), workflowRuns: verifiedEach(pulls(), 7 * 60) })), unsettled);
+  const noDispatch = gateEvents("2026-09-01T06:00:00Z", "C2-auto-merge");
+  const bare = run({ pulls: pulls(), noDefaultDispatch: true });
+  assert.deepEqual([gateOf(bare), bare.events], [FAILED, noDispatch]);
+  assert.deepEqual(bare.gateFailures, [{ number: 1404, check: "dispatch deadline", conclusion: "no dispatch run by a lane identity within 6 h", at: "2026-09-01T06:00:00Z" }]);
+  const dispatchOnly = run({ pulls: pulls(), workflowRuns: { [FULL]: verifiedEach(pulls())[FULL] } });
+  assert.deepEqual([gateOf(dispatchOnly), dispatchOnly.events], [UNSETTLED, []]);
+  const canaryOnly = run({ pulls: pulls(), noDefaultDispatch: true, workflowRuns: { [CANARY]: verifiedEach(pulls())[CANARY] } });
+  assert.deepEqual([gateOf(canaryOnly), canaryOnly.events], [FAILED, noDispatch]);
+  assert.deepEqual(gateOf(run({ pulls: pulls(), workflowRuns: verifiedEach(pulls()) })), PASSED);
+  const late = run({ pulls: pulls(), workflowRuns: verifiedEach(pulls(), 7 * 60) });
+  assert.deepEqual([gateOf(late), late.events], [FAILED, noDispatch]);
+});
+
+test("a lane-enqueued merge passes only when its unedited lane pin names headRefOid; otherwise a gate failure", () => {
+  const pulls = () => [pr(1501, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const head = shaOf(1501 + 0x100000);
+  const withComments = (list) => run({ pulls: pulls(), workflowRuns: verifiedEach(pulls()), comments: { 1501: list } });
+  assert.deepEqual(gateOf(withComments([pinComment(head)])), PASSED);
+  const filler = Array.from({ length: 120 }, () => REC.commentsPage.data.repository.pullRequest.comments.nodes[0]);
+  assert.deepEqual(gateOf(withComments([...filler, pinComment(head)])), PASSED);
+  const noPin = gateEvents("2026-09-01T06:00:00Z", "C2-auto-merge");
+  for (const list of [[], [{ ...pinComment(head), lastEditedAt: "2026-09-01T00:30:00Z" }], [{ ...pinComment(head), author: actorOf("kyle-sexton") }]]) {
+    const result = withComments(list);
+    assert.deepEqual([gateOf(result), result.events], [FAILED, noPin]);
+  }
+  const mismatch = withComments([pinComment(shaOf(0xbad))]);
+  assert.deepEqual([gateOf(mismatch), mismatch.events], [FAILED, gateEvents("2026-09-01T00:00:00Z", "C2-auto-merge")]);
+  // Before the deadline a missing pin is pending, as in check().
+  const fresh = [pr(1502, "2026-10-04T22:00:00Z", { labels: [MECHANICAL] })];
+  const pending = run({ pulls: fresh, workflowRuns: verifiedEach(fresh, 30), comments: { 1502: [] } });
+  assert.deepEqual([gateOf(pending), pending.events], [UNSETTLED, []]);
+  // A merge another bot enqueued is autonomous but not the lane's: it has no pin to read back.
+  const bot = [pr(1503, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", null, "some-app[bot]")] })];
+  assert.deepEqual(gateOf(run({ pulls: bot, workflowRuns: verifiedEach(bot), comments: { 1503: [] } })), PASSED);
+});
+
+test("a revert number that is not a GraphQL Int is listed without a lookup", () => {
+  const result = run({
+    pulls: [
+      pr(1601, "2026-09-01T00:00:00Z", { body: `Reverts ${REPO}#99999999999999999999`, merger: "kyle-sexton" }),
+      pr(1602, "2026-09-01T00:00:00Z", { body: `Reverts ${REPO}#2147483648`, merger: "kyle-sexton" }),
+      pr(1603, "2026-09-01T00:00:00Z", { body: `Reverts ${REPO}#0`, merger: "kyle-sexton" }),
+    ],
+  });
+  const reason = "not a pull request number (a positive GraphQL Int)";
+  assert.deepEqual(result.unresolvedReverts, [
+    { target: "99999999999999999999", reason },
+    { target: "2147483648", reason },
+    { target: "0", reason },
+  ]);
 });
 
 test("a bogus `This reverts commit` SHA is listed, not fatal", () => {
