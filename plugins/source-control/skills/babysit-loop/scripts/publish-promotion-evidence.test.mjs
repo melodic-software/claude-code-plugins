@@ -494,9 +494,7 @@ test("a revert commit whose REST-named PR GraphQL cannot resolve counts as a dir
   assert.deepEqual(result.events, [{ cell: "C3-auto-merge", event: "reverted-merge", at: "2026-09-03T00:00:00Z" }]);
 });
 
-const NOT_HUMAN = "the revert was merged or enqueued by a bot or lane identity, not a human";
-
-test("a revert PR a bot or lane identity merged or enqueued is listed, not counted", () => {
+test("a revert PR counts whoever merged or enqueued it, a lane or another bot included", () => {
   const result = run({
     pulls: [
       pr(1701, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }),
@@ -505,20 +503,20 @@ test("a revert PR a bot or lane identity merged or enqueued is listed, not count
       pr(1704, "2026-09-02T00:00:00Z", { body: `Reverts ${REPO}#1703`, merger: "kyle-sexton", timeline: [queued("2026-09-01T23:00:00Z", null, "some-app[bot]")] }),
     ],
   });
-  assert.deepEqual(result.events.filter((e) => e.event === "reverted-merge"), []);
-  assert.deepEqual(result.unresolvedReverts, [
-    { target: 1701, reason: NOT_HUMAN },
-    { target: 1703, reason: NOT_HUMAN },
+  assert.deepEqual(result.events.filter((e) => e.event === "reverted-merge"), [
+    { cell: "C2-auto-merge", event: "reverted-merge", at: "2026-09-02T00:00:00Z" },
+    { cell: "C3-auto-merge", event: "reverted-merge", at: "2026-09-02T00:00:00Z" },
   ]);
+  assert.deepEqual(result.unresolvedReverts, []);
 });
 
-test("the squash commit of a lane-merged revert PR does not count as a direct revert", () => {
+test("a lane-merged revert PR and its squash commit count once", () => {
   const result = run({
     pulls: [pr(1705, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1706, "2026-09-02T00:00:00Z", { body: `Reverts ${REPO}#1705` })],
     commits: [{ ...REC.commit, sha: shaOf(1706), commit: { message: `Revert "x" (#1706)\n\nReverts ${REPO}#1705`, committer: { date: "2026-09-02T00:00:00Z" } } }],
   });
-  assert.deepEqual(result.events.filter((e) => e.event === "reverted-merge"), []);
-  assert.deepEqual(result.unresolvedReverts, [{ target: 1705, reason: NOT_HUMAN }]);
+  assert.deepEqual(result.events.filter((e) => e.event === "reverted-merge"), [{ cell: "C2-auto-merge", event: "reverted-merge", at: "2026-09-02T00:00:00Z" }]);
+  assert.deepEqual(result.unresolvedReverts, []);
 });
 
 test("a revert of a human merge, and a revert written only in prose, emit no event; prose is listed unresolved", () => {
