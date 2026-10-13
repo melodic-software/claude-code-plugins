@@ -273,16 +273,18 @@ else
 fi
 rm -rf "$f"
 
-# --- an ADDED skill-level vendor/ tree is in scope (#6782) ------------------
-# Formerly asserted out of scope; it installs with the plugin, so it needs a bump.
+# --- an ADDED skill-level vendor/ tree is in scope --------------------------
+# It installs with the plugin, so it needs a bump.
 base_fixture f
 mkdir -p "$f/plugins/alpha/skills/digest/vendor"
 echo nested >"$f/plugins/alpha/skills/digest/vendor/lib.js"
 git -C "$f" add plugins/alpha/skills/digest
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
   fail "an added skill-level vendor/ tree without a bump should fail, got success: $out"
+elif grep -q "STALE VERSION: a vendor/ tree of plugins/alpha/" <<<"$out"; then
+  ok "an added skill-level vendor/ tree without a bump fails as STALE VERSION"
 else
-  ok "an added skill-level vendor/ tree without a bump fails"
+  fail "expected STALE VERSION for an added skill-level vendor/ tree, got: $out"
 fi
 rm -rf "$f"
 
