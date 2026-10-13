@@ -15,24 +15,26 @@ and an effort too big and too foggy for one session is reached from here, never 
 ## Bigger than you thought? Check at every round boundary
 
 After each reply is recorded and before the next round is written, answer one question: did this
-turn out larger or foggier than it looked at entry? It is bigger when either trigger holds:
+turn out larger or foggier than it looked at entry? Each trigger has its own recommendation:
 
-- **The context zone has worsened.** The session's context-guard report (the zone line the module
-  injects, or its `mcp__context-guard__status` tool) puts the session in a worse zone than the one
-  it reported at entry. Use only
-  a report the harness already surfaced or that tool; do not poll your own context statistics, and
-  write no token or percentage figure here, because the zone thresholds belong to context-guard.
-  No report, or `unknown`, is not a trigger.
-- **More branches opened than closed.** Recompute the frontier first, then count the branches this
-  round's answers exposed (the questions the next round would add) against the rows it moved to a
-  terminal status. Register rows alone miss this: a new branch gets its row only when it is
-  asked. Two rounds running with more opened than closed is a
-  trigger; one is noise.
+- **Fog: more branches opened than closed → `/planning:wayfind chart`.** Recompute the frontier
+  first, then count the branches this round's answers exposed (the questions the next round would
+  add) against the rows it moved to a terminal status. Register rows alone miss this: a new
+  branch gets its row only when it is asked. Two rounds running with more opened than closed is
+  the trigger; one is noise. This is the fog evidence wayfind's too-big AND foggy stop rule needs,
+  so wayfind is never recommended without it.
+- **Size alone: the context zone has worsened → `/session-flow:handoff`.** The session's
+  context-guard report (the zone line the module injects, or its `mcp__context-guard__status`
+  tool) puts the session in a worse zone than the one it reported at entry. Use only a report the
+  harness already surfaced or that tool; do not poll your own context statistics, and write no
+  token or percentage figure here, because the zone thresholds belong to context-guard. No report,
+  or `unknown`, is not a trigger. With no fog trigger, this recommends the interview's own handoff
+  (Step 5: save-point, clear, resume), not wayfind. When both hold, recommend wayfind.
 
-On a trigger, recommend `/planning:wayfind chart` to the user in one short block (the trigger and
-its evidence, what it would carry over); never switch on your own. If it is not a trigger, say
-nothing and ask the next round. After the user declines, raise it again only when it escalates:
-the zone worsens further, or the other trigger fires.
+On a trigger, recommend its route to the user in one short block (the trigger and its evidence,
+what it would carry over); never switch on your own. If it is not a trigger, say nothing and ask
+the next round. After the user declines, raise it again only when it escalates: the zone worsens
+further, or the other trigger fires.
 
 ## The handoff to wayfind
 
