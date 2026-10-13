@@ -3,6 +3,89 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.14.0] - 2026-10-13
+
+### Added
+
+- **`/harness-ops:inventory` lists instruction files and composes the MCP posture audit.** A disk run adds `instruction_files`: the managed-policy `CLAUDE.md` (as `$MANAGED_POLICY_DIR/CLAUDE.md`), user `CLAUDE.md` and rules, project `CLAUDE.md`, `AGENTS.md`, `CLAUDE.local.md`, project rules and the subdirectory files that load on demand, skipping gitignored trees other than `CLAUDE.local.md` and any path whose name is not UTF-8 (only that path; the rest are still listed), each with `path` (home- or repo-relative, never absolute), `scope`, `kind`, `loads`, `bytes` and `sha256`. The project root is the git toplevel of the working directory, so runs from two home directories over one repository compare equal through `compare_reports.py`, which is how a cloud session and a local one are checked for parity. When `/mcp-tools:audit-posture` is among the available skills, the skill runs it, saves its report beside the `--out` file and passes the previous saved report for its "Changes since" section; otherwise it prints `MCP coverage: mcp-tools is not enabled`. The report states that claude.ai connectors arrive at runtime and never appear in a static config read.
+- **`/harness-ops:lanes` places each lane on the host its execution target names.** `start` and `restart` confirm origin's own `HEAD` matches the local `origin/HEAD` (otherwise no policy is read and triage lanes are skipped), fetch that branch, read the consumer's `docs/conventions/execution-target.yaml` from that commit (never the working tree) through the shared `parse-concern-value.sh`, now carried at `skills/lanes/scripts/lib/`, and print the SHA. A lane's new optional `stage` (`<plugin>:<skill>`) selects its `skill.<plugin>.<skill>` key; `work-items:triage` also resolves `class.untrusted-provenance`; then `default`. `local-worktree` keeps today's launch; `local-background` runs `claude --bg` from the lane's linked worktree; `cloud-session` skips, with an error naming `/work-items:attend-queue`, every lane whose stage may read untrusted input (today every local-lane stage, a lane with no `stage`, and any unknown stage); for any other stage it runs `claude --cloud` with a stage-start probe in front of the prompt, only from a clean linked worktree at the fetched commit, when `gh api user/installations` shows the Claude GitHub App covering origin's `owner/repo` (from origin's URL), the lane has a numeric `telemetry.issue` in that repository and the lane requests no lane-stop gate, and otherwise launches locally; `cloud-routine` and `cloud-project` print setup steps. `cloud-routine` and `cloud-project` give such lanes no setup steps and skip them the same way, and `restart` skips such a lane before stopping its running session. A `url.*.insteadOf` rule rewriting origin or a second `remote.origin.url` also stops the policy read; `telemetry.author` may not be a `[bot]` login; a launch record is printed without control characters; `--telemetry-json` (a test aid) prints a warning. An `execution_target_fallback` written to the lane's telemetry by the `gh`-authenticated login or the lane's `telemetry.author` moves one launch local. New option `--telemetry-json FILE`. An absent file, a failed fetch or an unknown value keeps today's launch.
+- **`/harness-ops:lanes` gains a scheduled entry: `run-once <lane>` and `print-schedule`.** `run-once` runs one headless pass of a lane, `claude -p --permission-mode auto --effort <level>` with the lane's model, settings and prompt, adding `--permission-prompts none` when the installed CLI is 2.1.259 or later, decided when it runs. It refuses a lane with no `effort`, runs on the local host the lane's execution target names (nothing runs for a cloud host), skips a lane already running as a background session, and takes a per-lane `mkdir` lock under the launcher's data directory: a run that finds the lock held exits 0 having run nothing, and a lock whose owner is gone is reclaimed: its pid exited, it was taken on an earlier boot (so a reused pid cannot hold it), or it holds no pid and is past a two-minute grace period. The pid is written last and whole. A lane's new optional `schedule.every_minutes` (1-999) marks it for `print-schedule`, which prints a Task Scheduler entry and a cron line for each scheduled lane; with `--write-script` it writes `<data-dir>/lanes/<repo-key>/scheduled/<lane>.sh`, which each entry calls, so the Windows `/TR` payload stays within schtasks' 262-character limit, and a lane whose payload would not is refused. The script and a snapshot of the config sit under the launcher's data directory, never in the checkout a lane can write: the script records the snapshot's sha256, refuses to run when the snapshot is missing or changed, and passes the snapshot as `--config`, so an edit to the checkout's `lanes.json` reaches a scheduled run only when the operator rewrites the script.
+
+- `/harness-ops:lanes` `start`, `restart` and `status` print a `mods:` line under each lane. It reads `off` with the cause the launcher can see (a CLI below the mods version floor, `disableAllHooks` in the lane's `settings`, or what `claude plugin test` reports from the repo), `unknown` when the launcher cannot tell (including a probe that does not answer within its timeout), and `can load` only when nothing it sees stops mods. A lane whose mods cannot load runs context-guard and rate-limit-guard reactive-only, and nothing said so before.
+
+### Changed
+
+- **Bump acorn from 8.18.0 to 8.19.0 in /plugins/harness-ops/skills/inventory/scripts/js in the npm-minor-patch group across 1 directory** (#6716).
+  - `acorn` 8.18.0→8.19.0
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- Restated upstream specifics (retention defaults, swept and kept path tables, the managed-source refusal, hook and statusline shell rules, listing-budget defaults, `enabledPlugins` precedence, plugin version floors, telemetry attribute defaults, release-note details) are replaced with anchored pointer records dated 2026-10-11 across `audit-install-state`, `audit-performance`, `audit-native-overlap`, `audit-skill-visibility`, `check`, `prerequisites`, `machine-profile`, `plugins`, `lanes` and `observability`.
+
+- **The per-session hook event log is a mod (#6246).** The 29 settings rows that ran `session-event-log.sh` and `session-retention.sh` (one per observed event, plus `SessionEnd` retention) started `node` on every fire even with `session_event_log_enabled` off. The new hooks module `hooks/register.ts` hooks those events only while the log is on, so an off install starts no process on any event; on, each event starts one process, which hands the payload to the same script, so the records do not change. As with the `async` rows, no event waits on the write, which runs on a timer; `SessionEnd` still waits for its write and for retention. The log now needs Claude Code 2.1.287 or later with mods on, does not run where `sec-default` holds `classic.*` events, and writes no `traceparent` key; ADR 0065 records the decision.
+
+### Fixed
+
+- **The shared `yaml-subset.awk` parser trims trailing blanks and strips trailing comments (a `#` after a space) in one pass**, where two regexes rescanned a long run of spaces from every start; a 200,000-space line now parses in well under a second with the same records.
+
+- **`/harness-ops:lanes` no longer stops every lane over one bad `stage`.** A `stage` that is not a `<plugin>:<skill>` string, including a non-string such as `5`, now prints a warning naming the config file, the lane and the value, and that lane runs with no stage (so it counts as one that may read untrusted input); before, it exited 3 before any lane launched.
+- **The shared `yaml-subset.awk` refuses a tab indent and an unquoted colon followed by a space in a value (`key: a: b`).** Both parsed before although a YAML loader rejects them; a file holding either now reads as a parse error, so quote a value that holds a colon followed by a space. A tab in a markdown fence's base indent is still accepted.
+
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.
+
+- `/harness-ops:audit-performance`'s concurrency-ceilings step now tells the reader never to present any value, or removing the variable, as disabling either subagent cap, and not to relay the engine's `ceilings.trap` string for the caps; it points at the sub-agents and env-vars sections for accepted values and exemptions. The engine's `trap` string itself is unchanged, because `scripts/test_audit_performance.py:910` pins its text.
+- `/harness-ops:audit-install-state` routes `~/.claude.json` growth to `claude purge` in Phase 5, matching its own reference, and its engine now classifies `uploads/`, `dev-mods/` and `usage-data/` as swept and `jobs/` as kept instead of unclassified; the new and changed table notes are short labels with a docs pointer.
+- The `plugins` scope reference quotes the current `/plugin` install-summary line for a needed reload, and no longer says the summary's version is read from a pointer that names none.
+- `reference/surfaces.md` stops claiming that the absence of `image-cache/` or `feedback-bundles/` proves the sweep ran, and stops stating that `history.jsonl` is never trimmed.
+- The `plugins` gotchas no longer quote a sentence about the previous-version orphan sweep that the plugin loading page does not contain; they point at its cleanup section instead. `behavior-probes` anchors its authoritative-denial gotcha, and `observability` drops a restated raw-API-body truncation limit beside its pointer.
+- The `plugins` scope reference re-derives its "nothing reaps project-scope records" claim now that the swept-path list names paths under `~/.claude/plugins/`.
+- `/harness-ops:audit-performance`'s evidence base keeps its v2.1.228 bundle reading of the retention sweep's timing and the `~/.claude.json` poll rate as a dated Probe record, and `reference/surfaces.md` points the `image-cache/` firing rule at the docs row that states the cross-session sweep.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+## [3.13.2] - 2026-10-11
+
+### Changed
+
+- **Shared `exec-bash.mjs` launcher synced; no change to this plugin's hooks.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once.
+
+## [3.13.1] - 2026-10-11
+
+### Fixed
+
+- The morning brief switches to REST on the cloud GitHub proxy's current GraphQL refusal text; the old pinned-set wording no longer matched, so a cloud run reported every section unreadable instead of reading it over REST.
+
+## [3.13.0] - 2026-10-11
+
+### Changed
+
+- **`/harness-ops:morning-brief` exits 6 when some sections were unreadable**, where a partial brief used to exit 0; 5 still means every section was unreadable. The status page is still built for a partial brief.
+- **The stranded-findings window reads from a per-repo bookmark.** The section reads merges since the older of `--stranded-days` ago and a bookmark under the plugin data dir, prints that bound in its header, and stops paging once results pass it. The bookmark moves to the run's `--stranded-days` floor only after a full read, so a gap between runs no longer drops a merge out of the window. The skill passes `--data-dir` explicitly, which must be an absolute path with no `..` segment or control character (else exit 3, nothing written); a symlinked bookmark is not written through. The skill pre-approves only the script in `allowed-tools`; the page builder, which writes wherever `--out` names, still asks.
+- **`/harness-ops:lanes` restart-consumer reads the telemetry issue search to the same 100-issue limit as the morning brief**, so the two keep resolving the same issue past gh's default of 30 results.
+
+### Fixed
+
+- **`/harness-ops:morning-brief` no longer renders a failed or capped read as an all-clear (#7144).** A response the script cannot parse now renders its section `UNREADABLE` instead of "(none parked)", an empty telemetry list, "(none clean right now)" or the stranded all-clear. Every capped list read prints a `PARTIAL` line when it reaches its cap: the label inventory (the queue rows are then not filtered to labels that exist), a queue count (shown as `N+`), the open-PR list, the decision list, and the telemetry issue search, which now carries an explicit limit.
+
+- read restart requests only from the lanes' write identity
+
+  restart-consumer read restart_request from any comment carrying the public
+  lane telemetry sentinel, so anyone who could comment on a telemetry issue
+  could request lane restarts (#7203). It now reads only comments written by
+  the lanes' write identity: the `gh api user` login when it reports a User,
+  `<slug>[bot]` from a new `--app-slug` option when that call fails or reports
+  a Bot, else the reported Bot login plus `[bot]`. With no identity resolved
+  the run exits 4 before reading any lane. `print-schedule` carries a passed
+  `--app-slug` into the commands it emits.
+
 ## [3.12.0] - 2026-10-11
 
 ### Added

@@ -5,6 +5,60 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.14.5] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **`/harness-config:audit-automation-gaps` reads the enforcement hierarchy from the shared enforcement ladder.** The skill carries a generated copy of the enforcement-ladder convention at `context/enforcement-ladder.md` and points at it instead of listing the levels inline. The ladder adds a `make-impossible` rung above compiler settings and a `canonical-helper` rung below the linters. A consuming repository's own order in its project instructions still overrides the default.
+
+- **Copied upstream specifics across the plugin's skills and references become anchored pointer records.** Listing-budget constants, debug-log locations, matcher character rules, `strictPluginOnlyCustomization` values, mod-plane key scopes, permission-lock and parse-failure behavior, auto-mode classifier scopes, hook timeout defaults, `/auto-mode-setup` plan and version requirements, output-style behavior, subagent nesting depth and the pruning doctrine are read live at the section that owns them instead of being restated. The duplicated `C6-malformed` and `C6-literalPath` lint rows are merged.
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.
+
+- **Residency, precedence and liveness rules point at the live docs sections instead of quoting them.** The cross-surface conflict criteria, the Phase A inventory, the `/doctor` handoff, the AGENTS.md liveness record and the audit checklist had copied upstream text that has since changed: subagents can now opt out of CLAUDE.md, user and project rules no longer have a stated winner, CLAUDE.md files have a size limit, another hook event's stdout reaches context, skill preloading is capped, skill-frontmatter hooks live for the rest of the session, Haiku 5.5 has its own default effort, `DISABLE_DOCTOR_COMMAND` is documented again, the built-in AGENTS.md plugin has a new settings id, and managed sources can merge. Each rule now states our decision and fetches the specific from an anchored pointer with an as-of date and a recheck trigger.
+- **`audit-pass` no longer calls the `disallowed-tools` restriction mechanical.** It narrows the editing surface for a span the skills page bounds, so the read-and-report contract is instruction-held, matching `audit-instructions` and `audit-prompting-postures`.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The setup skill loads under `claude -p` again.** Each pre-computed tool probe was a brace group
+  holding a quoted fallback (`{ command -v jq 2>/dev/null || echo "absent"; }`), which Claude Code's
+  shell permission check refuses (`Contains brace with quote character (expansion obfuscation)`).
+  Outside auto mode that aborts the whole skill with no output and exit 0. The rows are now
+  `command -v <tool> 2>/dev/null || echo absent`, which render the same value, and each `command -v`
+  probe is pre-approved in the skill's `allowed-tools`, without which the render still aborts in
+  default permission mode. Probed headless on Claude Code 2.1.296.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+## [1.14.4] - 2026-10-11
+
+### Fixed
+
+- Repoint the `audit-instructions` criteria link for I25 to the current Fable migration guide's section on migrating from Claude Opus 5.
+- Correct two links in released entries whose upstream sections moved: the strict-mode section now lives on the plugin marketplace reference page, and the `blockReadsOutsideWorkingDirectories` anchor on the settings reference was renamed.
+
+## [1.14.3] - 2026-10-11
+
+### Fixed
+
+- Repoint documentation links whose upstream anchor or target moved, so each one lands on the section it cites again.
+
+## [1.14.2] - 2026-10-11
+
+### Changed
+
+- `audit-instructions` criteria cover Claude Haiku 5.5: I17 (pairing arm, plus thinking disabled with a per-message effort change), I17-c and I25 widen to it, I17-b's remediation no longer offers a per-message effort change with thinking disabled on a model whose docs refuse that pairing, and the other model-scoped rows the Sonnet 5.5 rollout decided record a dated decline or re-read with a pointer into the Haiku 5.5 prompting guide.
+
 ## [1.14.1] - 2026-10-11
 
 ### Fixed
@@ -977,7 +1031,7 @@ No change: repeats the 0.51.15 entry (released by #5156).
 
 ### Fixed
 
-- **Permission surfaces now match Claude Code 2.1.257–2.1.263** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Read and Edit deny rules cover Bash redirect targets from v2.1.257; the v2.1.259 widening to every Bash argument was reverted in v2.1.260 and is not written in ([permissions](https://code.claude.com/docs/en/permissions)). `allowManagedPermissionRulesOnly` ignores `--allowedTools` and user, project, and local rules; `--disallowedTools` and session deny and ask rules stay across reloads ([settings reference](https://code.claude.com/docs/en/settings-reference#allowmanagedpermissionrulesonly)). The ask-rule contract is quoted from the [auto mode config](https://code.claude.com/docs/en/auto-mode-config) page; #42797 is closed, #83766 is open, and v2.1.257 fixed compound and subshell paths only. `strictPluginOnlyCustomization` is `true` or a per-surface array; `"mcp"` blocks user and project MCP servers and does not switch hooks off ([settings reference](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)). Interactive `!` shell mode runs outside the sandbox even in strict mode from v2.1.260 ([sandboxing](https://code.claude.com/docs/en/sandboxing)). A managed settings file, drop-in, plist, or HKLM value that cannot be parsed refuses startup; a user settings parse failure warns in `/status` ([managed settings](https://code.claude.com/docs/en/managed-settings), [settings](https://code.claude.com/docs/en/settings)). Server-managed settings are cached at `~/.claude/remote-settings.json`; cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)). `permissions.blockReadsOutsideWorkingDirectories` fences Read, Grep, Glob, and LSP; Bash subprocess reads stay unbounded ([settings reference](https://code.claude.com/docs/en/settings-reference#permissionsblockreadsoutsideworkingdirectories)). Permission-rule lints keep a `)` inside a specifier, report `Bash(ls) x` as a malformed Tool(content) rule, and treat an uncompilable deny as guarding the literal path.
+- **Permission surfaces now match Claude Code 2.1.257–2.1.263** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Read and Edit deny rules cover Bash redirect targets from v2.1.257; the v2.1.259 widening to every Bash argument was reverted in v2.1.260 and is not written in ([permissions](https://code.claude.com/docs/en/permissions)). `allowManagedPermissionRulesOnly` ignores `--allowedTools` and user, project, and local rules; `--disallowedTools` and session deny and ask rules stay across reloads ([settings reference](https://code.claude.com/docs/en/settings-reference#allowmanagedpermissionrulesonly)). The ask-rule contract is quoted from the [auto mode config](https://code.claude.com/docs/en/auto-mode-config) page; #42797 is closed, #83766 is open, and v2.1.257 fixed compound and subshell paths only. `strictPluginOnlyCustomization` is `true` or a per-surface array; `"mcp"` blocks user and project MCP servers and does not switch hooks off ([settings reference](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)). Interactive `!` shell mode runs outside the sandbox even in strict mode from v2.1.260 ([sandboxing](https://code.claude.com/docs/en/sandboxing)). A managed settings file, drop-in, plist, or HKLM value that cannot be parsed refuses startup; a user settings parse failure warns in `/status` ([managed settings](https://code.claude.com/docs/en/managed-settings), [settings](https://code.claude.com/docs/en/settings)). Server-managed settings are cached at `~/.claude/remote-settings.json`; cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)). `permissions.blockReadsOutsideWorkingDirectories` fences Read, Grep, Glob, and LSP; Bash subprocess reads stay unbounded ([settings reference](https://code.claude.com/docs/en/settings-reference#permissions-blockreadsoutsideworkingdirectories)). Permission-rule lints keep a `)` inside a specifier, report `Bash(ls) x` as a malformed Tool(content) rule, and treat an uncompilable deny as guarding the literal path.
 
 ## [0.51.15] - 2026-09-28
 
@@ -3972,7 +4026,7 @@ offered as a mechanical `--fix`.
   row 253). The checklist flagged "plugins from incompatible marketplaces (Agent Skills format)"
   by the rule "Repos with only root `marketplace.json` but no per-plugin `plugin.json` are
   incompatible", a shape the [Strict mode
-  section](https://code.claude.com/docs/en/plugin-marketplaces#strict-mode) documents as SUPPORTED:
+  section](https://code.claude.com/docs/en/plugins/marketplace-reference#strict-mode) documents as SUPPORTED:
   under `strict: false` "the marketplace entry is the entire definition", the plugin repo provides
   raw files, and the entry's `skills`/`agents`/`hooks` fields expose them. Anthropic's own
   `anthropic-agent-skills` marketplace ships three such plugins with zero `plugin.json` files

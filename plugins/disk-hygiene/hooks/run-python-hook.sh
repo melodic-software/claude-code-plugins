@@ -572,18 +572,29 @@ _guard_mode_value() {
   done
 }
 
+# True when `dir` is a real directory this user owns. The tmp fallback sits in a
+# directory every local user can write, so another user could create the marker
+# directory first, or a symlink in its place, holding a marker for any session
+# and silencing the notice. A directory that fails this is neither read nor
+# written. All three tests are builtins.
+_owned_marker_dir() {
+  [[ -d "$1" && ! -L "$1" && -O "$1" ]]
+}
+
 # True when this session already carries the no-interpreter notice. A session
 # with no id, or no marker that could be written, re-notices: over-reporting is
 # the safe direction for a notice that exists to end a silence.
 _no_python_noticed() {
-  local path
+  local path dir
   [[ -n "$_SESSION_ID" ]] || return 1
   _marker_candidates guard-no-interpreter "$_SESSION_ID" noticed || return 1
   for path in "${_MARKER_PATHS[@]}"; do
-    [[ -f "$path" ]] && return 0
+    _owned_marker_dir "${path%/*}" && [[ -f "$path" ]] && return 0
   done
   for path in "${_MARKER_PATHS[@]}"; do
-    [[ -d "${path%/*}" ]] || mkdir -p "${path%/*}" 2>/dev/null || continue
+    dir="${path%/*}"
+    [[ -e "$dir" || -L "$dir" ]] || mkdir -p "$dir" 2>/dev/null || continue
+    _owned_marker_dir "$dir" || continue
     : >"$path" 2>/dev/null && break
   done
   return 1

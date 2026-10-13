@@ -5,6 +5,66 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- Upstream specifics the docs own (the mods version floor, what turns mods off, when status-line fields are null, how Claude Code handles a bad option value, and the `disable-model-invocation` field text) are replaced by anchored pointer records dated 2026-10-11; our band edges, probe verdicts and decisions stay, and the per-length benchmark scores behind the band edges are kept as observations dated 2026-10-09. The capture-channel table's sources gain section anchors, and the table is framed as dated observations. `/context-guard:check` takes the floor from `prerequisites.json`.
+
+### Fixed
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **`setup`: the `zones.json` pre-computed row no longer holds a brace group with quotes**, which
+  Claude Code's shell permission check refuses
+  (`Contains brace with quote character (expansion obfuscation)`). The row is now an `if` list that
+  reads the file with `head -40` directly, rendering the same capped contents or the same
+  `(absent)` / `(present but unreadable)` token. The `jq` and `node` probes are pre-approved in
+  `allowed-tools`. Outside auto mode the skill still does not load headless: the check refuses a
+  read of a file outside the session's working directories, which this row is.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+## [1.0.1] - 2026-10-11
+
+### Changed
+
+- README: states the boundary with context-budget, which answers what the context is made of.
+
+- **Shared `exec-bash.mjs` launcher synced; no change to this plugin's hooks.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once.
+
+## [1.0.0] - 2026-10-11
+
+### Added
+
+- The snapshot file now publishes `zone`, `evidence_degraded` and `bands` (the edges in force after `zones.json`), so a status line can show the zone without importing plugin code. The README's "Published zone for status lines" and the reader contract document the shape (#7135).
+
+### Changed
+
+- **Breaking:** `model_notices` replaces `zone_lines_enabled` and is off by default. Off, nothing from this plugin enters Claude's context; the toast, transcript line, band row, status tool, snapshot and PostCompact marker work as before. Set `model_notices` to `true` for the zone lines and options line; a stored `zone_lines_enabled: true` no longer applies (#7135).
+
+### Removed
+
+- **Breaking:** the blocking gate is gone. The `zone_hook_mode`, `zone_gate_grace_calls` and `zone_block_unattended` options are removed, a `block` action in `zones.json` reads as `none` (a `block` threshold keeps its boundary lines), and no zone denies a tool call. The status tool drops its `gate` field, `/context-guard` no longer prints a gate mode, and the `zone-gate` telemetry record is retired (#7135).
+
+## [0.18.0] - 2026-10-11
+
+### Changed
+
+- Past `smart`, the zone lines Claude reads are now followed by one options line: record decisions and pending items in a durable file, then continue, `/compact`, or hand off with `/session-flow:handoff`, as Claude and the user choose. The line also says a zone never calls for terser output, fewer agents, or lower quality (#7118).
+
+### Fixed
+
+- Repoint documentation links whose upstream anchor or target moved, so each one lands on the section it cites again.
+
 ## [0.17.0] - 2026-10-11
 
 ### Added

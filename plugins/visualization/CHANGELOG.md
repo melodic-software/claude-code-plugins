@@ -3,6 +3,34 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.4] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **Restated upstream specifics in `/visualization:visualize` and `/visualization:present` become anchored pointer records.** The design canvas's editing and export behavior, its settings and version gates, the `ClaudeDesign` write-refusal cases, the page-size and file-type limits, and the `userConfig` fixed-option floor are read live; the binary probe observations behind the `design` and `ClaudeDesign` records name `docs/native-surfaces/records.json` as their probe, and the mermaid runtime record names its probe pull request.
+
+### Fixed
+
+- **The visualize catalog no longer says a connector-backed page can never be shared publicly, and no longer lists an outdated artifacts version floor or an incomplete set of contexts where artifacts are off.** The connector, availability and design-canvas entries now state our decision and read the specifics live from anchored sections of the artifacts page, with an as-of date and a recheck trigger.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+## [0.12.3] - 2026-10-11
+
+### Changed
+
+- `visualize` points hand-authored CSS and SVG styling outside the page chrome at `/user-interface:write-css` when that skill is installed.
+
 ## [0.12.2] - 2026-10-10
 
 ### Fixed

@@ -28,7 +28,7 @@ const POLICY = join(SKILL, "scripts/digest-policy.mjs");
 const BUILDER = join(SKILL, "scripts/build-digest.mjs");
 const REPO = join(PLUGIN, "../..");
 
-const { DEFAULTS, configBlock, decide, findSecret, globRegExp, publishGate } = await import(pathToFileURL(POLICY).href);
+const { DEFAULTS, MAX_GLOB_LENGTH, MAX_RISK_PATHS, configBlock, decide, findSecret, globMatcher, publishGate } = await import(pathToFileURL(POLICY).href);
 const { buildDigest, shapeDigest } = await import(pathToFileURL(BUILDER).href);
 const { validateView } = await import(pathToFileURL(join(PLUGIN, "lib/view-builder.mjs")).href);
 
@@ -131,10 +131,43 @@ describe("globs", () => {
     ["src/*.js", "src/a/b.js", false],
     ["a?.md", "ab.md", true],
     ["a.b", "axb", false],
+    ["**/hooks/x", "hooks/x", true],
+    ["a/**/b", "a/b", true],
+    ["a/**/b", "a/x/y/b", true],
+    ["a/**/b", "a/xb", false],
+    ["a**b", "a/x/b", true],
+    ["a*b", "a/b", false],
+    ["***", "a/b", true],
+    ["(x)+[y]", "(x)+[y]", true],
+    ["(x)+[y]", "xxy", false],
+    ["", "", true],
+    ["", "a", false],
+    ["\u{1F600}.md", "\u{1F600}.md", true],
+    ["a/\u{1F600}/**", "a/\u{1F600}/b", true],
+    ["?.md", "\u{1F600}.md", true],
   ];
   for (const [glob, path, hit] of cases) {
-    test(`${glob} ${hit ? "matches" : "misses"} ${path}`, () => assert.equal(globRegExp(glob).test(path), hit));
+    test(`${glob} ${hit ? "matches" : "misses"} ${path}`, () => assert.equal(globMatcher(glob).test(path), hit));
   }
+  test("nocase folds both sides", () => {
+    assert.equal(globMatcher(".claude/review-digest.json", { nocase: true }).test(".CLAUDE/Review-Digest.JSON"), true);
+    assert.equal(globMatcher(".claude/review-digest.json").test(".CLAUDE/Review-Digest.JSON"), false);
+  });
+  test("a star-heavy glob against a long non-matching path finishes promptly", () => {
+    const glob = "**a".repeat(12) + "**b";
+    const path = "a".repeat(5000);
+    const start = process.hrtime.bigint();
+    assert.equal(globMatcher(glob).test(path), false);
+    assert.equal(globMatcher("*a".repeat(12) + "*b").test(path), false);
+    assert.ok(Number(process.hrtime.bigint() - start) / 1e6 < 2000, "matching took under two seconds");
+  });
+  test("decide() survives a star-heavy risk_paths glob", () => {
+    const config = Object.fromEntries(Object.entries(DEFAULTS).map(([k, v]) => [k, { value: v, source: "default" }]));
+    config.risk_paths = { value: ["**a".repeat(12) + "**b"], source: "test" };
+    const files = [{ path: "a".repeat(5000), additions: 1, deletions: 0 }];
+    const result = decide({ files }, { policy: "offer", event: "ready", blastRadius: "LOW", requested: false }, config);
+    assert.ok(!result.triggers.includes("risk-path"));
+  });
 });
 
 describe("config block", () => {
@@ -208,6 +241,16 @@ describe("cascade layers resolve through the CLI", () => {
     assert.match(warnings, /invalid max_files/);
     assert.match(warnings, /unknown key palette is inert/);
     assert.equal(result.config.max_files.value, 2);
+  });
+  test("risk_paths past the glob-length or count cap is invalid and the layer below supplies it", () => {
+    for (const globs of [["*".repeat(MAX_GLOB_LENGTH + 1)], Array.from({ length: MAX_RISK_PATHS + 1 }, (_, i) => `d${i}/**`)]) {
+      writeFileSync(join(home, ".claude/review-digest.json"), JSON.stringify({ risk_paths: globs }));
+      const result = run(facts);
+      assert.match(result.warnings.join("\n"), /invalid risk_paths; key ignored/);
+      assert.notDeepEqual(result.config.risk_paths.value, globs);
+    }
+    writeFileSync(join(home, ".claude/review-digest.json"), JSON.stringify({ risk_paths: ["a".repeat(MAX_GLOB_LENGTH)] }));
+    assert.deepEqual(run(facts).config.risk_paths.value, ["a".repeat(MAX_GLOB_LENGTH)], "a glob at the cap is kept");
   });
   test("both team locations: the docs block wins with a warning", () => {
     writeFileSync(join(repo, ".claude/review-digest.json"), '{"max_files": 0}');
@@ -404,13 +447,13 @@ describe("publish gate: the default artifact medium publishes only a public, cre
     assert.equal(result.medium, "artifact");
     assert.equal(result.destination, "a private Artifact on claude.ai");
   });
-  test("the CLI reads the diff on stdin", () => {
+  test("the CLI takes no visibility from its arguments, only from --facts", () => {
     const gate = (args, input) => spawnSync(process.execPath, [POLICY, "--publish-gate", ...args], { input, encoding: "utf8" });
-    assert.equal(JSON.parse(gate(["public"], clean).stdout).medium, "artifact");
-    assert.equal(JSON.parse(gate(["PRIVATE"], clean).stdout).medium, "file");
-    assert.equal(JSON.parse(gate(["PRIVATE", "--explicit"], clean).stdout).medium, "artifact");
-    assert.equal(gate([], clean).status, 2);
-    assert.equal(gate(["PUBLIC", "--force"], clean).status, 2);
+    for (const args of [["public"], ["PUBLIC"], ["PUBLIC", "--explicit"], ["PUBLIC", "--facts"], ["--explicit"], []]) {
+      const run = gate(args, clean);
+      assert.equal(run.status, 2, `${JSON.stringify(args)} is refused`);
+      assert.equal(run.stdout, "");
+    }
   });
   test("--facts takes the visibility from the saved facts, and anything else gates private", () => {
     const gate = (args, input) => spawnSync(process.execPath, [POLICY, "--publish-gate", ...args], { input, encoding: "utf8" });
@@ -423,8 +466,11 @@ describe("publish gate: the default artifact medium publishes only a public, cre
     assert.equal(JSON.parse(gate(["--facts", facts("none.json", '{"title":"visibility PUBLIC"}')], clean).stdout).medium, "file");
     assert.equal(JSON.parse(gate(["--facts", facts("bad.json", "not json")], clean).stdout).medium, "file");
     assert.equal(JSON.parse(gate(["--facts", join(scratch, "missing.json")], clean).stdout).medium, "file");
+    assert.equal(JSON.parse(gate(["--facts", facts("lower.json", '{"visibility":"public"}')], clean).stdout).medium, "artifact");
+    assert.equal(JSON.parse(gate(["--facts", facts("private.json", '{"visibility":"PRIVATE"}')], clean).stdout).medium, "file");
     assert.equal(JSON.parse(gate(["--facts", facts("private.json", '{"visibility":"PRIVATE"}'), "--explicit"], clean).stdout).medium, "artifact");
     assert.equal(gate(["--facts"], clean).status, 2);
+    assert.equal(gate(["--facts", facts("public.json", '{"visibility":"PUBLIC"}'), "--force"], clean).status, 2);
   });
   test("SKILL.md runs the gate before publishing and names the destination", () => {
     const skill = readFileSync(join(SKILL, "SKILL.md"), "utf8");
@@ -478,14 +524,16 @@ describe("hosted publish: gate the built page, then pages-publish and the sideca
   const bin = join(scratch, "fake-bin");
   const log = join(scratch, "pages-publish.log");
   mkdirSync(bin, { recursive: true });
-  // The fake records its argv, one JSON line per call, and answers a publish with FAKE_OUT.
+  // The fake records its argv, one JSON line per call, and answers a publish with FAKE_OUT. A replace (--id)
+  // exits FAKE_REPLACE_EXIT when it is set, so a test can fail the replace and let the create succeed.
   writeFileSync(
     join(bin, "pages-publish"),
     `#!/usr/bin/env node
 const { appendFileSync } = require("node:fs");
 appendFileSync(process.env.FAKE_LOG, JSON.stringify(process.argv.slice(2)) + "\\n");
+const replaceExit = process.argv.includes("--id") ? process.env.FAKE_REPLACE_EXIT : "";
 if (process.argv[2] !== "--delete") process.stdout.write((process.env.FAKE_OUT || "") + "\\n");
-process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DELETE_EXIT : process.env.FAKE_EXIT) || 0);
+process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DELETE_EXIT : replaceExit || process.env.FAKE_EXIT) || 0);
 `,
   );
   chmodSync(join(bin, "pages-publish"), 0o755);
@@ -528,7 +576,7 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     return { page, data, sidecarPath: join(data, "hosted/acme__app__7.json") };
   };
   /** `gh` is what the fake gh prints for the visibility lookup; `extra` appends arguments. */
-  const publish = ({ page, data }, { gh = "public", ghExit = 0, authed = "", repo = "acme/app", extra = [], out = "", exit = 0, deleteExit = 0, env = {} } = {}) =>
+  const publish = ({ page, data }, { gh = "public", ghExit = 0, authed = "", repo = "acme/app", extra = [], out = "", exit = 0, replaceExit = "", deleteExit = 0, env = {} } = {}) =>
     spawnSync(process.execPath, [PUBLISH, page, "--repo", repo, "--pr", "7", "--data-dir", data, ...extra], {
       encoding: "utf8",
       env: {
@@ -541,6 +589,7 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
         FAKE_LOG: log,
         FAKE_OUT: out,
         FAKE_EXIT: String(exit),
+        FAKE_REPLACE_EXIT: String(replaceExit),
         FAKE_DELETE_EXIT: String(deleteExit),
         ...env,
       },
@@ -703,6 +752,33 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
       assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).id, idA);
       assert.equal(JSON.parse(result.stdout).medium, "file");
     }
+  });
+  test("a replace of a page deleted elsewhere fails, so one create publishes a new page and the sidecar takes it", runsFake, () => {
+    const at = setup(sample, answer(idA, "public"));
+    const out = publish(at, { replaceExit: 6, out: answer(idB, "public") });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(calls(), [
+      [at.page, "--visibility", "public", "--id", idA],
+      [at.page, "--visibility", "public"],
+      ["--delete", idA, "--visibility", "public"],
+    ]);
+    assert.deepEqual(JSON.parse(readFileSync(at.sidecarPath, "utf8")), JSON.parse(answer(idB, "public")));
+    assert.equal(JSON.parse(out.stdout).url, `https://public.pages.example/${idB}/`);
+  });
+  test("one create follows only a failed replace: a refusal, a failed create and a failed first publish are not retried", runsFake, () => {
+    let at = setup(sample, answer(idA, "public"));
+    assert.equal(publish(at, { replaceExit: 4, out: answer(idB, "public") }).status, 4);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "public", "--id", idA]]);
+    at = setup(sample, answer(idA, "public"));
+    assert.equal(publish(at, { exit: 6, out: answer(idB, "public") }).status, 1);
+    assert.deepEqual(calls(), [
+      [at.page, "--visibility", "public", "--id", idA],
+      [at.page, "--visibility", "public"],
+    ]);
+    assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).id, idA);
+    at = setup();
+    assert.equal(publish(at, { exit: 6, out: answer(idB, "public") }).status, 1);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "public"]]);
   });
   test("a page the builder did not make, or bad arguments, exit 2 with no upload", () => {
     const at = setup();

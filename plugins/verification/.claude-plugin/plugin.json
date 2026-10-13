@@ -1,6 +1,6 @@
 {
   "name": "verification",
-  "version": "0.8.1",
+  "version": "0.9.0",
   "description": "Outcome-verification stage: prove a change achieved its intended outcome (`/verification:confirm`: a mechanical build/test/lint prerequisite gate, then intent-match + evidence + verdict with the criterion auto-detected by change type), and verify measurable-improvement claims against a planning-time baseline (`/verification:measure`), never fabricating numbers.",
   "author": {
     "name": "Melodic Software",
@@ -15,5 +15,25 @@
     "measurement",
     "evidence",
     "skill"
-  ]
+  ],
+  "userConfig": {
+    "proof_level": {
+      "type": "string",
+      "title": "Proof level",
+      "description": "Evidence /verification:confirm requires. path (default): a live run only for runtime-affecting paths. live: a live drive for any change with a runnable surface. strict: unit, live and performance proof per phase. The stricter of this and the default branch's docs/conventions/verification.yaml wins.",
+      "default": "path",
+      "options": [
+        "path",
+        "live",
+        "strict"
+      ]
+    },
+    "live_workers": {
+      "type": "number",
+      "title": "Live verification workers",
+      "description": "How many workers /verification:confirm splits its live drive across, by feature-map entry point; default 1. Above 1 on one machine it needs a Workspace environment entry on the default branch, else one worker runs. A repository's docs/conventions/verification.yaml wins.",
+      "default": 1,
+      "min": 1
+    }
+  }
 }

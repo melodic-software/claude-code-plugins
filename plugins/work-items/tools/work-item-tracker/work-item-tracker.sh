@@ -40,8 +40,8 @@ usage() {
   cat >&2 <<'EOF'
 Usage: work-item-tracker.sh <verb> [args]
 Verbs:
-  create-item --title <t> [--body <b>] [--labels a,b] [--type <name>]
-              [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <owner>/<repo>]
+  create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b]
+              [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <owner>/<repo>]
   get-item <id>
   claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]
         --ttl-minutes (0-59) ADDS to --ttl-hours; for a sub-hour lease pass
@@ -52,7 +52,9 @@ Verbs:
   link-blocks <id> --blocked-by <id>
   add-sub-item <id> --parent <id>
   list-sub-items <parent-id> [--state open|closed|all]
-  list-frontier [--autonomous] [--parent <container-id>] [--repo <owner>/<repo>]
+  list-items [--state open|closed|all] [--repo <owner>/<repo>] [--label <name>]
+  list-frontier [--autonomous] [--parent <container-id>] [--repo <owner>/<repo>] [--label <name>]
+  label-provenance <id> --label <name> [--label <name> ...]
   change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <owner>/<repo>]
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
@@ -122,7 +124,8 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | change-link | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | change-link | capabilities) ;;
+  list-items) ;;
   list-frontier)
     # Chosen BEFORE the capability gate, so an adapter without list-sub-items
     # degrades with exit 6 on --parent instead of failing the scoped call.
@@ -187,22 +190,34 @@ main() {
   fi
 
   local out rc
-  if [[ "$verb" == "list-frontier" ]]; then
-    local autonomous="false" parent="" list_args=()
+  if [[ "$verb" == "list-frontier" || "$verb" == "list-items" ]]; then
+    local autonomous="false" parent="" state="open" label="" has_label="false" list_args=()
     while [[ $# -gt 0 ]]; do
       case "$1" in
       --autonomous)
+        [[ "$verb" == "list-frontier" ]] || fail_usage
         autonomous="true"
         shift
         ;;
       --parent)
-        [[ $# -ge 2 ]] || fail_usage
+        [[ "$verb" == "list-frontier" && $# -ge 2 ]] || fail_usage
         parent="$2"
+        shift 2
+        ;;
+      --state)
+        [[ "$verb" == "list-items" && $# -ge 2 ]] || fail_usage
+        state="$2"
         shift 2
         ;;
       --repo)
         [[ $# -ge 2 ]] || fail_usage
         list_args+=(--repo "$2")
+        shift 2
+        ;;
+      --label)
+        [[ $# -ge 2 && -n "$2" ]] || fail_usage
+        label="$2"
+        has_label="true"
         shift 2
         ;;
       *) fail_usage ;;
@@ -213,19 +228,36 @@ main() {
       printf 'work-item-tracker: --repo is not valid with --parent (container id carries the repo)\n' >&2
       exit "$EX_USAGE"
     fi
+    # CONTRACT.md "Adapter contract": an adapter that declares the label filter narrows
+    # its provider query, so list_items_max counts only matching items. Any other adapter
+    # gets no --label (it would be a usage error there) and lists unfiltered.
+    if [[ "$has_label" == "true" && -z "$parent" &&
+      "$(jq -r '.features.list_items_label_filter // false' "$manifest")" == "true" ]]; then
+      list_args+=(--label "$label")
+    fi
     if [[ -n "$parent" ]]; then
       # The same filter's container exclusion keeps a nested sub-map among the
       # children from being a frontier item itself.
       out="$(bash "$adapter_dir/list-sub-items.sh" "$parent" --state open)"
     else
-      out="$(bash "$adapter_dir/list-items.sh" --state open "${list_args[@]+"${list_args[@]}"}")"
+      out="$(bash "$adapter_dir/list-items.sh" --state "$state" "${list_args[@]+"${list_args[@]}"}")"
     fi
     rc=$?
     if ((rc != 0)); then
       exit "$rc"
     fi
+    out="$(printf '%s\n' "$out" | wit_strip_cr)"
+    # Exact match core-side in every case: it is the whole filter for an adapter without
+    # the provider filter, and the guard against a provider that matches loosely.
+    if [[ "$has_label" == "true" ]]; then
+      out="$(printf '%s\n' "$out" | wit_filter_label "$label")" || exit 1
+    fi
+    if [[ "$verb" == "list-items" ]]; then
+      printf '%s\n' "$out"
+      exit 0
+    fi
     # wit_read_binding above guarantees both labels; no inline defaults here.
-    printf '%s\n' "$out" | wit_strip_cr |
+    printf '%s\n' "$out" |
       wit_filter_frontier "$autonomous" "$WIT_HUMAN_GATED_LABEL" "$WIT_CONTAINER_LABEL"
     exit 0
   fi
@@ -255,6 +287,50 @@ main() {
       cl_args+=(--branch-ref "${BASH_REMATCH[${#BASH_REMATCH[@]} - 1]}")
     fi
     set -- "${cl_args[@]+"${cl_args[@]}"}"
+  fi
+
+  if [[ "$verb" == "create-item" ]]; then
+    # --body-file is core-side (CONTRACT.md "Verbs"): the file's content becomes --body, so
+    # adapters see one flag and a caller passes the body with no command substitution.
+    local ci_args=() body_file="" has_body="false"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+      --body-file)
+        [[ $# -ge 2 && -n "$2" && -z "$body_file" ]] || fail_usage
+        body_file="$2"
+        shift 2
+        ;;
+      --title | --body | --labels | --type | --parent | --blocked-by | --repo)
+        [[ "$1" == "--body" ]] && has_body="true"
+        ci_args+=("$1")
+        shift
+        if [[ $# -gt 0 ]]; then
+          ci_args+=("$1")
+          shift
+        fi
+        ;;
+      *)
+        ci_args+=("$1")
+        shift
+        ;;
+      esac
+    done
+    if [[ -n "$body_file" ]]; then
+      if [[ "$has_body" == "true" ]]; then
+        printf 'work-item-tracker: --body and --body-file are mutually exclusive\n' >&2
+        exit "$EX_USAGE"
+      fi
+      if [[ ! -f "$body_file" || ! -r "$body_file" ]]; then
+        printf "work-item-tracker: --body-file '%s' is not a readable file\n" "$body_file" >&2
+        exit "$EX_USAGE"
+      fi
+      if [[ ! -s "$body_file" ]]; then
+        printf "work-item-tracker: --body-file '%s' is empty; write the body to it before create-item\n" "$body_file" >&2
+        exit "$EX_USAGE"
+      fi
+      ci_args+=(--body "$(<"$body_file")")
+    fi
+    set -- "${ci_args[@]+"${ci_args[@]}"}"
   fi
 
   out="$(bash "$adapter_dir/$adapter_verb.sh" "$@")"

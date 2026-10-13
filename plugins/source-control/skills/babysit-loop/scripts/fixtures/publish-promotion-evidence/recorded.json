@@ -1,0 +1,260 @@
+{
+  "pullListItem": {
+    "base": {
+      "ref": "main"
+    },
+    "body": "Refs: #7339",
+    "labels": [],
+    "created_at": "2026-10-13T00:54:35Z",
+    "merge_commit_sha": "aad0b2b69bc22154c61b0857307a183d0c7821a8",
+    "merged_at": "2026-10-13T02:42:17Z",
+    "number": 7352,
+    "title": "fix(source-control): settle unattended merge residuals before Phase 15",
+    "updated_at": "2026-10-13T02:42:19Z",
+    "user": {
+      "login": "kyle-sexton",
+      "type": "User"
+    }
+  },
+  "checkRun": {
+    "completed_at": "2026-10-13T02:38:54Z",
+    "conclusion": "success",
+    "name": "lint-repo",
+    "status": "completed"
+  },
+  "status": {
+    "context": "ci-lanes",
+    "state": "success",
+    "created_at": "2026-10-13T02:42:00Z",
+    "updated_at": "2026-10-13T02:42:00Z"
+  },
+  "commit": {
+    "commit": {
+      "committer": {
+        "date": "2026-10-13T02:35:38Z"
+      },
+      "message": "fix(source-control): settle unattended merge residuals before Phase 15 (#7352)"
+    },
+    "sha": "aad0b2b69bc22154c61b0857307a183d0c7821a8"
+  },
+  "issueEvent": {
+    "actor": {
+      "login": "kyle-sexton",
+      "type": "User"
+    },
+    "created_at": "2026-10-13T01:37:37Z",
+    "event": "ready_for_review",
+    "label": null
+  },
+  "review": {
+    "state": "COMMENTED",
+    "user": {
+      "login": "chatgpt-codex-connector[bot]",
+      "type": "Bot"
+    }
+  },
+  "pullGraph": {
+    "data": {
+      "repository": {
+        "pullRequest": {
+          "number": 7063,
+          "headRefOid": "b6888664c45a19abc91c9cd819770406a6e7616d",
+          "mergedAt": "2026-10-13T01:47:44Z",
+          "lastEditedAt": "2026-10-13T01:38:02Z",
+          "mergeCommit": {
+            "oid": "6fa4f210dd0eb904a9ca1504344d8b66294ee6f5"
+          },
+          "mergedBy": {
+            "__typename": "User",
+            "login": "kyle-sexton"
+          },
+          "labels": {
+            "pageInfo": {
+              "hasNextPage": false
+            },
+            "nodes": []
+          },
+          "closingIssuesReferences": {
+            "pageInfo": {
+              "hasNextPage": false
+            },
+            "nodes": [
+              {
+                "number": 6007,
+                "labels": {
+                  "pageInfo": {
+                    "hasNextPage": false
+                  },
+                  "nodes": [
+                    {
+                      "name": "priority: medium"
+                    },
+                    {
+                      "name": "status: ready"
+                    },
+                    {
+                      "name": "needs-human"
+                    },
+                    {
+                      "name": "work-class: scoped"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "timelineItems": {
+            "pageInfo": {
+              "hasNextPage": false
+            },
+            "nodes": [
+              {
+                "__typename": "AddedToMergeQueueEvent",
+                "createdAt": "2026-10-13T01:42:44Z",
+                "actor": {
+                  "__typename": "User",
+                  "login": "kyle-sexton"
+                },
+                "enqueuer": {
+                  "__typename": "User",
+                  "login": "kyle-sexton"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "issue": {
+    "labels": [
+      {
+        "name": "priority: medium"
+      },
+      {
+        "name": "status: ready"
+      },
+      {
+        "name": "needs-human"
+      },
+      {
+        "name": "work-class: scoped"
+      }
+    ],
+    "number": 6007
+  },
+  "repo": {
+    "default_branch": "main"
+  },
+  "commentsPage": {
+    "data": {
+      "repository": {
+        "pullRequest": {
+          "comments": {
+            "pageInfo": {
+              "hasNextPage": true,
+              "endCursor": "Y3Vyc29yOnYyOpHPAAAAAWv4HUQ="
+            },
+            "nodes": [
+              {
+                "author": {
+                  "__typename": "User",
+                  "login": "kyle-sexton"
+                },
+                "body": "`ci-status` is red because this PR is a draft, not because of the change.",
+                "lastEditedAt": null
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "connectedEventFromCliCli14616": {
+    "__typename": "ConnectedEvent",
+    "createdAt": "2026-10-07T08:24:54Z",
+    "source": {
+      "__typename": "PullRequest",
+      "number": 14616
+    },
+    "subject": {
+      "__typename": "Issue",
+      "number": 14614
+    }
+  },
+  "commitNotFound": {
+    "stdout": "{\"message\":\"No commit found for SHA: 0123456789abcdef0123456789abcdef01234567\",\"documentation_url\":\"https://docs.github.com/rest/commits/commits#list-pull-requests-associated-with-a-commit\",\"status\":\"422\"}",
+    "stderr": "gh: No commit found for SHA: 0123456789abcdef0123456789abcdef01234567 (HTTP 422)\n"
+  },
+  "repoNotFound": {
+    "data": {
+      "repository": null
+    },
+    "errors": [
+      {
+        "type": "NOT_FOUND",
+        "path": [
+          "repository"
+        ],
+        "locations": [
+          {
+            "line": 1,
+            "column": 2
+          }
+        ],
+        "message": "Could not resolve to a Repository with the name 'melodic-software/no-such-repo-xyz'."
+      }
+    ]
+  },
+  "pullNotFound": {
+    "data": {
+      "repository": {
+        "pullRequest": null
+      }
+    },
+    "errors": [
+      {
+        "type": "NOT_FOUND",
+        "path": [
+          "repository",
+          "pullRequest"
+        ],
+        "locations": [
+          {
+            "line": 1,
+            "column": 66
+          }
+        ],
+        "message": "Could not resolve to a PullRequest with the number of 999999."
+      }
+    ]
+  },
+  "workflowRun": {
+    "actor": {
+      "login": "github-merge-queue[bot]"
+    },
+    "conclusion": "failure",
+    "created_at": "2026-10-12T16:32:14Z",
+    "event": "schedule",
+    "head_branch": "main",
+    "head_sha": "2dc6ef1cef19870b4f15ba796f970980bcb48cf8",
+    "html_url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/38278079868",
+    "id": 38278079868,
+    "run_attempt": 1,
+    "status": "completed",
+    "triggering_actor": {
+      "login": "github-merge-queue[bot]"
+    },
+    "updated_at": "2026-10-12T16:40:40Z"
+  },
+  "compare": {
+    "ahead_by": 1,
+    "commits": [
+      {
+        "sha": "aad0b2b69bc22154c61b0857307a183d0c7821a8"
+      }
+    ],
+    "status": "ahead",
+    "total_commits": 1
+  }
+}

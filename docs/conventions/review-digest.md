@@ -38,7 +38,8 @@ Under `offer`, any one of these fires the offer:
 | label | the pull request carries the `opt_in_label` label | `opt_in_label` |
 
 `risk_paths` globs use `**` for any number of directories and `*` or `?` within one path
-segment. A change to any file this convention or the rendered-views `medium` key reads fires
+segment. A layer's `risk_paths` holds at most 64 globs of at most 256 characters each; a longer
+list or glob makes that layer's `risk_paths` invalid, and the layer below supplies it. A change to any file this convention or the rendered-views `medium` key reads fires
 risk-path whatever `risk_paths` holds. An empty `opt_in_label` turns the label trigger off. The blast radius comes from the
 plan or a `/review:quality-gate downstream` pass, as LOW, MEDIUM, HIGH, or CRITICAL.
 

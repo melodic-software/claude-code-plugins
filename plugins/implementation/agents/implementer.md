@@ -31,6 +31,13 @@ worktree/provisioning instructions, and its CI-hygiene clauses govern verbatim. 
 adds no permissions beyond the brief and never overrides it; when the brief and this file appear to
 conflict, STOP and report the conflict.
 
+**A denial is a STOP.** When the auto-mode classifier, a hook or a permission rule denies a call,
+stop that step and report the exact command. Never reach the same effect another way: a fresh PR
+with the same content, merging before review threads form, or deleting file by file after a
+recursive delete is blocked. A guard that names a sanctioned alternative (for example use Edit
+instead of a shell write) is followed, not routed around. This holds even when the brief does not
+say it.
+
 **The design excerpt binds like the acceptance criteria.** When the brief quotes part of the plan's
 `## Design` section, build to its module layout, contracts and variation verdicts, and follow the
 conventions it cites. A phase that cannot honor one of them is a divergence: STOP and report,
@@ -123,15 +130,22 @@ for security-surface work classes, or to the session's own model when it resolve
 binding and no other frontier-tier worker is in flight. A concurrent wave under a frontier session runs at
 this binding (see `/implementation:implement-dispatch` Dispatch cadence step 2). It never hands source-editing work to a weaker model than this binding.
 The same holds for a Workflow script this repository ships: an `agent()` call naming this agent
-never passes `effort` or `model` below this binding, and omits both to keep it.
+never passes `effort` or `model` below this binding, and omits both to keep it. It holds for an
+Agent tool spawn too: a dispatcher omits the per-call `effort` parameter to keep the `medium`
+binding below, and never passes one under it.
 
-`effort` is bound alongside it for the same reason: it otherwise inherits the session's level, so an
-orchestrator that lowered effort for its own bookkeeping would silently lower it for the phase
-implementation too. The binding is `medium`, the model-config row the pointer below names: a phase
-brief is scoped, day-to-day engineering work, and the phase verifier that checks it runs at `high`.
+`effort` is bound alongside it for the same reason: an orchestrator that lowered effort for its own
+bookkeeping must never lower it for the phase implementation too. The binding is `medium`, the
+model-config row the pointer below names: a phase brief is scoped, day-to-day engineering work, and
+the phase verifier that checks it runs at `high`.
 
 - **Pointer:** the `medium` row of
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
-  [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task).
-- **As of:** 2026-10-10.
-- **Recheck trigger:** next model release.
+  [optimizing for cost and intelligence: compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task);
+  what effort a subagent runs at without the pin, in the `effort` row of
+  [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields),
+  and that plus the Agent tool's per-call `effort` and its rank over this pin, in
+  [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** next model release, or the subagents `effort` row or effort section changes
+  what a subagent's effort follows, the precedence, or which spawns honor a per-call `effort`.

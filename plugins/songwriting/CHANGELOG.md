@@ -3,6 +3,32 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.10] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- `/songwriting:object-writing` stops restating the subagent model resolution order and per-spawn effort support; it keeps the stop-and-ask decision and points at the live sections with an as-of date and recheck trigger.
+
+### Fixed
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+## [1.6.9] - 2026-10-11
+
+### Fixed
+
+- Correct a released entry's links to two retired help.suno.com articles: they now point at the archived copies the `suno` skill already cites.
+
 ## [1.6.8] - 2026-10-11
 
 ### Changed
@@ -1332,9 +1358,9 @@ Every absence below is **scoped to the pages named** and asserts nothing about
 Suno's documentation as a whole.
 
 - **Official, read verbatim by `curl` (not a summarizing fetch), bodies whole:**
-  `help.suno.com` [5782849](https://help.suno.com/en/articles/5782849) (1,177
+  `help.suno.com` [5782849](https://web.archive.org/web/20260902202656/https://help.suno.com/en/articles/5782849) (1,177
   chars of extracted text) and
-  [5782977](https://help.suno.com/en/articles/5782977) (805 chars). Neither
+  [5782977](https://web.archive.org/web/20250513204947/https://help.suno.com/en/articles/5782977) (805 chars). Neither
   addresses genre order or fusion; neither mentions timestamp cues in the Lyrics
   box or any adherence rate. 5782849 points *away* from positional prompting for
   v4.5+: *"In previous models, you would want to prioritize certain genre and

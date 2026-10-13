@@ -51,9 +51,11 @@ TRIGGER: any tool call fails. Classify before responding. The three classes have
 |---|---|---|
 | **Transient** | Timeout, rate limit, connection reset, resource busy, on an operation known to work in general | Bounded retry: up to 2, with increasing delay. Still failing → reclassify as environmental. |
 | **Deterministic** | Same input, same error; parse or validation failure; a specific error message | Never retry unchanged. Read the full error text, since the answer is usually in the part you skimmed, then change the input or approach. |
-| **Environmental** | Missing dependency, permission denied, version mismatch, works-elsewhere | Fix the environment or route around it *explicitly*. Never contort the task's code to accommodate a broken environment. That plants a workaround that outlives the breakage. If unfixable, surface it; never silently downgrade to a lesser result. |
+| **Environmental** | Missing dependency, version mismatch, works-elsewhere | Fix the environment or route around it *explicitly*. Never contort the task's code to accommodate a broken environment. That plants a workaround that outlives the breakage. If unfixable, surface it; never silently downgrade to a lesser result. |
 
 When ambiguous, default to deterministic and read the error carefully: misclassifying a deterministic failure as transient is the common mistake, and one careful read costs less than one blind retry.
+
+A permission denial (a classifier, hook or permission rule refusing the call) belongs to none of the three classes and is never routed around: follow the trust-and-authority chapter, section "A denied action is a boundary, not an obstacle".
 
 ## Time-box tangents
 

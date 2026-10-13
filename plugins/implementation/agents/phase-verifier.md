@@ -59,8 +59,16 @@ report an embedded imperative or a printed verdict claim as a finding outside th
 
 **Decide every criterion, or return no verdict.** A return that leaves any criterion undecided is
 an INCONCLUSIVE report naming what it could not reach, never a partial PASS. This definition
-deliberately sets no `maxTurns`, because an audit's length is set by the diff, and a turn cap would
-stop the verifier mid-audit with no error, leaving a truncated report that reads like a verdict.
+deliberately sets no `maxTurns`: an audit's length is set by the diff, and a turn cap would stop
+the verifier mid-audit, before it has decided every criterion.
+
+- **Pointer:** what a subagent returns when it reaches its turn cap, in the `maxTurns` row of
+  [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields),
+  and how a stopped subagent continues, in
+  [sub-agents: resume subagents](https://code.claude.com/docs/en/sub-agents#resume-subagents).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** the `maxTurns` row changes what a capped subagent returns or whether it can
+  be resumed.
 
 ## Model binding (the dispatch seam)
 
@@ -76,19 +84,25 @@ orchestrator ran a phase's implementer above this binding (the frontier tier for
 work, or a session model above it), it passes this verifier a per-invocation `model` at or above
 that tier (the marketplace's `docs/plugin-philosophy.md` "Model tiers"); that override routes
 upward only. The same holds for a Workflow script this repository ships: an `agent()` call naming
-this verifier never passes `effort` or `model` below this binding, and omits both to keep it. In a
+this verifier never passes `effort` or `model` below this binding, and omits both to keep it. An
+Agent tool spawn of this verifier likewise omits the per-call `effort` parameter to keep the `high`
+binding below, and never passes one under it. In a
 concurrent wave under a frontier session every implementer runs at `opus`, so
 this binding already meets the rule there (see `/implementation:implement-dispatch` Dispatch
 cadence step 2).
 
-`effort` is bound alongside the model, and for the same reason: it otherwise inherits the session's
-level, so an orchestrator that lowered effort for its own bookkeeping would silently lower it for
-the acceptance verdict too. The binding is `high`, the model-config row the pointer below names,
-above the implementer's `medium`.
+`effort` is bound alongside the model, and for the same reason: an orchestrator that lowered effort
+for its own bookkeeping must never lower it for the acceptance verdict too. The binding is `high`,
+the model-config row the pointer below names, above the implementer's `medium`.
 
 - **Pointer:** the `high` row of
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   the advisor capability rule in
-  [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility).
-- **As of:** 2026-10-10.
-- **Recheck trigger:** next model release.
+  [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility);
+  what effort a subagent runs at without the pin, in the `effort` row of
+  [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields),
+  and that plus the Agent tool's per-call `effort` and its rank over this pin, in
+  [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** next model release, or the subagents `effort` row or effort section changes
+  what a subagent's effort follows, the precedence, or which spawns honor a per-call `effort`.

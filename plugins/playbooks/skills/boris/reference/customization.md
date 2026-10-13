@@ -15,6 +15,17 @@ Quick settings to make Claude Code feel right:
 - **Newlines:** In IDE terminal, Apple Terminal, Warp, or Alacritty, `/terminal-setup` enables shift+enter for newlines (no need to type `\`)
 - **Vim mode:** `/vim`
 
+> **Amended:** the newline bullet is out of date: several of the terminals it names now take
+> Shift+Enter without `/terminal-setup`. Read which terminals still need the command rather than this
+> tip.
+>
+> - **Pointer**: before running `/terminal-setup` for newlines, fetch
+>   [Enter multiline prompts](https://code.claude.com/docs/en/terminal-config#enter-multiline-prompts)
+>   live.
+> - **As of**: 2026-10-11
+> - **Recheck trigger**: that section's terminal table changes which terminals need
+>   `/terminal-setup`.
+
 ---
 
 ## 17. Effort Level
@@ -149,4 +160,10 @@ Claude Code works great out of the box. When you customize, check `settings.json
 
 Configure for codebase, sub-folder, yourself, or via enterprise-wide policies.
 
-**By the numbers:** 37 settings, 84 env vars. Use `"env"` in `settings.json` to avoid wrapper scripts.
+Use `"env"` in `settings.json` to avoid wrapper scripts.
+
+- **Pointer**: for the current settings and environment variables, fetch
+  [All settings](https://code.claude.com/docs/en/settings-reference#all-settings) and
+  [Environment variables](https://code.claude.com/docs/en/env-vars#variables) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either page is renamed or moves its list to another section.

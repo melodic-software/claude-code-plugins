@@ -93,6 +93,13 @@ translate the API advice into a display-settings change on a Claude Code machine
 - **Recheck trigger**: either section changes its recommended resolutions, or the Claude Code
   computer-use page documents a setting to change the target size.
 
+The wider implementation advice on the same page has its own record:
+
+- **Pointer**: for the wider implementation advice, see
+  [Follow implementation best practices](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool#follow-implementation-best-practices).
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes its screenshot, resolution or click-accuracy advice.
+
 ## `save_to_disk` is not an escape hatch
 
 `screenshot` accepts `save_to_disk: true`, but on Windows no file was found anywhere under the

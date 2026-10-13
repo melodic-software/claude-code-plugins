@@ -41,7 +41,8 @@ jq -c . "$FAKE_DIR/capabilities.json"
 EOF
 cat >"$FAKE_DIR/list-items.sh" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\r\n' '{"schema_version":"1.0","items":[{"id":"fake:o/r#1","state":"open","assignees":[],"labels":[],"blocked_by_count":0},{"id":"fake:o/r#2","state":"open","assignees":[],"labels":["needs-human"],"blocked_by_count":0},{"id":"fake:o/r#3","state":"open","assignees":[],"labels":[],"blocked_by_count":1}]}'
+[[ -n "${FAKE_ARGS_LOG:-}" ]] && printf '%s\n' "$*" >>"$FAKE_ARGS_LOG"
+printf '%s\r\n' '{"schema_version":"1.0","items":[{"id":"fake:o/r#1","state":"open","assignees":[],"labels":["area: ci"],"blocked_by_count":0},{"id":"fake:o/r#2","state":"open","assignees":[],"labels":["needs-human","Area: CI"],"blocked_by_count":0},{"id":"fake:o/r#3","state":"open","assignees":[],"labels":[],"blocked_by_count":1}],"truncated":false}'
 EOF
 cat >"$FAKE_DIR/list-sub-items.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -156,6 +157,13 @@ RC_CAPTURE=$?
 assert_eq "undeclared release verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the release verb" "$ERR" "release"
 
+# An adapter that cannot read label provenance declares no label-provenance key, and the
+# work-loop admission gate reads any non-zero exit as "not admitted".
+ERR="$(run_dispatcher label-provenance "fake:o/r#1" --label agent-ready 2>&1 >/dev/null)"
+RC_CAPTURE=$?
+assert_eq "undeclared label-provenance verb → exit 6" "6" "$RC_CAPTURE"
+assert_contains "exit-6 stderr names the label-provenance verb" "$ERR" "label-provenance"
+
 # --- capabilities passthrough ---
 
 OUT="$(run_dispatcher capabilities)"
@@ -183,6 +191,51 @@ ERR="$(run_dispatcher list-frontier --parent 'fake:o/r#9' --repo o/r 2>&1 >/dev/
 RC_CAPTURE=$?
 assert_eq "list-frontier --parent + --repo → exit 2" "2" "$RC_CAPTURE"
 assert_contains "--parent + --repo error names --repo/--parent" "$ERR" "--repo is not valid with --parent"
+
+# --- core list-items and --label (CONTRACT.md "Verbs", "Adapter contract") ---
+# The fake adapter logs its argv, and its listing holds "area: ci" on #1 and "Area: CI"
+# on #2, so an exact-match filter keeps #1 alone whatever the adapter was asked.
+export FAKE_ARGS_LOG="$TEST_TMPDIR/fake-args.log"
+
+: >"$FAKE_ARGS_LOG"
+OUT="$(run_dispatcher list-items)"
+assert_eq "list-items → exit 0" "0" "$?"
+assert_not_contains "list-items stdout CR-free" "$OUT" "$(printf '\r')"
+assert_eq "list-items returns the raw listing" "3" "$(jq '.items | length' <<<"$OUT")"
+assert_eq "list-items asks the adapter for open items by default" "--state open" "$(cat "$FAKE_ARGS_LOG")"
+
+: >"$FAKE_ARGS_LOG"
+run_dispatcher list-items --state all --repo o/r >/dev/null
+assert_eq "list-items passes --state and --repo through" "--state all --repo o/r" "$(cat "$FAKE_ARGS_LOG")"
+
+: >"$FAKE_ARGS_LOG"
+OUT="$(run_dispatcher list-items --label "area: ci")"
+assert_eq "list-items --label without the adapter filter → exit 0" "0" "$?"
+assert_eq "an adapter that does not declare the filter gets no --label" "--state open" "$(cat "$FAKE_ARGS_LOG")"
+assert_eq "core keeps only the exact label match" "fake:o/r#1" "$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+assert_eq "core keeps the adapter's truncated flag" "false" "$(jq -c '.truncated' <<<"$OUT")"
+
+OUT="$(run_dispatcher list-frontier --label "area: ci")"
+assert_eq "list-frontier --label filters the frontier" "fake:o/r#1" "$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+
+cp "$FAKE_DIR/capabilities.json" "$TEST_TMPDIR/fake-capabilities.json"
+jq '.features = {list_items_label_filter: true}' "$TEST_TMPDIR/fake-capabilities.json" >"$FAKE_DIR/capabilities.json"
+: >"$FAKE_ARGS_LOG"
+OUT="$(run_dispatcher list-frontier --autonomous --label "area: ci")"
+assert_eq "an adapter that declares the filter gets --label" "--state open --label area: ci" "$(cat "$FAKE_ARGS_LOG")"
+assert_eq "core still filters exactly after a provider label filter" "fake:o/r#1" \
+  "$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+cp "$TEST_TMPDIR/fake-capabilities.json" "$FAKE_DIR/capabilities.json"
+unset FAKE_ARGS_LOG
+
+run_dispatcher list-items --autonomous >/dev/null 2>&1
+assert_eq "list-items --autonomous → exit 2" "2" "$?"
+run_dispatcher list-frontier --state all >/dev/null 2>&1
+assert_eq "list-frontier --state → exit 2" "2" "$?"
+run_dispatcher list-items --label >/dev/null 2>&1
+assert_eq "--label without a value → exit 2" "2" "$?"
+run_dispatcher list-items --label "" >/dev/null 2>&1
+assert_eq "--label with an empty value → exit 2" "2" "$?"
 
 # --- two-root adapter resolution (CONTRACT.md "Adapter resolution") ---
 # WIT_ADAPTERS_DIR is left UNSET here so the consumer-local-first / plugin-bundled
@@ -258,6 +311,38 @@ run_skew linkfake change-link --branch main >/dev/null 2>&1
 assert_eq "a branch with no item reference → exit 5" "5" "$?"
 run_skew linkfake change-link --branch >/dev/null 2>&1
 assert_eq "--branch without a value → exit 2" "2" "$?"
+
+# --- create-item --body-file (core-side, #6929) ---
+# The dispatcher reads the file and hands the adapter --body <content>, so a caller needs
+# no "$(cat …)" command substitution, which worktree isolation refuses.
+make_skew_adapter "bodyfake" "\"schema_version\":\"1.0\","
+jq '.verbs["create-item"] = true' "$TEST_TMPDIR/adapters/bodyfake/capabilities.json" >"$TEST_TMPDIR/bodyfake.json"
+cp "$TEST_TMPDIR/bodyfake.json" "$TEST_TMPDIR/adapters/bodyfake/capabilities.json"
+cat >"$TEST_TMPDIR/adapters/bodyfake/create-item.sh" <<'EOF'
+#!/usr/bin/env bash
+jq -cn '$ARGS.positional' --args -- "$@"
+EOF
+BODY_SRC="$TEST_TMPDIR/item-body.md"
+# shellcheck disable=SC2016 # the backticks and $(id) are the literal text under test
+printf '%s\n' '## What to build' 'run `git status` and $(id) literally' >"$BODY_SRC"
+# shellcheck disable=SC2016 # same literal text, expected verbatim
+assert_eq "--body-file becomes one literal --body argument" \
+  '["--title","t","--labels","a,b","--body","## What to build\nrun `git status` and $(id) literally"]' \
+  "$(run_skew bodyfake create-item --title t --body-file "$BODY_SRC" --labels a,b)"
+assert_eq "--body still passes through untouched" '["--title","t","--body","inline"]' \
+  "$(run_skew bodyfake create-item --title t --body inline)"
+assert_eq "a --body value spelled --body-file is not read as the flag" \
+  '["--title","t","--body","--body-file"]' \
+  "$(run_skew bodyfake create-item --title t --body --body-file)"
+run_skew bodyfake create-item --title t --body x --body-file "$BODY_SRC" >/dev/null 2>&1
+assert_eq "--body with --body-file → exit 2" "2" "$?"
+run_skew bodyfake create-item --title t --body-file "$TEST_TMPDIR/missing.md" >/dev/null 2>&1
+assert_eq "unreadable --body-file → exit 2" "2" "$?"
+: >"$TEST_TMPDIR/empty-body.md"
+run_skew bodyfake create-item --title t --body-file "$TEST_TMPDIR/empty-body.md" >/dev/null 2>&1
+assert_eq "empty --body-file → exit 2" "2" "$?"
+run_skew bodyfake create-item --title t --body-file >/dev/null 2>&1
+assert_eq "--body-file without a value → exit 2" "2" "$?"
 
 # Every bundled branch grammar needs a delimiter after the ref, so `ENG-12oops` never
 # names ENG-12, and its last capture group is the ref.

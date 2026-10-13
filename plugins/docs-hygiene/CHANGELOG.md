@@ -1,5 +1,91 @@
 # Changelog: docs-hygiene plugin
 
+## [1.1.0] - 2026-10-13
+
+### Added
+
+- **`compress_articles` decides whether `compress` removes `a`, `an` and `the`.** Set it per user
+  in `userConfig` or per repository in `docs/conventions/docs-hygiene.yaml` (schema
+  `schemas/docs-hygiene.schema.json`), which wins and is read by
+  `skills/compress/scripts/articles-setting.sh` through a bundled copy of the shared reader in
+  `lib/`. The run's summary ends with the value and the layer that supplied it; a value other than
+  `keep` or `cut` is named with its file and key, that layer is dropped, and the run continues.
+  Keys: `reference/config.md`.
+- **`/docs-hygiene:setup apply` writes `docs/conventions/docs-hygiene.yaml`.** It writes only the
+  keys named on the command line after validating the existing file and the result against the
+  schema, replaces only an empty, null or out-of-list value, and refuses with one line, the file
+  untouched, on a key set twice, a map or list, an empty quoted string, an unknown key, a parse
+  error, a root that is `$HOME` or an ancestor of it, a symlinked or hard-linked path, or a
+  directory or file in the way, or a file that mixes CRLF and LF line endings (a CRLF file is
+  updated in place and keeps CRLF). Changing an existing
+  file shows a diff and needs the operator's yes. `check` also validates that file and reports
+  the effective `compress_articles`, resolved the way `compress` resolves it: an invalid value in
+  the file resolves to the default, `keep`, never to the `userConfig` value, and a key the schema
+  does not list is a warning that leaves a valid `compress_articles` in force. Setup now needs
+  `node` for this step.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **`compress` keeps articles by default, and under the default it no longer uses the `caveman`
+  backend or the full single-file latitude.** With `compress_articles` at `keep` (the default),
+  every run uses the in-session Edit backend even when `/caveman:compress` is installed, because
+  caveman always removes articles, and a single-file run is held to the batch path's word-level
+  cuts minus articles: no sentence or restatement is deleted. Set `compress_articles: cut` to get
+  the earlier behavior: caveman when installed, and the full flavor matrix on a single file. Expect
+  smaller yields under `keep`. The semantic-diff prompt takes the resolved value as `{ARTICLES}`:
+  under `keep` a dropped article is SEMANTIC LOSS and the revert pass restores it, and under `cut`
+  it stays a FALSE POSITIVE. `audit-scan.sh` takes `--articles keep|cut` (default `keep`), and its
+  COMPRESS reason names article cuts only under `cut`.
+- **`write-for-humans` reports new metaphor jargon.** After writing, a figurative noun the AI-tell
+  catalog does not list is named in the reply as a candidate for ai-slop's
+  `rule-abstract-metaphor-jargon`, when `/ai-slop:audit` is available. The skill never edits the
+  ai-slop catalog.
+- **`write-for-humans` reworded in its own terms.** The three surviving rules and the worked
+  example are tables; the mode picker gives each mode's voice, opening, body and exclusions in
+  columns; the rhythm section is a table of three checks; the first-read goal, and the instruction
+  to drop a rule where it makes a sentence worse, are now the first after-writing check.
+  `sentence-rules.md` groups the address rules by the part of the page they govern and states
+  every address, load and ambiguity rule against one running example, a made-up backup tool. The
+  worked example uses a new worker-reload passage. No rule or limit changed.
+- **`write-for-agents` words three rules in its own terms.** The cognitive-load line, the
+  matching-term pointer rule and the negation rule no longer share phrasing with an upstream course
+  skill. The rules are unchanged.
+- **Shared `parse-concern-value.sh` synced, with its parser `yaml-subset.awk` beside it in
+  `skills/audit-noise/scripts/lib/`.** The reader takes dotted keys, `--list`, stdin (`-`), a
+  validated `--ref` and `--strict`; every existing root-key read resolves as before, and a file the
+  parser rejects now yields the fallback with one stderr line.
+
+- Agent-facing references now point at the exact live Claude Code docs section for upstream load limits, version floors, flag behavior and subagent loading instead of restating them, each with an as-of date and recheck trigger: `write-for-agents` surface table, `audit-progressive-disclosure` tier model and sources, `audit-derivability` spot-test rubric, `extract-ssot` propagation-lag anti-pattern and `batch` action, `rename-references` auto-memory location, `audit-encapsulation` worker cap and the `compare-labeler` turn cap.
+
+### Fixed
+
+- **The shared `yaml-subset.awk` parser trims trailing blanks and strips trailing comments (a `#` after a space) in one pass**, where two regexes rescanned a long run of spaces from every start; a 200,000-space line now parses in well under a second with the same records.
+- **`/docs-hygiene:setup` runs the shared `lib/setup-apply.mjs`.** `apply` names a key the schema does not list in `docs/conventions/docs-hygiene.yaml` in one warning, writes beside it and keeps its line as written, where it refused the file before; such a key set twice or holding a map or list is still refused. A symlinked `--root` is resolved first and every path check applies to the resolved directory, `--check` now also refuses a root that is `$HOME` or an ancestor of it, and the shared parser now refuses a tab indent and an unquoted colon followed by a space in a value (`key: a: b`). Its key-line and comment scans run in time linear in the line length, where two regexes backtracked quadratically on a long run of spaces.
+
+- `write-for-agents` no longer calls user rules lower priority than project rules, and no longer says AGENTS.md loads only where no CLAUDE.md sits at or above the working directory; it points at the Project instructions setting that changes that.
+- `audit-progressive-disclosure` no longer labels the skill-listing drop order a community detail; it points at the docs section that now covers it.
+- `rename-references` resolves the configured auto-memory directory before sweeping or excluding memory files, instead of assuming the default path.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- `audit-derivability`: the pre-compute line now calls `uncommitted-md.sh` directly and the skill declares the `allowed-tools` grants for it and `echo`, so a `--permission-mode dontAsk` run no longer ends at zero turns.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+## [1.0.0] - 2026-10-11
+
+### Changed
+
+- **Breaking:** the inlined rate-limit floor makes pausing opt-in. A lane pauses at 95% only when its session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1`. Without it, the lane keeps working at the same model, effort and review depth, and reports the window, its reset time and the options: continue, switch accounts, or opt in (#7118).
+
 ## [0.27.4] - 2026-10-10
 
 ### Fixed

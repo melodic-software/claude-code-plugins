@@ -173,7 +173,10 @@ ip_discover_rules() {
   # One entry per REAL file. When a symlink loop or a duplicate link exposes the
   # same file under several paths, keep the shallowest, then the lexically first
   # — so a loop reports `.claude/rules/ok.md`, never `.claude/rules/loop/ok.md`.
-  LC_ALL=C sort "$seen_file" | awk -F'\t' '
+  # Fixture paths drop before that choice, so a shallower fixture alias of a real
+  # rule cannot win and then take the real rule out with it.
+  LC_ALL=C sort "$seen_file" | awk -F'\t' -v fixture="$IP_FIXTURE_ERE" '
+    $2 ~ fixture { next }
     {
       depth = gsub(/\//, "/", $2)
       if (!($1 in best) || depth < bestdepth[$1] ||
@@ -183,7 +186,7 @@ ip_discover_rules() {
       }
     }
     END { for (k in best) print best[k] }
-  ' | awk -v fixture="$IP_EVAL_FIXTURE_ERE" '$0 !~ fixture' | LC_ALL=C sort
+  ' | LC_ALL=C sort
 
   rm -f "$seen_file"
 }
@@ -216,12 +219,13 @@ ip_discover_rules() {
 IP_EXCLUDED_TREES=".claude node_modules vendor .git"
 IP_FOREIGN_AGENT_TREES=".codex .cursor .github"
 
-# An eval fixture tree imitates a consuming repository as test input. Its rules
-# and nested instruction files are not this repository's conventions, so both
-# discovery functions drop any path with an `evals/fixtures/` segment pair. One
-# awk ERE over a repository-relative path, shared so the index, the glob gate
-# and the wiring gate cannot disagree about a fixture.
-IP_EVAL_FIXTURE_ERE='(^|/)evals/fixtures/'
+# An eval or unit-test fixture tree imitates a consuming repository as test
+# input. Its rules and nested instruction files are not this repository's
+# conventions, so both discovery functions drop any path with an
+# `evals/fixtures/` or `tests/fixtures/` segment pair. One awk ERE over a
+# repository-relative path, shared so the index, the glob gate and the wiring
+# gate cannot disagree about a fixture.
+IP_FIXTURE_ERE='(^|/)(evals|tests)/fixtures/'
 
 # ---------------------------------------------------------------------------
 # Nested instruction-file discovery
@@ -247,7 +251,7 @@ ip_discover_nested_instructions() {
   fi
 
   printf '%s\n' "$listing" |
-    awk -v excluded="$IP_EXCLUDED_TREES" -v foreign="$IP_FOREIGN_AGENT_TREES" -v fixture="$IP_EVAL_FIXTURE_ERE" '
+    awk -v excluded="$IP_EXCLUDED_TREES" -v foreign="$IP_FOREIGN_AGENT_TREES" -v fixture="$IP_FIXTURE_ERE" '
     BEGIN {
       split(excluded, ex, " "); for (k in ex) skip[ex[k]] = 1
       split(foreign, others, " "); for (k in others) theirs[others[k]] = 1
@@ -275,12 +279,13 @@ ip_discover_nested_instructions() {
 # it up to <root>. One walk, shared by the reachability verdict and the wiring
 # gate, so the two cannot disagree about the same tree.
 #
-# All three count at EVERY level: the memory page counts "a CLAUDE.md,
-# .claude/CLAUDE.md, or CLAUDE.local.md in your working directory or any
-# directory above it", and fires the nested attach only where a subdirectory
-# "has none of the three CLAUDE.md files of its own"
-# (code.claude.com/docs/en/memory, "When Claude Code reads AGENTS.md"; fetched
-# 2026-09-19; recheck when that list changes).
+# All three count at EVERY level, for the root check and for a nested attach
+# alike: this walk treats them the same way at each directory.
+#   Pointer: when deciding which file names count and at which levels, fetch
+#     https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md live.
+#   As of: 2026-10-11.
+#   Recheck trigger: that section changes which file names count, or where the
+#     nested attach checks for them.
 #
 # Paths are emitted rooted at <root>, existing files only.
 # ---------------------------------------------------------------------------
@@ -337,8 +342,13 @@ _ip_imports_of() {
   done
 }
 
-# Depth-bounded walk of the import graph. Upstream caps imports at four hops, so
-# a file reachable only past that depth is genuinely not loaded.
+# Depth-bounded walk of the import graph: a file reachable only past the
+# import depth limit is treated as not loaded. The bound below is a run-time
+# value and stays here.
+#   Pointer: when deciding the import depth limit, fetch
+#     https://code.claude.com/docs/en/memory#import-additional-files live.
+#   As of: 2026-10-11.
+#   Recheck trigger: that section changes the maximum import depth.
 _ip_reaches() {
   local from="$1" want="$2" depth="${3:-0}"
   [[ -f "$from" ]] || return 1

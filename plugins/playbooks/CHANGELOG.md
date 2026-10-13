@@ -4,6 +4,91 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.23.0] - 2026-10-13
+
+### Added
+
+- **`described_problem` setting: `report` (default) or `fix`.** With `fix`, `fable-5` treats a
+  described problem as a request to fix it: it makes the change and presents the result. A question
+  or thinking out loud still gets an assessment only, and a destructive or outward-visible step
+  still waits for consent. It is set per user in the new `described_problem` user config option,
+  and per repository in the `described_problem` key of `docs/conventions/playbooks.yaml`, which
+  wins; the schema ships at `schemas/playbooks.schema.json` and the settings page at
+  `reference/config.md`. The skill states which layer supplied the value, and an invalid value
+  resolves `report`. The model-adaptation chapters do not read it.
+
+- **`/playbooks:boris` synced to upstream 8.16.0: 142 tips across 130 sections.** Three new reference buckets cover the three new threads: `maintenance-routines.md` (Sections 116–120, Claude maintaining the apps with daily routines), `terminal-review.md` (121–124, the persistent `/diff` pane, `/focus`, `/tui`, and Claude maintaining the renderer) and `effort.md` (125–130, Thariq's guide to spending effort on Opus 5.5 and Fable 5.1). The Topic Index, Quick Reference, counts and the update script's sync map name them. Sections 1–115 are unchanged.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **`fable-5` stages a shared-surface change only for consumers it cannot update.** The planning
+  chapter's census no longer stages a surface because it has more than 10 consumers: staging (new
+  shape beside the old, migrate, retire) is for external, unenumerable or persisted consumers, and a
+  high internal count alone is not a reason, matching the execution chapter's rule on compatibility
+  shims. A new eval case covers a large internal count. The implementation plugin's
+  `refactor_compat` setting governs the same choice in refactor mode; an older implementation
+  release has no option for it and ignores the repository key.
+- **`skill-authoring` states the one-skill-per-call rule in its own words.** The rule is unchanged.
+- **`skill-authoring` ends with a closing report.** The last reply of a run that creates or changes
+  a skill lists the checks with their results (or not run), the choices made with their reasons,
+  and what the skill does.
+- **`skill-authoring`'s authoring guidance states the rule first.** An instruction says what to do,
+  and gives its reason only where it would mislead without one; the degrees-of-freedom table no
+  longer asks for a reason beside each high-freedom instruction.
+
+- `/playbooks:boris` drops restated model specs, prices, setting counts, the recurring-task expiry and bare-mode defaults in favor of anchored pointer records, and fixes model-overview links that redirected off path.
+- `/playbooks:repo-sweep` replaces its per-version changelog restatement and plugin-loading paraphrase with anchored pointer records.
+- `/playbooks:fable-5`, `/playbooks:skill-authoring`, `/playbooks:update`, the prompt-caching reference and the model-adaptation chapters replace restated subagent-resume, cache, effort, fallback, thinking-block and plugin-update behavior with pointers, and anchor bare docs links.
+
+- fable-5 `recovery.md`: the environmental tool-failure class no longer lists permission denied; a denial points to trust-and-authority, "A denied action is a boundary, not an obstacle".
+- fable-5 `calibration.md`: new section, price optional security hardening against what the attacker already holds.
+- fable-5 `verification.md`: new section, rule out the test setup before raising a probe result as a finding.
+- fable-5 chapter routing: recommending optional security hardening loads `calibration.md`, and raising a probe or sandbox result as a finding loads `verification.md`.
+- New plugin eval case `denied-call-stops-and-reports`: a call a guard hook denied is stopped and reported, not routed around.
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.
+
+- `/playbooks:boris` no longer tells readers to use a `fork: true` skill key, a removed auto-mode launch flag, or a stale Remote Control plan list; each tip now carries an amendment pointing at the live docs section.
+- `/playbooks:boris` no longer says Apple Terminal and Warp need `/terminal-setup` for Shift+Enter newlines (the tip carries an amendment pointing at the live terminal-config section), and its workflow token-budget tip cites the blog section it comes from.
+- `/playbooks:repo-sweep` no longer says settings and hook edits under `~/.claude` need a restart; the step report says which ones do, from the live settings page.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **`skill-authoring` precomputed-context guidance no longer teaches the brace-group fallback.**
+  In a Claude Code 2.1.296 headless probe, the shell permission check refused an injected command
+  holding a brace group or a subshell, so a skill written to the old
+  `{ probe || echo "..."; } | head -20` example did not load in default permission mode. The
+  reference now forbids grouping in injected commands, points at the probe command and rows in
+  #7068, and replaces the example with a repeated-guard list
+  (`guard && probe | head -20 || guard || echo ...`) that renders the same with and without
+  `pipefail`.
+
+- repo-sweep `tick.sh` and `state.sh` now pass `-b` to a native jq under Git Bash or Cygwin. A CRLF pull request body keeps its exact bytes, and the `branch` and `sweep` lines no longer end in a carriage return (#6135).
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+## [0.22.1] - 2026-10-11
+
+### Fixed
+
+- Correct a released entry's link to the Opus 5 note on disabling thinking: the page was retired upstream, so the link now points at an archived copy.
+
+## [0.22.0] - 2026-10-11
+
+### Added
+
+- `fable-5`: a Claude Haiku 5.5 model-adaptation chapter, `haiku-5-5.md`, which meta-rule 3 now loads for a Haiku 5.5 session. It points at the routing rubric and the Haiku 5.5 launch record, and the calibration chapter's per-model matrix records are re-read.
+
 ## [0.21.3] - 2026-10-10
 
 ### Fixed
@@ -2064,7 +2149,7 @@ They record what shipped at the time and are correct as written.
   `max` and `ultracode` "are not accepted here"), matching what §72 of `boris` records above, and
   the API disable literal is written the way upstream writes it, `thinking: {"type": "disabled"}`
   ([what's new in Opus 5: disabling thinking requires effort `high` or
-  below](https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5#disabling-thinking-requires-effort-high-or-below)),
+  below](https://web.archive.org/web/20260814082927/https://platform.claude.com/docs/en/about-claude/models/whats-new-opus-5#disabling-thinking-requires-effort-high-or-below)),
   since a rule whose whole claim is that the hazard is readable off configuration literals cannot
   ship an invalid one as its example. Both re-verified 2026-08-02.
 

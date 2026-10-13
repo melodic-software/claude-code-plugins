@@ -200,7 +200,8 @@ for hooks_json in plugins/*/hooks/hooks.json; do
   hooks_dir="$(dirname "$hooks_json")"
   # Captured, not streamed: a jq that stops part-way (a non-object hook entry,
   # invalid JSON) must fail the gate rather than hand back a truncated row list.
-  if ! rows="$(jq -r '.hooks | to_entries[] | .key as $e | .value[]? | .hooks[]?
+  # A modules-only hooks.json (a mod with no settings hooks) has no rows.
+  if ! rows="$(jq -r '(.hooks // {}) | to_entries[] | .key as $e | .value[]? | .hooks[]?
     | select(.command | type == "string")
     | [$e, (.async == true | tostring),
         ([.command] + ((.args // []) | map(tostring)) | join(" "))] | @tsv' "$hooks_json" 2>/dev/null)"; then

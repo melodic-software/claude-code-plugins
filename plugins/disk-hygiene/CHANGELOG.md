@@ -3,6 +3,45 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.14] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- Comments and docs that restated Claude Code behavior (hook exit codes and failed launches, `pluginConfigs` scopes, managed-settings paths, hook lifetime in skills and subagents, permission-mode handling of hook `ask`, auto-mode allow rules) now point at the exact live docs section with an as-of date and a recheck trigger. Guard logic is unchanged.
+
+### Fixed
+
+- The README no longer says a `PreToolUse` hook that exits 0 with nothing to say approves the call, and it states that no registration in this plugin sets a hook failure option; the outcome of a failed launch is read from the hooks page.
+- The kill-switch reader's docstring no longer calls every platform's managed-settings path admin-only; whether a process running as the user can write it is read from the managed-settings page.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+### Security
+
+- The no-Python notice's once-per-session marker is trusted only in a real directory this user owns. Another local user could create the tmp fallback directory (`${TMPDIR:-/tmp}/disk-hygiene-guard-no-interpreter/`) first, or a symlink in its place, and silence the notice for every session. Such a directory is now neither read nor written, so the notice still shows. The guard's denies were never affected.
+
+## [0.43.13] - 2026-10-11
+
+### Changed
+
+- **The guard-launch monitor's Stop row no longer starts bash in a session whose guard never launched.** The launcher now makes the `--skip-unless-marker` test itself, with the same explicit marker root: it skips only when the marker directory exists and holds no marker for the session. A missing session id, a missing directory or a stalled payload runs the monitor, and the script keeps its own check. Shared `exec-bash.mjs` synced.
+
+## [0.43.12] - 2026-10-11
+
+### Fixed
+
+- Repoint documentation links whose upstream anchor or target moved, so each one lands on the section it cites again.
+
 ## [0.43.11] - 2026-10-08
 
 ### Changed

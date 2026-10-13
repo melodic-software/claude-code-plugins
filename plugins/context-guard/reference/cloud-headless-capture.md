@@ -100,21 +100,26 @@ result for a settings hook rather than an assumption.
 
 ## Channels checked
 
-Every row but the first was read from the live page on **2026-08-21**, before mods shipped. Claims
-below are quoted or paraphrased from those pages, not recalled. Recheck a row when its page adds
-or removes a field in the Carries or Does-not-carry cell.
+Every row but the first records what we read on the live page on **2026-08-21**, before mods
+shipped: a dated observation behind this file's verdict, not a statement of what the pages say
+today. To act on a row now, re-read the section its Source column points at.
+
+- **Pointer**: the Source column, per row.
+- **As of**: 2026-10-11 for the section anchors; 2026-08-21 for the cell contents.
+- **Recheck trigger**: a row's page adds or removes a field in the Carries or Does-not-carry cell,
+  or a section the Source column names is renamed.
 
 | Channel | Source read | Carries | Does **not** carry |
 |---|---|---|---|
 | Mods API `$.session.usage()` (read 2026-10-03, Claude Code 2.1.288; recheck when the mods API table renames or drops it) | <https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods> | The running session's context-window use, read in process by a mod in any kind of session that loads it: tokens, window size, percentage, and with `breakdown: 'summary'` the last API response's token breakdown. **The capture path this plugin ships.** | Anything where the mod does not run (Desktop WSL sessions, mods off, the plugin not enabled); `prompt_cache` |
-| Hook stdin (all events) | <https://code.claude.com/docs/en/hooks> | Common input fields: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, `effort`, `hook_event_name`, plus `agent_id` / `agent_type` under an agent. Event-specific fields such as `tool_name`, `tool_input`, `tool_use_id`. **One event carries token figures:** `PostToolUse` on the `Agent` tool receives `totalTokens` ("Token count from the subagent's final API request: input, output, and cache tokens combined. This isn't a total across the whole run") and a `usage` object (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`) in `tool_response` | Any context-window, token-count, usage, or percentage-of-window field for the **main session**, on any event. The `Agent` exception is subagent-scoped and single-request-scoped, and the page says outright it "isn't a total across the whole run". It is absent entirely for background subagents. `effort` is a reasoning-effort level, not consumption |
-| Status line stdin | <https://code.claude.com/docs/en/statusline> | Top-level `version`, plus the whole `context_window` object: `total_input_tokens`, `total_output_tokens`, `context_window_size`, `used_percentage`, `remaining_percentage`, `current_usage` | Nothing this plugin needs. It was the one sufficient channel before mods, and it exists only where a `statusLine` is configured *and* the environment runs it |
-| `subagentStatusLine` stdin | <https://code.claude.com/docs/en/statusline> | A `tasks` array whose entries carry `tokenCount` and `contextWindowSize` per subagent row | Any figure for the **main session**. It describes subagent rows in the agent panel, and it is a status-line-family surface, so it is absent wherever the status line is |
-| Non-interactive / Agent SDK output | <https://code.claude.com/docs/en/headless> | `--output-format json` returns result, session ID, usage and `total_cost_usd` for **that invocation**; `stream-json` emits per-event metadata | Live occupancy of an already-running interactive session. It reports on a run the caller starts, after the fact. It cannot answer "how full is this session's window right now" |
-| OpenTelemetry **metrics** | <https://code.claude.com/docs/en/monitoring-usage> | `claude_code.token.usage`, a **counter** with `type` attributes `input` / `output` / `cacheRead` / `cacheCreation` | Any gauge of current occupancy or percentage of window. Every documented metric is a counter of cumulative activity, and a cumulative total is not observable as current occupancy |
-| OpenTelemetry **events** (`claude_code.api_request`) | <https://code.claude.com/docs/en/monitoring-usage> | **Real live occupancy, per session.** The event carries `input_tokens`, `output_tokens`, `cache_read_tokens` and `cache_creation_tokens` for each request, `query_source` naming the subsystem that issued it (`"repl_main_thread"`, `"compact"`, or a subagent name), `event.sequence` for ordering within a session, and `session.id` as a standard attribute (`OTEL_METRICS_INCLUDE_SESSION_ID`, default **true**). The three input addends on the latest `repl_main_thread` event are the same sum the statusline page gives for `used_percentage` | `context_window_size`, or any percentage. See below. And any local delivery: events go only to an OTLP receiver or the `console` exporter (`prometheus` accepts metrics only, and `console` writes to Claude Code's own stdout), and Claude Code "doesn't pass `OTEL_*` environment variables to the subprocesses it spawns, including the Bash tool, hooks, MCP servers, and language servers" |
-| Session transcript file | <https://code.claude.com/docs/en/sessions> | The JSONL at `~/.claude/projects/<project>/<session-id>.jsonl`, reachable from every hook through the documented `transcript_path` field | A **supported** shape to parse. See below: this is the second near-miss and it is disqualified deliberately |
-| Cloud session environment | <https://code.claude.com/docs/en/claude-code-on-the-web> | Confirmation that cloud sessions run hooks and read committed settings files, and that `/context` and `/compact` work there | Any statement that a status line runs in a cloud session, and any cloud-specific telemetry surface. The page's context-management section lists `/compact`, `/context`, `/clear` and never mentions `statusLine` |
+| Hook stdin (all events) | [hooks: common input fields](https://code.claude.com/docs/en/hooks#common-input-fields); [hooks: PostToolUse input](https://code.claude.com/docs/en/hooks#posttooluse-input) | Common input fields: `session_id`, `prompt_id`, `transcript_path`, `cwd`, `permission_mode`, `effort`, `hook_event_name`, plus `agent_id` / `agent_type` under an agent. Event-specific fields such as `tool_name`, `tool_input`, `tool_use_id`. **One event carries token figures:** `PostToolUse` on the `Agent` tool receives a token count for the subagent's final API request and a `usage` object (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`) in `tool_response` | Any context-window, token-count, usage, or percentage-of-window field for the **main session**, on any event. The `Agent` exception is subagent-scoped and single-request-scoped, not a total across the run. It is absent entirely for background subagents. `effort` is a reasoning-effort level, not consumption |
+| Status line stdin | [status line: available data](https://code.claude.com/docs/en/statusline#available-data) | Top-level `version`, plus the whole `context_window` object: `total_input_tokens`, `total_output_tokens`, `context_window_size`, `used_percentage`, `remaining_percentage`, `current_usage` | Nothing this plugin needs. It was the one sufficient channel before mods, and it exists only where a `statusLine` is configured *and* the environment runs it |
+| `subagentStatusLine` stdin | [status line: subagent status lines](https://code.claude.com/docs/en/statusline#subagent-status-lines) | A `tasks` array whose entries carry `tokenCount` and `contextWindowSize` per subagent row | Any figure for the **main session**. It describes subagent rows in the agent panel, and it is a status-line-family surface, so it is absent wherever the status line is |
+| Non-interactive / Agent SDK output | [headless: get structured output](https://code.claude.com/docs/en/headless#get-structured-output) | `--output-format json` returns result, session ID, usage and `total_cost_usd` for **that invocation**; `stream-json` emits per-event metadata | Live occupancy of an already-running interactive session. It reports on a run the caller starts, after the fact. It cannot answer "how full is this session's window right now" |
+| OpenTelemetry **metrics** | [monitoring: token counter](https://code.claude.com/docs/en/monitoring-usage#token-counter) | `claude_code.token.usage`, a **counter** with `type` attributes `input` / `output` / `cacheRead` / `cacheCreation` | Any gauge of current occupancy or percentage of window. Every documented metric is a counter of cumulative activity, and a cumulative total is not observable as current occupancy |
+| OpenTelemetry **events** (`claude_code.api_request`) | [monitoring: API request event](https://code.claude.com/docs/en/monitoring-usage#api-request-event); [monitoring: standard attributes](https://code.claude.com/docs/en/monitoring-usage#standard-attributes) | **Real live occupancy, per session.** The event carries `input_tokens`, `output_tokens`, `cache_read_tokens` and `cache_creation_tokens` for each request, `query_source` naming the subsystem that issued it (`"repl_main_thread"`, `"compact"`, or a subagent name), `event.sequence` for ordering within a session, and `session.id` as a standard attribute (`OTEL_METRICS_INCLUDE_SESSION_ID`, default **true**). The three input addends on the latest `repl_main_thread` event are the same sum the statusline page gives for `used_percentage` | `context_window_size`, or any percentage. See below. And any local delivery: events go only to an OTLP receiver or the `console` exporter (`prometheus` accepts metrics only, and `console` writes to Claude Code's own stdout), and the `OTEL_*` variables did not reach the subprocesses Claude Code spawns, hooks included |
+| Session transcript file | [sessions: where transcripts are stored](https://code.claude.com/docs/en/sessions#where-transcripts-are-stored) | The JSONL at `~/.claude/projects/<project>/<session-id>.jsonl`, reachable from every hook through the documented `transcript_path` field | A **supported** shape to parse. See below: this is the second near-miss and it is disqualified deliberately |
+| Cloud session environment | [Claude Code on the web: cloud environments](https://code.claude.com/docs/en/claude-code-on-the-web#cloud-environments); [Claude Code on the web: manage context](https://code.claude.com/docs/en/claude-code-on-the-web#manage-context) | Confirmation that cloud sessions run hooks and read committed settings files, and that `/context` and `/compact` work there | Any statement that a status line runs in a cloud session, and any cloud-specific telemetry surface. The page's context-management section lists `/compact`, `/context`, `/clear` and never mentions `statusLine` |
 
 ## The OTel `api_request` event carries occupancy, and still cannot be a capture path
 
@@ -122,17 +127,21 @@ This is the channel that most nearly falsifies the verdict, so its rejection is 
 rather than folded into a table cell. It is **not** rejected on the grounds that OpenTelemetry only
 exposes cumulative counters. That is true of the *metrics* and false of the *events*.
 
-`claude_code.api_request` is a documented log event
-(<https://code.claude.com/docs/en/monitoring-usage>, read 2026-08-21) carrying `input_tokens`,
-`output_tokens`, `cache_read_tokens` and `cache_creation_tokens` per request, plus `query_source`
-identifying the issuing subsystem and `event.sequence` for ordering. `session.id` is a standard
-attribute on every event and is on by default. Filtering to the newest `repl_main_thread` event for
-a session therefore yields the current main-thread occupancy, the same three input addends the
-statusline page names as the `used_percentage` formula
-(<https://code.claude.com/docs/en/statusline>, read 2026-08-21): "`input_tokens +
-cache_creation_input_tokens + cache_read_input_tokens`". This channel really does supply live,
-per-session occupancy for a running interactive session. Recheck when the monitoring-usage events
-table drops those token fields or the statusline page changes the `used_percentage` formula.
+`claude_code.api_request` is a documented log event that, when we read it on 2026-08-21, carried
+per-request token counts, the issuing subsystem, an ordering sequence and the session id.
+Filtering to the newest `repl_main_thread` event for a session therefore yields the current
+main-thread occupancy: the event's input token counts add up to the same sum the status line
+computes `used_percentage` from. This channel supplies live, per-session occupancy for
+a running interactive session.
+
+- **Pointer**: when re-checking this channel, fetch
+  [monitoring: API request event](https://code.claude.com/docs/en/monitoring-usage#api-request-event),
+  [monitoring: standard attributes](https://code.claude.com/docs/en/monitoring-usage#standard-attributes)
+  and [status line: context window fields](https://code.claude.com/docs/en/statusline#context-window-fields)
+  live.
+- **As of**: 2026-10-11.
+- **Recheck trigger**: the API request event drops its token fields, or the context window fields
+  section changes what `used_percentage` is computed from.
 
 Two disqualifiers hold anyway, and both were measured rather than assumed.
 
@@ -156,7 +165,7 @@ an out-of-process collector, and a plugin that ships a zone instrument only for 
 an OTLP pipeline has not solved the problem this file exists for.
 
 The plugin therefore does **not** ship an OTel-derived capture path. The channel is recorded here
-because it is genuinely the closest documented substitute, and a future reader deserves the real
+because it is the closest documented substitute, and a future reader deserves the real
 reason rather than a claim about counters that its own citation disproves.
 
 ## The transcript is reachable, and still not a viable source
@@ -177,7 +186,7 @@ The sessions page disqualifies the parse (<https://code.claude.com/docs/en/sessi
 > internal to Claude Code and changes between versions, so scripts that parse these files directly
 > can break on any release.
 
-**That warning alone is not sufficient grounds, and this file will not pretend it is.** A reader
+**That warning alone is not sufficient grounds.** A reader
 that validates shape before emitting degrades on a breaking format change to writing *no snapshot*,
 which resolves to `unknown`. Validating the shape means checking that all three keys are present,
 integral and non-negative, that their sum is inside a known window, that the entry's timestamp is

@@ -167,6 +167,56 @@ else
 fi
 rm -rf "$r"
 
+# --- a branch behind its base is judged on its own changes (#7014) ----------
+# main moves on after the branch point and touches skill "bad" (the stub's
+# failing skill); the branch touches only "alpha". Against main's TIP a two-dot
+# diff would select "bad" too and fail the gate; against the merge base only
+# "alpha" is checked, and the checker is handed the merge base as its base ref.
+mk_repo r
+add_skill "$r" p1 alpha
+add_skill "$r" p1 bad
+commit_all "$r" base >/dev/null
+fork="$(base_sha "$r")"
+git -C "$r" checkout -q -b feature
+add_skill "$r" p1 alpha SKILL.md
+commit_all "$r" "branch touches alpha" >/dev/null
+git -C "$r" checkout -q -b main-moved "$fork"
+add_skill "$r" p1 bad SKILL.md
+commit_all "$r" "main touches bad" >/dev/null
+tip="$(base_sha "$r")"
+git -C "$r" checkout -q feature
+if out="$(run "$r" "$tip" 2>&1)"; then
+  if grep -q "1 skill(s) checked, 0 failed" <<<"$out" &&
+    grep -q "args=--require-evals alpha root=.* base=$fork" "$r/checklog" 2>/dev/null &&
+    ! grep -q 'bad' "$r/checklog" 2>/dev/null; then
+    ok "a stale branch is judged against the merge base, not the base tip"
+  else
+    fail "stale branch should check only alpha against the merge base, got: $out log: $(cat "$r/checklog" 2>/dev/null)"
+  fi
+else
+  fail "a skill only the base changed must not fail a stale branch, got: $out"
+fi
+rm -rf "$r"
+
+# --- no merge base: the ref is used as given, with a warning ----------------
+# Unrelated history (an orphan branch) has no merge base with the ref; the gate
+# warns and diffs against the ref itself rather than skipping the check.
+mk_repo r
+printf 'base\n' >"$r/README.md"
+commit_all "$r" base >/dev/null
+b="$(base_sha "$r")"
+git -C "$r" checkout -q --orphan unrelated
+add_skill "$r" p1 alpha
+commit_all "$r" "unrelated history" >/dev/null
+out="$(run "$r" "$b" 2>&1)"
+if grep -q "Warning: no merge base for $b and HEAD" <<<"$out" &&
+  grep -q "args=--require-evals alpha root=.* base=$b" "$r/checklog" 2>/dev/null; then
+  ok "no merge base warns and checks against the ref as given"
+else
+  fail "no merge base should warn and pass the ref through, got: $out log: $(cat "$r/checklog" 2>/dev/null)"
+fi
+rm -rf "$r"
+
 # --- an invalid base ref fails closed (env error) --------------------------
 mk_repo r
 add_skill "$r" p1 alpha

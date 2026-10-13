@@ -3,6 +3,40 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.16] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- Replace restated Claude Code docs text with pointer records (exact section anchor, as-of date, recheck trigger) in the check skill and the README.
+
+### Fixed
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The setup skill loads under `claude -p` again.** Each pre-computed tool probe was a brace group
+  holding a quoted fallback (`{ command -v jq 2>/dev/null || echo "absent"; }`), which Claude Code's
+  shell permission check refuses (`Contains brace with quote character (expansion obfuscation)`).
+  Outside auto mode that aborts the whole skill with no output and exit 0. The rows are now
+  `command -v <tool> 2>/dev/null || echo absent`, which render the same value, and each `command -v`
+  probe is pre-approved in the skill's `allowed-tools`, without which the render still aborts in
+  default permission mode. Probed headless on Claude Code 2.1.296.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+## [0.9.15] - 2026-10-11
+
+### Changed
+
+- **Shared `exec-bash.mjs` launcher synced; no change to this plugin's hooks.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once.
+
 ## [0.9.14] - 2026-10-09
 
 ### Fixed

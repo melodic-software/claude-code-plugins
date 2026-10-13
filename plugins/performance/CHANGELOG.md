@@ -3,6 +3,82 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-10-13
+
+### Added
+
+- **`/performance:verify` names what limits the number before the verdict.** The report gains
+  `Limiter:` (the resource or bound holding the result, from a profiled run that is not reported)
+  and `Ruled out:` (at least one other explanation and the evidence that excludes it), plus a
+  bound check that a saving cannot exceed the changed code's share of the run. A report that cannot
+  fill one of the two lines is not `MET`. Two eval cases cover a result held by something other than the
+  change and a saving past the changed code's share.
+
+- **A profile-to-family table in `reference/techniques.md` section F.** Each row starts from what a
+  profile or trace shows and names the change to try, its counter and the catalog rows that apply.
+  Deletion candidates come from reading callers rather than from the profile, and a rescheduled
+  change is judged by the wait it removes. `/performance:target` cites
+  section F when it names a candidate's mechanism.
+- **`/performance:climb`**: a keep-or-revert loop on a frozen harness. Each attempt is one
+  hypothesis that names a mechanism, one commit in climb's own worktree on `climb/<goal-slug>`,
+  and a fresh measurement of both arms through `ab.sh`. `climb_log.py decide` applies a keep rule
+  written before the first attempt; a reverted attempt runs `git reset --keep` to the last kept
+  commit, and every attempt is logged to a tab-separated file in the memory slice. The plugin now
+  declares `python3` and `git` as required for climb in `prerequisites.json`, and its plugin-level
+  eval suite gains three climb cases. The glossary's Hill climbing entry and techniques.md
+  section I now point at climb for the loop inside one goal.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- `/performance:protect` hands the verified counter to `/review:ratchet` when that skill is among the session's available skills, and skips its own ceilings-file, CI-check and tightening steps. Without it, protect runs those steps itself against `.performance/ratchets.json` as before. The Output block names the ceilings file and which path wrote the ceiling. The plugin declares no dependency on review.
+- `/performance:target` hands a captured CPU profile, trace or heap snapshot to `/debugging:analyze-profile` when the debugging plugin is enabled, and counts its finding as measured evidence in the ranking.
+- `/performance:goal` takes an optional `min_attempts` when the work will run as a loop.
+  `/performance:snapshot` freezes a harness for a loop only after `discriminate.py` shows it sees a
+  known change and the harness prints its failure and work-unit tallies, and its `## Next`
+  names `/performance:climb`. `reference/harness-integrity.md` gains rule 8: a frozen harness
+  prints its error and work counts.
+- Reworded the climb log flags and report template, the profile-to-family table, harness-integrity
+  rule 8, goal's `min_attempts` section and snapshot's freeze steps and eval in our own words,
+  each in a structure of its own.
+  Behavior is unchanged.
+- Reworded the examples in `reference/techniques.md`, the frozen-harness counts rule in `reference/harness-integrity.md` and `/performance:verify`'s matching line in our own words. Behavior is unchanged.
+
+- go-faster: the permissions and instructions areas fetch the settings and memory pages live for their file lists instead of keeping a copy; eval-isolation, transcript-location and catalog pointers now name exact sections, with blog posts kept as correlate notes.
+
+- The shared transcript reader copy recognizes the eleven record types current Claude Code versions write (`ai-title` plus ten listed in `IGNORED_RECORD_TYPES`), so its `unknown` count no longer includes them.
+
+### Fixed
+
+- Cite Kalibera and Jones (ISMM 2013) by its DOI in the go-faster measurement catalog instead of a Kent repository page that no longer loads.
+
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.
+
+- go-faster: stop saying the harness alone picks foreground or background for the sweeper; point at the live section instead.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- go-faster: Step 1 now resolves Python when the Bash tool's shell is zsh. The preamble runs the new `scripts/resolve-python.sh` with `bash` instead of sourcing the bash-only `harness-lib.sh` into the calling shell, where zsh rejected `type -P` and reported `PY=unresolved`. The verify skill names `command -v python3`, not `type -P python3`, for the interpreter the Bash tool's shell resolves. The go-faster-sweeper agent now names `scripts/` as the home of `harness-lib.sh` and `findings.py`, so it looks there when reproducing a reported failure.
+
+- go-faster: session-work no longer counts paged reads or re-reads of changing output as repeats. `findings.py transcript-counts` keys a Read on its path plus any `offset`, `limit` or `pages`, counts a call as a repeat only when its result also matches the earlier one, and never counts a read of a background task's `tasks/<id>.output` file. Identical calls whose results the transcript does not hold are reported apart as `unverified_repeated_reads` and `unverified_repeated_commands`, which the sweeper records as `later`, never as an "Adopt now" item.
+
+- go-faster: the ci-cd, gates and tests numbers no longer mix workflows and fast failures. `findings.py ci-timing` groups the runs it lists by workflow and times only each workflow's newest successful runs. It reports each workflow apart under `workflows`, with its outcome counts, re-runs, queue wait, run length, slowest step and test steps. The sweeper records one finding per workflow, naming the workflow and that the runs were successful ones, and says when no listed run succeeded.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+## [0.8.9] - 2026-10-11
+
+### Fixed
+
+- Repoint documentation links whose upstream anchor or target moved, so each one lands on the section it cites again.
+
 ## [0.8.8] - 2026-10-11
 
 ### Changed
