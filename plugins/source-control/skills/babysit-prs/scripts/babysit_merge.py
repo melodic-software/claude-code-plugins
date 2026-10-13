@@ -2604,8 +2604,8 @@ def _lane_evidence(
     The human test bound into `bind()` is the merge policy's, and it also
     returns False for the pull request's author and every head pusher (commit
     authors and committers, force-push actors): none of them may resolve a
-    finding away. A commit with no linked author or committer raises
-    `HeadPusherUnproven`. A retargeted base unbinds every lane."""
+    finding away. A commit with no linked author or committer, or a head with
+    more commits than the list returns, raises `HeadPusherUnproven`. A retargeted base unbinds every lane."""
     head = json_object(pr.get("head"))
     timeline = fetch_paginated_api(
         f"repos/{repo}/issues/{number}/timeline?per_page=100", f"#{number} timeline"
@@ -2613,6 +2613,12 @@ def _lane_evidence(
     commits = fetch_paginated_api(
         f"repos/{repo}/pulls/{number}/commits?per_page=100", f"#{number} commits"
     )
+    # The commits list stops at 250: a longer head has pushers no list names.
+    total = pr.get("commits")
+    if not isinstance(total, int) or isinstance(total, bool) or total > len(commits):
+        raise HeadPusherUnproven(
+            f"head-pusher-unproven:commits-listed:{len(commits)}-of:{total}"
+        )
     # A commit whose author or committer email no account claims names no
     # login to exclude, so whoever pushed it is not proven non-human.
     unlinked = [

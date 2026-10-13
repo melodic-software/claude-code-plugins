@@ -991,7 +991,8 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    stays promoted until it is re-ratified.
 4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.
    A head commit whose author or committer is linked to no account refuses
-   (`head-pusher-unproven:<sha>`): its pusher cannot be shown not to be a human.
+   (`head-pusher-unproven:<sha>`): its pusher cannot be shown not to be a human. So does a pull
+   request with more commits than the commits list returns (it stops at 250).
    Only LOW merges. A C3 pull request also needs a LOW blast-radius rating, which nothing supplies
    yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
 

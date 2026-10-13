@@ -1044,7 +1044,13 @@ class ReasonsComment(Unattended):
 class HeadPushers(unittest.TestCase):
     """#7339 item 3: who pushed a commit is known only through a linked login."""
 
-    def read(self, commits: list[dict[str, Any]]) -> Any:
+    def read(self, commits: list[dict[str, Any]], total: Any = None) -> Any:
+        pr = {
+            "head": {"ref": "feat", "sha": HEAD},
+            "user": {"login": IDENTITY},
+            "commits": len(commits) if total is None else total,
+        }
+
         def paginated(endpoint: str, label: str) -> list[dict[str, Any]]:
             return commits if endpoint.endswith("/commits?per_page=100") else []
 
@@ -1056,7 +1062,7 @@ class HeadPushers(unittest.TestCase):
             return merge._lane_evidence(
                 "owner/repo",
                 PR,
-                {"head": {"ref": "feat", "sha": HEAD}, "user": {"login": IDENTITY}},
+                pr,
                 IDENTITY,
                 frozenset(),
                 lambda login: "write",
@@ -1074,6 +1080,20 @@ class HeadPushers(unittest.TestCase):
                 self.assertEqual(
                     str(raised.exception), "head-pusher-unproven:aaaaaaaaaaaa"
                 )
+
+    def test_a_head_longer_than_the_commits_list_is_unproven(self) -> None:
+        # The pull request commits endpoint lists at most 250 commits; a
+        # pusher of commit 251 is in no list, so the head cannot be judged.
+        bot = {"login": IDENTITY}
+        listed = [
+            {"sha": f"{n:040x}", "author": bot, "committer": bot} for n in range(250)
+        ]
+        # An unreadable count is no better than a larger one.
+        for total in (251, "missing", "251"):
+            with self.subTest(total=total):
+                with self.assertRaises(merge.HeadPusherUnproven) as raised:
+                    self.read(listed, total=total)
+                self.assertIn("commits-listed:250", str(raised.exception))
 
     def test_linked_commits_bind_as_before(self) -> None:
         bot = {"login": IDENTITY}
