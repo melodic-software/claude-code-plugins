@@ -16,7 +16,9 @@
 // promotion_evidence_source, promotion_evidence_checker) are not arguments: the helper reads
 // them from the operator's own managed and user settings (operator-options.mjs, channel F
 // of docs/conventions/hook-config-delivery), so a path the caller chose cannot stand in for
-// one, and the CLAUDE_PLUGIN_OPTION_* mirror and repository files are never read for them.
+// one, and the CLAUDE_PLUGIN_OPTION_* mirror and repository files are never read for them. The
+// optional fifth, promotion_evidence_credential_roots, read the same way, becomes the checker's
+// --credential-roots when set; a malformed entry fails closed (credentialRootsArgs).
 // Prints {source, failClosedReason, options: {<option>: {value, scope, file}}, cells:
 // {<cell>: {bound, effective, line}}} and exits 0, fail-closed results included.
 // Fail-closed means failClosedReason is set and every promotable cell is effective
@@ -162,6 +164,41 @@ function restartedCopy(path, at, roots) {
   return copy;
 }
 
+// A probe-host path's lexical form: an anchor ("" for POSIX "/", a folded "c:" for a drive) and
+// its segments, "." and empty ones dropped; null when it is not absolute ("//" UNC included).
+function hostPath(value) {
+  const slashed = value.replaceAll("\\", "/");
+  const drive = /^[A-Za-z]:\//.test(slashed);
+  if (slashed.startsWith("//") || (!drive && !slashed.startsWith("/"))) return null;
+  const segments = slashed.slice(drive ? 3 : 1).split("/").filter((s) => s !== "" && s !== ".");
+  return drive ? { anchor: slashed.slice(0, 2).toLowerCase(), segments: segments.map((s) => s.toLowerCase()) } : { anchor: "", segments };
+}
+
+// The checker's --credential-roots argument, or none when the option is unset or empty. The roots
+// name locations on the probe host, which need not exist here, so each entry is judged lexically
+// and never resolved: absolute, not a filesystem root, no ".." segment, and not inside the
+// checkout or a worktree root. A root containing the checkout is allowed (/home/runner holds a
+// hosted runner's checkout).
+function credentialRootsArgs(value, roots) {
+  if (value === undefined || value.trim() === "") return [];
+  const label = "promotion_evidence_credential_roots";
+  for (const entry of value.split(",").map((e) => e.trim())) {
+    if (entry === "") emit(source, `${label} has an empty entry`);
+    const named = `${label} entry ${JSON.stringify(entry)}`;
+    const path = hostPath(entry);
+    if (path === null) emit(source, `${named} is not an absolute path`);
+    if (path.segments.includes("..")) emit(source, `${named} has a '..' segment`);
+    if (path.segments.length === 0) emit(source, `${named} names a filesystem root`);
+    for (const root of roots) {
+      const lane = hostPath(root);
+      if (lane?.anchor === path.anchor && lane.segments.every((s, n) => path.segments[n] === s)) {
+        emit(source, `${named} is inside ${root}`);
+      }
+    }
+  }
+  return ["--credential-roots", value];
+}
+
 const checkout = resolveInput("--checkout", values.checkout, []);
 const roots = [resolve(values.checkout), checkout];
 for (const root of values["worktree-root"]) {
@@ -175,13 +212,14 @@ const probeRoot = option("promotion_evidence_root", roots);
 const sourcePath = option("promotion_evidence_source", roots);
 const evidence =
   values["window-start"] === undefined ? sourcePath : restartedCopy(sourcePath, values["window-start"], roots);
+const credentialRoots = credentialRootsArgs(options.promotion_evidence_credential_roots?.value, roots);
 
 const checkerEnv = Object.fromEntries(
   CHECKER_ENV_KEYS.filter((key) => key in process.env).map((key) => [key, process.env[key]]),
 );
 const run = spawnSync(
   process.execPath,
-  [checker, binding, "--evidence", evidence, "--probe-evidence-root", probeRoot],
+  [checker, binding, "--evidence", evidence, "--probe-evidence-root", probeRoot, ...credentialRoots],
   { cwd: dirname(checker), env: checkerEnv, encoding: "utf8", shell: false, timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
 );
 if (run.error) emit(source, `checker did not complete (${run.error.code ?? run.error.message})`);

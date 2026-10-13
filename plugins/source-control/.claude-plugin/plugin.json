@@ -264,6 +264,11 @@
       "title": "Promotion-evidence checker",
       "description": "Absolute path to the check-security-binding.mjs the seam runs, from an autonomy install the operator trusts, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted."
     },
+    "promotion_evidence_credential_roots": {
+      "type": "string",
+      "title": "Promotion-evidence credential roots",
+      "description": "Comma-separated absolute paths on the probe host the checker trusts as credential stores (--credential-roots), each not a filesystem root, with no .. segment, and outside the target repository and lane worktrees. User or managed settings only; --settings does not count. Absent: no --credential-roots, so isolation proofs resting on filesystem credential probes stay unproven."
+    },
     "setup_inference_window": {
       "type": "string",
       "title": "Setup inference history window",

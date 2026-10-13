@@ -1233,7 +1233,8 @@ class RealResolver(unittest.TestCase):
             'import { readFileSync, writeFileSync } from "node:fs";\n'
             "const evidence = process.argv[process.argv.indexOf('--evidence') + 1];\n"
             f"writeFileSync({json.dumps(str(self.record))}, JSON.stringify("
-            '{ evidence, events: JSON.parse(readFileSync(evidence, "utf8")) }));\n'
+            "{ evidence, argv: process.argv.slice(2), "
+            'events: JSON.parse(readFileSync(evidence, "utf8")) }));\n'
             f"process.stdout.write({json.dumps(EVALUATION)});\n",
             encoding="utf-8",
         )
@@ -1271,6 +1272,19 @@ class RealResolver(unittest.TestCase):
         self.assertTrue(result.promoted("C2"))
         self.assertFalse(result.promoted("C3"))
         self.assertEqual(self.seen()["evidence"], str(self.source))
+
+    def test_operator_credential_roots_reach_the_checker(self) -> None:
+        self.read()
+        self.assertNotIn("--credential-roots", self.seen()["argv"])
+        settings = json.loads(self.settings.read_text(encoding="utf-8"))
+        options = settings["pluginConfigs"]["source-control@mkt"]["options"]
+        options["promotion_evidence_credential_roots"] = "/home/runner"
+        self.settings.write_text(json.dumps(settings), encoding="utf-8")
+        result = self.read()
+        self.assertIsNone(result.reason)
+        self.assertEqual(
+            self.seen()["argv"][-2:], ["--credential-roots", "/home/runner"]
+        )
 
     def test_a_demotion_restarts_the_window_at_its_creation(self) -> None:
         start = policy.datetime(2026, 10, 11, 7, 0, 0, 500000, tzinfo=policy.UTC)
@@ -1373,6 +1387,61 @@ class ReadPromotion(unittest.TestCase):
         failed = subprocess.CompletedProcess([], 128, "", "not a git repository")
         with mock.patch.object(policy, "run_command", return_value=failed):
             self.assertIsNone(policy.worktree_roots(pathlib.Path("/w/main")))
+
+    def test_credential_roots_check_only_their_settings_file(self) -> None:
+        # The roots name the probe host, so the value is never judged as a
+        # local path: one absent here is not refused, as the real
+        # _lane_writable would refuse it (OSError).
+        absent = "/nonexistent-probe-host/creds"
+        creds_file = "/etc/claude-code/managed-settings.d/20-creds.json"
+        payload = {
+            "failClosedReason": None,
+            "options": {
+                o: {"value": f"/opt/p/{o}", "scope": "managed", "file": "/etc/m.json"}
+                for o in policy.PROMOTION_OPTIONS
+            }
+            | {
+                "promotion_evidence_credential_roots": {
+                    "value": absent,
+                    "scope": "managed",
+                    "file": creds_file,
+                }
+            },
+            "cells": self.CELLS,
+        }
+
+        def writable(path: pathlib.Path) -> bool:
+            if str(path) == absent:
+                return policy._lane_writable(path)
+            return str(path) == creds_file
+
+        result, _ = self.run_resolver(payload, writable=writable)
+        self.assertEqual(
+            result.reason, "settings-lane-writable:promotion_evidence_credential_roots"
+        )
+        result, _ = self.run_resolver(
+            payload,
+            writable=lambda p: policy._lane_writable(p) if str(p) == absent else False,
+        )
+        self.assertIsNone(result.reason)
+        self.assertTrue(result.promoted("C3"))
+
+    def test_unset_credential_roots_are_not_a_refusal(self) -> None:
+        result, _ = self.run_resolver()
+        self.assertIsNone(result.reason)
+        unfiled = {
+            "failClosedReason": None,
+            "cells": self.CELLS,
+            "options": {
+                o: {"value": "/opt/p", "scope": "managed", "file": "/etc/m.json"}
+                for o in policy.PROMOTION_OPTIONS
+            }
+            | {"promotion_evidence_credential_roots": {"value": "/home/runner"}},
+        }
+        result, _ = self.run_resolver(unfiled)
+        self.assertEqual(
+            result.reason, "option-unreported:promotion_evidence_credential_roots"
+        )
 
     def test_an_unreported_option_refuses(self) -> None:
         payload = {"failClosedReason": None, "options": {}, "cells": self.CELLS}

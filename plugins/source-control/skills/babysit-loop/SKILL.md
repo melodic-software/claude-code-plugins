@@ -216,6 +216,7 @@ and user settings itself.
 | `promotion_evidence_root` | `${user_config.promotion_evidence_root}` |
 | `promotion_evidence_source` | `${user_config.promotion_evidence_source}` |
 | `promotion_evidence_checker` | `${user_config.promotion_evidence_checker}` |
+| `promotion_evidence_credential_roots` (optional) | `${user_config.promotion_evidence_credential_roots}` |
 
 ## do-not-merge
 
