@@ -1404,6 +1404,21 @@ assert_contains "default supplies local-background" "$out" "execution target loc
 assert_contains "local-background launches from the linked worktree" "$out" "DRY-RUN: cd $(printf '%q' "$ET_WT")"
 assert_contains "local-background is claude --bg -n <name> --permission-mode auto" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
 assert_contains "a local-background lane reads mods unknown, naming its host" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on local-background)"
+# status reads the policy the local origin/HEAD names, without fetching, and an
+# already-running lane skipped by start resolves its own target too.
+out="$(et_run status 2>&1)"
+assert_contains "status names a local-background lane's host in its mods line" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on local-background)"
+assert_not_contains "status does not fetch the policy" "$out" "git fetch origin"
+cat >"$TMP/et-agents-work-running.json" <<'JSON'
+[ { "pid": 1, "cwd": "/r", "kind": "background", "startedAt": 1, "sessionId": "sid-et", "name": "work", "status": "idle" } ]
+JSON
+out="$(et_run start --agents-json "$TMP/et-agents-work-running.json" --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "a running local-background lane skipped by start names its host" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on local-background)"
+# The lane's own disableAllHooks holds on any host.
+et_lanes work-items:work-loop '{"settings":{"disableAllHooks":true}}'
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "an overlay disableAllHooks reads off on a non-local host" "$out" "mods: off (disableAllHooks in the lane's --settings)"
+et_lanes work-items:work-loop
 
 # cloud-routine and cloud-project print setup steps and launch nothing, for a
 # stage whose input is never untrusted (the trusted-stage copy).

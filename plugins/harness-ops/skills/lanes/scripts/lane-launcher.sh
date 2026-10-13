@@ -379,6 +379,11 @@ probe_machine_mods() {
 # repo checkout on this machine, so a lane placed anywhere else reads unknown.
 print_lane_mods() { # <settings JSON or ""> [execution target]
   local settings="${1:-}" target="${2:-}" overlay=""
+  [[ -n "$settings" ]] && overlay="$(jq -r 'if type == "object" and has("disableAllHooks") then (.disableAllHooks | tostring) else "" end' <<<"$settings" 2>/dev/null)"
+  if [[ "$overlay" == "true" ]]; then
+    info "    mods: off (disableAllHooks in the lane's --settings)"
+    return 0
+  fi
   case "$target" in
   "" | local-worktree) ;;
   *)
@@ -386,11 +391,6 @@ print_lane_mods() { # <settings JSON or ""> [execution target]
     return 0
     ;;
   esac
-  [[ -n "$settings" ]] && overlay="$(jq -r 'if type == "object" and has("disableAllHooks") then (.disableAllHooks | tostring) else "" end' <<<"$settings" 2>/dev/null)"
-  if [[ "$overlay" == "true" ]]; then
-    info "    mods: off (disableAllHooks in the lane's --settings)"
-    return 0
-  fi
   probe_machine_mods
   if [[ -n "$overlay" && "$MODS_STATE" == "off" && "$MODS_CAUSE" == "a setting or policy"* ]]; then
     info "    mods: unknown (the lane's --settings sets disableAllHooks to $overlay, and a settings file or policy turns mods off)"
@@ -1194,6 +1194,17 @@ load_execution_target() {
   info "execution-target: read $ET_FILE at $ET_REF $ET_SHA"
 }
 
+# status reads the policy without fetching: from the commit the local
+# origin/HEAD already names, or not at all.
+peek_execution_target() {
+  ((ET_LOADED)) && return 0
+  ET_LOADED=1
+  local sha
+  sha="$(git -C "$REPO" rev-parse --verify --quiet --end-of-options "refs/remotes/origin/HEAD^{commit}" 2>/dev/null)" || return 0
+  ET_TEXT="$(git -C "$REPO" show --end-of-options "$sha:$ET_FILE" 2>/dev/null)" || ET_TEXT=""
+  bash "$ET_READER" --strict - default >/dev/null 2>&1 <<<"$ET_TEXT" || ET_TEXT=""
+}
+
 # Sets LANE_TARGET and LANE_TARGET_KEY for a lane's stage (may be empty).
 resolve_lane_target() {
   local stage="$1" key v
@@ -1775,7 +1786,9 @@ _start_one() {
   sid="$(running_session_id "$name")"
   if [[ -n "$sid" ]]; then
     info "  skip $name — already running ($sid)"
-    print_lane_mods "$settings"
+    load_execution_target
+    resolve_lane_target "$stage"
+    print_lane_mods "$settings" "$LANE_TARGET"
     return 0
   fi
   plan_lane_target "$name" "$stage" || return 1
@@ -1835,14 +1848,16 @@ _stop_one() {
 }
 
 _status_one() {
-  local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}" sid state="stopped"
+  local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}" stage="${7:-}" sid state="stopped"
   sid="$(running_session_id "$name")"
   [[ -n "$sid" ]] && state="running"
   local pflag=""
   [[ -f "$prompt_path" ]] || pflag=" [prompt MISSING]"
   printf '  %-12s %-8s %-8s %-8s %s%s\n' \
     "$name" "${model:-–}" "${effort:-–}" "$state" "${sid:-–}" "$pflag"
-  print_lane_mods "$settings"
+  peek_execution_target
+  resolve_lane_target "$stage" 2>/dev/null
+  print_lane_mods "$settings" "$LANE_TARGET"
 }
 
 # We treat a set variable as able to override every lane's --effort and every agent
