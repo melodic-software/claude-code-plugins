@@ -74,7 +74,7 @@ change nothing. State each change before making it, and re-detect before claimin
    session. The `ctx7 login` caveat: `${CLAUDE_PLUGIN_ROOT}/skills/lookup/context/cli.md`.
 
 3. **MCP, guidance only.** If the user wants the MCP path, point them to add a `context7` server
-   entry to their own MCP configuration. The JSON (anonymous and API-key forms) and the
+   entry to their own MCP configuration; do not edit their `.mcp.json` for them. The JSON (anonymous and API-key forms) and the
    unset-env-var caveat: `${CLAUDE_PLUGIN_ROOT}/skills/lookup/context/mcp.md`.
 
 4. **Verify.** Re-read the CLI version and your tool list; declare setup complete only when at
