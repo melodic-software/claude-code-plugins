@@ -5,7 +5,7 @@
       "why": "table row"
     },
     {
-      "answer": "**bash** — build pass, test pass, lint pass → **PASS**\n\n**Overall:** **PASS**",
+      "answer": "**bash** \u2014 build pass, test pass, lint pass \u2192 **PASS**\n\n**Overall:** **PASS**",
       "why": "bold prose row"
     }
   ],
@@ -15,12 +15,20 @@
       "why": "no changes"
     },
     {
-      "answer": "| bash | pass | FAIL | — | FAIL |\n\nOverall: FAIL (1 of 1 ecosystems failed)",
+      "answer": "| bash | pass | FAIL | \u2014 | FAIL |\n\nOverall: FAIL (1 of 1 ecosystems failed)",
       "why": "row failed"
     },
     {
       "answer": "Overall: INCOMPLETE (not PASS); bash could not be detected",
       "why": "no bash PASS"
+    },
+    {
+      "answer": "bash: FAIL (lint did not PASS)\n\nOverall: FAIL",
+      "why": "bash row failed, PASS named later"
+    },
+    {
+      "answer": "bash is not PASS yet: the test step is still running.",
+      "why": "PASS negated"
     }
   ]
 }

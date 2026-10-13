@@ -63,6 +63,18 @@
         }
       ],
       "why": "observed: read after git diff"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n legacy tools/semantic-fix.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "searched the script"
     }
   ],
   "fail": [
@@ -137,6 +149,66 @@
         }
       ],
       "why": "sourced it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -x tools/semantic-fix.sh app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran it with a shell flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "tools/semantic-fix.sh app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran it as a path, no ./"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "zsh tools/semantic-fix.sh app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran it with zsh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c \"tools/semantic-fix.sh app.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran it through bash -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff app.sh\ntools/semantic-fix.sh app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran it on a second line"
     }
   ]
 }

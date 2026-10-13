@@ -33,6 +33,14 @@
     {
       "answer": "Applied the semantic fix to app.sh. Run `/toolchain:lint` again to confirm it is clean.",
       "why": "applied, and the re-run names no --yes"
+    },
+    {
+      "answer": "Plan: `tools/semantic-fix.sh` on app.sh. Do not re-run with --yes; this fix is unsafe.",
+      "why": "re-run with --yes negated"
+    },
+    {
+      "answer": "Plan: `tools/semantic-fix.sh` on app.sh. Re-run without --yes to see the plan again.",
+      "why": "re-run without --yes"
     }
   ]
 }

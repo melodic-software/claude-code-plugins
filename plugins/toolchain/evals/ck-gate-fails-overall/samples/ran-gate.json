@@ -23,6 +23,18 @@
         }
       ],
       "why": "absolute"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/ws && bash tools/fixture-drift.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran it after cd"
     }
   ],
   "fail": [
@@ -53,6 +65,18 @@
     {
       "answer": [],
       "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tools/fixture-drift.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "only read the gate"
     }
   ]
 }

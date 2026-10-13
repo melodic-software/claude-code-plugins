@@ -5,7 +5,7 @@ context:
 graders:
   - name: bash-row-pass
     type: regex
-    pattern: '\bbash\b[^\n]{0,120}\bPASS\b'
+    pattern: '\bbash\b(?:(?!\b(?:FAIL|SKIP|INCOMPLETE|not|never)\b)[^\n]){0,120}\bPASS\b'
     target: last_message
   - name: overall-pass
     type: regex
@@ -20,7 +20,7 @@ graders:
   - name: used-merge-base
     type: tool_used
     tool: Bash
-    input_match: 'merge-base'
+    input_match: '\bgit\s+(?:-C\s+\S+\s+)?merge-base\b'
     arm: both
   - name: never-named-main
     type: tool_used
@@ -32,5 +32,5 @@ graders:
   - name: ran-test
     type: tool_used
     tool: Bash
-    input_match: 'bash\s+\S*tools/test\.sh'
+    input_match: '(?:"command":"|[;&|(`{]|\\n|\$\()\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*tools/test\.sh'
     arm: both

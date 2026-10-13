@@ -23,20 +23,20 @@ graders:
   - name: ran-build
     type: tool_used
     tool: Bash
-    input_match: 'bash\s+\S*tools/build\.sh'
+    input_match: '(?:"command":"|[;&|(`{]|\\n|\$\()\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*tools/build\.sh'
     arm: both
   - name: ran-test
     type: tool_used
     tool: Bash
-    input_match: 'bash\s+\S*tools/test\.sh'
+    input_match: '(?:"command":"|[;&|(`{]|\\n|\$\()\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*tools/test\.sh'
     arm: both
   - name: ran-lint
     type: tool_used
     tool: Bash
-    input_match: 'bash\s+\S*tools/lint\.sh'
+    input_match: '(?:"command":"|[;&|(`{]|\\n|\$\()\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*tools/lint\.sh'
     arm: both
   - name: ran-gate
     type: tool_used
     tool: Bash
-    input_match: 'bash\s+\S*tools/fixture-drift\.sh'
+    input_match: '(?:"command":"|[;&|(`{]|\\n|\$\()\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*tools/fixture-drift\.sh'
     arm: both

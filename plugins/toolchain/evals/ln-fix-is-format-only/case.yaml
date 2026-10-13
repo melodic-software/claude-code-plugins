@@ -27,12 +27,12 @@ graders:
   - name: ran-format
     type: tool_used
     tool: Bash
-    input_match: '(?:\b(?:bash|sh|source)\s+|\.\s+|\./)\S*format\.sh'
+    input_match: '(?:"command":"|[;&|(`{]|\\n|\$\()\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*format\.sh'
     arm: both
   - name: never-ran-code-fix
     type: tool_used
     tool: Bash
-    input_match: '(?:(?:^|[\s;&|(/"])(?:bash|sh|source)\s+|(?:^|[\s;&|("])\.\s+|\./)\S*semantic-fix\.sh'
+    input_match: '(?:"command":"|[;&|(`{]|\\n|\$\()\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*semantic-fix\.sh'
     min: 0
     max: 0
     arm: both

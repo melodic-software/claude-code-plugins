@@ -23,6 +23,18 @@
         }
       ],
       "why": "ran the command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which zzlint-not-installed",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "which probe"
     }
   ],
   "fail": [
@@ -41,6 +53,18 @@
     {
       "answer": [],
       "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep zzlint-not-installed .claude/ecosystems/bash.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "only read the config"
     }
   ]
 }

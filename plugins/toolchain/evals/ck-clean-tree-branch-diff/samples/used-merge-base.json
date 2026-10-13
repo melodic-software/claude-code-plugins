@@ -11,6 +11,18 @@
         }
       ],
       "why": "skill block"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /tmp/ws merge-base HEAD refs/remotes/origin/trunk",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "git -C form"
     }
   ],
   "fail": [
@@ -29,6 +41,18 @@
     {
       "answer": [],
       "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo merge-base",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "named merge-base without running it"
     }
   ]
 }

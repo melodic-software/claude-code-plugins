@@ -23,6 +23,18 @@
         }
       ],
       "why": "absolute"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "./tools/format.sh app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran it directly"
     }
   ],
   "fail": [
@@ -53,6 +65,18 @@
     {
       "answer": [],
       "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat ./tools/format.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "only read the script"
     }
   ]
 }
