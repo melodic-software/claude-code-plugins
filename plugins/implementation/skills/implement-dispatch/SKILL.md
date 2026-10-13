@@ -383,7 +383,10 @@ We treat the phases of one approved plan as one task, so the orchestrator's wind
 
 ## Next
 
-`/review:quality-gate`. It reviews the finished change before outcome verification, the order `/implementation:implement` Step 5 hands off in.
+- Coverage of the change not yet planned: `/testing:plan`.
+- Tests written during the work, their quality unchecked: `/testing:audit`.
+- A runtime-affecting change (UI, API, service, hook, script): `/testing:run-e2e`.
+- Tests planned, checked and green: `/review:quality-gate`.
 
 ## Gotchas
 
