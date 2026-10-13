@@ -13,7 +13,7 @@ Per-command flag detail for the `/firecrawl:firecrawl` skill. SKILL.md carries t
 - [agent](#agent-natural-language-web-research-task)
 - [monitor](#monitor-scheduled-scrapes--change-tracking)
 - [developer](#developer-search-an-index-built-for-coding-agents)
-- [research](#research-paper-index-and-github-history)
+- [research](#research-paper-index)
 - [doctor](#doctor-diagnose-a-failed-job)
 - [search-feedback](#search-feedback-refund-credits-on-bad-search-results)
 - [credit-usage](#credit-usage-check-remaining-quota)
