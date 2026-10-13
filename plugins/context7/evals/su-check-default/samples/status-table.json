@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Status | Detail |\n|---|---|---|\n| CLI | PASS | ctx7 0.6.0, latest |\n| MCP | INFO | not in tool list |\n| Auth | INFO | CONTEXT7_API_KEY not set |"
+    },
+    {
+      "answer": "Context7 check:\n\nCheck | Result\n--- | ---\nctx7 CLI | ✅ Pass\nMCP server | Info: absent\nAuth | Info: CONTEXT7_API_KEY not set"
+    },
+    {
+      "answer": "| Item | Result | Fix |\n| :--- | :---: | --- |\n| CLI path (`ctx7`) | **FAIL** | /context7:setup apply install-cli |\n| MCP path | INFO | add the server to your own config |\n| At least one path | FAIL | /context7:setup apply install-cli |\n| `CONTEXT7_API_KEY` | INFO | absent |"
+    },
+    {
+      "answer": "| # | Check | Result | Detail |\n|---|---|---|---|\n| 1 | CLI path | **FAIL** | ctx7 crashed on launch |\n| 2 | MCP path | INFO | no Context7 tools |\n| 3 | At least one path | **FAIL** | neither path works |\n| 4 | Auth (`CONTEXT7_API_KEY`) | INFO | not set |",
+      "why": "numbered rows"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "CLI: PASS. MCP: INFO. Auth: INFO.",
+      "why": "no table"
+    },
+    {
+      "answer": "| Check | Detail |\n|---|---|\n| CLI | installed |\n| MCP | absent |",
+      "why": "table without status"
+    },
+    {
+      "answer": "| Check | PASS/FAIL |\n|---|---|\n| CLI | installed |",
+      "why": "status word only in header"
+    },
+    {
+      "answer": "ctx7 is installed and current. Everything passes."
+    },
+    {
+      "answer": "| Check | Result |\n|---|---|\n| CLI | PASS |",
+      "why": "one row: no MCP or auth row"
+    },
+    {
+      "answer": "Context7 check:\n\nCheck | Result\n--- | ---\nctx7 CLI | ✅ Pass\nMCP server | Info: absent",
+      "why": "no auth row"
+    },
+    {
+      "answer": "| Item | Result | Fix |\n| :--- | :---: | --- |\n| At least one path | FAIL | neither the CLI nor MCP works |\n| Auth | INFO | not set |",
+      "why": "CLI and MCP named only inside another row"
+    },
+    {
+      "answer": "| # | Check | Result |\n|---|---|---|\n| 1 | CLI path | Couldn't verify |\n| 2 | MCP path | INFO |\n| 4 | Auth | INFO |",
+      "why": "CLI row carries no PASS, FAIL or INFO"
+    }
+  ]
+}

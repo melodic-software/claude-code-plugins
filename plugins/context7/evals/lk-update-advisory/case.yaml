@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: lk-update-advisory
+graders:
+  - name: update-check-ran
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\'']|\\[^"]|\\"(?:[^"\\]|\\[^"])*\\"|''[^'']*'')*?(?:&&|\|\||[;|(]|\$\(|\\n))?\s*(?:(?:\w+=\S*|timeout(?:\s+-\S+)*\s+\S+|command|exec|env|time|nice)\s+)*(?:(?:bash|sh|zsh)\s+(?:-\w+\s+)*)?(?:\\"[^"\\]*update\.sh\\"|''[^'']*update\.sh''|[^\s"''\\;&|]*update\.sh)(?![\w.-])'
+    min: 1
+  - name: no-fix-or-refresh
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:--fix\b|--refresh-baseline\b|\b(?:npm|pnpm|yarn|bun)\s+(?:(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?|global)\s+)*(?:i|install|add|update|upgrade|up|dlx|exec|x)\b|\b(?:npx|bunx|pnpx)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*ctx7)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both

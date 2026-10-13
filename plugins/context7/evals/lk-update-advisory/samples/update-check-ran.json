@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/context7/skills/lookup/scripts/update.sh\"",
+            "description": "Run the drift check"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "Run command"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/context7/skills/lookup/scripts/update.sh\"",
+            "description": "Run the drift check"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version; /plugins/context7/skills/lookup/scripts/update.sh 2>&1 | tail -20",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "direct path after a separator"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "no update.sh"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/context7/skills/lookup/scripts/update.sh"
+          }
+        }
+      ],
+      "why": "read, not run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /plugins/context7/skills/lookup/scripts/update.sh",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "printed, not run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n version \"/plugins/context7/skills/lookup/scripts/update.sh\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "searched, not run"
+    }
+  ]
+}

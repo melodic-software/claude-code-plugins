@@ -1,0 +1,128 @@
+{
+  "skill": "context7:lookup",
+  "plugin": "context7",
+  "skill_dir": "plugins/context7/skills/lookup",
+  "ranking_note": "Authored blind from the before descriptions at commit 1e8ff6f8bb, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitor is the sibling model-invoked context7:check skill; context7:setup is user-invoked only and not a competitor.",
+  "competitors": [
+    "context7:check"
+  ],
+  "competitor_dirs": {
+    "context7:check": "plugins/context7/skills/check"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What's the current way to add middleware in the Next.js 15 app router?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How do I set retry behavior on the S3 client in AWS SDK for JavaScript v3?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Pull up what Prisma says about sizing the connection pool."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We're moving from Pydantic 1 to Pydantic 2. What changed for custom validators?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which terraform plan flag targets just one resource, and what's the exact syntax?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Show me a Tailwind CSS v4 example that defines custom brand colors in the theme."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "How do I stream a response body from a FastAPI endpoint?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What does a matrix strategy look like in a GitHub Actions workflow file these days?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Did React 19 rename useFormState? How am I supposed to call it now?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check the official Django reference for how select_related differs from prefetch_related."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is the ctx7 CLI installed on this machine, and is my Context7 API key being picked up?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explain the difference between a mutex and a semaphore."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Refactor this function so it doesn't have three levels of nested if statements."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Our invoice totals are off by one cent when two discounts stack. Find the bug in our pricing module."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Compare event sourcing against plain CRUD for our order service using several sources, and recommend one with citations."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Before I lean on Context7 for docs, can you confirm the MCP server and CLI are actually working here?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a bash script from scratch that renames every .jpeg file in a folder to .jpg."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Review my branch's diff for readability problems before I open the pull request."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What is dependency injection, and why would a team use it?"
+    }
+  ]
+}

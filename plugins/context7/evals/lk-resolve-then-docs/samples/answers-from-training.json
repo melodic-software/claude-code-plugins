@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "Context7 didn't return anything. The `ctx7` CLI is on the path but crashed with `MODULE_NOT_FOUND`, because its `dist/index.js` isn't readable from this sandbox. The Context7 MCP tools (`mcp__context7__*`) aren't configured in this session either. The answer below comes from my training knowledge, not from current docs.\n\n## `useEffect` cleanup timing in React\n\n**When cleanup runs**\n- **Before the next run of the same effect.** If the dependencies change, React runs the previous render's cleanup first.\n- **On unmount.** The last cleanup runs when the component is removed.\n\nIf you want this checked against current docs, you can fix the `ctx7` install, or run `/context7:setup` to wire up the MCP server. I can then rerun the lookup.",
+      "why": "observed reply, trimmed"
+    },
+    {
+      "answer": "Context7 failed; from training knowledge: React runs the cleanup before the effect re-runs and when the component unmounts."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Context7 didn't return anything, so I can't answer this. Fix the ctx7 install and I can rerun the lookup.",
+      "why": "refuses instead of falling back"
+    },
+    {
+      "answer": "Context7 failed. Run /context7:setup and ask again.",
+      "why": "no answer"
+    },
+    {
+      "answer": "Context7 did not return docs, and I will not guess how cleanup behaves on unmount.",
+      "why": "names unmount without explaining either timing"
+    },
+    {
+      "answer": "Context7 did not return docs. From training knowledge: the cleanup runs when the component unmounts.",
+      "why": "unmount only, no before-next-run timing"
+    }
+  ]
+}

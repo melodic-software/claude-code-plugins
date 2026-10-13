@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Status | Detail |\n|---|---|---|\n| Auth | INFO | `CONTEXT7_API_KEY` is not set; anonymous rate limits apply |"
+    },
+    {
+      "answer": "Auth: CONTEXT7_API_KEY absent (anonymous usage works)."
+    },
+    {
+      "answer": "| CONTEXT7_API_KEY | Set |"
+    },
+    {
+      "answer": "No CONTEXT7_API_KEY in the environment."
+    },
+    {
+      "answer": "- CONTEXT7_API_KEY: present (value not shown)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Set CONTEXT7_API_KEY in your shell profile for higher limits.",
+      "why": "guidance, no report"
+    },
+    {
+      "answer": "CONTEXT7_API_KEY raises rate limits for both paths."
+    },
+    {
+      "answer": "| Auth | INFO | anonymous |",
+      "why": "key not named"
+    }
+  ]
+}

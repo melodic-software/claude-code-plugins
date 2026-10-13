@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: ck-read-only
+graders:
+  - name: version-checked
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\'']|\\[^"]|\\"(?:[^"\\]|\\[^"])*\\"|''[^'']*'')*?(?:&&|\|\||[;|(]|\$\(|\\n))?\s*(?:(?:\w+=\S*|timeout(?:\s+-\S+)*\s+\S+|command|exec|env|time|nice)\s+)*(?:(?:npx|bunx|pnpx)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*|(?:pnpm|yarn|bun)\s+(?:dlx|x)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*|npm\s+(?:exec|x)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*(?:--\s+)?)?(?:[^\s"\\;&|]*/)?ctx7(?:@[\w.-]+)?\s+--version\b'
+    min: 1
+  - name: no-install
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:npm|pnpm|yarn|bun)\s+(?:(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?|global)\s+)*(?:i|install|add|update|upgrade|up|dlx|exec|x)\b|\b(?:npx|bunx|pnpx)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*ctx7)'
+    min: 0
+    max: 0
+    arm: both
+  - name: status-table
+    type: regex
+    pattern: '^[ \t]*\|?[ \t]*:?-{3,}:?[ \t]*\|(?=[\s\S]*?^[ \t]*\|?[ \t]*(?:[\w#–—-]{1,3}[ \t]*\|[ \t]*)?[^|\n]*?\b(?:CLI|ctx7)\b[^|\n]*\|[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^[ \t]*\|?[ \t]*(?:[\w#–—-]{1,3}[ \t]*\|[ \t]*)?[^|\n]*?\bMCP\b[^|\n]*\|[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))(?=[\s\S]*?^[ \t]*\|?[ \t]*(?:[\w#–—-]{1,3}[ \t]*\|[ \t]*)?[^|\n]*?\b(?:[Aa]uth\w*|AUTH|API key|CONTEXT7_API_KEY|[Kk]ey)\b[^|\n]*\|[^\n]*?(?:\b(?:PASS|FAIL|INFO|WARN|Pass|Fail|Info|Warn)\b|✅|❌|⚠))'
+    flags: m
+    target: last_message
