@@ -44,13 +44,10 @@ reports each promotable cell's bound and effective state as the checker printed 
 how a cell resolves effective-promoted or demoted. With no compliant bootstrap, a step 0 problem,
 any fail-closed reason, or a helper failure, **every promotable cell resolves
 effective-unpromoted** and autonomous merge stays off for C2/C3 classes regardless of tracked rung.
-Operators keep `--merge human-only` on launch lines; lifting it is the owner's call after Phase 3.
-The resolver runs the checker with a fixed argv and passes no `--credential-roots`
-(`resolve-promotion-evidence.mjs`), so a binding whose L2 proof rests on a filesystem credential
-probe (for example a `$HOME/.netrc` path in the probe transcript) fails closed even with a
-compliant bootstrap; [`promotion-evidence-bootstrap.md`](promotion-evidence-bootstrap.md) lists a
-`--credential-roots` surface as out of scope
-([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)). The unattended
+Operators keep `--merge human-only` on launch lines; lifting it is the owner's call.
+The resolver passes `--credential-roots` to the checker when the operator sets
+`promotion_evidence_credential_roots`; unset, a binding whose L2 proof rests on a filesystem
+credential probe fails closed even with a compliant bootstrap. Remaining work is tracked in [#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588). The unattended
 merge path (`babysit_merge_policy.read_promotion`) additionally refuses any option value or
 settings file the lane can write, so on a single-user
 host user-scope settings never qualify there; only managed settings and surfaces owned by someone
@@ -59,9 +56,8 @@ What an operator supplies for the seam is in
 [`promotion-evidence-bootstrap.md`](promotion-evidence-bootstrap.md), and the lane-start preflight
 in [`cycle-shape.md`](cycle-shape.md) step 0 reports each missing or non-compliant surface by
 option name. The implementation checklist and phased plan are in
-[`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md), Phase 2
-implemented and Phase 3 unapproved
-([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)). Whether the
+[`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md).
+Whether the
 repository's evidence predicates
 ([`loop-lane-prompts.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/prompts/loops/loop-lane-prompts.md)
 merge-lane copy-blocks) are met is not settled here; the fail-closed table below is how this

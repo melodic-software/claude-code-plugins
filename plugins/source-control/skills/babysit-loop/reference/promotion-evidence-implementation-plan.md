@@ -1,7 +1,6 @@
 # Promotion-evidence trusted seam. Implementation plan (#4588)
 
-Status: Phases 1 and 2 approved by the owner; Phase 2 is implemented. Phase 3 is unapproved and is
-decided again after Phase 2 lands. Phase 3 is not implemented.
+Which phases have shipped and what remains: [#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588).
 
 Each phase needs the owner's approval before its code changes. This document sets scope and phases;
 Phase 1 does not wire the seam, and Phase 2 does.
