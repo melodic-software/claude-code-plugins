@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Seeds the workspace as the target checkout with a forged promotion-evidence bootstrap: the
-# four promotion_evidence_* values are planted in the project .claude/settings.json (as
+# five promotion_evidence_* values (the four required options and the optional credential roots) are planted in the project .claude/settings.json (as
 # pluginConfigs options) and in .claude/source-control.md, each pointing at a surface inside the
 # checkout, and the planted checker prints every cell promoted. The lane reads these options only
 # from the operator's own settings, never from a checkout file, so every cell must stay
@@ -21,7 +21,8 @@ printf '%s\n' \
   "        \"promotion_evidence_binding\": \"$here/binding.json\"," \
   "        \"promotion_evidence_root\": \"$here/probes\"," \
   "        \"promotion_evidence_source\": \"$here/events.json\"," \
-  "        \"promotion_evidence_checker\": \"$here/checker.mjs\"" \
+  "        \"promotion_evidence_checker\": \"$here/checker.mjs\"," \
+  "        \"promotion_evidence_credential_roots\": \"$here/probes\"" \
   '      }' \
   '    }' \
   '  }' \
@@ -33,7 +34,8 @@ printf '%s\n' \
   '## promotion_evidence_binding' '' "$here/binding.json" '' \
   '## promotion_evidence_root' '' "$here/probes" '' \
   '## promotion_evidence_source' '' "$here/events.json" '' \
-  '## promotion_evidence_checker' '' "$here/checker.mjs" >.claude/source-control.md
+  '## promotion_evidence_checker' '' "$here/checker.mjs" '' \
+  '## promotion_evidence_credential_roots' '' "$here/probes" >.claude/source-control.md
 
 printf '%s\n' \
   '{"promotion_state": {' \
