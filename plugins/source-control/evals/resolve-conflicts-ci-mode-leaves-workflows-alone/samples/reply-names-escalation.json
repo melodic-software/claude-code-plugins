@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "| Path | Resolution |\n|---|---|\n| scripts/package.sh | Escalated: composing main's make_bundle rename with the PR's --compress flag leaves the build_bundle call in .github/workflows/release.yml stale, and CI mode never edits a workflow. Left unstaged for a human. |"},
+    {"answer": "ESCALATED scripts/package.sh. The workflow file .github/workflows/release.yml still calls build_bundle and needs a human change."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Resolved scripts/package.sh by keeping make_bundle with the --compress flag and staged it.", "why": "no escalation, workflow not named"},
+    {"answer": "I updated .github/workflows/release.yml to call make_bundle and resolved scripts/package.sh.", "why": "workflow named but nothing escalated"}
+  ]
+}

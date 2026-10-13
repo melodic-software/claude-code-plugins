@@ -63,6 +63,33 @@ describe("fetchDeckAttachments", () => {
     expect(fs.readFileSync(result.fetched[0], "utf8")).toBe("hello world");
   });
 
+  it("skips a deck whose sessionSlug would escape the slice, without fetching", async () => {
+    writeLinks([
+      { type: "deck", url: "https://example.com/x/.bashrc", sessionSlug: "../../../../outside" },
+      { type: "deck", url: "https://example.com/x/deck.pdf", sessionSlug: ".." },
+    ]);
+    const fetchMock = vi.fn(async () => fakeResponse(Buffer.from("x"), { contentLength: "1" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchDeckAttachments(sliceDir);
+
+    expect(result.fetched).toHaveLength(0);
+    expect(result.skipped).toHaveLength(2);
+    expect(result.skipped[0]).toMatch(/unsafe sessionSlug/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("files a deck under its sessionSlug", async () => {
+    writeLinks([{ type: "deck", url: "https://example.com/deck.pdf", sessionSlug: "keynote-2026" }]);
+    stubFetch(async () => fakeResponse(Buffer.from("deck"), { contentLength: "4" }));
+
+    const result = await fetchDeckAttachments(sliceDir);
+
+    expect(result.fetched).toEqual([
+      path.join(sliceDir, "source", "decks", "keynote-2026", "deck.pdf"),
+    ]);
+  });
+
   it("skips when content-length exceeds the cap without downloading", async () => {
     writeLinks([{ type: "attachment", url: "https://example.com/huge.zip" }]);
     stubFetch(async () => fakeResponse(Buffer.from("x".repeat(50)), { contentLength: "9999999" }));

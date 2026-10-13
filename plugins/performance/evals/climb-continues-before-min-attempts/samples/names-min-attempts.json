@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Not yet. The target is met, but min_attempts is 6 and only 2 attempts are logged, so the run continues with a3.",
+      "why": "names the key"
+    },
+    {
+      "answer": "Not done: the goal sets a minimum number of attempts of 6 and two are logged.",
+      "why": "names the minimum in words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes. 2 spawns is under the target of 3, so hand the branch to /performance:verify.",
+      "why": "declares the run done"
+    }
+  ]
+}

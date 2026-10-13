@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "export interface RetryOptions {\n  maxAttempts: number;\n  backoffJitter: boolean;\n  delayMs: number;\n}\n"},
+    {"answer": "// ======= section ======= inside a comment is fine\n"}
+  ],
+  "fail": [
+    {"answer": "export interface RetryOptions {\n<<<<<<< HEAD\n  maxRetries: number;\n  backoffJitter: boolean;\n=======\n  maxAttempts: number;\n>>>>>>> main\n  delayMs: number;\n}\n"},
+    {"answer": "  maxAttempts: number;\n=======\n", "why": "a leftover separator"}
+  ]
+}

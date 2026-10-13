@@ -95,7 +95,10 @@ exception is recorded here with that reason, not decided silently in the plugin.
 The operator settled two points for Python on 2026-10-02 ([#5844](https://github.com/melodic-software/claude-code-plugins/issues/5844)):
 no `uv run` fetching at run time, and hash-locked requirements only. The rules below are the four
 npm rules with pip's frozen install. The reference implementation is the `animation` plugin:
-`requirements.in`, `requirements.txt`, `hooks/install-python-deps.sh` and `scripts/pydeps.py`.
+`requirements.in`, `requirements.txt`, `hooks/install-python-deps.sh` and `scripts/pydeps.py`. The
+hook and `pydeps.py` are generated copies of `lib/install-python-deps.sh` and `lib/pydeps.py`
+(`scripts/sync-shared-copies.sh`); each plugin's own settings sit beside them in
+`hooks/install-python-deps.conf` and `scripts/pydeps.json`.
 
 ### Rule P1: commit the pins and a hash-locked requirements file [SPEC]
 

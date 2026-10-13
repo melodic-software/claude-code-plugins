@@ -40,6 +40,24 @@
         "docs": "https://jqlang.org/download/"
       },
       "check": "/testing:check"
+    },
+    {
+      "id": "npm",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:check-visual-parity"
+      ],
+      "detect": {
+        "any": [
+          "npm"
+        ]
+      },
+      "degrade": "Without npm, /testing:check-visual-parity cannot install pixelmatch and pngjs, so compare stops with the repair line and counts nothing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/testing:check"
     }
   ]
 }

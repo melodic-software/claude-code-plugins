@@ -214,10 +214,11 @@ stage. It was observed on **Claude Code 2.1.240**: a `sync` run's Step 3 moved t
 install record to 0.35.3, while the session went on rendering the 0.33.2 skill it had loaded at
 session start, and every `fleet-state.sh` call for the rest of that run came from the 0.33.2 tree.
 
-Not a crash: per the same page, Claude Code "marks the previous version directory as orphaned and
-removes it in a background sweep roughly 14 days later. The grace period lets concurrent Claude Code
-sessions that already loaded the old version keep running without errors", so the old script stays
-readable to the end of the run. And the
+Not a crash: Claude Code marks the previous version directory orphaned and removes it only after a
+grace period, so a session that already loaded the old version keeps running and the old script
+stays readable to the end of the run. Grace period and sweep conditions:
+<https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions> (as of 2026-10-11; recheck
+when that section stops saying a session that loaded the old version keeps running). And the
 *resolution* half is already handled: `fleet-state.sh`'s default-marketplace resolver carries a
 version-agnostic fallback whose comment names this exact scenario, which is why the bare
 (no `--marketplace`) path keeps working after the bump. Keep the two in step: if that fallback is

@@ -116,15 +116,16 @@ Run by a person when the findings warrant removal; it takes the same target, not
   **Basis:** the three probe lanes on
   [#5516](https://github.com/melodic-software/claude-code-plugins/issues/5516) (headless default
   denied, `--bg` default parked, headless `bypassPermissions` denied), run on Claude Code 2.1.285;
-  upstream behavior is in the
-  [permission modes doc](https://code.claude.com/docs/en/permission-modes) and the
-  [hooks doc](https://code.claude.com/docs/en/hooks). **As of:** 2026-09-30. **Recheck:** a Claude
-  Code release changes how permission modes treat Bash calls no hook adjudicates.
+  correlate with [Available modes](https://code.claude.com/docs/en/permission-modes#available-modes)
+  and [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control).
+  **As of:** 2026-10-11. **Recheck:** a Claude Code release changes how permission modes treat Bash
+  calls no hook adjudicates.
 - Under an inline `--plugin-dir` load the probe can report `data_root` as `null` even though the
   plugin data directory exists. Stop as step 1 says; do not substitute a guessed path. **Claim:** the
   guard derives `data_root` only from the `<plugins>/cache/<marketplace>/<name>` install layout or a
   registered directory marketplace, so a checkout loaded inline reports `null`. **Basis:** the probe
-  run from a checkout with neither reported `hook_python` resolved and `data_root: null` on Claude Code
+  recorded in [#5590](https://github.com/melodic-software/claude-code-plugins/pull/5590), run from a
+  checkout with neither, reported `hook_python` resolved and `data_root: null` on Claude Code
   2.1.285 (Linux); the derivation rule is in
   [safety-model.md](../clean/reference/safety-model.md), "Local-directory marketplace installs".
   **As of:** 2026-09-30. **Recheck:** the guard's data-root derivation changes, or a Claude Code

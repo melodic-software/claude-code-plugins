@@ -3,6 +3,8 @@ description: "Verify the rate-limit-guard plugin on this machine: node, whether 
 argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(command -v node*)"
 shell: bash
 ---
 
@@ -11,7 +13,7 @@ shell: bash
 `check`'s `node` probe ran at load time. Read this row instead of re-issuing it; it shows the
 tool's path when present, or `absent` when missing:
 
-- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
+- `node`: !`command -v node 2>/dev/null || echo absent`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run the
 `command -v node` probe via Bash instead.
@@ -89,8 +91,8 @@ are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    - **Pointer**: [api: add a tool](https://code.claude.com/docs/en/plugins/mods/api#add-a-tool)
      (the `mcp__<plugin>__<name>` form),
      [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
-     and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesnt-load).
-   - **As of**: 2026-10-03, Claude Code 2.1.288.
+     and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesn%E2%80%99t-load).
+   - **As of**: 2026-10-03, Claude Code 2.1.288; the doesn't-load anchor 2026-10-11.
    - **Recheck trigger**: the full tool name form changes, that table changes a message, or the
      minimum version changes.
 3. **Snapshot freshness.** The module writes after main-thread tool results, so this check's own
@@ -120,9 +122,9 @@ are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    | Option | Value | Default | What it does |
    |---|---|---|---|
    | `rate_limit_guard_enabled` | `${user_config.rate_limit_guard_enabled}` | `true` | `false` stops the StopFailure hook's records and the module's snapshot writes; lines, band and status tool continue. |
-   | `rate_limit_lines_enabled` | `${user_config.rate_limit_lines_enabled}` | `true` | `false` sends Claude no lines and offers no operator-mode suggestions. |
+   | `model_notices` | `${user_config.model_notices}` | `false` | `false` sends Claude no lines and offers no operator-mode suggestions; `true` sends them. |
    | `rate_limit_report_mode` | `${user_config.rate_limit_report_mode}` | `automatic` | `automatic` sends the lines to Claude; `operator` holds them in a turn a person typed and offers them as a prompt suggestion plus a notice row above the prompt. |
-   | `rate_limit_line_threshold` | `${user_config.rate_limit_line_threshold}` | `95` | Window use at which Claude gets the threshold line. The loop lanes' pause edge stays 95 whatever this is. |
+   | `rate_limit_line_threshold` | `${user_config.rate_limit_line_threshold}` | `95` | Window use at which Claude gets the threshold line. An opted-in loop lane's pause threshold stays 95 whatever this is. |
    | `rate_limit_approach_pct` | `${user_config.rate_limit_approach_pct}` | `90` | Window use for the one approach line; at or above the threshold, none is sent. |
    | `rate_limit_line_data` | `${user_config.rate_limit_line_data}` | `verdict,percent,window,reset` | What a line carries beside its verdict: `percent`, `window`, `reset`. |
    | `rate_limit_guard_band` | `${user_config.rate_limit_guard_band}` | `false` | `true` draws the band row; `/rate-limit-guard band on` or `band off` sets it for one session. |
@@ -136,6 +138,8 @@ are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      in the user `settings.json` (the hook-config-delivery convention,
      <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/hook-config-delivery/README.md>,
      owns why the declared `default` field is not delivered to hook processes).
+   - A `rate_limit_lines_enabled` key left in `pluginConfigs` does nothing; `model_notices`
+     replaced it. Report it as INFO, safe to remove.
    - A threshold or approach mark outside 1 to 100, or a `rate_limit_line_data` list with an
      unknown item, reads as that option's default, and the module logs one transcript line naming
      it. Report the value as invalid and the default as what runs. A value of the wrong type (text

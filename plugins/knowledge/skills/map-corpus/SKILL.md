@@ -44,9 +44,18 @@ Configured library dir: `${user_config.library_dir}`
 The work root resolves through the `knowledge` plugin's `library_dir` seam (not `memory_dir`, not
 `.claude/`, not `${CLAUDE_PLUGIN_DATA}`). Resolve once before
 the first write and record the absolute path in the checklist: unset or a surviving
-`${user_config.library_dir}` token means the default `.`; relative resolves against
-`${CLAUDE_PROJECT_DIR}`; absolute and `~` are verbatim; a `${NAME}`/`%NAME%` env-var reference is
-read by you, never handed to a shell, an unset variable must fail loudly, not expand empty.
+`${user_config.library_dir}` token means the default `.`; relative resolves against the
+session's own working tree (`git rev-parse --show-toplevel` in the session's working directory, or
+that directory outside git), never against `${CLAUDE_PROJECT_DIR}`, the same rule
+`/knowledge:docpage-digest` applies so both skills write under one root; absolute and `~` are
+verbatim; a `${NAME}`/`%NAME%` env-var reference is read by you, never handed to a shell, an unset
+variable must fail loudly, not expand empty.
+
+- **Pointer**: when deciding where `CLAUDE_PROJECT_DIR` points in a worktree session, fetch
+  <https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree> live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes where `CLAUDE_PROJECT_DIR` points after a session
+  enters a worktree.
 
 The slice lands at `<resolved-root>/.work/<epic>/<slug>/`, and **every corpus artifact this skill
 writes stays inside the `library_dir` seam**: nothing lands under the consuming repo's `memory_dir`,

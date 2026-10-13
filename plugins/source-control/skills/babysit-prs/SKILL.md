@@ -14,7 +14,9 @@ metadata:
 
 ## Pre-computed context
 
+<!-- portability-ok: harness-executed pre-computed context; changing the command changes what the skill loads -->
 Current login: !`gh api user --jq .login 2>/dev/null || echo "unknown"`
+<!-- portability-ok: harness-executed pre-computed context; changing the command changes what the skill loads -->
 Own open PRs here: !`gh pr list --state open --author "@me" --limit 200 --json number --jq 'length' 2>/dev/null || echo "unknown"`
 
 Branch and working tree: gather with two separate Bash calls, `git branch --show-current` then `git status --porcelain`; treat a failure as an unknown value and carry on. Keep them out of the pre-computed block above: the harness composes that block into one shell invocation, and a worktree-isolated agent refuses a git-bearing compound command. The dated record for that composition claim is the `worktree` skill's [reference/gather-block.md](../worktree/reference/gather-block.md), "The pre-compute block runs as one shell invocation".
@@ -144,8 +146,8 @@ never routed around. Advisory-only fix attempts are bounded per PR (the fix-roun
 never merged autonomously in ANY tier, the merge gate refuses it absent `--allow-dependency`,
 which is passed only on an explicit user instruction to merge that specific PR.
 
-**Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge") is held in ANY tier:
-the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
+**Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge"), or has a line
+starting `Hold:`, is held in ANY tier: the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
 label is held the same way: the gate blocks on that label unconditionally, and `--block-labels`
 adds further labels in the autopilot merge tier. The PR is reported and left unmerged. The
 hyphenated label name in a body is not a hold.
@@ -156,7 +158,9 @@ autopilot: zero-blocker drafts always route through a worker (see Fan out). The 
 happens only in autopilot, only for a draft its worker assesses complete, and it runs
 `/source-control:pull-request ready` rather than a bare draft flip: that step merges the base
 branch and runs the security review and the verify gate before it flips, which a bare flip does
-not.
+not. A PR that `/source-control:pull-request create` opened ready for review, because the
+repository or its author set `pr_open_state: ready`, is handled as any non-draft PR; no tier turns
+it back into a draft.
 
 ## Autopilot
 
@@ -170,7 +174,7 @@ widens are the single home in [reference/autopilot.md](reference/autopilot.md).
 ## Autopilot merge tier
 
 A config-gated escalation of autopilot's merge authority, off by default and active only while the operator sets `babysit_autopilot_merge_tier`; with the key unset, every merge decision follows the base path above. When enabled, per candidate PR autopilot runs a **genuine review pass** under a **second bot account** (author ≠ approver) that submits an approving review **only when clean**, then runs the pinned merge gate with the `--autopilot-merge-tier` flags layered onto `--merge --expected-head <post-push-head-sha>`. The concrete enabled-path merge command, the second-account approve mechanic, and the review-workflow requiredness precondition for enabling the tier are the single home in [reference/safety.md](reference/safety.md).
-That gate merges **only when every criterion holds**, the criteria and the safety-contract rationale are codified in [reference/safety.md](reference/safety.md). It is **fail-closed** (the umbrella flag refuses unless all three parameter sets are supplied; predicates reused from the shared `babysit_classify` module), and any criterion failing falls back to the human merge-ready list, the tier never routes around the gate.
+That gate merges **only when every criterion holds**, the criteria and the safety-contract rationale are codified in [reference/safety.md](reference/safety.md). It is **fail-closed** (the umbrella flag refuses unless all three parameter sets are supplied; predicates reused from the shared `babysit_classify` module), and any criterion failing falls back to the human merge-ready list, the tier never routes around the gate. The gate's `--unattended` flag is the unattended path, off unless the repository's `pr-pipeline.yaml` sets `merge.authority: local-babysit` and a `merge.agent-identity`: under that identity alone it enqueues a LOW, eligible, promoted pull request at its pinned head, writes the reasons comment for MED or HIGH, and dequeues on a stop or a hold. No tier passes it, and plain `--merge` refuses the configured identity: [reference/safety.md](reference/safety.md#unattended-merge-path).
 
 ## Guarded mutations: deterministic gates, agent judgment
 
@@ -339,10 +343,10 @@ classification gate. Let a safe iteration proceed when the engine is absent, rep
 merge-readiness as unchecked.
 
 **Sandboxed sessions: the engine reads over REST, and thread resolution fails closed.**
-Claude Code on the web and remote execution serve only part of the forge's GraphQL API, and the
+In a cloud session behind the GitHub proxy, a forge GraphQL call can be refused, and the
 refusal reads like an expired token or a missing scope while being neither: take it as a signal to
-switch APIs rather than to re-authenticate (the signal and the REST routes: provider reference
-"Sandboxed sessions"). The engine re-sources its pull-request reads over REST by itself, so
+switch APIs rather than to re-authenticate (the signal, the REST routes and the upstream pointer:
+provider reference "Sandboxed sessions"). The engine re-sources its pull-request reads over REST by itself, so
 discovery, classification, and the branch-rule and freshness checks keep working unchanged.
 
 Review-thread **resolution** is the one fact with no REST equivalent, and it is not approximated.

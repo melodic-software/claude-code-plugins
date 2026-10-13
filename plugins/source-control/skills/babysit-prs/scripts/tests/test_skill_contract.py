@@ -277,7 +277,7 @@ class SkillContractTests(unittest.TestCase):
                 self.assertIn(marker, worker)
 
         # The negative half: the push lives in exactly one of the two contracts.
-        self.assertNotIn('push "$PUSH_REMOTE"', worker)
+        self.assertNotIn("push-branch.sh", worker)
 
         orchestrator = sections["Orchestrator Contract (the push)"]
         for marker in (
@@ -285,7 +285,7 @@ class SkillContractTests(unittest.TestCase):
             "rev-parse HEAD^1",
             "rev-list --parents -n 1 HEAD",
             "Re-run the verification in the worktree",
-            'push "$PUSH_REMOTE" HEAD:<headRefName>',
+            "push-branch.sh --dir <worktree> --pr <N>",
             "Never force, in any tier.",
         ):
             with self.subTest(side="orchestrator", marker=marker):

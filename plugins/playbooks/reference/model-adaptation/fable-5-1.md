@@ -135,10 +135,10 @@ to what the task covers. `[CC: direct]`
 
 Integrations we author treat conversation history as append-only: each assistant response goes back
 unmodified, thinking blocks and all, and no earlier turn changes between requests. Do not force
-`tool_choice` on this model. Budget for earlier thinking blocks staying in context and billing as
-input. When a conversation switches models, pass thinking blocks back unchanged and let the API
-decide which ones the new model reads. The Claude Code harness keeps the prefix intact for you;
-these rules matter only where our code assembles the `messages` array. Resolve the current
+`tool_choice` on this model. Budget for earlier thinking blocks in the token and cost estimate.
+When a conversation switches models, pass thinking blocks back unchanged rather than filtering
+them ourselves. These rules matter only where our code assembles the `messages` array, not in a
+Claude Code session. Resolve the current
 details through the `claude-api` skill at the moment of use; this chapter carries no model ID,
 price, or limit. `[CC: API-side]`
 
@@ -150,7 +150,7 @@ price, or limit. `[CC: API-side]`
   [Response prefill and forced tool use](https://platform.claude.com/docs/en/build-with-claude/thinking#response-prefill-and-forced-tool-use);
   for retention and cross-model reads, see
   [Thinking block preservation by model](https://platform.claude.com/docs/en/build-with-claude/thinking#thinking-block-preservation-by-model).
-- **As of**: 2026-10-01 for the guide; 2026-09-28 for the thinking page.
+- **As of**: 2026-10-01 for the guide; 2026-10-11 for the thinking page (anchors checked).
 - **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above.
 
 ## Cross-model effort economics, for model selection
