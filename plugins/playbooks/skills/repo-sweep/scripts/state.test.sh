@@ -33,7 +33,7 @@ mkdir -p "$TMP/textjq"
 # shellcheck disable=SC2016 # the fake's own source: its $-expansions run when it does
 {
   printf '#!/usr/bin/env bash\nset -o pipefail\n'
-  printf 'if [[ ${1-} == -b ]]; then shift; exec %q "$@"; fi\n' "$(command -v jq)"
+  printf 'if [[ ${1-} == -b ]]; then exec %q "$@"; fi\n' "$(command -v jq)"
   printf '%q "$@" | awk -v BINMODE=3 '"'"'{ printf "%%s\\r\\n", $0 }'"'"'\n' "$(command -v jq)"
 } >"$TMP/textjq/jq"
 chmod +x "$TMP/textjq/jq"
