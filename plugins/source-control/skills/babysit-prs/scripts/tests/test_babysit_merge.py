@@ -678,6 +678,8 @@ class PullRequestBodyHold(TierEvaluateHarness):
         for body in (
             "Refs: #1\r\n\r\nHold: a human merges this\r\n",
             "## Summary\n  hold: until the release ships",
+            "Refs: #1\n Hold: pasted from a rich-text editor",
+            "Refs: #1\rHold: a bare CR line break",
         ):
             for tier in (TIER, None):
                 with self.subTest(body=body, tier=tier is not None):

@@ -1303,6 +1303,10 @@ class EntryHold(unittest.TestCase):
         self.fake(body="Please do not merge until the release")
         self.assertEqual(self.hold(), "body-hold")
 
+    def test_a_body_hold_line(self) -> None:
+        self.fake(body="Refs: #1\r\n\r\nHold: a human merges this")
+        self.assertEqual(self.hold(), "body-hold")
+
     def test_a_human_blocking_comment(self) -> None:
         gh = self.fake()
         gh.rest[f"repos/{REPO}/issues/5/comments?per_page=100"] = [

@@ -190,10 +190,11 @@ HUMAN_MERGE_VETO_RE = re.compile(r"\bdo(?:n['’]?t| not|-not)[\s-]*merge\b", re
 # The PR author's own hold, written in the body ("Do not merge this draft", or
 # a line starting "Hold:"): the label is not the only way a PR says it must not
 # merge. The hyphenated form is the label's name and is not matched, so a body
-# that merely names the label does not block. pull-request's
-# check-ready-holds.sh applies the same rule.
+# that merely names the label does not block. A "Hold:" line may follow any
+# whitespace, NBSP included, and a bare CR counts as a line break. A "Hold:"
+# line holds the merge only: the pull-request ready flip ignores it.
 BODY_MERGE_HOLD_RE = re.compile(
-    r"\bdo(?:n['’]?t| not)\s+merge\b|^[ \t]*hold:", re.I | re.M
+    r"\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:", re.I | re.M
 )
 # The label form of the same hold: blocks in every tier, whether or not the
 # autopilot merge tier is engaged. `--block-labels` only adds to it.
