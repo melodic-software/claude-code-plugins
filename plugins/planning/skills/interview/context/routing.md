@@ -23,8 +23,10 @@ turn out larger or foggier than it looked at entry? It is bigger when either tri
   a report the harness already surfaced or that tool; do not poll your own context statistics, and
   write no token or percentage figure here, because the zone thresholds belong to context-guard.
   No report, or `unknown`, is not a trigger.
-- **More branches opened than closed.** Count the register: this round's new `open` rows against
-  the rows it moved to a terminal status. Two rounds running with more opened than closed is a
+- **More branches opened than closed.** Recompute the frontier first, then count the branches this
+  round's answers exposed (the questions the next round would add) against the rows it moved to a
+  terminal status. Register rows alone miss this: a new branch gets its row only when it is
+  asked. Two rounds running with more opened than closed is a
   trigger; one is noise.
 
 On a trigger, recommend `/planning:wayfind chart` to the user in one short block (the trigger and
@@ -76,4 +78,6 @@ gate:
 4. Hand off by what the session produced, never to `/planning:plan`: engineering work that is not
    design-significant goes to implementation (`/implementation:implement`), design-significant
    work goes to `/planning:design` first (SKILL.md Step 5), a general session delivers its summary
-   and stops, and a `scope` run returns to its caller.
+   and stops, and a `scope` run returns to its caller. The handoff message lists each deferred
+   row by its `Q<N>` id and question, because `/planning:plan`'s approval gate, the usual place a
+   `USER-RESERVED` row comes back to the user, does not run on this path.
