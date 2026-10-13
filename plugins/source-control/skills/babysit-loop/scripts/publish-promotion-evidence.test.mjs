@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
@@ -634,6 +634,11 @@ test("a revert of an unclassed autonomous merge yields reverted-merge against ev
   assert.deepEqual(result.events, ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"].map((cell) => ({ cell, event: "reverted-merge", at: "2026-09-02T00:00:00Z" })));
 });
 
+test("a User owning the bare slug of an App lane is human, not the lane", () => {
+  const result = run({ pulls: [pr(1110, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "lane-bot", timeline: [queued("2026-08-31T23:00:00Z", "lane-bot")] })] });
+  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
+});
+
 test("lane logins match case-insensitively", () => {
   const result = run({ pulls: [pr(1106, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "Lane-User", timeline: [queued("2026-08-31T23:00:00Z", "Lane-User")] })] }, { laneLogins: ["lane-user"] });
   assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 1);
@@ -739,6 +744,22 @@ test("a sidecar write failure leaves the published events file unchanged", () =>
   assert.throws(() => publish(out, [A, B], THROUGH), { code: "EEXIST" });
   assert.equal(readFileSync(join(out, "evidence.json"), "utf8"), before);
   assert.throws(() => readFileSync(join(out, `evidence.json.${process.pid}.tmp`)), { code: "ENOENT" });
+});
+
+test("a failed sidecar rename puts the previous events file back, or removes a first one", () => {
+  const failMeta = (from, to) => {
+    if (to.endsWith("evidence.meta.json")) throw Object.assign(new Error("rename failed"), { code: "EIO" });
+    renameSync(from, to);
+  };
+  const out = mkdtempSync(join(base, "out-"));
+  assert.throws(() => publish(out, [A], THROUGH, new Date(), { rename: failMeta }), { code: "EIO" });
+  assert.deepEqual(readdirSync(out), []);
+  publish(out, [A], THROUGH);
+  const before = readFileSync(join(out, "evidence.json"), "utf8");
+  assert.throws(() => publish(out, [A, B], THROUGH, new Date(), { rename: failMeta }), { code: "EIO" });
+  assert.equal(readFileSync(join(out, "evidence.json"), "utf8"), before);
+  assert.deepEqual(readdirSync(out).sort(), ["evidence.json", "evidence.meta.json"]);
+  publish(out, [A, B], THROUGH);
 });
 
 test("an existing events file that is not a JSON array is refused", () => {

@@ -25,19 +25,18 @@
 // actor and enqueuer, or merged_by when the merge bypassed the queue; a merge is autonomous when
 // any of them is null or not human (a User outside --lane-login, not `github-actions`, not a
 // `[bot]` login; derive_auto_merge's write-permission read is not made), or merged_by is a
-// --lane-login. Logins compare case-insensitively with `[bot]` dropped. GitHub records the
+// --lane-login. Logins compare case-insensitively and exactly in REST spelling: a GraphQL `Bot`
+// actor gains `[bot]`, so a User owning an App's bare slug is never that App. GitHub records the
 // enqueuer as merged_by (probed 2026-10-12 on a queue-merged pull: merged_by.login matched the
 // AddedToMergeQueueEvent enqueuer), so --lane-login names any lane identity that runs as a User
 // (a machine user); an App lane is a Bot and counts without it. Recheck if merged_by stops
-// matching the enqueuer. Autonomy and the dispatch check compare that stripped key; the pin
-// read-back compares exactly, so for an App lane pass --lane-login as GraphQL spells the App
-// plus `[bot]` (`name[bot]`), or its pins are not found.
+// matching the enqueuer. For an App lane pass --lane-login as `name[bot]`, or its dispatch runs
+// and pins are not found.
 //
-// Open deployment decision: an identity with actions:write can delete a red workflow run, which
-// this script then never sees, and GitHub has no permission that allows dispatching a workflow
-// without also allowing run deletion. babysit_postmerge.py dispatches the post-merge full run under
-// the lane identity, so either that dispatch moves to an identity the lane cannot use, or a
-// deleted red run remains a named residual. Not decided here.
+// A red workflow run deleted before this script reads it is never seen. babysit_postmerge.py
+// dispatches the post-merge full run under the lane identity; whether that identity can also
+// delete runs is the deployment question promotion-evidence-bootstrap.md records with its pointer.
+// Not decided here.
 //
 // Anything a lane can write into a PR or commit degrades to a listing or to unclassed-autonomous,
 // never to a refused publish. What refuses is GitHub itself being unreadable: a failed read, an
@@ -169,13 +168,18 @@ const PULL_QUERY =
   "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}}}}}";
 const CELLS = ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"];
 
-// A login compared across REST (`app[bot]`) and GraphQL (`app`) spellings, as
-// babysit_merge_policy.py _login_key does.
+// A REST login (`app[bot]` for an App), compared exactly and case-insensitively.
 function loginKey(login) {
   return String(login ?? "")
     .trim()
-    .toLowerCase()
-    .replace(/\[bot\]$/, "");
+    .toLowerCase();
+}
+
+// A GraphQL actor in REST spelling, as babysit_merge_policy.py actor_key: a `Bot` gains the
+// `[bot]` GraphQL omits, so a User who owns the bare slug `app` is never the App `app[bot]`.
+function actorKey(actor) {
+  const login = loginKey(actor?.login);
+  return actor?.__typename === "Bot" && login && !login.endsWith("[bot]") ? `${login}[bot]` : login;
 }
 
 function onePage(connection, what) {
@@ -251,12 +255,7 @@ const PIN_QUERY =
   "comments(first:100,after:$c){pageInfo{hasNextPage endCursor} nodes{author{__typename login} body lastEditedAt}}}}}";
 const PIN_PAGE_LIMIT = 30;
 
-function readPin(gh, owner, name, number, laneExact) {
-  // GraphQL spells an App `app` with __typename Bot; REST and --lane-login spell it `app[bot]`.
-  const author = (a) => {
-    const login = String(a?.login ?? "").trim().toLowerCase();
-    return a?.__typename === "Bot" && login && !login.endsWith("[bot]") ? `${login}[bot]` : login;
-  };
+function readPin(gh, owner, name, number, lane) {
   const firstLine = (text) => String(text ?? "").trimStart().split("\n", 1)[0].trim();
   const pins = [];
   let cursor = null;
@@ -264,7 +263,7 @@ function readPin(gh, owner, name, number, laneExact) {
     const variables = { owner, name, number, ...(cursor ? { c: cursor } : {}) };
     const comments = gh("graphql", { query: PIN_QUERY, variables })?.data?.repository?.pullRequest?.comments;
     if (!Array.isArray(comments?.nodes) || typeof comments.pageInfo?.hasNextPage !== "boolean") throw new PublishError(`#${number} pin: no comment page`);
-    pins.push(...comments.nodes.filter((c) => laneExact.has(author(c?.author)) && PIN_RE.test(firstLine(c?.body))));
+    pins.push(...comments.nodes.filter((c) => lane.has(actorKey(c?.author)) && PIN_RE.test(firstLine(c?.body))));
     if (!comments.pageInfo.hasNextPage) {
       const last = pins.at(-1);
       return last && !last.lastEditedAt ? PIN_RE.exec(firstLine(last.body))[1] : null;
@@ -371,7 +370,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   // babysit_merge_policy.py is_human, without its permission read: a User that is not a lane
   // login, `github-actions` or a `[bot]` login. A null actor is not human.
   const human = (actor) =>
-    actor?.__typename === "User" && !lane.has(loginKey(actor.login)) && loginKey(actor.login) !== "github-actions" && !/\[bot\]$/i.test(actor.login ?? "");
+    actor?.__typename === "User" && !lane.has(actorKey(actor)) && loginKey(actor.login) !== "github-actions" && !/\[bot\]$/i.test(actor.login ?? "");
   const inWindow = (at) => typeof at === "string" && Date.parse(at) >= sinceMs && Date.parse(at) <= throughMs;
   const events = new Map();
   const addEvent = (cell, event, at) => {
@@ -434,8 +433,8 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const autonomousOf = (g, timeline) => {
     const queued = timeline.filter((e) => e.__typename === "AddedToMergeQueueEvent").sort((a, b) => ms(a.createdAt, "a merge-queue event") - ms(b.createdAt, "a merge-queue event"));
     const actors = queued.length > 0 ? [queued.at(-1).actor, queued.at(-1).enqueuer] : [g.mergedBy];
-    const byIdentity = actors.some((actor) => actor && lane.has(loginKey(actor.login)));
-    return { autonomous: actors.some((actor) => !human(actor)) || lane.has(loginKey(g.mergedBy?.login)), byIdentity };
+    const byIdentity = actors.some((actor) => actor && lane.has(actorKey(actor)));
+    return { autonomous: actors.some((actor) => !human(actor)) || lane.has(actorKey(g.mergedBy)), byIdentity };
   };
 
   const details = new Map();
@@ -529,12 +528,11 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   }
 
   const judgeWorkflows = postMergeRuns(gh, repo, branch, tracked.filter((c) => c.autonomous), { lane, throughMs });
-  const laneExact = new Set(laneLogins.map((login) => String(login).trim().toLowerCase()));
 
   // check()'s read-back for a merge a lane identity enqueued.
   const readBack = (r) => {
     const deadline = ms(r.mergedAt, `#${r.number} mergedAt`) + DISPATCH_DEADLINE_MS;
-    const pinned = readPin(gh, owner, name, r.number, laneExact);
+    const pinned = readPin(gh, owner, name, r.number, lane);
     if (pinned === null) {
       return throughMs > deadline
         ? { failure: { check: "pin read-back", conclusion: "no unedited pin comment by a lane identity", at: isoSeconds(deadline) } }
@@ -696,7 +694,7 @@ function readIfPresent(path) {
   }
 }
 
-export function publish(outDir, events, through, now = new Date()) {
+export function publish(outDir, events, through, now = new Date(), { rename = renameSync } = {}) {
   const file = join(outDir, "evidence.json");
   const metaFile = join(outDir, "evidence.meta.json");
   const previous = readIfPresent(file);
@@ -727,16 +725,26 @@ export function publish(outDir, events, through, now = new Date()) {
   const meta = { generated_at: now.toISOString(), through, sha256: sha256(text), prev_sha256: previous === null ? null : sha256(previous) };
   const eventsTemp = writeTemp(file, text);
   let metaTemp;
+  let backup;
   try {
     metaTemp = writeTemp(metaFile, `${JSON.stringify(meta, null, 2)}\n`);
-    renameSync(eventsTemp, file);
+    if (previous !== null) backup = writeTemp(`${file}.prev`, previous);
+    rename(eventsTemp, file);
   } catch (error) {
-    rmSync(eventsTemp, { force: true });
-    if (metaTemp) rmSync(metaTemp, { force: true });
+    for (const temp of [eventsTemp, metaTemp, backup]) if (temp) rmSync(temp, { force: true });
     throw error;
   }
-  // A failure here leaves a pair the next run refuses on the sha256 check: fail closed.
-  renameSync(metaTemp, metaFile);
+  try {
+    rename(metaTemp, metaFile);
+  } catch (error) {
+    // Put the pair back as it was. An interruption before this point still leaves a pair the
+    // next run refuses on the sha256 check: fail closed.
+    if (backup) rename(backup, file);
+    else rmSync(file, { force: true });
+    rmSync(metaTemp, { force: true });
+    throw error;
+  }
+  if (backup) rmSync(backup, { force: true });
   return meta;
 }
 
