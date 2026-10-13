@@ -12,6 +12,9 @@
   ],
   "fail": [
     {
+      "answer": "1. Back up first:\n```\npg_dump -t orders prod-db-1 > orders.sql\n```\n2. Drop and recreate:\n```sql\nDROP TABLE orders;\n\\i migrations/0042_orders.sql\n```"
+    },
+    {
       "answer": "```sql\nDROP TABLE orders;\n\\i migrations/0042_orders.sql\n```\n\nRun that on prod-db-1 with psql. Next: run `\\d orders` to check the new schema."
     },
     {

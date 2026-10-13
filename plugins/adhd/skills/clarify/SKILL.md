@@ -103,6 +103,8 @@ fidelity rules hold in every medium.
 
 ### The decision table
 
+In every medium the table has numbered rows and these columns.
+
 | # | Item | Recommendation | Basis | Alternative | What you're deciding |
 |---|------|----------------|-------|-------------|----------------------|
 | 1 | Q9 | *(verbatim operative terms)* | *(verbatim, or "none stated")* | *(verbatim, or "none offered")* | the crux in one sentence |

@@ -3,7 +3,7 @@ name: sh-estimate-and-list-cap
 graders:
   - name: concrete-time-estimate
     type: regex
-    pattern: '\b\d+(?:\.\d+)?(?:\s*(?:-|–|to)\s*\d+(?:\.\d+)?)?\s*(?:minutes?|hours?|days?|working days?|weeks?)\b|\b(?:an?|one|half an?|half a|a full|one full)\s+(?:hour|afternoon|morning|day|working day|week)\b'
+    pattern: '\b(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?:\s*(?:-|–|to)\s*(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve))?\s*(?:minutes?|hours?|days?|working days?|weeks?)\b|\b(?:an?|one|half an?|half a|a full|one full)\s+(?:hour|afternoon|morning|day|working day|week)\b'
     flags: i
     target: last_message
   - name: no-list-over-five

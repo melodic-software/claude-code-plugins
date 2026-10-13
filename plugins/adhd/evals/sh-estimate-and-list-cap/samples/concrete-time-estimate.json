@@ -5,6 +5,12 @@
     },
     {
       "answer": "Run `npm install express@5` now. Estimate: roughly half a day.\n\n- Must: route files, tests, CI config\n- Nice to have: README, Slack note"
+    },
+    {
+      "answer": "Three hours total. Next: run `npm install express@5`."
+    },
+    {
+      "answer": "Expect two to three hours. Next: run `npm install express@5`."
     }
   ],
   "fail": [
