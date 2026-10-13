@@ -362,7 +362,7 @@ function pluginPythonSet(python, ctx) {
   if (!existsSync(lock)) return null;
   const data = expandPluginPath("${CLAUDE_PLUGIN_DATA}", ctx);
   if (!data) return { dir: null };
-  const tag = run(python, ["-c", "import sys; print(sys.implementation.cache_tag)"]);
+  const tag = run(python, ["-c", "import sys; print(sys.implementation.cache_tag)"], ctx.env);
   const cacheTag = tag.ok ? tag.stdout.trim() : "";
   if (!/^[A-Za-z0-9._-]+$/.test(cacheTag)) return null;
   const key = createHash("sha256").update(readFileSync(lock)).digest("hex").slice(0, 12);
