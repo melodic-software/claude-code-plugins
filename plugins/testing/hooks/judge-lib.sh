@@ -8,6 +8,7 @@
 #   sessions/<pkey>/<sid>/<tool_use_id>.json  test-scan's record of each write
 #   verdicts/<pkey>/<sid>/<key-hash>.json     the ledger, written by rename
 #   verdicts/<pkey>/<sid>/blob-<blob id>      a test file as a judge run read it
+#   verdicts/<pkey>/<sid>/unusable-<t>-<pid>.txt  a run's output with no usable result
 #   relayed/<pkey>/<sid>/<key-hash>           shown to the user (mirrors the ledger)
 #   locks/<key-hash>, slots/<n>               "pid host start", noclobber
 #   pending/<pkey>/<sid>/<id>                 a background job: "pid host start", then the file
@@ -207,17 +208,38 @@ judge::load() {
   done
 }
 
+# judge::drop <file>: remove every record in the session set that names the
+# file exactly, while the file is still missing: a write that brings it back
+# records it again. One jq reads every record; only when a malformed record
+# fails it does each record get its own.
+judge::drop() {
+  # shellcheck disable=SC2016 # $f is a jq variable
+  local s r recs=() hits q='objects | select(.file == $f) | input_filename'
+  for s in "${SESSIONS[@]}"; do
+    for r in "$DATA/sessions/$PKEY/$s"/*.json; do [[ -f "$r" ]] && recs+=("$r"); done
+  done
+  ((${#recs[@]})) || return 0
+  hits="$(jq -r --arg f "$1" "$q" "${recs[@]}" 2>/dev/null)" ||
+    hits="$(for r in "${recs[@]}"; do jq -r --arg f "$1" "$q" "$r" 2>/dev/null; done)"
+  while IFS= read -r r; do
+    [[ -n "$r" ]] || continue
+    [[ -f "$1" ]] && return 0
+    rm -f -- "$r"
+  done <<<"$hits"
+}
+
 # judge::derive <info>: set KEYS to one line per in-doubt block of the file as
 # it is now, "<key-hash> <ordinal> <start>-<end> <name>", and HINT to the
 # changed-line hint for a whole-file key. A block is in doubt when a write
 # created or changed it, when a write's blocks are unknown (all blocks), or
 # when it holds or sits under a cant-fail-ok: marker and the file's count rose
 # above the first recorded one (a created file starts from 0). A file the scanner cannot list, or whose lexer
-# lost sync, is one whole-file key. A missing file is logged and skipped.
+# lost sync, is one whole-file key. A missing file is skipped, and logged
+# once: judge::drop removes its records, so no later Stop derives it again.
 #
 # The result is cached under derive/, keyed by the sha256 of the info, this
 # hook directory (so a plugin update re-derives), the file's current content
-# and each testing config file (docs/conventions/testing.md and the
+# and each testing config file (docs/conventions/testing.yaml and .md, and the
 # .claude/testing.yaml layers): block identity is name and ordinal in the
 # current text, so the same inputs give the same keys and the scanner runs
 # again only when one of them changed. A scan that failed is never cached.
@@ -229,12 +251,13 @@ judge::derive() {
   file="${FIELDS[0]}" whole="${FIELDS[1]}" base_ok="${FIELDS[2]:-0}" lines="${FIELDS[3]}"
   names=$'\n'"${FIELDS[4]}"$'\n'
   if [[ ! -f "$file" ]]; then
-    judge::log "skipped: $file no longer exists"
+    judge::drop "$file"
+    judge::log "skipped: $file no longer exists; dropped from the session's records"
     return 0
   fi
   judge::file_repo "$file"
   root="${FREPO:-${CLAUDE_PROJECT_DIR:-}}"
-  for cfg in "${HOME:-}/.claude/testing.yaml" "$root/docs/conventions/testing.md" "$root/.claude/testing.yaml" "$root/.claude/testing.local.yaml"; do
+  for cfg in "${HOME:-}/.claude/testing.yaml" "$root/docs/conventions/testing.yaml" "$root/docs/conventions/testing.md" "$root/.claude/testing.yaml" "$root/.claude/testing.local.yaml"; do
     [[ -f "$cfg" ]] && cfgs+=("$cfg")
   done
   # sha256sum prefixes a line with \ when the file name holds a backslash.
@@ -655,6 +678,30 @@ judge::copy_verdict() {
   return 1
 }
 
+# judge::keep_unusable <raw> <file>: keep a run's output that gave no usable
+# result beside the ledger, as unusable-<epoch>-<pid>.txt (stdout, then
+# stderr), and log where, with the start of the judge's result text (or of the
+# output when it is not JSON) and of its stderr on one line, so the failure
+# can be told apart: no JSON object, or verdicts under names no block has.
+judge::keep_unusable() {
+  local raw="$1" kept out err
+  judge::now
+  kept="${raw%/*}/unusable-$NOW-$BASHPID.txt"
+  {
+    cat -- "$raw" 2>/dev/null
+    printf '\n--- stderr ---\n'
+    cat -- "$raw.err" 2>/dev/null
+  } >"$kept" 2>/dev/null || [[ -s "$kept" ]] || kept=""
+  out="$(jq -rs '[.[] | objects | .result? | strings] | join(" ") | select(. != "")' "$raw" 2>/dev/null)" ||
+    out=""
+  [[ -n "$out" ]] || out="$(head -c 2000 -- "$raw" 2>/dev/null)"
+  err="$(head -c 2000 -- "$raw.err" 2>/dev/null)"
+  out="$(printf '%s' "$out" | tr -s '\r\n\t ' ' ' | tr -d '\000-\037\177')"
+  err="$(printf '%s' "$err" | tr -s '\r\n\t ' ' ' | tr -d '\000-\037\177')"
+  out="${out:0:400}" err="${err:0:200}"
+  judge::log "unusable judge output on $2${kept:+, kept in $kept}: result: ${out:-(none)}${err:+; stderr: $err}"
+}
+
 judge::section1() {
   awk '/^## 1\. /{f=1} f&&/^## /&&!/^## 1\. /{exit} f' "$HOOK_DIR/../skills/test-value/SKILL.md" 2>/dev/null
 }
@@ -769,6 +816,7 @@ judge::run() {
       if ! judge::harvest "$raw"; then
         rc="judge exited $rc with no usable result"
         [[ -z "$denied" ]] || rc+="; it was denied $denied"
+        judge::keep_unusable "$raw" "$file"
       elif ((JUDGE_MUTED)); then
         rc="the judge was denied ${denied:-a tool} and gave no test a FLAG or PASS, so its UNKNOWN verdicts are a malfunction, not a judgment"
         judge::log "malfunction: judge run on $file: $rc"

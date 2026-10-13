@@ -75,9 +75,11 @@ the file and line behind it and one remediation line per FAIL:
    and print the line to add verbatim, alone in a code block, never in a table cell or sentence. When the instruction-placement plugin is installed, name
    `/instruction-placement:migrate` for moving instructions into `AGENTS.md`; otherwise print
    `claude plugin install instruction-placement@<marketplace>` and the line still stands alone.
-   Load rules: pointer <https://code.claude.com/docs/en/memory> ("When Claude Code reads
-   AGENTS.md", "Share one file with other coding tools"), as of 2026-10-09; recheck when that
-   page changes its import or file-discovery rules or a release note touches CLAUDE.md loading.
+   Load rules: pointer, when judging whether `AGENTS.md` loads, fetch
+   <https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> and
+   <https://code.claude.com/docs/en/memory#share-one-file-with-other-coding-tools> live; as of
+   2026-10-11; recheck when either section changes its import or file-discovery rules or a
+   release note touches CLAUDE.md loading.
 3. **Conventions file**: missing at the configured path; the path in the existing line points at a
    file that does not exist; or tooling conventions found in an old location: a file under
    `.claude/` holding `written_against: developer-experience@`, a `# Developer tooling
@@ -167,9 +169,8 @@ and exited 1. Recheck when that page documents the unmanaged case.
 - The helper owns the `AGENTS.md` line. Editing that line or the markers by hand bypasses its
   duplicate, symlink and marker checks.
 - Run the helper by the path written in this body, never through an environment variable a
-  command finds in Bash: where plugin variables resolve is
-  <https://code.claude.com/docs/en/plugins-reference> ("Where each variable resolves"), as of
-  2026-10-09; recheck when that section changes. The install-line form is
-  <https://code.claude.com/docs/en/plugins/cli-reference> ("plugin install"), and allowlist
-  matching <https://code.claude.com/docs/en/permissions> ("Compound commands"); same date; recheck
-  each when its own section changes.
+  command finds in Bash. **Pointer**: for where plugin variables resolve, fetch
+  <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>; for
+  the install-line form, <https://code.claude.com/docs/en/plugins/cli-reference#plugin-install>;
+  for allowlist matching, <https://code.claude.com/docs/en/permissions#compound-commands>; each
+  live. **As of**: 2026-10-11. **Recheck trigger**: one of those sections changes.

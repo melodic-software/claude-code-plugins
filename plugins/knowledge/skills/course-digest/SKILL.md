@@ -11,10 +11,10 @@ shell: bash
 ## Pre-computed context
 
 ```!
-{ printf 'course-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.argv[1];console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
-{ printf 'Playwright Chromium: '; node -e "const fs=require('fs'),path=require('path');const b=process.env.PLAYWRIGHT_BROWSERS_PATH||(process.argv[1]&&path.join(process.argv[1],'ms-playwright'));const ok=b&&fs.existsSync(b)&&fs.readdirSync(b).some(n=>n.startsWith('chromium'));console.log(ok?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
-{ printf 'ffmpeg: '; command -v ffmpeg >/dev/null 2>&1 && { ffmpeg -version 2>/dev/null | head -1; :; } || echo "MISSING — install ffmpeg (see Prerequisites)"; }
-{ printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && { magick -version 2>/dev/null | head -1; :; } || echo "MISSING — install ImageMagick 7 (see Prerequisites)"; }
+printf 'course-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.argv[1];console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"
+printf 'Playwright Chromium: '; node -e "const fs=require('fs'),path=require('path');const b=process.env.PLAYWRIGHT_BROWSERS_PATH||(process.argv[1]&&path.join(process.argv[1],'ms-playwright'));const ok=b&&fs.existsSync(b)&&fs.readdirSync(b).some(n=>n.startsWith('chromium'));console.log(ok?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"
+printf 'ffmpeg: '; command -v ffmpeg >/dev/null 2>&1 && ffmpeg -version 2>/dev/null | head -1 || command -v ffmpeg >/dev/null 2>&1 || echo "MISSING — install ffmpeg (see Prerequisites)"
+printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && magick -version 2>/dev/null | head -1 || command -v magick >/dev/null 2>&1 || echo "MISSING — install ImageMagick 7 (see Prerequisites)"
 ```
 
 # Course Digest

@@ -139,7 +139,7 @@ If after the survey (Step 2) a required section has NO answerable content in the
 
 **Skipped when `synthesize` action was invoked**. Go directly to Step 5.
 
-Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions. Inline prose otherwise.
+Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is independent questions that fit one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>, as of 2026-10-11; recheck when that section changes the per-call question limit). Inline prose otherwise.
 
 Each recommendation carries a `Basis:` line: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented, in the affected code plus its consumers and in external research that reads official docs first; route that work to the exploration or research capability rather than doing it here. One research cannot settle is withheld: ask the question open and name the evidence that would settle it, or record it under **Open questions**. A changed recommendation is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md).
 
@@ -150,11 +150,11 @@ Question shapes that recur, in priority order:
 | Section | Highest-value surfacing question |
 |---------|----------------------------------|
 | Problem | "Whose problem is this, and what do they currently do instead?" |
-| Goals | "If we ignore implementation, what changes for the user when this ships?" |
-| Non-goals | "What is explicitly out of scope so we don't drift?" |
+| Goals | "If we ignore implementation, what changes for the user when this ships?" Then, once for the feature: "Which shortcut in building this would cost users something, and do we take it or not?" |
+| Non-goals | "What is explicitly out of scope so we don't drift?" Then: "For every new option, control or setting: what is it for?" Any that no one can explain lands in this section. |
 | Users | "Who is the primary user. One persona or many? Walk me through their day before and after." |
 | User stories | "Pick the one most-important journey: as a `<role>` I want to `<action>` so that `<outcome>`." |
-| Success metrics | "How will we know it worked? Name the metric and the threshold. Adoption %, conversion %, time saved, error rate." |
+| Success metrics | "How will we know it worked? Name the metric and the threshold. Adoption %, conversion %, time saved, error rate." Then: "Which repeated task that brings users back does this improve, and does the metric measure that task?" |
 | Acceptance-criteria coverage | Asked once, per "Acceptance-criteria capture" below. Never one question per criterion. |
 | Dependencies / risks | "What outside this team must exist or change for this to ship? What's the biggest risk?" |
 | Open questions | "What is genuinely undecided that `/planning:plan` needs an answer to?" |
@@ -182,15 +182,15 @@ Required sections (every tier. Verbosity varies):
 
 1. **Problem**. What is broken, missed, or unmet for users today
 2. **Goals**. Outcome-level, not implementation-level
-3. **Non-goals**. Explicit out-of-scope items
+3. **Non-goals**. Explicit out-of-scope items, including any setting, control or option with no stated reason. Asking for a reason never cuts an option the consuming project keeps configurable on purpose: there the option stays and its reason is recorded
 4. **Users**. Primary persona(s) + 1-2 user stories in `as a <role>, I want <action>, so that <outcome>` form
-5. **Success metrics**. Named metric + threshold + measurement window
+5. **Success metrics**. Named metric + threshold + measurement window, tied to the repeated task users come back for; when the metric does not measure that task, say so
 6. **Dependencies / risks**. Outside-team dependencies + top 1-3 risks with mitigations
 7. **Open questions**. Anything genuinely undecided that `/planning:plan` needs answered
 
 Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
-**Durability over precision.** PRD content describes interfaces, types, and behavioral contracts. Never file paths or line numbers, which go stale before the PRD does. Do not write as if the current implementation structure will persist; the PRD should still read true after a refactor.
+**Durability over precision.** Describe the product through its interfaces, types, and behavior contracts, not file paths or line numbers, which change sooner than the PRD does. Assume the code's present layout can change; the PRD should still be accurate after a refactor.
 
 **Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled; otherwise apply that discipline inline. The seven required sections, the tier's depth, and every metric, threshold, and open question stay as they are.
 
@@ -209,7 +209,9 @@ After writing the PRD, recommend the next step. The recommendation depends on re
 - **Engineering scope still fuzzy** (constraints, untouchable areas, perf budget unclear) → clear context, then `/planning:interview` (it will read the topic's `PRD.md` as scope)
 - **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` if enabled, otherwise whatever codebase-exploration capability the environment provides
 - **Need external research (libs, APIs, comparables)** → `/discovery:research` if enabled, otherwise the strongest research capability available
-- **Engineering scope clear and externals understood** → `/planning:plan`
+- **Engineering scope clear and externals understood** → `/planning:design`, which records a one-line early exit when no design question is open and hands off to `/planning:plan`
+- **The locked PRD is one unit of work that a later session, an AFK lane or another person picks up** → `/work-items:track add --agent-ready`, one tracker item carrying the PRD's acceptance criteria
+- **An open question waits on a stakeholder** → `/planning:questionnaire`, which sends it to the person who holds the answer
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
@@ -350,8 +352,9 @@ Complementary to `/planning:devils-advocate`. Review checks structure and conven
 
 ## Next
 
-- PRD locked and the engineering contract is next: /planning:interview.
-- PRD locked and the Brief already exists: /planning:plan.
+- PRD locked: /planning:interview for the engineering contract, or /planning:design when the Brief already exists.
+- PRD locked and it is one unit of work for a later session, an AFK lane or another person: /work-items:track add --agent-ready.
+- An open question waits on a stakeholder: /planning:questionnaire.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## Gotchas

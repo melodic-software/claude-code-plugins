@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "This change fits in one sentence: rename `cnt` to `count` on the three lines of `tally()` in utils/stats.py. Do you want a plan written anyway, or should I leave it at that?",
+      "why": "states the one-sentence fit"
+    },
+    {
+      "answer": "The whole diff is a single sentence: in tally(), cnt becomes count. Plan it anyway?",
+      "why": "single-sentence wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Plan: rename cnt\n\n**Goal:** clearer naming in tally().\n\n**Approach:** rename cnt to count on lines 2, 5 and 6.",
+      "why": "plans without saying the change fits one sentence"
+    }
+  ]
+}

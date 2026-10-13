@@ -48,9 +48,12 @@ fi
 # every path this hook has nothing to do on.
 #
 # --no-membership because hook::read_file_path's CLAUDE_PROJECT_DIR guard is
-# wrong for an advisory PostToolUse linter: PostToolUse cannot block or undo
-# the write, so the guard protects nothing and every false negative is a silent
-# coverage loss. The concrete one: GNU realpath under Git Bash does not expand
+# wrong for an advisory PostToolUse linter: the write has already happened when
+# this hook runs, so the guard protects nothing and every false negative is a
+# silent coverage loss (pointer: for what a PostToolUse exit can still affect,
+# fetch https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event
+# live; as of 2026-10-11; recheck trigger: that table's PostToolUse row starts
+# letting a hook block or undo the tool call). The concrete one: GNU realpath under Git Bash does not expand
 # Windows 8.3 short names, so a short-form file_path (<drive>:\...\SOMEDIR~1\...)
 # fails the prefix match against a long-form project dir and the lint silently
 # never runs. The workflow-location globs are what bound this hook's scope.

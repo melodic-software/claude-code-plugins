@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": [{"tool": "Bash", "input": {"command": "git diff -- .github/workflows/release.yml"}}], "why": "reading the workflow diff is not staging it"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git add src/other.sh"}}]}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "git add .github/workflows/release.yml"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "git -C /work add -- .github/workflows/release.yml"}}]}
+  ]
+}

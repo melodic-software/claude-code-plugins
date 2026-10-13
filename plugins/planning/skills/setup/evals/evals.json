@@ -51,6 +51,47 @@
         "Does not offer migration when the index version matches the binding",
         "Edits no ignore file other than the setup-owned standards-root .gitignore, and here leaves even that untouched"
       ]
+    },
+    {
+      "id": 5,
+      "name": "apply-writes-a-new-planning-yaml",
+      "narration": true,
+      "prompt": "/planning:setup apply phase_order=riskiest-first\n\nThis repository has no docs/conventions/planning.yaml yet.",
+      "expected_output": "Runs check first (the settings row is INFO: absent), then calls setup-apply.mjs phase_order=riskiest-first, which creates docs/conventions/planning.yaml with phase_order: riskiest-first. It re-runs check and reports PASS phase_order: riskiest-first from the table, then runs the tracked-file pair and says the new file is written but untracked and must be committed to reach the team. It does not run the standards bootstrap and writes no other file.",
+      "files": [],
+      "expectations": [
+        "Runs check before writing and reports the settings file as absent (INFO)",
+        "Writes docs/conventions/planning.yaml through setup-apply.mjs with phase_order=riskiest-first",
+        "Reports the value from the re-run check, not from the write",
+        "Says the file is written but untracked and must be committed",
+        "Does not run the standards bootstrap or write any other file"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "apply-shows-the-diff-before-changing-an-existing-file",
+      "narration": true,
+      "prompt": "/planning:setup apply plan_store=tracker\n\nThe repository's docs/conventions/planning.yaml already contains `plan_store: local` and `phase_order: composed`.",
+      "expected_output": "setup-apply.mjs exits 3 and prints a unified diff changing plan_store from local to tracker without writing. The skill shows that diff and asks whether to write it, and re-runs with --yes only after an explicit yes; until then the file is unchanged.",
+      "files": [],
+      "expectations": [
+        "Shows the diff from plan_store: local to plan_store: tracker before any write",
+        "Asks the operator to confirm the diff",
+        "Does not pass --yes or change the file before an explicit yes"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "check-warns-on-an-invalid-settings-value",
+      "narration": true,
+      "prompt": "/planning:setup check\n\nThe repository's docs/conventions/planning.yaml contains `phase_order: risky-first`.",
+      "expected_output": "The settings row is a WARN quoting docs/conventions/planning.yaml, the key phase_order and the value risky-first, naming the allowed values, and pointing at apply as the fix. It is not a FAIL, since a planning skill drops that layer and continues. check writes nothing.",
+      "files": [],
+      "expectations": [
+        "Reports a WARN that names the file, phase_order and risky-first",
+        "Lists composed, subtraction-first and riskiest-first as the allowed values",
+        "Does not report a FAIL and writes nothing"
+      ]
     }
   ]
 }

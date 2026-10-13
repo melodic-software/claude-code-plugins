@@ -41,16 +41,22 @@
       "check": "/harness-ops:prerequisites"
     },
     {
-      "id": "firecrawl-api-key",
-      "kind": "env",
+      "id": "firecrawl-auth",
+      "kind": "system-lib",
       "need": "required",
       "for": [
         "skill:firecrawl"
       ],
       "detect": {
-        "name": "FIRECRAWL_API_KEY"
+        "probe": {
+          "args": [
+            "firecrawl",
+            "--status"
+          ],
+          "pattern": "●(\\u001b\\[[0-9;]*m)? Authenticated(\\s|\\u001b|$)"
+        }
       },
-      "degrade": "Without FIRECRAWL_API_KEY, the firecrawl binary is unauthenticated and /firecrawl:firecrawl calls fail until the key is set.",
+      "degrade": "Until `firecrawl --status` reports Authenticated, /firecrawl:firecrawl calls fail. The CLI accepts FIRECRAWL_API_KEY in its own process environment (set as an OS user variable, or injected by a wrapper) or `firecrawl login` config; the plugin never stores, prints or logs the key.",
       "install": {
         "docs": "https://www.firecrawl.dev/app/api-keys"
       },

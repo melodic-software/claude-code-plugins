@@ -30,11 +30,12 @@ one. The default verdict per posture is NOT-APPLICABLE, not MISSING.
 `disallowed-tools: Edit, NotebookEdit` narrows the surface, nothing more: `Write` stays for Phase D's
 persist and Phase B has already read every audited component, so it can overwrite one; `Bash` stays
 for the state key, and a shell mutates files too. That closes the likeliest accidental path, not the
-capability, and a skill auditing assurance must not overstate its own.
-(<https://code.claude.com/docs/en/skills>, fetched 2026-08-12; the restriction clears on the human's
-next message, so whoever accepts a proposal can apply it. Recheck when a fetch of that page no longer
-scopes a skill's `disallowed-tools` to that skill's own invocation, or a release note changes how
-`disallowed-tools` is scoped.)
+capability, and a skill auditing assurance must not overstate its own. We treat the restriction as
+clearing on the human's next message, so whoever accepts a proposal can apply it (Pointer: when
+deciding how long the restriction lasts, fetch
+[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live.
+As of: 2026-10-11. Recheck trigger: that section or a release note changes how long
+`disallowed-tools` lasts).
 
 ## Scope boundary (route out)
 
@@ -84,11 +85,10 @@ restate the condition**: the four-part record for both questions, whether `AGENT
 available in the session at all and which files the instruction-files mode loads, is this plugin's
 [reference/agents-md-liveness.md](../../reference/agents-md-liveness.md). Resolve it there rather
 than from a copy that can drift. **Displacement is the default mode's answer, not the only one**: under the
-`claude-md-and-agents-md` setting both files load, each directory's `CLAUDE.md` first and its
-`AGENTS.md` after, so an `AGENTS.md` beside a `CLAUDE.md` is live there and belongs in the set even
-though the default mode would call it displaced. That option is a user, `--settings` or managed
-setting, so resolve the **effective** value across those scopes rather than one scope's copy, which
-answers the wrong question whichever way the override runs.
+`claude-md-and-agents-md` setting both files load, so an `AGENTS.md` beside a `CLAUDE.md` is live
+there and belongs in the set even though the default mode would call it displaced. The record says
+which scopes honor the setting; resolve the **effective** value across them rather than one scope's
+copy, which answers the wrong question whichever way the override runs.
 **The mode is the second question, not the only one, and either can rule the file out.** Availability
 comes first and is not a mode question: a session where support is unavailable, for a reason that
 record lists, reads no `AGENTS.md` under ANY mode, and inventorying one would let Phase C propose
@@ -174,17 +174,23 @@ marketplace's `plugin-data-report-keying` convention and reused rather than rein
 lives in one executable rather than being restated per skill,
 [`lib/state-key.sh`](../../lib/state-key.sh), with `lib/state-key.test.sh` beside it. Pass `--explain`
 when the report should say which rung produced the key. **The key stops overwrites, not reaping.**
-"When you uninstall a plugin from the last scope it's installed at, Claude Code also deletes
-the plugin's stored options and secrets and its data directory, `~/.claude/plugins/data/<id>/`",
-unless `--keep-data` is passed
-(<https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall>, `plugin uninstall`, fetched 2026-10-07; recheck
-when a fetch of that page's `plugin uninstall` entry no longer carries that sentence, or a release
-note changes what uninstalling does with `${CLAUDE_PLUGIN_DATA}`), so when a report must outlive the
-plugin the closing line says to copy it out of the data directory.
+An uninstall can delete the plugin's data directory, so when a report must outlive the plugin the
+closing line says to copy it out of the data directory (Pointer: when deciding whether a report
+survives an uninstall, fetch
+[plugins CLI reference: what an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)
+live. As of: 2026-10-11. Recheck trigger: that section or a release note changes what uninstalling
+does with `${CLAUDE_PLUGIN_DATA}`).
 
 Run it and use the result. Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}`
-"when set": that placeholder is substituted inline before this file reaches you, so the literal token
-is never visible and the condition is not yours to evaluate. Derive the key from a command you run.
+"when set": that placeholder is substituted in this skill's markdown before it reaches you, so the
+literal token is never visible and the condition is not yours to evaluate. Derive the key from a
+command you run.
+
+- **Pointer**: when deciding where a skill placeholder is substituted, fetch
+  [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes where or when `${CLAUDE_PROJECT_DIR}` is substituted.
 
 **Open the report with a three-line header**, so a file that does survive is self-describing rather
 than merely un-overwritten:

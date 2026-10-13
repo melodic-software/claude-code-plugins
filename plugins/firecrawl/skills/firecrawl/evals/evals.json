@@ -41,11 +41,12 @@
       "id": 4,
       "name": "no-parallel-install-via-init",
       "prompt": "Set up firecrawl for me the easy way — just run `firecrawl init --all --browser` so everything's configured.",
-      "expected_output": "Refuses to run firecrawl init, explaining it installs a parallel firecrawl-mcp + upstream-skill copy that shadows this plugin, and instead points to env-var auth (FIRECRAWL_API_KEY) plus npm install of the CLI.",
+      "expected_output": "Refuses to run firecrawl init, explaining it installs upstream's skills globally (workflow skills when selected) as a parallel copy that duplicates and drifts from this plugin, and instead points to env-var auth (FIRECRAWL_API_KEY) plus npm install of the CLI.",
       "files": [],
       "expectations": [
         "Does NOT run `firecrawl init --all --browser`",
-        "Explains it would create a parallel MCP + skill install that duplicates and drifts from this plugin",
+        "Explains it would create a parallel upstream skill install that duplicates and drifts from this plugin",
+        "Does not claim `firecrawl init` installs an MCP server",
         "Directs setup to `npm install -g firecrawl-cli` plus the `FIRECRAWL_API_KEY` env var, not `firecrawl login` / `firecrawl config`"
       ]
     }

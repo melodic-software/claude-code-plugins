@@ -19,9 +19,14 @@ A guard is only as good as its coverage. Find the paths where it *doesn't* fire.
 ## 2. Enforcement scope & who it fires for
 
 - **Plugin-enablement probes.** If a hook gates its behavior on whether a plugin is "enabled", does
-  it resolve enablement the way Claude Code actually does, merged across user-global + project +
-  local scopes? A probe that only checks project scope false-negatives for the common global
-  install. Verify against real resolution, not the code's assumption.
+  it resolve enablement the way Claude Code actually does, across every settings scope? A probe
+  that only checks project scope false-negatives for the common global install. Verify against
+  real resolution, not the code's assumption: when tracing which scopes apply, fetch
+  [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+  live, and when tracing which scope wins, fetch
+  [Settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) live. As of
+  2026-10-11. Recheck trigger: the first section adds or removes a scope, or the second changes the
+  order in which scopes win.
 - **User-gated by default.** Guardrails a user adds should default to firing only for that user (and
   their agents), never surprise-blocking teammates who didn't opt in. Prefer mechanisms invisible
   to uninvolved parties (machine-local git hooks, user-scope config) with a clean migration path to

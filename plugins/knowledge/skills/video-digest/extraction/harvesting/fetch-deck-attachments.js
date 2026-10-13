@@ -64,6 +64,9 @@ async function streamToFileWithCap(webStream, destPath, maxBytes) {
  * @param {string} url
  * @returns {string}
  */
+/** One path segment, never `.` or `..`: the session writes it, from untrusted watch input. */
+const SAFE_SESSION_SLUG = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/;
+
 function slugFromUrl(url) {
   try {
     const parsed = new URL(url);
@@ -106,9 +109,15 @@ export async function fetchDeckAttachments(
       continue;
     }
 
+    const sessionSlug = link.sessionSlug ?? "unknown";
+    if (kind === "deck" && !SAFE_SESSION_SLUG.test(sessionSlug)) {
+      skipped.push(`${url}: unsafe sessionSlug ${JSON.stringify(sessionSlug)}`);
+      continue;
+    }
+
     const destRoot =
       kind === "deck"
-        ? lanePath(absSlice, LANES.source, "decks", link.sessionSlug ?? "unknown")
+        ? lanePath(absSlice, LANES.source, "decks", sessionSlug)
         : lanePath(absSlice, LANES.source, "attachments", kind);
 
     const destPath = path.join(destRoot, slugFromUrl(url));
