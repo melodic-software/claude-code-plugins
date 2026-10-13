@@ -295,6 +295,24 @@ git_test_config "$f" checkout -q release/plugins
 expect "--check-release fails when a consumed fragment was edited on the base after the cut" 1 "EDITED FRAGMENT: .changes/alpha/feat-x-0123abcd.md" "$f" --check-release main
 rm -rf "$f"
 
+base_fixture f alpha beta
+release_branch "$f"
+git_test_config "$f" checkout -q main
+fragment "$f" beta late-z-fedcba98 patch
+commit "$f" "fragment for beta"
+git_test_config "$f" checkout -q release/plugins
+git_test_config "$f" merge -q --no-edit main
+mkdir -p "$f/plugins/beta/evals/case/.claude-plugin"
+printf '{\n  "name": "beta",\n  "version": "0.0.0"\n}\n' >"$f/plugins/beta/evals/case/.claude-plugin/plugin.json"
+commit "$f" "nested eval fixture manifest"
+out="$(run_gate "$f" --check-release main 2>&1)"
+if [[ "$out" != *".changes/beta/"* ]]; then
+  ok "--check-release does not count a nested plugin.json version as a plugin bump"
+else
+  fail "--check-release should not name beta: $out"
+fi
+rm -rf "$f"
+
 # The merge queue: each queued pull request is one squash commit on top of main
 # and the entries ahead of it, and the gate reads HEAD^1 as the landing base.
 base_fixture f alpha
