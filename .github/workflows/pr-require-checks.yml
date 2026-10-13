@@ -5,8 +5,9 @@ on:
   workflow_dispatch:
   # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
   # repository's merge-queue ruleset, with the org `pull_request` rule and no
-  # bypass actor), and the queue merges a commit only after this workflow
-  # passed on that same SHA in its merge-group run. A push run re-tested the
+  # bypass actor; github-iac GovernedRepositories.cs), and the queue merges a
+  # commit only after this workflow passed on that same SHA in its
+  # merge-group run. A push run re-tested the
   # SHA the queue had just passed: all 55 main pushes from 2026-10-03T22:40Z
   # to 10-04T17:41Z did, for 591 job minutes. The check runs that merge-group
   # run left stay on the commit.
@@ -472,7 +473,11 @@ jobs:
   # `continue-on-error` step with an `id`, and
   # `scripts/aggregate-hygiene-results.sh` joins their outcomes through the
   # CHECK_RESULTS feed at the foot of each job, so one failing gate names itself
-  # instead of stopping every gate after it. Self-tests are NOT
+  # instead of stopping every gate after it. Each `run:` gate names
+  # `scripts/run-hygiene-gate.sh` as its shell, which keeps a copy of its
+  # output, so the aggregator's annotation and the job summary quote why it
+  # failed; a `uses:` gate is listed in STEP_LOG_CHECKS and points at its step
+  # log instead. Self-tests are NOT
   # `continue-on-error`: a broken detector must turn its job red rather than let
   # its own gate pass quietly. None of the four reads anything another produces.
   #
@@ -498,19 +503,21 @@ jobs:
   # read fixed, path-scoped inputs that a diff confined to the docs-only
   # allowlist (scripts/docs-only-paths.txt) cannot touch, so on such a diff they
   # report an honest evaluated-and-not-applicable success. Exec-bit,
-  # hook-wiring-liveness, and purged-em-dashes are NOT gated: they scan the
-  # whole repository, and a shebang/hook file added under an otherwise
-  # docs-only prefix is real input they must still catch, as
-  # is a docs-only diff that reintroduces an em dash on a purged surface.
+  # hook-wiring-liveness, purged-em-dashes, and next-graph are NOT gated: they
+  # scan the whole repository, and a shebang/hook file added under an otherwise
+  # docs-only prefix is real input they must still catch, as is a docs-only
+  # diff that reintroduces an em dash on a purged surface or strands a
+  # planning-chain `## Next` target.
   # ShellCheck, ungated for the same reason, runs in `lint-shell`.
   #
   # The job skips only on a contract-only event or a draft; otherwise only
   # steps are gated. A skipped required lane's result is not `success`, which
-  # the ci-status aggregate rejects, a draft's included, and a workflow
+  # the ci-status aggregate rejects outside a draft, and a workflow
   # skipped by a path filter leaves its required check Pending forever. A
-  # draft lints nothing and its ci-status is red: the `ready_for_review` run
-  # lints the same SHA before the pull request can merge, and a draft run that
-  # lints is a runner the 60-job cap pays for and nothing gates on.
+  # draft lints nothing and its ci-status passes: the `ready_for_review` run
+  # lints the same SHA, the merge queue re-runs every lane before a merge, and
+  # a draft run that lints is a runner the 60-job cap pays for and nothing
+  # gates on.
   #
   # PR-ONLY STEPS BRANCH IN THE SHELL, NOT IN `if:`. A step cannot carry both a
   # resolver gate and an event gate: the docs-only gate reads a step condition
@@ -583,6 +590,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash scripts/run-hygiene-gate.sh zizmor {0}
         run: zizmor --format=github --persona=regular --color=never -- .
 
       # The rate-limit guard's operable floor is INLINED into six surfaces on
@@ -594,21 +602,25 @@ jobs:
       - name: Check every inlined rate-limit floor matches its reader contract
         id: loop_lane_floor_drift
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh loop-lane-floor-drift {0}
         run: scripts/check-loop-lane-floor-drift.sh --check
 
       - name: Check the conformance registry resolves
         id: conformance_registry
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh conformance-registry {0}
         run: scripts/check-conformance-registry.sh --check
 
       - name: Check docs/ and markdown filenames are lower-kebab
         id: docs_naming
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh docs-naming {0}
         run: scripts/check-docs-naming.sh --check
 
       - name: Check ADR numbers are unique
         id: adr_numbers
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh adr-numbers {0}
         run: scripts/check-adr-numbers.sh --check
 
       # Each tracked docs/conventions/<concern>.yaml against its JSON Schema
@@ -618,6 +630,7 @@ jobs:
       - name: Validate docs/conventions YAML against its schemas
         id: convention_yaml_schema
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh convention-yaml-schema {0}
         run: scripts/check-convention-yaml.sh --check
 
       # The config-cascade "Semantics at a glance" table is generated from the
@@ -629,6 +642,7 @@ jobs:
       - name: Check the config-cascade semantics table against the Implementers rows
         id: config_cascade_semantics
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh config-cascade-semantics {0}
         run: python3 scripts/sync-config-cascade-semantics.py --check
 
       # code-metrics resolves every tunable from one defaults file and restates
@@ -641,6 +655,7 @@ jobs:
       - name: Check the code-metrics config reference against its defaults file
         id: code_metrics_config_reference
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh code-metrics-config-reference {0}
         run: python3 scripts/check-code-metrics-config-reference.py
 
       # Skill bodies restate a few defaults in prose. The reference table is
@@ -650,6 +665,7 @@ jobs:
       - name: Check code-metrics skill prose against its defaults file
         id: code_metrics_skill_prose
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh code-metrics-skill-prose {0}
         run: python3 scripts/check-code-metrics-skill-prose.py
 
       # A `path:N` citation in markdown goes stale when the CITED file shrinks,
@@ -660,6 +676,7 @@ jobs:
       - name: Check markdown line citations stay inside the cited file
         id: line_citations
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh line-citations {0}
         run: python3 scripts/check-line-citations.py
 
       # The review-disposition-and-resolution contract is canonical in ONE file
@@ -674,6 +691,7 @@ jobs:
       - name: Check every restatement carries the canonical clause's qualifiers
         id: contract_clause_coverage
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh contract-clause-coverage {0}
         run: python3 scripts/check-contract-clause-coverage.py
 
       # Stale-base squash merges can silently revert recently-landed fixes when
@@ -695,6 +713,7 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash scripts/run-hygiene-gate.sh stale-base-overlap {0}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no branch tip to compare with the base."
@@ -729,6 +748,7 @@ jobs:
       - name: Check the docs-only scope contract holds in pr-require-checks.yml
         id: docs_only_contract
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh docs-only-contract {0}
         run: scripts/check-docs-only-gate.sh --check
 
       # `ci-status` below is the single check the org ci-gate ruleset keys on,
@@ -742,6 +762,7 @@ jobs:
       - name: Check every pr-require-checks.yml job and gate step is fed to the ci-status aggregate
         id: lane_coverage
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh lane-coverage {0}
         run: scripts/check-lane-coverage.sh --check
 
       # The whole-tree test plan of the live tree: the bash plan is the bash
@@ -753,6 +774,7 @@ jobs:
       - name: Check the whole-tree test plan covers the live corpus
         id: test_plan_corpus
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh test-plan-corpus {0}
         run: |
           rc=0
           plan="$(bash scripts/plan-test-lanes.sh 2>/dev/null)" || { echo "::error::the whole-tree plan failed"; exit 1; }
@@ -776,6 +798,7 @@ jobs:
       - name: Check the test selector against the live tree
         id: selector_live
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh selector-live {0}
         run: bash scripts/affected-tests-live.sh
 
       # A DIFF LINTS THE MARKDOWN IT CHANGED. markdownlint's rules read one file
@@ -977,6 +1000,7 @@ jobs:
       - name: Check repo-local hooks are wired in settings.json
         id: hook_wiring
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh hook-wiring-liveness {0}
         run: scripts/check-hook-wiring-liveness.sh
 
       # Deliberately UNGATED, like the other whole-repo scanners. This gate
@@ -987,7 +1011,16 @@ jobs:
       - name: Check purged surfaces stayed free of em dashes
         id: purged_em_dashes
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh purged-em-dashes {0}
         run: scripts/check-purged-em-dashes.sh
+
+      # Ungated for the same reason: the planning chain's `## Next` sections
+      # are markdown, and a rename elsewhere can strand one of their targets.
+      - name: Check the planning chain's Next graph against the workflow ladder
+        id: next_graph
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh next-graph {0}
+        run: python3 scripts/check-next-graph.py
 
       # A plugin's prose counts its own skills by hand ("bundling fourteen
       # skills", "the other thirteen skills are zero-config") and nothing
@@ -1008,6 +1041,7 @@ jobs:
         continue-on-error: true
         env:
           DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        shell: bash scripts/run-hygiene-gate.sh skill-count-claims {0}
         run: |
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
             'plugins/*.md' 'plugins/*/.claude-plugin/plugin.json' 'plugins/*/skills/*' \
@@ -1020,7 +1054,7 @@ jobs:
 
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
         if: needs.select-tests.outputs.run_full == 'false'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, the dependabot and workflow schemas, zizmor, the runner policy) cannot be affected — reporting success for them. Exec-bit, hook-wiring-liveness, and purged-em-dashes scan the whole repo and stay unconditional."
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, the dependabot and workflow schemas, zizmor, the runner policy) cannot be affected — reporting success for them. Exec-bit, hook-wiring-liveness, purged-em-dashes, and next-graph scan the whole repo and stay unconditional."
 
       # ONE DETERMINISTIC PROSE DETECTOR, AS WARNINGS. The ai-slop audit's own
       # detector reads the markdown this pull request changed and annotates
@@ -1071,6 +1105,7 @@ jobs:
         continue-on-error: true
         env:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
+        shell: bash scripts/run-hygiene-gate.sh runner-policy {0}
         run: node .github/standards/runner-policy/runner-policy.mjs --root .
 
       # Parses workflows with the yaml package the runner-policy install
@@ -1079,6 +1114,7 @@ jobs:
         id: read_caller_keys
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh read-caller-keys {0}
         run: scripts/check-read-caller-keys.sh --check
 
       # Lane tokens come from the lanes token broker; no workflow or action
@@ -1087,6 +1123,7 @@ jobs:
         id: app_key_references
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh app-key-references {0}
         run: scripts/check-app-key-references.sh --check
 
       - name: Test hygiene result aggregation
@@ -1109,6 +1146,10 @@ jobs:
           # a different output than the step's gate, would map a skip that
           # never happened, and that is the direction that fails open. The
           # ungated whole-repo scanners feed their raw outcome.
+          # Gates that run as `uses:` actions, whose output
+          # scripts/run-hygiene-gate.sh cannot capture: a failure here points
+          # at the step log instead of quoting the gate's output.
+          STEP_LOG_CHECKS: markdown typos gitleaks lychee-offline editorconfig actionlint dependabot-schema workflow-schema exec-bit machine-specific-paths eol-renormalize comment-hygiene
           CHECK_RESULTS: |
             zizmor=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
             loop-lane-floor-drift=${{ steps.loop_lane_floor_drift.outcome }}
@@ -1142,6 +1183,7 @@ jobs:
             comment-hygiene=${{ steps.comment_hygiene.outcome }}
             hook-wiring-liveness=${{ steps.hook_wiring.outcome }}
             purged-em-dashes=${{ steps.purged_em_dashes.outcome }}
+            next-graph=${{ steps.next_graph.outcome }}
             skill-count-claims=${{ steps.skill_count_claims.outcome }}
             runner-policy=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
         run: scripts/aggregate-hygiene-results.sh
@@ -1216,6 +1258,7 @@ jobs:
       - name: Check that hooks exit early before sourcing any library
         id: killswitch_hoist
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh killswitch-hoist {0}
         run: scripts/check-killswitch-hoist.sh
 
       # Two hook shapes a spawn budget misses or every fire pays for: a
@@ -1226,11 +1269,13 @@ jobs:
       - name: Check hooks for transcript reads and env-shebang registrations
         id: hook_slow_shapes
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh hook-slow-shapes {0}
         run: scripts/check-hook-slow-shapes.sh
 
       - name: Check hook entry scripts for silent prerequisite skips
         id: silent_skips
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh silent-skips {0}
         run: scripts/check-silent-skips.sh
 
       # A skip_case that vacates the only discriminating assertions in a case
@@ -1238,6 +1283,7 @@ jobs:
       - name: Check plugin test suites for discriminating skip_case sites
         id: discriminating_test_skips
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh discriminating-test-skips {0}
         run: scripts/check-discriminating-test-skips.sh
 
       # A test suite that BUILDS a git fixture must clear the inherited git
@@ -1255,6 +1301,7 @@ jobs:
         continue-on-error: true
         env:
           DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        shell: bash scripts/run-hygiene-gate.sh fixture-git-isolation {0}
         run: |
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
             '*.sh' '*.py' scripts/fixture-git-isolation-baseline.txt .github/workflows/pr-require-checks.yml) &&
@@ -1279,6 +1326,7 @@ jobs:
       - name: Assert the drive-root scan is a no-op on a non-Windows host
         id: drive_root_noop
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh drive-root-scan-noop {0}
         run: scripts/check-drive-root-litter.sh
 
       # Shell-portability lint (#1491 / #2704): flags GNU-only constructs in
@@ -1293,6 +1341,7 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+        shell: bash scripts/run-hygiene-gate.sh shell-portability-lint {0}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff changed shell files against."
@@ -1307,6 +1356,7 @@ jobs:
       - name: Gate scripts on piped early-exit greps
         id: pipefail_grep_q
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh pipefail-grep-q {0}
         run: scripts/check-pipefail-grep-q.sh
 
       # A *.test.sh that runs mktemp must trap EXIT to remove it; the known
@@ -1315,6 +1365,7 @@ jobs:
       - name: Gate test suites on cleaning up their temp paths
         id: test_tmp_cleanup
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh test-tmp-cleanup {0}
         run: scripts/check-test-tmp-cleanup.sh --check
 
       # WITH A DIFF BASE THE COMPOSITE GETS THE DIFF. It keeps only listed
@@ -1400,6 +1451,10 @@ jobs:
         env:
           # The feed's rules are stated on the one in `lint-repo`; the docs-only
           # gate pins them on every job.
+          # Gates that run as `uses:` actions, whose output
+          # scripts/run-hygiene-gate.sh cannot capture: a failure here points
+          # at the step log instead of quoting the gate's output.
+          STEP_LOG_CHECKS: shellcheck
           CHECK_RESULTS: |
             killswitch-hoist=${{ steps.killswitch_hoist.outcome }}
             hook-slow-shapes=${{ steps.hook_slow_shapes.outcome }}
@@ -1483,6 +1538,7 @@ jobs:
       - name: Check plugin hook configs for bare userConfig argv tokens
         id: userconfig_argv
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh userconfig-argv {0}
         run: scripts/check-hook-userconfig-argv.sh
 
       # An exec-form hook (a hook object carrying `args`) resolves `command` as
@@ -1497,6 +1553,7 @@ jobs:
       - name: Check hook declarations for exec-form bare command names
         id: hook_exec_form
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh hook-exec-form {0}
         run: scripts/check-hook-exec-form.sh
 
       # Windows exec form spawns a real .exe with an args array and no shell.
@@ -1507,6 +1564,7 @@ jobs:
       - name: Probe exec-form rows for a real Windows executable
         id: exec_form_windows_probe
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh exec-form-windows-probe {0}
         run: scripts/check-exec-form-windows-probe.sh
 
       # A plugin hooks.json takes an optional top-level `description`, the one
@@ -1518,6 +1576,7 @@ jobs:
       - name: Check every plugin hooks.json carries a top-level description
         id: hooks_description
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh hooks-description {0}
         run: scripts/check-hooks-description.sh
 
       # A change to the guardrails PowerShell classifier or its consumers may
@@ -1536,6 +1595,7 @@ jobs:
       - name: Check that every summary reader returns the same verdict
         id: summary_reader_parity
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh summary-reader-parity {0}
         run: bash scripts/check-summary-reader-parity.test.sh
 
       # Every option a plugin declares must be documented in that plugin's
@@ -1546,6 +1606,7 @@ jobs:
       - name: Check plugin option docs are in sync with each manifest
         id: plugin_options_docs
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh plugin-options-docs {0}
         run: python3 scripts/sync-plugin-options-docs.py --check
 
       # #1547: a routine `git merge origin/main` silently dropped
@@ -1559,6 +1620,7 @@ jobs:
       - name: Check every catalog entry resolves to a present, name-matching plugin manifest, and no plugin has a top-level bin/
         id: plugin_manifest_presence
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh plugin-manifest-presence {0}
         run: scripts/check-plugin-manifest-presence.sh
 
       # The cloud plugin list is derived from the catalog's defaultEnabled, and
@@ -1570,6 +1632,7 @@ jobs:
       - name: Check every enabledPlugins key names a catalogued plugin
         id: plugin_catalog_enablement
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh plugin-catalog-enablement {0}
         run: scripts/check-plugin-catalog-enablement.sh
 
       # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md whose
@@ -1583,6 +1646,7 @@ jobs:
       - name: Verify every versioned plugin keeps a CHANGELOG.md at or below its manifest version
         id: changelog_parity_check
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh changelog-parity {0}
         run: scripts/check-changelog-parity.sh --check
       # The merge queue runs the bump, fragment and vendor gates too (#6443 merged a
       # hand bump the queue never checked), against HEAD^1: the queued squash
@@ -1600,6 +1664,7 @@ jobs:
         env:
           QUEUE_HEAD_REF: ${{ github.event.merge_group.head_ref }}
           GH_TOKEN: ${{ github.token }}
+        shell: bash scripts/run-hygiene-gate.sh queued-pr {0}
         run: |
           if [[ ! "$QUEUE_HEAD_REF" =~ /pr-([0-9]+)-([0-9a-f]{40})$ ]]; then
             echo "::error::Cannot read a pull request number and head SHA from the merge group's head ref '$QUEUE_HEAD_REF'."
@@ -1627,6 +1692,7 @@ jobs:
           # here as the release pull request.
           CHANGELOG_HEAD_REF: ${{ github.event_name == 'merge_group' && steps.queued_pr.outputs.head_ref || github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
           QUEUED_PR: ${{ steps.queued_pr.outcome }}
+        shell: bash scripts/run-hygiene-gate.sh changelog-parity-bump {0}
         run: |
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
             if [ "$QUEUED_PR" != success ]; then
@@ -1649,6 +1715,7 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+        shell: bash scripts/run-hygiene-gate.sh changelog-parity-preserved {0}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no fork point to compare against."
@@ -1661,6 +1728,7 @@ jobs:
       - name: Verify every changelog reads newest-first with no duplicate versions
         id: changelog_parity_order
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh changelog-parity-order {0}
         run: scripts/check-changelog-parity.sh --check-order
 
       # Changelog fragments (ADR 0048). A plugin in scripts/fragment-plugins.txt
@@ -1674,6 +1742,7 @@ jobs:
       - name: Verify every changelog fragment is well formed
         id: changelog_fragments_check
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh changelog-fragments {0}
         run: scripts/check-changelog-fragments.sh --check
       - name: Verify a change to a fragment-mode plugin adds a fragment
         id: changelog_fragments_required
@@ -1687,6 +1756,7 @@ jobs:
           CHANGELOG_PR_HEAD: ${{ steps.queued_pr.outputs.head_sha }}
           GH_TOKEN: ${{ github.token }}
           QUEUED_PR: ${{ steps.queued_pr.outcome }}
+        shell: bash scripts/run-hygiene-gate.sh changelog-fragments-required {0}
         run: |
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
             if [ "$QUEUED_PR" != success ]; then
@@ -1705,6 +1775,7 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
           CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+        shell: bash scripts/run-hygiene-gate.sh changelog-fragments-release {0}
         run: |
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
             scripts/check-changelog-fragments.sh --check-release 'HEAD^1'
@@ -1731,6 +1802,7 @@ jobs:
           CHANGELOG_PR_HEAD: ${{ steps.queued_pr.outputs.head_sha }}
           GH_TOKEN: ${{ github.token }}
           QUEUED_PR: ${{ steps.queued_pr.outcome }}
+        shell: bash scripts/run-hygiene-gate.sh vendor-version-bump {0}
         run: |
           if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
             if [ "$QUEUED_PR" != success ]; then
@@ -1773,6 +1845,7 @@ jobs:
         id: duplicate_keys
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh manifest-duplicate-keys {0}
         run: python3 scripts/check-manifest-duplicate-keys.py
 
       # The root npm install, for the steps below that read it: htmlhint and the
@@ -1910,6 +1983,10 @@ jobs:
         env:
           # The feed's rules are stated on the one in `lint-repo`; the docs-only
           # gate pins them on every job.
+          # Gates that run as `uses:` actions, whose output
+          # scripts/run-hygiene-gate.sh cannot capture: a failure here points
+          # at the step log instead of quoting the gate's output.
+          STEP_LOG_CHECKS: marketplace-schema plugin-schema
           CHECK_RESULTS: |
             userconfig-argv=${{ steps.userconfig_argv.outcome }}
             hook-exec-form=${{ steps.hook_exec_form.outcome }}
@@ -1986,6 +2063,7 @@ jobs:
       - name: Check every crosswalk row argues its disposition from a stated test
         id: detector_findings_crosswalk
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh detector-findings-crosswalk {0}
         run: scripts/check-detector-findings-crosswalk.sh --check
 
       # Emit call sites are read from `shfmt --to-json`. v3.12.0 drops a call
@@ -2037,6 +2115,7 @@ jobs:
         continue-on-error: true
         env:
           DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        shell: bash scripts/run-hygiene-gate.sh detector-eval-coverage {0}
         run: |
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
             'plugins/*/skills/*/scripts/*' 'plugins/*/skills/*/evals/*' \
@@ -2049,11 +2128,13 @@ jobs:
       - name: Check for unregistered cross-plugin skill leaf-name collisions
         id: skill_leaf_names
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh skill-leaf-names {0}
         run: scripts/check-skill-leaf-names.sh --check
 
       - name: Check skill spokes do not name paths through the plugin-root token
         id: spoke_plugin_root
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh spoke-plugin-root {0}
         run: scripts/check-spoke-plugin-root.sh --check
 
       # Every file under a skill's evals/fixtures/ must be consumed by a
@@ -2064,6 +2145,7 @@ jobs:
       - name: Check for orphaned eval fixtures
         id: orphaned_fixtures
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh orphaned-fixtures {0}
         run: scripts/check-orphaned-fixtures.sh --check
 
       # Every finding kind audit-fleet.sh emits must have a Finding: <kind>
@@ -2074,6 +2156,7 @@ jobs:
       - name: "Check every emitted fleet finding kind has a Finding: assertion"
         id: fleet_finding_test_coverage
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh fleet-finding-test-coverage {0}
         run: scripts/check-fleet-finding-test-coverage.sh --check
 
       # The audit skill's documented argument grammar must match what
@@ -2083,6 +2166,7 @@ jobs:
       - name: Check audit skill grammar matches the parser
         id: fleet_audit_doc_grammar
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh fleet-audit-doc-grammar {0}
         run: scripts/check-fleet-audit-doc-grammar.sh --check
 
       # Skill-regression net: the only lane that invokes the skill-quality
@@ -2126,6 +2210,7 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+        shell: bash scripts/run-hygiene-gate.sh changed-skills {0}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff changed skills against."
@@ -2156,6 +2241,7 @@ jobs:
         continue-on-error: true
         env:
           DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        shell: bash scripts/run-hygiene-gate.sh evals-quality {0}
         run: |
           sets=(plugins/*/skills/*/evals/evals.json)
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
@@ -2176,6 +2262,7 @@ jobs:
       - name: Report precompute git+multi-line violations (warn-only)
         id: precompute_compose
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh precompute-compose {0}
         run: scripts/check-skill-precompute-compose.sh --all
       - name: Test the shared listing-budget reporter
         run: bash plugins/skill-quality/scripts/check-listing-budget.test.sh
@@ -2198,6 +2285,7 @@ jobs:
       - name: Report the shared skill-listing budget across every plugin
         id: listing_budget
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh listing-budget {0}
         run: bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
       # The step above measures a DEFAULT consumer, against the documented
       # 8,000-char fallback, and for this fleet it is permanently many times
@@ -2231,6 +2319,7 @@ jobs:
         continue-on-error: true
         env:
           CHECK_SKILL_LISTING_CONTEXT_TOKENS: "750000"
+        shell: bash scripts/run-hygiene-gate.sh listing-budget-configured {0}
         run: |
           fraction="$(jq -r '.skillListingBudgetFraction // empty' .claude/settings.json)"
           if [ -z "$fraction" ]; then
@@ -2253,6 +2342,7 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+        shell: bash scripts/run-hygiene-gate.sh portability-lint {0}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff changed skill files against."
@@ -2268,6 +2358,10 @@ jobs:
         env:
           # The feed's rules are stated on the one in `lint-repo`; the docs-only
           # gate pins them on every job.
+          # Gates that run as `uses:` actions, whose output
+          # scripts/run-hygiene-gate.sh cannot capture: a failure here points
+          # at the step log instead of quoting the gate's output.
+          STEP_LOG_CHECKS: evals-schema
           CHECK_RESULTS: |
             detector-findings-crosswalk=${{ steps.detector_findings_crosswalk.outcome }}
             detector-eval-coverage=${{ steps.detector_eval_coverage.outcome }}
@@ -2837,36 +2931,17 @@ jobs:
           # linkage check and its pull requests stay mergeable. An exact-login
           # match, never a `*[bot]` pattern.
           exempt-authors: 'dependabot[bot]'
-      # A DRAFT IS RED. Every lane skips on a draft, so its ci-status has linted
-      # and tested nothing. Between the flip to ready and the `ready_for_review`
-      # run's own ci-status check run (minutes later), the draft's ci-status is
-      # the newest one on the SHA, so a green draft would let a merge through on
-      # nothing. The aggregate below fails on the skipped lanes and records
-      # `ci-lanes=failure`; this step says why.
-      #
-      # A re-run keeps the payload of the event that started the run, so a
-      # contract-only run from the draft era that a full run re-runs after
-      # ready_for_review still carries draft: true; the live state decides.
-      # A contract-only run tests nothing either way; the `ci-lanes` status
-      # decides it. An unreadable state fails closed.
-      # Pinned by scripts/ci-fail-a-draft.test.sh, which runs this body.
-      - name: Fail a draft
+      # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
+      # and tested nothing, and the aggregate below passes those skips. A green
+      # draft cannot admit a merge: a draft cannot merge, and the merge-queue
+      # ruleset has no bypass actor, so every merge waits for this workflow's
+      # merge-group run, which runs every lane. This step says why it is green.
+      - name: Note a draft
         if: github.event.pull_request.draft == true
-        env:
-          # Only a contract-only run reads its verdict from ci-lanes, so only it
-          # may pass on the live state. A re-run of a draft-era full run still
-          # skipped its lanes and is refused.
-          CONTRACT_ONLY: ${{ github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base)) }}
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
         run: |
-          if [ "$CONTRACT_ONLY" = true ] &&
-            [ "$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .draft)" = false ]; then
-            echo "Marked ready since this run's event; the ci-lanes status decides."
-            exit 0
-          fi
-          echo "::error::draft: lanes not run. Mark the pull request ready to lint and test this SHA."
-          exit 1
+          msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
+          echo "::notice::$msg"
+          echo "$msg" >>"$GITHUB_STEP_SUMMARY"
       # A QUEUED PULL REQUEST IS HELD BY ITS LABEL TOO. A merge-group payload
       # carries no pull request, so `check-contract` above reports `skipped`,
       # and a `do-not-merge` label applied after enqueue would merge (#5952).
@@ -2945,8 +3020,9 @@ jobs:
           # for the lane list — through the ordered-skip check. Adding a lane
           # to needs automatically extends this check.
           results: ${{ steps.lanes.outputs.results }}
-          # A `skipped` lane is red, a draft's included (see `Fail a draft`).
-          treat-skipped-as: fail
+          # A `skipped` lane is red, except on a draft, where every lane skips
+          # (see `Note a draft`).
+          treat-skipped-as: ${{ github.event.pull_request.draft && 'pass' || 'fail' }}
           # `carry-forward-wait-seconds: '0'` means no carry-forward wait. Under
           # `yield-to-full-run` the composite may re-read for up to 30 s, only
           # when the in-flight full run has already written `success` and its

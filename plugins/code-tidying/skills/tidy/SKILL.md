@@ -22,7 +22,7 @@ The pipe is the bound and belongs in the command: the Bash tool returns a comman
 
 ## Pre-computed context
 
-Open chore/tidy-* PRs: !`${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh 2>/dev/null | { grep -E '^(Open tidy|Throttle)' || echo "unknown"; }; :`
+Open chore/tidy-* PRs: !`${CLAUDE_SKILL_DIR}/scripts/open-pr-count.sh 2>/dev/null | grep -E '^(Open tidy|Throttle)' || echo unknown`
 
 ## Variables
 

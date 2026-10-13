@@ -4,6 +4,13 @@
 // bootstrap and prints each promotable cell's effective state as JSON.
 //
 // Usage: node resolve-promotion-evidence.mjs --checkout <dir> [--worktree-root <dir> ...]
+//          [--window-start <ISO 8601 date-time with an offset>]
+//
+// --window-start restarts the evidence window after a demotion: the checker reads a copy of the
+// evidence source, written to a fresh temporary directory outside the checkout and every
+// worktree root and removed on exit, with one gate-failure event per promotable cell at that
+// instant appended, so a cell stays unpromoted until it is re-ratified after it. An empty or
+// malformed value, or a source that cannot be read as a JSON array, fails closed.
 //
 // The four bootstrap values (promotion_evidence_binding, promotion_evidence_root,
 // promotion_evidence_source, promotion_evidence_checker) are not arguments: the helper reads
@@ -21,12 +28,13 @@
 // and any line in that block that does not parse. The checker runs with an allowlisted
 // environment (PATH and SystemRoot only), so NODE_OPTIONS, NODE_PATH, LD_PRELOAD and GIT_*
 // values from a repository's settings env block never reach it. It reports only what the
-// checker printed and never re-derives the resolution algorithm. It writes no file and
-// reads nothing in the checkout.
+// checker printed and never re-derives the resolution algorithm. It writes no file but the
+// --window-start copy and reads nothing in the checkout.
 
 import { spawnSync } from "node:child_process";
-import { realpathSync } from "node:fs";
-import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -58,6 +66,7 @@ try {
     options: {
       checkout: { type: "string" },
       "worktree-root": { type: "string", multiple: true, default: [] },
+      "window-start": { type: "string" },
     },
     strict: true,
     allowPositionals: false,
@@ -114,6 +123,45 @@ function canonical(path) {
   }
 }
 
+// The checker's strict form: an explicit offset, at most millisecond precision, and a calendar
+// date that survives a round trip, so the instant cannot shift across a ratification.
+const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
+function isStrictIso(value) {
+  const match = ISO_DATE_TIME.exec(value);
+  if (!match) return false;
+  const [, year, month, day, hour, minute, second] = match.map(Number);
+  const utc = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  return (
+    utc.getUTCFullYear() === year &&
+    utc.getUTCMonth() === month - 1 &&
+    utc.getUTCDate() === day &&
+    utc.getUTCHours() === hour &&
+    utc.getUTCMinutes() === minute &&
+    utc.getUTCSeconds() === second
+  );
+}
+
+// The source's events plus one gate-failure per promotable cell at `at`, written outside every
+// root and removed on exit.
+function restartedCopy(path, at, roots) {
+  if (!isStrictIso(at)) emit(source, `--window-start ${JSON.stringify(at)} is not an ISO 8601 date-time with an offset`);
+  let events;
+  try {
+    events = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    emit(source, `promotion_evidence_source ${path} cannot be read as JSON (${error.code ?? error.message})`);
+  }
+  if (!Array.isArray(events)) emit(source, `promotion_evidence_source ${path} is not a JSON array`);
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), "promotion-evidence-")));
+  process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
+  for (const root of roots) {
+    if (isInside(dir, root) || isInside(root, dir)) emit(source, `the --window-start copy ${dir} would sit inside or contain ${root}`);
+  }
+  const copy = join(dir, "evidence.json");
+  writeFileSync(copy, JSON.stringify([...events, ...PROMOTABLE_CELLS.map((cell) => ({ cell, event: "gate-failure", at }))]));
+  return copy;
+}
+
 const checkout = resolveInput("--checkout", values.checkout, []);
 const roots = [resolve(values.checkout), checkout];
 for (const root of values["worktree-root"]) {
@@ -124,7 +172,9 @@ for (const root of values["worktree-root"]) {
 const checker = option("promotion_evidence_checker", roots);
 const binding = option("promotion_evidence_binding", roots);
 const probeRoot = option("promotion_evidence_root", roots);
-const evidence = option("promotion_evidence_source", roots);
+const sourcePath = option("promotion_evidence_source", roots);
+const evidence =
+  values["window-start"] === undefined ? sourcePath : restartedCopy(sourcePath, values["window-start"], roots);
 
 const checkerEnv = Object.fromEntries(
   CHECKER_ENV_KEYS.filter((key) => key in process.env).map((key) => [key, process.env[key]]),

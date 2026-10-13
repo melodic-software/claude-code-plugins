@@ -230,11 +230,13 @@ committed `mocks/.replay/` so agent mocks replay without a model call.
 
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta"; a run that feeds a decision keeps `--judge-model opus`, since the CLI's default judge is uncalibrated for decisions; only an exploratory run drops it.
    Run it in the foreground with a tool timeout that covers the estimate (a three-case pass took
-   about six minutes here) and wait. Never background the CLI from a headless `-p` session: the run
-   ends with the session. The run is finished when the process exits and `results.json` exists; read
-   the exit code and the JSON together, never one alone. Write the file somewhere git ignores (the
-   CLI's own copy lands under `<eval dir>/results/<timestamp>/`, and a repo that ignores that tree
-   can take `--json` there too); a run result is evidence to distill, not a file to commit.
+   about six minutes here) and wait. **Stay attached until every run exits:** a headless (`-p`)
+   session never backgrounds the CLI (the run ends with the session), runs suites one after another
+   (`-j` adds concurrency inside one), and answers only after all exit; an interactive session
+   backgrounds a run only as a harness-tracked task it waits for. A run is finished when the process
+   exits and `results.json` exists; read the exit code and the JSON together, never one alone. Write
+   the file where git ignores it (the CLI's own copy lands under `<eval dir>/results/<timestamp>/`,
+   which can take `--json` too when ignored); a run result is evidence to distill, not a file to commit.
 
 4. Read the JSON with the `read` action below. With `--json <file>` there is no terminal table, so
    the JSON is the only record of what happened.
@@ -467,10 +469,8 @@ file, the exit-code table, and the parser rules as background for a human reader
 - `--json <file>` suppresses the terminal summary table. Without `--keep-temp` the per-run
   `tracePath` points at a directory the runner has already deleted, so decide on `--keep-temp`
   before the run, not after reading a surprising score.
-- A `-p` session that backgrounds the CLI call answers "the run started" and exits, and the run
-  dies with it: one temp directory with an empty `out/`, no JSON, no results directory. Observed
-  on this plugin's own suite, verified 2026-09-13; recheck when a release note touches headless
-  tool execution.
+- A `-p` session that backgrounds the CLI call says "the run started", exits, and kills the run
+  (empty `out/`, no JSON; seen 2026-09-13 and 2026-10-04, #6333). Recheck when headless tools change.
 - A headless `-p` session tends to go from the reads straight to the CLI call and print the
   estimate in its final answer. The estimate step above says before; when the transcript is the
   evidence, read it for the order, not only for the number.

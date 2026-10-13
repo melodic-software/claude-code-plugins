@@ -1,0 +1,17 @@
+# The planning chain that scripts/check-next-graph.py holds to the workflow ladder.
+#
+# One skill per line as plugin:skill. A skill nothing routes to by design adds
+# `| entry: <reason>`; a skill with no successor adds `| terminal: <reason>`.
+# Stage order comes from each skill's workflow-stage frontmatter and the ladder in
+# /session-flow:workflow, never from this file.
+planning:brainstorm | entry: diverges a rough problem before any scope; /session-flow:workflow names it an entry skill
+planning:prd
+planning:interview
+planning:wayfind
+planning:questionnaire
+planning:audit-answers
+planning:design
+planning:design-handoff
+planning:plan
+planning:devils-advocate | entry: /planning:plan dispatches it inside its own stress-test step, before approval, so no successor section names it
+work-items:decompose
