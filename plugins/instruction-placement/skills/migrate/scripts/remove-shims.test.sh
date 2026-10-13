@@ -501,6 +501,14 @@ printf 'Vendored instructions.\n' >"$VENDORED/node_modules/pkg/AGENTS.md"
 OUT=$(bash "$SCRIPT" --root "$VENDORED" --installed-plugins "$TMP/installed-current.json" 2>&1)
 assert_not_contains "a vendored AGENTS.md prices no nested loss" "$OUT" "Nested AGENTS.md files"
 
+# A nested AGENTS.md with no shim beside it has no shim to lose: only the root
+# shim goes, so no nested loss is priced.
+NOSHIM="$TMP/nested-noshim"
+build_ready_repo "$NOSHIM"
+(cd "$NOSHIM" && git rm -q svc/CLAUDE.md && git commit -q -m "the nested directory is already agents-only")
+OUT=$(bash "$SCRIPT" --root "$NOSHIM" --installed-plugins "$TMP/installed-current.json" 2>&1)
+assert_not_contains "a nested AGENTS.md without a shim prices no nested loss" "$OUT" "Nested AGENTS.md files"
+
 # --- Case 8: a canary miss restores every shim this run removed -----------
 
 MISSING="$TMP/missing"

@@ -177,7 +177,14 @@ nested_rc=0
 nested_out="$(find "$REPO" \( -name .git -o -name node_modules \) -prune -o \
   -name 'AGENTS.md' \( -type f -o -type l \) -print 2>/dev/null)" || nested_rc=$?
 ((nested_rc == 0)) || refuse "the AGENTS.md walk failed (find exited $nested_rc) while counting nested files; an undercount would leave the nested write-trigger loss unpriced."
-NESTED_AGENTS="$(printf '%s\n' "$nested_out" | grep -cvxF -e "$REPO/AGENTS.md" -e '')"
+# Only a nested AGENTS.md beside a CLAUDE.md has a shim this run can remove;
+# one already without a shim loses nothing here.
+NESTED_AGENTS=0
+while IFS= read -r f; do
+  [[ -n "$f" && "$f" != "$REPO/AGENTS.md" ]] || continue
+  [[ -e "${f%/AGENTS.md}/CLAUDE.md" || -L "${f%/AGENTS.md}/CLAUDE.md" ]] || continue
+  NESTED_AGENTS=$((NESTED_AGENTS + 1))
+done <<<"$nested_out"
 nested_loss() { # <the probe's result, or "not yet run">
   echo "  Nested AGENTS.md files: $NESTED_AGENTS. The nested write probe says: $1. Unless it says"
   echo "  LOADS, removing their shims also drops the nested load a Write or Edit there triggers"
