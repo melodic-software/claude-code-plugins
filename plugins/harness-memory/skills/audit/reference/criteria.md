@@ -8,8 +8,14 @@
 - [Audit output format](#audit-output-format)
 
 Version: 1.7.0
-Last updated: 2026-09-20
-Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
+Last updated: 2026-10-11
+Source: official Claude Code docs, chiefly
+[How CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load),
+[Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md),
+[Enable persistent memory](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory) and
+[Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle). Each check
+cites the exact section it rests on beside it. As of 2026-10-11; recheck when any of those sections
+is renamed or moved.
 
 `<skill-dir>` in the commands below is the parent of this file's `reference/` directory. SKILL.md
 "Script paths" renders its absolute path; put it in place of the placeholder before running a
@@ -140,11 +146,10 @@ future session instead of relocating them.
 
 Rather than reading a single scope, resolve the **effective** state with the algorithm the sibling
 `stateless` skill already owns in
-[`skills/stateless/context/status.md`](../../stateless/context/status.md), "Resolve the effective
-state": the environment variable is authoritative wherever it is
-set (`1` → off, `0` → on even against `autoMemoryEnabled: false`), and only when it is unset does
-settings precedence (managed > local > project > user) pick the winning `autoMemoryEnabled`, default
-`true`. A `false` in a lower-precedence scope therefore does not by itself disable the destination.
+[Step 3: Resolve the effective state](../../stateless/context/status.md#step-3-resolve-the-effective-state),
+which also holds the precedence it applies and its pointers (as of 2026-10-11; recheck when that
+step is renamed or moved, or stops carrying its own precedence pointers). A `false` in a
+lower-precedence scope does not by itself disable the destination.
 When the resolved state is off, either name a destination that does load or state that enabling auto
 memory is a precondition of the move, rather than proposing it unconditionally.
 
@@ -152,6 +157,9 @@ memory is a precondition of the move, rather than proposing it unconditionally.
 `@some/file.md` has its *imported* content inlined at session start while the rule's own body
 correctly defers, so moving content into a path-scoped rule and pulling it in by import saves
 nothing. Reproduced first-party on Claude Code 2.1.219 (2026-07-24); no official page states it.
+The same caveat, with its pointer, is in
+[official-guidance.md, Rules files](official-guidance.md#rules-files) (as of 2026-10-11; recheck
+when that section is renamed or moved, or drops the caveat or its pointer).
 **Provenance**: empirical extension, not doc-derived, so the `update` action must not overwrite it
 with doc-sourced text, and it needs re-verification on a current version rather than a doc re-fetch.
 
@@ -165,7 +173,7 @@ long sessions.
 
 A **new** skill carries a second cost the compaction table does not show: the body defers, but we
 price the listing entry it adds as always in context: `name` plus the combined `description` and
-`when_to_use`, at up to 1,536 characters. The saving is the body minus that entry rather than
+`when_to_use`, up to the per-entry cap the pointer below records. The saving is the body minus that entry rather than
 the whole body. Moving content into a skill that **already exists** adds no listing entry and does not carry
 this cost. Price the entry as zero only for a skill with `disable-model-invocation: true` (which
 also leaves it user-invocable only); never on the strength of `user-invocable: false`, or of a
@@ -186,10 +194,10 @@ live in [official-guidance.md](official-guidance.md), not here.
   [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
   [Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)
   and [Override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings).
-- **As of** (the listing-entry pointer): 2026-08-31
-- **Recheck trigger** (the listing-entry pointer): a fetch of those sections no longer supports the
-  1,536-character cap, the zero-cost rule, or the plugin-skill exclusion above; re-derive this
-  paragraph and the listing-entry cost from them.
+- **As of** (the listing-entry pointer): 2026-10-11
+- **Recheck trigger** (the listing-entry pointer): a fetch of those sections changes the per-entry
+  listing cap or how it is configured, or no longer supports the zero-cost rule or the plugin-skill
+  exclusion above; re-derive this paragraph and the listing-entry cost from them.
 
 ### C4: Specificity [WARN]
 
@@ -481,11 +489,15 @@ of a local edit; `local` keeps the ordinary fix line. RD1 does this itself; the 
 block-level HTML comments first: we count only loaded content toward the limits. The SKILL.md
 pre-computed context already reports both post-strip figures
 (`memory-dir-stats.sh --memory-lines` / `--memory-bytes`); use them rather than re-measuring the raw
-file. This check sets the limit at the first 200 loaded lines or 25KB and treats anything beyond
-as not loaded at session start.
+file. The 200-line and 25KB figures are this gate's firing values, set to match the documented
+load limit, and this check is their one home in the prose; the scripts carry the same values to
+fire at run time. Anything beyond them is treated as not loaded at session start.
 
 - **Pointer**: for the auto-memory load limits, see
   [How it works](https://code.claude.com/docs/en/memory#how-it-works).
+- **As of**: 2026-10-11
+- **Recheck trigger**: the section changes either `MEMORY.md` load limit; update the firing values
+  here and in `scripts/memory-dir-stats.sh` and `scripts/audit-spine.sh` together.
 
 Four readings the strip applies, so a hand count matches the reported figures:
 

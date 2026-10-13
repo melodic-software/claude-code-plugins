@@ -114,7 +114,7 @@
       "id": 8,
       "name": "fork-no-writes-trusted-not-enforced",
       "prompt": "sweep all disciplines — and confirm the audit forks can't touch my working tree.",
-      "expected_output": "The skill does not claim the audit forks are constrained. It states that a fork receives the main conversation's exact tool pool and cannot be narrowed the way a named subagent's `tools` field can, so 'make NO writes' is an instruction the forks are trusted to honor rather than a harness constraint. Rather than asserting containment it cannot deliver, it is explicit that a fork that wrote is untrusted output to stop on rather than correct on top of, and that detecting such a write is after-the-fact and advisory here. It does not offer worktree isolation as the answer — isolating the forks would hide the uncommitted work in flight that the audit exists to inspect, and would not bound an absolute-path write.",
+      "expected_output": "The skill does not claim the audit forks are constrained. It states that a fork receives the main conversation's exact tool pool and cannot be narrowed the way a named subagent's `tools` field can, so 'make NO writes' is an instruction the forks are trusted to honor rather than a harness constraint. Rather than asserting containment it cannot deliver, it is explicit that a fork that wrote is untrusted output to stop on rather than correct on top of, and that detecting such a write is after-the-fact and advisory here. It does not offer worktree isolation as the answer — isolating the forks would hide the uncommitted work in flight that the audit exists to inspect.",
       "files": [],
       "expectations": [
         "States that forks receive the main conversation's exact tool pool and cannot be tool-restricted",

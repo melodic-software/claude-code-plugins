@@ -36,9 +36,9 @@
 #     same reason: it is the value the event itself carries.
 #
 # There is NO stand-down channel. Both failure shapes fail the creation:
-#   * a non-zero exit — "Any non-zero exit code causes worktree creation to fail";
-#   * exit 0 with no path — "Hook failure or missing path fails creation", which
-#     the harness reports as "hook succeeded but returned no worktree path".
+#   * a non-zero exit (hooks page, sections named in the stamp below);
+#   * exit 0 with no path, which the harness reports as "hook succeeded but
+#     returned no worktree path" (probe).
 # So a WorktreeCreate hook cannot say "not applicable, use your own default". The
 # only way this hook can decline is to fail the creation, which is why the
 # disabled path below exits NON-ZERO rather than exiting 0 silently.
@@ -60,15 +60,20 @@
 #
 # `worktree_create_gate_enabled=false` does NOT hand placement back to Claude
 # Code — per the paragraph above, no such channel exists. It makes this hook
-# refuse, which fails every harness-driven creation path. The harness-side
-# stand-down is `worktree.bgIsolation: "none"`, or disabling the plugin.
+# refuse, which fails every harness-driven creation path. Disabling the plugin
+# is the only stand-down that covers every path. `worktree.bgIsolation: "none"`
+# is narrower: it stops background sessions isolating at all, and leaves
+# `--worktree` and subagent worktrees on this hook.
+#   Pointer: <https://code.claude.com/docs/en/settings-reference#worktree-bgisolation>
+#   As-of: 2026-10-11.
+#   Recheck trigger: that section stops scoping the key to background sessions.
 #
 # ── Verification stamp (docs/conventions/upstream-drift) ────────────────────────
 # Claim: the four harness behaviors above — last-non-empty-line path read, hook
 #   must create the directory, both failure shapes fail creation, and the
 #   exit-0-stderr/non-zero-stderr channel split.
-# Basis: <https://code.claude.com/docs/en/hooks> raw markdown (`hooks.md`,
-#   "WorktreeCreate output" and the exit-code tables), plus a four-arm probe of
+# Basis: <https://code.claude.com/docs/en/hooks#worktreecreate-output> and
+#   <https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event>, plus a four-arm probe of
 #   `claude -p --worktree <name> --settings <file>` in throwaway repos — control
 #   (no hook), exit-0-no-path, exit-3-with-stderr, and path-without-directory.
 #   The probe is recorded in `skills/worktree/fixtures/README.md`.
@@ -121,7 +126,7 @@ gate::refuse() {
 # and an exit-0 skip is precisely the shape this path must avoid.
 if [[ "${CLAUDE_PLUGIN_OPTION_WORKTREE_CREATE_GATE_ENABLED:-true}" != "true" ]]; then
   gate::refuse \
-    'to let Claude Code place worktrees itself, set worktree.bgIsolation to "none" in settings, or disable this plugin — turning this option off cannot hand placement back' \
+    'to let Claude Code place worktrees itself, disable this plugin; worktree.bgIsolation "none" in settings only stops background sessions isolating, and turning this option off cannot hand placement back' \
     'the gate is disabled by worktree_create_gate_enabled=false, so it declined to place this worktree' \
     'a WorktreeCreate hook has no "not applicable" channel: both refusing and returning no path fail the creation'
 fi
@@ -202,7 +207,10 @@ fi
 # The plugin option is read from the environment rather than substituting
 # `${user_config.worktree_root}` into a command: a value substituted into a shell
 # field would be executed by the shell, which is why Claude Code rejects that
-# form outright and exports CLAUDE_PLUGIN_OPTION_<KEY> instead. It rides the
+# form outright and exports CLAUDE_PLUGIN_OPTION_<KEY> instead
+# (pointer: <https://code.claude.com/docs/en/plugins/manifest-reference#fields-that-run-through-a-shell>;
+# as-of 2026-10-11; recheck when that section stops rejecting the token in
+# shell-form hook commands). It rides the
 # helper's --fallback-root rung, BELOW the `worktreeroot.path` git config key
 # the helper reads from the target repository (includes on) — most specific
 # first, per reference/worktree-root-convention.md (#2610/#2612).
@@ -289,7 +297,7 @@ if ((status != 0)); then
     ;;
   4)
     gate::refuse \
-      "if $repo_dir is not a git repository, set worktree.bgIsolation to \"none\" in settings so Claude Code edits in place instead of isolating" \
+      "if $repo_dir is not a git repository, there is nothing to isolate: for a background session, set worktree.bgIsolation to \"none\" in settings so it edits in place; --worktree and subagent isolation need a repository" \
       "the helper hit an environment error (exit 4): either $repo_dir is not a git repository, or git worktree add itself failed" \
       'the git error above this line, if any, is the authoritative detail'
     ;;

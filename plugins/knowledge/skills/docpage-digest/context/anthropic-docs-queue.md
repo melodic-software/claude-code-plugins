@@ -53,7 +53,7 @@ Models:
   [Work with Fable](https://code.claude.com/docs/en/model-config#work-with-fable)
 - <https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5>
   and <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5>
-  The release notes and prompting guide for Opus 5.5, the current Opus, and the first-party
+  The release notes and prompting guide for Opus 5.5, and the first-party
   sources for the `playbooks` Opus 5.5 model-adaptation chapter. Both resolved to their titled
   pages on 2026-10-01; one page per run
 
@@ -67,7 +67,7 @@ Blog posts (each a digest target, never a pointer: a slice built on one points a
 named with it and keeps the post as a correlate):
 
 - <https://claude.dev/blog/getting-the-most-out-of-opus-5-5/> (not a pointer; correlate only)
-  The vendor usage guide for Opus 5.5, the current Opus. The `playbooks` Opus 5.5
+  The vendor usage guide for Opus 5.5. The `playbooks` Opus 5.5
   model-adaptation chapter and this repository's instruction surfaces apply it without a custody
   record, applicability tags, or an attestation pass; its model-behavior claims are
   vendor-reported. Docs pointer:

@@ -62,7 +62,7 @@ where the doc says none occurs, or an identity check the doc's two tests do not 
 |---|---|---|
 | 1, primary | Fetch the page through the docs lookup (below), which reads the raw-markdown channel to a file; search the file locally | Verbatim bytes, no summarizer, no truncation |
 | 1b, publisher source | When rung 1's `.md` channel 404s, read the file from the **publisher's own source repository** on the branch or tag the published site deploys from (for example `raw.githubusercontent.com/<org>/<repo>/<deploy-ref>/…`) | Verbatim bytes from first-party source control; no summarizer |
-| 2, primary degraded | The `.md` channel through a summarizing tool, or the rendered HTML page | Truncates on long pages; usable only when the read shows the page arrived whole |
+| 2, primary degraded | The `.md` channel through a summarizing tool, or the rendered HTML page | Truncates on long pages; usable only when the read shows the page arrived whole. For whether the built-in fetch tool still summarizes or truncates, read [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior) live (as of 2026-10-11; recheck when that section changes what the tool returns) |
 | 3, mirror | A verbatim third-party mirror, with the freshness step below | Verbatim text, one rung below a primary read, and the finding says so |
 
 Rung 1 runs `bash "<skill-dir>/../../scripts/fetch-docs.sh" --cache --max-age 0 --profile

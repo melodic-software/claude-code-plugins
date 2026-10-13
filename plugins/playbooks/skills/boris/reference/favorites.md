@@ -57,7 +57,11 @@ Hooks run logic at specific points in the agent lifecycle:
 - **PermissionRequest**: route permission prompts to WhatsApp for mobile approve/deny
 - **Stop**: poke Claude to keep going whenever it stops
 
-Docs: https://code.claude.com/docs/en/hooks
+- **Pointer**: for the hook events that exist and when each fires, see
+  [Hook events](https://code.claude.com/docs/en/hooks#hook-events).
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section adds, renames or removes a hook event, or a Claude Code release
+  note touches one.
 
 See also: [Section 6: Hooks](foundations.md)
 
@@ -148,13 +152,19 @@ Source: https://x.com/bcherny/status/2038454355469484142
 
 ## 57. --bare: 10x Faster SDK Startup
 
-By default, `claude -p` (and the TypeScript/Python SDKs) searches for local CLAUDE.md files, settings, MCPs. For non-interactive usage, most of the time you want to explicitly specify what to load via `--system-prompt`, `--mcp-config`, `--settings`, etc.
+For non-interactive usage, most of the time you want to specify explicitly what `claude -p` (and the TypeScript/Python SDKs) loads via `--system-prompt`, `--mcp-config`, `--settings`, etc.
+
+- **Pointer**: for what a non-interactive run loads by default and what `--bare` skips, fetch
+  [Start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes what bare mode skips or whether it is the default.
 
 ```bash
 claude -p --bare --system-prompt "..." --mcp-config ./my-config.json
 ```
 
-**Boris's note:** Design oversight when SDK was first built. In a future version, `--bare` becomes the default. Opt in now with the flag.
+**Boris's note:** Design oversight when SDK was first built. Opt in now with the flag; whether it becomes the default is the page's to say (pointer above).
 
 Source: https://x.com/bcherny/status/2038454357088457168
 
@@ -182,7 +192,11 @@ Custom agents are a powerful primitive often overlooked. Define a new agent in `
 claude --agent=<your-agent-name>
 ```
 
-Docs: https://code.claude.com/docs/en/sub-agents
+- **Pointer**: for how `--agent` runs a defined agent as the main session, see
+  [Invoke subagents explicitly](https://code.claude.com/docs/en/sub-agents#invoke-subagents-explicitly).
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section renames or removes the `--agent` flag or changes what it loads,
+  or a Claude Code release note touches it.
 
 See also: [Section 22: Agents](customization.md)
 

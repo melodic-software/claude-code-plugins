@@ -448,7 +448,7 @@ declares_both_fixtures B "$CASE_B"
 # `[me|lock|scope] [topic]`, with the invocation examples in the body's `Arguments.` line.
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "59dc90d3c755a7998db3fcabd0a8310725e29235df0542a52d540774e6f7de82"
+  "2e53b9942730509a6e02349e032fdd9e4329c16ad6130a4ea61929d757b0216c"
 
 # The Gates block restates the auto-guard, the `lock` STOP-on-gap and the register gate near
 # the top of SKILL.md, where a compaction's re-attach still reaches (#5332;
@@ -491,11 +491,15 @@ done
 # resolves nothing. The three recommendation-basis links point at the plugin-shipped
 # context file instead of an org URL; a link target changes no rule.
 # The `Source:` block and the sentence that alternatives exclude the recommendation shape how a question is shown; neither resolves a row.
+# The quality-bar paragraph adds a round-1 question and depth scaling; deferred prototype concerns are named in the reply, so it resolves nothing silently.
+# The yes-accepts-recommendation rule words a negative recommendation as "Should X stay out of
+# this change?" so "Q<N> yes" and "accept all" mean the recommended answer. It changes how a
+# question is phrased, not what resolves it: an unanswered question still resolves nothing.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "0c7b0a47cce5231389429ce4c3cca61f6560b7b0d8e999a0ab9d99d933ef0b8c"
+  "12c191a46a7f6ca741eb8d81ad08fce1a89bbb29aa3190698bde9d1abd6cea05"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -521,7 +525,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "895d860e306dc3b6a572fd85a099cc87b608d0e409aed7139f5662fb74ff4591"
+  "b29d5fca451e1f1fcee7fc75d1c8bff84fb11cebc4779c331c0e3c894b89fb0c"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -530,7 +534,7 @@ pin_section "loop.md Step 3 section is unchanged (it twins the confirmation-gate
   "$LOOP" \
   "## Step 3. Recognize the stop condition" \
   "## Step 4. Section guidance for the Brief" \
-  "fa1bf9aafbcc7b0dc42b9037f620444b68c32424e0a2367ee36d4c7f55e8dd8f"
+  "4a2684f1f61182e43f8343d7a9d6582e59f02cd327402d1bce8b4e86b28c85eb"
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arbiter guidance)" \
   "$LOOP" \
@@ -588,11 +592,12 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The page paragraph writes the register's `open` rows with `round.sh sync-ledger` in the same step as `add-round`, and a forced wrap-up reports what it skipped; the `lock` row is unchanged.
 # The substitution record cites the live manifest-reference page in place of the retired plugins-reference page and moves its as-of date; the `lock` row is unchanged.
+# The opt-in AskUserQuestion paragraph bounds a card round by one call's question limit, cited to the live Agent SDK page, in place of a hard-coded count; the `lock` row is unchanged.
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "d43f134f1ac8ba9d15a4f7e67f15ff474272ddbb27c91ac1d1971efffe281224"
+  "0d4ad21f4beb486a89babbce668f70a8e827ef97d87b46852f825b065b758430"
 # Re-pinned for the recap and procedure-check paragraph after the confirmation gate. It adds a
 # requirement before confirmation is asked (a register-sourced recap and a cited exit code) and
 # names what stays unchecked; the gate line, its `lock` exemption, and the halt rules are unchanged.
@@ -601,7 +606,7 @@ pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exempti
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "08d99bf168b24ba192cf8db0efd9e1f63d3fb14d9429eaa900fe30f9a23b7f06"
+  "bcc5cd31acf1f4150736961451d305ab4f8fcf7a91ef38574bada852a1552980"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
@@ -630,7 +635,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "4c4601c4af7aef2fba869c0db0429c0763a6daa9ece32f0edcdcd7a4f4c23ecf"
+  "b2f8bc7e6c49d500b5efc2ad019d79fe322e9aeef710fe094fc0a3719f8f99f9"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -639,7 +644,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "a39585b1e8142bec6752aca82d47e4e2b5e24a43dca278e8e7115c016de07483"
+  "ef734001cb6f119e02e537cb630bfdcec76adea5a1afe7f653ef79e6315ff6d4"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "9fd949249c01cdd3217765208d694a960453762c2d7067d6a224ea49aead9c7d"

@@ -123,6 +123,19 @@ async page => {
     s = await state();
     ok("a hedged question's commitments count in To confirm", (await counter()) === (openAssumptions(s) ? open(openAssumptions(s)) : ""), (await counter()) + " vs " + openAssumptions(s));
     await page.click("main.detail h3"); await page.keyboard.press("r"); await page.waitForTimeout(600);
+    // Someone else decides: a defer that names the person who holds the decision
+    await pick("Q3"); await page.click('.choice:has-text("Someone else decides")'); await page.waitForTimeout(150);
+    ok("Someone else decides needs a note naming who before it saves", /Someone else decides/.test(await armed()) && await page.$eval("[data-save]", el => el.disabled) && /Name who decides/.test(await page.textContent("#decideRow")), await armed());
+    await page.click("#note"); await page.keyboard.type("Someone else decides:"); await page.waitForTimeout(150);
+    ok("a note that only repeats the label names nobody, so Save stays off", await page.$eval("[data-save]", el => el.disabled) && /Name who decides/.test(await page.textContent("#decideRow")), await page.textContent("#decideRow"));
+    await page.keyboard.type(" Dana, the DBA"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(700);
+    const ep = await events(), pd = ep[ep.length - 1];
+    ok("Someone else decides posts a defer whose text names the person once, even when the note repeats the label", pd.id === "Q3" && pd.kind === "defer" && pd.text === "someone else decides: Dana, the DBA", JSON.stringify(pd));
+    await pick("Q3");
+    ok("the person-held deferral shows as Someone else decides, not plain Defer", /Someone else decides/.test(await page.textContent(".choice.current").catch(() => "")), await page.textContent(".choice.current").catch(() => ""));
+    await page.click(".sumbtn"); await page.waitForTimeout(300);
+    ok("the summary lists the person-held deferral and the questionnaire hand-off", /Q3/.test(await page.textContent("#personHeld").catch(() => "")) && /Dana, the DBA/.test(await page.textContent("#personHeld").catch(() => "")) && /questionnaire/.test(await page.textContent("#personHeld").catch(() => "")), await page.textContent("#personHeld").catch(() => "none"));
+    await pick("Q3"); await page.click("main.detail h3"); await page.keyboard.press("r"); await page.waitForTimeout(600);
     await pick("Q1"); await page.click("main.detail h3");
     const nBeforeReopen = (await events()).length;
     await page.keyboard.press("r"); await page.waitForTimeout(700);
@@ -223,6 +236,13 @@ async page => {
     await page.click("main.detail h3"); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
     const ev4 = await last();
     ok("an armed alternative survives a Reconfirm row shifting the key numbers: (b) stays armed once stale and saves alt b", /^\(b\)/.test(a0) && wasStale && /^\(b\)/.test(a1) && ev4.id === "P2" && ev4.kind === "alt" && ev4.alt === "b", a0 + " / " + a1 + " " + JSON.stringify(ev4));
+    // Reconfirm of a person-held deferral with a new name typed over the kept one stays person-held
+    await restale({kind: "defer", text: "someone else decides: Dana"}, {kind: "alt", alt: "b"});
+    await page.fill("#note", "Lee, the architect");
+    await page.click("main.detail h3"); await page.keyboard.press("a");
+    const r7 = (await armed()).trim(); await page.keyboard.press("Control+Enter"); await page.waitForTimeout(800);
+    const ev7 = await last();
+    ok("Reconfirm of a person-held deferral with a new name keeps the someone else decides prefix", /^Reconfirm/.test(r7) && ev7.id === "P2" && ev7.kind === "defer" && ev7.text === "someone else decides: Lee, the architect", r7 + " " + JSON.stringify(ev7));
     // Reconfirm with a note typed over the kept one records the typed note
     await restale({kind: "alt", alt: "b", text: "Only on weekends"}, {kind: "accept"});
     await page.fill("#note", "Weekdays too");
@@ -374,8 +394,8 @@ async page => {
 
     // SPEC 4.1: mobile stacks, no horizontal scroll at 800 px
     await page.setViewportSize({width: 800, height: 900}); await page.waitForTimeout(300);
-    const mob = await page.evaluate(() => { const r = document.querySelector("nav.rail").getBoundingClientRect(), d = document.querySelector("main.detail").getBoundingClientRect(), a = document.getElementById("answer"); a.scrollIntoView(); const ar = a.getBoundingClientRect(); return {hscroll: document.scrollingElement.scrollWidth > innerWidth, stacked: r.bottom <= d.top + 1, answer: ar.height > 0 && ar.top < innerHeight && ar.bottom > 0}; });
-    ok("mobile: panes stack, no horizontal scroll, answer pane reachable", !mob.hscroll && mob.stacked && mob.answer, JSON.stringify(mob));
+    const mob = await page.evaluate(() => { const r = document.querySelector("nav.rail").getBoundingClientRect(), d = document.querySelector("main.detail").getBoundingClientRect(), a = document.getElementById("answer"); a.scrollIntoView(); const ar = a.getBoundingClientRect(); return {hscroll: document.scrollingElement.scrollWidth > innerWidth, stacked: d.bottom <= r.top + 1, answer: ar.height > 0 && ar.top < innerHeight && ar.bottom > 0}; });
+    ok("mobile: panes stack with the question first, no horizontal scroll, answer pane reachable", !mob.hscroll && mob.stacked && mob.answer, JSON.stringify(mob));
     await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(300);
     ok("AC36: page never scrolls at 1400 by 860", await page.evaluate(() => document.scrollingElement.scrollHeight <= innerHeight + 1 && document.scrollingElement.scrollWidth <= innerWidth));
 
@@ -451,7 +471,9 @@ async page => {
     await page.goto(base);
     await page.waitForFunction(() => /Not listening/.test(document.getElementById("pill").textContent), null, {timeout: 5000}).catch(() => {});
     const pill = await page.evaluate(() => { const p = document.getElementById("pill"); return {cls: p.className, text: p.textContent, code: (p.querySelector("code") || {}).textContent, line: document.getElementById("claudeLine").textContent}; });
-    ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", pill.text === "Not listening: type next" && pill.code === "next" && pill.cls === "pill idle" && /D1/.test(pill.line), JSON.stringify(pill));
+    ok("SPEC 2.4 rung 5: a delivery unhandled for 10 minutes with no watcher waiting says to type next", /type next$/.test(pill.text) && pill.code === "next" && pill.cls === "pill idle" && /D1/.test(pill.line), JSON.stringify(pill));
+    // No watcher has polled this server, as on a first wake held by a permission prompt: the pill names the prompt too.
+    ok("with no watcher ever polled, the pill says to approve any prompt in the terminal, or type next", pill.text === "Not listening: approve any prompt in the terminal, or type next" && /permission prompt/.test(await page.getAttribute("#pill", "title")), pill.text);
     // The ping-silence fallback: with nothing changing, this server sends only its 15 s ping, so a
     // page told to call a stream dead after 1 s drops it, polls, and opens a new one.
     await page.addInitScript(() => {
@@ -485,7 +507,8 @@ async page => {
     ok("a fresh answer, with no watcher silent for 30 s yet, reads Sent to Claude", /Sent to Claude/.test(await chip()), await chip());
     const quiet = await page.waitForFunction(() => /No session is listening; type next in the terminal/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 45000}).then(() => true).catch(() => false);
     ok("with no watcher holding the lease, an unhandled answer reads as not delivered", quiet && !/Sent to Claude/.test(await chip()), await chip());
-    ok("the receipt line says the same", /No session is listening/.test(await page.textContent("#claudeLine")), await page.textContent("#claudeLine"));
+    const line = await page.waitForFunction(() => /No session is listening/.test(document.getElementById("claudeLine").textContent), null, {timeout: 5000}).then(() => true).catch(() => false);
+    ok("the receipt line says the same", line, await page.textContent("#claudeLine"));
     // The watcher claims the lease; the shell handles the event a few seconds later.
     const r = await page.request.get(base + "api/wait?after=handled&timeout=1&watcher=w1", {headers: {"X-Interview-Token": await token()}});
     const back = await page.waitForFunction(() => /Sent to Claude/.test(document.querySelector('.qbtn[data-q="D1"]').textContent), null, {timeout: 12000}).then(() => true).catch(() => false);

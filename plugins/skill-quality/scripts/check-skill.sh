@@ -470,7 +470,7 @@ fi
 # default of skillListingMaxDescChars. Pointer: for the listing truncation and
 # its default, see https://code.claude.com/docs/en/skills#frontmatter-reference
 # and https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars.
-# As of: 2026-08-31. Recheck trigger: either page moving the default
+# As of: 2026-10-11. Recheck trigger: either page moving the default
 # re-derives this constant (a script cannot fetch upstream at runtime, so the
 # constant is our decision, recorded with pointer, as-of date and trigger per
 # the marketplace's upstream-drift convention).
@@ -598,13 +598,16 @@ fm_listing_triggers() {
 if [[ ! -d "$SKILL_DIR" ]]; then
   # A `plugin:skill` argument is a common miss: the operator wants to gate a
   # marketplace-INSTALLED skill, but this checker resolves a bare skill name
-  # under one skills root — it deliberately does NOT reverse-engineer Claude
-  # Code's plugin-cache layout to find it. The cache path
-  # (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills`) is an
-  # internal detail: only the cache's existence is documented, the
-  # `<mp>/<plugin>/<version>` nesting is not, and the version dir changes on
-  # every update (code.claude.com/docs/en/plugins/loading#find-plugins-on-disk). Point the root at
-  # it explicitly instead. Note the cache is a COPY, not a git checkout, so the
+  # under one skills root and deliberately does NOT walk Claude Code's plugin
+  # cache to find it: more than one installed version can sit on disk at once,
+  # and the checker will not guess which one the caller means. Point the root
+  # at the installed version's skills dir explicitly instead.
+  # Pointer: when locating an installed copy or judging which versions stay on
+  # disk, fetch https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk
+  # and https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions
+  # live. As of: 2026-10-11. Recheck trigger: either section changing the
+  # cache layout or how long a previous version stays on disk.
+  # Note the cache is a COPY, not a git checkout, so the
   # git-backed checks (3 trigger-preservation, 8 vendor, 9 stale-metadata)
   # correctly no-op there — a "new skill / skipped" result is expected, not a
   # defect (this is why check 3 cannot compare an installed skill against HEAD).
@@ -787,7 +790,8 @@ else
 
   # The checker treats `name` as optional and resolves a skill by its
   # directory either way (pointer: for the field's default, see
-  # https://code.claude.com/docs/en/skills#frontmatter-reference). A DIVERGENT name is
+  # https://code.claude.com/docs/en/skills#frontmatter-reference; as of
+  # 2026-10-11; recheck trigger: the `name` row changing its default). A DIVERGENT name is
   # the defect this branch exists for: it silently relocates the invocation the
   # doctrine says the skill has. A matching one is merely redundant — and in a
   # plugin skill, not inert (see the warning below).
@@ -813,9 +817,11 @@ else
     # In a PLUGIN skill a matching `name` is not inert: this check treats a
     # declared name as registering a bare `/<name>` alias (pointer: for how a
     # skill gets its command name, see
-    # https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name),
-    # and the picker appends that alias in parentheses to any row whose typed
-    # prefix matches it — `/plugin:deploy (deploy)` (observed in 2.1.225).
+    # https://code.claude.com/docs/en/skills#how-a-skill-gets-its-command-name;
+    # as of 2026-10-11; recheck trigger: that section changing whether a
+    # declared name adds a command), and the picker appends that alias in
+    # parentheses to any row whose typed prefix matches it:
+    # `/plugin:deploy (deploy)` (observed in 2.1.225).
     # Omitting the field leaves the namespaced command identical and drops both.
     # Advisory, not a defect: the bare alias is a legitimate thing to want, and
     # declaring a matching name is the only way to register it.
@@ -824,7 +830,8 @@ else
 
   # Spec portability limbs on the EFFECTIVE name: the declared field when there
   # is one, else the directory leaf, which this check takes as the name when
-  # the field is absent (pointer: https://code.claude.com/docs/en/skills#frontmatter-reference).
+  # the field is absent (pointer: https://code.claude.com/docs/en/skills#frontmatter-reference;
+  # as of 2026-10-11; recheck trigger: the `name` row changing its default).
   # Run outside the chain above so an over-long or reserved directory leaf is
   # caught even with no `name:` line. Pointer, and the measurement that Claude
   # Code enforces neither rule: NAME_MAX_LEN above. Counted in codepoints by the
@@ -870,7 +877,10 @@ else
   # quoted scalar or a block scalar may contain it. This check fails it because
   # an unparsable frontmatter loads the skill with no fields set (pointer: for
   # frontmatter parse failures, see
-  # https://code.claude.com/docs/en/skills#frontmatter-reference).
+  # https://code.claude.com/docs/en/skills#frontmatter-reference; as of
+  # 2026-10-11; recheck trigger: that section changing what happens to a skill
+  # whose frontmatter does not parse). This is the plugin's one record for
+  # that behavior; the summary contract below and the README point here.
   desc_lines="$(awk '
     !seen && /^description:/ { seen = 1; sub(/^description:[[:space:]]*/, ""); sub(/[[:space:]]+#.*$/, ""); print; next }
     seen && /^[^[:space:]]/ { exit }
@@ -1378,7 +1388,8 @@ fi
 # `disable-model-invocation: true`, and this check treats such a skill's
 # description as absent from the model's context (pointer:
 # https://code.claude.com/docs/en/skills#control-who-invokes-a-skill, as of
-# 2026-08-10), so trigger phrasing on them can never route anything. Each was re-checked for a STRANDED
+# 2026-10-11; recheck trigger: that section changing whether such a skill's
+# description reaches the model), so trigger phrasing on them can never route anything. Each was re-checked for a STRANDED
 # phrase (one a user would type that no model-invocable skill can receive) and
 # none is stranded: the two `update` skills are maintainer-only with
 # consumer-facing siblings that carry the phrases, `github:setup` is a declared
@@ -2024,9 +2035,10 @@ done
 #
 # The contract is a FIXED POINT: the literal text after `summary:` must be what
 # every reader recovers, whether it reads with a real YAML parser or a regex.
-# This check relies on malformed frontmatter loading a skill with empty metadata
-# (pointer: https://code.claude.com/docs/en/skills#frontmatter-reference), so a
-# value a parser rejects costs the skill its whole frontmatter.
+# This check treats a value a parser rejects as costing the skill its whole
+# frontmatter (record: the unquoted-description comment under the
+# `# --- Check 1` header above; as of 2026-10-11; recheck trigger: that
+# comment's pointer or its stated parse-failure behavior changing).
 # Requiring a plain, unquoted, colon-free scalar is the largest subset a regex
 # reader can recover exactly, which is why it is stricter than YAML alone.
 #
@@ -2117,7 +2129,9 @@ fi
 # --- Check 24: explicit invocation mode --------------------------------------
 # Every skill states its invocation mode explicitly. This check takes the default
 # for an absent key as `false` (pointer:
-# https://code.claude.com/docs/en/skills#frontmatter-reference), so this is an
+# https://code.claude.com/docs/en/skills#frontmatter-reference; as of
+# 2026-10-11; recheck trigger: the `disable-model-invocation` row changing
+# its default), so this is an
 # auditability rule rather than a behavior change: an explicit key
 # makes the choice reviewable, and a `true` reviewable against the exception
 # classes in the rubric that owns this decision —

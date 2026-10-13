@@ -86,7 +86,7 @@ Let the count pick the strategy:
 
 - **1–2 consumers** → read both, change in place, verify both.
 - **3–10** → read the consumers that use the surface differently from one another, because divergent usage is where breakage hides, then change and verify the full affected set.
-- **More than 10, or consumers you cannot enumerate** (external callers, persisted data in the old format) → treat the surface as a contract: introduce the new shape alongside the old, migrate consumers, retire the old, additive over in-place mutation.
+- **External, unenumerable or persisted consumers** (callers outside the repository, consumers you cannot list, data at rest in the old format) → treat the surface as a contract: introduce the new shape alongside the old, migrate consumers, retire the old, additive over in-place mutation. Stage a surface only for these. A high internal consumer count alone is not a reason: forty call sites you can find and edit get the 3–10 treatment and change in one pass, because a second live shape is warranted only for a consumer you cannot update (the execution chapter's rule on compatibility shims).
 
 During the census, hunt the consumers your tooling cannot see: string-keyed references, config entries, documentation examples, dynamically dispatched or reflective call sites, serialized data at rest. Compile-time reference counts systematically undercount blast radius, and the invisible consumers are exactly the ones that fail in production instead of in your check.
 

@@ -55,7 +55,8 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
   the manifest declares (same probe record as above).
 - **Layers.** Each layer's `state`. `invalid`, and every entry in a layer's `errors`, is a FAIL
   naming the file and key: the lower layer kept that key. A `routing` key outside the team layer is
-  one of these; routing is team-only.
+  one of these; routing is team-only. Every entry in a layer's `warnings` is a WARN: the value was
+  kept, and the note says what to check (such as a routing concern no bundled row has).
 - **Convention home.** When `config.home_error` is set, FAIL quoting it: the convention home did
   not resolve, so the team and personal layers were not read. A `FAIL:` line in it means the
   pointer line is broken and the fix is that line; any other cause (a missing `bash`, a timeout)
@@ -96,7 +97,11 @@ remediation line per FAIL or WARN. Write nothing except the userConfig file abov
 5. For `--user`, after the file is written, offer one pointer line in the user-level instructions
    file so other sessions load `user-interface.md` prose from the user-global folder. Write it only
    after a yes, after the managed check below. A line already present is left as it is.
-6. Re-run the read and `check`, and report the stored value and its provenance from the new table,
+6. When `/user-interface:write-css` answered its stack checklist earlier in this session, offer to
+   save those answers, each with the file that supports it, under a `## CSS stack` heading in the
+   team prose file (`<home>/user-interface.md`, or the personal `.local.md` with `--local`). Write
+   only after a yes, replacing an existing `## CSS stack` section instead of adding a second one.
+7. Re-run the read and `check`, and report the stored value and its provenance from the new table,
    never from the write. A key that now shows an error is reverted to its previous text.
 
 **Managed check (`--user`).** Run `chezmoi source-path <file>` for each file under `~` before
