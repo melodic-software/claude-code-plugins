@@ -79,7 +79,7 @@ SERVE_TIME = re.compile(
 )
 SERVE_TIME_PART = re.compile(
     r"last[ _-]*modified|\betag\b|^http[ _-]"
-    r"|\bdate[ _-]*headers?\b|\b(?:response|http)[ _-]+date\b",
+    r"|\bdate[ _-]*headers?\b|\b(?:response|http)[ _-]+date\b|\bdate\s*:",
     re.IGNORECASE,
 )
 DASH = re.compile(r"^-(?:\s+(.*))?$")
