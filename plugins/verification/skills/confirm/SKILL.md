@@ -86,6 +86,49 @@ These categories decide when a change escalates beyond the per-ecosystem mechani
 - **`e2e-runtime-config`**. Runtime configuration (`**/appsettings*.json`, orchestrator config, env-shaping files)
 - **`arch-test-triggers`**. Project-structure / dependency changes (`**/*.csproj`, `**/*.props`, `**/*.targets`, `**/Directory.Build.*`). Re-run the project's architecture-test suite when it has one
 
+## Proof level
+
+One setting, `proof_level`, decides how much evidence Stage 2 needs before a `CONFIRMED` verdict:
+`path` (the default), `live` or `strict`. The user's option is `${user_config.proof_level}`; a
+literal, unexpanded placeholder means unset. The repository value is `proof_level` in
+`docs/conventions/verification.yaml` as committed on origin's default branch. Resolve it once,
+before Stage 2, by the steps in
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Resolution](${CLAUDE_PLUGIN_ROOT}/reference/config.md#resolution):
+
+- The stricter valid layer wins (`path` < `live` < `strict`); neither layer can lower the other.
+- The repository copy comes from the default branch through
+  `setup-apply.mjs --check --ref origin/<default>`, so a branch that edits its own copy is still
+  verified at the default branch's level; when the two copies differ, the report names both.
+- An invalid value is named with its file or option, the key and the value, and that layer is
+  dropped: it counts as absent, so the other layer still applies, and with neither valid the key
+  resolves `path`. The run never stops on it.
+- Resolution never asks the user. A layer that cannot be read (no `origin`, an unsafe branch name,
+  node missing, the root rule) is skipped with its reason, so a pipeline lane running this skill
+  unattended always gets a level.
+
+Report one line before Stage 2 with the level and the layer that supplied it, for example
+`proof_level: strict (docs/conventions/verification.yaml at origin/<default>, commit <sha>)` or
+`proof_level: path (default)`.
+
+## Live workers
+
+A second setting, `live_workers`, decides how many workers share the live drive in Stage 2 step 1;
+`proof_level` still decides whether a live drive is required at all. The user's option is
+`${user_config.live_workers}`; a literal, unexpanded placeholder means unset. The repository value
+is `live_workers` in `docs/conventions/verification.yaml`, read from origin's default branch by the
+same `setup-apply.mjs --check --ref origin/<default>` call that reads `proof_level`. Resolve it once,
+beside the proof level, by
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Resolving `live_workers`](${CLAUDE_PLUGIN_ROOT}/reference/config.md#resolving-live_workers):
+
+- The later layer wins: the repository value over the user option over the default, `1`.
+- A value in either layer that is not a whole number of at least 1 is named with its file or option,
+  the key and the value, and that layer is dropped: a valid higher layer still wins, otherwise `1`,
+  never a lower layer's value. The run never stops on it.
+
+Report one line before Stage 2 with the count and the layer that supplied it, for example
+`live_workers: 2 (docs/conventions/verification.yaml at origin/<default>, commit <sha>)` or
+`live_workers: 1 (default)`.
+
 ## Stage 1. Mechanical prerequisite (delegate, don't reimplement)
 
 The gate. Runs before any outcome criterion. **If it fails, STOP**. Report the failures; outcome confirmation is meaningless on code that doesn't build or pass tests.
@@ -98,25 +141,43 @@ Stage 1 delegates by invoking the `toolchain` plugin's `/toolchain:check` and `/
 
 1. **Build + test + lint per ecosystem**, when changed files span multiple ecosystems or the mechanical pass spans more than a handful of commands, dispatch a subagent with the changed-file paths and `/toolchain:check`'s command tables, and verify its summary against the actual command output: a command result counts as evidence only when this session ran it or the harness recorded it, never on an agent's say-so (the evidence ranking in `/implementation:implement-dispatch`'s command-evidence reference); otherwise invoke `/toolchain:check` via the Skill tool. `/toolchain:check` remains SSOT for ecosystem detection, CLI commands, and gotchas. Pass through the ecosystem filter from `$ARGUMENTS` if given; else `/toolchain:check` auto-detects from changed files.
 2. **Architecture tests**, when changed files match the `arch-test-triggers` globs above and the project has an architecture-test suite, ensure it is included in the test step.
-3. **Cross-cutting checks**. Invoke `/toolchain:lint cross-cutting` via the Skill tool. `/toolchain:lint` owns the cross-cutting tools with the presence-gated graceful-degradation pattern (missing tool → `skip`, never `FAIL`). Do **not** inline that bash here. `/toolchain:lint` is the SSOT.
+3. **Cross-cutting checks**. Invoke `/toolchain:lint cross-cutting` via the Skill tool. `/toolchain:lint` owns the cross-cutting tools with the presence-gated graceful-degradation pattern (missing tool → `skip (tool missing: <tool>)`, never `FAIL`; with nothing failed, its Overall line reads `INCOMPLETE`). Do **not** inline that bash here. `/toolchain:lint` is the SSOT.
 
 **Gate result**, decided in this order:
 
 1. Any FAIL from `/toolchain:check` or `/toolchain:lint cross-cutting`: stop and surface the failing command's key error lines. Fix mechanical failures before outcome verification proceeds.
 2. A `STOPPED` run (a dependency install changed the tree): stop and report the changed paths.
 3. No check ran because every one hit an environment skip (tool missing or too old, dependencies missing): stop. The verdict is `NOT VERIFIED`, listing each skip with its reason; Stage 2 does not run on a change nothing has exercised.
-4. Otherwise proceed to Stage 2. Opt-in-unmet skips and not-applicable cells never hold the gate. An environment skip that remains (an `INCOMPLETE` run) carries into the verdict: the change can be `NOT VERIFIED` or `NEEDS WORK`, never `CONFIRMED`, until the skipped check runs. An ecosystem reported as `no real check ran (syntax only)` is not an environment skip and does not hold the verdict by itself, but the report names it and never counts it as a mechanical pass.
+4. Otherwise proceed to Stage 2. Opt-in-unmet skips and not-applicable cells never hold the gate. An environment skip that remains (an `INCOMPLETE` run from `/toolchain:check` or `/toolchain:lint`, a lint-only one included) carries into the verdict: the change can be `NOT VERIFIED` or `NEEDS WORK`, never `CONFIRMED`, until the skipped check runs. An ecosystem reported as `no real check ran (syntax only)` is not an environment skip and does not hold the verdict by itself, but the report names it and never counts it as a mechanical pass.
 
 ## Stage 2. Outcome verification (the core)
 
 Read the criterion context file for the dispatched mode, then run the flow below. The shared spine (intent → inventory → match → evidence → report) is in [context/outcome.md](context/outcome.md); `fix` / `refactor` adapt it.
 
-1. **Auto-trigger `/testing:run-e2e` (when runtime-affecting)**. Inspect changed files. If any match an `e2e-*` category from the Runtime-affecting paths above, or touch observability code paths verifiable end-to-end, or the user said "test the app", invoke `/testing:run-e2e` via the Skill tool when the `testing` plugin is installed. Otherwise drive the live app directly (Claude Code's bundled `/run`, or a manual orchestrator launch) and capture the same evidence. When present, it validates prerequisites, starts the app, exercises the changed flow, and captures evidence (screenshots, console, network, traces). Carry that into the evidence table. If not runtime-affecting (pure refactor, internal lib, doc-only): note "E2E not applicable" and skip.
+1. **Apply the proof level, then auto-trigger `/testing:run-e2e`**. The resolved `proof_level` (see Proof level above) sets what this step requires:
+   - `path`: the runtime-path rule in the rest of this step, unchanged.
+   - `live`: any change with a runnable surface is driven in the live app when the app can be launched, whether or not a changed file matches a runtime-affecting path. When the app cannot be launched, run the non-UI check the check-to-change table gives for that change, and the report says the app could not be launched. A change with no runnable surface (docs, tests only) is noted as such.
+   - `strict`: fill the unit, live and perf boxes in [context/outcome.md § Proof boxes](context/outcome.md#proof-boxes) for each plan phase. Every box needs evidence or a reasoned not-applicable line before `CONFIRMED`.
+
+   Under every level, inspect changed files. If any match an `e2e-*` category from the Runtime-affecting paths above, or touch observability code paths verifiable end-to-end, or the user said "test the app", invoke `/testing:run-e2e` via the Skill tool when the `testing` plugin is installed. Otherwise drive the live app directly (Claude Code's bundled `/run`, or a manual orchestrator launch) and capture the same evidence. When present, it validates prerequisites, starts the app, exercises the changed flow, and captures evidence (screenshots, console, network, traces). Carry that into the evidence table. If not runtime-affecting (pure refactor, internal lib, doc-only): note "E2E not applicable" and skip. Whether or not E2E applies, pick the check each changed area needs from the check-to-change table in [context/outcome.md § Which check proves which change](context/outcome.md#which-check-proves-which-change) (storage, parser or migration, command-line tool, user interface, performance).
+
+   When `/testing:run-e2e` reports per entry point (the repository has a feature map), an entry point the map lists for a changed feature that is missing from that report holds the verdict below `CONFIRMED`.
+
+   **Split the drive across `live_workers`.** When the live drive runs and `live_workers` (see Live workers above) resolves above 1, it is split across workers; at 1 it runs as one worker, as before.
+   - **Split by entry point.** List the feature-map entry points the drive must cover and give each worker a disjoint share, never more workers than entry points. Each worker invokes `/testing:run-e2e` for its share only. With no feature map there is nothing to split by: one worker runs, and the report says so.
+   - **Local workers need a Workspace environment entry.** More than one worker on this machine needs a "Workspace environment" entry in `docs/conventions/workspace-environment.md` on origin's default branch, read the way `/testing:run-e2e` reads it (the fetched default-branch commit, never the working tree). Each worker then drives from its own linked worktree of the commit under verification, created and removed through `/source-control:worktree` when that plugin is enabled, so the entry's `up` runs under that worktree's own `WORKSPACE_ID`. With no entry, one worker drives every entry point, and the report says how many workers were asked for and why one ran: without the entry, parallel instances would share ports, containers and databases. The same holds when the stage under verification reads untrusted input (a fork pull request, an `untrusted-provenance` item) and the session is not on a cloud host whose stage-start probe passed: `/testing:run-e2e` then runs neither the entry's `up` nor its `info`, so the entry isolates nothing, one worker drives every entry point, and the report says how many workers were asked for and that the untrusted stage is why one ran.
+   - **Per-worker session names.** Each worker's browser sessions carry its own workspace part and run id, as `/testing:run-e2e` composes them (its Session names section), so no two workers open or close the same session.
+   - **Merged report.** The missing-entry-point check above reads the merged per-entry-point report of every worker: an entry point no worker reported holds the verdict exactly as it would in a single drive.
+   - **Measured usage per worker.** For each worker the report lists its entry points, its result and its usage as measured: the tokens and wall time the Agent tool's result reports for that worker, never an estimate, and never a price or cost figure.
+   - **Cloud host.** When this run is on a cloud execution target (`CLAUDE_CODE_REMOTE` is `true` in the session, or the stage's `execution_target` in `docs/conventions/execution-target.yaml` resolved to a cloud value), the report adds the line `live-UI step unverified on this host`.
+     - **Pointer**: the `CLAUDE_CODE_REMOTE` row of <https://code.claude.com/docs/en/env-vars>; for the subagent result whose usage each worker line reports, <https://code.claude.com/docs/en/sub-agents>.
+     - **As of**: 2026-10-04
+     - **Recheck trigger**: the env-vars row changes, or a Claude Code release changes the Agent tool result or its usage format.
 2. **Intent retrieval**. Scan the conversation for the original request, the approved plan, refinements, and acceptance criteria. If none is clear, ask the user what the goal was.
 3. **Implementation inventory**. Changed files, new capabilities, behavior changes, config/infra changes.
 4. **Intent match**. Every requirement has implementation; every implementation traces to a requirement; flag scope additions and gaps (including implicit requirements. Error handling, edge cases, tests). Name the out-of-diff couplings: the existing behavior this change leans on, unchanged code whose contract the diff now depends on. A named coupling is checkable; an implied one is where regressions hide. The report carries them as their own table (see [context/outcome.md](context/outcome.md)).
 5. **Evidence collection**. Stage-1 results, E2E results, test names + assertions proving the claimed behavior. For UI changes: the UI evidence artifacts per [context/outcome.md](context/outcome.md) (pre/action/post snapshot, console, network, behavior assertion, and the render-check results: axe, geometry, pixel baseline, vision review as leads only. "screenshot looks fine" is NOT an assertion). When the plan states a measurable goal: the `/verification:measure` comparison table. Rank the test evidence by independence and label each test the producing session wrote as self-authored, per [context/outcome.md](context/outcome.md) "Evidence ranking".
-6. **Report + verdict**. Emit the outcome report (intent-match table, mechanical results with every skip named and its reason, E2E + UI-evidence tables when triggered, evidence table, measurements when applicable) and a `CONFIRMED` / `NEEDS WORK` / `NOT VERIFIED` verdict. Report template and verdict criteria in [context/outcome.md](context/outcome.md). The report also states the effort level this run used: `${CLAUDE_EFFORT}`. The skill pins `effort: high`, a verdict lane's level, and no higher; an environment variable or an effort cap can still put the run at another level, which is why the report states it (pointer: the `effort` field in <https://code.claude.com/docs/en/skills#frontmatter-reference> and the `CLAUDE_EFFORT` row in <https://code.claude.com/docs/en/skills#available-string-substitutions>; as of 2026-10-02; recheck trigger: either row is renamed or removed, or the field stops overriding the session level). We pin the model-config row the pointer here names, and the fresh-context verifier below is raised to the model that produced the work whenever that model is known and stronger than this session's (see Independence of the verdict; pointer: the `high` row of <https://code.claude.com/docs/en/model-config#choose-an-effort-level> and the advisor capability rule in <https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility>; as of 2026-10-10; recheck trigger: next model release).
+6. **Report + verdict**. Emit the outcome report (the proof-level line, the worker line, the proof boxes under `strict`, intent-match table, mechanical results with every skip named and its reason, E2E + UI-evidence tables when triggered, evidence table, measurements when applicable) and a `CONFIRMED` / `NEEDS WORK` / `NOT VERIFIED` verdict. Report template and verdict criteria in [context/outcome.md](context/outcome.md). The report also states the effort level this run used: `${CLAUDE_EFFORT}`. The skill pins `effort: high`, a verdict lane's level, and no higher; an environment variable or an effort cap can still put the run at another level, which is why the report states it (pointer: the `effort` field in <https://code.claude.com/docs/en/skills#frontmatter-reference> and the `CLAUDE_EFFORT` row in <https://code.claude.com/docs/en/skills#available-string-substitutions>; as of 2026-10-02; recheck trigger: either row is renamed or removed, or the field stops overriding the session level). We pin the model-config row the pointer here names, and the fresh-context verifier below is raised to the model that produced the work whenever that model is known and stronger than this session's (see Independence of the verdict; pointer: the `high` row of <https://code.claude.com/docs/en/model-config#choose-an-effort-level> and the advisor capability rule in <https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility>; as of 2026-10-10; recheck trigger: next model release).
 
 **Independence of the verdict.** This skill usually runs in the context that produced the changes, and that context carries the assumptions that produced any defect, converging on approval rather than detection. Stage 1's mechanical pass/fail is objective and needs no escalation, but for the Stage 2 outcome verdict on anything beyond a mechanical, behavior-preserving change, render `CONFIRMED` / `NEEDS WORK` from an agent that did NOT produce the artifact: dispatch a fresh-context verifier with the acceptance criteria and the diff, withholding your rationale so it audits the artifact and not your story. The verifier checks the provenance of every test it cites (`/testing:test-value`): a test added or changed in the diff under review is a producer claim until its expected value names an independent source. This is stricter than the `implementation:phase-verifier` agent, which reports an unsourced expected value as a finding without changing its verdict: here a criterion proved only by such a test is not COMPLETE ([context/outcome.md](context/outcome.md) "Evidence ranking"). When the work was produced on a model stronger than this session's (a security-surface phase routed to the frontier alias, say) and you know that model, pass the dispatch a per-invocation `model` at or above it; this override routes upward only and keeps the checked-work rule in the marketplace's `docs/plugin-philosophy.md` "Model tiers". When the producing model is not known, the report says the verifier's model was not matched to it. Where the outcome is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor verifier above as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 
@@ -138,6 +199,7 @@ For "run the live app and watch it behave," beyond automated `/testing:run-e2e`,
 - **No git changes but user runs `/verification:confirm all`**: run Stage 1 across all ecosystems anyway (useful after a rebase or pull), then outcome verification if intent is in scope.
 - **Changed file outside any known ecosystem**: Stage 1 skips it with a note; Stage 2 still assesses intent match.
 - **Missing tools or dependencies**: `/toolchain:check` / `/toolchain:lint` report a named environment skip with the install hint, not a failure. It is never reported as done: it holds the verdict below `CONFIRMED` (Gate result, step 4), or stops the run when nothing else ran (step 3).
+- **Invoked by a pipeline lane (no one to ask)**: the proof level still resolves (Proof level above); a layer that cannot be read is skipped with its reason and an invalid one falls back as stated, so the run reports the level it used and continues.
 - **Invoked from a PR-prep flow**: treat the verdict as a hard gate. Any FAIL or unresolved CRITICAL gap blocks PR creation. A comprehension layer (an `education:quiz-me` report, when that plugin is enabled) may precede this gate and inform it; the merge gate itself lives here, one mechanism per concern.
 
 ## Skill chaining
@@ -191,5 +253,6 @@ pointer with an as-of date and a recheck trigger, live in
 - **"It passes tests" is not outcome confirmation.** Tests prove behavior; outcome confirmation proves it's the RIGHT behavior. A well-tested feature that misses the intent is still wrong.
 - **Don't skip outcome confirmation for "obvious" changes.** Small changes drift from intent unnoticed; the intent check catches scope creep and missed requirements tests don't cover.
 - **Don't quantify improvement claims here.** "Faster" / "simpler" claims route to `/verification:measure` and its baseline discipline. Invoke it via the Skill tool; never assert an improvement from this skill's evidence alone.
+- **Doubt the observation before the code.** When a check fails or contradicts the diff, first rule out how you looked: a stale build, a cached page, the wrong port or instance, a log read before the write landed, a stub still in place. Observe again by a second route; only a result that survives it counts against the change.
 - **Don't re-run Stage 1 if it already passed this conversation** and nothing changed since. Reuse the results.
 - **Live-app fallback is fidelity-preserving.** If the bundled `/run` can't launch the app, fall back to invoking `/testing:run-e2e` via the Skill tool when the `testing` plugin is installed, or a manual orchestrator launch otherwise, and say so explicitly, never silently swap live observation for a static check.

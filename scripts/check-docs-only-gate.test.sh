@@ -476,11 +476,15 @@ expect "the draft gate with its polarity flipped is rejected" 1 "NO JOB-LEVEL CO
 # --- 11. A SKIPPED LANE NEVER PASSES ------------------------------------------
 expect "the aggregate failing every skip is allowed" 0 "scope resolved once" --check "$skip_as_fail"
 
-# A draft that passed would be the newest ci-status on its SHA from the flip to
-# ready until the lanes finish, green over nothing linted or tested.
+# A draft cannot merge and the merge queue runs every lane, so the exact draft
+# form may pass a draft's skips; any other expression is rejected.
 f="$scratch/skip-as-draft.yml"
 xform_insert_after "$base" "      - name: Aggregate lane results" "        with:\n          treat-skipped-as: \${{ github.event.pull_request.draft && 'pass' || 'fail' }}" "$f"
-expect "the aggregate passing skips on a draft is rejected" 1 "A SKIPPED LANE NEVER PASSES" --check "$f"
+expect "the aggregate passing skips only on a draft is allowed" 0 "scope resolved once" --check "$f"
+
+f="$scratch/skip-as-draft-flipped.yml"
+xform_insert_after "$base" "      - name: Aggregate lane results" "        with:\n          treat-skipped-as: \${{ github.event.pull_request.draft && 'fail' || 'pass' }}" "$f"
+expect "the draft form with its values flipped is rejected" 1 "A SKIPPED LANE NEVER PASSES" --check "$f"
 
 f="$scratch/skip-as-pass.yml"
 xform_insert_after "$base" "      - name: Aggregate lane results" "        with:\n          treat-skipped-as: pass" "$f"

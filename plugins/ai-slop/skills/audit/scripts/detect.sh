@@ -15,7 +15,9 @@
 # list instead of scanning: one `<key><TAB><path>` row per file, the key spelled
 # as the file= field.
 # Exit: always 0 on audit paths (a read-only audit must never fail the caller);
-# 2 on unknown arguments or unreadable --paths-file.
+# 2 on unknown arguments or unreadable --paths-file, when no temporary
+# directory can be made for the scan's per-file streams (removed on exit), or
+# when prose extraction fails.
 #
 # Prose extraction: fenced code blocks, inline code spans, and ignore-marked
 # lines and blocks are removed before any rule runs; exempted candidates are
@@ -48,7 +50,7 @@ EMOJI_ERE=$'(\xf0\x9f|\xe2[\x98-\x9e\xac\xad])'
 CURLY_ERE=$'(\xe2\x80[\x98\x99\x9c\x9d\x8b]|\xc2\xa0)'
 
 # Distinctive AI-vocabulary defaults (catalog rule-ai-vocabulary; config-tunable).
-# The trailing four are measured admissions: three Cursor plain-word additions
+# The trailing four are measured admissions: the three plain-word additions
 # (catalog calibration record, second pass) and pre-existing (fourth pass, from
 # the model-era section), common enough alone that only the density gate makes
 # them safe to ship. The bare singular "underscore" is not on the list: the
@@ -158,7 +160,8 @@ Usage:
 With no paths, scans the repository's tracked markdown (git ls-files '*.md').
 A --paths-file with no non-blank line scans nothing; it also reads --list-targets output.
 --list-targets ignores --offset/--limit; --show-config wins over it.
-Exit: 0 on audit, 2 on unknown arguments or unreadable --paths-file.
+Exit: 0 on audit; 2 on unknown arguments, unreadable --paths-file, no
+temporary directory, or failed prose extraction.
 EOF
 }
 
@@ -395,10 +398,9 @@ fi
 
 # --- Prose extraction ------------------------------------------------------------
 # Emits "lineno<TAB>text" for prose lines; strips fenced code blocks, inline code
-# spans, and honors the ignore markers. A DECLINE row carries the same trailing
-# fields as a prose row, "DECLINE<TAB>kind<TAB>lineno<TAB>text", so a caller can
-# cut them back to the prose shape and ask which rule the exempted line would
-# have matched instead of charging every rule for it.
+# spans, and honors the ignore markers. A marker-exempt (DECLINE) line keeps the
+# same "lineno<TAB>text" shape in its own stream, so a caller can ask which rule
+# the exempted line would have matched instead of charging every rule for it.
 #
 # A fence opener may follow a list marker (`- ` or `1. ` plus one to four
 # spaces), because CommonMark puts a fence inside a list item; its closer is
@@ -429,172 +431,257 @@ fi
 # sharing that line, rejecting the suppression and quoting the operator's own
 # marker back inside the excerpt — the same failure this parser exists to avoid,
 # in a new shape. Covered by the mixed-marker case in detect.test.sh.
-extract_prose() {
-  # Fences per CommonMark: openers may be indented up to three spaces past their
-  # container (counted by hand, because mawk has no {n,m} intervals), and a fence closes
-  # only on its OWN character, so ~~~ inside a backtick fence stays content.
-  # `stopped` guards the END rule, because awk runs END even after `exit`.
-  awk '
-    function fence_char(s) {
-      if (substr(s, 1, 3) == "```") return "`"
-      if (substr(s, 1, 3) == "~~~") return "~"
-      return ""
+#
+# Batched: one awk process reads every scanned file in turn (a list of
+# "k<TAB>path" rows, k the file's index in the target list) and writes each
+# file's streams under $SCAN_DIR, one file per stream per target. Each rule then
+# runs one grep over a whole stream directory instead of one grep per file, so
+# the process count no longer grows with the number of files. Every stream file
+# holds exactly the bytes a per-file `printf '%s\n' "$stream"` would have fed
+# grep, so the rules see the same input; a stream with no rows holds one empty
+# line, as that printf did for an empty variable.
+#   P/k    prose rows
+#   W/k    P/k with quoted material removed (see the quotation exemption below)
+#   TP/k   the text column of P/k (what `cut -f2-` gave), for word and density counts
+#   TW/k   the text column of W/k
+#   DP/k, DW/k, TDW/k  the same three for marker-exempt rows, written only when
+#          the file has some
+# stdout carries one status row per file: "k<TAB>marker" when a file-level marker
+# declines it, else "k<TAB>scan<TAB>1" or "k<TAB>scan<TAB>0" for whether it has
+# marker-exempt rows.
+#
+# Quotation exemption (strip_row): blockquote lines are dropped and double-quoted
+# spans cut, for the prose rows and the marker-exempt rows separately. A quoted
+# span may WRAP: markdown prose soft-wraps at a column, so the closing quote of a
+# span often sits on the next line. The stripper carries an open-span state
+# across rows: a row with an unmatched opening quote is cut from that quote to
+# its end and the next row is cut from its start through the closing quote.
+# Without the carry, the quote pairing on the continuation line is off by one and
+# the exemption inverts, keeping the quoted text and stripping the prose between
+# quotes. The state resets per file, at a paragraph boundary (a blank line), and
+# at the start of a new block element (heading, list item, table row), so a stray
+# unmatched quote can blank out at most the rest of its own paragraph.
+#
+# Fences per CommonMark: openers may be indented up to three spaces past their
+# container (counted by hand, because mawk has no {n,m} intervals), and a fence
+# closes only on its OWN character, so ~~~ inside a backtick fence stays content.
+# No apostrophes anywhere in this program: it is single-quoted.
+# shellcheck disable=SC2016 # awk program text, not shell expansions
+EXTRACT_AWK='
+  function fence_char(s) {
+    if (substr(s, 1, 3) == "```") return "`"
+    if (substr(s, 1, 3) == "~~~") return "~"
+    return ""
+  }
+  # An ordered marker carries at most nine digits (CommonMark "Lists"), so a
+  # longer run is a number in prose, not a list. Without the cap a line such
+  # as `1234567890. ` followed by a fence opened one, and every following
+  # line was read as code until a bare closer or end of file.
+  function marker_len(s,   n) {
+    if (s ~ /^[-*+]/) return 1
+    n = 0
+    while (n < 9 && substr(s, n + 1, 1) ~ /^[0-9]$/) n++
+    if (n > 0 && (substr(s, n + 1, 1) == "." || substr(s, n + 1, 1) == ")")) return n + 1
+    return 0
+  }
+  # Inline code spans go, and so does a line ignore marker: the marker and its
+  # reason are control syntax the author did not write as prose, so a rule
+  # must not be charged a decline for a word that appears only there.
+  function stripped(s,   t) {
+    t = s
+    gsub(/`[^`]*`/, "", t)
+    gsub(/<!-- ai-slop-ignore(-file|-start|-end)?(:[^>]*)? -->/, "", t)
+    return t
+  }
+  # One output row. NUL bytes are dropped from it, as capturing the per-file
+  # extraction into a shell variable dropped them; left in, they would make
+  # grep read the stream file as binary and report no matching lines.
+  function out_row(n, text,   s) {
+    s = sprintf("%d\t%s", n, text)
+    if (gsub(/\000/, "", s) > 0) had_nul = 1
+    return s
+  }
+  # One source line ($0, line number ln). Returns 1 at a file-level marker,
+  # which declines the whole file wherever it sits, even inside a fence.
+  function line_step(   ind, rest, fc, fi, ml, sp) {
+    if ($0 ~ /^[[:space:]]*<!-- ai-slop-ignore-file(:[^>]*)? -->[[:space:]]*$/) {
+      stopped = 1
+      return 1
     }
-    # An ordered marker carries at most nine digits (CommonMark "Lists"), so a
-    # longer run is a number in prose, not a list. Without the cap a line such
-    # as `1234567890. ` followed by a fence opened one, and every following
-    # line was read as code until a bare closer or end of file.
-    function marker_len(s,   n) {
-      if (s ~ /^[-*+]/) return 1
-      n = 0
-      while (n < 9 && substr(s, n + 1, 1) ~ /^[0-9]$/) n++
-      if (n > 0 && (substr(s, n + 1, 1) == "." || substr(s, n + 1, 1) == ")")) return n + 1
+    ind = 0
+    while (substr($0, ind + 1, 1) == " ") ind++
+    rest = substr($0, ind + 1)
+    # A fence opened inside a list item ends with its CONTAINER, not only at a
+    # closer. A non-blank line indented less than the content column of that
+    # item ends the item, and lazy continuation reaches a paragraph but never
+    # a fenced block, so such a line belongs to the document. Clear the fence
+    # and fall through, so the line is judged on its own: it may be prose, and
+    # it may itself be an opener. A blank line does NOT end an item, which is
+    # why this tests rest. A document-level fence keeps fence_ind 0, so the
+    # comparison is never true for one and no top-level case moves.
+    if (fence != "" && fence_ind > 0 && rest != "" && ind < fence_ind) fence = ""
+    fc = fence_char(rest)
+    fi = 0
+    if (fc == "" && ind <= 3) {
+      ml = marker_len(rest)
+      if (ml > 0) {
+        sp = 0
+        while (substr(rest, ml + sp + 1, 1) == " ") sp++
+        if (sp >= 1 && sp <= 4) {
+          fc = fence_char(substr(rest, ml + sp + 1))
+          if (fc != "") fi = ind + ml + sp
+        }
+      }
+    }
+    if (fence == "") {
+      if (fc != "" && ind <= 3) { fence = fc; fence_ind = fi; fence_line = ln; return 0 }
+    } else {
+      if (fence_char(rest) == fence && ind <= fence_ind + 3) fence = ""
       return 0
     }
-    # Inline code spans go, and so does a line ignore marker: the marker and its
-    # reason are control syntax the author did not write as prose, so a rule
-    # must not be charged a decline for a word that appears only there.
-    function stripped(s,   t) {
-      t = s
-      gsub(/`[^`]*`/, "", t)
-      gsub(/<!-- ai-slop-ignore(-file|-start|-end)?(:[^>]*)? -->/, "", t)
-      return t
+    if ($0 ~ /^[[:space:]]*<!-- ai-slop-ignore-start(:[^>]*)? -->[[:space:]]*$/) { ignored = 1; return 0 }
+    if ($0 ~ /^[[:space:]]*<!-- ai-slop-ignore-end(:[^>]*)? -->[[:space:]]*$/) { ignored = 0; return 0 }
+    if (ignored) { D[++n_decl] = out_row(ln, stripped($0)); return 0 }
+    if ($0 ~ /<!-- ai-slop-ignore(:[^>]*)? -->/ && $0 !~ /`<!-- ai-slop-ignore(:[^>]*)? -->/) {
+      D[++n_decl] = out_row(ln, stripped($0))
+      return 0
     }
-    BEGIN { fence = ""; fence_ind = 0; fence_line = 0; ignored = 0; stopped = 0 }
-    /^[[:space:]]*<!-- ai-slop-ignore-file(:[^>]*)? -->[[:space:]]*$/ {
-      printf "DECLINE\tfile\t%d\t%s\n", NR, stripped($0)
-      stopped = 1
-      exit
-    }
-    {
-      ind = 0
-      while (substr($0, ind + 1, 1) == " ") ind++
-      rest = substr($0, ind + 1)
-      # A fence opened inside a list item ends with its CONTAINER, not only at a
-      # closer. A non-blank line indented less than the content column of that
-      # item ends the item, and lazy continuation reaches a paragraph but never
-      # a fenced block, so such a line belongs to the document. Clear the fence
-      # and fall through, so the line is judged on its own: it may be prose, and
-      # it may itself be an opener. A blank line does NOT end an item, which is
-      # why this tests rest. A document-level fence keeps fence_ind 0, so the
-      # comparison is never true for one and no top-level case moves.
-      # No apostrophes in this block: the awk program is single-quoted.
-      if (fence != "" && fence_ind > 0 && rest != "" && ind < fence_ind) fence = ""
-      fc = fence_char(rest)
-      fi = 0
-      if (fc == "" && ind <= 3) {
-        ml = marker_len(rest)
-        if (ml > 0) {
-          sp = 0
-          while (substr(rest, ml + sp + 1, 1) == " ") sp++
-          if (sp >= 1 && sp <= 4) {
-            fc = fence_char(substr(rest, ml + sp + 1))
-            if (fc != "") fi = ind + ml + sp
-          }
-        }
-      }
-      if (fence == "") {
-        if (fc != "" && ind <= 3) { fence = fc; fence_ind = fi; fence_line = NR; next }
-      } else {
-        if (fence_char(rest) == fence && ind <= fence_ind + 3) { fence = ""; next }
-        next
-      }
-    }
-    /^[[:space:]]*<!-- ai-slop-ignore-start(:[^>]*)? -->[[:space:]]*$/ { ignored = 1; next }
-    /^[[:space:]]*<!-- ai-slop-ignore-end(:[^>]*)? -->[[:space:]]*$/ { ignored = 0; next }
-    ignored { printf "DECLINE\tblock\t%d\t%s\n", NR, stripped($0); next }
-    /<!-- ai-slop-ignore(:[^>]*)? -->/ && $0 !~ /`<!-- ai-slop-ignore(:[^>]*)? -->/ {
-      printf "DECLINE\tline\t%d\t%s\n", NR, stripped($0)
-      next
-    }
-    { printf "%d\t%s\n", NR, stripped($0) }
-    END {
-      if (fence != "" && !stopped) {
-        printf "detect.sh: %s: code fence opened at line %d is never closed; the rest of the file was read as code\n", FILENAME, fence_line > "/dev/stderr"
-      }
-    }
-  ' "$1"
-}
-
-# strip_quoted: reads a "lineno<TAB>text" stream on stdin and writes the same
-# stream with quoted material removed: blockquote lines dropped, double-quoted
-# spans cut. Both the scanned prose and the declined rows go through it, so the
-# quote policy has exactly one implementation.
-#
-# A quoted span may WRAP: markdown prose soft-wraps at a column, so the
-# closing quote of a span often sits on the next line. The stripper carries
-# an open-span state across lines: a line with an unmatched opening quote is
-# cut from that quote to its end and the next line is cut from its start
-# through the closing quote. Without the carry, the quote pairing on the
-# continuation line is off by one and the exemption inverts, keeping the
-# quoted text and stripping the prose between quotes. The state resets at a
-# paragraph boundary (a blank line) and at the start of a new block element
-# (heading, list item, table row), so a stray unmatched quote can blank out
-# at most the rest of its own paragraph.
-strip_quoted() {
-  awk '
-    BEGIN { open = 0 }
-    {
-      tab = index($0, "\t")
-      if (tab == 0) next
-      lineno = substr($0, 1, tab - 1)
-      text = substr($0, tab + 1)
-      if (text ~ /^[ ]?[ ]?[ ]?>/) next
-      if (text ~ /^[[:space:]]*$/ || text ~ /^[[:space:]]*(#|[-*+] |[0-9]+\. |\|)/) open = 0
-      if (open) {
-        q = index(text, "\"")
-        if (q == 0) { printf "%s\t\n", lineno; next }
-        text = substr(text, q + 1)
-        open = 0
-      }
-      gsub(/"[^"]*"/, "", text)
+    P[++np] = out_row(ln, stripped($0))
+    return 0
+  }
+  # Quotation exemption for one row of stream st; returns 1 and sets SQ when
+  # the row survives.
+  function strip_row(st, row,   tab, lineno, text, q, before, after) {
+    tab = index(row, "\t")
+    if (tab == 0) return 0
+    lineno = substr(row, 1, tab - 1)
+    text = substr(row, tab + 1)
+    if (text ~ /^[ ]?[ ]?[ ]?>/) return 0
+    if (text ~ /^[[:space:]]*$/ || text ~ /^[[:space:]]*(#|[-*+] |[0-9]+\. |\|)/) OPEN[st] = 0
+    if (OPEN[st]) {
       q = index(text, "\"")
-      if (q > 0) {
-        # A lone quote opens a span only when it sits where an opening quote
-        # sits: after the line start, whitespace, or an opening bracket, and
-        # directly before a non-space character. An inch or second mark
-        # (6", 30") or a stray closing quote fails that test, so it is
-        # dropped and the prose on both sides stays scanned instead of
-        # blanking the rest of the paragraph.
-        before = (q > 1) ? substr(text, q - 1, 1) : " "
-        after = substr(text, q + 1, 1)
-        if (before ~ /[[:space:](\[{]/ && after ~ /[^[:space:]]/) {
-          text = substr(text, 1, q - 1)
-          open = 1
-        } else {
-          text = substr(text, 1, q - 1) substr(text, q + 1)
-        }
-      }
-      printf "%s\t%s\n", lineno, text
-    }'
-}
-
-# Truncate an excerpt to at most 80 BYTES without splitting a multi-byte UTF-8
-# sequence: under the script's forced LC_ALL=C, `cut -c` counts bytes, so an em
-# dash / curly quote / emoji straddling the boundary — exactly this tool's own
-# targets — would be cut mid-character and emit invalid UTF-8 into the finding.
-# Scans back over at most three trailing continuation bytes; if their lead byte
-# declares more bytes than survived the cut, the whole partial sequence drops.
-truncate_excerpt() {
-  awk '
-    BEGIN { for (j = 0; j < 256; j++) ORD[sprintf("%c", j)] = j }
-    {
-      s = substr($0, 1, 80)
-      n = length(s)
-      for (i = 0; i < 4 && n - i >= 1; i++) {
-        b = ORD[substr(s, n - i, 1)]
-        if (b < 128) break
-        if (b >= 192) {
-          need = (b >= 240) ? 4 : (b >= 224) ? 3 : 2
-          if (i + 1 < need) s = substr(s, 1, n - i - 1)
-          break
-        }
-      }
-      print s
-      exit
+      if (q == 0) { SQ = lineno "\t"; return 1 }
+      text = substr(text, q + 1)
+      OPEN[st] = 0
     }
-  '
-}
+    gsub(/"[^"]*"/, "", text)
+    q = index(text, "\"")
+    if (q > 0) {
+      # A lone quote opens a span only when it sits where an opening quote
+      # sits: after the line start, whitespace, or an opening bracket, and
+      # directly before a non-space character. An inch or second mark
+      # (6", 30") or a stray closing quote fails that test, so it is
+      # dropped and the prose on both sides stays scanned instead of
+      # blanking the rest of the paragraph.
+      before = (q > 1) ? substr(text, q - 1, 1) : " "
+      after = substr(text, q + 1, 1)
+      if (before ~ /[[:space:](\[{]/ && after ~ /[^[:space:]]/) {
+        text = substr(text, 1, q - 1)
+        OPEN[st] = 1
+      } else {
+        text = substr(text, 1, q - 1) substr(text, q + 1)
+      }
+    }
+    SQ = lineno "\t" text
+    return 1
+  }
+  function text_col(row,   tab) {
+    tab = index(row, "\t")
+    return tab ? substr(row, tab + 1) : row
+  }
+  # put(stream, k, rows, n, text_only): write one stream file.
+  function put(stream, k, rows, n, text_only,   path, i) {
+    path = dir "/" stream "/" k
+    if (n == 0) print "" > path
+    for (i = 1; i <= n; i++) print (text_only ? text_col(rows[i]) : rows[i]) > path
+    close(path)
+  }
+  # quoted_free(src, n, st, dst): strip src[1..n] into dst; returns the row count.
+  function quoted_free(src, n, st, dst,   i, m) {
+    m = 0
+    OPEN[st] = 0
+    for (i = 1; i <= n; i++) if (strip_row(st, src[i])) dst[++m] = SQ
+    return m
+  }
+  function scan_file(k, f,   r, nw, ndw) {
+    fence = ""; fence_ind = 0; fence_line = 0; ignored = 0; stopped = 0
+    ln = 0; np = 0; n_decl = 0; had_nul = 0
+    split("", P); split("", D); split("", W); split("", DW)
+    while ((r = (getline < f)) > 0) {
+      ln++
+      if (line_step()) break
+    }
+    if (r < 0) printf "detect.sh: %s: cannot be read; scanned as empty\n", f > "/dev/stderr"
+    close(f)
+    if (fence != "" && !stopped) {
+      printf "detect.sh: %s: code fence opened at line %d is never closed; the rest of the file was read as code\n", f, fence_line > "/dev/stderr"
+    }
+    if (stopped) { print k "\tmarker"; return }
+    if (had_nul) printf "detect.sh: %s: NUL bytes dropped from the scanned text\n", f > "/dev/stderr"
+    nw = quoted_free(P, np, "p", W)
+    put("P", k, P, np, 0); put("TP", k, P, np, 1)
+    put("W", k, W, nw, 0); put("TW", k, W, nw, 1)
+    if (n_decl > 0) {
+      ndw = quoted_free(D, n_decl, "d", DW)
+      put("DP", k, D, n_decl, 0)
+      put("DW", k, DW, ndw, 0); put("TDW", k, DW, ndw, 1)
+    }
+    print k "\tscan\t" (n_decl > 0 ? 1 : 0)
+  }
+  {
+    tab = index($0, "\t")
+    scan_file(substr($0, 1, tab - 1), substr($0, tab + 1))
+  }
+'
+
+# Finding rows from `grep -r` over a stream directory ("<stream>/k:lineno<TAB>text")
+# become "k<TAB>lineno<TAB>excerpt". The lineno/text split reproduces
+# `IFS=$'\t' read -r lineno text` (runs of tabs separate, edge tabs trimmed),
+# and a row with no line number is dropped.
+#
+# The excerpt is truncated to at most 80 BYTES without splitting a multi-byte
+# UTF-8 sequence: under the forced C locale substr counts bytes, so an em dash /
+# curly quote / emoji straddling the boundary (exactly this tool's own targets)
+# would be cut mid-character and emit invalid UTF-8 into the finding. It scans
+# back over at most three trailing continuation bytes; if their lead byte
+# declares more bytes than survived the cut, the whole partial sequence drops.
+# A `|` in the excerpt becomes `/`.
+# shellcheck disable=SC2016 # awk program text, not shell expansions
+FINDING_AWK='
+  BEGIN { for (j = 0; j < 256; j++) ORD[sprintf("%c", j)] = j }
+  function excerpt(s,   n, i, b, need) {
+    s = substr(s, 1, 80)
+    n = length(s)
+    for (i = 0; i < 4 && n - i >= 1; i++) {
+      b = ORD[substr(s, n - i, 1)]
+      if (b < 128) break
+      if (b >= 192) {
+        need = (b >= 240) ? 4 : (b >= 224) ? 3 : 2
+        if (i + 1 < need) s = substr(s, 1, n - i - 1)
+        break
+      }
+    }
+    gsub(/\|/, "/", s)
+    return s
+  }
+  {
+    c = index($0, ":")
+    path = substr($0, 1, c - 1)
+    k = substr(path, index(path, "/") + 1)
+    row = substr($0, c + 1)
+    sub(/^\t+/, "", row)
+    t = index(row, "\t")
+    if (t == 0) { lineno = row; text = "" }
+    else {
+      lineno = substr(row, 1, t - 1)
+      text = substr(row, t + 1)
+      sub(/^\t+/, "", text)
+      sub(/\t+$/, "", text)
+    }
+    if (lineno == "") next
+    print k "\t" lineno "\t" excerpt(text)
+  }
+'
 
 # --- Scan ------------------------------------------------------------------------
 
@@ -644,144 +731,268 @@ decline_all_rules() {
 TOTAL_FILES=0
 DECLINED_FILES=0
 
+# Stdout is assembled per target index and printed in target order at the end,
+# because each rule now runs across every file at once: OUT[k] collects file
+# k's rows in the order the per-file scan emitted them (pattern rules in table
+# order, then density rules, each in line order).
+declare -A OUT=()
 emit_finding() {
-  # emit_finding <slug> <rel> <lineno> <fired> <excerpt>
-  printf 'Finding: rule=ai-slop/audit/%s file=%s line=%s fired=%s excerpt=%s\n' \
-    "$1" "$2" "$3" "$4" "$5"
-  FINDINGS[$1]=$((FINDINGS[$1] + 1))
+  # emit_finding <k> <slug> <lineno> <fired> <excerpt>
+  local row
+  printf -v row 'Finding: rule=ai-slop/audit/%s file=%s line=%s fired=%s excerpt=%s\n' \
+    "$2" "${REL_OF[$1]}" "$3" "$4" "$5"
+  OUT[$1]+="$row"
+  FINDINGS[$2]=$((FINDINGS[$2] + 1))
 }
 
-for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
-  rel="${file#"$REPO_ROOT"/}"
+SCAN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ai-slop-detect.XXXXXX")" || {
+  echo "detect.sh: cannot create a temporary directory; nothing was scanned" >&2
+  exit 2
+}
+trap 'rm -rf "$SCAN_DIR"' EXIT
+# A signal taken inside a `done < <(...)` loop skips the EXIT trap unless the
+# signal itself exits.
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+mkdir -p "$SCAN_DIR/P" "$SCAN_DIR/W" "$SCAN_DIR/TP" "$SCAN_DIR/TW" \
+  "$SCAN_DIR/DP" "$SCAN_DIR/DW" "$SCAN_DIR/TDW" || {
+  echo "detect.sh: cannot create the scan's stream directories; nothing was scanned" >&2
+  exit 2
+}
 
+# scan_grep <stream> <grep args...>: one grep over every file of one stream.
+scan_grep() {
+  local stream="$1"
+  shift
+  (cd "$SCAN_DIR" && LC_ALL=C grep -r "$@" "$stream")
+}
+
+# file_counts c|o: reads `grep -r` output and prints "k<TAB>n" for each file with
+# n > 0. Mode c reads `-c` rows ("<stream>/k:n"); mode o counts one row per
+# `-o` match, as `| wc -l` did.
+file_counts() {
+  awk -v mode="$1" '
+    {
+      c = index($0, ":")
+      path = substr($0, 1, c - 1)
+      k = substr(path, index(path, "/") + 1)
+      if (mode == "c") { if (substr($0, c + 1) + 0 > 0) print k "\t" substr($0, c + 1) }
+      else if (!(k in n)) { n[k] = 1; order[++m] = k } else n[k]++
+    }
+    END { if (mode == "o") for (i = 1; i <= m; i++) print order[i] "\t" n[order[i]] }
+  '
+}
+
+FILE_OF=()
+REL_OF=()
+STATE_OF=()
+SCANNED=()
+declare -A HAS_DECL=()
+k=0
+for file in ${TARGETS[@]+"${TARGETS[@]}"}; do
+  k=$((k + 1))
+  FILE_OF[k]="$file"
+  REL_OF[k]="${file#"$REPO_ROOT"/}"
   if [[ "${#EXCLUDED_GLOBS[@]}" -gt 0 ]] && matches_glob "$file" "${EXCLUDED_GLOBS[@]}"; then
     DECLINED_FILES=$((DECLINED_FILES + 1))
     decline_all_rules 1 config
-    echo "Declined: file=$rel cause=excluded-glob"
+    STATE_OF[k]=excluded
     continue
   fi
-
   TOTAL_FILES=$((TOTAL_FILES + 1))
-  prose="$(extract_prose "$file")"
+  printf '%s\t%s\n' "$k" "$file"
+done >"$SCAN_DIR/list"
+N_TARGETS=$k
 
-  # A file-level marker declines the WHOLE file wherever it sits — extraction
-  # stops at the marker, so match the DECLINE row anywhere, not only as a
-  # prefix (a mid-file marker would otherwise truncate the scan silently).
-  if printf '%s\n' "$prose" | LC_ALL=C grep -q $'^DECLINE\tfile'; then
+# Every file now rides on this one awk run, so its failure is not a per-file
+# blank: an extraction that did not complete would report a clean tree. It stops
+# the scan instead, and a run that returned fewer status rows than files fails
+# the same way.
+if ! LC_ALL=C awk -v dir="$SCAN_DIR" "$EXTRACT_AWK" "$SCAN_DIR/list" >"$SCAN_DIR/status"; then
+  echo "detect.sh: prose extraction failed; nothing was scanned" >&2
+  exit 2
+fi
+if [[ "$(wc -l <"$SCAN_DIR/status" | tr -d ' ')" -ne "$TOTAL_FILES" ]]; then
+  echo "detect.sh: prose extraction returned fewer files than it was given; nothing was scanned" >&2
+  exit 2
+fi
+
+# A file-level marker declines the WHOLE file wherever it sits: extraction stops
+# at the marker and the file contributes no stream.
+while IFS=$'\t' read -r k state has_decl; do
+  STATE_OF[k]="$state"
+  if [[ "$state" == marker ]]; then
     DECLINED_FILES=$((DECLINED_FILES + 1))
     decline_all_rules 1 marker
-    echo "Declined: file=$rel cause=file-marker"
     continue
   fi
+  SCANNED+=("$k")
+  [[ "$has_decl" == 1 ]] && HAS_DECL[$k]=1
+done <"$SCAN_DIR/status"
 
-  # Marker-exempt lines are kept in a stream shaped exactly like the prose
-  # stream (`lineno<TAB>text`), so each rule can be asked what IT would have
-  # matched instead of every rule being charged the raw exempted-line count.
-  # The shape matters beyond tidiness: rule-emoji-formatting anchors its
-  # expression on that field separator, so a bare-text stream could never
-  # match it.
-  declined_prose=""
-  declined_wording=""
-  if printf '%s\n' "$prose" | LC_ALL=C grep -q '^DECLINE'; then
-    declined_prose="$(printf '%s\n' "$prose" | LC_ALL=C grep '^DECLINE' | cut -f3- || true)"
-    declined_wording="$(printf '%s\n' "$declined_prose" | strip_quoted)"
-  fi
-  prose="$(printf '%s\n' "$prose" | LC_ALL=C grep -v '^DECLINE' || true)"
-
-  # Quotation exemption: wording rules never scan quoted material. Blockquote
-  # lines are dropped and double-quoted spans stripped; every quote-exempt
-  # candidate a wording rule WOULD have matched is counted as declined for that
-  # rule below, never silently dropped. Typography rules keep the full stream.
-  #
-  # The same split applies to the marker accounting above: a wording rule is
-  # charged against `declined_wording`, a typography rule against
-  # `declined_prose`. A marker-exempt line a wording rule would only have
-  # matched inside quoted material is charged to no rule at all. It was exempt
-  # twice over, and the marker count is the count of lines the rule would
-  # actually have raised a finding on.
-  prose_wording="$(printf '%s\n' "$prose" | strip_quoted)"
-
-  # Pattern rules: one finding per matching prose line.
-  for entry in "${PATTERN_RULES[@]}"; do
-    IFS='|' read -r slug label ci word class ere <<<"$entry"
-    # Runtime-built roster, like __VOCAB__ in the density loop. The empty-roster
-    # guard runs before decline accounting: with every phrase removed there is
-    # nothing to exempt, and "()" would match every line.
-    if [[ "$ere" == "__PHRASES__" ]]; then
-      [[ -z "$PHRASES_ERE" ]] && continue
-      ere="$PHRASES_ERE"
+# Rule exemptions per file for one rule: ALLOWED[k] is set, and the config
+# decline charged, for each scanned file a rule_allowed_paths glob exempts.
+declare -A ALLOWED=()
+mark_allowed() {
+  local slug="$1" charge="$2" kk
+  ALLOWED=()
+  [[ -z "${RULE_ALLOWED_GLOBS[$slug]:-}" ]] && return 0
+  for kk in ${SCANNED[@]+"${SCANNED[@]}"}; do
+    if rule_allowed "$slug" "${FILE_OF[kk]}"; then
+      ALLOWED[$kk]=1
+      [[ "$charge" == 1 ]] && decline_rule "$slug" 1 config
     fi
-    rule_disabled "$slug" && continue
-    if rule_allowed "$slug" "$file"; then
+  done
+}
+
+# Marker-exempt rows are kept in a stream shaped exactly like the prose stream
+# (`lineno<TAB>text`), so each rule can be asked what IT would have matched
+# instead of every rule being charged the raw exempted-line count. The shape
+# matters beyond tidiness: rule-emoji-formatting anchors its expression on that
+# field separator, so a bare-text stream could never match it.
+#
+# Quotation exemption: wording rules never scan quoted material. Blockquote
+# lines are dropped and double-quoted spans stripped; every quote-exempt
+# candidate a wording rule WOULD have matched is counted as declined for that
+# rule below, never silently dropped. Typography rules keep the full stream.
+#
+# The same split applies to the marker accounting: a wording rule is charged
+# against the quote-free marker stream (DW), a typography rule against the full
+# one (DP). A marker-exempt line a wording rule would only have matched inside
+# quoted material is charged to no rule at all. It was exempt twice over, and the
+# marker count is the count of lines the rule would actually have raised a
+# finding on.
+declare -A FULL_HITS=() KEPT_HITS=()
+for entry in "${PATTERN_RULES[@]}"; do
+  IFS='|' read -r slug label ci word class ere <<<"$entry"
+  # Runtime-built roster, like __VOCAB__ in the density loop. The empty-roster
+  # guard runs before decline accounting: with every phrase removed there is
+  # nothing to exempt, and "()" would match every line.
+  if [[ "$ere" == "__PHRASES__" ]]; then
+    [[ -z "$PHRASES_ERE" ]] && continue
+    ere="$PHRASES_ERE"
+  fi
+  rule_disabled "$slug" && continue
+  [[ "${#SCANNED[@]}" -eq 0 ]] && continue
+  mark_allowed "$slug" 1
+  flags=(-E)
+  [[ "$ci" == "1" ]] && flags+=(-i)
+  [[ "$word" == "1" ]] && flags+=(-w)
+  stream=P
+  declined_stream=DP
+  if [[ "$class" == "wording" ]]; then
+    stream=W
+    declined_stream=DW
+    FULL_HITS=()
+    KEPT_HITS=()
+    while IFS=$'\t' read -r kk n; do FULL_HITS[$kk]="$n"; done < <(scan_grep P -c "${flags[@]}" -- "$ere" | file_counts c)
+    while IFS=$'\t' read -r kk n; do KEPT_HITS[$kk]="$n"; done < <(scan_grep W -c "${flags[@]}" -- "$ere" | file_counts c)
+    for kk in "${!FULL_HITS[@]}"; do
+      [[ -n "${ALLOWED[$kk]:-}" ]] && continue
+      [[ "${FULL_HITS[$kk]}" -gt "${KEPT_HITS[$kk]:-0}" ]] &&
+        decline_rule "$slug" $((FULL_HITS[$kk] - ${KEPT_HITS[$kk]:-0})) quote
+    done
+  fi
+  if [[ "${#HAS_DECL[@]}" -gt 0 ]]; then
+    while IFS=$'\t' read -r kk n; do
+      [[ -n "${ALLOWED[$kk]:-}" ]] && continue
+      decline_rule "$slug" "$n" marker
+    done < <(scan_grep "$declined_stream" -c "${flags[@]}" -- "$ere" | file_counts c)
+  fi
+  # One finding per matching prose line.
+  while IFS= read -r row; do
+    kk="${row%%$'\t'*}"
+    row="${row#*$'\t'}"
+    [[ -n "${ALLOWED[$kk]:-}" ]] && continue
+    emit_finding "$kk" "$slug" "${row%%$'\t'*}" "$label" "${row#*$'\t'}"
+  done < <(scan_grep "$stream" "${flags[@]}" -- "$ere" | LC_ALL=C awk "$FINDING_AWK")
+done
+
+# Density rules: one finding per file when density reaches the threshold. All
+# density rules are wording-class, so both the hit count and the word count come
+# from the quote-exempt stream; quote-exempt hits are declined. The threshold is
+# read once per rule: it does not depend on the file.
+#
+# Marker declines for the density rules are counted OUTSIDE the word-count
+# guard. A file whose every prose line sits inside an ignore block has no
+# scannable words left, so the guarded pass never reaches it, and a rule would
+# report zero declines for material the markers demonstrably suppressed.
+declare -A WORDS=()
+if [[ "${#SCANNED[@]}" -gt 0 ]]; then
+  while IFS=$'\t' read -r kk n; do WORDS[$kk]="$n"; done < <(
+    cd "$SCAN_DIR" && find TW -type f -exec wc -w {} + |
+      awk '$2 ~ /^TW\// { print substr($2, 4) "\t" $1 }'
+  )
+fi
+for entry in "${DENSITY_RULES[@]}"; do
+  IFS='|' read -r slug key default ere <<<"$entry"
+  rule_disabled "$slug" && continue
+  [[ "${#SCANNED[@]}" -eq 0 ]] && continue
+  [[ "$ere" == "__VOCAB__" ]] && ere="$VOCAB_ERE"
+  mark_allowed "$slug" 0
+  if [[ "${#HAS_DECL[@]}" -gt 0 ]]; then
+    while IFS=$'\t' read -r kk n; do
+      [[ -n "${ALLOWED[$kk]:-}" ]] && continue
+      decline_rule "$slug" "$n" marker
+    done < <(scan_grep TDW -E -o -i -w -- "$ere" | file_counts o)
+  fi
+  threshold="$(threshold_for "$key" "$default")"
+  FULL_HITS=()
+  KEPT_HITS=()
+  while IFS=$'\t' read -r kk n; do KEPT_HITS[$kk]="$n"; done < <(scan_grep TW -E -o -i -w -- "$ere" | file_counts o)
+  while IFS=$'\t' read -r kk n; do FULL_HITS[$kk]="$n"; done < <(scan_grep TP -E -o -i -w -- "$ere" | file_counts o)
+  candidates=""
+  for kk in "${SCANNED[@]}"; do
+    words="${WORDS[$kk]:-0}"
+    [[ "$words" -gt 0 ]] || continue
+    if [[ -n "${ALLOWED[$kk]:-}" ]]; then
       decline_rule "$slug" 1 config
       continue
     fi
-    flags=(-E)
-    [[ "$ci" == "1" ]] && flags+=(-i)
-    [[ "$word" == "1" ]] && flags+=(-w)
-    stream="$prose"
-    declined_stream="$declined_prose"
-    if [[ "$class" == "wording" ]]; then
-      stream="$prose_wording"
-      declined_stream="$declined_wording"
-      full_hits="$(printf '%s\n' "$prose" | LC_ALL=C grep -c "${flags[@]}" -- "$ere" || true)"
-      kept_hits="$(printf '%s\n' "$stream" | LC_ALL=C grep -c "${flags[@]}" -- "$ere" || true)"
-      [[ "$full_hits" -gt "$kept_hits" ]] && decline_rule "$slug" $((full_hits - kept_hits)) quote
-    fi
-    if [[ -n "$declined_prose" ]]; then
-      marker_hits="$(printf '%s\n' "$declined_stream" | LC_ALL=C grep -c "${flags[@]}" -- "$ere" || true)"
-      [[ "$marker_hits" -gt 0 ]] && decline_rule "$slug" "$marker_hits" marker
-    fi
-    while IFS=$'\t' read -r lineno text; do
-      [[ -z "$lineno" ]] && continue
-      excerpt="$(printf '%s' "$text" | truncate_excerpt | tr '|' '/')"
-      emit_finding "$slug" "$rel" "$lineno" "$label" "$excerpt"
-    done < <(printf '%s\n' "$stream" | LC_ALL=C grep "${flags[@]}" -- "$ere" || true)
+    hits="${KEPT_HITS[$kk]:-0}"
+    full_hits="${FULL_HITS[$kk]:-0}"
+    [[ "$full_hits" -gt "$hits" ]] && decline_rule "$slug" $((full_hits - hits)) quote
+    [[ "$hits" -lt "$DENSITY_MIN_HITS" ]] && continue
+    candidates+="$kk"$'\t'"$hits"$'\t'"$words"$'\n'
   done
+  [[ -z "$candidates" ]] && continue
+  # Density and the threshold test as the per-file awk calls computed them: the
+  # density string is split back into a field so the comparison sees two
+  # numeric strings, exactly as it did with two -v values. The threshold is
+  # config text, so it reaches awk only as -v, never as a row field.
+  fired=()
+  while IFS=$'\t' read -r kk hits words density over; do
+    [[ "$kk" =~ ^[0-9]+$ && "$over" == 1 ]] && fired+=("$kk"$'\t'"$hits"$'\t'"$words"$'\t'"$density")
+  done < <(printf '%s' "$candidates" | awk -F '\t' -v t="$threshold" '{
+    split(sprintf("%.1f", ($2 * 1000) / $3), d, "\n")
+    print $1 "\t" $2 "\t" $3 "\t" d[1] "\t" ((d[1] >= t) ? 1 : 0)
+  }')
+  [[ "${#fired[@]}" -eq 0 ]] && continue
+  # Each file's first matching line, from one grep over the stream: rows read
+  # "W/k:<line number><TAB><text>".
+  FIRST=()
+  while IFS= read -r row; do
+    kk="${row%%:*}"
+    kk="${kk#W/}"
+    row="${row#*:}"
+    [[ "$kk" =~ ^[0-9]+$ ]] && FIRST[kk]="${row%%$'\t'*}"
+  done < <(scan_grep W -E -i -m1 -- "$ere")
+  for row in "${fired[@]}"; do
+    IFS=$'\t' read -r kk hits words density <<<"$row"
+    first_line="${FIRST[kk]:-}"
+    emit_finding "$kk" "$slug" "${first_line:-1}" \
+      "density $density/1000 words, threshold $threshold ($hits hits in $words words)" \
+      "density rule"
+  done
+done
 
-  # Marker declines for the density rules are counted OUTSIDE the word-count
-  # guard below. A file whose every prose line sits inside an ignore block has
-  # no scannable words left, so the guarded loop never runs, and a rule would
-  # report zero declines for material the markers demonstrably suppressed.
-  if [[ -n "$declined_prose" ]]; then
-    for entry in "${DENSITY_RULES[@]}"; do
-      IFS='|' read -r slug key default ere <<<"$entry"
-      rule_disabled "$slug" && continue
-      rule_allowed "$slug" "$file" && continue
-      [[ "$ere" == "__VOCAB__" ]] && ere="$VOCAB_ERE"
-      marker_hits="$(printf '%s\n' "$declined_wording" | cut -f2- | LC_ALL=C grep -E -o -i -w -- "$ere" | wc -l | tr -d ' ')"
-      [[ "$marker_hits" -gt 0 ]] && decline_rule "$slug" "$marker_hits" marker
-    done
-  fi
-
-  # Density rules: one finding per file when density reaches the threshold.
-  # All density rules are wording-class, so both the hit count and the word
-  # count come from the quote-exempt stream; quote-exempt hits are declined.
-  words="$(printf '%s\n' "$prose_wording" | cut -f2- | wc -w | tr -d ' ')"
-  if [[ "$words" -gt 0 ]]; then
-    for entry in "${DENSITY_RULES[@]}"; do
-      IFS='|' read -r slug key default ere <<<"$entry"
-      rule_disabled "$slug" && continue
-      if rule_allowed "$slug" "$file"; then
-        decline_rule "$slug" 1 config
-        continue
-      fi
-      [[ "$ere" == "__VOCAB__" ]] && ere="$VOCAB_ERE"
-      threshold="$(threshold_for "$key" "$default")"
-      hits="$(printf '%s\n' "$prose_wording" | cut -f2- | LC_ALL=C grep -E -o -i -w -- "$ere" | wc -l | tr -d ' ')"
-      full_hits="$(printf '%s\n' "$prose" | cut -f2- | LC_ALL=C grep -E -o -i -w -- "$ere" | wc -l | tr -d ' ')"
-      [[ "$full_hits" -gt "$hits" ]] && decline_rule "$slug" $((full_hits - hits)) quote
-      [[ "$hits" -lt "$DENSITY_MIN_HITS" ]] && continue
-      density="$(awk -v h="$hits" -v w="$words" 'BEGIN { printf "%.1f", (h * 1000) / w }')"
-      over="$(awk -v d="$density" -v t="$threshold" 'BEGIN { print (d >= t) ? 1 : 0 }')"
-      if [[ "$over" -eq 1 ]]; then
-        first_line="$(printf '%s\n' "$prose_wording" | LC_ALL=C grep -E -i -m1 -- "$ere" | cut -f1)"
-        emit_finding "$slug" "$rel" "${first_line:-1}" \
-          "density $density/1000 words, threshold $threshold ($hits hits in $words words)" \
-          "density rule"
-      fi
-    done
-  fi
+for ((k = 1; k <= N_TARGETS; k++)); do
+  case "${STATE_OF[k]:-}" in
+  excluded) echo "Declined: file=${REL_OF[k]} cause=excluded-glob" ;;
+  marker) echo "Declined: file=${REL_OF[k]} cause=file-marker" ;;
+  *) printf '%s' "${OUT[$k]:-}" ;;
+  esac
 done
 
 TOTAL_FINDINGS=0

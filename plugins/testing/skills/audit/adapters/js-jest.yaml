@@ -61,9 +61,17 @@ assertion:
     - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*;$'
     - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*(\.[[:space:]]*(not|resolves|rejects)[[:space:]]*)?\.[[:space:]]*to[A-Za-z]*[[:space:]]*;$'
   # Matchers most wrong values pass, and a toThrow that names no error.
+  # not.toThrow() passes whatever the call returns; toBeGreaterThan(0), or a
+  # "> 0" comparison asserted true, passes for every count but zero. Matcher
+  # names: jestjs.io/docs/expect (Jest 30.5) and vitest.dev/api/expect
+  # (Vitest 5.0.3, where toThrowError is a deprecated alias), read 2026-10-10;
+  # recheck when either page renames or drops one of them.
   weak:
     - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*(toBeDefined|toBeTruthy|not[[:space:]]*\.[[:space:]]*(toBeNull|toBeUndefined))[[:space:]]*\([[:space:]]*\)'
     - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*(rejects[[:space:]]*\.[[:space:]]*)?(toThrow|toThrowError)[[:space:]]*\([[:space:]]*\)'
+    - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*not[[:space:]]*\.[[:space:]]*(toThrow|toThrowError)[[:space:]]*\([[:space:]]*\)'
+    - 'expect[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)[[:space:]]*\.[[:space:]]*toBeGreaterThan[[:space:]]*\([[:space:]]*0[[:space:]]*\)'
+    - 'expect[[:space:]]*\(([^()]*\([^()]*\))*[^()=>]*>[[:space:]]*0[[:space:]]*\)[[:space:]]*\.[[:space:]]*(toBe|toEqual|toStrictEqual)[[:space:]]*\([[:space:]]*true[[:space:]]*\)'
   count:
     - 'toHaveLength'
     - 'toHaveCount'

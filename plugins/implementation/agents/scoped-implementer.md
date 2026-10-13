@@ -31,6 +31,13 @@ worktree/provisioning instructions, and its CI-hygiene clauses govern verbatim. 
 adds no permissions beyond the brief and never overrides it; when the brief and this file appear to
 conflict, STOP and report the conflict.
 
+**A denial is a STOP.** When the auto-mode classifier, a hook or a permission rule denies a call,
+stop that step and report the exact command. Never reach the same effect another way: a fresh PR
+with the same content, merging before review threads form, or deleting file by file after a
+recursive delete is blocked. A guard that names a sanctioned alternative (for example use Edit
+instead of a shell write) is followed, not routed around. This holds even when the brief does not
+say it.
+
 **The design excerpt binds like the acceptance criteria.** When the brief quotes part of the plan's
 `## Design` section, build to its module layout, contracts and variation verdicts, and follow the
 conventions it cites. A phase that cannot honor one of them is a divergence: STOP and report,

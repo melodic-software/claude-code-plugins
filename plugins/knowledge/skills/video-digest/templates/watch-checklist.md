@@ -48,8 +48,8 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 
 ## Phase 3b: Deck harvest pass A (before full vision fan-out)
 
-- [ ] **3b.1** `harvested-links.json` typed (`deck` \| `repo` \| `doc` \| `other`). Verify: metadata/chapter URLs classified
-- [ ] **3b.2** Deck candidates fetched. Verify: `source/deck-inventory.md` + `source/decks/<session-slug>/` or failed row logged
+- [ ] **3b.1** Each `harvested-links.json` entry has a `kind` (`deck` \| `doc` \| `attachment` \| `repo` \| `other`). Verify: metadata/chapter URLs classified
+- [ ] **3b.2** Deck candidates fetched with `harvesting/fetch-deck-attachments.js`. Verify: `source/deck-inventory.md` + `source/decks/<session-slug>/` or failed row logged
 - [ ] **3b.3** `research/sources.md` started. Verify: template `templates/sources.md`; decks/repos cited
 
 ## Phase 4: Vision pass 1 (contact-sheet triage)

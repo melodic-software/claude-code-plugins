@@ -242,6 +242,28 @@ assert_block "Refs #N without a colon is not linkage" "$GATED" \
 assert_block "a closing keyword split across lines is not linkage" "$GATED" \
   "$(gh_body $'Closes\n#5'"$SECTIONS")"
 
+# Tracker link lines: `/work-items:track link` prints the bound adapter's link
+# text, which is not GitHub's `#N` grammar on every tracker (work-items
+# CONTRACT.md "Change links"). Each line below is one an adapter emits.
+assert_allow "Linear closing link line accepted" "$GATED" \
+  "$(gh_body $'Closes ENG-123'"$SECTIONS")"
+assert_allow "Linear non-closing link line (no colon) accepted" "$GATED" \
+  "$(gh_body $'Refs ENG-123'"$SECTIONS")"
+assert_allow "Jira non-closing link line accepted" "$GATED" \
+  "$(gh_body $'Refs: SW2-12345'"$SECTIONS")"
+assert_allow "Relates to: with a tracker key accepted" "$GATED" \
+  "$(gh_body $'Relates to: SW2-7'"$SECTIONS")"
+assert_allow "local-markdown non-closing link line accepted" "$GATED" \
+  "$(gh_body $'Refs: local-markdown:local/markdown#7'"$SECTIONS")"
+assert_block "a lower-case key-shaped token is not a tracker key" "$GATED" \
+  "$(gh_body $'Fixes utf-8'"$SECTIONS")"
+assert_block "a URL with a fragment is not a qualified item id" "$GATED" \
+  "$(gh_body $'Refs: https://example.com/page#1'"$SECTIONS")"
+assert_block "a tracker key with trailing prose is not a link line" "$GATED" \
+  "$(gh_body $'Refs: SW2-12 for context'"$SECTIONS")"
+assert_block "a tracker key after other text on the line is not a link line" "$GATED" \
+  "$(gh_body $'See also Closes ENG-123'"$SECTIONS")"
+
 # Negated closers: GitHub's parser ignores the negation and closes the issue
 # anyway, so CI fails them even beside valid linkage.
 assert_block "negated closer blocks" "$GATED" \
@@ -608,6 +630,27 @@ else
     ok "16000 two-char-line body judged in ${dense_ms}ms (hooks.json timeout is 15s)"
   else
     fail "16000 two-char-line body took ${dense_ms}ms -- exceeds the 15s hook timeout"
+  fi
+fi
+
+# A section line ending in 20,000 blanks: the parameter-expansion trim re-scanned
+# the string at each candidate cut and took over 20 s on this body; the linear
+# trim takes well under 1 s. Same 8 s bound as the cases above.
+blank_run="$(printf '%20000s' '')"
+printf 'Closes #5\n\n## Summary\n\nx%s\n\n## Fix\n\nx\n\n## Verification\n\nx\n\n## Related\n\n- x\n' "$blank_run" >"$GATED/blanks.md"
+blanks_start=${EPOCHREALTIME:-}
+run "$GATED" "gh pr create -t T --body-file blanks.md"
+blanks_end=${EPOCHREALTIME:-}
+if ((RC != 0)); then
+  fail "compliant body with 20000 trailing blanks should allow, got rc=$RC"
+elif [[ -z "$blanks_start" || -z "$blanks_end" ]]; then
+  echo "SKIP: EPOCHREALTIME unavailable -- trailing-blank timing not measured"
+else
+  blanks_ms=$(awk -v s="${blanks_start/,/.}" -v e="${blanks_end/,/.}" 'BEGIN{printf "%d", (e-s)*1000}')
+  if ((blanks_ms < 8000)); then
+    ok "20000 trailing blanks judged in ${blanks_ms}ms (hooks.json timeout is 15s)"
+  else
+    fail "20000 trailing blanks took ${blanks_ms}ms -- exceeds the 15s hook timeout"
   fi
 fi
 

@@ -14,6 +14,10 @@ and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
 - **Spawned only for PowerShell files.** The hook is registered with the `if` filters
   `Edit(*.ps1)`, `Edit(*.psm1)` and `Edit(*.psd1)`, so a Write/Edit of any other file
   never starts a hook process for it; the extension check inside the script is unchanged.
+  - **Pointer**: when deciding whether an `if` row keeps a handler from spawning, fetch
+    [hooks: Common fields](https://code.claude.com/docs/en/hooks#common-fields) live.
+    **As of**: 2026-10-11. **Recheck trigger**: that section changes when an `if` rule
+    keeps a handler from running, or which events evaluate it.
 - **Opt-in on a settings file.** PSScriptAnalyzer runs **only when a
   `PSScriptAnalyzerSettings.psd1` governs the edited file**, found by walking up
   from the file to the repository root and stopping at the closest one. Unlike
@@ -76,10 +80,12 @@ directory outside the project.
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
   Claude Code can run it under Git Bash.
 - **Node.js** on `PATH`. Every handler in `hooks/hooks.json` runs through
-  `node hooks/exec-bash.mjs`, which starts the Bash script. Claude Code's native binary neither
-  ships nor uses Node ([setup docs](https://code.claude.com/docs/en/setup), checked 2026-09-29;
-  recheck when the setup docs say the native binary ships or uses Node),
-  so without `node` the hooks do not launch and nothing is formatted, with no notice.
+  `node hooks/exec-bash.mjs`, which starts the Bash script. We do not assume a Claude Code
+  install brings Node, so without `node` the hooks do not launch and nothing is formatted,
+  with no notice. Pointer: when deciding whether an install brings Node, fetch
+  [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live.
+  As of: 2026-10-11. Recheck trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
+  install needs Node at runtime.
   [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
   visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).

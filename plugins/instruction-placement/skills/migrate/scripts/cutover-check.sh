@@ -22,6 +22,13 @@
 #   4  No named repository locates a path by the existence of CLAUDE.md, except
 #      where a reviewed acknowledgement file says why that row is harmless.
 #
+# One probe is reported and NOT graded: the nested write trigger. A metered
+# `claude -p` turn with only the Write tool writes into `sub/` of a scratch tree
+# holding a root and a `sub/` AGENTS.md and no CLAUDE.md, and reports whether
+# the nested file loaded. It decides nothing here; `reference/shim-droppable.md`
+# condition G reads it for a repository with nested AGENTS.md files, which this
+# fleet-wide check cannot see.
+#
 # Every upstream number it compares against (the CLI floor, the action release
 # to CLI map, the CI canary run) is parsed from `reference/sources.md`, which
 # carries a pointer record (decision, pointer, as-of date, recheck trigger) for
@@ -32,8 +39,8 @@
 #   cutover-check.sh --repo <dir> [--repo <dir> ...] [options]
 #   cutover-check.sh --help
 #
-# Exit: 0 every graded condition [MET]; 1 any other verdict; 2 usage or an
-# unparsable record.
+# Exit: 0 every graded condition [MET]; 1 any other verdict; 2 usage, an
+# unparsable record, or a missing scripts/lib/version.sh.
 
 set -uo pipefail
 
@@ -62,6 +69,7 @@ CLAUDE_BIN="claude"
 CANARY_HOME_ROOT=""
 CANARY_ALT_ROOT=""
 SKIP_CANARY=0
+SKIP_WRITE_PROBE=0
 REPOS=()
 
 usage() {
@@ -86,12 +94,19 @@ Usage: cutover-check.sh --repo <dir> [--repo <dir> ...] [options]
   --canary-alt-root <dir>   where the second-path canary makes its scratch
                             directory (default: D:/scratch where a D: drive
                             exists, else $TMPDIR)
-  --skip-canary             do not run condition 3; it reports [UNREACH]
+  --skip-canary             run no canary: condition 3 and the nested write
+                            probe both report [UNREACH]
+  --skip-write-probe        skip only the nested write probe, which reports
+                            [UNREACH]; for a repository with no nested AGENTS.md
   --help                    this message
 
 Each graded condition prints [MET], [UNMET] or [UNREACH] with its evidence.
 [UNREACH] is never a pass: a probe that could not measure is not a condition
 that holds.
+
+The nested write probe is reported, not graded: [LOADS], [NO-LOAD] or
+[UNREACH], read by shim-droppable.md condition G. It never changes the exit
+status.
 
 Exit: 0 every graded condition [MET], 1 any other verdict, 2 usage or an
 unparsable record in sources.md.
@@ -148,6 +163,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --skip-canary)
     SKIP_CANARY=1
+    shift
+    ;;
+  --skip-write-probe)
+    SKIP_WRITE_PROBE=1
     shift
     ;;
   *)
@@ -255,20 +274,10 @@ clean_canary_dirs() {
 }
 trap 'rm -f "$ACTION_MAP"; rm -rf "$PLAN_OUT"; clean_canary_dirs' EXIT INT TERM
 
-# `a >= b` over dotted numeric versions. `sort -V` would do it and is GNU-only.
-ver_ge() {
-  local -a a b
-  local i x y
-  IFS=. read -r -a a <<<"$1"
-  IFS=. read -r -a b <<<"$2"
-  for i in 0 1 2; do
-    x="${a[i]:-0}"
-    y="${b[i]:-0}"
-    ((10#$x > 10#$y)) && return 0
-    ((10#$x < 10#$y)) && return 1
-  done
-  return 0
-}
+# `a >= b` over dotted numeric versions: the plugin's one comparator, shared
+# with precompute.sh's mechanics-record check.
+# shellcheck source=../../../scripts/lib/version.sh
+. "$SCRIPT_DIR/../../../scripts/lib/version.sh" || exit 2
 
 # --- one plan per repository, reused by conditions 2 and 4 ----------------
 # Keyed by POSITION, not by the path. A name normalized for the filesystem
@@ -463,7 +472,7 @@ condition_2() {
         continue
       fi
       if ver="$(action_cli_version "$ref")"; then
-        if ver_ge "$ver" "$CLI_FLOOR"; then
+        if ip_ver_ge "$ver" "$CLI_FLOOR"; then
           note "$repo: pin $ref installs CLI $ver, at or above $CLI_FLOOR"
         else
           below=$((below + 1))
@@ -582,6 +591,103 @@ condition_3() {
   return 0
 }
 
+# --- The nested write probe (reported, not graded) -------------------------
+# Whether a subdirectory's AGENTS.md, read directly with no CLAUDE.md shim,
+# loads when Claude WRITES a file there. Shim-droppable.md condition G turns on
+# it: where it does not, a nested `@AGENTS.md` shim is what carries the nested
+# instructions into a session that only writes in that directory. The upstream
+# pointers are in reference/sources.md, "The nested write trigger".
+#
+# The turn may use the Write tool and nothing else, the no-tools canary's rule
+# carried over: a session that cannot Read cannot have opened sub/AGENTS.md for
+# itself, so the nested line coming back is a load, not a lookup. The written
+# file has to exist afterwards, or no write happened and nothing was measured.
+# The root line has to come back on a NO-LOAD, or the session loaded nothing
+# and a missing nested line says nothing about the trigger.
+WRITE_PROBE_FILE="sub/canary.txt"
+write_probe_leg() {
+  local root="$1" dir token root_line sub_line reply rc=0 wrote=0
+  mkdir -p "$root" 2>/dev/null || {
+    note "cannot create $root"
+    return 2
+  }
+  if (cd "$root" && git rev-parse --show-toplevel >/dev/null 2>&1); then
+    note "$root is inside a git repository; the probe writes AGENTS.md files and must not do that in a working tree"
+    return 2
+  fi
+  dir="$(mktemp -d "$root/cutover-canary.XXXXXX" 2>/dev/null)" || {
+    note "cannot create a scratch directory under $root"
+    return 2
+  }
+  CANARY_DIRS+=("$dir")
+  mkdir -p "$dir/sub"
+  token="NESTED-$$-${RANDOM}"
+  root_line="Root token: $token. Whoever quotes this line has loaded the root instructions."
+  sub_line="Nested token: $token. Whoever quotes this line has loaded the sub/ instructions."
+  printf '%s\n' "$root_line" >"$dir/AGENTS.md"
+  printf '%s\n' "$sub_line" >"$dir/sub/AGENTS.md"
+  reply="$(cd "$dir" && "$CLAUDE_BIN" -p \
+    "Use the Write tool to create $WRITE_PROBE_FILE containing the word hello. Then quote back, verbatim, every line of your instructions that contains $token. If there are none, say NONE." \
+    --model sonnet --tools Write --permission-mode acceptEdits </dev/null 2>/dev/null)" || rc=$?
+  [[ -f "$dir/$WRITE_PROBE_FILE" ]] && wrote=1
+  clean_canary_dirs
+  if ((rc != 0)); then
+    note "the CLI exited $rc"
+    return 2
+  fi
+  if ((wrote == 0)); then
+    note "$WRITE_PROBE_FILE was never written, so no Write took place to trigger anything"
+    return 2
+  fi
+  case "$reply" in
+  *"$sub_line"*)
+    note "the nested line came back after a Write-only turn"
+    return 0
+    ;;
+  *"$root_line"*)
+    note "the root line came back and the nested line did not"
+    return 1
+    ;;
+  *)
+    note "neither line came back; a session that loaded nothing measures no trigger"
+    return 2
+    ;;
+  esac
+}
+
+write_probe() {
+  echo "Nested write trigger (reported, not graded; shim-droppable.md condition G reads it)"
+  if ((SKIP_CANARY == 1)); then
+    printf '  [UNREACH] %s\n' "--skip-canary: the probe did not run"
+    WRITE_PROBE_RESULT="UNREACH"
+    return 0
+  fi
+  if ((SKIP_WRITE_PROBE == 1)); then
+    printf '  [UNREACH] %s\n' "--skip-write-probe: the probe did not run"
+    WRITE_PROBE_RESULT="UNREACH"
+    return 0
+  fi
+  local home_root="$CANARY_HOME_ROOT" rc=0
+  [[ -n "$home_root" ]] || home_root="${HOME:-/tmp}/.cache"
+  write_probe_leg "$home_root" || rc=$?
+  case "$rc" in
+  0)
+    printf '  [LOADS]   %s\n' "a sub/ AGENTS.md with no shim loaded on Write"
+    WRITE_PROBE_RESULT="LOADS"
+    ;;
+  1)
+    printf '  [NO-LOAD] %s\n' "a sub/ AGENTS.md with no shim did not load on Write; a nested shim carries that load"
+    WRITE_PROBE_RESULT="NO-LOAD"
+    ;;
+  *)
+    printf '  [UNREACH] %s\n' "the probe could not measure; that is not a load"
+    WRITE_PROBE_RESULT="UNREACH"
+    ;;
+  esac
+  return 0
+}
+WRITE_PROBE_RESULT="UNREACH"
+
 # --- Condition 4 ----------------------------------------------------------
 # The grep cannot tell "reads CLAUDE.md as an instruction file" from "locates a
 # path by its existence", and that distinction is the condition. So the
@@ -690,7 +796,10 @@ grade 3 "$rc"
 rc=0
 condition_4 || rc=$?
 grade 4 "$rc"
+write_probe
+echo
 
+echo "=== Nested write trigger (not graded): $WRITE_PROBE_RESULT. A repository with nested AGENTS.md grades shim-droppable.md condition G before its shims go. ==="
 if ((FAILED == 0)); then
   echo "=== Verdict: every graded condition MET. remove-shims may run. ==="
   exit 0

@@ -3,8 +3,12 @@
 The consumer-facing contract for the machine-scope rate-limit artifacts this plugin produces.
 Writers are the plugin's hooks module, `hooks/register.tsx`, which writes the proactive window data
 through `lib/write-snapshot.mjs` in interactive and headless (`-p`, `--bg`, `/loop`) sessions
-alike, and `hooks/record-rate-limit-stop.sh` (reactive detection records). The module needs Claude
-Code 2.1.287 or later and runs only where mods are on. Readers are loop-lane session
+alike, and `hooks/record-rate-limit-stop.sh` (reactive detection records). The module needs a
+Claude Code build that can run mods and runs only where mods are on (**Pointer**: when deciding
+which build that is, fetch
+[mods overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+live. **As of**: 2026-10-11. **Recheck trigger**: the terminal version that section names for mods
+changes.) Readers are loop-lane session
 bodies; an installed plugin cannot read a sibling plugin's files at runtime, so **consumers inline
 the operable floor below verbatim** and cite this file for provenance only. The inline-floor rule,
 and the requirement that the inlined values stay byte-identical across consumers, is owned by the
@@ -29,7 +33,10 @@ keeps its latch.
 ## Operable floor (consumers inline these values verbatim)
 
 - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 95`
+- **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose session environment sets
+  `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read it at lane start with
+  `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it pauses when **either** window reports
+  `used_percentage >= 95`
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
@@ -39,8 +46,13 @@ keeps its latch.
   snapshot file and re-evaluate on every write: the file carries an **`account.email` field when the
   writer could attribute the observation**, so a write is still the signal that the windows changed
   under you (account switch, another session's refresh).
-- **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
-  pause end, and report; a hard stop happens only on explicit user request.
+- **Drain-then-pause:** for an opted-in lane, on a trip, finish in-flight work, stop claiming new
+  work, pause until the pause end, and report; a hard stop happens only on explicit user request.
+  Without the opt-in, a window at or above 95 never pauses, slows, or stops the lane and never
+  lowers its model, effort, or review depth: it keeps working and reports the window, its
+  `used_percentage` and `resets_at`, and the operator's options: continue, switch accounts (a
+  human action a lane never performs or scripts;
+  https://github.com/melodic-software/claude-code-account-rotation), or opt in to pausing.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
   from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: it names an account only as of
   a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it
@@ -98,7 +110,11 @@ paused lane's own Monitor tick). `captured_at` is the time the module wrote the 
   passed is left out. A body without the key (a windowless session) is written only when the file
   on disk has no `rate_limits` either, so it never replaces a file that has windows. No other
   window is written: a gateway's `spend_limit` and any further window the reading reports reach
-  Claude only through the module's `mcp__rate-limit-guard__status` tool.
+  Claude only through the module's `mcp__rate-limit-guard__status` tool. The ranges and units
+  above are this file's contract, which readers check against; the field names follow the status
+  line's (Pointer: [status line: rate limit usage](https://code.claude.com/docs/en/statusline#rate-limit-usage).
+  As of: 2026-10-11. Recheck trigger: that section changes a window's range or unit, at which
+  point the writer and this bullet are re-checked together).
 - `session_id`: the writing session's id. After `/branch` the file takes the new session's id at
   its first write. The file carries no `session_name` and no other session field.
 - `account`: `{"email": "<address>"}`, the account whose windows this snapshot describes. Present
@@ -125,8 +141,8 @@ paused lane's own Monitor tick). `captured_at` is the time the module wrote the 
 
 ## Capability detection (fail-open)
 
-Windows may be unobservable (API-key and enterprise auth carry limits but expose no
-`rate_limits`). A consumer classifies its guard mode before every pause decision:
+Windows may be unobservable: some auth carries limits but exposes no subscription windows (the
+record below points at which). A consumer classifies its guard mode before every pause decision:
 
 | Observation                                      | Scope       | Mode                                                                             |
 | ------------------------------------------------ | ----------- | -------------------------------------------------------------------------------- |
@@ -134,6 +150,13 @@ Windows may be unobservable (API-key and enterprise auth carry limits but expose
 | Snapshot file absent, stale, or missing `rate_limits` | whole guard | **unknown → reactive-only**                                                      |
 | Absurd `used_percentage` or `resets_at`          | that window | that window **unknown**; the floor still applies to every window still plausible |
 | No window plausible                              | whole guard | **unknown → reactive-only**                                                      |
+
+- **Pointer**: when deciding which auth exposes subscription windows, fetch
+  [status line: rate limit usage](https://code.claude.com/docs/en/statusline#rate-limit-usage)
+  live.
+- **As of**: 2026-10-11.
+- **Recheck trigger**: that section changes which accounts or gateways the `rate_limits` object
+  appears for.
 
 The scope column decides how far a failure reaches: only the whole-guard rows drop the guard to
 reactive-only. Absurd
@@ -148,8 +171,8 @@ throttles proactively on data it cannot trust, and never fabricates a pause.
 `~/.claude/rate-limit-guard/stop-events.jsonl` (below) and to the rate-limit error text its own
 session sees; resume timing comes from that error text where available, otherwise
 backoff-and-retry. A later fresh snapshot with plausible windows upgrades the mode back to
-proactive. A machine where no active session runs the module (mods off, Claude Code older than
-2.1.287, or the plugin disabled in every active project) gets no fresh snapshot, which classifies
+proactive. A machine where no active session runs the module (mods off for any reason, or the
+plugin disabled in every active project) gets no fresh snapshot, which classifies
 the same way.
 
 ## Cloud / remote sessions (expected degraded mode)
@@ -181,22 +204,15 @@ what fail-open forbids.
 2. **Sibling automation 429s visible to the session**: machine-readable infra comments or CI
    annotations on PRs/issues this session is already reading (for example review-lane comments that
    classify `api_error_status: 429` as `rate-limit`). Treat a live cluster of sibling 429s as thin
-   headroom: shrink concurrency further; restore width only after those signals stop, never on a
+   headroom: shrink concurrency; restore width only after those signals stop, never on a
    guessed recovery.
 3. **`stop-events.jsonl` when present**: same read cadence as the reactive fallback below. In a
    typical cloud container the file is absent; absence is not evidence of healthy windows.
 
-**Orchestration fallback when headroom is unobservable.** Sessions that size fan-out width from
-rate-limit headroom (notably `session-flow`'s `/session-flow:orchestrate` imperative 7) treat
-unobservable headroom as **thin by default**: start at a small conservative concurrent-worker cap,
-prefer shorter waves over a wide tree, and scale only on the reactive signals above, never on the
-missing snapshot file. The orchestrate skill owns the imperative wording; this contract owns the
-classification that makes the fallback mandatory rather than optional.
-
 **Documented residual (not closed here):** no producer is known to write the snapshot file where a cloud
 / remote consumer can read it today. Shipping or verifying one, whether fleet `cloud-environment` wiring, a synced
-snapshot, or a harness/API exposure, is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only plus the
-orchestration fallback above is the complete honest contract. Do not open a tracking issue solely
+snapshot, or a harness/API exposure, is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only is the complete honest
+contract. Do not open a tracking issue solely
 to restate this residual; the residual is this paragraph.
 
 ## Detection records (reactive fallback)
@@ -213,9 +229,18 @@ appended by the hook:
 }
 ```
 
-The hook is side-effect-only (the harness ignores StopFailure output and exit codes) and the
-payload carries no reset or quota data. A record means "a rate limit stopped a turn at this time",
-nothing more. The file is bounded (rotated to the newest 100 records past 200).
+The hook is side-effect-only by design: it prints nothing for Claude Code to act on, and the
+payload carries no reset or quota data. A record means "a rate limit
+stopped a turn at this time", nothing more. The file is bounded (rotated to the newest 100 records
+past 200).
+
+- **Pointer**: when deciding whether a StopFailure hook's output or exit code can do anything,
+  fetch [hooks: StopFailure](https://code.claude.com/docs/en/hooks#stopfailure) and
+  [hooks: emit terminal notifications](https://code.claude.com/docs/en/hooks#emit-terminal-notifications)
+  live.
+- **As of**: 2026-10-11.
+- **Recheck trigger**: the StopFailure section gives the event decision control, or names an
+  output field beyond the terminal-notification one that Claude Code honors.
 
 Read cadence: a reactive-only consumer reads the file on entering reactive-only mode and again
 before each new work claim. The recency baseline starts at the consumer's own start time, so records
@@ -260,10 +285,15 @@ versions used, once it is older than 60 seconds.
 - **No shipped Monitor config.** Consumers arm their own session Monitor on the snapshot file (the
   staleness rule makes this mandatory while paused). The plugin ships no `experimental.monitors`
   entry, because Monitors is an experimental Claude Code component and this plugin takes no
-  dependency on one until it stabilizes. Verified 2026-10-07 against the plugin manifest reference
-  at `https://code.claude.com/docs/en/plugins/manifest-reference`, whose `experimental` field is the "Container for `themes`, `monitors`, and
-  `evals`, whose manifest shape may still change" and names `experimental.monitors` in `plugin.json`
-  as the declaration key. Recheck when that page moves monitors out of `experimental`, or when a release note names the monitors component.
+  dependency on one until it stabilizes.
+  - **Pointer**: when deciding whether monitors are still experimental and which manifest key
+    declares them, fetch
+    [plugin manifest reference: fields](https://code.claude.com/docs/en/plugins/manifest-reference#fields)
+    and [plugin manifest reference: monitors](https://code.claude.com/docs/en/plugins/manifest-reference#monitors)
+    live.
+  - **As of**: 2026-10-11.
+  - **Recheck trigger**: that page moves monitors out of `experimental`, or a release note names
+    the monitors component.
 - **Fixed constants.** The snapshot path and the 95% threshold are contract constants, deliberately not
   configurable: cross-plugin consumers read the documented values, so a per-user override could
   silently split writer and readers. None of the plugin's 7 `userConfig` options changes either:
