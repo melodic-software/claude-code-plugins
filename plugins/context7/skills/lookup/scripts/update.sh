@@ -4,14 +4,15 @@
 # Modes:
 #   (default)             report only — CLI version drift + upstream skill diff
 #   --fix                 install/upgrade CLI to latest; still advisory on skill content
-#   --refresh-baseline    overwrite upstream snapshot with current upstream
+#   --refresh-baseline    overwrite upstream snapshot with current upstream and stamp synced
+#                         and upstream-version (the master commit both files came from)
 #                         (maintainer-only: run in a working clone, never the installed cache)
 #
 # Exit codes:
 #   0 — verified: no drift detected (or drift reported in report mode)
-#   1 — prerequisites missing (npm, curl, diff not on PATH)
+#   1 — prerequisites missing (npm, curl, diff, git not on PATH)
 #   2 — state unverifiable OR requested fix/refresh failed
-#       (npm registry unreachable, upstream fetch failed, post-install PATH issue,
+#       (npm registry unreachable, upstream commit or fetch failed, post-install PATH issue,
 #        baseline write failure; missing baseline in report mode surfaces as drift, exit 0)
 
 # No -e: check_skill_drift captures non-zero return codes via $? as drift signals,
@@ -26,11 +27,11 @@ SKILL_MD="$SKILL_DIR/SKILL.md"
 BASELINE_FIND_DOCS="$SNAPSHOT_DIR/find-docs/SKILL.md"
 BASELINE_CLI_SKILL="$SNAPSHOT_DIR/cli/SKILL.md"
 
-UPSTREAM_FIND_DOCS="https://raw.githubusercontent.com/upstash/context7/refs/heads/master/skills/find-docs/SKILL.md"
-UPSTREAM_CLI_SKILL="https://raw.githubusercontent.com/upstash/context7/refs/heads/master/skills/context7-cli/SKILL.md"
+UPSTREAM_REPO="https://github.com/upstash/context7"
+UPSTREAM_RAW="https://raw.githubusercontent.com/upstash/context7"
 
 # --- prerequisite checks ---
-for cmd in npm curl diff; do
+for cmd in npm curl diff git; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "✖ Required command not found: $cmd" >&2
     exit 1
@@ -104,6 +105,18 @@ fi
 echo ""
 
 # --- upstream skill content check ---
+# Resolve master once and fetch both files at that commit, so both baselines and the
+# stamped upstream-version name the same revision.
+UPSTREAM_SHA=$(git ls-remote "$UPSTREAM_REPO" refs/heads/master 2>/dev/null | cut -f1)
+if [[ ! "$UPSTREAM_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "✖ Cannot resolve upstash/context7 master (git ls-remote failed)" >&2
+  exit 2
+fi
+echo "=== Upstream commit: $UPSTREAM_SHA ==="
+echo ""
+UPSTREAM_FIND_DOCS="$UPSTREAM_RAW/$UPSTREAM_SHA/skills/find-docs/SKILL.md"
+UPSTREAM_CLI_SKILL="$UPSTREAM_RAW/$UPSTREAM_SHA/skills/context7-cli/SKILL.md"
+
 # Return codes:
 #   0 — upstream unchanged (or baseline seeded/refreshed successfully in --refresh-baseline mode)
 #   1 — fetch failed or baseline write failed; state unverifiable
@@ -187,8 +200,10 @@ CLI_SKILL_RC=$?
 
 if [[ "$MODE" == "--refresh-baseline" ]] && [[ $FIND_DOCS_RC == 0 ]] && [[ $CLI_SKILL_RC == 0 ]]; then
   TODAY=$(date -u +%Y-%m-%d)
-  sed -i.bak -E "s/^( *synced: ).*/\1$TODAY/" "$SKILL_MD" && rm -f "$SKILL_MD.bak"
-  echo "  ✓ Stamped synced: $TODAY in SKILL.md frontmatter"
+  sed -i.bak -E -e "s/^( *synced: ).*/\1$TODAY/" \
+    -e "s/^( *upstream-version: ).*/\1upstash\/context7@$UPSTREAM_SHA/" "$SKILL_MD" &&
+    rm -f "$SKILL_MD.bak"
+  echo "  ✓ Stamped synced: $TODAY and upstream-version: upstash/context7@$UPSTREAM_SHA in SKILL.md"
 fi
 
 echo ""

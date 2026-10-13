@@ -58,7 +58,7 @@ never invokes it (see below), so no behavior here depends on it.
 | Flag | Purpose |
 |---|---|
 | `--json` | Structured JSON output (vs. formatted text). Useful for scripts / `jq` extraction |
-| `--language <name>` | `docs` only: the programming language the user writes in (e.g. `Python`, `Go`); code examples in that language rank first |
+| `--language <name>` | `docs` only: passed with the user's language when the installed CLI lists it; the probe and its pointer record are in [lookup.md](lookup.md#step-2-query-documentation) |
 
 **No `--tokens`, `--limit`, `--format`, or `--verbose` flag exists.** Default content depth is server-controlled. For more content per call, prefer MCP (`mcp__context7__query-docs`); the measured ratio is in [mcp.md](mcp.md).
 

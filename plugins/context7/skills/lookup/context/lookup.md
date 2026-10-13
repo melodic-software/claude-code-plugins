@@ -51,11 +51,17 @@ MSYS_NO_PATHCONV=1 ctx7 docs "<libraryId>" "<query>"
 mcp__context7__query-docs(libraryId: "/org/project", query: "<query>")
 ```
 
-When you know the language the user writes in, add `--language` to the CLI call so examples in that language rank first:
+When you know the language the user writes in, run `ctx7 docs --help` once per session; pass `--language <name>` only if that output lists it, and omit it otherwise, so an older install still answers:
 
 ```bash
 MSYS_NO_PATHCONV=1 ctx7 docs /websites/twilio "How to send an SMS" --language Ruby
 ```
+
+- **Pointer**: when deciding whether `--language` exists and what it changes, read the installed
+  CLI's `ctx7 docs --help` output live (the probe above).
+- **As of**: 2026-10-13
+- **Recheck trigger**: that help output renames or drops `--language`, or this plugin starts
+  requiring a minimum `ctx7` version, which would let the probe go.
 
 ### Version-specific IDs
 
