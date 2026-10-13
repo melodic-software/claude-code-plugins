@@ -77,7 +77,11 @@ SERVE_TIME = re.compile(
     r"^(?:http[ _-]*)?(?:last[ _-]*modified|date|headers?|etag)(?:[ _-]*headers?)?$",
     re.IGNORECASE,
 )
-SERVE_TIME_PART = re.compile(r"last[ _-]*modified|\betag\b|^http[ _-]", re.IGNORECASE)
+SERVE_TIME_PART = re.compile(
+    r"last[ _-]*modified|\betag\b|^http[ _-]"
+    r"|\bdate[ _-]*headers?\b|\b(?:response|http)[ _-]+date\b",
+    re.IGNORECASE,
+)
 DASH = re.compile(r"^-(?:\s+(.*))?$")
 INF = float("inf")
 

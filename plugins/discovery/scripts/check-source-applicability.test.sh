@@ -433,6 +433,9 @@ run 1 "a pasted Last-Modified header line is rejected" --err "$SERVE Last-Modifi
   "$(dated_slice dby-lm-pasted 'Last-Modified: Tue')"
 run 1 "dated_by x-last-modified is rejected" --err "$SERVE x-last-modified is a serve-time header" \
   "$(dated_slice dby-x-lm x-last-modified)"
+run 1 "a descriptive response Date header is rejected" --err "$SERVE response Date header is a serve-time header" \
+  "$(dated_slice dby-resp-date 'response Date header')"
+run 0 "a method that only mentions a date is accepted" "$(dated_slice dby-commit-date 'source-commit date')"
 run 1 "any http- prefixed dated_by is rejected" --err "$SERVE http-expires is a serve-time header" \
   "$(dated_slice dby-http-expires http-expires)"
 
