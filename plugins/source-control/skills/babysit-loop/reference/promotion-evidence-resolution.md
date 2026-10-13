@@ -52,8 +52,7 @@ compliant bootstrap; [`promotion-evidence-bootstrap.md`](promotion-evidence-boot
 `--credential-roots` surface as out of scope
 ([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)). The unattended
 merge path (`babysit_merge_policy.read_promotion`) additionally refuses any option value or
-settings file the lane can write (with
-[#7352](https://github.com/melodic-software/claude-code-plugins/pull/7352)), so on a single-user
+settings file the lane can write, so on a single-user
 host user-scope settings never qualify there; only managed settings and surfaces owned by someone
 other than the lane identity can.
 What an operator supplies for the seam is in
