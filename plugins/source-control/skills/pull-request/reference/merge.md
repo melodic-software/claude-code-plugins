@@ -52,8 +52,6 @@ fails the merge instead of landing unreviewed. Before any merge call, poll the P
 the pinned head while it reads `UNKNOWN`, and merge or enqueue only once it reads `CLEAN`; any
 other state, or a moved head, is a hold to report
 ([GitHub](../../../reference/providers/github/pull-request/merge.md#wait-for-a-known-merge-state)).
-GitHub reads `UNKNOWN` just after a push or a ready flip, and a merge call on a merge-queue base
-then arms auto-merge instead of enqueueing.
 
 In a regular checkout, squash-merge and delete the head branch in one call
 ([GitHub](../../../reference/providers/github/pull-request/merge.md#squash-merge-in-a-regular-checkout)).
@@ -110,9 +108,7 @@ the merge state reads `UNKNOWN`, as in 4.2). Only then does it
 merge, pinned to that head with `--match-head-commit`.
 
 Behind a merge queue (claude-code-plugins) the queue sets the strategy, so pass no strategy flag.
-There the merge should enqueue and return, and had required checks not passed it would arm
-auto-merge instead. It has also been seen to return, after printing that the queue sets the merge
-strategy, with a `CLEAN` PR left out of the queue and auto-merge armed. Never pass `--auto`,
+Never pass `--auto`,
 `--admin`, `--merge`/`-m` or `--rebase`/`-r`. Confirm queue entry per
 [4.2.2](#422-confirm-queue-entry), then poll the PR's state and merge-queue membership every 30
 seconds until it reads `MERGED` or leaves the queue unmerged (run the loop in the background or under

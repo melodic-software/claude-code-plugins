@@ -18,14 +18,18 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
 
 ## Stale-base guard
 
+Read the head once and use that value for both the compare and `HEAD_SHA`, so the pinned head is
+the one the compare checked:
+
 ```bash
-gh pr view <pr_number> --json mergeStateStatus,baseRefName,headRefOid
-gh api repos/{owner}/{repo}/compare/<baseRefName>...<headRefOid>
-HEAD_SHA=$(gh pr view <pr_number> --json headRefOid -q .headRefOid)
+read -r MSS BASE HEAD_SHA <<<"$(gh pr view <pr_number> --json mergeStateStatus,baseRefName,headRefOid \
+  --jq '"\(.mergeStateStatus) \(.baseRefName) \(.headRefOid)"')"
+echo "mergeStateStatus: $MSS"
+gh api "repos/{owner}/{repo}/compare/$BASE...$HEAD_SHA"
 ```
 
-When GraphQL is refused, take `HEAD_SHA` from `.head.sha` of
-`gh api "repos/{owner}/{repo}/pulls/<pr_number>"`.
+When GraphQL is refused, read `.base.ref` and `.head.sha` from one
+`gh api "repos/{owner}/{repo}/pulls/<pr_number>"` call instead.
 
 Update a behind branch with a merge-forward or `gh pr update-branch`.
 
@@ -184,7 +188,10 @@ The user may disarm it with: gh pr merge <pr_number> --disable-auto' >&2
 }
 case "$(jq -r '"\(.state) \(.isInMergeQueue) \(.mergeStateStatus)"' <<<"$PR")" in
   MERGED*) echo 'merged' ;;
-  'OPEN true '*) echo 'queued' ;;
+  'OPEN true '*)
+    [ "$(jq -r .headRefOid <<<"$PR")" = "$HEAD_SHA" ] \
+      || hold 'queued at a head other than the one pinned in 4.1: hold and report it'
+    echo 'queued' ;;
   'OPEN false CLEAN')
     [ "$(jq -r .headRefOid <<<"$PR")" = "$HEAD_SHA" ] \
       || hold 'head moved since 4.1: hold and re-run readiness'
