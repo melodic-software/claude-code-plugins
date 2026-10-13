@@ -2618,7 +2618,7 @@ def _lane_evidence(
     commits = fetch_paginated_api(
         f"repos/{repo}/pulls/{number}/commits?per_page=100", f"#{number} commits"
     )
-    # The commits list stops at 250: a longer head has pushers no list names.
+    # The commits list is capped: a longer head has pushers no list names.
     total = pr.get("commits")
     if not isinstance(total, int) or isinstance(total, bool) or total > len(commits):
         raise HeadPusherUnproven(

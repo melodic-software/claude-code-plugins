@@ -992,7 +992,10 @@ any refusal is the blocker `unattended merge refused: <reason>`:
 4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.
    A head commit whose author or committer is linked to no account refuses
    (`head-pusher-unproven:<sha>`): its pusher cannot be shown not to be a human. So does a pull
-   request with more commits than the commits list returns (it stops at 250).
+   request whose commit count exceeds the commits the list returned.
+   - **Pointer**: when the commits list's cap matters, fetch
+     [list commits on a pull request](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
+     live. **As of**: 2026-10-12. **Recheck trigger**: that section changes the cap or its paging.
    Only LOW merges. A C3 pull request also needs a LOW blast-radius rating, which nothing supplies
    yet, so it scores at least MED (`blast-radius-missing`) until a C3 rung adds that source.
 
