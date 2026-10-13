@@ -43,7 +43,7 @@ cm_resolve_python() {
     printf 'code-metrics needs bash 4 or later (this is %s); macOS: brew install bash; Windows: run under Git Bash\n' "$BASH_VERSION" >&2
     return 2
   fi
-  local here candidate resolved lower probe out
+  local here candidate resolved lower probe
   here="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
   CM_PYTHON_FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$here/report.py")"
   [[ -n "$CM_PYTHON_FLOOR" ]] || CM_PYTHON_FLOOR="3.9"
@@ -57,25 +57,28 @@ cm_resolve_python() {
     if [[ "$lower" == *windowsapps* && ! -s "$resolved" ]]; then
       continue
     fi
-    if out="$("$candidate" -I -c "$probe" 2>/dev/null)"; then
-      _cm_set_py "$out" "$candidate"
+    if _cm_probe "$probe" "$candidate"; then
       return 0
     fi
   done
-  if command -v py >/dev/null 2>&1 && out="$(py -3 -I -c "$probe" 2>/dev/null)"; then
-    _cm_set_py "$out" py -3
+  if command -v py >/dev/null 2>&1 && _cm_probe "$probe" py -3; then
     return 0
   fi
   return 1
 }
 
 # shellcheck disable=SC2034
-_cm_set_py() {
-  # _cm_set_py <probe output> <interpreter words...>
-  local out="$1"
+_cm_probe() {
+  # _cm_probe <probe> <interpreter words...>: run the floor probe and, when it
+  # passes, set PY and CM_PY_NATIVE. The line is read with mapfile, as the
+  # consumers read theirs: Git Bash's $(...) drops a trailing CR, so a
+  # command substitution would never see one.
+  local probe="$1" lines
   shift
+  mapfile -t lines < <("$@" -I -c "$probe" 2>/dev/null; printf '%s\n' "$?")
+  [[ "${lines[${#lines[@]} - 1]}" == 0 ]] || return 1
   CM_PY_NATIVE=("$@")
-  if [[ "$out" == *$'\r' ]]; then
+  if [[ "${lines[0]}" == *$'\r' ]]; then
     PY=(cm_py_lf)
   else
     PY=("$@")
