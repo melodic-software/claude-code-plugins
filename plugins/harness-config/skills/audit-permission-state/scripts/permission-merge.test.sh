@@ -18,6 +18,12 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
 
+# The end-to-end case expects the local file at the fixture's repository root.
+# On Windows the reader anchors it on the start directory instead, so the suite
+# pins a non-Windows platform through the reader's seam; permission-state.test.sh
+# covers the Windows branch itself.
+export PERMISSION_STATE_OSTYPE=linux-gnu
+
 merge() { printf '%s\n' "$1" | bash "$SCRIPT" --merge-only; }
 
 # --- Case 1: a rule in two KINDS has exactly one winner -----------------------

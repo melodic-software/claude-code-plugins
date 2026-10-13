@@ -215,7 +215,17 @@ make_machine() {
 # run <root> [args...]: run the engine against a fixture machine, drift skipped.
 # DOCS_FIXTURE and CLI_BIN, when set by the caller, replace the default docs
 # fixture and stand-in CLI for that one run.
+#
+# With neither DOCS_FIXTURE nor a --docs-dir of the case's own, the default
+# pages arrive through --docs-dir, so the run makes no fetcher call. The fetcher
+# starts many of a run's processes, and on Git for Windows each process start is
+# what makes this suite slow. The cases about the fetch route
+# set DOCS_FIXTURE, or set RUN_FETCH=1 to keep the default fixture fetched.
 run() {
+  local -a docs_args=()
+  if [[ -z "${DOCS_FIXTURE:-}" && -z "${RUN_FETCH:-}" && " ${*:2} " != *" --docs-dir "* ]]; then
+    docs_args=(--docs-dir "$DOCS")
+  fi
   SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$1/project" \
     SETTINGS_AUDIT_ENGINE_USER_DIR="$1/user" \
     SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$1/registry.json" \
@@ -226,7 +236,7 @@ run() {
     DOCS_CACHE_DIR="$(mktemp -d "$TEST_TMPDIR/cache-run.XXXXXX")" \
     SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="${CLI_BIN:-$CLI}" \
     CLAUDE_CODE_DEBUG_LOGS_DIR="" \
-    bash "$SCRIPT" "${@:2}"
+    bash "$SCRIPT" "${@:2}" ${docs_args[@]+"${docs_args[@]}"}
 }
 
 CLEAN_SETTINGS='{"$schema":"https://json.schemastore.org/claude-code-settings.json","permissions":{"deny":["Read(./.env)","Read(**/*.pem)","Bash(git push --force *)","Bash(git reset --hard *)"],"ask":["Bash(git push *)"],"allow":["Bash(git commit *)","Bash(git fetch *)","Bash(git stash *)"]}}'
@@ -815,7 +825,7 @@ assert_eq "case 23: deprecated since the installed version itself is a warning" 
 # --- Case 24: the document lists every page it read, with byte counts ---------
 m="$(make_machine coverage)"
 printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
-out=$(run "$m" --json 2>&1) || true
+out=$(RUN_FETCH=1 run "$m" --json 2>&1) || true
 assert_eq "case 24: index read with its byte count" "read $(wc -c <"$DOCS/llms.txt" | tr -d ' ')" "$(jq -r '.docs.index | "\(.state) \(.bytes)"' <<<"$out")"
 assert_eq "case 24: settings-reference resolved from the index" "read fixture https://code.claude.com/docs/en/settings-reference.md" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | "\(.state) \(.source) \(.url_or_path)"' <<<"$out")"
 assert_eq "case 24: its byte count is the page's" "$(wc -c <"$DOCS/settings-reference.md" | tr -d ' ')" "$(jq -r '.docs.pages[] | select(.slug=="settings-reference") | .bytes' <<<"$out")"
@@ -930,7 +940,7 @@ assert_eq "case 29: for the deep-link key too" "skip" "$(jq -r '.rows[] | select
 # --- Case 30: the table prints the version and the docs coverage --------------
 m="$(make_machine tablecoverage)"
 printf '%s\n' "$CLEAN_SETTINGS" >"$m/project/.claude/settings.json"
-out=$(run "$m" --table 2>&1) || true
+out=$(RUN_FETCH=1 run "$m" --table 2>&1) || true
 assert_contains "case 30: table prints the version" "$out" "Claude Code: 2.1.281 (read"
 assert_contains "case 30: table prints the index" "$out" "index: read $(wc -c <"$DOCS/llms.txt" | tr -d ' ') bytes"
 assert_contains "case 30: table prints each page" "$out" "settings-reference: read $(wc -c <"$DOCS/settings-reference.md" | tr -d ' ') bytes"
