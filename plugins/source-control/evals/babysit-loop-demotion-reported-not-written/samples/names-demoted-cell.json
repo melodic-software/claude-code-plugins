@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Promotion evidence: C2-auto-merge: bound promoted -> effective unpromoted, ceiling lowered by contrary evidence (reverted-merge at 2026-10-12T14:03:00Z) WITHOUT modifying the binding."},
+    {"answer": "| Cell | Bound | Effective |\n|---|---|---|\n| C2-auto-merge | promoted | unpromoted (demoted by a reverted merge) |", "why": "table row"},
+    {"answer": "Demoted this cycle: C2-auto-merge, after a reverted merge. The binding stays as ratified.", "why": "demotion named before the cell"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "Both PRs route to the safe pass this cycle.", "why": "no cell named"},
+    {"answer": "C2-auto-merge: bound promoted -> effective promoted.\nC3-auto-merge: effective unpromoted.", "why": "the C2 line says promoted; the unpromoted cell is on another line"}
+  ]
+}

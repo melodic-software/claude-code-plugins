@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "source-control:babysit-loop", "args": "eval-fixture/app worker --drain"}}]},
+    {"answer": [{"tool": "Skill", "input": {"skill": "babysit-loop"}}], "why": "unqualified name"}
+  ],
+  "fail": [
+    {"answer": []},
+    {"answer": [{"tool": "Skill", "input": {"skill": "source-control:babysit-prs"}}], "why": "the single-pass mechanic, not the lane"}
+  ]
+}

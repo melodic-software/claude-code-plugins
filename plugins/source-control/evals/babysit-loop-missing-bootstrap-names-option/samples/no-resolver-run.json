@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": [{"tool": "Bash", "input": {"command": "sed -n 1,40p /plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs"}}], "why": "reading the helper is not running it"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs --checkout /work"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/autonomy/skills/setup/scripts/check-security-binding.mjs /op/binding.json --evidence /op/events.json"}}], "why": "the checker run directly"}
+  ]
+}
