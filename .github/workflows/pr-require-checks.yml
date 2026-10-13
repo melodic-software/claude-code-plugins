@@ -5,8 +5,9 @@ on:
   workflow_dispatch:
   # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
   # repository's merge-queue ruleset, with the org `pull_request` rule and no
-  # bypass actor), and the queue merges a commit only after this workflow
-  # passed on that same SHA in its merge-group run. A push run re-tested the
+  # bypass actor; github-iac GovernedRepositories.cs), and the queue merges a
+  # commit only after this workflow passed on that same SHA in its
+  # merge-group run. A push run re-tested the
   # SHA the queue had just passed: all 55 main pushes from 2026-10-03T22:40Z
   # to 10-04T17:41Z did, for 591 job minutes. The check runs that merge-group
   # run left stay on the commit.
@@ -506,11 +507,12 @@ jobs:
   #
   # The job skips only on a contract-only event or a draft; otherwise only
   # steps are gated. A skipped required lane's result is not `success`, which
-  # the ci-status aggregate rejects, a draft's included, and a workflow
+  # the ci-status aggregate rejects outside a draft, and a workflow
   # skipped by a path filter leaves its required check Pending forever. A
-  # draft lints nothing and its ci-status is red: the `ready_for_review` run
-  # lints the same SHA before the pull request can merge, and a draft run that
-  # lints is a runner the 60-job cap pays for and nothing gates on.
+  # draft lints nothing and its ci-status passes: the `ready_for_review` run
+  # lints the same SHA, the merge queue re-runs every lane before a merge, and
+  # a draft run that lints is a runner the 60-job cap pays for and nothing
+  # gates on.
   #
   # PR-ONLY STEPS BRANCH IN THE SHELL, NOT IN `if:`. A step cannot carry both a
   # resolver gate and an event gate: the docs-only gate reads a step condition
@@ -2837,36 +2839,17 @@ jobs:
           # linkage check and its pull requests stay mergeable. An exact-login
           # match, never a `*[bot]` pattern.
           exempt-authors: 'dependabot[bot]'
-      # A DRAFT IS RED. Every lane skips on a draft, so its ci-status has linted
-      # and tested nothing. Between the flip to ready and the `ready_for_review`
-      # run's own ci-status check run (minutes later), the draft's ci-status is
-      # the newest one on the SHA, so a green draft would let a merge through on
-      # nothing. The aggregate below fails on the skipped lanes and records
-      # `ci-lanes=failure`; this step says why.
-      #
-      # A re-run keeps the payload of the event that started the run, so a
-      # contract-only run from the draft era that a full run re-runs after
-      # ready_for_review still carries draft: true; the live state decides.
-      # A contract-only run tests nothing either way; the `ci-lanes` status
-      # decides it. An unreadable state fails closed.
-      # Pinned by scripts/ci-fail-a-draft.test.sh, which runs this body.
-      - name: Fail a draft
+      # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
+      # and tested nothing, and the aggregate below passes those skips. A green
+      # draft cannot admit a merge: a draft cannot merge, and the merge-queue
+      # ruleset has no bypass actor, so every merge waits for this workflow's
+      # merge-group run, which runs every lane. This step says why it is green.
+      - name: Note a draft
         if: github.event.pull_request.draft == true
-        env:
-          # Only a contract-only run reads its verdict from ci-lanes, so only it
-          # may pass on the live state. A re-run of a draft-era full run still
-          # skipped its lanes and is refused.
-          CONTRACT_ONLY: ${{ github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base)) }}
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
         run: |
-          if [ "$CONTRACT_ONLY" = true ] &&
-            [ "$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .draft)" = false ]; then
-            echo "Marked ready since this run's event; the ci-lanes status decides."
-            exit 0
-          fi
-          echo "::error::draft: lanes not run. Mark the pull request ready to lint and test this SHA."
-          exit 1
+          msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
+          echo "::notice::$msg"
+          echo "$msg" >>"$GITHUB_STEP_SUMMARY"
       # A QUEUED PULL REQUEST IS HELD BY ITS LABEL TOO. A merge-group payload
       # carries no pull request, so `check-contract` above reports `skipped`,
       # and a `do-not-merge` label applied after enqueue would merge (#5952).
@@ -2945,8 +2928,9 @@ jobs:
           # for the lane list — through the ordered-skip check. Adding a lane
           # to needs automatically extends this check.
           results: ${{ steps.lanes.outputs.results }}
-          # A `skipped` lane is red, a draft's included (see `Fail a draft`).
-          treat-skipped-as: fail
+          # A `skipped` lane is red, except on a draft, where every lane skips
+          # (see `Note a draft`).
+          treat-skipped-as: ${{ github.event.pull_request.draft && 'pass' || 'fail' }}
           # `carry-forward-wait-seconds: '0'` means no carry-forward wait. Under
           # `yield-to-full-run` the composite may re-read for up to 30 s, only
           # when the in-flight full run has already written `success` and its
