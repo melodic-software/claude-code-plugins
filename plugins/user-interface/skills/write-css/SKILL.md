@@ -76,6 +76,9 @@ Run the steps in order before writing CSS: step 3 needs what steps 1 and 2 found
   source at all, say so, use your own values, and list each as a default the user can replace.
 - **Layers**: new CSS goes in a low-priority `@layer` (`css.layer` when set, otherwise one you name
   as a default) only when the project has no layer system; otherwise use the project's mechanism.
+- **Motion values**: the project's own easing and duration tokens first; where it has none, the
+  curves in `animation.easing` (four control points, written as `cubic-bezier()`) and the role
+  durations in `animation.duration_ms`. Name each one you used as a default.
 - **`!important`**: only with a stated reason, and only as `css.important` allows: `avoid` (when
   nothing else works), `utilities-only` (utility classes), `allow`.
 - **Techniques**: before writing, read the topic references whose row matches the work; one
@@ -108,7 +111,9 @@ moves to its topic reference.
 - `color`: colors in `oklch()`, with `none` as the hue of grays; variants via `color-mix(in oklch, …)`.
 - `transition-all`: a transition names its properties, never `all`.
 - `motion`: a transition that moves or scales sits inside `@media (prefers-reduced-motion: no-preference)`.
-- `duration`: a UI transition takes 300ms or less; a modal or drawer up to 500ms.
+- `duration`: a UI transition lasts no longer than its role in `animation.duration_ms`: `press` for
+  press feedback, `small` for tooltips and small popovers, `medium` for dropdowns, menus and any
+  other UI transition (hover, color, focus), `large` for modals, dialogs, drawers, sheets and toasts.
 
 Details: `hover` and `outline` in interaction.md, `logical` and `color` in foundations.md, the rest
 in motion.md.
@@ -127,9 +132,12 @@ The ids come from `config.values.css.rules.disable`; they are a closed set, safe
 Exit 0 is clean, 1 has findings, 2 is a usage error or crash: report a 2, never read it as clean.
 Report every finding as `path:line [rule-id] message` under `## Findings`, then `## Suppressed`,
 then `## Judgment`. Under Suppressed, list each finding a project convention contradicts, with the
-convention's file as the reason. Point at the project's Stylelint or `@eslint/css` config when
-`project.lint` shows one. [reference/review.md](reference/review.md) holds the output contract and
-the cases without `node`.
+convention's file as the reason. The linter's `duration` check uses fixed limits of its own, so
+judge each `duration` finding against the role in `config.values.animation.duration_ms`: a finding
+within its role moves to Suppressed with `animation.duration_ms` as the reason, and a duration over
+its role that the linter missed goes under Judgment. Point at the project's Stylelint or
+`@eslint/css` config when `project.lint` shows one. [reference/review.md](reference/review.md)
+holds the output contract and the cases without `node`.
 
 ## Settings
 

@@ -14,8 +14,10 @@
 #
 # With node on PATH it exits 0 and prints nothing. Without node it prints one
 # SessionStart notice to the user (systemMessage; only the user can install
-# node), then exits 0, because Claude Code
-# reads hook JSON only from a zero exit. Every plugin's notice shares one latch
+# node), then exits 0, the exit code these hooks use whenever they print JSON
+# (https://code.claude.com/docs/en/hooks#exit-code-0, as of 2026-10-11; recheck
+# when that section changes the exit code it names for JSON output). The
+# prerequisites.mjs probe follows this record. Every plugin's notice shares one latch
 # keyed by session id in the temp directory, so a session sees it once. Old
 # latch files stay until the OS clears the temp directory. A plugin's kill
 # switch (CLAUDE_PLUGIN_OPTION_<name>) set to anything but true silences it.

@@ -90,6 +90,36 @@
         "The lane cursor does not advance, so the next real run still selects core-logic's position in the rotation",
         "No tracker item is filed under --dry-run"
       ]
+    },
+    {
+      "id": 7,
+      "name": "lens-5-hardcoded-plural-survives-gate",
+      "prompt": "/bugs:scan evals/fixtures/member-card/member-card.js",
+      "expected_output": "The target renders user-facing data, so Lens 5 (display formatting and fallbacks) is dispatched. It reports, with verbatim evidence, the plural built by appending \"projects\" to projectCount (\"1 projects\"), the initials taken from split()[0][0] and split()[1][0] that throw or mislead on a one-word or space-led name, and the avatar image with no fallback. The hardcoded-plural finding survives the verification gate because a wrongly rendered value is not a formatting opinion.",
+      "files": [
+        "evals/fixtures/member-card/member-card.js"
+      ],
+      "expectations": [
+        "Lens 5 is dispatched for this rendering target",
+        "A verified finding names the hardcoded plural at the projects line with a verbatim quote",
+        "The initials code is reported as breaking on a one-word name",
+        "The hardcoded-plural finding is reported as a defect, not dismissed as a style or formatting opinion"
+      ],
+      "difficulty": "hard",
+      "why_hard": "A one-file target is a small scope that runs only one or two lenses, so Lens 5 must be chosen for a rendering surface, and the hunter must report the plural rather than drop it as a formatting opinion under the shared excluded-classes rule"
+    },
+    {
+      "id": 8,
+      "name": "lens-5-not-dispatched-for-non-rendering-code",
+      "prompt": "/bugs:scan evals/fixtures/rate-limiter/rate-limiter.js",
+      "expected_output": "The target renders no user-facing data, so Lens 5 is not dispatched; the run metadata lists the lenses used without Lens 5.",
+      "files": [
+        "evals/fixtures/rate-limiter/rate-limiter.js"
+      ],
+      "expectations": [
+        "Lens 5 is not dispatched",
+        "The run metadata names the lenses used"
+      ]
     }
   ]
 }

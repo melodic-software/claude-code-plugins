@@ -57,29 +57,24 @@ engine plan:
    evidence is still absent, that evidence is report-level, outside the engine's checks.
 
    **A file you write into `<run-dir>` is a protected-path write.** The run directory sits under
-   `${CLAUDE_PLUGIN_DATA}`, which is `~/.claude/plugins/data/<id>/` in the default configuration,
-   and `.claude` is a protected directory. A `CLAUDE_CONFIG_DIR` elsewhere moves the data root, and
-   a directory not named `.claude` is not covered by the protected list. A Write of
-   `handoff-paths.json` or `vcs-evidence.json` therefore prompts in `default` and `acceptEdits`,
-   costs a classifier round trip in `auto`, and is denied in `dontAsk`. No `permissions.allow` rule
-   pre-approves it. Inline `--path` writes nothing, which is one more reason it is the
-   per-deletion form. When the prompt offers "Yes, and allow Claude to edit files in its ~/.claude
-   folder for this session", that option approves every later write anywhere under `~/.claude/` for
-   the rest of the session: settings, memory, and every plugin's data, not just this run directory.
-   Answer the single prompt instead unless the operator wants that breadth. In `dontAsk` the
-   evidence file cannot be written, so the standalone-checkout exception below is unavailable
-   there, while inline `--path` verification still runs.
-   **Claim:** `.claude` is a protected directory, whose writes are prompted in `default` and
-   `acceptEdits`, routed to the classifier in `auto`, and denied in `dontAsk`; settings allow rules
-   do not pre-approve them; and the `~/.claude/` prompt carries the session-scoped option quoted
-   above. `${CLAUDE_PLUGIN_DATA}` resolves under `~/.claude/plugins/data/`. **Basis:**
-   [protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths)
-   ("`permissions.allow` rules in settings files do not pre-approve protected-path writes"; the
-   per-mode table; "`.claude`, except for `.claude/worktrees`") and
-   [environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
-   ("`~/.claude/plugins/data/<id>/`"). **As of:** 2026-09-28. **Recheck:** when the protected-paths
-   section changes its directory list, its per-mode table, or its session-scoped options, or when
-   the run directory moves out of `${CLAUDE_PLUGIN_DATA}`.
+   `${CLAUDE_PLUGIN_DATA}`, inside the Claude configuration directory in the default configuration,
+   so a Write of `handoff-paths.json` or `vcs-evidence.json` gets the protected-path handling of the
+   session's permission mode: it may prompt, go to the classifier, or be denied. Do not try to
+   pre-approve it with an allow rule. A `CLAUDE_CONFIG_DIR` elsewhere moves the data root, and with
+   it whether the write is protected. Inline `--path` writes nothing, which is one more reason it is
+   the per-deletion form. When the prompt offers a session-wide option for the configuration folder,
+   that option approves every later write anywhere under it for the rest of the session: settings,
+   memory, and every plugin's data, not just this run directory. Answer the single prompt instead
+   unless the operator wants that breadth. In a mode that denies the write, the evidence file cannot
+   be written, so the standalone-checkout exception below is unavailable there, while inline
+   `--path` verification still runs.
+   - **Pointer**: when checking which directories are protected, how each mode handles a
+     protected-path write, its session-scoped option, or where `${CLAUDE_PLUGIN_DATA}` resolves,
+     fetch [Protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths) and
+     [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+     live. **As of**: 2026-10-11. **Recheck trigger**: the protected-paths section changes its
+     directory list, per-mode handling or session-scoped options, the environment-variables section
+     moves the data path, or the run directory moves out of `${CLAUDE_PLUGIN_DATA}`.
 
    A standalone Git checkout can reach `clear` only through an additional, explicit evidence file.
    Never use this for a linked worktree, a tracked subdirectory, or non-Git VCS. After the operator
@@ -193,11 +188,18 @@ engine plan:
 
 The PowerShell guard lane turns deletion spellings into a hook-issued `ask` (the same
 bar as the engine apply prompt). Confirm that prompt only when the command matches the exact
-approved list. An explicit `permissions.ask` rule for those spellings is what the official
-hooks and settings pages treat as forcing a prompt in `auto` and `bypassPermissions`; in
-`dontAsk` it is denied instead. Add one if the handoff must not depend on hook-`ask`
-surfacing, and leave `dontAsk` first when the operator needs the confirm prompt. Engine
-invocations from PowerShell stay hard-denied.
+approved list. Add an explicit `permissions.ask` rule for those spellings if the handoff must
+not depend on hook-`ask` surfacing, and leave `dontAsk` first when the operator needs the
+confirm prompt.
+
+- **Pointer**: when checking how a hook `ask` or a `permissions.ask` rule behaves in each mode,
+  fetch [PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control),
+  [auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode) and
+  [dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode)
+  live. **As of**: 2026-10-11. **Recheck trigger**: a section changes whether either kind of `ask`
+  prompts in a mode.
+
+Engine invocations from PowerShell stay hard-denied.
 
 A deletion word inside a quoted literal (a commit message, a search term, an issue body) does
 not prompt when every command in the line is on a short list of commands that never run their
@@ -211,10 +213,11 @@ bodies through `--body-file <path>` or `-F <path>`.
 
 ## Hook registration outlives the cleanup
 
-Claude Code registers a skill's frontmatter hooks when the
-skill is invoked and keeps them registered for the **rest of the session**. There is no
-harness-level "while the skill is active" window for hooks. So once `/disk-hygiene:clean`
-has run, the deny-by-default Bash lane and the PowerShell deletion prompts keep applying to
+This skill's frontmatter hooks stay registered for the **rest of the session** once
+`/disk-hygiene:clean` has run
+([Hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents),
+as of 2026-10-11; recheck when that section changes how long a skill's hooks stay registered).
+So the deny-by-default Bash lane and the PowerShell deletion prompts keep applying to
 unrelated later work in the same session, not only to this cleanup. Say so when a later,
 unrelated command is blocked or prompted, rather than treating it as a surprise; the session's own
 end is what clears it. Both registration surfaces, the kill switch, and what the belt does and does not

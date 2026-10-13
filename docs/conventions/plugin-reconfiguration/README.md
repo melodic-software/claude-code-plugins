@@ -27,6 +27,12 @@ consumer-run.
   `already installed` **and still writes the value**. The short-circuit is about the install, not
   the config write.
 
+Claude Code now also documents a non-interactive `claude plugin configure` subcommand:
+[plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
+(as of 2026-10-11). No probe here has measured it against the caveats below, so setups keep
+printing the two routes above. Recheck: a probe of that subcommand lands in the verified-version
+record.
+
 ## Verified-version record
 
 Measured on **Claude Code 2.1.283** (sandbox probe, 2026-09-27):

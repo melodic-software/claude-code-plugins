@@ -1,0 +1,31 @@
+// expect: rule-zero-assertion
+// A [Then] step written with the Attribute suffix or the Reqnroll namespace is
+// the same step attribute, so it is judged as a test too. Neither step checks
+// the profile, so the scenario passes whatever Save did.
+using System;
+using Reqnroll;
+
+[Binding]
+public class ProfileStepDefinitions
+{
+    private Profile _profile;
+
+    [When(@"the profile is saved")]
+    public void WhenTheProfileIsSaved()
+    {
+        _profile = Profile.Sample();
+        _profile.Save();
+    }
+
+    [ThenAttribute(@"the profile is stored")]
+    public void ThenTheProfileIsStored()
+    {
+        Console.WriteLine(_profile);
+    }
+
+    [global::Reqnroll.Then(@"the profile is listed")]
+    public void ThenTheProfileIsListed()
+    {
+        Console.WriteLine(_profile.Name);
+    }
+}

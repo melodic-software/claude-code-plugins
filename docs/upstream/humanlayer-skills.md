@@ -160,7 +160,7 @@ Questions**. Upstream text: "Present one decision at a time with its options and
 wait for the user's answer." On a decision it moves the choice to the resolved section and records
 "the chosen approach, rationale, and why the alternatives were set aside."
 
-Relation vocabulary as in [`mattpocock-skills-v12-map.md`](mattpocock-skills-v12-map.md) (DERIVED,
+Relation vocabulary as in the [`mattpocock-skills.md` Map](mattpocock-skills.md#map) (DERIVED,
 PARTIAL, CONVERGENT, NONE). "Why upstream" is **stated** when the author says it (skill text, a test
 name, or HumanLayer's [Advanced Context Engineering](https://github.com/humanlayer/advanced-context-engineering-for-coding-agents/blob/main/ace-fca.md)
 essay) and **inference** when it is derived from the mechanism. Disposition names the #6917

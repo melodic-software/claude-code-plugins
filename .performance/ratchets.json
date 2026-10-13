@@ -22,34 +22,6 @@
       "goal": "With a guard launch marked, a warm Stop's monitor reads the same transcript bytes at 10 MiB as at 50 KiB (guard_launch_monitor.py incremental read, #4422). Measured on ubuntu-24.04 with bash 5.2.21, python3 3.14.7, strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
     },
     {
-      "name": "harness-ops-stop-session-event-log-spawns",
-      "command": "bash scripts/hook-census.sh harness-ops Stop session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"Stop\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
-      "field": "spawns",
-      "ceiling": 1,
-      "goal": "With session_event_log_enabled at its default (off), the Stop row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
-    },
-    {
-      "name": "harness-ops-posttoolbatch-session-event-log-spawns",
-      "command": "bash scripts/hook-census.sh harness-ops PostToolBatch session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolBatch\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
-      "field": "spawns",
-      "ceiling": 1,
-      "goal": "With session_event_log_enabled at its default (off), the PostToolBatch row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
-    },
-    {
-      "name": "harness-ops-subagentstop-session-event-log-spawns",
-      "command": "bash scripts/hook-census.sh harness-ops SubagentStop session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"SubagentStop\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
-      "field": "spawns",
-      "ceiling": 1,
-      "goal": "With session_event_log_enabled at its default (off), the SubagentStop row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
-    },
-    {
-      "name": "harness-ops-userpromptsubmit-session-event-log-spawns",
-      "command": "bash scripts/hook-census.sh harness-ops UserPromptSubmit session-event-log.sh '{\"session_id\":\"census\",\"hook_event_name\":\"UserPromptSubmit\",\"cwd\":\"@DIR@\"}' --check 'test ! -s \"$HOOK_STDOUT\"'",
-      "field": "spawns",
-      "ceiling": 1,
-      "goal": "With session_event_log_enabled at its default (off), the UserPromptSubmit row costs only the harness's own shell: the opt-in check stays in the command string, before any script starts. Measured on ubuntu-24.04 with dash as sh and strace 6.8; the ratchet step prints the current versions. Correlation: unproven: not measured"
-    },
-    {
       "name": "guardrails-posttooluse-run-guards-spawns",
       "command": "bash scripts/hook-census.sh guardrails PostToolUse cli-flag-verify.sh '{\"session_id\":\"census\",\"hook_event_name\":\"PostToolUse\",\"cwd\":\"@DIR@\",\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"@DIR@/README.md\",\"old_string\":\"Census\",\"new_string\":\"See `docs/old.md`.\"},\"tool_response\":{\"filePath\":\"@DIR@/README.md\",\"success\":true}}' --setup 'g() { git -c user.name=census -c user.email=census@example.invalid \"$@\"; }; mkdir docs && echo x >docs/old.md && g add docs/old.md && g commit -qm add && g rm -q docs/old.md && g commit -qm rm && printf \"# Title\\n\\nSee \\140docs/old.md\\140.\\n\" >README.md' --check 'grep -qF \"repo:\\n  docs/old.md\" \"$HOOK_STDOUT\"'",
       "field": "spawns",

@@ -4,7 +4,7 @@ The two per-concept teaching artifacts. A **lesson** delivers learning; a **refe
 
 ## Lesson: the ephemeral teaching unit
 
-`concepts/<concept>/lesson.html`, or `lesson.md`, never both, per "Lesson format: HTML-first, platform-aware" below. The primary unit of teaching: ONE tightly-scoped thing, tied to the mission, in the user's zone of proximal development, completable quickly for a tangible win.
+`concepts/<concept>/lesson.html`, or `lesson.md`, never both, per "Lesson format: HTML-first, platform-aware" below. A lesson covers a single narrow point that serves the mission and sits just past what the learner already knows, and it ends quickly with something the learner can show for it.
 
 - **One thing only.** If it needs "and", split into two concepts. Teaching ONE thing keeps the lesson in the ZPD and the slice tight.
 - **Ephemeral.** Lessons are rarely revisited. A lesson is the teaching moment, not the keepsake. Low rot risk; regenerable.

@@ -113,7 +113,10 @@ function opts(agentType, variant) {
 
 // One retry for a thrown dispatch, a null result is final, and an error naming
 // a cap or budget is rethrown without a retry. For agent()'s null and error
-// contract, see the bundled /workflow-authoring skill.
+// contract, see the bundled /workflow-authoring skill; the null result is also
+// https://code.claude.com/docs/en/workflows#what-the-saved-script-looks-like
+// (as of 2026-10-11; recheck when that section changes when agent() resolves
+// to null).
 async function agentRetry(prompt, o) {
   for (let attempt = 1; ; attempt++) {
     try {

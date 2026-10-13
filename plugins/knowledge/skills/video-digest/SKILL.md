@@ -160,8 +160,12 @@ model in `context/watch-pipeline.md`)
 - **Phase 9. Outcome verification**. `check-watch-outcomes.js "<slice-dir>" --write-report` must
   exit 0, then `watch/watch-state.js close <slice-dir>` closes the slice
 
-**Phase markers.** After each phase, `watch/watch-state.js mark-phase <slice-dir> <phase>`
-(idempotent). Never `mark-phase` while that phase's verify script fails. `close` is the only path
+**Phase markers.** `run-watch.js` marks `acquire`, `transcript`, `watching` and `harvest`. Mark
+the rest with `watch/watch-state.js mark-phase <slice-dir> <marker>` (idempotent): `companion`
+after the optional companion digest, once the CLI bootstrap has written `watch.json`, `vision`
+after vision planning through the high-volume advisory, and `research` after the research stage;
+`close` ends synthesis through outcome
+verification. Never `mark-phase` while that phase's verify script fails. `close` is the only path
 to `status: complete`: it marks synthesis, re-runs the outcome checks (blocking checklist
 included), and writes `complete` only on a pass. `mark-phase <slice-dir> synthesis` delegates to
 it.

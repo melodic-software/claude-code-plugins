@@ -14,7 +14,11 @@ metadata:
 
 Run the read-only check. Do not run `apply`. Do not install or download.
 
-**Claim:** `disable-model-invocation` is a property of the whole skill, so this skill is the model-invocable check while `setup` stays manual. **Basis:** [skills](https://code.claude.com/docs/en/skills), field `disable-model-invocation` ("Set to `true` to prevent Claude from automatically loading this skill. Use for workflows you want to trigger manually with `/name`. ... Default: `false`."), fetched 2026-09-29. **As of:** 2026-09-29. **Recheck:** a Claude Code release adds a per-action invocation flag, or that field's description stops applying to the whole skill.
+The check lives in its own skill so it can stay model-invocable while `setup` stays manual.
+
+- **Pointer**: when deciding what a skill's invocation setting can gate, fetch [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) (the `disable-model-invocation` row) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section adds a per-action invocation setting, or `disable-model-invocation` stops applying to the whole skill.
 
 ## Check
 
