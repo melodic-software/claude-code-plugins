@@ -82,8 +82,8 @@ Each entry gives:
   whose `samples` is 0 is not recorded as measured. An area left with no recorded number is
   `not-checked`, `no-data`: when the call listed nothing (`runs_listed` or `prs` is 0), with the
   area's own reason below. When no `ci-timing` workflow has a `success` in its `outcomes`: reason
-  "none of the <runs_listed> completed runs read succeeded; this area times successful runs only,
-  because a failed or cancelled run stops early". Otherwise count the excluded items: the number's
+  "none of the <runs_listed> completed runs read succeeded; this area times successful runs
+  only". Otherwise count the excluded items: the number's
   `excluded`, plus its workflow's `runs_excluded` for a `ci-timing` number. Above 0: reason "every timed sample was excluded
   (<that count> excluded): their timestamps were missing or unparsable; this area times only items
   whose GitHub timestamps parse". Zero: reason "the runs

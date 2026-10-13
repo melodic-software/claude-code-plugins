@@ -586,7 +586,7 @@ assert_eq "re-runs are runs with attempt above 1, out of the runs listed" "3 cou
 assert_eq "runs listed and runs timed are reported" "6 5" "$(q '"\(.runs_listed) \(.workflows[0].runs_timed)"')"
 assert_eq "a workflow with timed steps keeps its own name, not a step's" "\`CI\`" "$(q .workflows[0].workflow)"
 assert_eq "the run list command is the gh line it ran" \
-  "gh run list --repo o/r --limit 20 --status completed --json databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowName" \
+  "gh run list --repo o/r --limit 20 --status completed --json databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowDatabaseId,workflowName" \
   "$(q .workflows[0].reruns.command)"
 JOBS_JQ="'[.jobs[] | {name, conclusion, created_at, started_at, completed_at, steps: [(.steps // [])[] | {name, conclusion, started_at, completed_at}]}]'"
 assert_eq "one jobs fetch per timed run, newest first" \
@@ -1018,6 +1018,21 @@ assert_eq "failed and cancelled runs' jobs are never fetched" "0" \
   "$(q '[.commands[] | select(test("runs/40[246]/"))] | length')"
 assert_eq "re-runs are counted per workflow over its listed runs" "0 4" \
   "$(wf CI '"\(.reruns.value) \(.reruns.samples)"')"
+
+# --- 35c. ruleset workflows: no workflowName, so runs group on workflowDatabaseId ---
+# Two ruleset workflows (ids 7 and 8) and one run with no workflow id or name at all; none of
+# them may merge with another.
+rs_run() { # <id> <created> <workflow id or null>
+  printf '{"databaseId":%s,"attempt":1,"createdAt":%s,"startedAt":%s,"updatedAt":%s,"conclusion":"failure","workflowDatabaseId":%s}' \
+    "$1" "$(T "$2")" "$(T "$2")" "$(T "$2")" "$3"
+}
+printf '[%s,%s,%s,%s]\n' "$(rs_run 501 10:00:00 7)" "$(rs_run 502 09:50:00 8)" \
+  "$(rs_run 503 09:40:00 7)" "$(rs_run 504 09:30:00 null)" >"$FIX/runs.json"
+gh_run ci-timing --repo o/r
+assert_eq "ci-timing exits 0 on unnamed ruleset runs" "0" "$RUN_RC"
+assert_eq "unnamed workflows stay apart by workflow id, an id-less run stays alone" \
+  "\`(unnamed workflow 7)\`:2 \`(unnamed run 504)\`:1 \`(unnamed workflow 8)\`:1" \
+  "$(q '[.workflows[] | "\(.workflow):\(.runs_listed)"] | join(" ")')"
 
 # --- 36. render keeps each finding on one line, whatever its title or reason holds ---
 doc "$WORK/multiline.json" '{"id":"git-1","key":"git/x","area":"git","title":"slow\n## injected\nend","status":"flag-only","reason":"why\n# heading"}'

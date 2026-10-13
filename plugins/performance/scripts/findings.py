@@ -1149,7 +1149,9 @@ def cmd_status_timing(args: argparse.Namespace) -> int:
     return 0
 
 
-RUN_FIELDS = "databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowName"
+RUN_FIELDS = (
+    "databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowDatabaseId,workflowName"
+)
 JOBS_JQ = (
     "[.jobs[] | {name, conclusion, created_at, started_at, completed_at,"
     " steps: [(.steps // [])[] | {name, conclusion, started_at, completed_at}]}]"
@@ -1228,12 +1230,22 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
     # Each workflow is its own pipeline, and a failed or cancelled run stops early, so a median
     # over every run listed describes whichever workflows and failures finished last. Runs are
     # grouped by workflow, and only successful ones are timed.
-    groups: dict[str, list[dict]] = {}
+    # A ruleset workflow's run has no workflowName, so runs group on the workflow's id, then its
+    # name, then the run itself; the name is only the label.
+    groups: dict[str, tuple[str, list[dict]]] = {}
     for run in listed:
-        groups.setdefault(str(run.get("workflowName") or "(unnamed)"), []).append(run)
+        wf_id, wf_name = run.get("workflowDatabaseId"), run.get("workflowName")
+        if wf_id:
+            key, label = f"id:{wf_id}", str(wf_name or f"(unnamed workflow {wf_id})")
+        elif wf_name:
+            key, label = f"name:{wf_name}", str(wf_name)
+        else:
+            key = f"run:{run.get('databaseId')}"
+            label = f"(unnamed run {run.get('databaseId')})"
+        groups.setdefault(key, (label, []))[1].append(run)
     workflows = [
-        workflow_timing(repo, name, group, job_runs, list_line)
-        for name, group in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))
+        workflow_timing(repo, label, group, job_runs, list_line)
+        for label, group in sorted(groups.values(), key=lambda g: (-len(g[1]), g[0]))
     ]
     return {
         "repo": repo,
