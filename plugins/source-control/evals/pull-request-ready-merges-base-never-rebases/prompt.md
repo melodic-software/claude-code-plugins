@@ -1,6 +1,7 @@
 ---
 description: Flip a draft to ready by merging the base and verifying last
 tags: [pull-request, source-control]
+plugins: ["../..", "gh-forge-path"]
 runs: 3
 max_turns: 25
 allowed_tools: [Read, Glob, Grep, Skill, Bash]

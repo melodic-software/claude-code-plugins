@@ -1,0 +1,17 @@
+{
+  "name": "gh-forge-path",
+  "version": "0.0.0",
+  "description": "Eval-only: puts the gh-forge stand-in first on the run's Bash PATH (fixtures/gh-forge/install.sh)",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "d=\"$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/eval-forge/bin\"; if [ -n \"$CLAUDE_ENV_FILE\" ] && [ -x \"$d/gh\" ]; then printf 'export PATH=\"%s:$PATH\"\\n' \"$d\" >>\"$CLAUDE_ENV_FILE\"; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
