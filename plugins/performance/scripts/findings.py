@@ -48,7 +48,8 @@ whitespace collapsed and backticks turned to quotes.
 
 ci-timing reports each workflow apart, under workflows, most runs listed first: its name (a code
 span, like a job name), runs_listed, outcomes (conclusion to count) and re-runs over every run of
-it listed, and runs_timed plus the job and step numbers over its newest successful runs only. A
+it listed, runs_excluded (its successful runs with no parseable createdAt), and runs_timed plus
+the job and step numbers over its newest successful runs only. A
 failed, cancelled or skipped run stops early, so its length is not a CI run's length, and a
 median across workflows describes no one pipeline. A workflow with no successful run listed has
 samples 0 in every timed number.
@@ -1234,11 +1235,9 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
         workflow_timing(repo, name, group, job_runs, list_line)
         for name, group in sorted(groups.items(), key=lambda kv: (-len(kv[1]), kv[0]))
     ]
-    dated = [r for r in listed if parse_ts(r.get("createdAt")) is not None]
     return {
         "repo": repo,
         "runs_listed": len(listed),
-        "runs_excluded": len(listed) - len(dated),
         "workflows": workflows,
         "commands": [list_line, *(line for w in workflows for line in w["commands"])],
     }
@@ -1253,12 +1252,8 @@ def workflow_timing(
         outcome = inert(str(run.get("conclusion") or "unknown"))
         outcomes[outcome] = outcomes.get(outcome, 0) + 1
     # A run with no parseable createdAt cannot be ordered, so it is never timed.
-    dated = [
-        (t, r)
-        for r in listed
-        if r.get("conclusion") == "success"
-        and (t := parse_ts(r.get("createdAt"))) is not None
-    ]
+    succeeded = [r for r in listed if r.get("conclusion") == "success"]
+    dated = [(t, r) for r in succeeded if (t := parse_ts(r.get("createdAt"))) is not None]
     dated.sort(key=lambda tr: tr[0], reverse=True)
     newest = [r for _, r in dated[:job_runs]]
     waits: list[int] = []
@@ -1296,14 +1291,14 @@ def workflow_timing(
             for step in job.get("steps") or []:
                 if step.get("conclusion") == "skipped":
                     continue
-                name = str(step.get("name"))
+                step_name = str(step.get("name"))
                 took = span_ms(step.get("started_at"), step.get("completed_at"))
                 if took is None:
                     no_step += 1
-                    no_test += "test" in name.lower()
+                    no_test += "test" in step_name.lower()
                     continue
-                by_step.setdefault((str(job.get("name")), name), []).append(took)
-                if "test" in name.lower():
+                by_step.setdefault((str(job.get("name")), step_name), []).append(took)
+                if "test" in step_name.lower():
                     tests.append(took)
     jobs_cite = "; ".join(job_lines)
     length = stat(lengths, "ci-minutes", jobs_cite, no_length)
@@ -1327,6 +1322,7 @@ def workflow_timing(
         "runs_listed": len(listed),
         "outcomes": outcomes,
         "runs_timed": len(newest),
+        "runs_excluded": len(succeeded) - len(dated),
         "queue_wait": stat(waits, "wait-ms", jobs_cite, no_wait),
         "run_length": length,
         "slowest_step": slowest,

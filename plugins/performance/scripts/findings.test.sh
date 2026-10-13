@@ -584,6 +584,7 @@ assert_eq "test steps match 'test' in any case; their median over an even count"
 assert_eq "re-runs are runs with attempt above 1, out of the runs listed" "3 count 6" \
   "$(q '"\(.workflows[0].reruns.value) \(.workflows[0].reruns.unit) \(.workflows[0].reruns.samples)"')"
 assert_eq "runs listed and runs timed are reported" "6 5" "$(q '"\(.runs_listed) \(.workflows[0].runs_timed)"')"
+assert_eq "a workflow with timed steps keeps its own name, not a step's" "\`CI\`" "$(q .workflows[0].workflow)"
 assert_eq "the run list command is the gh line it ran" \
   "gh run list --repo o/r --limit 20 --status completed --json databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowName" \
   "$(q .workflows[0].reruns.command)"
@@ -696,7 +697,7 @@ printf '[%s,%s,%s]\n' "$(listed_run 201 1 12:00:00)" \
 gh_run ci-timing --repo o/r
 assert_eq "ci-timing exits 0 on a run with an unparsable createdAt" "0" "$RUN_RC"
 assert_eq "the undated run is listed, not timed, and counted as excluded" "3 2 1" \
-  "$(q '"\(.runs_listed) \(.workflows[0].runs_timed) \(.runs_excluded)"')"
+  "$(q '"\(.runs_listed) \(.workflows[0].runs_timed) \(.workflows[0].runs_excluded)"')"
 assert_eq "the undated run's jobs are never fetched" "0" "$(q '[.commands[] | select(contains("runs/202/"))] | length')"
 assert_eq "re-runs still count every listed run" "1 3" "$(q '"\(.workflows[0].reruns.value) \(.workflows[0].reruns.samples)"')"
 # PRs: one with reviews at 1h and an unparsable one (its earliest review is unknown), one with
