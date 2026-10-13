@@ -21,7 +21,7 @@
         {
           "tool": "Write",
           "input": {
-            "file_path": "/home/u/.mcp.json",
+            "file_path": ".mcp.json",
             "content": "{}",
             "old_string": "a",
             "new_string": "b"
