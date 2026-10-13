@@ -111,11 +111,43 @@ function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issue
   };
 }
 
+// The recorded check run and status name the post-merge gate in every case.
+const GATE = [REC.checkRun.name, REC.status.context];
+
 function run(fixture, extra = {}) {
-  return collect({ repo: REPO, since: SINCE, through: THROUGH, laneLogins: [LANE], missedBlockingLabel: MISSED, gh: github(fixture), ...extra });
+  return collect({ repo: REPO, since: SINCE, through: THROUGH, laneLogins: [LANE], gateChecks: GATE, missedBlockingLabel: MISSED, gh: github(fixture), ...extra });
 }
 
 const termOf = (result, cell, name) => result.cells[cell].terms.find((t) => t.term === name);
+
+test("only the named gate checks and status contexts are gate evidence", () => {
+  const other = (name, conclusion) => ({ ...REC.checkRun, name, conclusion, completed_at: "2026-09-01T00:10:00Z" });
+  const result = run({
+    pulls: [pr(1201, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })],
+    checkRuns: { 1201: [REC.checkRun, other("dispatch", "failure"), other("resolve-conflicts / run", "cancelled")] },
+    statuses: { 1201: [{ ...REC.status, context: "GitGuardian", state: "error" }] },
+  });
+  assert.deepEqual(result.events, []);
+  assert.deepEqual(termOf(result, "C2-auto-merge", "deterministic-gate pass").detail, { passed: 1, failed: 0, unsettled: 0, total: 1 });
+});
+
+test("no gate check named is refused rather than read as an empty gate", () => {
+  assert.throws(() => run({ pulls: [] }, { gateChecks: [] }), (error) => error instanceof PublishError && /--gate-check/.test(error.message));
+  const cli = spawnSync(process.execPath, [join(HERE, "publish-promotion-evidence.mjs"), "--repo", REPO, "--since", SINCE, "--lane-login", LANE], { encoding: "utf8" });
+  assert.equal(cli.status, 2);
+  assert.match(cli.stderr, /--gate-check/);
+});
+
+test("merges outside --since..--through appear in no list, count and event", () => {
+  const failing = (at) => [{ ...REC.checkRun, conclusion: "failure", completed_at: at }];
+  const result = run({
+    pulls: [pr(1202, "2026-07-31T00:00:00Z"), pr(1203, "2026-07-31T00:00:00Z", { labels: [MECHANICAL] }), pr(1204, "2026-10-06T00:00:00Z", { labels: [SCOPED] })],
+    checkRuns: { 1202: failing("2026-08-02T00:00:00Z"), 1203: failing("2026-08-02T00:00:00Z"), 1204: failing("2026-10-06T00:10:00Z") },
+  });
+  assert.deepEqual([result.events, result.unclassedAutonomous], [[], []]);
+  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
+  assert.equal(termOf(result, "C3-auto-merge", "autonomous C3 completions").value, 0);
+});
 
 test("a revert-button PR of an autonomous C2 merge yields reverted-merge at the revert's merge time", () => {
   const result = run({
@@ -209,7 +241,7 @@ test("a failure or error commit status, even one later superseded by success, yi
     { ...REC.status, state: "error", created_at: "2026-09-01T00:20:00Z" },
     { ...REC.status, context: "other", state: "failure", created_at: "2026-09-01T00:15:00Z" },
   ];
-  const result = run({ pulls: [pr(902, "2026-09-01T00:00:00Z", { labels: [SCOPED] })], statuses: { 902: statuses } });
+  const result = run({ pulls: [pr(902, "2026-09-01T00:00:00Z", { labels: [SCOPED] })], statuses: { 902: statuses } }, { gateChecks: [...GATE, "other"] });
   assert.deepEqual(result.events, [
     { cell: "C3-auto-merge", event: "gate-failure", at: "2026-09-01T00:15:00Z" },
     { cell: "C3-auto-merge", event: "gate-failure", at: "2026-09-01T00:20:00Z" },
@@ -324,6 +356,7 @@ test("a cancelled gate run counts as a failure unless a later run of the same ch
   });
   assert.deepEqual(result.events, [{ cell: "C2-auto-merge", event: "gate-failure", at: "2026-09-01T00:10:00Z" }]);
   assert.deepEqual(termOf(result, "C2-auto-merge", "deterministic-gate pass").detail, { passed: 1, failed: 1, unsettled: 0, total: 2 });
+  assert.deepEqual(result.gateFailures, [{ number: 1110, check: "lint-repo", conclusion: "cancelled", at: "2026-09-01T00:10:00Z" }]);
 });
 
 test("a revert seen in both the PR body and the squash commit yields one event at the earlier time", () => {

@@ -6,10 +6,10 @@
 // GraphQL query, and never runs inside the lane: the lane must not be able to write its output.
 //
 // Usage: node publish-promotion-evidence.mjs --repo <owner/name> --since <ISO> --lane-login <login> [--lane-login ...]
-//          [--through <ISO>] [--ai-reviewer <login> ...] [--missed-blocking-label <name>] [--out <dir>]
+//          --gate-check <check or context name> [--gate-check ...] [--through <ISO>] [--ai-reviewer <login> ...] [--missed-blocking-label <name>] [--out <dir>]
 // Exit 0 = report printed (and published with --out); 1 = publish refused; 2 = usage or GitHub read error.
 //
-// Report mode (no --out) prints {repo, since, through, events, unresolvedReverts, unclassedAutonomous, cells} to
+// Report mode (no --out) prints {repo, since, through, events, unresolvedReverts, gateFailures, unclassedAutonomous, cells} to
 // stdout and writes nothing. --through defaults to, and is clamped to, now. With --out it also
 // writes <dir>/evidence.json (the events array) and <dir>/evidence.meta.json ({generated_at,
 // through, sha256, prev_sha256}). Both temp files are written before either rename, the events
@@ -46,9 +46,15 @@
 //   commit as `Reverts <owner/repo>#<n>` (GitHub's revert button) or `This reverts commit
 //   <sha>` (git revert); one event per reverted merge, at the earliest revert seen. A merged PR
 //   titled revert... with neither form is listed in unresolvedReverts for a human to read.
-// - gate-failure: every check run on an autonomous merge's merge commit (filter=all, so a run
-//   later re-run green still counts) concluding failure, timed_out or startup_failure, and every
-//   commit status in state failure or error, whenever it completed. A run concluding cancelled,
+// - gate-failure: only the post-merge gate counts: check runs and commit-status contexts on an
+//   autonomous merge's merge commit whose name is a --gate-check (required; none named is a
+//   usage error, never an empty gate). In this repository babysit-prs/scripts/babysit_postmerge.py
+//   reads the post-merge gate as the silent-revert canary (post-merge-detect-silent-revert.yml,
+//   check run `Silent-revert canary` on the merge commit) and the full pr-require-checks.yml run
+//   (aggregate job `ci-status`), scheduled or dispatched on a later SHA containing the merge; this
+//   script reads the merge commit only, where `ci-status` is the merge_group run. Among those, every check run (filter=all, so a run later
+//   re-run green still counts) concluding failure, timed_out or startup_failure, and every
+//   status in state failure or error, whenever it completed. A run concluding cancelled,
 //   action_required, stale or anything else not green also counts, unless a later run of the
 //   same check name on that commit succeeded. The gate-pass term also fails while a run is in
 //   progress or a context's latest status is not success.
@@ -157,7 +163,9 @@ function eventKey(event) {
   return JSON.stringify([event.cell, event.event, event.at]);
 }
 
-export function collect({ repo, since, through, laneLogins, aiReviewers = [], missedBlockingLabel, gh = realGh }) {
+export function collect({ repo, since, through, laneLogins, gateChecks, aiReviewers = [], missedBlockingLabel, gh = realGh }) {
+  const gate = new Set(gateChecks ?? []);
+  if (gate.size === 0) throw new PublishError("at least one --gate-check naming the post-merge gate is required");
   const sinceMs = instant(since, "--since");
   const throughMs = Math.min(instant(through, "--through"), Date.now());
   const lane = new Set(laneLogins.map(loginKey));
@@ -245,6 +253,7 @@ export function collect({ repo, since, through, laneLogins, aiReviewers = [], mi
   };
   const reverts = [];
   const unresolvedReverts = [];
+  const gateFailures = [];
   for (const pr of merged) {
     const targets = revertsOf(pr.body);
     for (const target of targets) reverts.push({ ...target, at: pr.merged_at });
@@ -273,12 +282,12 @@ export function collect({ repo, since, through, laneLogins, aiReviewers = [], mi
     }
   }
 
-  // Post-merge gate on each autonomous merge commit: every check run and every commit status.
+  // Post-merge gate on each autonomous merge commit: the --gate-check runs and status contexts.
   // A run that did not finish green or red (cancelled, action_required, stale) fails the gate
   // unless a later run of the same check succeeded, so cancelling a red run cannot erase it.
   for (const r of tracked.filter((c) => c.autonomous)) {
-    const runs = pages(gh, `repos/${repo}/commits/${r.sha}/check-runs?filter=all`, "check_runs");
-    const statuses = pages(gh, `repos/${repo}/commits/${r.sha}/statuses`);
+    const runs = pages(gh, `repos/${repo}/commits/${r.sha}/check-runs?filter=all`, "check_runs").filter((run) => gate.has(run.name));
+    const statuses = pages(gh, `repos/${repo}/commits/${r.sha}/statuses`).filter((status) => gate.has(status.context));
     const outcome = (run) => {
       if (run.status !== "completed") return "unsettled";
       if (GATE_FAILED.has(run.conclusion)) return "failed";
@@ -294,6 +303,8 @@ export function collect({ repo, since, through, laneLogins, aiReviewers = [], mi
       for (const run of failedRuns) addEvent(cell, "gate-failure", run.completed_at ?? r.mergedAt);
       for (const status of failedStatuses) addEvent(cell, "gate-failure", status.created_at);
     }
+    for (const run of failedRuns) gateFailures.push({ number: r.number, check: run.name, conclusion: run.conclusion, at: run.completed_at ?? r.mergedAt });
+    for (const status of failedStatuses) gateFailures.push({ number: r.number, check: status.context, conclusion: status.state, at: status.created_at });
     const latest = new Map();
     for (const status of [...statuses].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))) {
       if (!latest.has(status.context)) latest.set(status.context, status.state);
@@ -325,6 +336,7 @@ export function collect({ repo, since, through, laneLogins, aiReviewers = [], mi
     through: new Date(throughMs).toISOString(),
     events: sorted,
     unresolvedReverts,
+    gateFailures,
     unclassedAutonomous: [...details.values()]
       .filter((r) => r.autonomous && r.cls === null && (tracked.includes(r) || r.reverted))
       .map((r) => ({ number: r.number, reason: r.reason })),
@@ -462,13 +474,14 @@ function main() {
         since: { type: "string" },
         through: { type: "string" },
         "lane-login": { type: "string", multiple: true },
+        "gate-check": { type: "string", multiple: true },
         "ai-reviewer": { type: "string", multiple: true },
         "missed-blocking-label": { type: "string", default: "ai-review: missed-blocking" },
         out: { type: "string" },
       },
     }));
-    if (!/^[\w.-]+\/[\w.-]+$/.test(values.repo ?? "") || !values.since || !values["lane-login"]?.length) {
-      throw new PublishError("--repo <owner/name>, --since <ISO> and at least one --lane-login are required");
+    if (!/^[\w.-]+\/[\w.-]+$/.test(values.repo ?? "") || !values.since || !values["lane-login"]?.length || !values["gate-check"]?.length) {
+      throw new PublishError("--repo <owner/name>, --since <ISO>, at least one --lane-login and at least one --gate-check are required");
     }
   } catch (error) {
     process.stderr.write(`usage: ${error.message}\n`);
@@ -480,6 +493,7 @@ function main() {
       since: values.since,
       through: values.through ?? new Date().toISOString(),
       laneLogins: values["lane-login"],
+      gateChecks: values["gate-check"],
       aiReviewers: values["ai-reviewer"] ?? [],
       missedBlockingLabel: values["missed-blocking-label"],
     });
