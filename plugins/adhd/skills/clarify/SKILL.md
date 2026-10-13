@@ -157,12 +157,15 @@ this invocation, and nothing documented reclaims the OS temp tree on a
 schedule, so write one file per run and never an accumulating tree. Resolve
 that one path deterministically: never
 branch on whether the harness injected a scratchpad path or set
-`CLAUDE_JOB_DIR`, and never depend on the session scratchpad, which is
-undocumented. Do not rely on a
-plugin-data substitution variable for this location either: skill-body
-substitution is documented only for a fixed set of variables, and an
-undocumented token can substitute unpredictably (including to the wrong
+`CLAUDE_JOB_DIR`, and never depend on the session scratchpad. Do not rely on a
+plugin-data substitution variable for this location either: a token outside the
+documented substitution set can substitute unpredictably (including to the wrong
 plugin's directory when the token travels through another skill's arguments).
+
+- **Pointer**: when choosing any `${…}` token for this skill's body, fetch
+  [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section adds a
+  plugin-data or temp-directory variable, or documents the session scratchpad.
 If no writable temp location nor the Artifact surface is available, drop to the
 terminal-markdown rung rather than writing into the repo.
 
@@ -205,9 +208,16 @@ Whichever medium, the decision table has numbered rows and these columns:
 When you publish an artifact, honor the Artifact tool contract. **Load the
 `artifact-design` skill for the design fundamentals when it is available**. It
 ships with the artifact surface, so it is normally present on the publish rung;
-if it is not, meet the contract's essentials directly rather than skipping them:
-a self-contained page (the baseline above), theme-aware, a title and one-line
-description, a favicon. Either way, the decision table is the page's spine. Keep
+if it is not, meet the Artifact tool's own stated requirements directly rather
+than skipping them, and keep the page self-contained (the baseline above).
+
+- **Pointer**: when `artifact-design` is absent, read the Artifact tool's
+  definition and fetch
+  [Page constraints](https://code.claude.com/docs/en/artifacts#page-constraints)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section adds or drops
+  a page requirement or limit.
+
+Either way, the decision table is the page's spine. Keep
 the treatment utilitarian, and this static table needs no runtime capabilities.
 Leave out a hero banner, italic accent words in
 headings, numbered "01 / 02 / 03" section labels (the `#` column is the only

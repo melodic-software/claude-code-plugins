@@ -10,8 +10,10 @@
 - **Description/discovery**: does the description make the agent findable for its intended tasks,
   and does it state when NOT to use it?
 - **Model**: does the definition name its model explicitly, so a dispatch that passes none does not
-  fall through to the session's model? Is `inherit` used only with a stated reason on the model
-  line?
+  fall through to whatever the resolution order picks? Is `inherit` used only with a stated reason
+  on the model line? When tracing that order, fetch
+  [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) live. As of
+  2026-10-11. Recheck trigger: that section changes the order a subagent's model resolves in.
 - **Tool scope**: least privilege, named honestly. Does it have the tools it needs and not
   dangerous extras? A Bash grant on a "read-only" agent is a claim to verify, not accept.
 - **Isolation implications**: a fresh subagent context has no parent history; does the agent's

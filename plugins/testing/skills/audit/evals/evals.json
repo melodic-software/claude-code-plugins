@@ -229,6 +229,69 @@
         "Output explains that a test passing on a rerun leaves the pytest run green",
         "Output proposes --fail-on-flaky in addopts or removing the reruns, and notes the finding gates only under --strict"
       ]
+    },
+    {
+      "id": 20,
+      "name": "not-to-throw-alone-is-weak",
+      "narration": true,
+      "prompt": "Our CI runs the can't-fail audit with --check --strict. This Jest test is new in src/invoice.test.ts:\n\nimport { expect, it } from '@jest/globals';\nimport { parseInvoice } from './invoice';\n\nit('parses a draft invoice', () => {\n  expect(() => parseInvoice(draftJson)).not.toThrow();\n});\n\nAudit it. Will the gate go red?",
+      "expected_output": "Reports testing/audit/rule-weak-oracle for the test: not.toThrow() is its only oracle and passes for whatever parseInvoice returns. States that the rule is report-only, so the finding prints but neither --check nor --check --strict exits 1 on it. Proposes asserting a field of the parsed invoice (its total or line count) against a value the spec states.",
+      "files": [],
+      "expectations": [
+        "Output reports testing/audit/rule-weak-oracle for the not.toThrow() assertion",
+        "Output says the finding does not fail --check --strict because the rule is report-only",
+        "Output proposes asserting a value parseInvoice returns instead of only that it does not throw"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "greater-than-zero-is-weak",
+      "narration": true,
+      "prompt": "Audit this Vitest test from src/search.test.ts:\n\nimport { expect, test } from 'vitest';\nimport { searchBooks } from './search';\n\ntest('finds books by author', () => {\n  expect(searchBooks({ author: 'Le Guin' }).length).toBeGreaterThan(0);\n});",
+      "expected_output": "Reports testing/audit/rule-weak-oracle: toBeGreaterThan(0) is the only oracle and passes for any non-empty result, including books by other authors. Notes the rule is report-only. Proposes asserting the exact titles or count a known catalogue fixture should return.",
+      "files": [],
+      "expectations": [
+        "Output reports testing/audit/rule-weak-oracle for the toBeGreaterThan(0) assertion",
+        "Output proposes asserting the specific books or count expected from a known catalogue"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "fixture-compared-to-fixture",
+      "narration": true,
+      "prompt": "Audit this test in src/address.test.ts:\n\nimport { expect, it } from '@jest/globals';\n\nit('keeps the postcode', () => {\n  const draft = { street: '4 Mill Lane', postcode: 'LS6 2AB' };\n  const want = { street: '4 Mill Lane', postcode: 'LS6 2AB' };\n  expect(draft.postcode).toBe(want.postcode);\n});",
+      "expected_output": "Reports testing/audit/rule-constant-restatement: draft and want are literals bound in the test and draft.postcode is compared to want.postcode with no code under test called, so the test checks its own fixture. Says the rule is report-only. Proposes passing draft through the address code under test and asserting on what it returns.",
+      "files": [],
+      "expectations": [
+        "Output reports testing/audit/rule-constant-restatement naming draft and want as literals bound in the test",
+        "Output says no code under test is called in the test",
+        "Output proposes calling the address code with the fixture and asserting on its result"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "type-test-file-is-not-scanned",
+      "narration": true,
+      "prompt": "Run the can't-fail audit on src/money.test-d.ts:\n\nimport { expectTypeOf, test } from 'vitest';\nimport { toCents } from './money';\n\ntest('toCents types', () => {\n  expectTypeOf(toCents).parameter(0).toBeNumber();\n});\n\nIt has no expect() call. Is that a zero-assertion test?",
+      "expected_output": "Says the file is not scanned: no adapter claims *.test-d.ts, because the type checker evaluates type-test files and nothing runs them, so the scan of that file names no adapter and reports no zero-assertion finding. Does not ask for a runtime assertion in it.",
+      "files": [],
+      "expectations": [
+        "Output says *.test-d.ts files are not scanned by the audit",
+        "Output does not report testing/audit/rule-zero-assertion for the type test",
+        "Output explains that the type checker evaluates the file rather than a runtime runner"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "relation-across-rows-is-an-exemption",
+      "prompt": "The audit flagged this with rule-constant-restatement:\n\nit('shipping bands meet', () => {\n  const bands = [{ from: 0, upTo: 2 }, { from: 2, upTo: 5 }, { from: 5, upTo: 20 }];\n  expect(bands[1].from).toBe(bands[0].upTo);\n  expect(bands[2].from).toBe(bands[1].upTo);\n});\n\nThe table is the shipping policy itself; the point is that no weight falls between two bands. How do I keep it?",
+      "expected_output": "Says a relation across rows of a declared table is a valid exemption reason: annotate each flagged assertion with cant-fail-ok: relation across rows on its line or the line above, and the finding is declined and counted in the coverage block. Does not tell the user to delete the test or rewrite it to call code.",
+      "files": [],
+      "expectations": [
+        "Output recommends a cant-fail-ok: annotation naming the relation across rows",
+        "Output says the exemption is counted in the coverage block rather than hidden",
+        "Output does not recommend deleting the test"
+      ]
     }
   ]
 }

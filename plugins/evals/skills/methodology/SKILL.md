@@ -11,8 +11,16 @@ metadata:
 # LLM evaluation methodology
 
 Distilled from a cover-to-cover reading of Anthropic's "Define success criteria and build
-evaluations" (<https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>) and its linked
-evals cookbook (`anthropics/claude-cookbooks` `misc/building_evals.ipynb`), fetched 2026-08-08.
+evaluations" and its linked evals cookbook (`anthropics/claude-cookbooks`
+`misc/building_evals.ipynb`).
+
+- **Pointer**: when a specific must be current, fetch
+  [Define your success criteria](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#define-your-success-criteria)
+  and [Build evaluations](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#build-evaluations)
+  live.
+- **As of**: 2026-08-08 (distilled); pointer anchors verified 2026-10-11
+- **Recheck trigger**: either section is retitled, moves, or changes the guidance this page's
+  rules rest on.
 
 This page states the rules; answer from it. The reference files below are background for a human
 reader, each with its own source stamp. For runnable code, or a specific that must be current,
