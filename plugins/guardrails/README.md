@@ -536,7 +536,7 @@ out of scope until such a signal exists.
   very write that produced the `C:\tmp\tmp.rSFIkHm5DO` this lane exists to stop.
   Six seeded spellings were detected end to end.
 
-  **What that evidence does and does not support, stated plainly.** Precision is
+  **What that evidence does and does not support.** Precision is
   1/1, so the ratio is 100% and the sample is one. This is the ADR's
   near-zero-findings branch, where the seeded-detection burden carries the
   argument and the precision figure by itself does not. The corpus is one
@@ -1224,7 +1224,7 @@ said: the harness dispatches matching hooks in parallel, so the set wall is the
 max of its members rather than their sum, and a member costing ≈ 505 ms joining
 a set already walling at ≈ 1 s cannot raise that wall by more than its own cost
 and will usually raise it by less. A re-measurement on a quiet reference host is
-the way to replace this bound with a number, and is the honest follow-up.
+the way to replace this bound with a number, and is the follow-up.
 
 **Share of the budget, and the overage.** The convention's ceiling is
 ≤ 1 s typical / ≤ 2 s worst-case **per tool call, counting `PreToolUse` and
