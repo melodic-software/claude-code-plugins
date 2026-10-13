@@ -12,37 +12,44 @@ routinely conflated; they are distinct:
   `claude-plugins-official` marketplace like any other plugin. A PR is its only target: it runs
   parallel review agents with confidence scoring against that PR, then posts the surviving findings
   back as a PR comment as its final step. It has no mode that returns them to the session instead.
-- **Bundled `/code-review` command**: invoked bare (no plugin namespace), always available,
-  no install required. Pass a PR number as its target (`/code-review 123`) to review that PR
-  locally; it reports correctness bugs plus reuse/simplification/efficiency cleanups. `--fix`
-  applies edits to the working tree and `--comment` posts the findings as inline PR comments.
-  Both mutate.
-- **Managed Code Review GitHub App service**: a separate org-level service in research preview,
-  available on Team and Enterprise subscriptions and enabled once by an Owner in admin settings,
-  that runs multiple review agents in parallel
-  against the PR diff, verifies candidates to filter false positives, and posts the results as
-  inline PR comments tagged by severity. It triggers automatically on PR open/push per the
-  repo's configured behavior, or on demand by commenting `@claude review` on the PR. It is not
-  available to organizations with zero data retention enabled, and its check run always completes
-  with a neutral conclusion, so it never blocks a merge through branch protection on its own.
+- **Bundled `/code-review` command**: invoked with no plugin namespace, and never assumed present
+  (settings, the host, and the environment decide whether it resolves). Passing a PR as its target
+  reviews that PR locally and reports into the session. Some of its arguments edit the working
+  tree or post to the PR; those make it a mutating surface.
+- **Managed Code Review GitHub App service**: a separate org-level service, enabled once for the
+  organization (who enables it is read at the set-up pointer below), that reviews PRs and posts its results as inline PR comments, triggered by the repository's
+  configured behavior or by a comment on the PR. Its availability (plans, preview status, and the
+  organization configurations it excludes) and its check run's conclusion are upstream-owned: never
+  tell a person it is available, or that it does or does not block a merge, without reading them
+  live.
 
-**Dated record for the three surfaces above.** Verified 2026-09-06 against Claude Code 2.1.263,
-reading <https://code.claude.com/docs/en/code-review> for the managed service's preview status,
-plan availability, Owner-enabled setup, trigger modes, and neutral check run, and
-<https://code.claude.com/docs/en/skills> for the bundled command's status as a bundled skill.
-Recheck when the code-review page drops the research-preview label or changes the plan list, when
-the bundled command leaves the bundled-skill list, or when a release note names either surface.
+**Pointer record for the three surfaces above.** Pointer: the managed service's enablement at
+[code-review: set up Code Review](https://code.claude.com/docs/en/code-review#set-up-code-review),
+and its availability (plans, preview status, excluded configurations) in the note that opens
+[the page](https://code.claude.com/docs/en/code-review), above its first section; its triggers at
+[code-review: manually trigger reviews](https://code.claude.com/docs/en/code-review#manually-trigger-reviews),
+its check-run behavior at
+[code-review: check run output](https://code.claude.com/docs/en/code-review#check-run-output); the
+bundled command's arguments and what each mutates at
+[code-review: review a diff locally](https://code.claude.com/docs/en/code-review#review-a-diff-locally);
+its status as a bundled skill at
+[skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills). As of: 2026-10-11.
+Recheck trigger: the code-review page changes its availability note, its set-up section, its
+manual-trigger section, the check-run section, or the argument list, or the bundled command leaves
+the bundled-skill list.
 
-**Mutation gate.** This covers the plugin unconditionally, the bundled command's flags, and the
-managed service, but not the bare command. Every `/code-review:code-review` run ends by posting its findings as a PR
-comment, `/code-review --comment` posts inline comments to the PR, and triggering the managed
-service posts a full review; all three violate the review modes' report-only contract. `--fix`
-mutates the working tree. Dispatch any of those four only on explicit user opt-in ("post the review
-comment", "apply the fixes"), otherwise skip and name the skip in the review report.
+**Mutation gate.** The gate is by effect, not by flag name. It covers the plugin unconditionally,
+the managed service, and any bundled `/code-review` invocation whose arguments, as read live at the
+pointer above, edit the working tree or post to the PR. Every
+`/code-review:code-review` run ends by posting its findings as a PR comment, and triggering the
+managed service posts a full review; both violate the review modes' report-only contract, as does
+any bundled invocation that posts or edits. Dispatch any gated surface only on explicit user opt-in
+("post the review comment", "apply the fixes"), otherwise skip and name the skip in the review
+report.
 
-Bare `/code-review <target>` is **not** gated: it reports into the session and writes nothing to
-the PR or the working tree, so it stays available as a read-only option alongside the manual path
-below.
+A bundled `/code-review <target>` whose arguments only report into the session is **not** gated:
+it writes nothing to the PR or the working tree, so it stays available as a read-only option
+alongside the manual path below.
 
 ## Manual PR review (default read-only path)
 

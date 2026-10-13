@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ".toast { transition: translate 200ms var(--ease-out); }",
+      "why": "a transition"
+    },
+    {
+      "answer": ".toast.is-leaving { animation: toast-out 180ms ease-out; }",
+      "why": "an animation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Use a falling motion.",
+      "why": "prose, no CSS"
+    }
+  ]
+}

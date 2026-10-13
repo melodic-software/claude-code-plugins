@@ -189,8 +189,9 @@ policy entry"). It fired exactly as that addendum describes, on this amendment.
 
 `skip-actors` and the action's `allowed_bots` are different levers with different outcomes.
 Removing an actor from `skip-actors` alone does NOT restore review of its PRs: the reusable
-passes `allowed_bots: dependabot[bot]`, and the action throws on any other bot actor, which
-this lane's fail-closed mapping turns into a required check red for a cause no push can fix.
+passes `allowed_bots: dependabot[bot]`, and the action throws on any other bot actor
+([GitHub Actions: Who can trigger runs](https://code.claude.com/docs/en/github-actions#who-can-trigger-runs),
+as of 2026-10-11; recheck when that section stops naming `allowed_bots`), which this lane's fail-closed mapping turns into a required check red for a cause no push can fix.
 Reviewing an agent's PRs instead of skipping them requires widening `allowed_bots` in
 ci-workflows: a separate change, tracked below.
 

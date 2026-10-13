@@ -15,16 +15,19 @@ config has chosen no Markdown style, so the hook does not run there at all
 
 - **Markdown paths only at launch.** `hooks.json` registers the handler on
   `Write|Edit` but each copy carries `if: Edit(*.md)` or `if: Edit(*.mdc)`.
-  `Edit(path)` is the permission-rule form that covers Write; a `Write(path)`
-  rule is never matched. A `.txt` Write therefore never starts the process.
+  We write the rule as `Edit(path)`, never as `Write(path)`. A `.txt` Write
+  never starts the process.
   It does not reach the script's in-script extension skip, and it cannot
   produce a `hook_non_blocking_error` for work this hook does not do (#2867).
-  The script still checks the extension itself, because the hooks reference
-  calls the `if` filter best-effort. Its one documented fail-open is for Bash
-  input it cannot parse, and it documents no file-tool equivalent
-  ([hooks reference](https://code.claude.com/docs/en/hooks), common fields,
-  checked 2026-09-27). Recheck when the hooks reference documents a file-tool
-  fail-open for `if`, or drops the Bash one.
+  The script still checks the extension itself: we treat the `if` filter as
+  best-effort, never as the only guard.
+  - **Pointer**: when deciding which path-rule form an `if` row needs, fetch
+    [permissions: Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit)
+    live; for when the `if` filter can let a call through, fetch
+    [hooks: How `if` patterns match Bash commands](https://code.claude.com/docs/en/hooks#bash-if-matching)
+    live. **As of**: 2026-10-11. **Recheck trigger**: either section changes
+    which rule form matches a Write, or documents a file-tool case where `if`
+    runs the hook regardless of the pattern.
 - **Config opt-in.** The hook runs only when a markdownlint config file that
   `markdownlint-cli2` would discover automatically (`.markdownlint-cli2.jsonc`,
   `.markdownlint.json`, …, any of the ten documented names) exists between the
@@ -88,12 +91,16 @@ config has chosen no Markdown style, so the hook does not run there at all
 
 ## Known limitations
 
-Claude Code runs every matching `PostToolUse` hook in parallel, with no
-locking/ordering primitive. In an opted-in repo this hook is the single
-in-place rewriter for `.md`/`.mdc` by default; a consumer who ALSO opts
-`typos-format`'s write mode on accepts **last-writer-wins** ordering between
-the two on every Markdown edit. The residual overlap class across scoped
-writer hooks is tracked fleet-wide in #875.
+We assume no ordering or locking between matching `PostToolUse` hooks. In an
+opted-in repo this hook is the single in-place rewriter for `.md`/`.mdc` by
+default; a consumer who ALSO opts `typos-format`'s write mode on accepts
+**last-writer-wins** ordering between the two on every Markdown edit. The
+residual overlap class across scoped writer hooks is tracked fleet-wide in #875.
+
+- **Pointer**: when deciding whether two matching hooks can race, fetch
+  [hooks: Hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section documents an
+  ordering or locking primitive for matching hooks.
 
 **Write paths the hook does not see.** The matcher is `Write|Edit`, so only
 those two tools reach it. A Markdown file written through the `Bash` tool (a
@@ -104,17 +111,27 @@ heredoc forms, `python3 -c` writes that use a file-write call it recognizes,
 and the PowerShell write cmdlets; `sed -i`, `perl -i`, `tee`, a standalone
 `cp`, and other interpreters' one-liners such as `node -e` are outside what it
 detects, and it does not see MCP tools. CI is the only gate that sees every
-path. The matcher does not list
-`MultiEdit`: the [tools reference](https://code.claude.com/docs/en/tools-reference)
-does not list it among the built-in tools, and
-[permissions](https://code.claude.com/docs/en/permissions) calls it "the legacy
-`MultiEdit` tool" (both checked 2026-09-27; recheck if `MultiEdit` returns to
-the tools reference).
+path. The matcher does not list `MultiEdit`: we treat it as a legacy tool
+outside the built-in set.
 
-**Timeout tail.** Each handler sets `"timeout": 15`, well under the 600-second
-default for a command hook, and Claude Code discards the output of a hook it
-cancels at its timeout ([hooks reference](https://code.claude.com/docs/en/hooks),
-"Timeouts", checked 2026-09-27). `markdownlint-cli2 --fix` rewrites the file in
+- **Pointer**: when deciding whether `MultiEdit` needs a matcher entry, fetch
+  [permissions: Read and Edit](https://code.claude.com/docs/en/permissions#read-and-edit)
+  live. **As of**: 2026-10-11. **Recheck trigger**: `MultiEdit` appears in the
+  tools reference's built-in tool list, or that section stops calling it legacy.
+
+**Timeout tail.** Each handler sets `"timeout": 15`, well under the default for
+a command hook, and we treat a hook cancelled at its timeout as having reported
+nothing.
+
+- **Pointer**: when deciding what a cancelled hook leaves behind, fetch
+  [hooks: Timeouts](https://code.claude.com/docs/en/hooks#timeouts) live; for
+  the command-hook default, fetch the `timeout` row of
+  [hooks: Common fields](https://code.claude.com/docs/en/hooks#common-fields)
+  live. **As of**: 2026-10-11. **Recheck trigger**: the Timeouts section
+  changes what becomes of a cancelled hook's output, or the Common fields
+  `timeout` row changes the `command` default.
+
+`markdownlint-cli2 --fix` rewrites the file in
 place before the hook composes its report, so a cancel between the two leaves
 your file rewritten with no disclosure on either channel. This window has not
 been reproduced; a clean run costs about 2.6 s of reference-host work in
@@ -140,10 +157,19 @@ The hook requires the following tools:
   Bash. It resolves symlinks first and rejects a shim whose physical target escapes the
   repository's `node_modules` tree.
 
-Missing prerequisites do not block an edit. Following Claude Code's
-[PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
-the hook exits `0` and reports a notice to both Claude (`additionalContext`)
-and you (`systemMessage`). Each notice is shown once per session and agent and does not
+Missing prerequisites do not block an edit. The hook exits `0` and reports a
+notice to both Claude (`additionalContext`) and you (`systemMessage`).
+
+- **Pointer**: when deciding which `PostToolUse` output field reaches Claude,
+  fetch
+  [hooks: PostToolUse decision control](https://code.claude.com/docs/en/hooks#posttooluse-decision-control)
+  live; for which reaches you, fetch
+  [hooks: JSON output](https://code.claude.com/docs/en/hooks#json-output) live.
+  **As of**: 2026-10-11. **Recheck trigger**: the PostToolUse decision control
+  section renames or re-routes `additionalContext`, or the JSON output table
+  changes who is shown `systemMessage`.
+
+Each notice is shown once per session and agent and does not
 renew. The `SessionStart` probe below uses the same notice key, so its notice is
 yours and Claude hears at the first per-edit skip.
 The binary probe re-runs on every Markdown edit and recovers mid-session when

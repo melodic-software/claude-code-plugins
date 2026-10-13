@@ -25,5 +25,14 @@ UI changes, so treat these as directions to the right area, and confirm against 
 
 - Do not claim the account memory was deleted, since you cannot verify it from here. Confirm the
   outcome is the user's to check in the app.
-- If the user needs exact current steps, point them to Anthropic's official Help Center for
-  the Claude app "Memory" article rather than asserting labels from training data.
+- If the user needs exact current steps, point them to the Help Center article below rather than
+  asserting labels from training data.
+
+- **Pointer**: in
+  [Use Claude's chat search and memory to build on previous context](https://support.claude.com/en/articles/11817273-use-claude-s-chat-search-and-memory-to-build-on-previous-context),
+  the [Turn memory on or off for your account](https://support.claude.com/en/articles/11817273-use-claude-s-chat-search-and-memory-to-build-on-previous-context#h_c9b905eb3f)
+  and [View and manage your memory](https://support.claude.com/en/articles/11817273-use-claude-s-chat-search-and-memory-to-build-on-previous-context#h_463c0c336e)
+  sections.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the article is retitled or moved, either section is renamed, or the app's
+  memory controls no longer match the guided steps above.

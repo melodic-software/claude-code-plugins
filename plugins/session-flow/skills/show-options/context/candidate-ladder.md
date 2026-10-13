@@ -6,23 +6,23 @@ answer them well are not the same.
 
 ## Why the in-context listing cannot be the sole source
 
-Officially documented behavior of the skill listing, and the reason this ladder exists at all
-(owned by <https://code.claude.com/docs/en/skills> for the drop behavior and
-`disable-model-invocation` visibility, and <https://code.claude.com/docs/en/settings> for the two
-budget keys; verified 2026-08-31; recheck trigger: a fetch of either page no longer matching a
-bullet below re-derives this section):
+The skill listing is budgeted, and how it shortens or drops descriptions and which skills it leaves
+out entirely are upstream behavior; read them live before relying on the listing for anything:
 
-- The listing **always carries every skill name**, but when many skills are installed Claude Code
-  **shortens descriptions to fit a character budget**, and on overflow it **drops descriptions
-  starting with the skills you invoke least**. The budget scales with the context window
-  (`skillListingBudgetFraction`, default 1%); `skillListingMaxDescChars` caps each entry.
-- A skill set to `disable-model-invocation: true` is **absent from the model's listing entirely**,
-  not truncated, gone.
+- **Pointer**: [Extend Claude with skills § Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
+  and [§ Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)
+  for the drop behavior and manual-only visibility;
+  [All settings § skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction)
+  and [§ skillListingMaxDescChars](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars)
+  for the budget keys.
+- **As of**: 2026-10-11
+- **Recheck trigger**: any of those sections changes what the listing drops or omits, or renames a
+  budget key; re-derive this section then.
 
-Both cut against this skill's purpose in the same direction. "Forgotten" correlates with
-"rarely invoked", which is exactly what the drop-order sheds first; and a manual-only skill is
-invisible no matter how relevant it is. A recommender sourced from the listing alone is blindest
-precisely where the operator needs it most, and it cannot tell that it is blind.
+Our premise: the skills an operator has forgotten are the ones the listing serves worst, by
+whatever the pointer sections above say it shortens, drops or omits. A recommender sourced from
+the listing alone is blindest precisely where the operator needs it most, and it cannot tell that
+it is blind.
 
 ## Ladder A: names (completeness)
 
@@ -33,9 +33,11 @@ precisely where the operator needs it most, and it cannot tell that it is blind.
 | 3 | The in-context listing | always available | Every *name*, minus manual-only skills |
 
 **Rung 1 is a reuse, not a reimplementation.** `harness-ops:inventory` owns whole-fleet enumeration
-and ships a bundled script for it. Do not walk `~/.claude/plugins/cache` directly: only the cache's
-*existence* is documented, its `<marketplace>/<plugin>/<version>` nesting is not, and the version
-directory changes on every update. The consuming marketplace's own `skill-quality:check` refuses
+and ships a bundled script for it. Do not walk `~/.claude/plugins/cache` directly: we treat its
+`<marketplace>/<plugin>/<version>` nesting as no contract (the docs show it only inside an error
+example: [Troubleshoot plugins § Install a plugin](https://code.claude.com/docs/en/plugins/troubleshooting#install-a-plugin);
+as of 2026-10-11; recheck trigger: a docs page documents the cache layout as stable), and the
+version directory changes on every update. The consuming marketplace's own `skill-quality:check` refuses
 that move on exactly those grounds.
 
 **Rung 1 supplies names only.** Verified against its output: entries are bare leaf names under a
@@ -74,8 +76,10 @@ have it. Resolve whatever path the project declares; if none is declared, this r
 | 2 | The in-context listing's surviving descriptions | Whatever escaped the budget |
 | 3 | Nothing | Name only |
 
-`metadata` is **never** in the listing, and the docs are explicit that it is free-form data Claude
-Code does not act on, so stage grouping always requires a file read or a supplied catalog. A session
+We treat `metadata` as never reaching the listing, so stage grouping always requires a file read or
+a supplied catalog (pointer: [Extend Claude with skills § Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
+the `metadata` row; as of 2026-10-11; recheck trigger: that row says Claude Code acts on the
+field's contents). A session
 running inside a marketplace repository can read `plugins/**/SKILL.md` directly; a session in an
 unrelated consuming repo generally cannot.
 

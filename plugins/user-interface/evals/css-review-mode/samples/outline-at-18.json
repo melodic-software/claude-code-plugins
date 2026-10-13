@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "src/app.css:18 [outline] Never remove the outline.",
+      "why": "linter format"
+    },
+    {
+      "answer": "- Line 18: `outline: none` removes the focus indicator.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "src/app.css:13 [hover] Put this :hover rule inside a hover query.",
+      "why": "a different finding"
+    }
+  ]
+}

@@ -300,6 +300,7 @@ class SessionScan:
         self.permission_changes = 0
         self.last_permission_mode: object = None
         self.custom_title: str | None = None
+        self.ai_title: str | None = None
         self.agent_name: str | None = None
         self.cwd: str | None = None
         self.human_turns = 0
@@ -320,6 +321,8 @@ class SessionScan:
         if kind == "unknown":
             raw = record.get("type")
             self.unknown_types[raw if isinstance(raw, str) else "<none>"] += 1
+            return
+        if kind in transcript_reader.IGNORED_RECORD_TYPES:
             return
         ts = None
         if side == "main":
@@ -480,6 +483,10 @@ class SessionScan:
     def _custom_title(self, record: dict, side: str, _ts: float | None) -> None:
         if side == "main" and isinstance(record.get("customTitle"), str):
             self.custom_title = record["customTitle"]
+
+    def _ai_title(self, record: dict, side: str, _ts: float | None) -> None:
+        if side == "main" and isinstance(record.get("aiTitle"), str) and record["aiTitle"]:
+            self.ai_title = record["aiTitle"]
 
     def _agent_name(self, record: dict, side: str, _ts: float | None) -> None:
         if side == "main" and isinstance(record.get("agentName"), str):
@@ -725,8 +732,9 @@ def build_record(
             "started_with_clear": scan.started_with_clear,
         },
         "link_keys": {
-            # Titles and agent names are typed text, so --excerpt-chars 0 stores neither.
+            # Titles and agent names are typed text or drawn from it, so --excerpt-chars 0 stores none.
             "custom_title": scrub.excerpt(scan.custom_title) if excerpt_chars else None,
+            "ai_title": scrub.excerpt(scan.ai_title) if excerpt_chars else None,
             "agent_name": scrub.excerpt(scan.agent_name) if excerpt_chars else None,
             "first_ts": scan.time_block()["start"],
         },
