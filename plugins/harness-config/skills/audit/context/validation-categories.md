@@ -110,9 +110,12 @@ complete set.
 - `timeout` is a seconds value. Flag a recognizably millisecond-scale figure (a round thousands
   multiple like `30000` or `120000`), not merely a large one: the docs give defaults, not a maximum
 - Timeouts are reasonable: 5-15s for simple formatters, 30s for slow-startup tools (pwsh)
-- Matchers take their intended evaluation path. Only letters, digits, `_`, `-`, spaces, `,`, `|`
-  makes it an exact-string list; any other character makes it an unanchored JavaScript regex, which
-  needs `^…$` to match a whole string (`Edit.*` also matches `NotebookEdit`)
+- Matchers take their intended evaluation path. The characters a matcher holds decide whether it is
+  read as an exact-string list or as a regex, and a regex may match more than the author meant
+  (`Edit.*` can also match `NotebookEdit`). Read the character rule and the anchoring behavior from
+  [hooks: matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns) live (as of
+  2026-10-11; recheck when that section changes which characters select each path or how a regex is
+  anchored)
 - A shell-form hook quotes each path placeholder; exec form is the docs' preference but shell form
   is correct when the hook needs pipes, `&&`, redirects, or a `.cmd`/`.bat` shim, so do not flag it
 - On a Windows-targeting repo, judge exec-form `command` resolution from the Category D
@@ -122,11 +125,12 @@ complete set.
   `hook-event-page-not-read` row, which the engine leaves `not-inspectable`
 - **Hook-suppression levers are read and reported**, because a hook that cannot run is not a control:
   `disableAllHooks` in the settings-declared layer, and `allowManagedHooksOnly` /
-  `strictPluginOnlyCustomization` in the managed layer. `strictPluginOnlyCustomization` is `true`
-  or a per-surface array of `"skills"`, `"agents"`, `"hooks"`, and `"mcp"`. Only `true` or an array
-  that includes `"hooks"` switches hooks off. `"mcp"` blocks MCP servers from user and project
-  settings (`~/.claude.json` and `.mcp.json`) and does not switch hooks off; v2.1.257 closed the
-  `/mcp` reconnect bypass. Report each as set or unset, name the surfaces a customization array
+  `strictPluginOnlyCustomization` in the managed layer. `strictPluginOnlyCustomization` takes either
+  a blanket value or a per-surface list; read which values switch hooks off, and what each other
+  surface value blocks, from
+  [settings reference: strictPluginOnlyCustomization](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)
+  live (as of 2026-10-11; recheck when that entry adds a surface value or changes what one blocks).
+  Report each as set or unset, name the surfaces a customization array
   locks, and say which of the inventoried hooks each one switches off. This is a state reading, not
   a finding on its own.
   Category B's third baseline narrowing depends on this reading: it may not downgrade a missing deny
@@ -272,18 +276,14 @@ warning naming the waived guard. To apply to a settings file that is a symlink, 
 Row-by-row criteria are in [audit-checklist.md](../reference/audit-checklist.md) "G. Skill-listing
 budget". What governs the category:
 
-- **State the budget, or the finding is not computable.** The listing budget is
-  `skillListingBudgetFraction` of the model's context window, **default `0.01`, i.e. 1%**, and
-  `SLASH_COMMAND_TOOL_CHAR_BUDGET` overrides it with a fixed character count, **documented fallback
-  8,000 characters**. Each entry's combined `description` + `when_to_use` text is separately capped at
-  `skillListingMaxDescChars`, whose authoring limit `/playbooks:skill-authoring` `## Descriptions`
-  states and `/skill-quality:check` enforces on each `SKILL.md`. For a 200K-token window, `200,000 × 4 × 0.01 = 8,000`
-  characters, which is why the env var's fallback is that number. Without the constant a report can say
-  "overflowed" but not "by how much", so quote it. All three are upstream-owned: confirm them in Phase
-  3 against [settings-reference](https://code.claude.com/docs/en/settings-reference) and
-  [env-vars](https://code.claude.com/docs/en/env-vars) before publishing a number (defaults as
-  written verified 2026-08-31; recheck trigger: a Phase-3 confirm finding a moved default
-  re-derives this paragraph)
+- **State the budget, or the finding is not computable.** The listing budget is a fraction of the
+  model's context window set by `skillListingBudgetFraction`, which `SLASH_COMMAND_TOOL_CHAR_BUDGET`
+  overrides with a fixed character count. Each entry's combined `description` + `when_to_use` text
+  is separately capped at `skillListingMaxDescChars`, whose authoring limit
+  `/playbooks:skill-authoring` `## Descriptions` states and `/skill-quality:check` enforces on each
+  `SKILL.md`. Without the constant a report can say "overflowed" but not "by how much", so quote it.
+  All three values are upstream-owned and this file keeps no copy: read them in Phase 3 from the
+  pointers in [audit-checklist.md](../reference/audit-checklist.md) row G before publishing a number
 - **Overflow check: an existing debug log first, then two routes, and only one of those survives
   a headless run.** The engine looks for a debug log this session already wrote, at the path
   `--debug-log` names, else `CLAUDE_CODE_DEBUG_LOGS_DIR`, else the newest file under
@@ -294,9 +294,9 @@ budget". What governs the category:
   Anything else reads as not measured, never as clean. Only then: `/doctor` estimates the
   listing's cost and its biggest contributors, and it needs an interactive TTY, so prompt the user to
   run it. When this audit runs headless, under `-p`, a spawned agent, or a background job, use the documented
-  debug route instead: *"When the listing exceeds its budget, Claude Code also writes a warning to the
-  debug log, visible with `--debug`"*
-  ([skills](https://code.claude.com/docs/en/skills), "Skill descriptions are cut short"). Report which
+  debug route instead: the over-budget warning in the debug log
+  ([skills: skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short),
+  as of 2026-10-11; recheck when the warning leaves the debug log). Report which
   route was taken; a category that names only `/doctor` yields nothing in the harness's own headless
   mode. `/context`'s Skills row reports the listing size after the budget is applied, a second
   *interactive* reading, not a headless one. Overflow silences the least-invoked skills' trigger
@@ -367,10 +367,12 @@ effort settings". What governs the category:
 - **Per-row visibility, not a blanket claim.** Some of these are silent and some announce
   themselves (a narrowed alias shows a substitution notice). Each row states which, because it
   changes what the finding is worth to the reader
-- **Placement is out of reach.** `availableModels` and `enforceAvailableModels` belong in the
-  highest-precedence managed source, and admin-deployed managed sources do not merge. Nothing in the
-  files this skill reads decides whether that holds, so report the value-level finding and leave
-  placement to the administrator. `deniedModels` and `availableModelsMatch` are the exception:
+- **Placement is out of reach.** Where `availableModels` and `enforceAvailableModels` must sit, and
+  whether a lower managed source's value survives, depend on how the organization combines its
+  managed sources, a mode the files this skill reads do not decide
+  ([managed settings: how Claude Code combines managed sources](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources),
+  as of 2026-10-11; recheck when that section adds or drops a combining mode or changes how a mode
+  treats these keys). So report the value-level finding and leave placement to the administrator. `deniedModels` and `availableModelsMatch` are the exception:
   every file this skill reads is outside managed settings, so finding either key in one settles it
 
 ## Category I: Deep-link registration

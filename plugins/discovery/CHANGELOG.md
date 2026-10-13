@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.33.1] - 2026-10-11
+
+### Fixed
+
+- Correct the 0.4.0 entry's link to the retired topic-docs convention: it now points at the convention's last committed version, since the file was removed from `main`.
+
 ## [0.33.0] - 2026-10-11
 
 ### Added
@@ -2861,7 +2867,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
 ## [0.4.0] - 2026-07-14
 
 Adopt the marketplace topic-docs convention, contract v1.0.0
-(<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>):
+(<https://github.com/melodic-software/claude-code-plugins/blob/32553cf80ed5210f6822f96f3fa0c01fa833e7b1/docs/conventions/topic-docs/README.md>):
 
 - `EXPLORE.md` / `RESEARCH.md` are memory-tier artifacts written to
   `<memory_dir>/<slug>/` (default `.work/<slug>/`), never committed. The

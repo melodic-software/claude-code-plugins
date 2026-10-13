@@ -210,7 +210,10 @@
 # awk pass then drops comment lines, splits each line into tokens, and keeps the
 # (file, name) pairs MATCHING and AMBIGUOUS NAMES let stand, marking each with
 # whether its line runs or loads the file.
-# Both stages fail loud; see the call site in select_for.
+# Both stages fail loud; see the call site in select_for. Each stage's output is
+# a function of its inputs alone, so a level whose inputs an earlier level of
+# any seed already had reuses that stage's result: the copies of one shared
+# library walk the same levels.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -604,6 +607,11 @@ scope_declarations() {
 declare -A SUITES=()   # suite path -> reason
 declare -a UNMAPPED=() # changed paths that mapped to nothing
 declare -a DELETED=()  # changed paths that mapped to nothing AND no longer exist
+# The reverse lookup's results across seeds (MECHANICALLY in the header):
+# HITS_CACHE maps the exact pattern, plain and resolve lists of a level to its
+# hits file, GREP_CACHE the exact pattern list to its matched-lines file.
+declare -A HITS_CACHE=() GREP_CACHE=()
+LOOKUPS=0
 
 # SEED_HITS counts the suites the CURRENT seed reached, whether or not an
 # earlier seed had already selected them: counting only new ones reported the
@@ -931,6 +939,7 @@ select_for() {
   local -a frontier=() next=()
   local p b sib copy line kind hit_path hit_name hit_x grep_rc
   local origin_family hit_family hop_state
+  local pattern_key plain_key resolve_key hits_key matched hits
   # PATTERN_ORIGIN maps a plain basename back to the ecosystem of the file that
   # contributed it ('*' when two families contributed it, which over-selects),
   # and PATTERN_CROSSED records whether that file had spent its transition.
@@ -962,6 +971,7 @@ select_for() {
     : >"$WORK_DIR/patterns"
     : >"$WORK_DIR/plain"
     : >"$WORK_DIR/resolve"
+    pattern_key="" plain_key="" resolve_key=""
     next=()
     for p in "${frontier[@]}"; do
       [[ -n "${VISITED[$p]:-}" ]] && continue
@@ -988,9 +998,11 @@ select_for() {
       # MANIFESTS: no mention reaches a suite from a manifest or changelog.
       [[ "$MANIFEST_BASENAMES" == *" $b "* ]] && continue
       printf '%s\n' "$b" >>"$WORK_DIR/patterns"
+      pattern_key+="$b"$'\n'
       if [[ "$STRUCTURAL_BASENAMES" == *" $b "* ]] ||
         [[ -n "${AMBIGUOUS[$b]:-}" && -z "${SYNC_MEMBER[$p]:-}" ]]; then
         printf '%s\n' "$p" >>"$WORK_DIR/resolve"
+        resolve_key+="$p"$'\n'
         continue
       fi
       lang_family "$p"
@@ -1004,6 +1016,7 @@ select_for() {
         [[ "${CROSSED[$p]:-0}" == "0" ]] && PATTERN_CROSSED["$b"]=0
       fi
       printf '%s\n' "$p" >>"$WORK_DIR/plain"
+      plain_key+="$p"$'\n'
     done
 
     [[ -s "$WORK_DIR/patterns" ]] || break
@@ -1014,23 +1027,38 @@ select_for() {
     # come back as "no dependents", an under-selection at exit 0. Every
     # extension lang_family() names is searched, or a family it classifies
     # would be under-covered while looking supported.
-    grep_rc=0
-    git grep --untracked -F -f "$WORK_DIR/patterns" \
-      -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1' \
-      >"$WORK_DIR/matched-lines" || grep_rc=$?
-    if [[ "$grep_rc" -gt 1 ]]; then
-      echo "error: 'git grep' failed (exit $grep_rc) resolving dependents of the current level." >&2
-      echo "       Refusing to continue: an unreadable reverse lookup silently UNDER-selects, and" >&2
-      echo "       under-selection is reported as success by everything downstream." >&2
-      exit 2
-    fi
-    # Fatal for the same reason: a filter that dies mid-stream hands the walk a
-    # TRUNCATED hit set.
-    if ! token_hits "$WORK_DIR/plain" "$WORK_DIR/resolve" "$WORK_DIR/matched-lines" "$WORK_DIR/hits"; then
-      echo "error: the token filter over the reverse lookup failed on the current level." >&2
-      echo "       Refusing to continue: a partial filter silently UNDER-selects, and" >&2
-      echo "       under-selection is reported as success by everything downstream." >&2
-      exit 2
+    # Each result file is written once under a fresh number and never again,
+    # so a cached path stays valid for the rest of the run.
+    hits_key="$pattern_key"$'\x01'"$plain_key"$'\x01'"$resolve_key"
+    hits="${HITS_CACHE[$hits_key]:-}"
+    if [[ -z "$hits" ]]; then
+      matched="${GREP_CACHE[$pattern_key]:-}"
+      if [[ -z "$matched" ]]; then
+        LOOKUPS=$((LOOKUPS + 1))
+        matched="$WORK_DIR/matched-lines.$LOOKUPS"
+        grep_rc=0
+        git grep --untracked -F -f "$WORK_DIR/patterns" \
+          -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1' \
+          >"$matched" || grep_rc=$?
+        if [[ "$grep_rc" -gt 1 ]]; then
+          echo "error: 'git grep' failed (exit $grep_rc) resolving dependents of the current level." >&2
+          echo "       Refusing to continue: an unreadable reverse lookup silently UNDER-selects, and" >&2
+          echo "       under-selection is reported as success by everything downstream." >&2
+          exit 2
+        fi
+        GREP_CACHE["$pattern_key"]="$matched"
+      fi
+      LOOKUPS=$((LOOKUPS + 1))
+      hits="$WORK_DIR/hits.$LOOKUPS"
+      # Fatal for the same reason: a filter that dies mid-stream hands the walk a
+      # TRUNCATED hit set.
+      if ! token_hits "$WORK_DIR/plain" "$WORK_DIR/resolve" "$matched" "$hits"; then
+        echo "error: the token filter over the reverse lookup failed on the current level." >&2
+        echo "       Refusing to continue: a partial filter silently UNDER-selects, and" >&2
+        echo "       under-selection is reported as success by everything downstream." >&2
+        exit 2
+      fi
+      HITS_CACHE["$hits_key"]="$hits"
     fi
     while IFS=$'\t' read -r kind hit_path hit_name hit_x; do
       [[ -n "$hit_path" ]] || continue
@@ -1076,7 +1104,7 @@ select_for() {
         CROSSED["$hit_path"]="$hop_state"
       fi
       next+=("$hit_path")
-    done <"$WORK_DIR/hits"
+    done <"$hits"
 
     frontier=(${next[@]+"${next[@]}"})
   done

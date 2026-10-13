@@ -77,16 +77,18 @@ for this one it is the **core step**. Adversarially re-examining output the same
 context just produced is exactly the bias that rule targets, so the pass is not
 optional here. It **must** run as a fresh-context (non-fork) subagent, blind to the
 reasoning that produced the output: handed the artifact and the requirement, not the
-story of how the work was reached, and told to find what is wrong. A fork inherits
-the parent conversation and carries the bias forward, so it does not satisfy this.
-(That is the Agent tool's fork subagent; a *skill's* `context: fork` frontmatter is
-the opposite, isolated, no conversation history, the official docs overload the word.)
-Verified 2026-09-06 against Claude Code 2.1.263 and
-<https://code.claude.com/docs/en/sub-agents> as fetched that day, which states that a
-fork receives the main conversation's exact tool pool and the same system prompt, while
-a skill run in a subagent gets the skill content as its prompt and no conversation
-history. Recheck when that page stops drawing the distinction, or a release note names
-fork mode or `context: fork`.
+story of how the work was reached, and told to find what is wrong. Never use a fork
+subagent for this pass. (This means the Agent tool's fork subagent type. A *skill's* `context: fork`
+frontmatter is a different mechanism the docs also call fork, and this rule does not
+exclude it.)
+
+- **Pointer**: when choosing the subagent for this pass, fetch
+  <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
+  live for what a fork inherits; for the skill-side `context: fork` contrast, fetch
+  <https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents> live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes what a fork inherits from the main
+  session, or whether a skill run with `context: fork` starts without conversation history.
 
 The findings return to this thread, and remediation proceeds *with* the user (delta
 2): the fresh context supplies the unbiased critique, the user stays in the loop on

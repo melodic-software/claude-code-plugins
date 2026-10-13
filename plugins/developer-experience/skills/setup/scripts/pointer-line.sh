@@ -7,8 +7,9 @@
 # DX_PREFIX below, and never edits any other byte. A line that merely cites a
 # /developer-experience: skill belongs to another plugin. CLAUDE.md is only
 # read, to report whether AGENTS.md reaches Claude Code's context; load rules:
-# https://code.claude.com/docs/en/memory (as of 2026-10-08; recheck when that
-# page changes its import or file-discovery rules).
+# https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
+# (as of 2026-10-11; recheck when that section changes its import or
+# file-discovery rules).
 #
 # UNTRUSTED INPUT. AGENTS.md and CLAUDE.md are consumer prose: they are only
 # compared as text, never evaluated. The conventions path is checked against the

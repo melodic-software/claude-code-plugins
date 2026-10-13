@@ -19,8 +19,84 @@
     "implement_dispatch_wave_cap": {
       "type": "number",
       "title": "Dispatch wave cap (rows)",
-      "description": "Maximum worker rows /implementation:implement-dispatch runs at once within one plan phase. Leave unset to keep the internal 3-5 wave default. A fractional value is floored. A --wave-cap argument from a chaining caller takes precedence for that invocation.",
+      "description": "Maximum worker rows /implementation:implement-dispatch runs at once in one wave, counting rows from every plan phase in it. Leave unset to keep the internal 3-5 wave default. A fractional value is floored. A --wave-cap argument from a chaining caller takes precedence for that invocation.",
       "min": 1
+    },
+    "verify_mechanical_phases": {
+      "type": "boolean",
+      "title": "Fresh verifier on mechanical phases",
+      "description": "When on, /implementation:implement and /implementation:implement-dispatch send every phase, mechanical ones included, to a fresh-context verifier. Off (default) keeps the mechanical carve-out. True here or in a repository's docs/conventions/implementation.yaml wins.",
+      "default": false
+    },
+    "drain_cadence": {
+      "type": "string",
+      "title": "Return drain cadence",
+      "description": "When /implementation:implement-dispatch reads worker returns. on-arrival (default): each return as it comes in. batched: held until the orchestrator step in progress finishes, for long multi-wave runs. A repository's docs/conventions/implementation.yaml drain_cadence key overrides this value.",
+      "default": "on-arrival",
+      "options": [
+        "on-arrival",
+        "batched"
+      ]
+    },
+    "code_writing": {
+      "type": "string",
+      "title": "Code writing",
+      "description": "Who writes the code in /implementation:implement. inline (default): this session edits, unless the run is autonomous or the plan routes phases to workers. dispatch: implement-dispatch workers write every plan phase. A repository's docs/conventions/implementation.yaml code_writing key overrides it.",
+      "default": "inline",
+      "options": [
+        "inline",
+        "dispatch"
+      ]
+    },
+    "per_unit_check": {
+      "type": "string",
+      "title": "Per-unit check",
+      "description": "How /implementation:implement checks a change applied at three or more sites. pilot (default): apply it to a few units, check them, then apply the rest with one check at the end. every: check after each unit. A repository's docs/conventions/implementation.yaml per_unit_check key overrides it.",
+      "default": "pilot",
+      "options": [
+        "pilot",
+        "every"
+      ]
+    },
+    "integration_posture": {
+      "type": "string",
+      "title": "Integration posture",
+      "description": "How far /implementation:implement reshapes surrounding code without an approved plan. by-kind (default): a feature redesigns the code it lands in as if built in from the start, a fix or config change stays minimal, a refactor keeps the plan's scope. day-one: all redesign. minimal: all stay minimal.",
+      "default": "by-kind",
+      "options": [
+        "by-kind",
+        "day-one",
+        "minimal"
+      ]
+    },
+    "refactor_compat": {
+      "type": "string",
+      "title": "Refactor compatibility",
+      "description": "What an /implementation:implement refactor does with the old shape. same-wave (default): update all call sites and remove it in that same change, unless code outside the repository relies on it. deprecate: keep an adapter with a removal condition. A repository's implementation.yaml overrides it.",
+      "default": "same-wave",
+      "options": [
+        "same-wave",
+        "deprecate"
+      ]
+    },
+    "competing_attempts": {
+      "type": "string",
+      "title": "Competing attempts",
+      "description": "What /implementation:implement-dispatch does with a plan phase marked multi-shape. suggest (default): offer several attempts with a cost line. auto: run them without asking. off: one attempt, as for any phase. A repository's docs/conventions/implementation.yaml key overrides it.",
+      "default": "suggest",
+      "options": [
+        "off",
+        "suggest",
+        "auto"
+      ]
+    },
+    "competing_attempt_count": {
+      "type": "number",
+      "title": "Competing attempt count",
+      "description": "How many attempts /implementation:implement-dispatch runs for a multi-shape phase when competing attempts run: a whole number from 2 to 5, default 3. A repository's docs/conventions/implementation.yaml key overrides it.",
+      "default": 3,
+      "min": 2,
+      "max": 5
     }
   }
 }

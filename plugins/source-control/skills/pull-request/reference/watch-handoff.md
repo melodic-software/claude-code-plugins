@@ -7,13 +7,14 @@ The facts each route rests on (who can start it, what it needs, what it cannot s
 
 ## Check usage first
 
-Every route spends the person's plan limits, and a cloud session shares them with all other usage
-on the account (its native-surfaces row). Before recommending or starting a route, read the snapshot file
+Every route spends the person's plan limits, and a cloud session draws on the same limits (its
+native-surfaces row). Before recommending or starting a route, read the snapshot file
 under the rate-limit floor below and act on what it says:
 
-- **A window at or past the pause threshold:** start nothing and offer nothing to launch. Report the
-  tripped window and its pause end in local time, and recommend checking the PR by hand after it.
-  An open-ended watcher started now is how the person gets locked out until that reset.
+- **A window at or past 95:** report the window, its percentage and its reset in local time beside
+  the recommendation, with the options: start the route anyway, switch accounts
+  (https://github.com/melodic-software/claude-code-account-rotation), or check the PR after the
+  reset. Say which routes run until stopped. The person decides.
 - **Both windows below it:** put both percentages and reset times beside the recommendation, and
   say which routes run until stopped (`/autofix-pr`, a background agent, the babysit loop). The
   person decides.
@@ -24,7 +25,7 @@ under the rate-limit floor below and act on what it says:
 
 The check covers the moment of launch only. `/autofix-pr` runs in a cloud session with no snapshot file,
 so nothing pauses it as the windows fill; a local `monitor` or loop that trips later follows the
-floor's drain-then-pause.
+floor's drain-then-pause, which pauses only an opted-in session.
 
 ## Rate-limit guard floor (inlined)
 
@@ -32,11 +33,14 @@ Inlined **verbatim** per the loop-lane convention's inline-floor rule; provenanc
 `rate-limit-guard` plugin's reader contract
 (`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository), cited for
 provenance only, since an installed plugin cannot read a sibling plugin's files at runtime. A
-launch decision uses the snapshot file, the threshold, the pause end and the staleness rule; the rest
-applies to a watcher that later pauses.
+launch decision uses the snapshot file, the threshold, the reset time and the staleness rule; the rest
+applies to a watcher that opted in to pausing.
 
 - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 95`
+- **Pause threshold (fixed):** pausing is **opt-in**: only a lane whose session environment sets
+  `LOOP_LANE_RATE_LIMIT_PAUSE=1` pauses (read it at lane start with
+  `printenv LOOP_LANE_RATE_LIMIT_PAUSE`), and it pauses when **either** window reports
+  `used_percentage >= 95`
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
@@ -46,8 +50,13 @@ applies to a watcher that later pauses.
   snapshot file and re-evaluate on every write: the file carries an **`account.email` field when the
   writer could attribute the observation**, so a write is still the signal that the windows changed
   under you (account switch, another session's refresh).
-- **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
-  pause end, and report; a hard stop happens only on explicit user request.
+- **Drain-then-pause:** for an opted-in lane, on a trip, finish in-flight work, stop claiming new
+  work, pause until the pause end, and report; a hard stop happens only on explicit user request.
+  Without the opt-in, a window at or above 95 never pauses, slows, or stops the lane and never
+  lowers its model, effort, or review depth: it keeps working and reports the window, its
+  `used_percentage` and `resets_at`, and the operator's options: continue, switch accounts (a
+  human action a lane never performs or scripts;
+  https://github.com/melodic-software/claude-code-account-rotation), or opt in to pausing.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
   from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: it names an account only as of
   a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it
@@ -90,7 +99,8 @@ what it judges clear, so the prompt below carries that discipline to it in words
 
 The model never runs it; it prints it filled in. Give the person:
 
-1. The checkout to run it from: the worktree path, or `gh pr checkout <N>`. It finds the PR from
+1. The checkout to run it from: the worktree path, or a checkout of the PR head
+   ([GitHub](../../../reference/providers/github/README.md#change-the-pull-request)). It finds the PR from
    the current branch.
 2. The command, with `<N>` and the project line filled:
 
@@ -105,10 +115,10 @@ The model never runs it; it prints it filled in. Give the person:
    `<project rule>` is the one convention from the repository's `AGENTS.md` or `CLAUDE.md` a fix is
    most likely to break (for example, commit subjects and the PR title stay Conventional Commits); drop
    the slot when there is none.
-3. Its preconditions and limits, each from its native-surfaces row: the Claude GitHub App on the
-   repository, cloud-session access, replies posted under the person's own account, no reaction to
-   a merge conflict (when the base moves, run `/source-control:pull-request ready` again, which
-   merges it), and comment-triggered automation its replies can set off.
+3. Its preconditions and limits: read the auto-fix rows of [native-surfaces.md](native-surfaces.md)
+   and the live sections they point at, and list each one for the person. Because auto-fix cannot
+   react to a merge conflict, add: when the base moves, run `/source-control:pull-request ready`
+   again, which merges it.
 
 When the person also keeps `monitor` running here, both push to one branch; the Mutation gate in
 [SKILL.md](../SKILL.md) covers that.
