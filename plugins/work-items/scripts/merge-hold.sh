@@ -16,7 +16,7 @@
 #   0   held: stdout is `Hold: a human merges this`
 #   1   not held: no comment carries the line, or none from a writer
 #   2   usage: a missing, repeated, or unknown argument, or a malformed value
-#   8   prerequisite missing: gh or jq is not on PATH
+#   8   prerequisite missing: gh is not on PATH
 #   11  a read failed or returned unparsable JSON, so a hold was not ruled out
 
 # portability-scope: the GitHub implementation of the human-merge hold read; every read is a gh call.
@@ -68,12 +68,10 @@ done
   err "--issue must be a positive integer"
   exit 2
 }
-for tool in gh jq; do
-  command -v "$tool" >/dev/null 2>&1 || {
-    err "$tool is not on PATH"
-    exit 8
-  }
-done
+command -v gh >/dev/null 2>&1 || {
+  err "gh is not on PATH"
+  exit 8
+}
 
 # Logins of every comment that carries the line, one per line.
 if ! authors="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" \

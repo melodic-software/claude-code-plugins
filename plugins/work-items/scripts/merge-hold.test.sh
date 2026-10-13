@@ -86,6 +86,12 @@ verdict "different case is not the line" 1 "" "[$(comment owner "hold: a human m
 verdict "comment read failure refuses" 11 "" "[]" GH_STUB_COMMENTS_ERR=1
 verdict "permission read failure refuses" 11 "" "[$(comment ghost "$HOLD")]"
 verdict "malformed login is ignored" 1 "" "[$(comment 'a;b' "$HOLD")]"
+verdict "failed permission read beside a writer holds" 0 "$HOLD" \
+  "[$(comment ghost "$HOLD"),$(comment owner "$HOLD")]"
+
+mkdir -p "$TMP/nogh"
+env PATH="$TMP/nogh" "$(command -v bash)" "$S" --repo o/r --issue 7 >/dev/null 2>&1
+check "gh missing exits 8" 8 "" "$?" ""
 
 for args in "" "--repo o/r" "--issue 7" "--repo bad --issue 7" "--repo o/r --issue 0" "--repo o/r --issue 7 --x 1"; do
   # shellcheck disable=SC2086 # word splitting is the point: each string is an argument list
