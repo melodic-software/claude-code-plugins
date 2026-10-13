@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "**Glossary**\n- *soak*: the period a build runs on staging before it is promoted.\n\n| # | Item | Recommendation | Basis | Alternative | What you're deciding |\n|---|------|----------------|-------|-------------|----------------------|\n| 1 | Q3 | \"patch bump to 2.4.1\" | \"CHANGELOG.md:41 lists no new exports\" | \"a minor (2.5.0)\" | Whether the fix ships as 2.4.1 or 2.5.0. |\n| 2 | Q4 | \"Run scripts/migrate_v2.sh with `--force` on the staging cluster only\"; production waits for the \"48-hour soak\" | judgment | \"a dry run first without `--force`\" | Whether staging gets the forced run now. |\n| 3 | Q5 | Raise the ceiling in config/retry.yaml \"from 3 to 7, unless p99 latency goes over the 800 ms budget\" | \"load test run #212\" | keep 3 | Whether to accept 7 with the 800 ms escape clause. |\n\n**Left out:** the docs freeze starting Friday (no decision; it blocks the Q3 release notes).\n\nThis is a clarification; validate final answers against the original text, not against this restructuring."
+    },
+    {
+      "answer": "1. Q3 - Recommendation: patch bump to 2.4.1 (alternative: 2.5.0). Basis: CHANGELOG.md:41 lists no new exports.\n2. Q4 - Recommendation: run scripts/migrate_v2.sh with `--force` on staging only; production waits for the 48-hour soak. Basis: judgment.\n3. Q5 - Recommendation: raise config/retry.yaml retries from 3 to 7 unless p99 exceeds 800 ms. Basis: load test run #212.\n\nOmitted: the Friday docs freeze note.\n\nLens only: check every answer against the original message."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The team wants a quick release: ship the fix as a small version, force the migration on staging, and bump retries a bit. There is also a docs freeze coming up. Overall these look reasonable to approve."
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    },
+    {
+      "answer": "| Item | Recommendation |\n|---|---|\n| Q3 | patch bump |\n| Q4 | --force |\n| Q5 | 3 to 7 |"
+    }
+  ]
+}

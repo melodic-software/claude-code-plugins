@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: cl-basis-carried
+graders:
+  - name: d2-none-stated
+    type: regex
+    pattern: '\bD2\b(?:(?!\bD[134]\b)[\s\S]){0,400}?none stated'
+    flags: i
+    target: last_message
+  - name: d3-withheld
+    type: regex
+    pattern: '\bD3\b(?:(?!\bD[124]\b)[\s\S]){0,500}?withheld'
+    flags: i
+    target: last_message
+  - name: d3-settling-evidence
+    type: regex
+    pattern: '\bD3\b(?:(?!\bD[124]\b)[\s\S]){0,600}?dry run'
+    flags: i
+    target: last_message
+  - name: cited-basis-verbatim
+    type: regex
+    pattern: '^(?=[\s\S]*LM-17 §2)(?=[\s\S]*HMAC-SHA256)(?=[\s\S]*invoice_v2)'
+    target: last_message
+  - name: lens-line
+    type: regex
+    pattern: '\b(?:validate|check|verify)\b[^\n]{0,120}\boriginal\b|\blens\b[^\n]{0,120}\boriginal\b'
+    flags: i
+    target: last_message

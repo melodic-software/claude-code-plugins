@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: cl-dense-identifiers
+graders:
+  - name: verbatim-flag-and-paths
+    type: regex
+    pattern: '^(?=[\s\S]*--force)(?=[\s\S]*scripts/migrate_v2\.sh)(?=[\s\S]*config/retry\.yaml)'
+    target: last_message
+  - name: verbatim-numbers
+    type: regex
+    pattern: '^(?=[\s\S]*patch bump)(?=[\s\S]*2\.4\.1)(?=[\s\S]*48-hour)(?=[\s\S]*800 ms)'
+    flags: i
+    target: last_message
+  - name: original-ids-back-linked
+    type: regex
+    pattern: '^(?=[\s\S]*\bQ3\b)(?=[\s\S]*\bQ4\b)(?=[\s\S]*\bQ5\b)'
+    target: last_message
+  - name: own-row-numbers-1-2-3
+    type: regex
+    pattern: '^\s*(?:\|\s*)?(?:\*\*)?(?:row\s*)?1(?:\*\*)?\s*(?:\||[.):])[\s\S]*?^\s*(?:\|\s*)?(?:\*\*)?(?:row\s*)?2(?:\*\*)?\s*(?:\||[.):])[\s\S]*?^\s*(?:\|\s*)?(?:\*\*)?(?:row\s*)?3(?:\*\*)?\s*(?:\||[.):])'
+    flags: mi
+    target: last_message
+  - name: left-out-note
+    type: regex
+    pattern: '\b(?:left out|omitted|omissions?|not carried (?:forward|over))\b'
+    flags: i
+    target: last_message
+  - name: lens-line
+    type: regex
+    pattern: '\b(?:validate|check|verify)\b[^\n]{0,120}\boriginal\b|\blens\b[^\n]{0,120}\boriginal\b'
+    flags: i
+    target: last_message
+  - name: basis-carried
+    type: regex
+    pattern: '^(?=[\s\S]*CHANGELOG\.md:41)(?=[\s\S]*#212)'
+    target: last_message

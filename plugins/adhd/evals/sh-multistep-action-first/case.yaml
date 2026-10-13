@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: sh-multistep-action-first
+graders:
+  - name: first-line-action
+    type: regex
+    pattern: '^\s*(?:#{1,6}\s*)?(?:\*\*|__)?(?:(?:step\s*)?1[.):]\s*)?(?:\*\*|__)?\s*(?:```|`|\$\s|(?:run|open|create|install|make|cd|mkdir|python3?|source|activate|go to|navigate|type|paste|execute|start|use|set up|add|copy|pip3?)\b)'
+    flags: i
+    target: last_message
+  - name: numbered-steps
+    type: regex
+    pattern: '^\s*(?:\*\*)?(?:step\s+)?1[.):][\s\S]*?^\s*(?:\*\*)?(?:step\s+)?2[.):][\s\S]*?^\s*(?:\*\*)?(?:step\s+)?3[.):]'
+    flags: mi
+    target: last_message
+  - name: no-preamble-opener
+    type: regex
+    pattern: '^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:great|sure|certainly|of course|absolutely|happy to|good question|let me|let(?:''|’)s|i(?:''|’)ll|i will|here(?:''|’)s how|here is how|okay|ok\b|alright|got it|(?:adhd|shape|shaping)\b[^\n]*\b(?:on|active|enabled|applied)\b)'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: no-pleasantry-closer
+    type: regex
+    pattern: 'hope (?:this|that|it) helps|let me know if|feel free to|happy to help|anything else\b|good luck|happy coding'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: ends-with-next-action
+    type: regex
+    pattern: '(?:^|\n)[ \t]*(?:[-*>]\s*|\d+[.)]\s*|\*\*|__)*(?:next\b|run\b|open\b|paste\b|check\b|try\b|activate\b|type\b|verify\b|confirm\b|start\b|then\b)[^\n]*(?:\n[ \t]*```[^\n]*(?:\n(?![ \t]*```)[^\n]*){0,6}\n[ \t]*```)?\s*$'
+    flags: i
+    target: last_message

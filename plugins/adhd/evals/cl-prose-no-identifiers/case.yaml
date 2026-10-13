@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: cl-prose-no-identifiers
+graders:
+  - name: synthesized-locators
+    type: regex
+    pattern: '^(?=[\s\S]*(?:¶\s*1(?!\d)|\bpara(?:graph)?\.?\s*1(?!\d)|["“]We keep coming back))(?=[\s\S]*(?:¶\s*2(?!\d)|\bpara(?:graph)?\.?\s*2(?!\d)|["“]On hiring))(?=[\s\S]*(?:¶\s*3(?!\d)|\bpara(?:graph)?\.?\s*3(?!\d)|["“]The office move))(?=[\s\S]*(?:¶\s*4(?!\d)|\bpara(?:graph)?\.?\s*4(?!\d)|["“]Budget-wise))'
+    flags: i
+    target: last_message
+  - name: locators-declared
+    type: regex
+    pattern: '\bno (?:original |own |source )?(?:identifiers|ids|numbering|numbers|q-numbers|section (?:marks|numbers)|labels|item numbers|markers)\b|\bsynthesized\b|\b(?:added|assigned|inserted|my own)\b[^\n]{0,40}\b(?:locators?|markers?|labels?|paragraph numbers)\b|\b(?:locators?|markers?|labels?)\b[^\n]{0,40}\b(?:i added|added by me|are mine|not in the original)\b'
+    flags: i
+    target: last_message
+  - name: verbatim-terms
+    type: regex
+    pattern: '^(?=[\s\S]*Kestrel Logistics)(?=[\s\S]*\$18,000)(?=[\s\S]*March 31)(?=[\s\S]*June 1)(?=[\s\S]*12 months)(?=[\s\S]*40 percent)'
+    target: last_message
+  - name: lens-line
+    type: regex
+    pattern: '\b(?:validate|check|verify)\b[^\n]{0,120}\boriginal\b|\blens\b[^\n]{0,120}\boriginal\b'
+    flags: i
+    target: last_message

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "That message is a single status line with no decisions in it, so there is nothing dense to clarify. What did you want clarified: the build, the deploy, or something else?"
+    },
+    {
+      "answer": "Nothing to untangle here: it reports one fact and asks for no decision. Which part is unclear to you?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| # | Item | Recommendation | Basis | Alternative | What you're deciding |\n|---|------|----------------|-------|-------------|----------------------|\n| 1 | Status | \"staging deploy is queued\" | none stated | none offered | Whether to wait ten minutes. |\n\nThis is a clarification; validate against the original text."
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    },
+    {
+      "answer": "Nothing dense here."
+    }
+  ]
+}

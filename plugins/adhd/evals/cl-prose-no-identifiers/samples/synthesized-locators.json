@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "The memo has no identifiers, so I synthesized paragraph locators (¶1 to ¶4) as back-links.\n\n| # | Item | Recommendation | Basis | Alternative | What you're deciding |\n|---|------|----------------|-------|-------------|----------------------|\n| 1 | ¶1 | \"I lean toward Kestrel\" (Kestrel Logistics, $18,000 a year) | \"the contractors would not start until after March 31\" | \"two contractors for roughly ten weeks\" | Vendor or in-house for the warehouse API. |\n| 2 | ¶2 | \"the open backend role should stay open\" | onboarding cost in the last cycle | \"converted to a contract seat\" | Keep the role a hire. |\n| 3 | ¶3 | none; \"renewing is the safe default\" | none stated | second floor at Harbor Street from June 1 vs renew for 12 months | Which space. |\n| 4 | ¶4 | \"the third-quarter travel line drops by 40 percent\" | none stated | none offered | Sign off before Friday. |\n\nLeft out: nothing.\n\nThis is a lens: validate final answers against the original memo."
+    },
+    {
+      "answer": "No original numbering exists; locators below are quoted openings I added.\n\n1. \"We keep coming back...\" - Kestrel Logistics at $18,000 a year vs two contractors; contractors start after March 31.\n2. \"On hiring...\" - keep the role open.\n3. \"The office move...\" - Harbor Street from June 1, or renew for 12 months.\n4. \"Budget-wise...\" - travel line down 40 percent.\n\nCheck final answers against the original memo."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I synthesized ¶1: Kestrel Logistics $18,000 March 31 June 1 12 months 40 percent. Validate against the original."
+    },
+    {
+      "answer": "1. Vendor: pick Kestrel Logistics ($18,000 a year) over two contractors; contractors start after March 31.\n2. Hiring: keep the backend role open.\n3. Office: Harbor Street from June 1, or renew for 12 months.\n4. Budget: cut travel by 40 percent.\n\nValidate answers against the original memo."
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    }
+  ]
+}
