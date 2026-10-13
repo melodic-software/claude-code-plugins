@@ -13,6 +13,16 @@ sandboxed session it fails with `HTTP 403`. Substitute:
 DEFAULT_BRANCH=$(gh api "repos/{owner}/{repo}" --jq '.default_branch')
 ```
 
+## Read the open state at the base branch
+
+The repository level of `pr_open_state` comes from the PR's base branch in the base repository,
+never from the working tree or the branch being opened. A 404 means the level is unset.
+
+```bash
+gh api "repos/<base-owner>/<repo>/contents/docs/conventions/source-control.yaml?ref=<base-branch>" \
+  -H "Accept: application/vnd.github.raw"
+```
+
 ## Closes line without a tracker
 
 ```bash
@@ -38,16 +48,12 @@ fi
 
 ## Issue state over REST
 
-`gh issue view --json` routes through GitHub's GraphQL API, and sandboxed sessions (Claude Code on
-the web and remote execution) serve only a pinned set of GraphQL operations, refusing the rest with
-`HTTP 403`. Verified 2026-09-06 against Claude Code 2.1.263 and
-[Configure cloud environments](https://code.claude.com/docs/en/cloud-environments#github-proxy):
-"the proxy serves only a pinned set of GraphQL operations for pull-request workflows", rejecting the
-rest with a 403 reading `This GraphQL query is not enabled for this session` and naming the REST
-fallback `gh api repos/{owner}/{repo}/...`. The restriction applies to every request through the
-proxy regardless of the credentials supplied, so a `GH_TOKEN` gets the same 403. Recheck when that
-page stops carrying that span, or when a release note names the GitHub proxy or its GraphQL
-allowlist. The `2>/dev/null || true` in the block above swallows that 403. Substitute the REST
+`gh issue view --json` routes through GitHub's GraphQL API, and a cloud session behind the GitHub
+proxy is served no GraphQL operation at all, so the call fails with `HTTP 403` whatever token is
+set. Pointer:
+[Configure cloud environments § GitHub proxy](https://code.claude.com/docs/en/cloud-environments#github-proxy),
+which names the refusal and the REST fallback. As-of: 2026-10-11. Recheck trigger: that section
+changes its GraphQL entry, or a release note names the GitHub proxy. The `2>/dev/null || true` in the block above swallows that 403. Substitute the REST
 issues endpoint, which reports `state` in lower case:
 
 ```bash
@@ -73,7 +79,9 @@ file.
 # Identity: plain `gh` (the human PR author) by default.
 # No reviewers are auto-requested by default — `gh pr create` runs without
 # `--reviewer`.
-PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" --body-file "$BODY_FILE")
+# DRAFT_FLAG comes from the phase's resolved pr_open_state: (--draft) by
+# default, empty only when the state is `ready` and a person drives the run.
+PR_URL=$(gh pr create "${DRAFT_FLAG[@]}" --head "$BRANCH" --title "<type>: <description>" --body-file "$BODY_FILE")
 
 # Extract PR number from URL (gh pr create outputs the URL on success).
 # This number is the source of truth for the rest of this phase — pass it
@@ -84,7 +92,7 @@ PR_NUMBER=$(basename "$PR_URL")
 ## Open the PR over REST
 
 `gh pr create` sends a `RepositoryInfo` GraphQL query as its repo-info preamble, before it touches
-the pull-request API at all, so under the pinned-GraphQL restriction it returns `HTTP 403` having
+the pull-request API at all, so under the GraphQL restriction it returns `HTTP 403` having
 created nothing. `POST /repos/{owner}/{repo}/pulls` is REST and works. It requires `head` and
 `base`, and `title` unless an existing `issue` is being converted; `body`, `draft`, and
 `maintainer_can_modify` are optional. Five differences from `gh pr create` matter:
@@ -102,7 +110,7 @@ PR_JSON=$(gh api --method POST "repos/{owner}/{repo}/pulls" \
   -f head="$BRANCH" \
   -f base="$BASE" \
   -F body=@"$BODY_FILE" \
-  -F draft=true)
+  -F draft="$DRAFT_JSON")
 PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.html_url')
 PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
 ```
@@ -127,14 +135,14 @@ In a sandboxed session, take identity from the create response, or re-read it wi
 `gh pr create` MUST pass `--head "$BRANCH"` explicitly, since the invoker is not on the branch:
 
 ```bash
-PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" --body-file "$BODY_FILE")
+PR_URL=$(gh pr create "${DRAFT_FLAG[@]}" --head "$BRANCH" --title "<type>: <description>" --body-file "$BODY_FILE")
 ```
 
 In a sandboxed session that 403s, the REST form, run from the worktree:
 
 ```bash
 PR_JSON=$( cd "$WT" && gh api --method POST "repos/{owner}/{repo}/pulls" \
-  -f title="<type>: <description>" -f head="$BRANCH" -f base="$BASE" -F body=@"$BODY_FILE" -F draft=true )
+  -f title="<type>: <description>" -f head="$BRANCH" -f base="$BASE" -F body=@"$BODY_FILE" -F draft="$DRAFT_JSON" )
 ```
 
 Resolve the base branch the same anchored way:
@@ -146,7 +154,7 @@ On a triangular flow, name the base repository explicitly and namespace `head`:
 BASE_REPO="<base-owner>/<repo>"                # the PR's target, not the push destination
 PR_JSON=$(GH_REPO="$BASE_REPO" gh api --method POST "repos/{owner}/{repo}/pulls" \
   -f title="<type>: <description>" -f head="<fork-owner>:$BRANCH" \
-  -f base="$BASE" -F body=@"$BODY_FILE" -F draft=true)
+  -f base="$BASE" -F body=@"$BODY_FILE" -F draft="$DRAFT_JSON")
 ```
 
 `GH_REPO` overrides the cwd-derived placeholders outright, so this form needs no `cd` at all. On a

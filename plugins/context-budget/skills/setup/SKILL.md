@@ -6,6 +6,8 @@ disable-model-invocation: true
 allowed-tools:
   - "Bash(node --version*)"
   - "Bash(claude --version*)"
+  - "Bash(command -v node*)"
+  - "Bash(command -v claude*)"
 shell: bash
 ---
 
@@ -15,10 +17,10 @@ shell: bash
 re-issuing them. A path row shows the resolved path, or `absent` when missing; a version row
 shows what the first `PATH` match reports, or `unavailable` when none resolves or it fails to run:
 
-- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
-- `node --version`: !`{ node --version 2>/dev/null || echo "unavailable"; }`
-- `claude`: !`{ command -v claude 2>/dev/null || echo "absent"; }`
-- `claude --version`: !`{ claude --version 2>/dev/null || echo "unavailable"; }`
+- `node`: !`command -v node 2>/dev/null || echo absent`
+- `node --version`: !`node --version 2>/dev/null || echo unavailable`
+- `claude`: !`command -v claude 2>/dev/null || echo absent`
+- `claude --version`: !`claude --version 2>/dev/null || echo unavailable`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that probe via
 Bash instead.

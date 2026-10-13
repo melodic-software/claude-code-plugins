@@ -13,21 +13,33 @@ Run the `state-key.sh` command in `SKILL.md`'s Phase D, whose path is already re
 prints `<repo-identity>/<worktree-discriminator>`, implemented once in the shared `lib/state-key.sh`
 that `audit-prompting-postures` also uses. Use the result.
 
-Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}` "when set": that
-placeholder is substituted inline before the skill body reaches you, so the literal token is never
-visible and the condition is not yours to evaluate.
+Do **not** express the path as a condition over `${CLAUDE_PROJECT_DIR}` "when set": in `SKILL.md` the placeholder is substituted before the body reaches you, and in this
+file, read with the Read tool, it arrives as literal text, so in neither place is the condition
+yours to evaluate. Derive the key from the command.
+
+- **Pointer**: when deciding how a skill placeholder reaches the body, fetch
+  [skills: available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes where or when `${CLAUDE_PROJECT_DIR}` is substituted.
 
 ## Why the key matters in this skill specifically
 
-`${CLAUDE_PLUGIN_DATA}` resolves to `~/.claude/plugins/data/{id}/`, keyed to the plugin identifier
-and nothing else ([plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables),
-§ Environment variables). Under a fixed filename every run from every project on the machine
+`${CLAUDE_PLUGIN_DATA}` is one directory per plugin, shared by every project on the machine. Under a
+fixed filename every run from every project on the machine
 overwrites the last, and Phase D's cost line would then compute its **per-surface token delta
 against a prior report belonging to a different project's surface set**, printing a number rather
 than declining.
 
 The lost artifact is the smaller half of that; a silently wrong figure in the report header is the
 larger one.
+
+- **Pointer**: when deciding what `${CLAUDE_PLUGIN_DATA}` is keyed to, fetch
+  [plugin manifest reference: environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section keys the data directory to anything beyond the plugin, such as
+  the project.
 
 ## Two absent-prior cases, and they are not the same
 

@@ -1,9 +1,14 @@
 # Grading methods
 
-Distilled from Anthropic's "Define success criteria and build evaluations"
-(<https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>) and the evals cookbook
-(`anthropics/claude-cookbooks` `misc/building_evals.ipynb`), both fetched 2026-08-08. Re-fetch the
-sources before treating any specific here as current.
+Distilled from Anthropic's "Define success criteria and build evaluations" and the evals cookbook
+(`anthropics/claude-cookbooks` `misc/building_evals.ipynb`).
+
+- **Pointer**: when a specific here must be current, fetch
+  [Grade your evaluations](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#grade-your-evaluations)
+  and [Tips for LLM-based grading](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#tips-for-llm-based-grading)
+  live.
+- **As of**: 2026-08-08 (distilled); pointer anchors verified 2026-10-11
+- **Recheck trigger**: either section is retitled, moves, or changes its grading guidance.
 
 This repository's own defaults and source-conflict records: [local-decisions.md](local-decisions.md).
 

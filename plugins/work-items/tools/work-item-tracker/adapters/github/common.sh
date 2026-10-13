@@ -158,17 +158,16 @@ wit_resolve_repo() {
     printf '%s\n' "$explicit"
     return 0
   fi
-  # REST, not `gh repo view`: that is GraphQL-backed and 403s in sandboxed sessions.
+  # REST, not `gh repo view`: that is GraphQL-backed (README "View item").
   wit_run_gh read api 'repos/{owner}/{repo}' --jq .full_name
   printf '%s\n' "$WIT_GH_OUT"
 }
 
 # --- Assignee ops (REST) -----------------------------------------------------
 # These deliberately use `gh api` (REST) rather than `gh issue view/edit`. The
-# `gh issue` subcommands resolve assignees through GraphQL, and sandboxed
-# sessions (Claude Code on the web / remote execution) serve only a pinned set
-# of GraphQL operations, refusing the rest with HTTP 403 — which made the whole
-# lease protocol unrunnable there. REST `…/issues/<n>/assignees` is served.
+# `gh issue` subcommands resolve assignees through GraphQL, which made the whole
+# lease protocol unrunnable in sandboxed sessions (Claude Code on the web /
+# remote execution); README "View item" records why and where to recheck.
 # The <writer> argument keeps the identity routing intact: `read` = bare gh =
 # the session identity the claim carve-out requires (README "Edit labels /
 # assignees"); `write` = the bot wrapper.
@@ -337,7 +336,7 @@ wit_gh_annotate_blocker_reasons() {
 # wont_do_labels label, and closed blockers whose reason could not be read;
 # blocked_by_wont_do_count counts the won't-do ones.
 # gh >= 2.94 reads through `gh issue view --json` (issueType/blockedBy/parent).
-# Older gh reads REST, which sandboxed sessions serve where GraphQL 403s, and maps
+# Older gh reads REST, the path sandboxed sessions need (README "View item"), and maps
 # the REST shape onto the same fields; type comes from .type, and parent and
 # blockers have no REST field there, so they emit as null and 0.
 wit_emit_item() {

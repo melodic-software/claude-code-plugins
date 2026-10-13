@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.11.0] - 2026-10-11
+
+### Added
+
+- Live context breakdown: a pane or a band above the prompt shows what the context is made of, set by the new `live_display` option and `/context-budget live`.
+
 ## [0.10.1] - 2026-10-11
 
 ### Fixed

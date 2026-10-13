@@ -18,6 +18,17 @@ PR_NUMBER=$(gh pr view "$BRANCH" --json number -q '.number' 2>/dev/null)
 gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'
 ```
 
+## Check for a hold
+
+```bash
+bash "<skill-dir>/scripts/check-ready-holds.sh" "$PR_NUMBER"
+```
+
+Exit 0: no hold. Exit 3: held or superseded, one reason per line on stdout. Exit 2: a `gh` read
+or a parse failed, so no hold was ruled out. Exit 1: a bad argument. Exit 5: `gh` or `jq` is
+missing. The script reads the title, body, labels and closing issue
+references with `gh pr view`, and each closing issue's state over REST.
+
 ## Refresh the base with a merge
 
 ```bash

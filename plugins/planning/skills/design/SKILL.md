@@ -62,6 +62,7 @@ Tier B (required): the type sketch, inline or as a link to type-inventory.md.
 These hold after a compaction re-attach. Later sections say how to carry them out.
 
 - **Collaborative always.** Never autonomously decide design. Ask in frontier rounds (Key behaviors).
+- **Abstract is never the agent's pick.** A variation-point verdict of abstract comes only from the user: interactively ask, recommending contain; unattended, apply contain and record the question as a human decision. Full rule: [`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md) "Autonomy".
 - **Every recommendation carries a `Basis:` line**: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented; one research cannot settle is withheld, recorded as a `deferred` thread whose research tag names the evidence that would settle it rather than presented as a recommendation.
 
 ## Action Router
@@ -97,6 +98,8 @@ Break the domain into capabilities or concerns. For each one:
 - Storage needs (stateless? persistent? app-specific?)
 - Cross-app reuse potential. Decide shared-library-worthy vs app-specific per capability, following the consuming project's own library-organization and dependency-preference conventions when it declares them
 
+When the work adds a requirement to code that already exists, ask one question before Phase 3: had this requirement been known when the code was first written, which types and boundaries would it have? Take that answer as the target shape, rather than the current shape with the requirement attached to its side.
+
 Produce: `capability-matrix.md` (library scope) or equivalent per scope.
 
 Survey-then-deep: broad scan of the problem space before diving into any single capability.
@@ -111,17 +114,29 @@ Identify cross-cutting design decisions that affect multiple capabilities. For e
 
 Track resolution status: **resolved** (decision made), **directional** (direction agreed, details deferred), **deferred** (needs research).
 
+**Two-candidate step.** A thread takes this step when the codebase has nothing to copy for it, more than one approach is workable, and the decision is hard to reverse later (a public contract, a stored format, a boundary other modules will build on):
+
+1. Write the criteria the candidates will be judged by into the thread before drafting any candidate.
+2. Draft at least two candidates that differ in structure: who owns the state, where the module split falls, or what shape the contract takes. A copy of the first candidate with renamed or reordered parts is not a second candidate.
+3. Judge each candidate against the written criteria, and record the rejected ones with the reason in `design-threads.md`.
+
+When the thread is about how a screen or interaction looks or feels, invoke `/prototype:explore-directions` via the Skill tool when it is among the available skills, after confirming the scope of the throwaway with the user; otherwise run the three steps here, describing each candidate in prose.
+
+When a type can be read and changed by more than one concurrent actor (threads, processes, overlapping requests, background jobs), open a **shared-state** thread: which actors write it, what a reader sees halfway through an update, and whether the type is confined to one owner, made immutable, or guarded.
+
 For SaaS or B2B org-scoped products, open a **tenancy posture** thread early: single- vs multi-tenant, isolation model, shared vs tenant-scoped data catalog.
 
 When exploration surfaces high coupling, large types, or multi-responsibility files (refactor or strangler scope), open a **refactoring posture** thread: characterization-test strategy, seam map, incremental extract order, change budget.
 
-For any feature with a testable surface, open a **test-seam posture** thread: sketch the seams the feature will be tested at. Prefer existing seams over new ones; place any new seam at the highest level possible; drive toward the fewest seams that cover the surface. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table. When the `testing` plugin is enabled, cite it rather than restating; otherwise apply standard test-design judgment for the seam-altitude call. Confirm the seam sketch with the user before design output is finalized.
+**Variation-point pass.** For `integration`, `module`, and `system` scopes, always run it; for `library` and `data`, run it when the design touches an external system or a domain category. List every variation point (every external integration is one), ask the two questions (likelihood of a second variant, cost of change after shipping), and open one thread per point that resolves to a verdict: abstract now, contain now and abstract later (the default for anything external), or leave inline (internal one-offs only). Run the leak test on every abstraction and every contained boundary, and place seams where the solution's existing architecture style already puts them. Questions, verdicts, leak test, autonomy rule, and canonical sources: [`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md). An intent answer from `/planning:interview` is a settled prerequisite, never re-asked.
+
+For any feature with a testable surface, open a **test-seam posture** thread: sketch where the feature's tests will attach. Reuse a seam that already exists before adding one; put any new seam as high in the stack as it can go; aim for the smallest set of seams that covers the surface. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table. When the `testing` plugin is enabled, cite it rather than restating; otherwise apply standard test-design judgment for the seam-altitude call. Confirm the seam sketch with the user before design output is finalized.
 
 Produce: `design-threads.md`
 
 ### Phase 3: Type Modeling
 
-Derive types from capabilities:
+This phase ends with a `type-inventory.md` in which every type traces back to a call site that needs it, and each type's shape is set by the operations its busiest paths run on it. Two checks prove that outcome. First, call sites exist before types do: from consumer code, sketch two or three brief calls into the new contract, written as its users will write them, before any type has a name; when the contract is a library or API, at least one of those calls sits inside the importing package. A type enters the inventory only if those calls need it, given the capabilities. Second, each entry carries its operations (lookup by key, ordered walk, append, bulk replace) with the ones on the busiest paths flagged, and the structure chosen for that type is the one the flagged operations favor. Apply the rules in [`reference/type-discipline.md`](reference/type-discipline.md). When the repository has a `tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files, also read [`reference/type-discipline/typescript.md`](reference/type-discipline/typescript.md).
 
 - Records, enums, strongly-typed IDs, value objects
 - Contracts: interfaces with method signatures
@@ -133,6 +148,12 @@ Derive types from capabilities:
   the design artifacts directly
 
 Produce: `type-inventory.md`
+
+Close Phase 3 by auditing the inventory: take each type in turn and follow one of its values from where it is made to where it is read. A fault found at any stop sends that type back to the design threads.
+
+1. **Where it is made.** When a schema, spec or migration already describes the shape, the entry derives from it instead of drawing it again. When the value comes from outside the program, it becomes this type at the place it arrives, and nothing further in validates that input again.
+2. **What it holds.** Try to write a mix of field values the domain forbids; a type that accepts it is too loose. For each type the design strengthened, name the function that would fail on part of its input without the extra strength. With no such function, the strength guards nothing that can go wrong, and that is a fault too.
+3. **Where it is read.** Picture one more variant: every site that reads the type must then fail to compile, not keep running silently. On the same path, every cast, assertion or suppression has a check in front of it.
 
 Once type modeling stabilizes, run the `terminology` action for the cross-cutting naming review of the full inventory. Per-type naming during modeling is not a substitute for the whole-inventory pass.
 
@@ -175,6 +196,10 @@ A cross-cutting naming review of the full type inventory, run once type modeling
 ## Handoff gate (`handoff` action)
 
 The in-session shortcut to the design→plan gate. Invoke `/planning:design-handoff` via the Skill tool. The single canonical gate implementation: it applies the binary check against `design-threads.md` (or the `design-resolution.md` early-exit artifact), and on PASS emits the plan-ready summary and resume prompt. This skill carries no gate criteria of its own; criteria changes land in `/planning:design-handoff` only.
+
+**Stub files (`scaffold_stubs`)**. Before invoking the gate, resolve `scaffold_stubs`, lowest layer first: the default `false`; the plugin's user config (`${user_config.scaffold_stubs}`, where a literal unexpanded value means unset); then the `scaffold_stubs` key of the repository's `docs/conventions/planning.yaml`, which wins when set, read only when the working directory's git root is neither `$HOME` nor an ancestor of it. Only the bare booleans `true` and `false` are valid: any other value, a quoted `"true"` included, is named with its file (or user config), key and value, and that layer is dropped, so a valid higher layer still wins and otherwise the key is `false`. Report one line naming the value and its layer, e.g. `scaffold_stubs: true (docs/conventions/planning.yaml)`. Keys and layers: [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
+
+With `true`, add a `## Stub scaffold` section to `design-threads.md` (or to `design-resolution.md` on an early exit) listing every new file the design introduces, each with the signatures it will declare (types, function and method signatures, exported constants), taken from the resolved type inventory and contracts. Each stub body is the language's ordinary not-implemented form (for example `raise NotImplementedError` in Python or `todo!()` in Rust); pick it from the language at hand, with no per-language reference file. After the gate passes, the handoff output names those files and signatures so `/planning:plan` can place the stub phase. With `false`, write no such section and name no stubs.
 
 ## Scope-specific artifacts
 
@@ -239,7 +264,7 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 
 ## Key behaviors
 
-- **Frontier rounds.** Every open thread whose prerequisites are settled surfaces in the same numbered round, each with a recommendation; a thread that depends on an unresolved thread waits for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions. Inline prose otherwise
+- **Frontier rounds.** Every open thread whose prerequisites are settled surfaces in the same numbered round, each with a recommendation; a thread that depends on an unresolved thread waits for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is independent questions that fit one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>, as of 2026-10-11; recheck when that section changes the per-call question limit). Inline prose otherwise
 - **Grounding steps.** Ground a consequential recommendation in the affected code plus its consumers and in external research that reads official docs first, routed to the exploration and research capabilities (`/discovery:explore`, `/discovery:research` if enabled). A recommendation that changes is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md)
 - **Self-answer before asking.** Each candidate question first passes [`${CLAUDE_PLUGIN_ROOT}/context/self-answer.md`](../../context/self-answer.md): a fact it settles is stated with its basis and source tag, not asked
 - **Track resolution status.** Every question and thread gets a status: resolved / directional / deferred. Deferred items carry a research tag describing what external investigation is needed
@@ -248,7 +273,7 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 - **Dependency order awareness.** Note which decisions block others. Surface these dependencies to the user so `/planning:plan` can sequence phases correctly
 - **Resume from prior state.** When design artifacts exist in the topic's design directory, resume from them. Read artifacts, summarize current state, identify remaining gaps
 - **Suggest adjacent skills.** When a domain-event workshop fits better for domain modeling, suggest it if available. When external research is needed for a deferred item, suggest the research capability (`/discovery:research` if enabled). When the session tail is reached, suggest the `terminology` then `handoff` actions
-- **Design defaults (non-trivial scopes only).** For `library`, `module`, `data`, `integration`, and `system` scopes, when discussion touches configurability, extension points, observability, or testability, open a design thread for it. Skip on early-exit, `status`, or trivial single-file work
+- **Design defaults (non-trivial scopes only).** For `library`, `module`, `data`, `integration`, and `system` scopes, when discussion touches configurability, extension points, observability, or testability, open a design thread for it. Extension points start from the Phase 2 variation-point pass, which runs unconditionally for `integration`, `module`, and `system`. Skip on early-exit, `status`, or trivial single-file work
 
 ## What this skill does NOT do
 

@@ -3,9 +3,12 @@
 # covers: one absolute path per line, sorted, ready for
 # `detect.sh --list-targets --paths-file`.
 #
-# The surfaces are the user-level markdown files named in
-# https://code.claude.com/docs/en/claude-directory, under CLAUDE_CONFIG_DIR
-# when it is set and non-empty, else $HOME/.claude:
+# The surfaces are this script's scope decision, drawn from the user-level
+# markdown files in the claude-directory page's "File reference" table
+# (https://code.claude.com/docs/en/claude-directory#file-reference, as of
+# 2026-10-11; recheck when that table adds, moves or drops a global-scope
+# markdown file), under CLAUDE_CONFIG_DIR when it is set and non-empty, else
+# $HOME/.claude:
 #   CLAUDE.md
 #   rules/**/*.md
 #   skills/<name>/**/*.md, for each <name> directory holding SKILL.md

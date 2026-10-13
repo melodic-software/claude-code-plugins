@@ -1,13 +1,12 @@
 # Running this playbook on Claude Opus 4.8
 
-This playbook treats Opus 4.8 as fallback-only. A session reaches you when Claude Code's
-content-based fallback moves a flagged request from a current model to Opus 4.8, and the session
-continues on you. Keep this chapter while that fallback names Opus 4.8 as a target; retire it when
-it stops.
+This playbook treats Opus 4.8 as fallback-only: this chapter is for a session that Claude Code's
+automatic model fallback put on Opus 4.8 (how fallback works: pointer below). Keep this chapter while that fallback names Opus 4.8
+as a target; retire it when it stops.
 
 - **Pointer**: for which flagged requests move to Opus 4.8, see
   [Automatic model fallback](https://code.claude.com/docs/en/model-config#automatic-model-fallback).
-- **As of**: 2026-10-01
+- **As of**: 2026-10-11
 - **Recheck trigger**: that section no longer names Opus 4.8 as a fallback target.
 
 > **If you are not Claude Opus 4.8:** the specific deltas below are calibrated for Opus 4.8, so don't
