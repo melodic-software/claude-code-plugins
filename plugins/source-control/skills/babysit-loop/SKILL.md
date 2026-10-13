@@ -203,12 +203,11 @@ before resolving the first cell of a run.
 The option values below substitute when this skill loads. Treat an empty value, or one still
 written as a `${user_config.…}` placeholder, as unset. The lane reads these options from this block
 only: never the `CLAUDE_PLUGIN_OPTION_*` environment mirror, and never `.claude/source-control.md`
-or any other repository file. The reasons and their verification record are in
-[reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md#allowed-source-class),
-which also says what each surface must be. The lane-start preflight in
-[reference/cycle-shape.md](reference/cycle-shape.md) step 0 reads this block. The resolution helper
-step 3 runs takes none of these values from the lane: it reads them from the operator's managed
-and user settings itself.
+or any other repository file. The reasons, their verification record and what each surface must be
+are in [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md#allowed-source-class).
+The lane-start preflight in [reference/cycle-shape.md](reference/cycle-shape.md) step 0 reads this
+block. The resolution helper step 3 runs takes none of these values from the lane: it reads them
+from the operator's managed and user settings itself.
 
 | Option | Value |
 | --- | --- |
@@ -216,6 +215,7 @@ and user settings itself.
 | `promotion_evidence_root` | `${user_config.promotion_evidence_root}` |
 | `promotion_evidence_source` | `${user_config.promotion_evidence_source}` |
 | `promotion_evidence_checker` | `${user_config.promotion_evidence_checker}` |
+| `promotion_evidence_credential_roots` (optional) | `${user_config.promotion_evidence_credential_roots}` |
 
 ## do-not-merge
 

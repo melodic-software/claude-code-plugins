@@ -207,6 +207,10 @@
           "description": "On a line that changed the recommendation: the questions.json rev that write produced. It orders the change against a terminal answer recorded in the same second."
         },
         "alt": {"type": ["string", "null"]},
+        "alternatives": {
+          "enum": ["rewritten", "kept"],
+          "description": "On a line that changed the recommendation: whether the same op rewrote the alternatives or stated that the current ones were checked against it."
+        },
         "summary": {"type": "string"}
       }
     },
@@ -322,7 +326,10 @@
           }
         },
         "previousRecommendation": {"type": "string"},
-        "revised": {"type": "string"},
+        "revised": {
+          "type": ["string", "boolean"],
+          "description": "Set by a recommendation change: its `why` as given, else true"
+        },
         "archived": {"$ref": "#/$defs/archived"},
         "state": {
           "enum": ["open", "stale", "upstream-pending", "archived"],
@@ -336,6 +343,11 @@
           "type": "array",
           "items": {"type": "string"},
           "description": "Derived by the server on a stale question: the ids whose recommendation changed while this question held a decision (named in their `affects`, or this question depends on them); never written"
+        },
+        "upstreamStale": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Derived by the server on an upstream-pending question: every stale question up its dependsOn chain, nearest first and ties by id; never written"
         }
       }
     }
