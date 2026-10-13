@@ -155,7 +155,7 @@ $CheckBody = {
                 Select-Object -Unique).Count
 
         # A KEV gap with upgrades pending means "no KEV match" is unverified, so the
-        # check reports UNKNOWN instead of a count-only severity (issue #6505). With no
+        # check reports UNKNOWN instead of a count-only severity. With no
         # upgrades there is nothing to correlate, and OK stays true without KEV data.
         $kevUnverified = $null -ne $kevGap -and $upgrades.Count -gt 0
         $ranSuccessfully = -not $kevUnverified
