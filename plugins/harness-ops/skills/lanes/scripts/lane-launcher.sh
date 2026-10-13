@@ -375,9 +375,17 @@ probe_machine_mods() {
 
 # Prints the lane's `mods:` line. The lane's --settings overlay is read first: it
 # can turn hooks off for that lane alone, and an explicit false in it may undo a
-# lower scope's true, which the machine check cannot see.
-print_lane_mods() { # <settings JSON or "">
-  local settings="${1:-}" overlay=""
+# lower scope's true, which the machine check cannot see. The probe covers the
+# repo checkout on this machine, so a lane placed anywhere else reads unknown.
+print_lane_mods() { # <settings JSON or ""> [execution target]
+  local settings="${1:-}" target="${2:-}" overlay=""
+  case "$target" in
+  "" | local-worktree) ;;
+  *)
+    info "    mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on $target)"
+    return 0
+    ;;
+  esac
   [[ -n "$settings" ]] && overlay="$(jq -r 'if type == "object" and has("disableAllHooks") then (.disableAllHooks | tostring) else "" end' <<<"$settings" 2>/dev/null)"
   if [[ "$overlay" == "true" ]]; then
     info "    mods: off (disableAllHooks in the lane's --settings)"
@@ -1774,13 +1782,14 @@ _start_one() {
   case "$LANE_TARGET" in
   cloud-routine | cloud-project)
     print_setup_steps "$name" "$stage" "$LANE_TARGET" "$prompt_path"
+    print_lane_mods "$settings" "$LANE_TARGET"
     return 0
     ;;
   *) ;;
   esac
   info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}"
   launch_on_target "$idx" "$name" "$model" "$effort" "$prompt_path" "$settings" "$stage" start || return 1
-  print_lane_mods "$settings"
+  print_lane_mods "$settings" "$LANE_TARGET"
 }
 
 _restart_one() {
@@ -1793,6 +1802,7 @@ _restart_one() {
   case "$LANE_TARGET" in
   cloud-routine | cloud-project)
     print_setup_steps "$name" "$stage" "$LANE_TARGET" "$prompt_path"
+    print_lane_mods "$settings" "$LANE_TARGET"
     return 0
     ;;
   *) ;;
@@ -1808,7 +1818,7 @@ _restart_one() {
   fi
   info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}"
   launch_on_target "$idx" "$name" "$model" "$effort" "$prompt_path" "$settings" "$stage" restart || return 1
-  print_lane_mods "$settings"
+  print_lane_mods "$settings" "$LANE_TARGET"
 }
 
 _stop_one() {

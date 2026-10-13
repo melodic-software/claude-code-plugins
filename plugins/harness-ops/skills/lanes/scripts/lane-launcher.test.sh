@@ -1403,6 +1403,7 @@ out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "default supplies local-background" "$out" "execution target local-background (default)"
 assert_contains "local-background launches from the linked worktree" "$out" "DRY-RUN: cd $(printf '%q' "$ET_WT")"
 assert_contains "local-background is claude --bg -n <name> --permission-mode auto" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
+assert_contains "a local-background lane reads mods unknown, naming its host" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on local-background)"
 
 # cloud-routine and cloud-project print setup steps and launch nothing, for a
 # stage whose input is never untrusted (the trusted-stage copy).
@@ -1415,6 +1416,7 @@ for v in cloud-routine cloud-project; do
   assert_contains "$v prints setup steps" "$out" "$v is set by default"
   assert_not_contains "$v launches no local session" "$out" "claude --bg"
   assert_not_contains "$v launches no cloud session" "$out" "claude --cloud"
+  assert_contains "$v prints a mods line naming its host" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on $v)"
 done
 # restart leaves a running lane up when its host is one the launcher does not start.
 cat >"$TMP/et-agents-running.json" <<'JSON'

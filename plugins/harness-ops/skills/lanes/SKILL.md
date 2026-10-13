@@ -159,7 +159,9 @@ the lane says so. So `start`, `restart` and `status` print a `mods:` line under 
   reads, an organization's policy, and the rollout switch.
 - `unknown (<why>)`: the launcher cannot tell, for example with no CLI, an unrecognized
   message, a rollout value an earlier session saved, or a probe that did not answer in
-  time. The probe runs once, before the first lane launches, under a timeout.
+  time. The probe runs once, before the first lane launches, under a timeout. It covers
+  the repo checkout on this machine, so `start` and `restart` print unknown for a lane
+  whose execution target is anything but `local-worktree`.
 - `can load`: nothing the launcher sees stops mods. Causes that only the lane's session
   sees stay unchecked, so this never means the lane's mods are on.
 
