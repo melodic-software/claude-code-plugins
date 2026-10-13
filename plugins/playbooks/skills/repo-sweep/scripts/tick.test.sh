@@ -19,7 +19,12 @@ mkdir -p "$TMP/bin"
 cat >"$TMP/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 case "$*" in
-"pr view --json body") jq -n --rawfile b "$GH_BODY" '{body: $b}' ;;
+"pr view --json body")
+  # Not --rawfile: a native jq.exe opens that file in text mode and drops every CR.
+  # -R -s reads stdin, which -b switches to binary there.
+  case $OSTYPE in msys* | cygwin*) b=-b ;; *) b= ;; esac
+  jq ${b:+"$b"} -Rs '{body: .}' <"$GH_BODY"
+  ;;
 "pr edit --body-file -") if [[ -n ${GH_DROP-} ]]; then cat >/dev/null; else cat >"$GH_BODY"; fi ;;
 *) printf 'gh stub: unexpected: %s\n' "$*" >&2; exit 64 ;;
 esac
@@ -143,6 +148,30 @@ run four --partial 'docs only' filed https://github.com/o/r/issues/9 p:q@2.0
 assert_eq "--partial with filed" "0 - [x] four: p:q@2.0, filed https://github.com/o/r/issues/9, partial coverage: docs only" "$rc $out"
 run four in-progress
 assert_eq "filed line with the suffix cannot be re-ticked: exit 1" "1" "$rc"
+
+# A native jq.exe without -b writes text-mode stdout: every LF leaves as CRLF. The fake below
+# does that unless called with -b, so on a Windows platform tick.sh must pass -b to keep a
+# CRLF body byte for byte.
+mkdir -p "$TMP/textjq"
+# shellcheck disable=SC2016 # the fake's own source: its $-expansions run when it does
+{
+  printf '#!/usr/bin/env bash\nset -o pipefail\n'
+  printf 'if [[ ${1-} == -b ]]; then exec %q "$@"; fi\n' "$(command -v jq)"
+  printf '%q "$@" | awk -v BINMODE=3 '"'"'{ printf "%%s\\r\\n", $0 }'"'"'\n' "$(command -v jq)"
+} >"$TMP/textjq/jq"
+chmod +x "$TMP/textjq/jq"
+body '- [ ] two: p:b, p:c' '- [x] three: p:d' >"$TMP/body"
+PATH="$TMP/textjq:$PATH" REPO_SWEEP_OSTYPE=linux-gnu run two in-progress
+body '- [~] two: p:b, p:c' '- [x] three: p:d' >"$TMP/want"
+if cmp -s "$TMP/want" "$TMP/body"; then fail "text-mode jq control: the fake adds CRs" "changed bytes" "bytes kept"; else
+  pass "text-mode jq control: without -b the body gains CRs"
+fi
+body '- [ ] two: p:b, p:c' '- [x] three: p:d' >"$TMP/body"
+PATH="$TMP/textjq:$PATH" REPO_SWEEP_OSTYPE=msys run two in-progress
+assert_eq "text-mode jq on msys: exit 0, prints the new line" "0 - [~] two: p:b, p:c" "$rc $out"
+if cmp -s "$TMP/want" "$TMP/body"; then pass "text-mode jq on msys: only that line changed, CRLF kept"; else
+  fail "text-mode jq on msys: body bytes" "$(od -c "$TMP/want" | tail -3)" "$(od -c "$TMP/body" | tail -3)"
+fi
 
 for bad in "four filed p:q@1" "four filed notaurl p:q@1" "four filed https://x.io/a,b p:q@1" "four filed https://x.io/a p:q" \
   "four filed https://x.io/a" "four --partial x filed p:q@1"; do

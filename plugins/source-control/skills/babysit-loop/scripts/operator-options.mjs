@@ -1,4 +1,4 @@
-// Reads the four promotion-evidence bootstrap options from the operator's own settings, channel F
+// Reads the five promotion-evidence bootstrap options from the operator's own settings, channel F
 // of docs/conventions/hook-config-delivery: pluginConfigs["<name>@<marketplace>"].options in the
 // fixed-path managed settings files and in the user settings.json, the latter located only from
 // this install's own path. Nothing here reads the environment: a repository's settings env block
@@ -22,11 +22,14 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
+// The first four are required; promotion_evidence_credential_roots is optional, and unset it
+// passes the checker no --credential-roots.
 export const OPTION_KEYS = [
   "promotion_evidence_binding",
   "promotion_evidence_root",
   "promotion_evidence_source",
   "promotion_evidence_checker",
+  "promotion_evidence_credential_roots",
 ];
 
 const MANAGED_DIRS = {

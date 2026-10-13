@@ -55,9 +55,15 @@ levels, see
 as of 2026-10-10; recheck when that section changes the levels or which models
 support them.
 
-`pointer*`, `as_of` and `recheck` record where each bundled default's basis
-lives. They are read from the bundled layer only, by
-`/multi-agent:audit-defaults`.
+`pointer*`, `basis_*`, `claim_*`, `reason_*`, `as_of` and `recheck` record
+where each bundled default's basis lives. A role's `basis_model` and
+`basis_effort` say whether an upstream statement sets that value (`upstream`,
+with `pointer_<field>` and `claim_<field>`) or it is a judgment (`judgment`,
+with `reason_<field>`); a `workloads.<w>.<field>` value records the same keys
+on its role as `basis_<w>_<field>` and so on. The resolver prints the basis
+beside each value, and a guarded fan-out model takes `fanout.model`'s basis. They
+are read from the bundled layer only, and `/multi-agent:audit-defaults` checks
+each upstream pointer against its value.
 
 ## Tiering by difficulty
 

@@ -36,9 +36,14 @@
 #   --defaults <f>    bundled layer (tests)
 #
 # JSON shape: {"session_model", "session_frontier", "workload", "roles": {<role>:
-# {"role", "single": V, "fanout": V, "source": {"model", "effort"}}}, "layers":
-# [{"layer", "path", "state"}], "notes": [...]}, where V is {"model",
-# "omit_model", "effort", "guarded"}. `omit_model` is true when model is
+# {"role", "single": V, "fanout": V, "source": {"model", "effort"}, "basis":
+# {"model", "fanout_model", "effort"}}}, "layers": [{"layer", "path", "state"}],
+# "notes": [...]}, where V is {"model", "omit_model", "effort", "guarded"}. A
+# basis is `upstream` or `judgment` as the bundled layer records it
+# (basis_<field> in reference/defaults.yaml), `config` when a consumer layer
+# supplied the value, or `unrecorded` when the bundled entry names none.
+# `fanout_model` is the fanout variant's model basis: the role's own unless the
+# guard replaced it, then fanout.model's. `omit_model` is true when model is
 # `inherit`: the caller passes no model option and the agent runs on the
 # session model. `guarded` is true when the fan-out guard replaced the model.
 # A role whose single or fanout model is haiku, named or inherited from a haiku
@@ -124,8 +129,8 @@ bundled="$(parse "$DEFAULTS")" || die "bundled defaults do not parse: $DEFAULTS:
 
 if [[ "$MODE" == pointers ]]; then
   awk -F '\t' '
-    $1 ~ /^roles\.[^.]+\.(pointer[^.]*|as_of|recheck)$/ { split($1, k, "."); print k[2] "\t" k[3] "\t" $2 }
-    $1 ~ /^fanout\.(pointer[^.]*|as_of|recheck)$/ { split($1, k, "."); print "fanout\t" k[2] "\t" $2 }' <<<"$bundled"
+    $1 ~ /^roles\.[^.]+\.(pointer[^.]*|basis_[^.]*|claim_[^.]*|reason_[^.]*|as_of|recheck)$/ { split($1, k, "."); print k[2] "\t" k[3] "\t" $2 }
+    $1 ~ /^fanout\.(pointer[^.]*|basis_[^.]*|claim_[^.]*|reason_[^.]*|as_of|recheck)$/ { split($1, k, "."); print "fanout\t" k[2] "\t" $2 }' <<<"$bundled"
   exit 0
 fi
 
@@ -218,7 +223,7 @@ apply_layer() {
           NOTES+=("$label: $key ignored: unknown workload '$w' (valid:$WORKLOADS)")
           continue
         fi
-      elif [[ "$key" =~ ^(roles\.[^.]+|fanout)\.(pointer[^.]*|as_of|recheck)$ ]]; then
+      elif [[ "$key" =~ ^(roles\.[^.]+|fanout)\.(pointer[^.]*|basis_[^.]*|claim_[^.]*|reason_[^.]*|as_of|recheck)$ ]]; then
         NOTES+=("$label: $key ignored: provenance keys are read from the bundled layer only")
         continue
       else
@@ -308,30 +313,54 @@ variant() { # variant <model> <effort> <guarded>
     "$(json_str "$1")" "$omit" "$(json_str "$2")" "$3"
 }
 
+# basis_of <role prefix> <field> <source layer> [<workload>]: the bundled
+# basis_[<workload>_]<field> (upstream or judgment) when the bundled layer
+# supplied the value, `config` when a consumer layer did, `unrecorded` when the
+# bundled entry names none. Pass the workload only when its key set the value.
+basis_of() {
+  local b
+  if [[ -z "$3" ]]; then
+    printf 'unrecorded'
+    return
+  fi
+  if [[ "$3" != bundled ]]; then
+    printf 'config'
+    return
+  fi
+  b="$(val "$1.basis_${4:+$4_}$2")"
+  case "$b" in
+  upstream | judgment) printf '%s' "$b" ;;
+  *) printf 'unrecorded' ;;
+  esac
+}
+
 role_json() {
-  local r="$1" p="roles.$1" model effort ms es fan guarded=false w guard
+  local r="$1" p="roles.$1" model effort ms es mw="" ew="" mb fb fan guarded=false w guard
   model="$(val "$p.model")" ms="$(src "$p.model")"
   effort="$(val "$p.effort")" es="$(src "$p.effort")"
   if [[ -n "$WORKLOAD" ]]; then
     w="$p.workloads.$WORKLOAD"
     if [[ -n "$(val "$w.model")" ]]; then
-      model="$(val "$w.model")" ms="$(src "$w.model")"
+      model="$(val "$w.model")" ms="$(src "$w.model")" mw="$WORKLOAD"
     fi
     if [[ -n "$(val "$w.effort")" ]]; then
-      effort="$(val "$w.effort")" es="$(src "$w.effort")"
+      effort="$(val "$w.effort")" es="$(src "$w.effort")" ew="$WORKLOAD"
     fi
   fi
   fan="$model"
+  mb="$(basis_of "$p" model "$ms" "$mw")" fb="$mb"
   guard="$(val fanout.frontier_guard)"
   if [[ "${guard:-true}" == true ]]; then
     if [[ "$model" == inherit && "$SESSION_FRONTIER" == true ]] || is_frontier "$model"; then
       fan="$(val fanout.model)" guarded=true
       fan="${fan:-opus}"
+      fb="$(basis_of fanout model "$(src fanout.model)")"
     fi
   fi
-  printf -v ROLE_JSON '%s:{"role":%s,"single":%s,"fanout":%s,"source":{"model":%s,"effort":%s}}' \
+  printf -v ROLE_JSON '%s:{"role":%s,"single":%s,"fanout":%s,"source":{"model":%s,"effort":%s},"basis":{"model":%s,"fanout_model":%s,"effort":%s}}' \
     "$(json_str "$r")" "$(json_str "$r")" "$(variant "$model" "$effort" false)" \
-    "$(variant "$fan" "$effort" "$guarded")" "$(json_str "$ms")" "$(json_str "$es")"
+    "$(variant "$fan" "$effort" "$guarded")" "$(json_str "$ms")" "$(json_str "$es")" \
+    "$(json_str "$mb")" "$(json_str "$fb")" "$(json_str "$(basis_of "$p" effort "$es" "$ew")")"
   [[ "$model" == inherit ]] && model="$SESSION_MODEL"
   [[ "$fan" == inherit ]] && fan="$SESSION_MODEL"
   if [[ "$model" == haiku || "$fan" == haiku ]]; then

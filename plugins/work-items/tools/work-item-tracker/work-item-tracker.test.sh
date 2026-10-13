@@ -312,6 +312,38 @@ assert_eq "a branch with no item reference → exit 5" "5" "$?"
 run_skew linkfake change-link --branch >/dev/null 2>&1
 assert_eq "--branch without a value → exit 2" "2" "$?"
 
+# --- create-item --body-file (core-side, #6929) ---
+# The dispatcher reads the file and hands the adapter --body <content>, so a caller needs
+# no "$(cat …)" command substitution, which worktree isolation refuses.
+make_skew_adapter "bodyfake" "\"schema_version\":\"1.0\","
+jq '.verbs["create-item"] = true' "$TEST_TMPDIR/adapters/bodyfake/capabilities.json" >"$TEST_TMPDIR/bodyfake.json"
+cp "$TEST_TMPDIR/bodyfake.json" "$TEST_TMPDIR/adapters/bodyfake/capabilities.json"
+cat >"$TEST_TMPDIR/adapters/bodyfake/create-item.sh" <<'EOF'
+#!/usr/bin/env bash
+jq -cn '$ARGS.positional' --args -- "$@"
+EOF
+BODY_SRC="$TEST_TMPDIR/item-body.md"
+# shellcheck disable=SC2016 # the backticks and $(id) are the literal text under test
+printf '%s\n' '## What to build' 'run `git status` and $(id) literally' >"$BODY_SRC"
+# shellcheck disable=SC2016 # same literal text, expected verbatim
+assert_eq "--body-file becomes one literal --body argument" \
+  '["--title","t","--labels","a,b","--body","## What to build\nrun `git status` and $(id) literally"]' \
+  "$(run_skew bodyfake create-item --title t --body-file "$BODY_SRC" --labels a,b)"
+assert_eq "--body still passes through untouched" '["--title","t","--body","inline"]' \
+  "$(run_skew bodyfake create-item --title t --body inline)"
+assert_eq "a --body value spelled --body-file is not read as the flag" \
+  '["--title","t","--body","--body-file"]' \
+  "$(run_skew bodyfake create-item --title t --body --body-file)"
+run_skew bodyfake create-item --title t --body x --body-file "$BODY_SRC" >/dev/null 2>&1
+assert_eq "--body with --body-file → exit 2" "2" "$?"
+run_skew bodyfake create-item --title t --body-file "$TEST_TMPDIR/missing.md" >/dev/null 2>&1
+assert_eq "unreadable --body-file → exit 2" "2" "$?"
+: >"$TEST_TMPDIR/empty-body.md"
+run_skew bodyfake create-item --title t --body-file "$TEST_TMPDIR/empty-body.md" >/dev/null 2>&1
+assert_eq "empty --body-file → exit 2" "2" "$?"
+run_skew bodyfake create-item --title t --body-file >/dev/null 2>&1
+assert_eq "--body-file without a value → exit 2" "2" "$?"
+
 # Every bundled branch grammar needs a delimiter after the ref, so `ENG-12oops` never
 # names ENG-12, and its last capture group is the ref.
 for m in "$SCRIPT_DIR"/adapters/*/capabilities.json; do

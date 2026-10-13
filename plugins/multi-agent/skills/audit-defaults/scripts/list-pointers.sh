@@ -26,7 +26,7 @@ pointer_rows="$(awk -F '\t' -v o="$OWNER" 'o == "" || $1 == o' <<<"$pointers")"
 # A role's values are roles.<role>.*; the fan-out guard's are fanout.* and frontier.
 value_rows="$(awk -f "$SCRIPT_DIR/../../../scripts/yaml-subset.awk" "$SCRIPT_DIR/../../../reference/defaults.yaml" |
   awk -F '\t' -v o="$OWNER" '
-    $1 ~ /(pointer[^.]*|as_of|recheck)$/ { next }
+    $1 ~ /(pointer[^.]*|basis_[^.]*|claim_[^.]*|reason_[^.]*|as_of|recheck)$/ { next }
     o == "" { print; next }
     o == "fanout" && ($1 ~ /^fanout\./ || $1 == "frontier") { print; next }
     index($1, "roles." o ".") == 1 { print }')"
