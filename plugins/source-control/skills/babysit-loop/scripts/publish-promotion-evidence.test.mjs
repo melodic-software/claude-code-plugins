@@ -34,7 +34,7 @@ const later = (at, minutes) => new Date(Date.parse(at) + minutes * 60_000).toISO
 // GraphQL spells an App as `__typename: Bot` with the bare slug; REST adds `[bot]`.
 const actorOf = (login) => (login === null ? null : login.endsWith("[bot]") ? { __typename: "Bot", login: login.slice(0, -5) } : { __typename: "User", login });
 const page1 = (nodes, hasNextPage = false) => ({ pageInfo: { hasNextPage }, nodes });
-// REC.pullGraph: PR #7063, which closes issue #6007 (labeled `work-class: scoped`).
+// REC.pullGraph: a recorded pull whose one closing reference, number 6007, is labeled `work-class: scoped`.
 const ISSUE_6007 = REC.pullGraph.data.repository.pullRequest.closingIssuesReferences.nodes;
 const queued = (at, enqueuer, actor = enqueuer) => ({ __typename: "AddedToMergeQueueEvent", createdAt: at, actor: actorOf(actor), enqueuer: actorOf(enqueuer) });
 // The shape of a real ConnectedEvent on a PR timeline (cli/cli #14616): `subject` is the issue.
@@ -584,7 +584,7 @@ test("the class is read as of the merge: post-merge relabeling neither adds nor 
     issueEvents: {
       905: [labelEvent("labeled", MECHANICAL, "2026-09-02T00:00:00Z")],
       906: [labelEvent("labeled", MECHANICAL, "2026-08-31T00:00:00Z"), labelEvent("unlabeled", MECHANICAL, "2026-09-02T00:00:00Z", LANE, "Bot")],
-      // Linked issue #6007 is labeled scoped now, but gained that label after #907 merged.
+      // The linked 6007 is labeled scoped now, but gained that label after 907 merged.
       6007: [labelEvent("labeled", SCOPED, "2026-09-03T00:00:00Z")],
     },
   });

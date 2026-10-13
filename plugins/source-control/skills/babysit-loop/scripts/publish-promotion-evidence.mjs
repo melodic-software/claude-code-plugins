@@ -26,7 +26,7 @@
 // any of them is null or not human (a User outside --lane-login, not `github-actions`, not a
 // `[bot]` login; derive_auto_merge's write-permission read is not made), or merged_by is a
 // --lane-login. Logins compare case-insensitively with `[bot]` dropped. GitHub records the
-// enqueuer as merged_by (probed 2026-10-12 on PR #7352: merged_by.login matched the
+// enqueuer as merged_by (probed 2026-10-12 on a queue-merged pull: merged_by.login matched the
 // AddedToMergeQueueEvent enqueuer), so --lane-login names any lane identity that runs as a User
 // (a machine user); an App lane is a Bot and counts without it. Recheck if merged_by stops
 // matching the enqueuer. Autonomy and the dispatch check compare that stripped key; the pin
