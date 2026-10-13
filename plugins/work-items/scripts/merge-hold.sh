@@ -80,12 +80,13 @@ if ! authors="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=1
   exit 11
 fi
 
-login_re='^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$'
+login_re='^[A-Za-z0-9][A-Za-z0-9_-]*(\[bot\])?$'
 read_failed=0
 while IFS= read -r login; do
   [[ -n "$login" ]] || continue
   if [[ ! "$login" =~ $login_re ]]; then
-    err "ignored a hold comment with no usable author login"
+    err "hold comment author login is not a usable path segment"
+    read_failed=1
     continue
   fi
   if ! perm="$(gh api "repos/$REPO/collaborators/$login/permission" --jq '.permission // ""' 2>/dev/null)"; then

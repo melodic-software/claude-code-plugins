@@ -56,6 +56,7 @@ printf '{"permission":"admin","role_name":"admin"}' >"$TMP/perms/owner.json"
 printf '{"permission":"write","role_name":"maintain"}' >"$TMP/perms/maint.json"
 printf '{"permission":"read","role_name":"triage"}' >"$TMP/perms/triager.json"
 printf '{"permission":"read","role_name":"read"}' >"$TMP/perms/stranger.json"
+printf '{"permission":"admin","role_name":"admin"}' >"$TMP/perms/mona-cat_octo.json"
 
 OWNER_SAYS="Owner ratified this: put 'Hold: a human merges this' in the PR body."
 comment() { jq -nc --arg u "$1" --arg b "$2" '{user: {login: $u}, body: $b}'; }
@@ -85,7 +86,8 @@ verdict "no comments does not hold" 1 "" "[]"
 verdict "different case is not the line" 1 "" "[$(comment owner "hold: a human merges this")]"
 verdict "comment read failure refuses" 11 "" "[]" GH_STUB_COMMENTS_ERR=1
 verdict "permission read failure refuses" 11 "" "[$(comment ghost "$HOLD")]"
-verdict "malformed login is ignored" 1 "" "[$(comment 'a;b' "$HOLD")]"
+verdict "unusable login refuses" 11 "" "[$(comment 'a;b' "$HOLD")]"
+verdict "managed-user login with an underscore holds" 0 "$HOLD" "[$(comment mona-cat_octo "$HOLD")]"
 verdict "failed permission read beside a writer holds" 0 "$HOLD" \
   "[$(comment ghost "$HOLD"),$(comment owner "$HOLD")]"
 
