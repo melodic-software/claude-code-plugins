@@ -53,12 +53,13 @@ pointer, not decided here. C4 ignores the session-level override
 **Spec revision record.** The audit grades its SPEC-tagged criteria against the MCP revision Claude
 Code negotiates by default. Of the tool rules that revision added, three were weighed as criteria:
 
-- **`x-mcp-header`** became C20, citing the tools page's "x-mcp-header" section.
-- **The schema dialect default** folded into C16's evaluation, citing the tools page's "Data Types"
-  > "Tool" `inputSchema` entry. Validity is already C16's MUST, so a second row would grade the same
-  defect twice.
+- **`x-mcp-header`** became C20:
+  <https://modelcontextprotocol.io/specification/2026-07-28/server/tools#x-mcp-header>.
+- **The schema dialect default** folded into C16's evaluation, from the `inputSchema` entry of
+  <https://modelcontextprotocol.io/specification/2026-07-28/server/tools#tool>. Validity is already
+  C16's MUST, so a second row would grade the same defect twice.
 - **Deterministic `tools/list` ordering** is declined. It is a SHOULD on the order a running server
-  returns, from the tools page's "Capabilities" section. This audit reads source and never runs the
+  returns: <https://modelcontextprotocol.io/specification/2026-07-28/server/tools#capabilities>. This audit reads source and never runs the
   server, and runtime behavior is out of its scope ("What this skill does NOT do" in the skill
   body), so source can neither show the wire order nor prove it varies.
 
@@ -174,10 +175,11 @@ wire-level field. C18 turns on the value's JSON type, so read it in that languag
 
 ## 8. Parameters mirrored into HTTP headers (C20)
 
-A parameter schema can carry an `x-mcp-header` keyword that asks Streamable HTTP clients to copy
-the argument into a request header. The spec's "x-mcp-header" section on the tools page (Spec
-revision record) lists the constraints on its value and says what a client does with a tool that
-breaks one. Read both there; this row only grades against them.
+A parameter schema can carry an `x-mcp-header` keyword. What it does, the constraints on its value,
+and what a client does with a tool that breaks one are in
+<https://modelcontextprotocol.io/specification/2026-07-28/server/tools#x-mcp-header> (as-of date
+and recheck trigger in the Spec revision record). Read them there; this row only grades against
+them.
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
