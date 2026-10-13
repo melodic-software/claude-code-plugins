@@ -66,6 +66,12 @@
       "description": "Comma-separated families block-credential-read permits: credential-fill, gh-auth-token, env-echo, credential-file-read. Empty, the default, blocks all.",
       "default": ""
     },
+    "block_unresolved_pr_merge_enabled": {
+      "type": "boolean",
+      "title": "Block-unresolved-PR-merge guard",
+      "description": "Blocks a pull-request merge (gh pr merge, REST, GraphQL or an MCP merge tool) while the PR has unresolved review threads, a changes-requested review, or failing checks. Fails open, visibly, when the PR state cannot be read. On by default.",
+      "default": true
+    },
     "block_hook_bypass_enabled": {
       "type": "boolean",
       "title": "Block-hook-bypass guard",
