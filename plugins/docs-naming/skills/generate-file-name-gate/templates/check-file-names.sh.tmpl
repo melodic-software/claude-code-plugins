@@ -23,9 +23,10 @@
 # only by case: a case-insensitive checkout (Windows, macOS) writes the second
 # over the first.
 #
-# WHY A GATE AND NOT A RULE. A path-scoped rule file, where one exists, loads
-# when a covered file is READ, never when one is created, so a rule alone
-# cannot catch a new file. This script can.
+# WHY A GATE AND NOT A RULE. A path-scoped rule file, where one exists, only
+# guides Claude during its own session: it blocks nothing and never runs for a
+# human's commit or in CI, so a rule alone cannot stop a new file. This script
+# can.
 #
 # Output follows the check-script contract: one `path: reason` finding per
 # offender on stderr, the clean-run statement on stdout. Exit: 0 clean, 1 any

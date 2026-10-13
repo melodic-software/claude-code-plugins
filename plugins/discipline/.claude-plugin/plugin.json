@@ -1,6 +1,6 @@
 {
   "name": "discipline",
-  "version": "0.17.7",
+  "version": "0.18.0",
   "description": "Correctors that re-anchor a rule, audit work in flight, and fix drift: do-your-research, follow-our-standards, point-dont-copy, reason-dont-recite, tighten-your-output, recheck-against-upstream, pick-for-the-problem, mind-your-maxims, script-the-deterministic-work, use-your-skills, reuse-or-replace, scrutinize-dont-coast. sweep-all runs them as one batch. wait-what re-pitches a message that did not land. hold-my-hand shows work one phase at a time.",
   "author": {
     "name": "Melodic Software",
@@ -58,6 +58,13 @@
       "description": "Default verification depth for do-your-research's fan-out tier. tiered (default) resolves trivial and non-load-bearing items inline and fans fresh-context subagents out only over the load-bearing ones; full subagent-verifies every inventory item. An invocation argument overrides this.",
       "default": "tiered",
       "options": ["tiered", "full"]
+    },
+    "lever_scope": {
+      "type": "string",
+      "title": "Lever scope",
+      "description": "When a change repeated across many sites gets a script or tool. deterministic (default): only for a mechanical transformation. non-trivial: for any non-trivial repeated change, using an established codemod tool. A repository's docs/conventions/discipline.yaml lever_scope key overrides it.",
+      "default": "deterministic",
+      "options": ["deterministic", "non-trivial"]
     }
   }
 }

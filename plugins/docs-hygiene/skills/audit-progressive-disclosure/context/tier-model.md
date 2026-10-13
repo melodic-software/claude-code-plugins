@@ -24,8 +24,8 @@ are advisory color only.
 
 | Tier | Surfaces | Cost model this audit grades with |
 |---|---|---|
-| **always-loaded** | `CLAUDE.md` / `AGENTS.md` (working dir + ancestors, loaded in full), `@path` imports (no saving over inline), `.claude/rules/*.md` without `paths:` frontmatter, the skill listing (~100 tokens/skill metadata), auto-memory `MEMORY.md` head (first 200 lines / 25KB) | Paid every session, held every turn; we treat adherence as degrading with size *(Anthropic-prescribed; tier framing corroborated)* |
-| **invocation-loaded** | Skill bodies (`SKILL.md`, on description match or `/name`), path-scoped rules (`paths:` frontmatter), subtree `CLAUDE.md`, agent/command bodies | Cheap to have, **not cheap to use**: once loaded, every line is a recurring token cost for the rest of the session; we price the compaction re-attach at the first 5k tokens per skill, 25k combined *(Anthropic-prescribed)* |
+| **always-loaded** | `CLAUDE.md` / `AGENTS.md` (working dir + ancestors, loaded in full), `@path` imports (no saving over inline), `.claude/rules/*.md` without `paths:` frontmatter, the skill listing (per-skill metadata), auto-memory `MEMORY.md` head (the load limit is at the pointer) | Paid every session, held every turn; we treat adherence as degrading with size *(Anthropic-prescribed; tier framing corroborated)* |
+| **invocation-loaded** | Skill bodies (`SKILL.md`, on description match or `/name`), path-scoped rules (`paths:` frontmatter), subtree `CLAUDE.md`, agent/command bodies | Cheap to have, **not cheap to use**: once loaded, every line is a recurring token cost for the rest of the session, and compaction re-attaches only a bounded head of each invoked skill (budgets at the pointer) *(Anthropic-prescribed)* |
 | **on-demand** | Bundled `context/` / `reference/` files, scripts (only output enters context), docs read via pointer | Zero cost until read; we set no size limit on bundled content *(Anthropic-prescribed)* |
 
 **Grading rule per tier**: always-loaded content must apply broadly, in every session. The
@@ -40,33 +40,33 @@ and upstream ownership overrides the local treatment (the finding stays): see
 | Number | Bounds | Status |
 |---|---|---|
 | SKILL.md line cap | Value: `/playbooks:skill-authoring` `## Body`; `/skill-quality:check` enforces it. The split trigger fires when a file is **approaching** the cap, not only past it | Anthropic-prescribed |
-| <5k tokens | Target SKILL.md body size | Anthropic-prescribed |
-| 200 lines | Per-CLAUDE.md target; we read a longer file as costing context and adherence | Anthropic-prescribed; stricter 80–150 community practice exists but is not official |
-| ~100 tokens | Per-skill always-loaded metadata cost | Anthropic-prescribed; corroborated (~80 median measured) |
+| <5k tokens | Our target SKILL.md body size, taken from the platform token-budget guidance | Anthropic-prescribed |
+| 200 lines | Our per-CLAUDE.md target; we read a longer file as costing context and adherence | Anthropic-prescribed; stricter 80–150 community practice exists but is not official |
+| Per-skill metadata cost | Always-loaded listing cost per skill; we treat it as small but nonzero, so skill count matters. Value at the pointer | Anthropic-prescribed; corroborated (~80 median measured) |
 | Description caps | `description` alone, and `description` + `when_to_use` in the listing: `/playbooks:skill-authoring` `## Descriptions`; `/skill-quality:check` enforces both. Truncation is tail-first, so the key use case goes first | Anthropic-prescribed |
-| 1% of context window | Skill-listing budget; we treat an overflow as dropping descriptions, never names (a usage-frequency/recency scoring of the drop order is a *(community)* detail; read the official order at the pointer) | Anthropic-prescribed; corroborated |
-| 200 lines / 25KB | MEMORY.md load limit; we treat the excess as not loaded | Anthropic-prescribed |
+| Skill-listing budget | A share of the context window; we treat an overflow as dropping descriptions, never names. Fraction, setting and drop order at the pointer | Anthropic-prescribed; corroborated |
+| MEMORY.md load limit | We treat content past the limit as not loaded. Values at the pointer | Anthropic-prescribed |
 | Nesting depth | Max reference nesting from the hub: `/playbooks:skill-authoring` `## Reference files` | Anthropic-prescribed; corroborated (an academic source finds deeper nesting no help and sometimes harmful) |
 | 100 vs 300 lines | Reference-file length above which a TOC is expected; two Anthropic sources disagree on it (record below), hence the two-band treatment | Anthropic-prescribed, conflicting |
 
 **Provenance of the vendor numbers in both tables.**
 
-- **Pointer** (Claude Code-side values: listing truncation, the 1% listing budget, the 5k-per-skill / 25k-combined compaction re-attach, the `MEMORY.md` head limits, the
-  200-line CLAUDE.md target):
+- **Pointer** (Claude Code-side values: listing truncation and its drop order, the listing budget,
+  the compaction re-attach budgets, the `MEMORY.md` head limits, the 200-line CLAUDE.md target):
   [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference),
   [Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle),
   [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short),
   [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction),
   auto memory's [How it works](https://code.claude.com/docs/en/memory#how-it-works) and
   [Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions).
-- **Pointer** (authoring-side values: the <5k-token body, the ~100 tokens/skill metadata, the
+- **Pointer** (authoring-side values: the <5k-token body, the per-skill metadata cost, the
   >100-line TOC band):
   [Token budgets](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#token-budgets),
   [How Skills work](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#how-skills-work),
   [Avoid deeply nested references](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-deeply-nested-references)
   and [Structure longer reference files with table of contents](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#structure-longer-reference-files-with-table-of-contents).
-- **As of**: 2026-10-01
-- **Recheck trigger**: a fetch of the owning page no longer carrying a table row's value
+- **As of**: 2026-10-11
+- **Recheck trigger**: an owning section changes or drops a value a row grades against, which
   re-derives that row; each fleet audit re-runs the whole table.
 
 **TOC threshold conflict.** The platform best-practices section

@@ -22,6 +22,7 @@
 #   2  gh call failed (no pull request for the branch included)
 #   5  prerequisite missing (gh, jq)
 
+# portability-scope: the GitHub implementation of the view and list reads; every read is a gh call.
 set -uo pipefail
 
 usage() {

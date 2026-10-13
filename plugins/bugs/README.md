@@ -64,7 +64,7 @@ looks for what is wrong in it.
 | `--dry-run` | Report to stdout only. Persists nothing, advances no rotation |
 
 One invocation is **one bounded pass**, which makes it usable interactively, from a loop,
-or as a daily routine. Two properties are worth knowing before you rely on it:
+or as a daily routine. Three properties matter before you rely on it:
 
 - **Recall and precision are separated.** Per-lens hunter subagents are told to be generous;
   a separate fresh-context gate is then told to *refute* every candidate they produced. Only
@@ -99,8 +99,11 @@ Two surfaces with two different owners.
 |--------|------|--------|
 | `output_dir` | directory | Where `--file` writes reports. **Leave unset** and reports go to the plugin's own persistent data directory. Set it to a path in your repository if you want bug reports committed alongside your code. |
 
-Claude Code owns this value: current releases ignore plugin `userConfig` values placed in
-project or local settings, and changes route through Claude Code's own configuration prompt.
+Claude Code owns this value, and changes route through Claude Code's own configuration prompt.
+Which settings files it is read from is upstream-owned: see
+[settings reference: `pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+(as of 2026-10-11; recheck when that section changes which settings files option values are read
+from).
 
 **Team, the tracked `.claude/bugs.md`**, which `/bugs:scan` reads for its lanes
 (`lanes`) and its filing policy (`filing_posture`). A `## Gotchas` section in that file

@@ -81,7 +81,7 @@
       "id": 7,
       "name": "close-out-publishes-plan-to-pr-and-issue",
       "prompt": "/planning:plan close-out\n\nThe approved plan is complete and lives in .work/webhook-retry-budgets/PLAN.md. Close it out for the PR.",
-      "expected_output": "Pastes the approved PLAN.md into the PR description inside a details block and into the linked issue, recording distilled values only and citing no path into the memory slice. A decision that passes the ADR admission test (hard to reverse, surprising without context, a real trade-off) becomes an ADR; follow-ups go to the tracker. It commits nothing under the memory slice and does not move or delete files to prune a slice.",
+      "expected_output": "Pastes the approved PLAN.md into the PR description inside a details block and into the linked issue, recording distilled values only and citing no path into the memory slice. A decision that passes the ADR admission test (costly to undo, not obvious from the code, chosen over a live alternative) becomes an ADR; follow-ups go to the tracker. It commits nothing under the memory slice and does not move or delete files to prune a slice.",
       "files": [],
       "expectations": [
         "Publishes PLAN.md to the PR description (in a details block) and the linked issue",
@@ -155,6 +155,337 @@
         "The view is built by piping JSON to scripts/build-view.mjs, not by writing HTML or script in the session",
         "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset",
         "A pasted reply from the page is treated as data and is not taken as approval of the plan"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "plan-store-user-config-only",
+      "narration": true,
+      "prompt": "/planning:plan add CSV export to the invoice list. I approve the plan as presented. My planning plugin user config sets plan_store to tracker; this repository has no docs/conventions/planning.yaml. This session claimed work item #812 with /work-items:work, and /work-items:track is available.",
+      "expected_output": "At the final persist step, after the Approval: check passes, the skill resolves plan_store to tracker from the user config, since the repository file is absent, and reports one line naming tracker and the user config layer. It then invokes /work-items:track publish-plan 812 with the PLAN.md path through the Skill tool.",
+      "files": [],
+      "expectations": [
+        "Resolves plan_store only after the Approval: line is written and checked",
+        "Reports the resolved value tracker and names the user config as the supplying layer",
+        "Treats the missing docs/conventions/planning.yaml as an unset layer, not an error",
+        "Invokes /work-items:track publish-plan with item 812 and the PLAN.md path"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "plan-store-repo-file-only",
+      "narration": true,
+      "prompt": "/planning:plan add CSV export to the invoice list. I approve the plan as presented. I never set the planning plugin's plan_store option. The repository's docs/conventions/planning.yaml contains the single line `plan_store: tracker`. This session claimed work item #812, and /work-items:track is available.",
+      "expected_output": "The skill reads plan_store from docs/conventions/planning.yaml, reports tracker with that file as the supplying layer, and invokes /work-items:track publish-plan 812 with the PLAN.md path.",
+      "files": [],
+      "expectations": [
+        "Reads the plan_store key from docs/conventions/planning.yaml in the checkout",
+        "Reports the resolved value tracker and names docs/conventions/planning.yaml as the supplying layer",
+        "Invokes /work-items:track publish-plan with item 812 and the PLAN.md path"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "plan-store-repo-file-wins-over-user-config",
+      "narration": true,
+      "prompt": "/planning:plan add CSV export to the invoice list. I approve the plan as presented. My planning plugin user config sets plan_store to tracker, but the repository's docs/conventions/planning.yaml contains `plan_store: local`. This session claimed work item #812, and /work-items:track is available.",
+      "expected_output": "The repository value wins: the skill reports plan_store local from docs/conventions/planning.yaml, keeps PLAN.md in the memory slice, and does not invoke publish-plan or post anything to item #812.",
+      "files": [],
+      "expectations": [
+        "Reports the resolved value local and names docs/conventions/planning.yaml as the supplying layer",
+        "States or acts on the repository file overriding the user config value tracker",
+        "Does not invoke /work-items:track publish-plan and posts no comment to item #812"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "plan-store-default-when-neither-layer-sets-it",
+      "narration": true,
+      "prompt": "/planning:plan add CSV export to the invoice list. I approve the plan as presented. I never set the planning plugin's plan_store option, and this repository has no docs/conventions/planning.yaml. This session claimed work item #812.",
+      "expected_output": "The skill reports plan_store local from the default layer and keeps PLAN.md in the memory slice only, publishing nothing to item #812.",
+      "files": [],
+      "expectations": [
+        "Reports the resolved value local and names the default as the supplying layer",
+        "Does not invoke /work-items:track publish-plan and posts no comment to item #812"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "plan-store-invalid-repo-value-resolves-local",
+      "narration": true,
+      "prompt": "/planning:plan add CSV export to the invoice list. I approve the plan as presented. My planning plugin user config sets plan_store to tracker. The repository's docs/conventions/planning.yaml contains the single line `plan_store: trackr`. This session claimed work item #812, and /work-items:track is available.",
+      "expected_output": "The skill names `trackr` in docs/conventions/planning.yaml as an invalid plan_store value, resolves local instead of falling back to the user config's tracker, reports local, keeps PLAN.md in the memory slice, and does not invoke publish-plan or post anything to item #812.",
+      "files": [],
+      "expectations": [
+        "Names the value trackr from docs/conventions/planning.yaml as invalid",
+        "Reports the resolved value local, not the user config value tracker",
+        "Does not invoke /work-items:track publish-plan and posts no comment to item #812"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "planned-breakage-declared",
+      "narration": true,
+      "prompt": "/planning:plan split the shipping-rate calculator into a RateTable type and its callers. I agreed the design: Phase 1 adds RateTable with stub methods that throw, Phase 2 moves the three callers in checkout/ onto it. The checkout tests will fail after Phase 1 and pass again after Phase 2. I approve the plan as presented.",
+      "expected_output": "The plan's Phase 1 carries a per-phase line `**Planned breakage:** tests red until Phase 2 for <the checkout test paths or filter>: <reason>`, with kind tests, a later phase as the end of the span, and only the checkout tests in the for clause. Phase 2's Sanity Check expects those tests green. Step 4.7 runs check-plan-outcome.sh and its planned-breakage criterion passes.",
+      "files": [],
+      "expectations": [
+        "Phase 1 has a line starting **Planned breakage:** with kind tests, until Phase 2, and a for clause naming the checkout tests",
+        "The for clause names only the checkout tests, not the whole suite",
+        "Step 4.7 reports criterion=planned-breakage status=pass from check-plan-outcome.sh"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "phase-order-composed",
+      "narration": true,
+      "prompt": "/planning:plan add a recurring-booking feature to the clinic scheduler: a new RecurrenceRule type in scheduling/, an API endpoint, and a calendar UI control. The old WeeklySlotGenerator in scheduling/legacy/ has no callers left and sits in the files this change touches. Nobody knows yet whether the calendar library can render recurring events. I never set phase_order and the repository has no docs/conventions/planning.yaml. We are committed to ship; plan it as a walking skeleton.",
+      "expected_output": "The skill reports phase_order composed from the default. Phase 1 removes WeeklySlotGenerator (through /code-tidying:audit-dead-code when it is available, else the candidates from the plan's own reads with the search that found no caller). Phase 2 is the integration slice through RecurrenceRule, the endpoint and the UI control, with an end-to-end runtime probe as its Sanity Check. Phase 3 resolves the calendar-library rendering unknown. Scaffold and the remaining features follow.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order composed and names the default as the supplying layer",
+        "The first phase removes WeeklySlotGenerator, before any building phase",
+        "The integration slice comes next, and its Sanity Check is an end-to-end runtime probe",
+        "The calendar-library rendering unknown is the phase after the integration slice, before the remaining features"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "phase-order-bug-fix-skips-removal",
+      "narration": true,
+      "prompt": "/planning:plan fix the bug where the clinic scheduler double-books a room when two bookings end and start at the same minute. The overlap check is in scheduling/overlap.ts. The same folder also holds an unused helper, formatSlotLegacy, with no callers. phase_order is not set anywhere, so it is the default.",
+      "expected_output": "The skill reports phase_order composed from the default and, because the task is a bug fix, skips the dead-code removal step: no phase removes formatSlotLegacy, and the plan starts with the failing regression test and the fix in scheduling/overlap.ts. It may mention the unused helper as a separate follow-up.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order composed",
+        "No phase of the plan deletes formatSlotLegacy or any other code outside the fix",
+        "States that the removal step is skipped because the task is a bug fix",
+        "The first phase targets the double-booking fix in scheduling/overlap.ts"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "phase-order-riskiest-first",
+      "narration": true,
+      "prompt": "/planning:plan move the clinic's appointment reminders from SMS to a new push-notification provider: provider SDK integration, a token-registration endpoint, a migration of stored phone preferences, and an admin toggle. Whether the provider's SDK can send from our region is unconfirmed, and every other step depends on it. The repository's docs/conventions/planning.yaml contains `phase_order: riskiest-first`.",
+      "expected_output": "The skill reports phase_order riskiest-first from docs/conventions/planning.yaml. Phase 1 proves the provider SDK can send from the region, because its failure would invalidate every later phase; the endpoint, migration and admin toggle follow in dependency order.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order riskiest-first and names docs/conventions/planning.yaml as the supplying layer",
+        "Phase 1 tests whether the provider SDK can send from the region",
+        "The token endpoint, preference migration and admin toggle all come after that phase"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "phase-order-subtraction-first",
+      "narration": true,
+      "prompt": "/planning:plan add CSV export to the invoice list. The invoices/ folder has two unused exporters, PdfExportV1 and XmlExportOld, with no callers. My planning plugin user config sets phase_order to subtraction-first; the repository has no docs/conventions/planning.yaml.",
+      "expected_output": "The skill reports phase_order subtraction-first from the user config. Phase 1 removes PdfExportV1 and XmlExportOld, the next phase scaffolds the export entry point, and the CSV export feature follows; no integration or risk phase is pulled ahead of the scaffold.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order subtraction-first and names the user config as the supplying layer",
+        "Phase 1 removes PdfExportV1 and XmlExportOld",
+        "A scaffold phase comes before the CSV export feature phase"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "phase-order-layer-user-config-only",
+      "narration": true,
+      "prompt": "/planning:plan add a waitlist to the clinic scheduler: a Waitlist table, an endpoint, and a notification when a slot frees. My planning plugin user config sets phase_order to riskiest-first. This repository has no docs/conventions/planning.yaml.",
+      "expected_output": "The skill resolves phase_order to riskiest-first from the user config, treats the missing repository file as an unset layer, reports one line naming riskiest-first and the user config, and orders the riskiest step first.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order riskiest-first and names the user config as the supplying layer",
+        "Treats the missing docs/conventions/planning.yaml as an unset layer, not an error",
+        "The first phase is the step whose failure would invalidate the most later work"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "phase-order-layer-repo-file-only",
+      "narration": true,
+      "prompt": "/planning:plan add a waitlist to the clinic scheduler: a Waitlist table, an endpoint, and a notification when a slot frees. I never set the planning plugin's phase_order option. The repository's docs/conventions/planning.yaml contains the single line `phase_order: subtraction-first`.",
+      "expected_output": "The skill reads phase_order from docs/conventions/planning.yaml, reports subtraction-first with that file as the supplying layer, and orders removal, then scaffold, then features.",
+      "files": [],
+      "expectations": [
+        "Reads the phase_order key from docs/conventions/planning.yaml in the checkout",
+        "Reports phase_order subtraction-first and names docs/conventions/planning.yaml as the supplying layer",
+        "Orders any removal phase before scaffold, and scaffold before the waitlist features"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "phase-order-layer-repo-file-wins-over-user-config",
+      "narration": true,
+      "prompt": "/planning:plan add a waitlist to the clinic scheduler: a Waitlist table, an endpoint, and a notification when a slot frees. My planning plugin user config sets phase_order to riskiest-first, but the repository's docs/conventions/planning.yaml contains `phase_order: composed`.",
+      "expected_output": "The repository value wins: the skill reports phase_order composed from docs/conventions/planning.yaml and orders the phases by the composed rule, not riskiest-first.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order composed and names docs/conventions/planning.yaml as the supplying layer",
+        "States or acts on the repository file overriding the user config value riskiest-first",
+        "Orders the phases by the composed rule"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "phase-order-layer-default-when-neither-sets-it",
+      "narration": true,
+      "prompt": "/planning:plan add a waitlist to the clinic scheduler: a Waitlist table, an endpoint, and a notification when a slot frees. I never set the planning plugin's phase_order option, and this repository has no docs/conventions/planning.yaml.",
+      "expected_output": "The skill reports phase_order composed from the default layer and orders the phases by the composed rule.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order composed and names the default as the supplying layer",
+        "Orders the phases by the composed rule"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "phase-order-invalid-repo-value-drops-the-layer",
+      "narration": true,
+      "prompt": "/planning:plan add a waitlist to the clinic scheduler: a Waitlist table, an endpoint, and a notification when a slot frees. My planning plugin user config sets phase_order to riskiest-first. The repository's docs/conventions/planning.yaml contains the single line `phase_order: risky-first`.",
+      "expected_output": "The skill names `risky-first` in docs/conventions/planning.yaml as an invalid phase_order value and drops that layer. With no valid layer above it, the key resolves to the default composed, not to the user config's riskiest-first. The run continues and orders the phases by the composed rule.",
+      "files": [],
+      "expectations": [
+        "Names the file docs/conventions/planning.yaml, the key phase_order and the value risky-first as invalid",
+        "Reports phase_order composed, not the user config value riskiest-first",
+        "Continues and produces a plan rather than stopping on the invalid value"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "scaffold-stubs-after-removal",
+      "narration": true,
+      "prompt": "/planning:plan add fines to the library-loan service: a FineSchedule type and an OverdueFineCalculator in loans/fines/, a fines endpoint, and a fines column on the member page. The old LateFeeTable in loans/legacy/ has no callers left and sits in the files this change touches. The existing loans/loans_test.go already calls OverdueFineCalculator through a test helper written ahead of time, so it will fail once the calculator exists only as a stub. My planning plugin user config sets scaffold_stubs to true; phase_order is unset and the repository has no docs/conventions/planning.yaml.",
+      "expected_output": "The skill reports phase_order composed from the default and scaffold_stubs true from the user config. Phase 1 removes LateFeeTable. Phase 2 commits stubs for FineSchedule and OverdueFineCalculator with their signatures and not-implemented bodies, and carries a Planned breakage line of kind tests naming the loans/fines/ stub paths and the later phase that implements the calculator. The integration slice and the remaining features follow.",
+      "files": [],
+      "expectations": [
+        "Reports scaffold_stubs true and names the user config as the supplying layer",
+        "Phase 1 removes LateFeeTable, and the stub phase is Phase 2, directly after it",
+        "The stub phase lists the loans/fines/ files with their signatures and not-implemented bodies",
+        "The stub phase carries a **Planned breakage:** line of kind tests that names the stub paths and a later phase",
+        "No building phase other than the removal comes before the stub phase"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "scaffold-stubs-docs-block-wins",
+      "narration": true,
+      "prompt": "/planning:plan add fines to the library-loan service: a FineSchedule type and an OverdueFineCalculator in loans/fines/, a fines endpoint, and a fines column on the member page. Nothing in the touched files is dead. My planning plugin user config sets scaffold_stubs to false, but the repository's docs/conventions/planning.yaml contains `scaffold_stubs: true`.",
+      "expected_output": "The repository value wins: the skill reports scaffold_stubs true from docs/conventions/planning.yaml, and with no dead-code removal step the stub phase is Phase 1, before the integration slice.",
+      "files": [],
+      "expectations": [
+        "Reports scaffold_stubs true and names docs/conventions/planning.yaml as the supplying layer",
+        "States or acts on the repository file overriding the user config value false",
+        "Phase 1 is the stub phase for the loans/fines/ files, since there is no removal step"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "integration-posture-plan-writes-redesign",
+      "narration": true,
+      "prompt": "/planning:plan add recurring bookings to the room-reservation service: a booking can repeat weekly until an end date. Today rooms/booking.py stores one start and end per Booking and rooms/conflicts.py checks overlaps with a loop written for single bookings. The repository (a git checkout, not the home directory) has docs/conventions/implementation.yaml holding `integration_posture: by-kind`; phase_order and scaffold_stubs are unset and there is no docs/conventions/planning.yaml.",
+      "expected_output": "Step 2 reads integration_posture from docs/conventions/implementation.yaml and reports by-kind with that file as the source. The change is a feature, so by-kind gives it a day-one redesign, and the plan writes that redesign as explicit work items in the phases touching rooms/booking.py and rooms/conflicts.py (for example reshaping Booking so a single booking is the one-occurrence case of a schedule, and reworking the overlap check around occurrences), each naming the files and the restructuring, rather than leaving the scope to implementation.",
+      "files": [],
+      "expectations": [
+        "Reports integration_posture: by-kind with docs/conventions/implementation.yaml as the source",
+        "Classifies the change as a feature and so applies a day-one redesign",
+        "Writes the reshaping of rooms/booking.py and rooms/conflicts.py as explicit work items naming the files",
+        "Does NOT read or cite a planning user config value for integration_posture"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "plan-attempts-multi-shape",
+      "narration": true,
+      "prompt": "/planning:plan a three-phase plan for the invoice exporter. Phase 1 adds the export_jobs table, Phase 3 wires the CLI flag. Phase 2 builds the batching step in exporter/batch.py, and the approved design says only that a batch must finish inside 30 seconds and never split one customer's invoices across two files; it leaves open whether batching groups by customer up front, streams rows and cuts at size limits, or pages through the table by id range. Each of the three fits the design and the codebase has no precedent for any of them. No implementation settings are configured.",
+      "expected_output": "Step 4.5 finds more than one plausible shape the design left open for Phase 2 and marks it multi-shape in the routing table's Attempts column, leaving Phases 1 and 3 blank (one attempt). Phase 2's body lists one stated constraint per attempt (for example: group by customer first; stream rows and cut at a size limit; page by id range) and states the selection rule before any dispatch, as one of first pass, rank all, or best-of with named criteria (for example best-of on the 30-second limit, then the smallest diff). The routing table header is | Phase | Surface | Model | Attempts | Basis |. The mark is written whatever the competing_attempts setting is; the plan does not read or cite that setting.",
+      "files": [],
+      "expectations": [
+        "The routing table header is exactly | Phase | Surface | Model | Attempts | Basis |",
+        "Phase 2's Attempts cell reads multi-shape and the Attempts cells of Phases 1 and 3 are blank",
+        "Phase 2's body lists one stated constraint for each attempt, each naming a different batching shape",
+        "Phase 2's body states the selection rule as first pass, rank all, or best-of with its criteria",
+        "Does NOT read or cite competing_attempts or competing_attempt_count"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "plan-attempts-single-shape-blank",
+      "narration": true,
+      "prompt": "/planning:plan a two-phase plan to rename the `acct_no` column to `account_number` in billing/models.py and update its four readers, then regenerate the API docs. The design names the new column and the migration tool the repository already uses; nothing about either phase is left open.",
+      "expected_output": "Step 4.5 finds one plausible shape for each phase, so neither phase is marked: the Attempts cell is blank for both, which means one attempt each. No phase body carries per-attempt constraints or a selection rule. The routing table header is | Phase | Surface | Model | Attempts | Basis |.",
+      "files": [],
+      "expectations": [
+        "The routing table header is exactly | Phase | Surface | Model | Attempts | Basis |",
+        "Both phases have a blank Attempts cell; neither is marked multi-shape",
+        "Does NOT write per-attempt constraints or a selection rule into either phase body"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "proactive-one-sentence-change-skips-plan",
+      "narration": true,
+      "prompt": "Rename the local variable `cnt` to `count` inside `tally()` in utils/stats.py; nothing outside that function uses it. Get it ready.",
+      "expected_output": "The skill was reached proactively (no one asked for a plan) and the change fits one sentence, so it says so, states that sentence, and skips the plan: no plan body, no checklist, no plan-reviewer dispatch, no PLAN.md draft.",
+      "files": [],
+      "expectations": [
+        "States that the change fits in one sentence and gives that sentence (rename `cnt` to `count` inside `tally()` in utils/stats.py)",
+        "Does NOT write a plan body (Goal, Approach, Test strategy, phases) or an approval request",
+        "Does NOT dispatch a plan-reviewer sub-agent, emit plan-checklist.md, or persist a PLAN.md draft"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "explicit-request-one-sentence-change-asks",
+      "narration": true,
+      "prompt": "/planning:plan rename the local variable `cnt` to `count` inside `tally()` in utils/stats.py",
+      "expected_output": "The user asked for a plan explicitly, and the change fits one sentence. The skill says the change fits one sentence, states it, and asks whether to plan it anyway, writing no plan before the user answers.",
+      "files": [],
+      "expectations": [
+        "States that the change fits in one sentence and gives that sentence",
+        "Asks the user whether to write a plan anyway, as a question the user can answer yes or no",
+        "Does NOT write a plan body, dispatch a plan-reviewer, or persist a PLAN.md draft before the user answers"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "execution-shape-four-dimensions-with-na",
+      "narration": true,
+      "prompt": "/planning:plan a two-phase plan: phase 1 adds a `--json` flag to cli/report.py, phase 2 adds a `--csv` flag to cli/export.py. The two files import nothing from each other, share no config, and neither phase needs the other's output. Design is settled; no open decisions.",
+      "expected_output": "Step 4.5 opens with a four-row dimension table (gates, shared state, disjoint streams, worker count). Gates and shared state have nothing to report here, so each of those rows still appears, its cell reading `n/a: <reason>` (no phase waits on another; no file is written by both), and the worker-count row gives a number of workers and the reason for it.",
+      "files": [],
+      "expectations": [
+        "Step 4.5 output carries four separately named dimension rows covering gates (work that must finish first), shared state, disjoint streams, and worker count",
+        "Each dimension that does not apply to this plan still has its row, filled in as `n/a: <reason>` naming a concrete reason, and no dimension is omitted",
+        "The worker-count row states a number of workers and gives the reason for it"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "execution-shape-splits-shared-state-first",
+      "narration": true,
+      "prompt": "/planning:plan three phases: phase 1 adds discount codes in pricing/discounts.py, phase 2 adds gift cards in pricing/giftcards.py, phase 3 adds store credit in pricing/credit.py. Each phase also registers its new payment type by appending to the one shared `PAYMENT_TYPES` dict in pricing/registry.py, which is the only file the three phases have in common. Design is settled.",
+      "expected_output": "Step 4.5's shared-state dimension names pricing/registry.py as the only shared write and proposes splitting it before serializing the phases (for example one registration module per payment type that registry.py collects, landed first), so the three feature phases can run in parallel; it does not simply mark all three phases fully sequential because of that one file.",
+      "files": [],
+      "expectations": [
+        "The shared-state dimension names pricing/registry.py (the `PAYMENT_TYPES` dict) as the one file all three phases write",
+        "Proposes splitting that shared target (per-type registration files or entries collected by the registry) before serializing the phases",
+        "Does NOT conclude the three phases must run fully sequential solely because they share pricing/registry.py"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "audit-flags-external-integration-without-verdict",
+      "prompt": "/planning:plan review. PLAN.md's Design section has Variation verdicts for the search index (contain now) but none for the SMS provider, and Phase 2 adds an SMS-provider-named column to the customers table and calls the provider's SDK from the domain service.",
+      "expected_output": "The design section audit finds an external integration (the SMS provider) with no variation verdict and a phase that puts the provider's name into storage and its SDK into domain code. It routes the missing verdict back to /planning:design instead of deciding it in the plan.",
+      "files": [],
+      "expectations": [
+        "Output flags the SMS provider as an external integration with no variation verdict",
+        "Output flags Phase 2 for putting the provider's name into storage and its SDK into domain code",
+        "Output routes the missing verdict back to /planning:design rather than choosing one in the plan",
+        "Output does not flag the search index, which already has a verdict"
       ]
     }
   ]

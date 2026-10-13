@@ -45,9 +45,11 @@ applies there, but **no macOS quirks file ships because none has been verified.*
 generate plausible macOS specifics, the plugin states the gap and serves macOS users the
 platform-neutral material only.
 
-Surfaces are not interchangeable, and the skill says so: computer use in the Claude Code CLI is
-macOS-only, while the Desktop app covers macOS and Windows. Guidance written for one is wrong on
-the other.
+Surfaces are not interchangeable, and the skill says so: the Claude Code CLI and the Desktop app
+differ in the platforms they run computer use on and in how they enable it, so guidance written
+for one is wrong on the other. The skills read that split live from
+[Computer use: Differences from the Desktop app](https://code.claude.com/docs/en/computer-use#differences-from-the-desktop-app)
+(as of 2026-10-11; recheck when that section's table changes).
 
 ## What it deliberately does not do
 
@@ -61,6 +63,9 @@ the other.
 
 ## Prerequisites
 
-The `computer-use` MCP server must be enabled, on a plan that supports it (research preview; Pro
-or Max, not Team or Enterprise), with OS-level permissions granted. `/computer-use:setup` probes
-all of it and reports what is missing; installing and enabling remain the operator's.
+The `computer-use` MCP server must be enabled, on an eligible setup, with OS-level permissions
+granted. `/computer-use:setup` probes all of it and reports what is missing; installing and
+enabling remain the operator's. For which plans, providers and session modes are eligible, see
+[Computer use: Troubleshooting](https://code.claude.com/docs/en/computer-use#troubleshooting)
+(as of 2026-10-11; recheck when that section changes the plans, providers or session modes it
+names).

@@ -77,19 +77,18 @@ Dispatch rules:
    `object-writer` agent's frontmatter pins `opus` as a fail-safe default, so a call that forgets
    the model never lands on whatever the session happens to run on, a tier picked for the
    orchestrator's work, not the writers'. The pin is not the fleet tier: every call still names
-   the fleet default below explicitly. A subagent's model resolves in this order: the per-call
-   `model`, then the agent's frontmatter, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the session's
-   model. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` ignores both the per-call `model` and the
-   frontmatter. Stop to ask before spawning when it is on and either `CLAUDE_CODE_SUBAGENT_MODEL`
-   names a tier above the fleet default, or `CLAUDE_CODE_SUBAGENT_MODEL` is unset (or set to
-   `inherit`, which counts as unset), which runs
-   every subagent on the session's model and so puts the fleet on the orchestrator's tier.
+   the fleet default below explicitly. A per-call `model` is not always the last word: the
+   environment can force every subagent onto one model. Stop to ask before spawning when such a
+   forcing setting is on and it would put the fleet on a tier above the fleet default, or on the
+   session's model and so on the orchestrator's tier.
 
-   *Record.* Claim: the resolution order above, and that `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`
-   overrides it, onto `CLAUDE_CODE_SUBAGENT_MODEL` when that is set and onto the session's model
-   when it is not. Basis: <https://code.claude.com/docs/en/sub-agents#choose-a-model>. Verified
-   2026-09-27. Recheck: the page changes the order or the `_FORCE` behavior, or a release note
-   names subagent model resolution.
+   - **Pointer**: before trusting a per-call `model` to set the fleet's tier, fetch
+     [Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) and
+     [Run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model)
+     live, and read the session's subagent-model environment variables against them.
+   - **As of**: 2026-10-11
+   - **Recheck trigger**: either section changes the resolution order or what the forcing
+     setting overrides, or a release note names subagent model resolution.
 
    **The fleet default is the tier whose writing has cleared the writer's bar**, not a fixed model
    name, which goes stale at the next release. Resolve it from the consuming project's own
@@ -104,13 +103,15 @@ Dispatch rules:
 
    **Reach for effort before reaching for a cheaper tier.** Effort scales the tokens one agent
    spends; tier scales the price of every token AND changes which model wrote the lines. Across a
-   fleet both multiply, but only one of them changes the writing. An agent spawn can carry
-   its own `effort`, so a fan-out that needs the lever does not need a workflow for it. A spawn of
-   `object-writer` omits `effort` unless the writer asks for another level.
+   fleet both multiply, but only one of them changes the writing. A fan-out that needs the lever
+   sets it on the spawn, not through a workflow (the pointer below, to
+   [Choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level),
+   says which spawns take it; as of 2026-10-11; recheck when that pointer's URL or as-of
+   date changes, or it is dropped). A spawn of `object-writer` omits `effort` unless the writer asks for another level.
 
    - **Pointer**: before relying on the effort of an agent spawn, whether or not it passes
      `effort`, fetch <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level> live.
-   - **As of**: 2026-10-10
+   - **As of**: 2026-10-11
    - **Recheck trigger**: that section changes which spawns take a per-call `effort` or how it
      ranks against an agent definition's `effort`.
 

@@ -3,10 +3,11 @@
 Measure a Claude Code session's fixed startup context payload **per item**, on your machine, at a
 pinned binary, and record what every trim actually saved.
 
-`/context` already itemizes skills, agents, and MCP tools. What it structurally cannot itemize is
-the built-in tool pool: `System tools` and `System tools (deferred)` are lump sums, and together
-they are typically the largest single contributor to the fixed payload. This plugin attributes
-them per tool by A/B differencing: a baseline headless session versus one session per candidate
+Per-skill, per-agent, and per-MCP-tool attribution stays with the built-in `/context` command.
+This plugin covers what our measurements see `/context` report only as totals: the built-in tool
+pools, `System tools` and `System tools (deferred)`. Together they are typically the largest
+single contributor to the fixed payload, which is why the plugin targets them. It attributes them
+per tool by A/B differencing: a baseline headless session versus one session per candidate
 tool with that tool denied by bare name. The two attributed buckets compose differently:
 deferred-side deltas add, so a basket's deferred saving is the sum of its members, while
 prefix-side deltas double-count, so their sum is only an upper bound on the basket's prefix
@@ -35,6 +36,43 @@ saving.
   approval. User-global `~/.claude/settings.json` is only ever printed, and every applied lever
   is re-measured and ledgered before the next.
 
+## Live breakdown
+
+A mod shows what the session's context is made of right now, by category, with each category's
+tokens, share of the window and theme color. It needs Claude Code 2.1.287 or later; mods are
+unsupported below that, and the plugin ships no shim
+([ADR 0052](../../docs/adr/0052-adopt-claude-code-mods.md)).
+
+The `live_display` option picks where it shows:
+
+- `pane` (default). `/context-budget live` opens or closes a pane. Its header reads
+  `◆ context <used> of <window> · compacts at <threshold> <percent>%`, with the "compacts at" part
+  only when auto-compaction is on. Each category follows with its tokens, percent and color;
+  deferred categories are listed dimmed with "deferred" in place of a percent.
+- `band`. A bordered block of up to 5 rows above the prompt (header, bar, one-line legend), above
+  other plugins' rows, fitted to the available width, and out of the way while a survey prompt
+  shows. `/context-budget live` opens or closes the detail pane and leaves the band on;
+  `/context-budget live off` hides the band. This multi-row band is an opt-in exception to
+  the repository's one-row-per-mod display guidance
+  ([mods](../user-interface/reference/types/mods.md)).
+- `off`. Nothing shows and nothing is measured.
+
+`/context-budget live pane`, `live band` and `live off` set the mode for the session and survive a
+hot reload. In `off` mode, `/context-budget live` shows a toast that says how to turn the display
+on.
+
+**Refresh and cost.** The mod reads Claude Code's local estimate of the breakdown, with no network
+call, when you open or switch the view and, while it is shown, when context usage changes. `off`
+makes no reads.
+
+**States.** Before the first response, and right after a compaction, the pane says "waiting for
+next response" and the band draws nothing. When no breakdown is available, the pane shows the basic
+usage header and one "usage unavailable" line (the line alone when the basic figures fail too), and
+the band draws nothing.
+
+Tested in: the plugin test kit (terminal and desktop surfaces) on Claude Code 2.1.296, plus
+`claude plugin validate` and `tsc`. No live interactive, `--bg` or Desktop session has run it yet.
+
 ## Hook
 
 A PreToolUse checkpoint returns `permissionDecision: "ask"` when a **file-editing tool call**
@@ -42,18 +80,41 @@ A PreToolUse checkpoint returns `permissionDecision: "ask"` when a **file-editin
 edits prompt even in auto mode. It matches only the settings files Claude Code reads:
 `settings.json` in the user settings directory (`CLAUDE_CONFIG_DIR`, else `~/.claude`),
 `settings.json` and `settings.local.json` in `.claude/` under the project directory or the
-session's working directory, `settings.local.json` at the main checkout's root (where Claude Code
-keeps it for a session started in a subdirectory or a linked worktree), plus
-`managed-settings.json` and `managed-settings.d/` drop-ins in the managed system directory. A fixture or example named `.claude/settings.json` elsewhere does not
-prompt. It is a
-checkpoint, not a guarantee (a `PermissionRequest` hook can allow the call; `disableAllHooks`
-removes non-managed hooks). Kill switch: the `settings_write_ask_enabled` plugin option.
+session's working directory, `settings.local.json` at the main checkout's root, plus
+`managed-settings.json` and `managed-settings.d/` drop-ins in the managed system directory. A
+fixture or example named `.claude/settings.json` elsewhere does not prompt. Kill switch: the
+`settings_write_ask_enabled` plugin option.
 
-An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
+- **Pointer:** where Claude Code keeps each settings file:
+  [settings § Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect)
+  and
+  [§ Where Claude Code keeps the local file in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository);
+  for managed files,
+  [managed settings § Where each mechanism stores the policy](https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** any of these sections moves a settings file or adds one.
+
+It is a checkpoint, not a guarantee: other hooks, settings, and permission modes decide what
+happens to its `ask`. We state that whenever we describe the protection, and read the specifics
+live:
+
+- **Pointer:** [hooks § PermissionRequest](https://code.claude.com/docs/en/hooks#permissionrequest),
+  [settings reference § `disableAllHooks`](https://code.claude.com/docs/en/settings-reference#disableallhooks),
+  [Agent SDK permissions § Bypass permissions mode](https://code.claude.com/docs/en/agent-sdk/permissions#bypass-permissions-mode-bypasspermissions)
+  (hook evaluation order against the mode check), and
+  [headless § Turn off permission prompts in unattended runs](https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs)
+  (what a `-p` run does with a call that would prompt).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** any of these sections changes who can answer or skip a hook's `ask`, or a
+  release note names hook evaluation order or `disableAllHooks`.
+
+A mod (this plugin's or any other installed one) can keep `PreToolUse` settings hooks such as this
+plugin's settings-write checkpoint from running: they run after the last
 mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
 ([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
 A mod can also approve a call they blocked, because its `tool.check` hook runs after them
 ([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
+As of 2026-10-11. Recheck when either section moves settings hooks relative to the mod chain.
 
 **What it does not see.** The checkpoint matches tool names and file paths, not the file on
 disk. These routes change a settings file without an ask:
@@ -64,15 +125,17 @@ disk. These routes change a settings file without an ask:
   applying a template or symlink. That write is a legitimate action by another program, inside the
   session or outside it.
 
-For a signal that fires whatever wrote the file, Claude Code's `ConfigChange` hook event runs
-when a settings file changes during a session. It can stop the new settings from applying to the
-running session (except for `policy_settings`), but it cannot ask, it discards `systemMessage`,
-a blocked change surfaces no message, and the file on disk has already changed. That is a
-different control from this one, and this plugin does not register it.
-Verified 2026-09-29 against Claude Code 2.1.284 at <https://code.claude.com/docs/en/hooks>
-("ConfigChange" and "FileChanged", and the matcher table that filters PreToolUse on
-`tool_name`). Recheck when that page gives `ConfigChange` an `ask` outcome or a visible message,
-or gives PreToolUse a matcher on target path.
+Claude Code's `ConfigChange` hook event fires on a settings change whatever wrote the file, but it
+reacts after the write rather than asking before it. That is a different control from this one,
+and this plugin does not register it.
+
+- **Pointer:** [hooks § ConfigChange](https://code.claude.com/docs/en/hooks#configchange) and
+  [§ ConfigChange decision control](https://code.claude.com/docs/en/hooks#configchange-decision-control);
+  for what a PreToolUse matcher filters on,
+  [hooks § Matcher patterns](https://code.claude.com/docs/en/hooks#matcher-patterns).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** those sections give `ConfigChange` an `ask` outcome or a visible message,
+  or the Matcher patterns section gives PreToolUse a matcher on target path.
 
 **Decision (#3864): the claim is narrowed, and the hook is not widened.** Adding the shell lane
 would put an always-on `Bash|PowerShell` hook under the
@@ -96,7 +159,7 @@ stays unconditioned until upstream matching reaches those paths.
 
 ## What makes the numbers trustworthy
 
-- **Nothing is shipped, everything is measured.** The skill contains no token figures, tool
+- **No figures ship; every number is measured locally.** The skill contains no token figures, tool
   inventories, or thresholds. Those drift with every CLI release. Every number in a report was
   produced by a run on the consumer's machine during that audit.
 - **Every report is stamped** with the measured binary path and version, the measurement mode,
@@ -105,7 +168,7 @@ stays unconditioned until upstream matching reaches those paths.
   with identical skill listings (listed skill frontmatter is subtracted from that bucket); the
   engine fingerprints the listing per run and marks violating comparisons incomparable rather
   than reporting their numbers.
-- **Levers are catalogued data, not folklore.** Each row in
+- **Levers are catalogued data.** Each row in
   `skills/audit/reference/levers.json` carries its honesty category (does it remove weight, work
   but save nothing here, block without saving, sit as vendor weight, or cost more than it buys),
   the official citation behind it, how to detect and measure it, the exact config it would emit,
@@ -113,8 +176,10 @@ stays unconditioned until upstream matching reaches those paths.
   not offered.
 - **Honest degradation.** Exact mode uses the Agent SDK's structured context usage. Without the
   SDK, the engine parses headless `/context` output version-aware (display-rounded, and flagged
-  as resting on an undocumented surface). When neither works, it emits a structured error with a
-  remediation, never a wrong number.
+  as resting on a surface the docs do not list for `-p`; the record is under "Degradation ladder"
+  in `skills/audit/reference/engine.md`, relayed as of 2026-10-11; recheck this relay when that
+  heading moves or its record's recheck trigger fires). When neither works, it emits a structured error with a remediation, never
+  a wrong number.
 
 ## Prerequisites
 
@@ -128,18 +193,26 @@ stays unconditioned until upstream matching reaches those paths.
 
 Ledger and snapshots live under `${CLAUDE_PLUGIN_DATA}/audit/<state-key>/`, keyed per project by
 the marketplace's shared state-key scheme, with one file per run plus an appended history line.
-Uninstalling the plugin from its last scope deletes this directory unless `--keep-data` is
-passed.
+An uninstall can delete this directory; the audit tells the operator so near the ledger.
+
+- **Pointer:** [plugins CLI reference § What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** that section changes when a plugin's data directory is deleted or how to
+  keep it.
 
 ## Boundaries
 
 - Usage-based removal ("which plugins do I never use") belongs to the bundled `/doctor`; the
   skill routes there and never reimplements it.
+  Pointer: <https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor>. As of
+  2026-10-11. Recheck when that section drops unused MCP servers or plugins from its coverage.
 - Which skills to turn off goes to the built-in `/skill-doctor`, which the person runs; the audit measures what a toggle saved and never picks the skill.
   Pointer: <https://code.claude.com/docs/en/skills#find-unused-skills>. As of 2026-10-02.
   Recheck when that section sends the question to another command.
 - Per-skill / per-agent / per-MCP-tool attribution belongs to `/context` natively.
-- Live in-session occupancy zones belong to the `context-guard` plugin.
+- This plugin answers "what is my context made of": the startup measurement and the live
+  breakdown. How full the context is and what happens as it fills (zones, notices to Claude,
+  toasts, optional blocking, the one-line level row) belongs to the `context-guard` plugin.
 - Measurements describe **headless** sessions of the **local CLI**; interactive sessions and
   cloud/web surfaces can compose the payload differently, and reports say so.
 
@@ -156,6 +229,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher. |
+| `live_display` | string | `"pane"` | `CLAUDE_PLUGIN_OPTION_LIVE_DISPLAY` | Where the live context breakdown shows. pane opens it in a pane when you run /context-budget live; band keeps it above the prompt; off shows nothing and measures nothing. /context-budget live pane, band or off changes it for the session. |
 
 ### How to set these
 

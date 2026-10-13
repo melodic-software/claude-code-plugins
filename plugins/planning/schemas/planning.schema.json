@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/planning/schemas/planning.schema.json",
+  "title": "Planning team config",
+  "description": "Schema for a repository's docs/conventions/planning.yaml: the team layer of the planning plugin's settings. A value here overrides the same key in the plugin's userConfig. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "plan_store": {
+      "description": "Where /planning:plan keeps an approved plan. local: PLAN.md in the memory slice only. tracker: also posted as one marked comment on the claimed work item, updated in place on re-publish.",
+      "enum": ["local", "tracker"],
+      "default": "local"
+    },
+    "phase_order": {
+      "description": "How /planning:plan orders phases. composed: remove dead code the change touches (skipped for a bug fix), then the integration slice, then the riskiest remaining unknown, then scaffold, then the remaining features. subtraction-first: dead code, scaffold, features. riskiest-first: the step whose failure would invalidate the most downstream work goes first.",
+      "enum": ["composed", "subtraction-first", "riskiest-first"],
+      "default": "composed"
+    },
+    "scaffold_stubs": {
+      "description": "When true, /planning:design hands off the stub files the change needs with their signatures, and /planning:plan places a stub phase right after phase_order's dead-code removal step (first when there is none). Stub bodies use the language's ordinary not-implemented form. A quoted \"true\" or \"false\" is a string, not a boolean, and is invalid.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

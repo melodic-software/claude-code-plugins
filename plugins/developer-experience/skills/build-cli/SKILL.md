@@ -73,10 +73,10 @@ Each recommendation (a library, a layout, a default) carries a `Basis:` line per
    when the testing plugin is installed; otherwise run the command yourself: `--help`, then the
    dry-run, then a real run only when it changes nothing or the user agreed. A script runs once on
    this platform and must exit 0; when a run could change anything, use its dry-run or ask first
-   and say why. Run each as one plain command (no `cd`, `;`, `&&` or pipe): an allowlist approves a
-   compound line only if every part matches, so an earlier denial says nothing about this call
-   (pointer <https://code.claude.com/docs/en/permissions>, "Compound commands", as of 2026-10-09;
-   recheck when that section changes). Report as unverified, with the reason, never as failed:
+   and say why. Run each as one plain command (no `cd`, `;`, `&&` or pipe), so an earlier denial of
+   a compound line says nothing about this call (pointer: when a compound line was denied, fetch
+   <https://code.claude.com/docs/en/permissions#compound-commands> live; as of 2026-10-11;
+   recheck when that section changes how a compound line is matched). Report as unverified, with the reason, never as failed:
    other platforms, a run the user declined, and a plain call that was itself denied.
 8. **Report** what ran and what each run returned. A failed build, test or smoke run is reported
    with its output, including a failure the change did not cause, and the files stay in place for
@@ -91,10 +91,10 @@ Report gaps against each of the ten rules with the file and line behind each one
 instruction found. Change nothing unless the user asks for a specific fix. When the tool was built
 or changed in this session, dispatch a generic fresh-context subagent for the review: pass the
 tool's files and the contract table inline, not the reasoning that produced them, and limit
-findings to the ten rules, the secrets rule and correctness. A non-fork subagent starts without
-this conversation: pointer <https://code.claude.com/docs/en/sub-agents> ("What loads at
-startup"), as of 2026-10-09; recheck when non-fork subagents start receiving the parent
-conversation. General code review beyond the contract is `/review:quality-gate`, when the review
+findings to the ten rules, the secrets rule and correctness. Use a non-fork subagent, so the
+review stays blind to this session (pointer: when choosing the subagent type, fetch
+<https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> live; as of 2026-10-11;
+recheck when that section changes what a non-fork subagent starts with). General code review beyond the contract is `/review:quality-gate`, when the review
 plugin is installed; otherwise say it was not run.
 
 ## Next
@@ -109,6 +109,6 @@ plugin is installed; otherwise say it was not run.
   the new one non-interactively.
 - Documenting a new command only in a README misses the next agent, which reads the conventions
   file.
-- The install line's form is from <https://code.claude.com/docs/en/plugins/cli-reference>
-  ("plugin install"), as of 2026-10-09; recheck when that section changes the plugin argument
-  form.
+- **Pointer**: when writing an install line, fetch
+  <https://code.claude.com/docs/en/plugins/cli-reference#plugin-install> live for its form.
+  **As of**: 2026-10-11. **Recheck trigger**: that section changes the plugin argument form.

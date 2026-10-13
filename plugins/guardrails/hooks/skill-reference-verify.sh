@@ -124,12 +124,14 @@ hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' \
   '[(.tool_response | objects | .structuredPatch)[]?.lines[]?
     | select(type == "string" and startswith("+")) | .[1:]] | join("\n")' || exit 0
 TOOL="${HOOK_JQ_FIELDS[0]}"
-# Edit's `replace_all` (documented at
-# https://code.claude.com/docs/en/tools-reference — Edit requires `old_string` to
-# occur exactly once, and `replace_all: true` is how Claude edits every occurrence
-# instead). Reconstruction needs it: with `replace_all` the same `new_string`
-# lands in several places on purpose, so several matches are the edit's own
-# footprint rather than an ambiguity. Absent or false on every ordinary Edit.
+# Edit's `replace_all`. Reconstruction needs it: with `replace_all` the same
+# `new_string` lands in several places on purpose, so several matches are the
+# edit's own footprint rather than an ambiguity. Absent or false on every
+# ordinary Edit. This record also serves stale-path-verify.sh. Pointer: when
+# the uniqueness gate's premise is in doubt, read
+# https://code.claude.com/docs/en/tools-reference#edit-tool-behavior live. As
+# of: 2026-10-11. Recheck trigger: that section changes how often `old_string`
+# may match or what `replace_all` does, or is renamed.
 #
 # `replace_all` alone cannot say WHICH occurrences this call wrote, and that is
 # the whole of the residual reported in #2129: after `ghost` replaces `setup`
@@ -139,16 +141,14 @@ TOOL="${HOOK_JQ_FIELDS[0]}"
 # structured output, whose `structuredPatch` marks the lines the call actually
 # wrote with a leading `+`.
 #
-# Both halves of that were confirmed against pages fetched 2026-08-10, not recall:
-# `PostToolUse` input "includes both `tool_input`, the arguments sent to the tool,
-# and `tool_response`, the result it returned"
-# (<https://code.claude.com/docs/en/hooks>, "PostToolUse input"), and that field is
-# "the tool's structured `Output` object" (ibid., the PostToolBatch note
-# contrasting the two shapes). `Output` for Edit is `FileEditOutput`, whose
-# `structuredPatch` is `Array<{oldStart, oldLines, newStart, newLines, lines:
-# string[]}>` (<https://code.claude.com/docs/en/agent-sdk/typescript>, "Edit").
-# Recheck when the hooks page changes what `tool_response` carries for
-# PostToolUse, or the SDK page changes `FileEditOutput.structuredPatch`.
+# Both halves rest on upstream pages, read live rather than restated here.
+# Pointers: what a PostToolUse payload carries,
+# https://code.claude.com/docs/en/hooks#posttooluse-input; the Edit tool's
+# structured output and its `structuredPatch` shape, the Edit entry under
+# https://code.claude.com/docs/en/agent-sdk/typescript#tool-output-types. As of:
+# 2026-10-11. Recheck trigger: the hooks section changes what `tool_response`
+# carries for PostToolUse, or the SDK section changes `FileEditOutput`'s
+# `structuredPatch`, or either section is renamed.
 #
 # OBSERVED, not merely documented: an independent reviewer captured a live
 # PostToolUse payload (a temp settings.json dumping stdin, driven by a headless
@@ -198,15 +198,13 @@ esac
 # directory name. Build the name → directory map from the manifests themselves so
 # a renamed directory or a name override resolves correctly.
 #
-# The manifest also decides WHERE that plugin's skills live. Its `skills` key
-# holds a path or an array of paths, each relative to the plugin root, and those
-# ADD to the conventional `skills/` directory rather than replacing it — verified
-# against the plugin manifest reference
-# (<https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location>,
-# fetched 2026-10-07). Collect them per plugin so a skill
-# loaded from a declared location resolves like any other. Recheck when the
-# manifest reference stops saying declared `skills` paths add to the default
-# `skills/` directory.
+# The manifest also decides WHERE that plugin's skills live. We treat the paths
+# its `skills` key declares as extra skill directories beside the conventional
+# `skills/`, and collect them per plugin so a skill loaded from a declared
+# location resolves like any other. Pointer:
+# https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location.
+# As of: 2026-10-11. Recheck trigger: that section stops saying declared
+# `skills` paths add to the default `skills/` directory, or is renamed.
 #
 # One documented exception is NOT modeled: for a marketplace entry whose `source`
 # resolves to the marketplace root, declared subdirectories REPLACE the default
@@ -363,18 +361,18 @@ skill_frontmatter_name() {
 # plus every path its manifest declares, plus the plugin root when the manifest
 # declares nothing and the root itself is the skill.
 #
-# All three shapes come from the plugin manifest reference
-# (<https://code.claude.com/docs/en/plugins/manifest-reference>, "Path rules", "How each key combines with its default
-# location" and "Standard layout", fetched 2026-10-07):
-# declared paths are relative to the plugin root and start with `./` (the `skills`
-# key also accepts `.`, and both `.` and `./` denote the root); they ADD to the
-# default `skills/` scan; and a plugin with a root SKILL.md, no `skills/`
-# subdirectory and no `skills` key auto-loads as a single-skill plugin. That last
-# condition is honored as written rather than widened — a root SKILL.md sitting
-# beside a populated `skills/` is not loaded, and accepting it would suppress the
-# advisory for a command Claude Code does not actually offer. Recheck when the
-# manifest reference changes the single-skill auto-load condition or how
-# declared paths combine with the default location.
+# All three shapes follow the plugin manifest reference rather than recall: we
+# resolve declared paths against the plugin root, read `.` and `./` as the root
+# itself, add them to the default `skills/` scan, and take the root as the
+# skill only under the single-skill condition. That condition is honored as
+# written rather than widened, because widening it would suppress the advisory
+# for a command Claude Code does not actually offer. Pointers:
+# https://code.claude.com/docs/en/plugins/manifest-reference#path-rules,
+# https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location,
+# https://code.claude.com/docs/en/plugins/manifest-reference#standard-layout.
+# As of: 2026-10-11. Recheck trigger: any of those sections changes the path
+# forms, how declared paths combine with the default location, or the
+# single-skill auto-load condition, or is renamed.
 #
 # Call as: skill_roots <plugin-dir> <declared-paths> -> $roots
 # shellcheck disable=SC2154  # roots is the caller's frame, per the call contract

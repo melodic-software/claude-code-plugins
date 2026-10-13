@@ -73,8 +73,9 @@ Claude Code also skips a hook that runs past its own time limit.
 
 - **Pointer**: for the time limit, see
   [reference: limits](https://code.claude.com/docs/en/plugins/mods/reference#limits); for stubbing
-  `$` calls in a test, see [test](https://code.claude.com/docs/en/plugins/mods/test).
-- **As of**: 2026-10-03, Claude Code 2.1.288
+  `$` calls in a test, see
+  [test: Stub what Claude Code would answer](https://code.claude.com/docs/en/plugins/mods/test#stub-what-claude-code-would-answer).
+- **As of**: 2026-10-03, Claude Code 2.1.288; test anchor 2026-10-11
 - **Recheck trigger**: the limits table changes a hook's own time limit, or `claude plugin test`
   stops letting a test stub `$.process.run`.
 

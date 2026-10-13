@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Intent: ops can download the filtered order list from the admin orders page as CSV.\nChanged since read-back: Q5, the file is now orders-export-<timestamp>.csv.\nNew assumptions from the sweep: exports run synchronously in the request; the export respects the user's row-level permissions.\nQ1-Q4 and Q6-Q8 stand as read back.\n\nConfirm, or give me the numbers to change.",
+      "why": "intent, the change, the two new assumptions, nothing re-listed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Contract:\nQ1 filtered rows. Q2 columns as shown. Q3 UTC. Q4 50,000-row cap. Q5 orders-export-<timestamp>.csv. Q6 toolbar button. Q7 gzip off. Q8 audit log entry.\nAssumptions: synchronous export; row-level permissions.",
+      "why": "re-lists every unchanged answer"
+    },
+    {
+      "answer": "Intent: CSV export of the admin orders page. Changed: Q5, orders-export-<timestamp>.csv. Confirm?",
+      "why": "omits the two new assumptions"
+    }
+  ]
+}
