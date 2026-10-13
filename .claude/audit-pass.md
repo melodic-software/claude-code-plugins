@@ -13,7 +13,7 @@ suppressions:
     sites:
       - surface: .claude/settings.json
         anchor/v1: "e:b40d4d51d2c2:6e340b9c"
-    reason: "Cloud sessions on this repository push to the task branch as part of the harness contract; an ask-gate on git push would prompt on every run and is never answered. Local operators keep whatever ask rule they want in their user settings."
+    reason: "Cloud sessions on this repository push their working branch as the harness instructs; an ask-gate on git push would prompt on every run and is never answered. The GitHub proxy does not limit which branch a push updates (https://code.claude.com/docs/en/cloud-environments#github-proxy, Push restrictions, as of 2026-10-11; recheck when that bullet changes), so the default branch is held by the repository ruleset's pull-request rule, not by this gate. Local operators keep whatever ask rule they want in their user settings."
     date: 2026-09-08
   52bccf5cafa7fd59:
     check: harness-config/audit/B/baseline-ask-rules

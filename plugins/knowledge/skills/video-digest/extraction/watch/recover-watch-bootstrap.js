@@ -16,6 +16,7 @@ import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { resolveSourceAdapter } from "../adapters/registry.js";
+import { selectCaptionFile } from "../acquisition/select-caption.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { MAX_FRAME_GAP_SEC, planFrameCoverage } from "../watching/compute-coverage-plan.js";
@@ -120,22 +121,84 @@ function loadExistingContactSheets(contactSheetsDir, sheetFiles, batches) {
 }
 
 /**
+ * The manual caption languages info.json lists, the signal acquisition feeds
+ * `selectCaptionFile`. `undefined` when the file is unreadable or carries no
+ * `subtitles` object, which leaves the filename classification in force.
+ *
+ * @param {string} infoPath
+ * @returns {string[] | undefined}
+ */
+function readManualLanguages(infoPath) {
+  try {
+    const subtitles = JSON.parse(fs.readFileSync(infoPath, "utf8"))?.subtitles;
+    return subtitles && typeof subtitles === "object" ? Object.keys(subtitles) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Resolve the caption through the selector acquisition uses, so recovery
+ * rebuilds the transcript from the track the original run chose: a bare
+ * `.en.vtt` that info.json does not list as manual may be YouTube's machine
+ * translation and ranks below `.en-orig.vtt`. A `.vtt` the ladder does not
+ * classify (another language) is still taken, as before.
+ *
+ * @param {string[]} vttNames
+ * @param {string} infoPath
+ * @param {import('../acquisition/select-caption.js').CaptionClass} captionClass
+ * @returns {string}
+ */
+function pickCaptionName(vttNames, infoPath, captionClass) {
+  const selected = selectCaptionFile(vttNames, captionClass, {
+    manualLanguages: readManualLanguages(infoPath),
+  });
+  if (selected.success) return selected.selection.path;
+  return vttNames.find((name) => !name.includes("-orig")) ?? vttNames[0];
+}
+
+/**
+ * The names belonging to the media entry `videoName` (`<id>.mp4`) heads, by
+ * yt-dlp's `%(id)s.%(ext)s` template, so a multi-video work dir (an X post)
+ * never pairs one entry's video with another entry's caption or info.json.
+ * All `names` only when the work dir is not entry-named (no info.json stem
+ * prefixes another file), so an entry whose own files are missing gets none
+ * rather than a sibling's.
+ *
+ * @param {string[]} names
+ * @param {string} videoName
+ * @param {boolean} entryNamed
+ * @returns {string[]}
+ */
+function scopeToEntry(names, videoName, entryNamed) {
+  if (!entryNamed) return names;
+  const prefix = `${videoName.slice(0, -".mp4".length)}.`;
+  return names.filter((name) => name.startsWith(prefix));
+}
+
+/**
  * @param {string} workDir
+ * @param {import('../acquisition/select-caption.js').CaptionClass} [captionClass] the source adapter's declared class
  * @returns {{ videoPath: string, vttPath: string, infoPath: string }}
  */
-export function resolveWorkArtifacts(workDir) {
+export function resolveWorkArtifacts(workDir, captionClass = "manual-and-auto") {
   const entries = fs.readdirSync(workDir);
   const videoPath = entries.find((name) => name.endsWith(".mp4"));
-  // Prefer a manual/cleaned caption, but fall back to the `*-orig.vtt` the
-  // caption ladder keeps for auto-caption-only videos — the original
-  // acquisition used it, so recovery must accept it too.
-  const vttPath =
-    entries.find((name) => name.endsWith(".vtt") && !name.includes("-orig")) ??
-    entries.find((name) => name.endsWith(".vtt"));
-  const infoPath = entries.find((name) => name.endsWith(".info.json"));
-  if (!videoPath || !vttPath || !infoPath) {
+  const infoNames = entries.filter((name) => name.endsWith(".info.json"));
+  const vttNames = entries.filter((name) => name.endsWith(".vtt"));
+  if (!videoPath || vttNames.length === 0 || infoNames.length === 0) {
     throw new Error(`Missing mp4/vtt/info.json in ${workDir}`);
   }
+  const entryNamed = infoNames.some((info) => {
+    const prefix = `${info.slice(0, -".info.json".length)}.`;
+    return entries.some((name) => name !== info && name.startsWith(prefix));
+  });
+  const [infoPath] = scopeToEntry(infoNames, videoPath, entryNamed);
+  const entryVttNames = scopeToEntry(vttNames, videoPath, entryNamed);
+  if (!infoPath || entryVttNames.length === 0) {
+    throw new Error(`Missing vtt/info.json for ${videoPath} in ${workDir}`);
+  }
+  const vttPath = pickCaptionName(entryVttNames, path.join(workDir, infoPath), captionClass);
   return {
     videoPath: path.join(workDir, videoPath),
     vttPath: path.join(workDir, vttPath),
@@ -204,7 +267,7 @@ export async function recoverWatchBootstrapCli(argv) {
   }
   const adapter = resolveSourceAdapter(sourceUrl);
 
-  const { videoPath, vttPath, infoPath } = resolveWorkArtifacts(workDir);
+  const { videoPath, vttPath, infoPath } = resolveWorkArtifacts(workDir, adapter.captionClass);
   const metadata = parseVideoMetadata(JSON.parse(fs.readFileSync(infoPath, "utf8")));
   const vttText = fs.readFileSync(vttPath, "utf8");
   const cues = normalizeVttCues(vttText);

@@ -1,4 +1,9 @@
-import { expect, mock, test } from 'claude-code/testing'
+import { expect, mock, test as kitTest } from 'claude-code/testing'
+
+// Most cases test what Claude is told, so they run with model_notices on; a case that sets it keeps
+// its own value, and the 'defaults:' cases call kitTest to run on the manifest's defaults.
+const test = (name: string, ...rest: [any] | [any, any]) =>
+  rest.length === 1 ? kitTest(name, { options: { model_notices: true } }, rest[0]) : kitTest(name, { ...rest[0], options: { model_notices: true, ...rest[0].options } }, rest[1])
 
 // Fixture times, computed by hand: 2026-10-03T18:00:00Z is 1791050400 s, 21:00Z is 1791061200 s,
 // 2026-10-08T09:00:00Z is 1791450000 s.
@@ -791,7 +796,7 @@ test('notice: a row wraps rather than truncating', NO_WRITES, async ($, on) => {
   expect(row?.props.wrap).toBe('wrap')
 })
 
-test('toast: with lines to Claude off, a rise to the edge still toasts and Claude gets no line', { options: { rate_limit_guard_enabled: false, rate_limit_lines_enabled: false } }, async ($, on) => {
+test('toast: with lines to Claude off, a rise to the edge still toasts and Claude gets no line', { options: { rate_limit_guard_enabled: false, model_notices: false } }, async ($, on) => {
   const { w } = world(on)
   await bash($)
   w.limits = limits(100)
@@ -995,7 +1000,24 @@ test('switch: rate_limit_guard_enabled false stops writes while lines continue',
   expect(w.runs).toEqual([])
 })
 
-test('switch: rate_limit_lines_enabled false stops lines while writes continue', { options: { rate_limit_lines_enabled: false } }, async ($, on) => {
+// The manifest's defaults: Claude's context gets nothing from the module, at a prompt or a tool
+// result, while the toast and the snapshot write still happen.
+kitTest('defaults: no approach, threshold or later line reaches Claude; the toasts and writes go on', async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  w.limits = limits(91)
+  const approach = (await bash($)).context
+  w.limits = limits(100)
+  const edge = (await prompt($, 'sdk')).context
+  w.limits = limits(10)
+  const reset = (await bash($)).context
+  // Everything added to the context, whatever its prefix (the world adds nothing beneath).
+  expect([...(approach ?? []), ...(edge ?? []), ...(reset ?? [])]).toEqual([])
+  expect(w.toasts).toEqual(['5h nearing the 95% line threshold · resets 21:00 UTC', '5h at the 95% line threshold · resets 21:00 UTC'])
+  expect(w.runs.length).toBeGreaterThan(0)
+})
+
+test('switch: model_notices false stops lines while writes continue',{ options: { model_notices: false } }, async ($, on) => {
   const { w } = world(on)
   await bash($)
   w.limits = limits(100)

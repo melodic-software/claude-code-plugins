@@ -1,6 +1,6 @@
 # MCP Tool Audit Checklist
 
-19 criteria (C1-C19) derived from three upstream authorities, cited so the current text governs. Do
+20 criteria (C1-C20) derived from three upstream authorities, cited so the current text governs. Do
 not recap them here, read them at the source:
 
 - [MCP specification 2026-07-28: Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
@@ -9,14 +9,16 @@ not recap them here, read them at the source:
   (correlate with [Anthropic: Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents))
 - [Claude Code: Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp). Claude-Code-specific client behavior: `_meta` annotations and result-size limits
 
-**Client-behavior record.** C17 and C18 act on values this skill holds as its own settings. C17
-treats 500,000 characters as the ceiling above which a declared `anthropic/maxResultSizeChars`
-value no longer applies, and treats a tool returning image content as outside that annotation. C18
-treats only the JSON boolean `true` as an effective `anthropic/requiresUserInteraction`, and grades
-any other value FAIL because the consent prompt it was meant to force never fires. C19 treats a
-tool's `anthropic/alwaysLoad: false` as a deliberate opt-out that keeps the tool deferred even when
-the server's own config loads it upfront, honored only for the server sources the per-tool pointer
-names.
+**Client-behavior record.** C17 and C18 grade a declared value against client behavior read live
+at the pointers below, never against a number or type copied here. C17 reads the ceiling above which
+a declared `anthropic/maxResultSizeChars` value stops applying, and which result content the
+annotation does not cover, from the result-size sections at audit time; a declared value past that
+ceiling, or on content outside it, is the ineffective shape. C18 grades as effective only the value
+the approval section names for `anthropic/requiresUserInteraction` (this skill reads it in its JSON
+type, so a string or number spelling of it fails) and grades any other value FAIL, because the
+consent prompt it was meant to force never fires. C19 treats a tool's `anthropic/alwaysLoad: false`
+as a deliberate opt-out that keeps the tool deferred even when the server's own config loads it
+upfront, honored only for the server sources the per-tool pointer names.
 
 - **Pointer**: for the result-size annotation, see
   <https://code.claude.com/docs/en/mcp#raise-the-limit-for-a-specific-tool> and
@@ -25,7 +27,7 @@ names.
   per-tool deferral and which server sources honor `false`, see
   <https://code.claude.com/docs/en/mcp#per-tool-alwaysload>; for the server-level field, see
   <https://code.claude.com/docs/en/mcp#exempt-a-server-from-deferral>.
-- **As of**: 2026-10-10 (per-tool deferral); 2026-09-06 (the other values)
+- **As of**: 2026-10-11
 - **Recheck trigger**: the page moves any of these values, or changes which server sources honor a
   per-tool `false`, or a release note names MCP `_meta` annotations.
 
@@ -49,16 +51,27 @@ pointer, not decided here. C4 ignores the session-level override
   a release note names MCP description or instructions truncation.
 
 **Spec revision record.** The audit grades its SPEC-tagged criteria against the MCP revision Claude
-Code negotiates by default. Moving to that revision changed no criterion here; tool rules the
-revision added are not yet criteria.
+Code negotiates by default. Of the tool rules that revision added, three were weighed as criteria:
+
+- **`x-mcp-header`** became C20:
+  <https://modelcontextprotocol.io/specification/2026-07-28/server/tools#x-mcp-header>.
+- **The schema dialect default** folded into C16's evaluation, from the `inputSchema` entry of
+  <https://modelcontextprotocol.io/specification/2026-07-28/server/tools#tool>. Validity is already
+  C16's MUST, so a second row would grade the same defect twice.
+- **Deterministic `tools/list` ordering** is declined. It is a SHOULD on the order a running server
+  returns: <https://modelcontextprotocol.io/specification/2026-07-28/server/tools#capabilities>. This audit reads source and never runs the
+  server, and runtime behavior is out of its scope ("What this skill does NOT do" in the skill
+  body), so source can neither show the wire order nor prove it varies.
 
 - **Pointer**: when grading a SPEC-tagged criterion, fetch
   <https://modelcontextprotocol.io/specification/2026-07-28/server/tools> live; for which revision
   Claude Code negotiates, <https://code.claude.com/docs/en/mcp#mcp-client-runtimes>; for what the
   revision changed, <https://modelcontextprotocol.io/specification/2026-07-28/changelog>.
-- **As of**: 2026-10-10
-- **Recheck trigger**: a newer spec revision becomes the one Claude Code negotiates by default, or a
-  release note names the MCP protocol revision.
+- **As of**: 2026-10-11 (the three decisions); 2026-10-10 (the revision Claude Code negotiates)
+- **Recheck trigger**: a newer spec revision becomes the one Claude Code negotiates by default; a
+  release note names the MCP protocol revision; the tools page changes the `x-mcp-header`
+  constraints or the schema dialect default; or this audit gains a mode that queries a running
+  server, which would make the ordering SHOULD observable.
 
 ## Authority tag (provenance) vs severity (impact)
 
@@ -127,7 +140,7 @@ When auditing SOURCE, accept each SDK's native spelling of these hints as satisf
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C16 | **Callable from schema alone; input schema valid**. The tool description plus parameter descriptions let an LLM construct a valid call with zero system prompt, and the tool's input schema is valid | ANTHROPIC + SPEC-MUST | WARN (FAIL if the input schema is missing or invalid) | Graded against the spec's MUST: the wire-level `inputSchema` has to be a valid JSON Schema object (not `null`). When auditing SOURCE (not a live server), SDK-native schema forms count as valid, since the SDK converts them for the protocol: TypeScript Zod schemas / raw shapes (`inputSchema: { boardId: z.string() }`), Python type hints, .NET method signatures. FAIL only when the schema is missing, `null`, or malformed in its own idiom. Self-sufficiency: if you showed only this tool's schema to an LLM with no other context, could it make a valid call? Domain concepts referenced without explanation = warn |
+| C16 | **Callable from schema alone; input schema valid**. The tool description plus parameter descriptions let an LLM construct a valid call with zero system prompt, and the tool's input schema is valid | ANTHROPIC + SPEC-MUST | WARN (FAIL if the input schema is missing or invalid) | Graded against the spec's MUST: the wire-level `inputSchema` has to be a valid JSON Schema object (not `null`). Judge validity in the dialect the schema's `$schema` names, and in the default dialect the spec's Tool data type gives when it names none (Spec revision record), so a keyword valid in that dialect is never flagged as unknown. When auditing SOURCE (not a live server), SDK-native schema forms count as valid, since the SDK converts them for the protocol: TypeScript Zod schemas / raw shapes (`inputSchema: { boardId: z.string() }`), Python type hints, .NET method signatures. FAIL only when the schema is missing, `null`, or malformed in its own idiom. Self-sufficiency: if you showed only this tool's schema to an LLM with no other context, could it make a valid call? Domain concepts referenced without explanation = warn |
 
 ## 7. Claude Code `_meta` annotations (C17-C19)
 
@@ -136,8 +149,11 @@ documented in the Claude Code MCP page cited above. They are client behavior, no
 requirements, so every one is authority OPINION. A missing annotation here is at most info (an
 advisory that the server could benefit), and for C19 not a finding at all. Two defect shapes:
 
-- **Declared but ineffective**. Claude Code caps or ignores the value (C17 above the 500,000-character
-  ceiling or on an image-returning tool; C18 set to anything but the JSON boolean `true`). WARN
+- **Declared but ineffective**. Claude Code caps or ignores the value (C17 past the ceiling or on
+  content outside the annotation; C18 set to anything but the effective value; both per the
+  [Client-behavior record](#mcp-tool-audit-checklist), a bold paragraph under the title with no
+  heading of its own; as of 2026-10-11, recheck when that record moves or changes what C17 or C18
+  reads at its pointer). WARN
   generally, FAIL for `anthropic/requiresUserInteraction`, where a silently ignored value ships a
   consent gate that never fires.
 - **Declared, honored, and unwarranted**. Claude Code applies the value exactly as asked, and that is
@@ -153,13 +169,25 @@ wire-level field. C18 turns on the value's JSON type, so read it in that languag
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C17 | **`anthropic/maxResultSizeChars` on inherently-large-output tools**. A tool whose text results are inherently large (full schemas, file trees, whole-board dumps) declares its own result-size ceiling | OPINION | info (WARN if set ineffectively) | Missing on a large-output tool = info: the tool's large text results fall back to the client's default handling (Client-behavior record). Set above 500,000 (this check's ceiling; the excess never applies) or on a tool returning image content (outside the annotation, per the record) = WARN |
-| C18 | **`anthropic/requiresUserInteraction` set, as JSON `true`, where per-call consent is the point**. A tool that exists to collect a person's go-ahead (granting access, accepting terms), so that approving it without a prompt would defeat its purpose, declares it | OPINION | info (FAIL if set to any value other than JSON `true`) | Missing on a consent-shaped tool = info. Declared with any value other than the JSON boolean `true` (e.g. the string `"true"`, `1`) = FAIL, because the intended consent gate silently never applies. How an honored annotation behaves in each permission mode is read at the Client-behavior record's pointer, not restated here |
+| C17 | **`anthropic/maxResultSizeChars` on inherently-large-output tools**. A tool whose text results are inherently large (full schemas, file trees, whole-board dumps) declares its own result-size ceiling | OPINION | info (WARN if set ineffectively) | Missing on a large-output tool = info: the tool's large text results fall back to the client's default handling ([Client-behavior record](#mcp-tool-audit-checklist), a bold paragraph under the title; as of 2026-10-11, recheck when that record moves or changes what C17 reads at its pointer). Set past the ceiling, or on a tool returning content outside the annotation, both read at the record's pointer = WARN |
+| C18 | **`anthropic/requiresUserInteraction` set, to the effective value, where per-call consent is the point**. A tool that exists to collect a person's go-ahead (granting access, accepting terms), so that approving it without a prompt would defeat its purpose, declares it | OPINION | info (FAIL if set to any value other than the value the Client-behavior record's pointer names) | Missing on a consent-shaped tool = info. Declared with any value other than the value the Client-behavior record's pointer names, read in its JSON type so a string or number spelling of it does not match = FAIL, because the intended consent gate silently never applies. How an honored annotation behaves in each permission mode is read at the Client-behavior record's pointer, not restated here |
 | C19 | **`anthropic/alwaysLoad` reserved for genuinely always-needed tools**. `"anthropic/alwaysLoad": true` opts that one tool out of tool-search deferral | OPINION | info (WARN if over-declared) | Absence is never a finding. Deferral is the correct default, and "needed on every turn" is not inferable from source. Declared `true` on a tool with no every-turn case, or on many of a server's tools (defeating deferral, since each upfront tool spends context), = WARN. Declared `false` is never a finding: it keeps a heavy tool deferred when a user configures the whole server to load upfront, on the server sources the Client-behavior record's pointer names, so it is the opt-out to suggest for a large tool on a server whose docs recommend the server-level `alwaysLoad`. Its absence is not a finding either: make that suggestion in the fix guidance, unscored, never as an info count. That server-level config field itself is client configuration, outside this audit |
+
+## 8. Parameters mirrored into HTTP headers (C20)
+
+A parameter schema can carry an `x-mcp-header` keyword. What it does, the constraints on its value,
+and what a client does with a tool that breaks one are in
+<https://modelcontextprotocol.io/specification/2026-07-28/server/tools#x-mcp-header> (as-of date
+and recheck trigger in the Spec revision record). Read them there; this row only grades against
+them.
+
+| # | Criterion | Authority | Severity | How to evaluate |
+|---|-----------|-----------|----------|-----------------|
+| C20 | **Every `x-mcp-header` meets the spec's constraints, and none marks a sensitive parameter** | SPEC-MUST + SPEC-SHOULD | FAIL (WARN for a sensitive parameter, or for a value source cannot show) | A tool with no `x-mcp-header` passes; the keyword is optional. For each one declared, check its value and the property it sits on against every constraint in the spec section: a violation = FAIL, for the client consequence the section states. Marking a parameter that carries a secret or personal data (password, API key, token, PII) = WARN, per the section's SHOULD NOT. When auditing SOURCE, accept however the SDK attaches an extension keyword to one property's schema (a Zod `.meta()` or JSON Schema override, a Python `Field(json_schema_extra=...)`, a .NET schema attribute). A value built at run time, which source cannot show, = WARN naming the parameter |
 
 ## Scoring
 
-- **19 criteria** across 7 categories.
+- **20 criteria** across 8 categories.
 - Per-tool score: count of PASS / WARN / FAIL / info.
 - Per-server score: those counts aggregated across the server's tools **plus** its server-level
   criterion outcomes (C4's per-server `instructions` clause), so nothing evaluated is dropped. `n/a`

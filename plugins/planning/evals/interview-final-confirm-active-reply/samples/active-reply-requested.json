@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Contract: export the filtered orders as CSV, columns as shown, UTC timestamps, 50,000-row cap, file orders-YYYY-MM-DD.csv.\n\nConfirm, or give me the numbers of the items to change.",
+      "why": "active confirm-or-numbers request"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Contract: export the filtered orders as CSV with UTC timestamps and a 50,000-row cap. Sound good?",
+      "why": "yes/no check"
+    },
+    {
+      "answer": "Contract: export the filtered orders as CSV with UTC timestamps. Writing the Brief now.",
+      "why": "asks for no confirmation"
+    }
+  ]
+}

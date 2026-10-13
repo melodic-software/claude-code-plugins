@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: How long should an expired token be kept before deletion?\nMy recommendation: delete at once.\n\nIs there something else about this job that would change these recommendations?",
+      "why": "something-else probe as a question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Q1: How long should an expired token be kept?\n\nAnything else I should know?",
+      "why": "anything-else probe"
+    },
+    {
+      "answer": "If something else comes up, tell me.",
+      "why": "not asked as a question"
+    }
+  ]
+}

@@ -4,15 +4,19 @@
 # ADVISORY: always exits 0. Opt-in: hooks.json starts this only through
 # exec-bash.mjs --require-true TEST_GUARDS_ENABLED.
 #
-# Claude Code adds tool_response.bashEditDiff (best-effort beta) to a Bash
-# payload when bashEditDiffEnabled is true in user, --settings or managed
-# settings, or CLAUDE_CODE_BASH_EDIT_DIFF=1 (probes.md). A payload without it
-# exits here before any parsing. Otherwise each changed path whose basename
-# matches a test-file glob (the Write rows of hooks.json) goes to test-scan.sh as a Write (created
-# file) or an Edit (its hunks as structuredPatch), so the scan scope follows
-# hook-precision rule 1 exactly as for a Write or Edit. changedFiles lists
-# every path but only the first five carry hunks; a path without hunks reports
-# nothing.
+# The payload's tool_response.bashEditDiff, when present, lists the files the
+# call changed; when it is present, and how many changed files carry hunks,
+# is https://code.claude.com/docs/en/hooks#bash with the setting at
+# https://code.claude.com/docs/en/settings-reference#basheditdiffenabled
+# (as of 2026-10-11; recheck when either section changes when the field is
+# sent or how many files carry hunks). The probe that first observed it:
+# https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md#basheditdiff-claude-code-21285-wsl2-2026-09-30
+# (as of 2026-09-30; recheck when a Claude Code release note changes
+# bashEditDiff or bashEditDiffEnabled). A payload without it exits here
+# before any parsing. Otherwise each changed path whose basename matches a test-file glob (the Write rows of hooks.json)
+# goes to test-scan.sh as a Write (created file) or an Edit (its hunks as
+# structuredPatch), so the scan scope follows hook-precision rule 1 exactly as
+# for a Write or Edit. A changed path that carries no hunks reports nothing.
 #
 # Each file's payload carries the call's session_id, transcript_path and cwd,
 # and <tool_use_id>-<n> as its own id, so test-scan.sh leaves the per-write

@@ -118,6 +118,20 @@ key's mermaid default should change and whether `/architecture:map-landscape`'s 
 should use a dedicated landscape type instead of a `C4Context` diagram without a focal system,
 and record the outcomes in this plugin's `CHANGELOG.md`.
 
+## Script paths
+
+Every `map-*` skill runs its collector script through a path anchored on `${CLAUDE_SKILL_DIR}`,
+never a bare relative path, so the script resolves to the skill's own directory whatever directory
+the session is working in.
+
+- **Pointer**: when deciding how a script path in a skill body resolves, fetch
+  [skills § Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions)
+  and [skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes what `${CLAUDE_SKILL_DIR}` expands to or which
+  working directory a skill's commands run in.
+
 ## What writes this surface
 
 Only `/architecture:setup apply`, and only two artifacts: the marked `convention-home` pointer

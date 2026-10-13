@@ -63,7 +63,7 @@ Read each `Tool file:` from Phase 1. Per the language rules in
 [reference/server-discovery.md](reference/server-discovery.md), extract descriptions, parameters,
 wire-level annotations (C12-C14), and the tool's `_meta` object (C17-C19). The last via
 **meta-extraction**, recording each key's JSON type and not merely its presence, because C18 turns on
-it. Load the detailed checklist from [reference/checklist.md](reference/checklist.md).
+it. Also record each parameter schema's `x-mcp-header` value, if any (C20). Load the detailed checklist from [reference/checklist.md](reference/checklist.md).
 
 Once per server, also resolve its `instructions` field. See **Server instructions** in
 [reference/server-discovery.md](reference/server-discovery.md) and evaluate C4's per-server clause
@@ -131,7 +131,8 @@ its tools' criterion rows and its server-level rows, across the four severity bu
 they appear only in the server-level criterion table and never count as a pass. A missing annotation
 is never FAIL. Annotations are
 OPTIONAL in the spec (C12-C14) or Claude-Code-specific advisories (C17-C19); only a declared value
-Claude Code silently ignores can FAIL (C18).
+Claude Code silently ignores can FAIL (C18). Likewise an absent `x-mcp-header` passes, and only a
+declared one that breaks the spec's constraints can FAIL (C20).
 
 ## What this skill does NOT do
 

@@ -11,10 +11,10 @@ shell: bash
 ## Pre-computed context
 
 ```!
-{ printf 'video-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.argv[1];console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
-{ printf 'yt-dlp: '; command -v yt-dlp >/dev/null 2>&1 && { yt-dlp --version 2>/dev/null | head -1; :; } || echo "MISSING — install yt-dlp (see Prerequisites)"; }
-{ printf 'ffmpeg: '; command -v ffmpeg >/dev/null 2>&1 && { ffmpeg -version 2>/dev/null | head -1; :; } || echo "MISSING — install ffmpeg (watch action only)"; }
-{ printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && { magick -version 2>/dev/null | head -1; :; } || echo "MISSING — install ImageMagick 7 (watch action only)"; }
+printf 'video-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.argv[1];console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"
+printf 'yt-dlp: '; command -v yt-dlp >/dev/null 2>&1 && yt-dlp --version 2>/dev/null | head -1 || command -v yt-dlp >/dev/null 2>&1 || echo "MISSING — install yt-dlp (see Prerequisites)"
+printf 'ffmpeg: '; command -v ffmpeg >/dev/null 2>&1 && ffmpeg -version 2>/dev/null | head -1 || command -v ffmpeg >/dev/null 2>&1 || echo "MISSING — install ffmpeg (watch action only)"
+printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && magick -version 2>/dev/null | head -1 || command -v magick >/dev/null 2>&1 || echo "MISSING — install ImageMagick 7 (watch action only)"
 ```
 
 # Video digest. YouTube and X
@@ -160,8 +160,12 @@ model in `context/watch-pipeline.md`)
 - **Phase 9. Outcome verification**. `check-watch-outcomes.js "<slice-dir>" --write-report` must
   exit 0, then `watch/watch-state.js close <slice-dir>` closes the slice
 
-**Phase markers.** After each phase, `watch/watch-state.js mark-phase <slice-dir> <phase>`
-(idempotent). Never `mark-phase` while that phase's verify script fails. `close` is the only path
+**Phase markers.** `run-watch.js` marks `acquire`, `transcript`, `watching` and `harvest`. Mark
+the rest with `watch/watch-state.js mark-phase <slice-dir> <marker>` (idempotent): `companion`
+after the optional companion digest, once the CLI bootstrap has written `watch.json`, `vision`
+after vision planning through the high-volume advisory, and `research` after the research stage;
+`close` ends synthesis through outcome
+verification. Never `mark-phase` while that phase's verify script fails. `close` is the only path
 to `status: complete`: it marks synthesis, re-runs the outcome checks (blocking checklist
 included), and writes `complete` only on a pass. `mark-phase <slice-dir> synthesis` delegates to
 it.

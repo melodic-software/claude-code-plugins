@@ -12,18 +12,16 @@ Tips from Boris Cherny's Parts 13–15 threads + the Thariq/Sid workflows deep-d
 > decision that would turn on any figure below, a new frontier-model release, or a suite version
 > bump (e.g. Terminal-Bench 2.1 → 2.2). On a firing, resolve current figures from the vendor's own
 > announcement for that release plus
-> [models overview](https://platform.claude.com/docs/en/about-claude/models/overview), and leave
-> these lines as history rather than restating a fresh snapshot here. **Pricing figures (Sections
-> 78, 94–95) are the same kind of snapshot**: launch-day rates, verified still current 2026-08-04.
-> Current rates are upstream-owned: resolve them from
-> [pricing](https://platform.claude.com/docs/en/about-claude/pricing), never from these lines.
-> **The Section 94 specs sentence (model id, context window, max output, knowledge cutoff) is the
-> same kind of snapshot**, verified still current 2026-08-08 against the models overview linked
-> above, which owns those fields. Resolve current specs there, never from these lines.
+> [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison), and leave
+> these lines as history rather than restating a fresh snapshot here. Model specs and rates are
+> not recorded in this file at all;
+> [Section 94](#94-fable-5-the-best-coding-model-by-a-wide-margin) points at the pages that own
+> them (as of 2026-10-11; recheck when Section 94's pointer block is renamed, moved, or drops a
+> page).
 
 ## 78. Opus 4.8: Strongest Coding Model Yet
 
-Shipped May 28, 2026. Launch-day benchmarks, from the [launch announcement](https://www.anthropic.com/news/claude-opus-4-8#opus-48s-capabilities): SWE-Bench Pro 64.3 → 69.2; Terminal-Bench 2.1 66.1 → 74.6. Same price as 4.7. The bigger shift is honesty: it tells you when it's unsure and catches its own bugs instead of declaring victory early. A model that overclaims at step 4 wastes the next 40 steps, so honesty is what makes async work (`/goal`, workflows) actually finish. Also shipped: Fast mode for Opus 4.8 (research preview, ~2.5× speed, toggle `/fast`) and effort control on claude.ai.
+Shipped May 28, 2026. Launch-day benchmarks, from the [launch announcement](https://www.anthropic.com/news/claude-opus-4-8#opus-48s-capabilities): SWE-Bench Pro 64.3 → 69.2; Terminal-Bench 2.1 66.1 → 74.6. The bigger shift is honesty: it tells you when it's unsure and catches its own bugs instead of declaring victory early. A model that overclaims at step 4 wastes the next 40 steps, so honesty is what makes async work (`/goal`, workflows) actually finish. Also shipped: Fast mode for Opus 4.8 (research preview, ~2.5× speed, toggle `/fast`) and effort control on claude.ai.
 
 > **Superseded (Jun 9, 2026):** Fable 5 is now the strongest coding model (Section 94). Opus 4.8 details remain accurate for that release.
 
@@ -38,8 +36,10 @@ Opus 4.8 moved the default effort UP. The old deliberate `xhigh` choice is close
 
 > **Superseded:** availability, opt-in, launch approval per permission mode, and run limits have
 > changed since this tip; auto mode is one way to avoid prompts, not a requirement. For the
-> current rules, see [dynamic workflows](https://code.claude.com/docs/en/workflows). As of
-> 2026-10-02; recheck when that page's "Behavior and limits" or approval sections change.
+> current rules, see [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off)
+> for availability and opt-out, [Approve the plan before it runs](https://code.claude.com/docs/en/workflows#approve-the-plan-before-it-runs)
+> for approval per permission mode, and [Behavior and limits](https://code.claude.com/docs/en/workflows#behavior-and-limits)
+> for run limits. As of 2026-10-11; recheck when any of those three sections changes.
 
 Research preview (May 28, 2026) for tasks too big for one pass. Trigger: say **"use a workflow"** (refined Jun 9, since bare "workflow" had too many false positives, Section 93). Orchestrator shape, not peer-to-peer agent teams: a top-level Claude kicks off N tasks (100s possible); each task fans out implementer → two verifiers → fixer, looping until verifiers pass. Save it for the biggest jobs: migrations, refactors, perf optimization, batch bug fixes, catalogue-and-categorize sweeps. Token-intensive; don't burn it on a 20-line tweak. Auto mode is not optional. One permission prompt freezes a hundred-agent run. Cat Wu's example: catalogued 100s of A/B flags for stale rollouts in <10 minutes via parallel investigation.
 
@@ -61,7 +61,7 @@ Thariq: sometimes more useful for non-technical work. Migrations/refactors (Bun'
 
 ## 85. Pair Workflows with /goal, /loop, and Token Budgets
 
-`/goal` sets the exit condition, the workflow does the parallel work, `/loop` keeps it going. Cap token spend by prompting a budget directly ("use 10k tokens"). When a long run eats limits faster than expected, `/usage` breaks down which skills/MCPs/plugins are spending. "Quick workflow" works for small jobs (fast adversarial review of one assumption). When NOT: most traditional coding tasks don't need a panel of 5 reviewers.
+`/goal` sets the exit condition, the workflow does the parallel work, `/loop` keeps it going. Cap token spend by prompting a budget directly; the example prompt is in Thariq and Sid's [Token usage budgets](https://claude.dev/blog/a-harness-for-every-task-dynamic-workflows-in-claude-code#token-usage-budgets) (published 2026-06-02, as of 2026-10-11). The docs' [Cost](https://code.claude.com/docs/en/workflows#cost) section does not document prompted budgets; recheck when it does. When a long run eats limits faster than expected, `/usage` breaks down which skills/MCPs/plugins are spending. "Quick workflow" works for small jobs (fast adversarial review of one assumption). When NOT: most traditional coding tasks don't need a panel of 5 reviewers.
 
 ## 86. Saving and Sharing Workflows
 
@@ -93,7 +93,17 @@ Shipped Jun 9, 2026: a subagent can spawn its own subagents, capped at depth=5 *
 
 ## 92. fork: true Runs a Skill in Its Own Context Window (Experimental)
 
-Add `fork: true` to a skill's frontmatter so the skill runs in its own context window, then have the skill use agents to isolate context per step. Boris is adding it to the built-in `/code-review` skill. Why: a heavy skill (deep research, code review) pollutes or blows out the main context. Experimental: treat as preview, not stable API. Pairs with 5, 91; echoes 88's minimalism.
+Mark a skill to run in its own context window (the documented field is in the amendment below, not the tip's `fork: true`), then have the skill use agents to isolate context per step. Boris is adding it to the built-in `/code-review` skill. Why: a heavy skill (deep research, code review) pollutes or blows out the main context. Experimental: treat as preview, not stable API. Pairs with 5, 91; echoes 88's minimalism.
+
+> **Amended:** the `fork: true` key from this tip is not a documented frontmatter field. Use the
+> field the skills page documents for running a skill in its own subagent context instead.
+>
+> - **Pointer**: when writing a skill that should run in its own context window, fetch
+>   [Run skills in a subagent](https://code.claude.com/docs/en/skills#run-skills-in-a-subagent)
+>   and the [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)
+>   live.
+> - **As of**: 2026-10-11
+> - **Recheck trigger**: either section adds, renames or removes the field that forks a skill.
 
 ## 93. The Dynamic-Workflows Trigger Is Now "use a workflow"
 
@@ -107,7 +117,16 @@ Launched Jun 9, 2026, a "Mythos-class" model made safe for general use, in Claud
 
 Launch-day benchmarks (Fable 5 → Opus 4.8), from the [launch announcement](https://www.anthropic.com/news/claude-fable-5-mythos-5#evaluating-claude-fable-5-and-claude-mythos-5): SWE-Bench Pro **80.3%** → 69.2%; FrontierCode/Diamond (xhigh) **29.3%** → 13.4%; GDPval-AA **1932** → 1890; OSWorld-Verified **85.0%** → 83.4%. On starred benchmarks (cybersecurity, biology, Terminal-Bench, HLE, HealthBench) Fable performs closer to Opus 4.8 due to safety fallbacks. Those higher figures are Mythos 5. Boris confirms the safety classifiers are currently "trigger-happy" (flagging ordinary debugging as cyber/bio) and being improved.
 
-Specs: model id `claude-fable-5`; 1M context; 128K max output; adaptive thinking; knowledge cutoff Jan 2026; no fast mode yet. <!-- ai-slop-ignore: verbatim Karpathy quotation; factual model spec, not assistant-frame disclaimer --> **Pricing: $10/M input · $50/M output, exactly 2× Opus 4.8**; cache write $12.50, cache read $1; full 1M context at standard rate. Karpathy: "SOTA on everything by a margin… a major-version-bump-deserving step change… You can give it a lot more ambitious tasks — the model 'gets it' and it will just go."
+Specs and pricing are upstream-owned and not restated here.
+
+- **Pointer**: when a decision turns on this model's id, context window, output limit or
+  cutoff, fetch [Compare models](https://platform.claude.com/docs/en/models/overview#latest-models-comparison)
+  live; for its rates, fetch [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a new frontier-model release, or either section is renamed or moved.
+
+<!-- ai-slop-ignore: verbatim Karpathy quotation --> Karpathy: "SOTA on everything by a margin… a major-version-bump-deserving step change… You can give it a lot more ambitious tasks — the model 'gets it' and it will just go."
 
 ## 95. What Fable 5 Changes for You
 

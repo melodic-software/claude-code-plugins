@@ -73,9 +73,11 @@ value other than `c3-this-run` only ever lowers, and the tier keyword alone
 is merge-inert, so `--merge human-only` disables autonomous merging
 whatever `{{TIER}}` says.
 Leave `{{MERGE}}` at `--merge human-only` unless the target repository's rung
-question has been decided the other way. This repository's was: raised to
-`c3-autonomous` on 2026-07-27, superseding #1388. Keep the override
-until #1695 wires effective-promotion resolution into the merge partition
+question has been decided the other way. This repository's tracked rung is
+`c2-mechanical` (unattended auto-merge launches at C2 only, #6202). Keep the
+override
+until #4588 closes its remaining gaps (the checker gets no credential roots,
+no host has an operator-owned bootstrap, and no publisher writes the evidence)
 and the evidence predicate is met (see "C2 auto-merge may lack its
 promotion evidence" under Known gaps).
 
@@ -460,19 +462,20 @@ launches on changes.
 ## Concurrent workers on one repository
 
 Two worker lanes can run on one repository. Each launch line passes its own
-`--shard`, `--ordering`, and `--instance`. Flag grammar and validation live in
+`--shard`, `--ordering`, and `--instance`, plus a stop mode (`--standing` or
+`--drain`), without which a headless launch stops. Flag grammar and validation live in
 [`invocation-argv.md`](../../plugins/work-items/skills/work-loop/reference/invocation-argv.md).
 
 Lane A keeps issue numbers where `number % 2 == 0` and fills cap slots oldest first:
 
 ```text
-/loop /work-items:work-loop --shard 0/2 --ordering oldest-first --instance worker-a
+/loop /work-items:work-loop --standing --shard 0/2 --ordering oldest-first --instance worker-a
 ```
 
 Lane B keeps issue numbers where `number % 2 == 1` and fills cap slots newest first:
 
 ```text
-/loop /work-items:work-loop --shard 1/2 --ordering newest-first --instance worker-b
+/loop /work-items:work-loop --standing --shard 1/2 --ordering newest-first --instance worker-b
 ```
 
 `--shard <i>/<n>` keeps items whose issue number satisfies `number % n == i`
@@ -507,7 +510,7 @@ variable that sets it).
 
 > **=== COPY FROM HERE ===**
 >
-> /loop /work-items:work-loop
+> /loop /work-items:work-loop --standing
 >
 > Repository: `{{REPO}}`
 > Runtime surfaces in this repo: `{{RUNTIME_SURFACES}}`

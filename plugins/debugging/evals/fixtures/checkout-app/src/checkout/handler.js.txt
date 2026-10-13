@@ -1,0 +1,18 @@
+"use strict";
+const { renderLineItems } = require("./render");
+const { loadCart } = require("../cart/store");
+
+const MAX_ITEMS = 500;
+
+function clampItems(items) {
+  return items.slice(0, MAX_ITEMS);
+}
+
+// Builds the checkout summary for one cart.
+async function handleCheckout(req, res) {
+  const cart = await loadCart(req.params.cartId);
+  const lines = renderLineItems(clampItems(cart.items), cart.currency);
+  res.json({ cartId: cart.id, lines });
+}
+
+module.exports = { handleCheckout };

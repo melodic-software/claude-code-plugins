@@ -95,6 +95,13 @@ mutually exclusive with a safer cap by grammar: every merge-dimension argument v
 `human-only` merge rung merges nothing. The resolution order is tracked rung, then the paired
 raise, then the C4/C5 ceiling.
 
+**The paired raise never widens an unattended merge.** The unattended merge path
+(`/source-control:babysit-prs`, the merge gate's `--unattended`) takes its rung only from tracked
+files read at the pull request's base SHA, `merge.rung` in `docs/conventions/pr-pipeline.yaml` and
+the tracked merge rung, lowered by the human-set rung cap and any demotion record. No invocation
+argument reaches it, so `autopilot --merge c3-this-run` widens a worker-tier run and never an
+unattended merge.
+
 **The C4/C5 floor tests the PR, not the item's stamp.** `work-classes.md` assigns a class from the
 risk-property bundle, "not the task's surface description", so a lane implementing the floor derives
 both from the pull request before comparing any recorded class to the rung. C5 follows the code's
@@ -134,6 +141,141 @@ and machine-escalated items alike, and only the machine marker separates them, s
 that marker stays the attended queue's and draws no dispatch. Merge conflicts route to a lane's
 dedicated conflict-resolution path and integrate merge-only; this exception never authorizes
 rebasing a PR branch, which would need a force-push the lanes forbid.
+
+### Lane write identity
+
+Every forge write an unattended lane makes, whether a label, comment, claim, thread resolution,
+PR, `git push`, merge, telemetry upsert or escalation, runs under one dedicated identity, so the tests that ask
+whether a person acted (label provenance, thread resolution, merge-queue enqueuer, a demotion
+record's close) never count a lane's action as a person's. The identity is the login a repository
+names in `merge.agent-identity` in its `docs/conventions/pr-pipeline.yaml`. It must be a GitHub
+App installed on that repository only: a machine user is a `User` and would pass every human test.
+
+- **Launch.** A lane starts in an environment whose only GitHub credential is the identity's
+  installation token. Delivering and refreshing that token on each lane host is provisioning
+  outside this repository.
+- **Identity gate, every cycle.** At the start of every cycle, the first included and before any
+  write, the babysit lane and the worker lane read `docs/conventions/pr-pipeline.yaml` fresh from
+  the target's default branch through the forge's contents read, never from a local checkout. A
+  read that fails (any answer but the content or not-found), a body that does not decode, or a
+  file that does not parse as YAML is a refusal. A not-found answer means no file only when the
+  repository's contents root at the same ref reads 200, the merge gate's own rule (`_file_at`);
+  otherwise the file may exist but be hidden from the token, and that is a refusal too. A readable
+  file that names no `merge.agent-identity`, or no file, skips the gate (the residual below).
+  Running it every cycle catches a lane that was already running when the identity was
+  configured, or whose credential changed mid-run.
+- **The rule** is the merge gate's: `resolve_identity` and `credential_refusal` in
+  `plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py`, which read the
+  acting login (GraphQL `viewer { login }`) and the session's account listing
+  (`gh auth status --json hosts`). The babysit lane runs both through `babysit-postmerge.sh
+  --preflight`; the worker lane, in another plugin, makes the same reads and applies the same
+  rule. Both lanes then run `lane-push.sh --login <identity> --check` (below) from the checkout
+  they push from; a babysit lane launched from a neutral directory has no checkout at cycle start
+  and skips it, since each push's `lane-push.sh` runs every refusal before pushing. Each of these
+  refuses (the preflight prints the code shown):
+  - `agent-identity-unconfigured`: the named identity is empty.
+  - `agent-identity-invalid`: the identity is not a GitHub App login (`<slug>[bot]`, letters,
+    digits and single inner hyphens), or is the shared `github-actions[bot]` or
+    `dependabot[bot]`.
+  - `agent-identity-self-login`: the identity is one of the lane's own self logins.
+  - `acting-login-unreadable`: the `viewer` read failed or returned no login.
+  - `acting-login-mismatch`: the acting login is not the identity (compared case-insensitively).
+  - `credentials:credentials-unreadable`: `gh auth status` failed, did not parse, or lists no
+    account.
+  - `credentials:other-account-listed`: any listed account, active or not, on any host, has a
+    login other than the identity.
+  - `credentials:unknown-account-listed`: an inactive entry has no login.
+  - `credentials:identity-not-active`: there is not exactly one active `github.com` entry.
+
+  Any refusal means the lane writes nothing that cycle, telemetry and escalations included: it
+  reports the reason in its own session output and stops. Whether `viewer` returns the App's login
+  on an installation token is unprobed until the identity exists.
+- **Lanes push only through `lane-push.sh`.** A `git push` authenticates through git's own URL
+  and credential helper, not through gh, and the checkout's remotes, the environment, global
+  config and command-line overrides can each send it elsewhere or as someone else. So no lane
+  instruction runs a bare `git push`: every lane push, babysit's and the worker lane's alike, runs
+  `scripts/lane-push.sh` (canonical `lib/lane-push.sh`, carried by the source-control and
+  work-items plugins), which builds the push instead of inspecting it. It builds the URL as
+  `https://github.com/<owner>/<repo>.git` from its arguments, or from the pull request's head
+  repository for `--pr`, and pushes `HEAD:refs/heads/<branch>`, fast-forward only. It drops
+  every `GIT_*` variable plus `SSH_ASKPASS`, sets `NETRC=/dev/null` (git lets libcurl use a netrc
+  entry before it asks any helper, and libcurl falls back to the passwd home's `.netrc` when HOME
+  is empty, so emptying HOME would not stop it), ignores global and system config, resolves git
+  and gh to absolute paths before entering `--dir`, and forces gh (by absolute path) as the only
+  credential helper with https as the only transport. It reads the
+  acting login with that same gh and refuses unless it is the identity. Where the target names no
+  identity, the worker lane passes the session's own login; `push-branch.sh` (below) refuses
+  instead. It exits 0 pushed, 1 the push ran and failed, 2
+  refused with nothing pushed, printing `lane-push: refused: <code>`:
+  - `usage`, `bad-dir`: arguments missing or contradictory, or `--dir` is not a directory.
+  - `bad-login`, `bad-repo`, `bad-branch`, `bad-pr`: a value outside its allowlist (owner
+    `[A-Za-z0-9-]`, repository `[A-Za-z0-9._-]`, branch `[A-Za-z0-9._/-]` that also passes
+    `git check-ref-format`, a decimal number); a pull request's head is held to the same lists.
+  - `gh-missing`, `gh-path-unsafe`, `git-missing`, `git-path-unsafe`: no gh or git on `PATH`, a
+    git or gh path that is not absolute (a relative `PATH` entry), or a gh path the helper cannot
+    quote.
+  - `config-unreadable`: the repository-local config cannot be listed (not a checkout).
+  - `local-config-url`, `local-config-include`, `local-config-credential`, `local-config-http`,
+    `local-config-remote`: the local or worktree config holds a `url.*`, `include.*` or
+    `includeIf.*`, `credential.*`, `http.*` key, or a `remote.*.vcs` or a `remote.<name>.*` whose
+    name is not a plain remote name. These survive the global and system scrub and can redirect
+    or re-credential an https push, so any of them fails closed.
+  - `head-unreadable`: the pull request's head repository and branch could not be read.
+  - `default-branch`, `default-branch-unreadable`: the target is its repository's default branch,
+    by `--branch` or as a pull request's head, and that repository is not a fork of the base (a
+    fork's own default branch pushes; names compare canonically, so an old repository name
+    changes nothing), or the repository could not be read.
+  - `login-unreadable`, `login-mismatch`: the `viewer` read failed or returned another login.
+
+  `--check` runs every refusal but the push. Named residual: whoever can replace the gh or git
+  binary on the lane host, edit the script, or write the checkout's `.git` directory (its config,
+  hooks or alternates) already runs code as the lane; the script cannot close that.
+- **Two push paths.** The pull-request skill's `push-branch.sh`, which the autopilot ready flip,
+  the work lane's monitor and every babysit-prs push reach, keeps the operator's resolved remote
+  and plain `git push` for interactive use, attended babysit-prs runs included. Inside a lane it
+  hands the push to `lane-push.sh` instead, bound to the configured identity: it runs the babysit
+  lane's identity preflight (`babysit-postmerge.sh --repo <base repo> --preflight`, which with no
+  `--agent-identity` reads `merge.agent-identity` from the base repository's default branch) and
+  passes the identity it prints as `--login`, so `lane-push.sh` refuses unless the token acts as
+  that identity at push time. It refuses when the preflight refuses (no identity configured
+  included), the branch is checked out in no worktree and no `--dir` names one, or `--pr` names a
+  fork head without `--dir` (a fork head's name can match a local branch of the base repository).
+  With `--pr`, `lane-push.sh` reads the destination from the pull request, never a remote. It detects a lane by
+  the acting gh login: a GitHub App `<slug>[bot]` login, which the identity contract above
+  requires of a lane and an operator never holds. No launcher sets a lane marker, so a lane
+  running on an operator token keeps the operator path (the "No identity configured" residual).
+  Residuals, each named:
+  - R1. Two push code paths to maintain, `push-branch.sh` and `lane-push.sh`.
+  - R2. The interactive path trusts the operator's git config, SSH agent and remotes, by design:
+    the operator is the principal.
+  - R3. A lane on an operator host with `SSH_AUTH_SOCK` or `~/.ssh` keys reachable can push as the
+    operator with a plain `git push`, whatever either script does. Only a lane host whose sole
+    credential is the identity's closes it (a Phase 15 precondition of the auto-merge rollout).
+    Whether today's lane launcher strips `SSH_AUTH_SOCK` was not checked (open question).
+  - R4. The lane check in `push-branch.sh` is advisory, as is every instruction to use
+    `lane-push.sh`: a lane that skips the scripts is stopped only by the credential boundary. A
+    failed acting-login read keeps the operator path.
+  - R5. `NETRC=/dev/null` takes effect only on a libcurl that reads `NETRC`; the release that added
+    it was not checked, and an older libcurl ignores the variable and reads `~/.netrc`.
+  - R6. Proxy and CA variables (`https_proxy`, `ALL_PROXY`, `SSL_CERT_FILE`) are not scrubbed. They
+    can redirect or intercept a lane push; they supply no GitHub credential. Not verified (G4).
+- **No identity configured.** The merge path stays inert and the lanes run as before, under
+  whatever credential the session holds, and that credential's writes read as human. Named
+  residual.
+- **One-cycle latency.** The gate runs at cycle start, so in the cycle in which a config naming
+  the identity lands, a lane that passed the gate with none configured still holds the operator's
+  token until its next gate. A plain `--merge` it runs in that window merges under the operator.
+  Named residual.
+- **Interactive sessions,** the attended queue included, keep the operator's credential, so their
+  label writes count as human provenance. That is accurate only while the user directs the
+  session. Named residual.
+- **Lane pushes need workflow-file permission.** `lane-push.sh` pushes with gh's token over https,
+  so a lane whose identity lacks the Workflows repository permission cannot push changes to
+  workflow files. That includes a work lane on a target that names no identity: it pushes with
+  the operator's gh token, which lacks the `workflow` scope unless the operator granted it
+  (`gh auth login` requests `repo`, `read:org` and `gist`). Attended runs, babysit-prs' included, push through `push-branch.sh` on the
+  operator's own transport and are not affected. Accepted: the script has no fallback to another
+  transport or credential. Named residual.
 
 ## 2. Escalation contract
 
@@ -604,9 +746,8 @@ Every inline branch exits 0.
 
 **Lane-instance identity (#1295).** The marker names the **writer**, not the lane type. A marker
 that names only the lane makes two concurrent instances resolve one comment and clobber each other's
-durable state under last-writer-wins, including `first_drain_complete`, whose loss silently ends
-one instance's earn-trust ratification period because a different machine finished a drain. The
-marker therefore carries a lane-instance suffix, the lane-type marker becoming its prefix:
+durable state under last-writer-wins, so one machine's adaptive cap and streaks overwrite
+another's. The marker therefore carries a lane-instance suffix, the lane-type marker becoming its prefix:
 
 ```text
 MARKER="<lane-marker>@<lane_instance>"
@@ -655,18 +796,16 @@ per-session random `writer_nonce`, an ISO-8601 UTC `heartbeat_at` rewritten ever
 `paused_until` is not the rate-limit latch and does not replace it: the latch says *do not claim
 work*, `paused_until` says *do not read my silence as death*. A lane entering a rate-limit pause
 writes it before pausing, so a paused lane is never adopted as a dead one. Detection runs before any
-write, so an id collision degrades to a stopped lane rather than a silently clobbered
-`first_drain_complete`.
+write, so an id collision degrades to a stopped lane rather than silently clobbered durable state.
 
 **Adopting the partition (one-time).** No pre-existing comment matches an instance's new sentinel,
-so the first cycle after adoption posts a fresh block from defaults, including
-`first_drain_complete:false` for every lane. That is intended and fails closed; it produces one
-burst of ratification queue comments on the next drain and is not a regression. The legacy
+so the first cycle after adoption posts a fresh block from defaults. That is intended and fails
+closed. The legacy
 un-suffixed comment is left in place and **never adopted, edited, or tombstoned by a lane**: its
 marker names no writer, so no instance can prove it owns it, and a lane that adopted it would
 reintroduce exactly the shared-comment clobber this rule removes. Retiring it is an operator action.
 Until then it remains readable, and stale: `morning-brief` will show it aging past the staleness
-threshold, which is the honest reading: nothing is writing it.
+threshold, because nothing is writing it.
 
 **Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
 adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, its
@@ -737,9 +876,13 @@ session exposes, see [Available data](https://code.claude.com/docs/en/statusline
 As of: 2026-07-28. Recheck trigger: a Claude Code release adds or changes a token or cost field in
 the status line input.
 
-**Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
-persisted config, or tier defaults, and logs the assumption. The interactive path may run a
-mini-interview and offer to persist the answer; the headless path never waits on one.
+**Headless-config floor.** A headless lane launch never blocks on an interview and never reads run
+config back from its own telemetry state block, which the lane can edit. The work-loop lane takes run
+config from its launch args only; when the stop mode (`--drain` or `--standing`) is absent it stops
+before any cycle work with a message naming the relaunch tokens, and only `shard`, `scope` and
+`ordering` fall back to their defaults. The babysit loop takes launch args, then its tracked config
+seam, then tier defaults, and logs the assumption. The interactive path may run a mini-interview and
+offer to persist the answer; the headless path never waits on one.
 
 **Provider backoff (seam exit 8).** A tracker-seam exit 8, meaning the provider is unavailable or
 secondary forge limits are hit under one credential, is handled as backoff-and-retry and counted as a **dirty** signal for

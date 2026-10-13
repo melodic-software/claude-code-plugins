@@ -53,7 +53,7 @@ SHEBANG='#!/usr/bin/env bash'
 # minus list-frontier (core-derived), plus list-items.
 readonly ADAPTER_VERBS=(
   create-item get-item claim renew-lease release reclaim link-blocks
-  add-sub-item list-items list-sub-items change-link capabilities
+  add-sub-item list-items list-sub-items label-provenance change-link capabilities
 )
 readonly FEATURE_KEYS=(cross_repo_edges sub_items leases labels)
 readonly LIMIT_KEYS=(sub_items_per_parent sub_item_depth dependencies_per_type list_items_max)
@@ -515,7 +515,7 @@ mapping_note_for() {
   reclaim) printf 'Release a lease whose TTL has expired. Emit reclaimed=false with a reason when the lease is still live — reclaiming a live lease is the one thing this verb must never do.' ;;
   link-blocks) printf 'Write a blocked-by edge. Hitting the provider ceiling is exit 7 with the ceiling named on stderr.' ;;
   add-sub-item) printf 'Link the item as a child of --parent. Depth and per-parent ceilings are exit 7 with the ceiling named.' ;;
-  list-items) printf 'Return RAW candidates in the {items:[…]} envelope. Pagination is explicit: fetch up to limits.list_items_max from capabilities.json, NEVER a client default — a silent truncation at some library default makes the frontier lie about what is available.' ;;
+  list-items) printf 'Return RAW candidates in the {items:[…]} envelope. Pagination is explicit: fetch up to limits.list_items_max from capabilities.json, NEVER a client default — a silent truncation at some library default makes the frontier lie about what is available. Put --state in the provider query, never in a filter after the fetch, so the ceiling counts only matching items. Emit created_at on every item (CONTRACT.md "JSON output contract"), normalized with the seam lib'"'"'s wit_utc_ts jq helper.' ;;
   list-sub-items) printf 'Return the RAW children of <parent-id> in the {items:[…]} envelope, each parent_id set to the container. Keep CLOSED children — the closed-children invariant check needs them. A parent with no children is an empty array, never an error.' ;;
   change-link) printf 'Offline, never call the provider: emit the change-link object (CONTRACT.md "Change links") with wit_emit_change_link: closes (empty for null when a merge closes nothing on this provider), refs, branch_ref. With --branch-ref, qualify the branch token into an id, exit 2 when it cannot. Declare change_link.branch_pattern in the spec so the manifest carries the branch grammar.' ;;
   *) printf 'Emit this verb'"'"'s contract result shape.' ;;
