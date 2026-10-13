@@ -18,7 +18,7 @@
 set -u
 
 output_dir() {
-  printf '%s\n' "${HYGIENE_OUTPUT_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/hygiene}"
+  printf '%s\n' "${HYGIENE_OUTPUT_DIR:-${RUNNER_TEMP:+$RUNNER_TEMP/hygiene}}"
 }
 
 # Workflow-command escaping: the message keeps its newlines and percent signs,
@@ -60,12 +60,13 @@ is_step_log_check() {
 # headline), then the captured tail, if any.
 describe_failure() {
   local check=$1 result=$2
-  local file
-  file="$(output_dir)/$check.log"
+  local dir file
+  dir=$(output_dir)
+  file="$dir/$check.log"
   local headline="Hygiene check finished with outcome: $result"
   if is_step_log_check "$check"; then
     printf '%s. This gate runs as a composite action, so its output is not captured here; see the step log.\n' "$headline"
-  elif [[ ! -f "$file" ]]; then
+  elif [[ -z "$dir" || ! -f "$file" ]]; then
     printf '%s (no captured output).\n' "$headline"
   else
     local tail
@@ -84,7 +85,11 @@ write_summary() {
     printf '### `%s` failed (%s)\n\n' "$check" "$result"
     printf '%s\n\n' "${description%%$'\n'*}"
     if [[ "$description" == *$'\n'* ]]; then
-      printf '````text\n%s\n````\n\n' "${description#*$'\n'}"
+      # The fence outgrows any backtick run in the tail, so no captured line
+      # can close it early.
+      local body=${description#*$'\n'} fence='````'
+      while [[ "$body" == *"$fence"* ]]; do fence+='`'; done
+      printf '%stext\n%s\n%s\n\n' "$fence" "$body" "$fence"
     fi
   } >>"$summary"
 }
@@ -203,6 +208,21 @@ self_test() {
     fail "a composite gate must point at the step log, got: $out"
   grep -qxF '### `markdown` failed (failure)' "$summary" ||
     fail 'the job summary must list a failed composite gate'
+
+  # A captured line of backticks cannot close the summary's fence.
+  printf 'before\n````\n[link](https://example.invalid)\n' >"$tmp/out/fenced.log"
+  : >"$summary"
+  HYGIENE_OUTPUT_DIR=$tmp/out GITHUB_STEP_SUMMARY=$summary STEP_LOG_CHECKS='' \
+    aggregate_results $'fenced=failure\n' >/dev/null
+  if ! grep -qxF '`````text' "$summary" || [[ "$(grep -cxF '`````' "$summary")" -ne 1 ]]; then
+    fail "the summary fence must outgrow any backtick run in the tail, got: $(cat "$summary")"
+  fi
+
+  # With no output directory configured there is no capture to read.
+  out=$(HYGIENE_OUTPUT_DIR='' RUNNER_TEMP='' GITHUB_STEP_SUMMARY='' STEP_LOG_CHECKS='' \
+    aggregate_results $'adr-numbers=failure\n')
+  [[ "$out" == *'(no captured output).' ]] ||
+    fail "no configured output directory must fall back, got: $out"
 
   if [[ "$failed" -eq 0 ]]; then
     echo 'Hygiene result aggregation contract passed.'

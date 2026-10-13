@@ -76,6 +76,16 @@ else
   bad 'an unwritable output directory runs the gate uncaptured, with a warning' "rc=$RC out=$OUT"
 fi
 
+# With neither HYGIENE_OUTPUT_DIR nor RUNNER_TEMP set there is no shared-temp
+# fallback: the gate runs uncaptured.
+printf 'echo ran\n' >"$scratch/body.sh"
+OUT=$(HYGIENE_OUTPUT_DIR='' RUNNER_TEMP='' TMPDIR="$scratch/tmp" bash "$SCRIPT" nodir "$scratch/body.sh" 2>&1) && RC=0 || RC=$?
+if [[ "$RC" -eq 0 && "$OUT" == *ran* && "$OUT" == *'output not captured'* && ! -e "$scratch/tmp" ]]; then
+  ok 'no configured output directory runs the gate uncaptured, with no temp fallback'
+else
+  bad 'no configured output directory runs the gate uncaptured, with no temp fallback' "rc=$RC out=$OUT"
+fi
+
 # The wiring in the live workflow.
 reader=""
 for candidate in python3 python; do
@@ -94,7 +104,7 @@ import sys
 import yaml
 
 doc = yaml.safe_load(open(sys.argv[1]))
-row = re.compile(r"^\s*([A-Za-z0-9._-]+)=\$\{\{.*\bsteps\.([A-Za-z0-9_-]+)\.outcome\s*\}\}\s*$")
+row = re.compile(r"^\s*([A-Za-z0-9._-]+)=\$\{\{.*\bsteps\.([A-Za-z0-9_-]+)\.outcome\s*\}\}\s*$")  # portability-ok: Python re in a heredoc, not grep or sed
 problems = []
 jobs = 0
 for job_id, job in doc["jobs"].items():

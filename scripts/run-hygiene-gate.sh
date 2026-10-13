@@ -29,10 +29,12 @@ fi
 
 check=$1
 script=$2
-dir=${HYGIENE_OUTPUT_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/hygiene}
+dir=${HYGIENE_OUTPUT_DIR:-${RUNNER_TEMP:+$RUNNER_TEMP/hygiene}}
 log=$dir/$check.log
 
-if ! mkdir -p "$dir" 2>/dev/null || ! : >"$log" 2>/dev/null; then
+# No shared-temp fallback: a fixed path under /tmp lets another local user
+# pre-plant the log as a symlink.
+if [[ -z "$dir" ]] || ! mkdir -p "$dir" 2>/dev/null || ! : >"$log" 2>/dev/null; then
   echo "::warning title=$check output not captured::Could not write $log; the aggregator will report this gate without its output."
   exec bash -e "$script"
 fi
