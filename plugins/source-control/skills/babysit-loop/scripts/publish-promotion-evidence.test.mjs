@@ -38,13 +38,19 @@ function pr(number, mergedAt, { labels = [], merger = LANE, title = REC.pullList
 
 // A recorded GitHub: answers only the GET paths the publisher is expected to call and throws on
 // any other, so an unexpected or mutating call fails the case.
-function github({ pulls = [], commits = [], checkRuns = {}, issueEvents = {}, reviews = {} }) {
+function github({ pulls = [], commits = [], checkRuns = {}, issueEvents = {}, reviews = {}, linked = {} }) {
   const page = (items, path) => {
     const n = Number(/[?&]page=(\d+)/.exec(path)[1]);
     return items.slice((n - 1) * 100, n * 100);
   };
   const runsFor = (number) => checkRuns[number] ?? [{ ...REC.checkRun, completed_at: later(pulls.find((p) => p.detail.number === number).detail.merged_at, 5) }];
-  return (path) => {
+  return (path, graphql) => {
+    if (path === "graphql") {
+      assert.deepEqual([graphql.variables.owner, graphql.variables.name], REPO.split("/"));
+      assert.match(graphql.query, /^query\(/);
+      const recorded = linked[graphql.variables.number];
+      return recorded ?? { data: { repository: { pullRequest: { closingIssuesReferences: { nodes: [] } } } } };
+    }
     const prefix = `repos/${REPO}/`;
     assert.ok(path.startsWith(prefix), path);
     const rest = path.slice(prefix.length);
@@ -135,6 +141,16 @@ test("20 autonomous C2 merges over 14+ days pass the C2 term and 19 fail it", ()
   assert.equal(nineteen.cells["C2-auto-merge"].pass, false);
 });
 
+test("a class carried only by the linked issue counts, and the higher of issue and PR class wins", () => {
+  // REC.linkedIssues: PR #7063 closes issue #6007, labeled `work-class: scoped`.
+  const result = run({
+    pulls: [pr(801, "2026-09-01T00:00:00Z"), pr(802, "2026-09-02T00:00:00Z", { labels: [MECHANICAL] })],
+    linked: { 801: REC.linkedIssues, 802: REC.linkedIssues },
+  });
+  assert.equal(termOf(result, "C3-auto-merge", "autonomous C3 completions").value, 2);
+  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
+});
+
 test("advisory reviews are counted from the named AI reviewers and reported unmeasured without one", () => {
   const fixture = { pulls: [pr(701, "2026-09-01T00:00:00Z", { labels: [SCOPED], merger: "kyle-sexton" })], reviews: { 701: [REC.review] } };
   assert.equal(termOf(run(fixture, { aiReviewers: [REC.review.user.login] }), "C3-ai-review-blocking", "advisory AI reviews on C3").value, 1);
@@ -168,6 +184,15 @@ test("publishing a set that drops a previously published event is refused and le
   const before = [readFileSync(join(out, "evidence.json"), "utf8"), readFileSync(join(out, "evidence.meta.json"), "utf8")];
   assert.throws(() => publish(out, [B], THROUGH), (error) => error instanceof PublishError && /refusing.*drop 1/.test(error.message));
   assert.deepEqual([readFileSync(join(out, "evidence.json"), "utf8"), readFileSync(join(out, "evidence.meta.json"), "utf8")], before);
+});
+
+test("an existing temp file is neither overwritten nor removed, and nothing is published", () => {
+  const out = mkdtempSync(join(base, "out-"));
+  const temp = join(out, `evidence.json.${process.pid}.tmp`);
+  writeFileSync(temp, "planted");
+  assert.throws(() => publish(out, [A], THROUGH), { code: "EEXIST" });
+  assert.equal(readFileSync(temp, "utf8"), "planted");
+  assert.throws(() => readFileSync(join(out, "evidence.json")), { code: "ENOENT" });
 });
 
 test("an existing events file that is not a JSON array is refused", () => {

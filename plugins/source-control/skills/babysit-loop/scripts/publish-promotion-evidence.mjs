@@ -16,9 +16,10 @@
 // lacks or cannot be read as an array.
 //
 // What counts (judgment where the contract names no GitHub source):
-// - A merged PR's work class is its highest `work-class:` label, the label set
-//   babysit-prs/scripts/babysit_merge_policy.py WORK_CLASS_LABELS maps. A PR with no class
-//   label is not counted.
+// - A merged PR's work class is the highest `work-class:` label (the label set
+//   babysit-prs/scripts/babysit_merge_policy.py WORK_CLASS_LABELS maps) on its linked issues
+//   (closingIssuesReferences, one read-only GraphQL query per merged PR) and its own labels,
+//   which are the fallback when no linked issue carries one. A PR with no class is not counted.
 // - Autonomous means merged_by is a --lane-login identity.
 // - reverted-merge: an autonomous C2/C3 merge named by a merged PR body or a default-branch
 //   commit as `Reverts <owner/repo>#<n>` (GitHub's revert button) or `This reverts commit
@@ -65,11 +66,18 @@ function instant(value, name) {
   return ms;
 }
 
-function realGh(path) {
-  const run = spawnSync("gh", ["api", "--method", "GET", path], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+// A REST path is read with GET; "graphql" runs a query (read-only: LINKED_ISSUES is the only one).
+function realGh(path, graphql) {
+  const args = graphql
+    ? ["api", "graphql", "-f", `query=${graphql.query}`, ...Object.entries(graphql.variables).flatMap(([key, value]) => ["-F", `${key}=${value}`])]
+    : ["api", "--method", "GET", path];
+  const run = spawnSync("gh", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
   if (run.status !== 0) throw new PublishError(`gh api ${path} failed: ${(run.stderr || run.error?.message || "").trim()}`);
   return JSON.parse(run.stdout);
 }
+
+const LINKED_ISSUES =
+  "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:20){nodes{number labels(first:50){nodes{name}}}}}}}";
 
 function pages(gh, path, key, stop = () => false) {
   const out = [];
@@ -105,13 +113,27 @@ export function collect({ repo, since, through, laneLogins, aiReviewers = [], mi
     Date.parse(items.at(-1).updated_at) < sinceMs,
   ).filter((pr) => inWindow(pr.merged_at));
 
+  // Class labels live on the linked issues (closingIssuesReferences); a PR's own labels are the
+  // fallback. The highest class across both wins, as in babysit_merge_policy.py.
+  const [owner, name] = repo.split("/");
+  const classes = new Map();
+  const classOf = (number, prLabels) => {
+    if (!classes.has(number)) {
+      const nodes = gh("graphql", { query: LINKED_ISSUES, variables: { owner, name, number } })?.data?.repository?.pullRequest
+        ?.closingIssuesReferences?.nodes;
+      if (!Array.isArray(nodes)) throw new PublishError(`gh api graphql: no closingIssuesReferences for #${number}`);
+      classes.set(number, workClass([...(prLabels ?? []), ...nodes.flatMap((issue) => issue?.labels?.nodes ?? [])]));
+    }
+    return classes.get(number);
+  };
+
   const details = new Map();
   const record = (number) => {
     if (!details.has(number)) {
       const pr = gh(`repos/${repo}/pulls/${number}`);
       details.set(number, {
         number,
-        cls: workClass(pr.labels),
+        cls: classOf(number, pr.labels),
         autonomous: lane.has(pr.merged_by?.login),
         mergedAt: pr.merged_at,
         sha: pr.merge_commit_sha,
@@ -121,7 +143,7 @@ export function collect({ repo, since, through, laneLogins, aiReviewers = [], mi
     }
     return details.get(number);
   };
-  const counted = merged.filter((pr) => ["C2", "C3"].includes(workClass(pr.labels))).map((pr) => record(pr.number));
+  const counted = merged.filter((pr) => ["C2", "C3"].includes(classOf(pr.number, pr.labels))).map((pr) => record(pr.number));
   const bySha = new Map(counted.map((r) => [r.sha, r]));
 
   // Reverts, from merged PR bodies and default-branch commit messages.
@@ -258,8 +280,9 @@ function sha256(text) {
 
 function writeAtomic(path, text) {
   const temp = `${path}.${process.pid}.tmp`;
+  // "wx" refuses a temp file that already exists rather than overwrite or remove it.
+  writeFileSync(temp, text, { flag: "wx" });
   try {
-    writeFileSync(temp, text, { flag: "wx" });
     renameSync(temp, path);
   } catch (error) {
     rmSync(temp, { force: true });

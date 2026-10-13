@@ -53,5 +53,36 @@
       "login": "chatgpt-codex-connector[bot]",
       "type": "Bot"
     }
+  },
+  "linkedIssues": {
+    "data": {
+      "repository": {
+        "pullRequest": {
+          "closingIssuesReferences": {
+            "nodes": [
+              {
+                "number": 6007,
+                "labels": {
+                  "nodes": [
+                    {
+                      "name": "priority: medium"
+                    },
+                    {
+                      "name": "status: ready"
+                    },
+                    {
+                      "name": "needs-human"
+                    },
+                    {
+                      "name": "work-class: scoped"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
   }
 }

@@ -147,8 +147,9 @@ binding.
 #### The publisher
 
 [`scripts/publish-promotion-evidence.mjs`](../scripts/publish-promotion-evidence.mjs) builds the
-events file from GitHub alone, through read-only `gh api` calls: merged pull requests with a
-`work-class:` label, which of them the `--lane-login` identities merged, reverts of those merges,
+events file from GitHub alone, through read-only `gh api` calls: merged pull requests classed by the
+`work-class:` label on their linked issues (or on the pull request when no linked issue has one),
+which of them the `--lane-login` identities merged, reverts of those merges,
 check runs on their merge commits, and the missed-blocking label a human applied. Its header
 comment states what counts as each event, including the judgment mappings.
 
