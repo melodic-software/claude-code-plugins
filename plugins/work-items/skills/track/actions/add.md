@@ -98,7 +98,7 @@ rm -f "<temp path from call 1>"
 Run each call as its own plain Bash command: no `$(...)`, no `git`, and no `&&` chain around `create-item`, so a worktree-isolated session can run it as written. When call 2 fails, still run call 3, then report the failure; a retry starts again from call 1 with a fresh temp path. If the `${CLAUDE_PLUGIN_ROOT}` tracker path does not exist, run `git rev-parse --show-toplevel` as a separate call and spell out `<that path>/tools/work-item-tracker/work-item-tracker.sh` in call 2.
 
 - **Pointer**: [Worktrees, "How Claude Code enforces isolation"](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation); probe [#6929](https://github.com/melodic-software/claude-code-plugins/issues/6929).
-- **As of**: 2026-10-11 (Claude Code 2.1.296)
+- **As of**: 2026-10-11
 - **Recheck trigger**: a Claude Code release in which the pre-#6929 snippet (tracker path fallback through `$(git rev-parse --show-toplevel)`, body through `"$(cat "$BODY_FILE")"`) runs from a worktree-isolated session.
 
 For non-recurring items, omit the `[Maintenance]` prefix. Pass `--parent '<id>'` and `--blocked-by '<id>[,<id>]'` through to `create-item` when given; a `--parent` the provider cannot honor exits `6`, which is reported, never dropped. The emitted item object carries the new `id` (fully-qualified) and `number`.
