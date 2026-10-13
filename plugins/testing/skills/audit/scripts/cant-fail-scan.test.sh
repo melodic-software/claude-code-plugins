@@ -2049,6 +2049,7 @@ done
 a="$(remedy "$C/cs-xunit/bad/WidgetConstructedNotNullTests.cs" rule-throw-only-oracle)"
 assert_contains "throw-only remedy asks for what the constructor sets" "$a" "Assert what the constructed value should hold"
 assert_contains "throw-only remedy names the cant-fail-ok: exemption for a smoke test" "$a" "cant-fail-ok: <why>"
+assert_not_contains "throw-only remedy is not the weak-oracle remedy" "$a" "Assert the value the code should produce"
 # An early return is a conditional-assertion finding, and its C# remedy names a
 # skip that xUnit v2 lacks as a package rather than assuming Assert.Skip.
 a="$(remedy "$C/cs-xunit/bad/ConfigEarlyReturnTests.cs" rule-conditional-assertion)"

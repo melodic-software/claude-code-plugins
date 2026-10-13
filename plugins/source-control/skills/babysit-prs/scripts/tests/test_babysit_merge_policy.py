@@ -1197,7 +1197,12 @@ def _host_configures_promotion() -> bool:
 class RealResolver(unittest.TestCase):
     """`read_promotion` runs the real `resolve-promotion-evidence.mjs`, copied
     into a marketplace install layout so it finds its user settings there. The
-    checker is the operator's program, so a recording stub stands in for it."""
+    checker is the operator's program, so a recording stub stands in for it.
+
+    Every file here is the test user's own, so the resolver's own writability
+    check would refuse first; the cases run its `main()` through a seam wrapper
+    that judges every path administrator-owned, leaving the gate's
+    `writable` as the layer under test."""
 
     def setUp(self) -> None:
         import tempfile
@@ -1212,9 +1217,15 @@ class RealResolver(unittest.TestCase):
         scripts.mkdir(parents=True)
         for name in ("resolve-promotion-evidence.mjs", "operator-options.mjs"):
             shutil.copy(policy.PROMOTION_RESOLVER.parent / name, scripts / name)
-        patcher = mock.patch.object(
-            policy, "PROMOTION_RESOLVER", scripts / "resolve-promotion-evidence.mjs"
+        self.resolver = scripts / "resolve-promotion-evidence.mjs"
+        seam = scripts / "seam.mjs"
+        seam.write_text(
+            'import { main } from "./resolve-promotion-evidence.mjs";\n'
+            'main({ platform: "linux", uid: 1000, access: () => false, '
+            "stat: () => ({ uid: 0 }) });\n",
+            encoding="utf-8",
         )
+        patcher = mock.patch.object(policy, "PROMOTION_RESOLVER", seam)
         patcher.start()
         self.addCleanup(patcher.stop)
         self.ops = base / "ops"
@@ -1324,6 +1335,14 @@ class RealResolver(unittest.TestCase):
             self.read(writable=lambda p: p == checker).reason,
             "evidence-lane-writable:promotion_evidence_checker",
         )
+
+    def test_the_resolver_itself_refuses_a_lane_writable_surface(self) -> None:
+        # The babysit-loop prose route has no gate `writable` behind it, so
+        # the resolver's own check is the one that refuses there.
+        with mock.patch.object(policy, "PROMOTION_RESOLVER", self.resolver):
+            result = self.read()
+        self.assertEqual(result.reason, "lane-writable:promotion_evidence_checker")
+        self.assertFalse(result.promoted("C2"))
 
 
 class ReadPromotion(unittest.TestCase):

@@ -34,3 +34,8 @@ test-windows-lib lib/hook-utils.test.sh
 test-windows-lib plugins/code-tidying/skills/audit-comment-residue/scripts/detect.test.sh
 test-windows-lib plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1 plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.test.sh
 test-windows-lib plugins/kindle-dedrm/skills/manage/tests plugins/kindle-dedrm/*.Tests.ps1
+test-windows-worktree plugins/source-control/scripts/worktree-claim.test.sh
+test-windows-worktree plugins/source-control/scripts/lib/worktree-facts.test.sh
+test-windows-worktree plugins/source-control/scripts/worktree-root-scan.test.sh
+test-windows-worktree plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh
+test-windows-worktree plugins/playbooks/skills/repo-sweep/scripts/state.test.sh
