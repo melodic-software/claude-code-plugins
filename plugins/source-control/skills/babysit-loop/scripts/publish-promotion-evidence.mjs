@@ -59,7 +59,12 @@
 //   <sha>` (git revert); one event per reverted merge, at the earliest revert seen. A merged PR
 //   titled revert... with neither form is listed in unresolvedReverts for a human to read, as is
 //   a named target that is not a merged pull request or a SHA no commit has, so a bad reference
-//   cannot stop a publish.
+//   cannot stop a publish. A revert PR counts only when a human merged or enqueued it (the
+//   autonomy rule above: no non-human actor, merged_by not a --lane-login); one a bot or lane
+//   identity merged or enqueued is listed in unresolvedReverts and not counted, and so is the
+//   squash commit such a PR left. A revert commit pushed straight to the default branch, with no
+//   PR, counts: its git author can be forged, so it is not trusted to be harmless (conservative
+//   toward demotion).
 // - gate-failure: only the post-merge gate counts: check runs and commit-status contexts on an
 //   autonomous merge's merge commit whose name is a --gate-check (required; none named is a
 //   usage error, never an empty gate). In this repository babysit-prs/scripts/babysit_postmerge.py
@@ -479,15 +484,30 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const reverts = [];
   const unresolvedReverts = [];
   const gateFailures = [];
+  // A revert PR counts only when a human merged or enqueued it (the autonomy rule above, negated).
+  const humanRevert = (number) => !record(number).autonomous;
   for (const pr of merged) {
     const targets = revertsOf(pr.body);
-    for (const target of targets) reverts.push({ ...target, at: pr.merged_at });
+    const human = targets.length > 0 && humanRevert(pr.number);
+    for (const target of targets) reverts.push({ ...target, at: pr.merged_at, human });
     if (targets.length === 0 && /^revert\b/i.test(pr.title ?? "")) unresolvedReverts.push({ number: pr.number, title: pr.title });
   }
   const commits = pages(gh, `repos/${repo}/commits?since=${new Date(sinceMs).toISOString()}&until=${new Date(throughMs).toISOString()}`);
+  // A revert commit that is a PR's merge commit follows that PR's rule. One pushed straight to the
+  // default branch counts: its git author can be forged, so it is not trusted to be harmless.
   for (const commit of commits) {
-    for (const target of revertsOf(commit.commit?.message)) reverts.push({ ...target, at: commit.commit?.committer?.date });
+    const targets = revertsOf(commit.commit?.message);
+    if (targets.length === 0) continue;
+    let viaPr;
+    try {
+      viaPr = gh(`repos/${repo}/commits/${commit.sha}/pulls`).find((p) => p.merged_at && p.merge_commit_sha === commit.sha);
+    } catch (error) {
+      if (!(error instanceof UnresolvableError)) throw error;
+    }
+    const human = viaPr ? humanRevert(viaPr.number) : true;
+    for (const target of targets) reverts.push({ ...target, at: commit.commit?.committer?.date, human });
   }
+  const notHuman = new Map();
   const firstRevert = new Map();
   for (const revert of reverts) {
     if (!inWindow(revert.at)) continue;
@@ -510,7 +530,21 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
         continue;
       }
     }
-    if (!firstRevert.has(number) || Date.parse(revert.at) < Date.parse(firstRevert.get(number))) firstRevert.set(number, revert.at);
+    if (!revert.human) notHuman.set(number, true);
+    else if (!firstRevert.has(number) || Date.parse(revert.at) < Date.parse(firstRevert.get(number))) firstRevert.set(number, revert.at);
+  }
+  // A revert no human merged is listed when it names a merge it would otherwise have counted.
+  for (const number of notHuman.keys()) {
+    let target;
+    try {
+      target = record(number);
+    } catch (error) {
+      if (!(error instanceof UnresolvableError)) throw error;
+      continue;
+    }
+    if (target.autonomous && (["C2", "C3"].includes(target.cls) || target.cls === null)) {
+      unresolvedReverts.push({ target: number, reason: "the revert was merged or enqueued by a bot or lane identity, not a human" });
+    }
   }
   for (const [number, at] of firstRevert) {
     let target;

@@ -140,7 +140,7 @@ function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issue
     if ((m = /^commits\/([0-9a-f]{40})\/pulls$/.exec(rest))) {
       // A SHA no commit has: the recorded 422, as realGh hands it to ghFailure.
       if (!branch.includes(m[1])) return publisher.ghFailure(path, undefined, REC.commitNotFound.stdout, REC.commitNotFound.stderr);
-      return pulls.filter((p) => p.graph.mergeCommit.oid === m[1]).map((p) => ({ number: p.graph.number, merged_at: p.graph.mergedAt }));
+      return pulls.filter((p) => p.graph.mergeCommit.oid === m[1]).map((p) => ({ number: p.graph.number, merged_at: p.graph.mergedAt, merge_commit_sha: m[1] }));
     }
     if ((m = /^commits\/([0-9a-f]{40})\/statuses\?/.exec(rest))) return page(statuses[parseInt(m[1], 16)] ?? [], rest);
     if ((m = /^issues\/(\d+)\/events\?/.exec(rest))) return page(issueEvents[m[1]] ?? [], rest);
@@ -471,12 +471,41 @@ test("a revert-button PR of an autonomous C2 merge yields reverted-merge at the 
   assert.deepEqual(termOf(result, "C2-auto-merge", "human-reverted merges"), { term: "human-reverted merges", value: 1, threshold: "0", pass: false });
 });
 
-test("a git-revert commit of an autonomous C3 merge yields reverted-merge for C3 auto-merge", () => {
+test("a git-revert commit pushed straight to the default branch yields reverted-merge for C3 auto-merge", () => {
+  // No PR merged the revert commit, and its git author can be forged, so it counts.
   const result = run({
     pulls: [pr(201, "2026-09-01T00:00:00Z", { labels: [SCOPED] })],
+    history: [shaOf(201), shaOf(999)],
     commits: [{ ...REC.commit, sha: shaOf(999), commit: { message: `Revert "x"\n\nThis reverts commit ${shaOf(201)}.`, committer: { date: "2026-09-03T00:00:00Z" } } }],
   });
   assert.deepEqual(result.events, [{ cell: "C3-auto-merge", event: "reverted-merge", at: "2026-09-03T00:00:00Z" }]);
+});
+
+const NOT_HUMAN = "the revert was merged or enqueued by a bot or lane identity, not a human";
+
+test("a revert PR a bot or lane identity merged or enqueued is listed, not counted", () => {
+  const result = run({
+    pulls: [
+      pr(1701, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }),
+      pr(1702, "2026-09-02T00:00:00Z", { title: 'Revert "x"', body: `Reverts ${REPO}#1701` }),
+      pr(1703, "2026-09-01T00:00:00Z", { labels: [SCOPED] }),
+      pr(1704, "2026-09-02T00:00:00Z", { body: `Reverts ${REPO}#1703`, merger: "kyle-sexton", timeline: [queued("2026-09-01T23:00:00Z", null, "some-app[bot]")] }),
+    ],
+  });
+  assert.deepEqual(result.events.filter((e) => e.event === "reverted-merge"), []);
+  assert.deepEqual(result.unresolvedReverts, [
+    { target: 1701, reason: NOT_HUMAN },
+    { target: 1703, reason: NOT_HUMAN },
+  ]);
+});
+
+test("the squash commit of a lane-merged revert PR does not count as a direct revert", () => {
+  const result = run({
+    pulls: [pr(1705, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1706, "2026-09-02T00:00:00Z", { body: `Reverts ${REPO}#1705` })],
+    commits: [{ ...REC.commit, sha: shaOf(1706), commit: { message: `Revert "x" (#1706)\n\nReverts ${REPO}#1705`, committer: { date: "2026-09-02T00:00:00Z" } } }],
+  });
+  assert.deepEqual(result.events.filter((e) => e.event === "reverted-merge"), []);
+  assert.deepEqual(result.unresolvedReverts, [{ target: 1705, reason: NOT_HUMAN }]);
 });
 
 test("a revert of a human merge, and a revert written only in prose, emit no event; prose is listed unresolved", () => {

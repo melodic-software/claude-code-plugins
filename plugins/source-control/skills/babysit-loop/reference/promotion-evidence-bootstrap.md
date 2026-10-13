@@ -163,6 +163,11 @@ judgment mappings and how to set `--lane-login` for merge-queue merges.
   [work-classes.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md)
   "Suggested default predicates" with counts, window and pass or fail, and lists merged reverts
   it could not match to a merge.
+- **Deployment defaults:** `--missed-blocking-label ai-review: missed-blocking` (the script's
+  default), and `--ai-reviewer claude[bot] --ai-reviewer chatgpt-codex-connector[bot]`, the REST
+  spellings of the review bots on this repository's pull requests (read from #7361's reviews,
+  2026-10-13). A revert counts as `reverted-merge` only when a human merged or enqueued the revert
+  PR; a revert commit pushed with no PR still counts.
 - **`--out <dir>`** writes `evidence.json` and the sidecar `evidence.meta.json`
   (`generated_at`, `through`, `sha256` of the events file, `prev_sha256`), each by a temp file
   and a rename. It refuses to publish when the previous events file does not match its sidecar's
