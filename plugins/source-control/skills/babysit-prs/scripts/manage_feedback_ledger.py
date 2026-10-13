@@ -1,25 +1,36 @@
 #!/usr/bin/env python3
-"""Record guarded feedback dispositions, advisory fix rounds, and worker
-check-ins for one PR."""
+"""Record guarded feedback dispositions, advisory fix rounds, check reruns,
+and worker check-ins for one PR."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
 import babysit_delta as delta
+from babysit_checks import RERUN_ID_LENGTH, check_identity_key, check_rerun_id
 from babysit_state import (
+    FLAKE_RERUN_CAP,
+    FlakeCapReached,
+    record_rerun as record_check_rerun,
     resolve_state_dir,
+    rerun_count,
     state_lock,
     state_path_for,
     write_state,
 )
 from guarded_mutation import begin_guarded_mutation
 from babysit_util import MIN_HEAD_SHA_PREFIX_LENGTH, configure_stdio, is_json_object
+
+RERUN_ID_PATTERN = re.compile(f"[0-9a-f]{{{RERUN_ID_LENGTH}}}")
+# Distinct from 2 (argument and every other refusal) so a caller can tell the
+# flake cap firing from a refusal it should fix and retry.
+EXIT_FLAKE_CAP = 4
 
 
 def dispose(
@@ -125,6 +136,50 @@ def record_advisory_round(
     return {**result, "recorded": True}
 
 
+def record_rerun(
+    args: argparse.Namespace,
+    key: str,
+    mutation_ledger: dict[str, Any],
+    pr_state: dict[str, Any],
+    head_sha: str,
+) -> dict[str, Any]:
+    # The id is recomputed from each stored triple rather than read from a
+    # stored `rerun_id`, so a snapshot written before ids existed still resolves.
+    matches = [
+        identity
+        for identity in pr_state.get("checks_failing_identities") or []
+        if is_json_object(identity) and check_rerun_id(identity) == args.check_id
+    ]
+    if not matches:
+        raise RuntimeError(
+            f"--check-id is not a failing check in the stored snapshot for {key}; re-run 'pr_queue_snapshot.py --pr {key} --write-state' first"
+        )
+    if len({check_identity_key(identity) for identity in matches}) > 1:
+        raise RuntimeError(
+            f"--check-id matches more than one failing check in the stored snapshot for {key}; report it, do not record a rerun"
+        )
+    check = {
+        field: str(matches[0].get(field) or "")
+        for field in ("type", "name", "workflow_name")
+    }
+    count_before = rerun_count(mutation_ledger, key, head_sha, check)
+    # A dry run records into a scratch copy, so it refuses at the cap exactly as
+    # the write would.
+    target = mutation_ledger if args.apply else json.loads(json.dumps(mutation_ledger))
+    count_after = record_check_rerun(
+        target, key, head_sha, check, recorded_at=datetime.now(UTC).isoformat()
+    )
+    result = {
+        "action": "record-rerun",
+        "eligible": True,
+        "check": check,
+        "count_before": count_before,
+        "count_after": count_after,
+        "cap": FLAKE_RERUN_CAP,
+    }
+    return {**result, "recorded": True} if args.apply else result
+
+
 def record_worker_checkin(
     args: argparse.Namespace,
     ledger_entry: dict[str, Any],
@@ -168,6 +223,8 @@ def run_locked(
         result = dispose(args, key, pr_state, ledger_entry, head_sha)
     elif args.action == "record-advisory-round":
         result = record_advisory_round(args, key, ledger_entry, head_sha)
+    elif args.action == "record-rerun":
+        result = record_rerun(args, key, state["mutation_ledger"], pr_state, head_sha)
     else:
         result = record_worker_checkin(args, ledger_entry, head_sha)
     if args.apply:
@@ -181,7 +238,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument(
         "action",
-        choices=("dispose", "record-advisory-round", "record-worker-checkin"),
+        choices=(
+            "dispose",
+            "record-advisory-round",
+            "record-rerun",
+            "record-worker-checkin",
+        ),
     )
     parser.add_argument("--pr", required=True, help="PR URL or owner/repo#number")
     parser.add_argument(
@@ -209,6 +271,13 @@ def main() -> int:
             "provenance class of ONE finding in this advisory round, repeated once "
             "per finding: a (genuine duplicate), b (new and distinct), c "
             "(self-inflicted). Required for record-advisory-round."
+        ),
+    )
+    parser.add_argument(
+        "--check-id",
+        help=(
+            "record-rerun: the failing check's rerun_id from the snapshot's "
+            f"checks.failing_identities ({RERUN_ID_LENGTH} lowercase hex characters)"
         ),
     )
     parser.add_argument(
@@ -245,8 +314,20 @@ def main() -> int:
         )
     if args.action != "record-advisory-round" and args.finding_class:
         parser.error("--finding-class is only valid with record-advisory-round")
+    if args.action == "record-rerun" and args.check_id is None:
+        parser.error("record-rerun requires --check-id")
+    if args.action != "record-rerun" and args.check_id is not None:
+        parser.error("--check-id is only valid with record-rerun")
+    if args.check_id is not None and not RERUN_ID_PATTERN.fullmatch(args.check_id):
+        parser.error(
+            f"--check-id must be {RERUN_ID_LENGTH} lowercase hex characters, "
+            "the rerun_id the snapshot lists"
+        )
     try:
         print(json.dumps(run(args), indent=2, sort_keys=True))
+    except FlakeCapReached as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_FLAKE_CAP
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2

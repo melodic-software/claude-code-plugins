@@ -5,6 +5,31 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.14.4] - 2026-10-11
+
+### Fixed
+
+- Repoint the `audit-instructions` criteria link for I25 to the current Fable migration guide's section on migrating from Claude Opus 5.
+- Correct two links in released entries whose upstream sections moved: the strict-mode section now lives on the plugin marketplace reference page, and the `blockReadsOutsideWorkingDirectories` anchor on the settings reference was renamed.
+
+## [1.14.3] - 2026-10-11
+
+### Fixed
+
+- Repoint documentation links whose upstream anchor or target moved, so each one lands on the section it cites again.
+
+## [1.14.2] - 2026-10-11
+
+### Changed
+
+- `audit-instructions` criteria cover Claude Haiku 5.5: I17 (pairing arm, plus thinking disabled with a per-message effort change), I17-c and I25 widen to it, I17-b's remediation no longer offers a per-message effort change with thinking disabled on a model whose docs refuse that pairing, and the other model-scoped rows the Sonnet 5.5 rollout decided record a dated decline or re-read with a pointer into the Haiku 5.5 prompting guide.
+
+## [1.14.1] - 2026-10-11
+
+### Fixed
+
+- **The instruction audit reads each model's default effort from the docs instead of a copied list.** The `high`-pin exemption listed the models whose default is not `high` and had fallen behind: Haiku 5.5 now defaults to `medium` too. The row now points at the per-model defaults in model-config, so the audit judges a `high` pin against the default the docs state for the resolved model.
+
 ## [1.14.0] - 2026-10-10
 
 ### Added
@@ -971,7 +996,7 @@ No change: repeats the 0.51.15 entry (released by #5156).
 
 ### Fixed
 
-- **Permission surfaces now match Claude Code 2.1.257–2.1.263** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Read and Edit deny rules cover Bash redirect targets from v2.1.257; the v2.1.259 widening to every Bash argument was reverted in v2.1.260 and is not written in ([permissions](https://code.claude.com/docs/en/permissions)). `allowManagedPermissionRulesOnly` ignores `--allowedTools` and user, project, and local rules; `--disallowedTools` and session deny and ask rules stay across reloads ([settings reference](https://code.claude.com/docs/en/settings-reference#allowmanagedpermissionrulesonly)). The ask-rule contract is quoted from the [auto mode config](https://code.claude.com/docs/en/auto-mode-config) page; #42797 is closed, #83766 is open, and v2.1.257 fixed compound and subshell paths only. `strictPluginOnlyCustomization` is `true` or a per-surface array; `"mcp"` blocks user and project MCP servers and does not switch hooks off ([settings reference](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)). Interactive `!` shell mode runs outside the sandbox even in strict mode from v2.1.260 ([sandboxing](https://code.claude.com/docs/en/sandboxing)). A managed settings file, drop-in, plist, or HKLM value that cannot be parsed refuses startup; a user settings parse failure warns in `/status` ([managed settings](https://code.claude.com/docs/en/managed-settings), [settings](https://code.claude.com/docs/en/settings)). Server-managed settings are cached at `~/.claude/remote-settings.json`; cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)). `permissions.blockReadsOutsideWorkingDirectories` fences Read, Grep, Glob, and LSP; Bash subprocess reads stay unbounded ([settings reference](https://code.claude.com/docs/en/settings-reference#permissionsblockreadsoutsideworkingdirectories)). Permission-rule lints keep a `)` inside a specifier, report `Bash(ls) x` as a malformed Tool(content) rule, and treat an uncompilable deny as guarding the literal path.
+- **Permission surfaces now match Claude Code 2.1.257–2.1.263** ([#4027](https://github.com/melodic-software/claude-code-plugins/issues/4027)). Read and Edit deny rules cover Bash redirect targets from v2.1.257; the v2.1.259 widening to every Bash argument was reverted in v2.1.260 and is not written in ([permissions](https://code.claude.com/docs/en/permissions)). `allowManagedPermissionRulesOnly` ignores `--allowedTools` and user, project, and local rules; `--disallowedTools` and session deny and ask rules stay across reloads ([settings reference](https://code.claude.com/docs/en/settings-reference#allowmanagedpermissionrulesonly)). The ask-rule contract is quoted from the [auto mode config](https://code.claude.com/docs/en/auto-mode-config) page; #42797 is closed, #83766 is open, and v2.1.257 fixed compound and subshell paths only. `strictPluginOnlyCustomization` is `true` or a per-surface array; `"mcp"` blocks user and project MCP servers and does not switch hooks off ([settings reference](https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization)). Interactive `!` shell mode runs outside the sandbox even in strict mode from v2.1.260 ([sandboxing](https://code.claude.com/docs/en/sandboxing)). A managed settings file, drop-in, plist, or HKLM value that cannot be parsed refuses startup; a user settings parse failure warns in `/status` ([managed settings](https://code.claude.com/docs/en/managed-settings), [settings](https://code.claude.com/docs/en/settings)). Server-managed settings are cached at `~/.claude/remote-settings.json`; cross-source merge is by key kind, and `sandbox.credentials.awsPairs` and `sandbox.ripgrep` are taken whole since v2.1.257 ([server-managed settings](https://code.claude.com/docs/en/server-managed-settings)). `permissions.blockReadsOutsideWorkingDirectories` fences Read, Grep, Glob, and LSP; Bash subprocess reads stay unbounded ([settings reference](https://code.claude.com/docs/en/settings-reference#permissions-blockreadsoutsideworkingdirectories)). Permission-rule lints keep a `)` inside a specifier, report `Bash(ls) x` as a malformed Tool(content) rule, and treat an uncompilable deny as guarding the literal path.
 
 ## [0.51.15] - 2026-09-28
 
@@ -3966,7 +3991,7 @@ offered as a mechanical `--fix`.
   row 253). The checklist flagged "plugins from incompatible marketplaces (Agent Skills format)"
   by the rule "Repos with only root `marketplace.json` but no per-plugin `plugin.json` are
   incompatible", a shape the [Strict mode
-  section](https://code.claude.com/docs/en/plugin-marketplaces#strict-mode) documents as SUPPORTED:
+  section](https://code.claude.com/docs/en/plugins/marketplace-reference#strict-mode) documents as SUPPORTED:
   under `strict: false` "the marketplace entry is the entire definition", the plugin repo provides
   raw files, and the entry's `skills`/`agents`/`hooks` fields expose them. Anthropic's own
   `anthropic-agent-skills` marketplace ships three such plugins with zero `plugin.json` files

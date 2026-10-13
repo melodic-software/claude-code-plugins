@@ -117,6 +117,335 @@
     },
     {
       "id": 10,
+      "name": "inline-mechanical-phase-gets-verifier-when-setting-true",
+      "narration": true,
+      "prompt": "/implementation:implement: interactive inline run inside a git repository. The repository's docs/conventions/implementation.yaml holds `verify_mechanical_phases: true`; the user's option is unset. Phase 1 renames the parse_sku helper to parse_stock_code with no behavior change, and build, tests and lint pass. Mark the phase DONE.",
+      "expected_output": "Resolves verify_mechanical_phases to true from docs/conventions/implementation.yaml and reports that layer in one line. Because the setting is true, the passing build/test/lint run is not enough for this mechanical phase: a fresh-context verifier that did not produce the rename checks the acceptance criteria against the diff before the phase is marked [DONE].",
+      "files": [],
+      "expectations": [
+        "Reports verify_mechanical_phases: true with docs/conventions/implementation.yaml as the supplying layer",
+        "Has a fresh-context verifier, not the producing context, check the mechanical rename phase before marking it [DONE]",
+        "Does NOT mark the phase [DONE] on the build/test/lint pass alone"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "planned-breakage-red-commit-inside-span",
+      "narration": true,
+      "prompt": "/implementation:implement execute the approved plan. Phase 1 reads `**Planned breakage:** tests red until Phase 2 for tests/checkout/: RateTable stubs land before the callers move`. Before any edit the suite was green. I added RateTable with throwing stubs; now four tests in tests/checkout/ fail and every other test passes. Commit the Phase 1 checkpoint.",
+      "expected_output": "Records that the suite was green at the span's start, confirms every failing test lies in tests/checkout/, and makes the red commit with a body naming the span (tests red until Phase 2 for tests/checkout/). It does not treat the four failures as a regression and does not stop. It notes that Phase 2 must turn tests/checkout/ green and that Step 5's end gate stays green.",
+      "files": [],
+      "expectations": [
+        "Checks that every failing test lies under tests/checkout/ before committing",
+        "Commits with a body that names the planned breakage span",
+        "States that the failures must be green by the end of Phase 2 and that the end gate is green"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "planned-breakage-undeclared-red-stops",
+      "narration": true,
+      "prompt": "/implementation:implement execute the approved plan. Phase 1 reads `**Planned breakage:** tests red until Phase 2 for tests/checkout/: RateTable stubs land before the callers move`. Before any edit the suite was green. After adding the stubs, three tests in tests/checkout/ fail and one test in tests/invoices/test_totals.py also fails. Commit the Phase 1 checkpoint.",
+      "expected_output": "Does not make the red commit. The tests/invoices/test_totals.py failure lies outside the declared paths, so it is a real failure: the skill stops to investigate it under the break-the-cadence rules, and does not widen the declaration to cover tests/invoices/.",
+      "files": [],
+      "expectations": [
+        "Names tests/invoices/test_totals.py as a failure outside the declared paths",
+        "Does NOT commit while that failure stands",
+        "Does NOT edit the Planned breakage line to add tests/invoices/"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "code-writing-dispatch-chains",
+      "narration": true,
+      "prompt": "/implementation:implement execute the approved plan at .work/shipping-rates/PLAN.md. I'm here and reviewing each turn. The plan has three phases and no routing table, so every phase is left to this session. My code_writing option is dispatch; the repository (a git checkout on branch feat/shipping-rates, clean tree, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "Resolves code_writing to dispatch from the user option and reports that layer in one line. Runs the Step 1 prerequisite check (approved plan, feature branch, clean tree), then invokes /implementation:implement-dispatch via the Skill tool for all three phases instead of editing inline, even though the session is interactive and the plan routes nothing to workers.",
+      "files": [],
+      "expectations": [
+        "Reports code_writing: dispatch with the user option as the supplying layer",
+        "Runs the Step 1 prerequisite check before handing off",
+        "Invokes /implementation:implement-dispatch via the Skill tool for the plan's phases",
+        "Does NOT edit the plan's source files inline in this session"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "code-writing-docs-block-wins",
+      "narration": true,
+      "prompt": "/implementation:implement execute the approved plan at .work/shipping-rates/PLAN.md. I'm here and reviewing each turn. The plan has two phases and no routing table. My code_writing option is dispatch; the repository (a git checkout on branch feat/shipping-rates, clean tree, not the home directory) has docs/conventions/implementation.yaml holding `code_writing: inline`.",
+      "expected_output": "Resolves code_writing to inline from docs/conventions/implementation.yaml, which wins over the user's dispatch option, and reports that file as the supplying layer. With an interactive session, no worker routing and code_writing inline, no orchestration signal holds, so it runs the classic Step 2 inline cadence and does not chain to /implementation:implement-dispatch.",
+      "files": [],
+      "expectations": [
+        "Reports code_writing: inline with docs/conventions/implementation.yaml as the supplying layer",
+        "Runs the Step 2 inline cadence for the plan's phases",
+        "Does NOT invoke /implementation:implement-dispatch",
+        "Does NOT apply the user's dispatch value"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "lever-first-implement",
+      "narration": true,
+      "prompt": "/implementation:implement execute Phase 2 of the approved plan at .work/ledger-money/PLAN.md: replace every `new BigDecimal(double)` call in the ledger module with `BigDecimal.valueOf(double)`. A search finds 27 call sites across 11 files. I'm reviewing each turn; the session is on branch feat/ledger-money with a clean tree.\n\n[/discipline:script-the-deterministic-work is among the available skills.]",
+      "expected_output": "Before editing any of the 27 sites, invokes /discipline:script-the-deterministic-work lever-check via the Skill tool with a summary of the change and the site count, and reports the lever_scope layer it returns. On build-a-lever it edits the first call site by hand, runs the lever on a clean copy of that site, diffs the two, and only after they match runs the lever on the other 26 sites, then runs the build check and the commit checkpoint as for any block.",
+      "files": [],
+      "expectations": [
+        "Invokes /discipline:script-the-deterministic-work lever-check via the Skill tool before editing any call site",
+        "Reports the lever_scope value and supplying layer the check returned",
+        "Edits the first site by hand and diffs the lever's result on it before running the lever on the rest",
+        "Does NOT hand-edit all 27 sites one by one after a build-a-lever answer"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "lever-first-discipline-absent",
+      "narration": true,
+      "prompt": "/implementation:implement execute Phase 1 of the approved plan at .work/i18n-keys/PLAN.md: rename the translation key `checkout.btn_pay` to `checkout.pay_button` in 9 locale JSON files and the 4 components that read it. I'm reviewing each turn; branch feat/i18n-keys, clean tree.\n\n[The discipline plugin is not enabled, so /discipline:script-the-deterministic-work is not among the available skills.]",
+      "expected_output": "Does not invoke the unavailable discipline skill. Applies the deterministic rule itself: a key rename follows from each site's text alone, so it is mechanical and gets a lever. It says in one line that the lever check ran on deterministic because the discipline skill was unavailable, edits one site by hand, diffs the lever's result on that site against it, then runs the lever on the remaining sites.",
+      "files": [],
+      "expectations": [
+        "Does NOT invoke /discipline:script-the-deterministic-work or invent a substitute skill",
+        "States that the lever check used deterministic because the discipline skill was unavailable",
+        "Treats the key rename as mechanical and builds a lever",
+        "Diffs the lever's result on one hand-edited site before running it on the rest"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "per-unit-check-pilot",
+      "narration": true,
+      "prompt": "/implementation:implement execute Phase 3 of the approved plan at .work/telemetry-names/PLAN.md: rename the metric `queue_wait_ms` to `queue_wait_seconds` and divide each recorded value by 1000, at 14 emit sites across 8 files. A lever is built and already matches my hand edit of the first site. I'm reviewing each turn; branch feat/telemetry-names, clean tree. My per_unit_check option is unset and the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "Resolves per_unit_check to pilot from the default and reports that layer in one line. Runs the lever on a small first batch of the emit sites, sized from the best-practices 'Fan out across files' section it links, runs the build check and the tests covering those sites, and only once that batch is green runs the lever on the remaining sites, followed by one check over all of them before the commit checkpoint.",
+      "files": [],
+      "expectations": [
+        "Reports per_unit_check: pilot with the default as the supplying layer",
+        "Checks a small first batch of sites before applying the lever to the rest",
+        "Runs one check over all sites after the remaining sites are changed",
+        "Does NOT run the build check after every one of the 14 sites"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "per-unit-check-every",
+      "narration": true,
+      "prompt": "/implementation:implement execute Phase 2 of the approved plan at .work/tz-aware/PLAN.md: replace `datetime.utcnow()` with `datetime.now(timezone.utc)` at 11 call sites across 6 modules. I'm reviewing each turn; branch feat/tz-aware, clean tree. My per_unit_check option is every; the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "Resolves per_unit_check to every from the user option and reports that layer in one line. Once the lever or the hand edit is ready, applies it one unit at a time, runs the build check and the affected tests after each unit, and moves to the next unit only once that unit passes, then makes the commit checkpoint.",
+      "files": [],
+      "expectations": [
+        "Reports per_unit_check: every with the user option as the supplying layer",
+        "Runs the build check and affected tests after each unit",
+        "Leaves the next unit untouched while a unit's check is failing",
+        "Does NOT change all sites first and check only once at the end"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "per-unit-check-docs-block-wins",
+      "narration": true,
+      "prompt": "/implementation:implement execute Phase 1 of the approved plan at .work/sku-type/PLAN.md: change the `sku` parameter type from `str` to `Sku` in 16 function signatures across 9 files, using a lever already checked against my hand edit of the first signature. I'm reviewing each turn; branch feat/sku-type, clean tree. My per_unit_check option is pilot; the repository (a git checkout, not the home directory) has docs/conventions/implementation.yaml holding `per_unit_check: every`.",
+      "expected_output": "Resolves per_unit_check to every from docs/conventions/implementation.yaml, which wins over the user's pilot option, and reports that file as the supplying layer. Runs the lever one unit at a time with the build check and affected tests after each, instead of a first batch followed by one check at the end.",
+      "files": [],
+      "expectations": [
+        "Reports per_unit_check: every with docs/conventions/implementation.yaml as the supplying layer",
+        "Runs the build check and affected tests after each unit",
+        "Does NOT apply the user's pilot value"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "integration-posture-no-plan-applies",
+      "narration": true,
+      "prompt": "/implementation:implement feature add a `--since <date>` filter to the `invoices export` CLI command in billing/cli/export.py. Today the command builds its query with three hard-coded `if` branches for the existing `--status` and `--customer` flags. There is no plan for this; it is a small change. I'm reviewing each turn; branch feat/export-since, clean tree. My integration_posture option is unset and the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "With no approved plan, Step 0 resolves integration_posture to by-kind from the default and reports that layer in one line. Feature mode under by-kind takes a day-one redesign: instead of adding a fourth hard-coded branch, it reshapes the query building in export.py so the filters read as one designed mechanism (for example a list of filter clauses each flag contributes to), keeps the existing --status and --customer behavior unchanged, and stays inside the files the change touches.",
+      "files": [],
+      "expectations": [
+        "Reports integration_posture: by-kind with the default as the supplying layer",
+        "Treats the feature as a day-one redesign because no approved plan exists",
+        "Reshapes the existing filter branches rather than appending a fourth if branch beside them",
+        "Keeps the existing --status and --customer behavior unchanged and does not edit files outside the change"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "integration-posture-ambiguous-unattended",
+      "narration": true,
+      "prompt": "/implementation:implement the nightly report job crashes when a warehouse has no shipments, and while you're in there it should also email the warehouse manager when that happens. Running unattended from a /loop harness: no human will answer questions this run. No approved plan exists. Branch fix/empty-warehouse, clean tree, memory_dir is .work/. integration_posture is unset in my options and the repository (a git checkout, not the home directory) has docs/conventions/implementation.yaml holding `integration_posture: day-one`.",
+      "expected_output": "The request mixes a fix (the crash) with a new capability (the email), so the kind is ambiguous and no argument names it. Because the run is non-interactive it does not ask: it takes minimal for the change even though the repository file resolves day-one, appends a deviation entry to DEVIATIONS.md in the work's memory slice under .work/ (plan said nothing, found the conflicting fix and feature signals, chose minimal, revisit at PR review), and proceeds with the smallest change.",
+      "files": [],
+      "expectations": [
+        "Identifies the kind as ambiguous between fix and feature",
+        "Does NOT stop to ask the user, since the run is unattended",
+        "Takes minimal for the change instead of the repository's day-one value",
+        "Appends a deviation entry to a DEVIATIONS.md under .work/ naming the conflicting signals and the minimal choice"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "integration-posture-docs-block-wins",
+      "narration": true,
+      "prompt": "/implementation:implement feature add a dark-mode toggle to the settings page in web/src/settings/SettingsPage.tsx; the page currently reads three theme colors from a module-level constant. No approved plan, small change. I'm reviewing each turn; branch feat/dark-toggle, clean tree. My integration_posture option is day-one; the repository (a git checkout, not the home directory) has docs/conventions/implementation.yaml holding `integration_posture: minimal`.",
+      "expected_output": "Resolves integration_posture to minimal from docs/conventions/implementation.yaml, which wins over the user's day-one option, and reports that file as the supplying layer. Adds the toggle with the smallest change to SettingsPage.tsx and does not reshape the module-level color constant into a theme system.",
+      "files": [],
+      "expectations": [
+        "Reports integration_posture: minimal with docs/conventions/implementation.yaml as the supplying layer",
+        "Does NOT apply the user's day-one value",
+        "Adds the toggle with the smallest change and leaves the existing color constant's structure in place"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "integration-posture-minimal-value",
+      "narration": true,
+      "prompt": "/implementation:implement feature support a `retry_after` header in the HTTP client wrapper at net/client.go; retries today use a fixed backoff computed inline in `Do`. No approved plan exists. I'm reviewing each turn; branch feat/retry-after, clean tree. My integration_posture option is minimal and the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "Resolves integration_posture to minimal from the user option and reports that layer. Although the mode is feature, minimal overrides the by-kind redesign: it reads the header and uses it in place of the fixed delay with the smallest edit to Do, without extracting a backoff policy type or restructuring the retry loop.",
+      "files": [],
+      "expectations": [
+        "Reports integration_posture: minimal with the user option as the supplying layer",
+        "Keeps the feature to the smallest change even though the mode is feature",
+        "Does NOT restructure the retry loop or introduce a new backoff abstraction"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "integration-posture-day-one-value",
+      "narration": true,
+      "prompt": "/implementation:implement fix shipping cost is wrong for orders that mix taxable and tax-exempt items: orders/pricing.py computes tax inside `shipping_total` with a special case for exempt items bolted on last year. No approved plan exists. I'm reviewing each turn; branch fix/mixed-tax-shipping, clean tree. My integration_posture option is unset; the repository (a git checkout, not the home directory) has docs/conventions/implementation.yaml holding `integration_posture: day-one`.",
+      "expected_output": "Resolves integration_posture to day-one from docs/conventions/implementation.yaml and reports that layer. Under day-one a fix redesigns: after the failing test reproduces the wrong total, it reshapes the tax handling in pricing.py so taxable and exempt items go through one designed path instead of patching the bolted-on special case, keeps behavior for orders that were already correct, and stays inside the files the fix touches.",
+      "files": [],
+      "expectations": [
+        "Reports integration_posture: day-one with docs/conventions/implementation.yaml as the supplying layer",
+        "Writes a failing test reproducing the wrong total before changing pricing.py",
+        "Reshapes the tax handling instead of adding another special case beside the existing one",
+        "Keeps totals for already-correct orders unchanged"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "feature-fifth-branch-names-domain-structure",
+      "narration": true,
+      "prompt": "/implementation:implement feature add parcel-locker delivery to warehouse/dispatch.py. The approved plan at .work/locker/PLAN.md has one phase: support `delivery_kind == \"locker\"`. Today `route_parcel` is an if/elif chain with four branches on delivery_kind (courier, post, pickup, freight), each computing a label and a cutoff time. I'm reviewing each turn; branch feat/locker-delivery, clean tree. My integration_posture option is unset and the repository has no docs/conventions/implementation.yaml.",
+      "expected_output": "Reports integration_posture: plan governs. Before adding the locker case, the feature step picks a structure that names the delivery kinds (for example an enum with one handler per kind, or a table of label and cutoff rules), moves the four existing branches into it with their behavior unchanged, and then adds locker as one more entry, rather than appending a fifth elif to route_parcel.",
+      "files": [],
+      "expectations": [
+        "Names a domain structure for the delivery kinds before writing the locker case",
+        "Moves the four existing branches into that structure with their labels and cutoffs unchanged",
+        "Adds locker as an entry in the structure rather than a fifth elif branch",
+        "Reports integration_posture as governed by the approved plan"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "fix-sibling-occurrences-focused-commit-first",
+      "narration": true,
+      "prompt": "/implementation:implement fix refunds round half-cents down instead of to the nearest cent: payments/refund.py `refund_amount` truncates with int(). While looking I saw payments/credit_note.py `credit_amount` uses the same int() truncation. Fix the refund bug and that sibling. I'm reviewing each turn; branch fix/refund-rounding, clean tree; committing is allowed, do not push.",
+      "expected_output": "Writes a failing test for the refund rounding, then commits the refund fix with its test as a focused commit that touches only refund.py and its test. Then fixes credit_note.py with its own test in a separate, later commit on the same branch. The two fixes never share a commit.",
+      "files": [],
+      "expectations": [
+        "Writes a failing test that reproduces the refund rounding before changing refund.py",
+        "Commits the refund fix and its test without the credit_note.py change",
+        "Fixes credit_note.py with its own test in a later, separate commit on the same branch",
+        "Does not fix both sites in one commit"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "non-moving-unit-reverted-to-span-start",
+      "narration": true,
+      "prompt": "/implementation:implement execute Phase 2 of the approved plan at .work/ledger-split/PLAN.md. Phase 2 carries `**Planned breakage:** tests red until Phase 3 for tests/ledger/: the old Ledger class is removed before its replacement lands`. I'm two blocks into the span. The second block was supposed to make tests/ledger/test_balance.py collect again, but after it the same 6 tests fail the same way as before it. I'm reviewing each turn; branch refactor/ledger-split.",
+      "expected_output": "Treats the second block as a unit that did not move the check and reverts it rather than adding fixes on top. Because the phase is inside a declared planned-breakage span, the revert target is the start of that span (the state recorded at the span's first block), not merely the previous commit, and it says so. Then it states the next hypothesis before writing new code.",
+      "files": [],
+      "expectations": [
+        "Identifies that the block left the failing check unchanged",
+        "Reverts instead of patching forward on top of the block",
+        "Reverts to the start of the planned-breakage span and names that target",
+        "States the next hypothesis before new code"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "completion-reply-lists-choices-and-open-decisions",
+      "narration": true,
+      "prompt": "/implementation:implement execute the approved plan at .work/late-interest/PLAN.md: add monthly late interest of 1.5% to overdue invoices in billing/interest.py. The plan does not say how to round the interest or whether interest compounds on earlier interest. I'm reviewing each turn; branch feat/late-interest, clean tree. Assume the build and tests pass after your change.",
+      "expected_output": "Implements the interest rule with tests. The completion reply names what was built, lists each choice the plan left open that it made (the rounding rule, simple versus compound interest) with the reason for each, and lists the decisions still open for the user with a recommendation for each, or says there are none.",
+      "files": [],
+      "expectations": [
+        "Completion reply states what was built",
+        "Lists the rounding choice and the simple-versus-compound choice, each with a reason",
+        "Lists open decisions for the user with a recommendation each, or says there are none",
+        "Does not bury the choices inside a diff summary"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "contract-change-runs-propagation-sweep",
+      "narration": true,
+      "prompt": "/implementation:implement feature the approved plan at .work/tenant-id/PLAN.md renames the `account_id` parameter of `open_session()` in auth/session.py to `tenant_id` and makes it required. I'm reviewing each turn; branch feat/tenant-id, clean tree. The coupling plugin is not enabled; the docs-hygiene plugin is enabled.",
+      "expected_output": "Because the feature changes a contract, before the last commit it runs a propagation sweep: /docs-hygiene:rename-references audit (coupling is not enabled), and updates every call site, test, doc and example that still says account_id for open_session(). It reports the sweep and its hits.",
+      "files": [],
+      "expectations": [
+        "Recognizes the parameter rename as a contract change",
+        "Runs /docs-hygiene:rename-references audit because coupling is not enabled",
+        "Updates call sites, tests, docs and examples that still use the old name",
+        "Reports the sweep before the last commit"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "refactor-compat-same-wave",
+      "narration": true,
+      "prompt": "/implementation:implement refactor rename the internal helper `load_cfg()` in tools/settings.py to `read_settings()`. It has 23 callers, all modules in this repository; the package is not published and nothing outside the repository imports it. I'm reviewing each turn; branch refactor/read-settings, clean tree, tests green. My refactor_compat option is unset and the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "Resolves refactor_compat to same-wave from the default and reports that layer in one line. Renames the helper, updates all 23 callers in the same change, and deletes `load_cfg()` outright: no alias, wrapper or deprecation shim for the old name remains.",
+      "files": [],
+      "expectations": [
+        "Reports refactor_compat: same-wave with the default as the supplying layer",
+        "Updates every one of the callers to read_settings() in the same change",
+        "Deletes load_cfg() rather than leaving it as an alias or forwarding wrapper",
+        "Does NOT add a deprecation warning or adapter for the old name"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "refactor-compat-deprecate",
+      "narration": true,
+      "prompt": "/implementation:implement refactor split `ReportBuilder.render(fmt)` in reports/builder.py into `render_pdf()` and `render_csv()`. Nine modules in this repository call `render`. I'm reviewing each turn; branch refactor/split-render, clean tree, tests green. My refactor_compat option is deprecate; the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "Resolves refactor_compat to deprecate from the user option and reports that layer in one line. Adds the two new methods and keeps `render(fmt)` as an adapter that forwards to them, and states for each consumer of the old method the condition under which the adapter is removed.",
+      "files": [],
+      "expectations": [
+        "Reports refactor_compat: deprecate with the user option as the supplying layer",
+        "Keeps render(fmt) as an adapter forwarding to render_pdf() and render_csv()",
+        "States a removal condition for the adapter covering every consumer",
+        "Does NOT delete render(fmt) in this change"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "refactor-compat-docs-block-wins",
+      "narration": true,
+      "prompt": "/implementation:implement refactor rename the enum `JobState.QUEUED` in scheduler/states.py to `JobState.PENDING`. Fourteen modules in this repository use it; it is never serialized and no outside code imports it. I'm reviewing each turn; branch refactor/job-pending, clean tree, tests green. My refactor_compat option is deprecate; the repository (a git checkout, not the home directory) has docs/conventions/implementation.yaml holding `refactor_compat: same-wave`.",
+      "expected_output": "Resolves refactor_compat to same-wave from docs/conventions/implementation.yaml, which wins over the user's deprecate option, and reports that file as the supplying layer. Renames the member, updates all fourteen modules in the same change, and removes `QUEUED` with no alias member kept for it.",
+      "files": [],
+      "expectations": [
+        "Reports refactor_compat: same-wave with docs/conventions/implementation.yaml as the supplying layer",
+        "Updates every module that uses JobState.QUEUED in the same change",
+        "Removes QUEUED rather than keeping it as an alias of PENDING",
+        "Does NOT apply the user's deprecate value"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "no-suppression-to-pass-lint",
+      "narration": true,
+      "prompt": "/implementation:implement fix the CSV export in exports/csv_writer.py so quoted fields with embedded newlines round-trip. Branch fix/csv-newlines, clean tree, plan approved. After the fix the tests pass, but ruff reports E501 on line 88 (a long format string) and mypy reports `Item \"None\" of \"Optional[Row]\" has no attribute \"cells\"` on line 112. Line 112 runs only after `validate_rows()` has returned, and that function raises on any None row; the test test_validate_rejects_none_rows shows it. The repository's instructions say nothing about suppressions.",
+      "expected_output": "Fixes the E501 by wrapping or splitting the line rather than adding `# noqa`. For the mypy report it either narrows the type in code (an assert or a guard) or, treating it as a shown false positive, adds `# type: ignore[union-attr]` with a reason on that line naming why the row cannot be None there. It adds no suppression without a rule id and reason, and none to the E501 line.",
+      "files": [],
+      "expectations": [
+        "Fixes the E501 line in code and adds no noqa comment to it",
+        "Any suppression it adds for the mypy report names the error code (union-attr) and states the reason on the same line",
+        "Does NOT add a bare `# type: ignore` or a bare `# noqa`"
+      ]
+    },
+    {
+      "id": 34,
       "name": "port-routes-to-replace-mode-with-differential-harness",
       "narration": true,
       "prompt": "/implementation:implement: the approved plan ports our Python invoice-total calculator (src/legacy/invoice.py) to a new Go service. Totals must stay identical except that the Go version rounds half-even, which the user already approved. Start phase 1.",
@@ -128,6 +457,72 @@
         "It keeps the Python implementation runnable rather than deleting it early",
         "It records the half-even rounding difference as an intentional-differences ledger entry with the user's sign-off",
         "It plans to report mismatch counts (inputs run, mismatches, ledger-covered, unexplained) instead of only 'tests pass'"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "refactor-parity-contract-baseline-first",
+      "prompt": "/implementation:implement refactor: phase 2 of the approved plan moves our order screens from hand-written table markup to the shared DataGrid component. The phase carries `**Parity contract:** order list (empty), order list (25 rows), order detail (refund pending)`. /testing:check-visual-parity is among the available skills. Start the phase.",
+      "expected_output": "Refactor mode. Before the first structural edit it runs /testing:check-visual-parity baseline for the three listed states, then makes one structural change per commit and runs /testing:check-visual-parity compare at each green checkpoint. A failing compare is treated like a broken test: it stops and investigates rather than re-capturing the baseline or raising the tolerance.",
+      "files": [],
+      "expectations": [
+        "It runs /testing:check-visual-parity baseline with the three listed states before the first structural edit",
+        "It runs /testing:check-visual-parity compare at each green checkpoint",
+        "It treats a failing compare as a behavior change to investigate, not a baseline to re-capture"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "refactor-no-contract-change-asks-before-editing-a-test",
+      "narration": true,
+      "prompt": "/implementation:implement refactor: phase 1 of the approved plan extracts the fare calculation out of TicketController into a FareCalculator class. The plan declares no contract change. After the extract, the approval test for the fare receipt fails: its recorded receipt shows the old surcharge line order, and the recorded file looks out of date to you. Continue the phase.",
+      "expected_output": "Refactor mode. With no contract change declared, the failing approval test means the extract changed behavior, so it investigates the extract. It does not re-record the receipt, edit the test or touch the test harness to make the run pass; because the recorded receipt looks wrong, it stops and asks the user before changing it.",
+      "files": [],
+      "expectations": [
+        "It treats the failing approval test as a sign the extract changed behavior, because the plan declares no contract change",
+        "It does not re-record the receipt, edit the test or change the test harness to make the run pass",
+        "It asks the user about the recorded receipt that looks out of date instead of deciding alone to update it"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "refactor-declared-contract-change-retargets-old-contract-tests",
+      "narration": true,
+      "prompt": "/implementation:implement refactor: phase 2 of the approved plan replaces the positional arguments of ShelfLabel.render(sku, price, locale) with one LabelSpec object, and the plan declares this as a contract change. The private label cache helper goes away in the same phase. After the move, six tests fail: four call render with positional arguments, one asserts the cache helper's hit count, and one checks the printed price for a Swedish locale.",
+      "expected_output": "Refactor mode. Because the plan declares the contract change, it rewrites the four positional-argument tests to call render with a LabelSpec and deletes the test that only checked the removed cache helper's internals. The Swedish price test is not part of the declared change, so it treats that failure as a behavior change and investigates it rather than editing the test.",
+      "files": [],
+      "expectations": [
+        "It rewrites the four tests that call render with positional arguments so they assert the new LabelSpec contract",
+        "It deletes the test that only checks the removed cache helper's hit count",
+        "It treats the Swedish locale price failure as a behavior change to investigate, not a test to edit"
+      ]
+    },
+    {
+      "id": 38,
+      "name": "refactor-deprecate-adapter-names-removal-condition-time-box-and-follow-up",
+      "narration": true,
+      "prompt": "/implementation:implement refactor: the approved plan moves parseDuration from src/util/time.ts into a new src/scheduling/duration.ts module. docs/conventions/implementation.yaml sets refactor_compat: deprecate, and a partner's published plugin still imports parseDuration from the old path. Start the phase.",
+      "expected_output": "Refactor mode resolves refactor_compat: deprecate from the repository file and reports that layer. It moves parseDuration and keeps an adapter at the old path for the partner plugin. The adapter names its removal condition (the partner plugin no longer imports the old path), a time box after which it is removed regardless, and a follow-up item that tracks its removal.",
+      "files": [],
+      "expectations": [
+        "It reports refactor_compat: deprecate as supplied by docs/conventions/implementation.yaml",
+        "The kept adapter names its removal condition",
+        "The kept adapter names a time box (a date or release) after which it is removed",
+        "The kept adapter names a follow-up item that tracks its removal"
+      ]
+    },
+    {
+      "id": 39,
+      "name": "refactor-subtraction-first-commit",
+      "narration": true,
+      "prompt": "/implementation:implement refactor: phase 1 of the approved plan reshapes the warehouse pick-list module into one PickPlanner type. The module still carries a branch for a paper-printer mode the app dropped last year, a buildPickList() function whose only caller passes its arguments straight to PickPlanner, and an import of a barcode config file that was deleted. /code-tidying:audit-dead-code is among the available skills. Start the phase.",
+      "expected_output": "Refactor mode. Before any structural move it runs /code-tidying:audit-dead-code on the pick-list paths to list unused code, deletes the paper-printer branch, inlines the one-caller buildPickList() wrapper and removes the import of the deleted config, and lands those deletions as the first refactor commit with the suite green. Only then does it plan and make the PickPlanner moves, and it ends by naming where a reader now has less to follow, or reverts the reshape if it cannot name a place.",
+      "files": [],
+      "expectations": [
+        "It runs /code-tidying:audit-dead-code on the pick-list paths before the first structural move",
+        "It removes the paper-printer branch, the one-caller buildPickList() wrapper and the import of the deleted config",
+        "It commits those deletions on their own as the first refactor commit, before any PickPlanner move",
+        "It ends by naming where reader load fell, or reverts the reshape when it cannot name one"
       ]
     }
   ]

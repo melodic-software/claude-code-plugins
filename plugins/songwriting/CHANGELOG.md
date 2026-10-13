@@ -3,6 +3,20 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.9] - 2026-10-11
+
+### Fixed
+
+- Correct a released entry's links to two retired help.suno.com articles: they now point at the archived copies the `suno` skill already cites.
+
+## [1.6.8] - 2026-10-11
+
+### Changed
+
+- object-writing: an agent spawn now takes an `effort` as well as a model, so the effort lever no longer requires a workflow; a spawn of the pinned `object-writer` omits it so the pin holds.
+
+- object-writer: the effort pin record is rechecked against its upstream pages after the latest model release and re-dated; the pin is unchanged.
+
 ## [1.6.7] - 2026-10-10
 
 ### Fixed
@@ -1324,9 +1338,9 @@ Every absence below is **scoped to the pages named** and asserts nothing about
 Suno's documentation as a whole.
 
 - **Official, read verbatim by `curl` (not a summarizing fetch), bodies whole:**
-  `help.suno.com` [5782849](https://help.suno.com/en/articles/5782849) (1,177
+  `help.suno.com` [5782849](https://web.archive.org/web/20260902202656/https://help.suno.com/en/articles/5782849) (1,177
   chars of extracted text) and
-  [5782977](https://help.suno.com/en/articles/5782977) (805 chars). Neither
+  [5782977](https://web.archive.org/web/20250513204947/https://help.suno.com/en/articles/5782977) (805 chars). Neither
   addresses genre order or fusion; neither mentions timestamp cues in the Lyrics
   box or any adherence rate. 5782849 points *away* from positional prompting for
   v4.5+: *"In previous models, you would want to prioritize certain genre and

@@ -9,6 +9,16 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/remove-shims.sh"
 REAL_SOURCES="$SCRIPT_DIR/../reference/sources.md"
+VERSION_LIB="$SCRIPT_DIR/../../../scripts/lib/version.sh"
+
+# A stub copy of the script sources the plugin's shared version comparator
+# from three levels up, so a stub keeps the plugin's layout:
+# <root>/skills/migrate/{scripts,reference} beside <root>/scripts/lib.
+make_stub() { # <root> -> prints the stub's skills/migrate directory
+  mkdir -p "$1/skills/migrate/scripts" "$1/skills/migrate/reference" "$1/scripts/lib"
+  cp "$VERSION_LIB" "$1/scripts/lib/version.sh"
+  printf '%s' "$1/skills/migrate"
+}
 
 CASE_NUM=0
 FAILED=0
@@ -130,6 +140,21 @@ cat >"$TMP/installed-mixed.json" <<'EOF'
 }
 EOF
 
+# A valid copy first and an unreadable one after it. The unreadable copy could
+# be the stale one, so it must not be skipped in favor of the valid one.
+cat >"$TMP/installed-malformed.json" <<'EOF'
+{
+  "version": 2,
+  "plugins": {
+    "instruction-placement@melodic-software": [
+      { "scope": "user", "version": "0.15.0" },
+      { "scope": "project", "version": "bad.0.0" }
+    ],
+    "harness-memory@melodic-software": [{ "scope": "user", "version": "0.12.9" }]
+  }
+}
+EOF
+
 # 0.14.0 is below the instruction-placement floor: the old doctrine still lived
 # in two of its own files at that release.
 cat >"$TMP/installed-0140.json" <<'EOF'
@@ -189,6 +214,17 @@ rc=0
 bash "$SCRIPT" --root "$TMP" --bogus >/dev/null 2>&1 || rc=$?
 assert_eq "an unknown argument exits 2" 2 "$rc"
 
+# A copy without the plugin's scripts/lib has no comparator: exit 2 before it
+# prints a price or reads an installed version.
+NOLIB="$TMP/nolib/skills/migrate/scripts"
+mkdir -p "$NOLIB" "$TMP/nolib-repo"
+git -C "$TMP/nolib-repo" init -q
+cp "$SCRIPT" "$NOLIB/remove-shims.sh"
+rc=0
+OUT=$(bash "$NOLIB/remove-shims.sh" --root "$TMP/nolib-repo" --confirm 2>&1) || rc=$?
+assert_eq "a missing scripts/lib/version.sh exits 2" 2 "$rc"
+assert_not_contains "and prints no price" "$OUT" "=== remove-shims"
+
 # --- Case 2: without --confirm it prints the price and removes nothing ----
 
 READY="$TMP/ready"
@@ -207,8 +243,7 @@ assert_eq "and the repository is untouched" "" "$(cd "$READY" && git status --po
 # The price is the record's decision, the paragraph directly above its
 # pointer, and the pointer itself: not the section's lead-in, not the as-of
 # date or the trigger, and nothing from the next section.
-PRICE_STUB="$TMP/price-stub"
-mkdir -p "$PRICE_STUB/scripts" "$PRICE_STUB/reference"
+PRICE_STUB="$(make_stub "$TMP/price-stub")"
 cp "$SCRIPT" "$PRICE_STUB/scripts/remove-shims.sh"
 cat >"$PRICE_STUB/reference/sources.md" <<'EOF'
 # Sources
@@ -271,6 +306,13 @@ OUT=$(bash "$SCRIPT" --root "$READY" --confirm --installed-plugins "$TMP/install
   --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
 assert_eq "instruction-placement 0.14.0 is below the floor" 1 "$rc"
 assert_contains "and the floor is named" "$OUT" "below the corrected-doctrine release 0.15.0"
+
+rc=0
+OUT=$(bash "$SCRIPT" --root "$READY" --confirm --installed-plugins "$TMP/installed-malformed.json" \
+  --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
+assert_eq "an unreadable copy beside a valid one refuses" 1 "$rc"
+assert_contains "and says an unread version is not a version" "$OUT" "An unread version is not"
+assert_eq "and removes nothing" "" "$(cd "$READY" && git status --porcelain)"
 
 # --- Case 4: an unmet cutover condition removes nothing -------------------
 
@@ -536,8 +578,7 @@ rm -rf "$FAKEBIN"
 # with nothing in it.
 NODIR="$TMP/nodir"
 build_ready_repo "$NODIR"
-NODIR_STUB="$TMP/nodir-stub"
-mkdir -p "$NODIR_STUB/scripts" "$NODIR_STUB/reference"
+NODIR_STUB="$(make_stub "$TMP/nodir-stub")"
 cp "$SCRIPT" "$NODIR_STUB/scripts/remove-shims.sh"
 cp "$SCRIPT_DIR/cutover-check.sh" "$NODIR_STUB/scripts/cutover-check.sh"
 cp "$REAL_SOURCES" "$NODIR_STUB/reference/sources.md"

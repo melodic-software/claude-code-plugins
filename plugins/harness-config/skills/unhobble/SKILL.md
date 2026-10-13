@@ -15,9 +15,10 @@ metadata:
 
 As models improve, instruction surfaces written for older models become the ceiling: the model reads
 every standing line every session, and lines that correct mistakes it no longer makes cost context
-and constrain behavior. Official doctrine says cut any line whose removal would not cause mistakes
-([best-practices](https://code.claude.com/docs/en/best-practices)); the strongest form of that test
-is empirical: delete, run, watch. This skill operationalizes the experiment its sibling
+and constrain behavior. We take the official pruning test as the premise (Pointer: when citing it,
+fetch [best practices: write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md)
+live. As of: 2026-10-11. Recheck trigger: that section drops or changes its per-line pruning test);
+the strongest form of that test is empirical: delete, run, watch. This skill operationalizes the experiment its sibling
 `audit-instructions` can only reason about: instead of judging instruction *text* against doctrine,
 it measures the *model* against the repo with the instructions gone, and lets observed stumbles,
 not guesses, decide what returns.
@@ -183,10 +184,11 @@ rendered, never a guessed level; the value changes nothing else about the experi
    `enabledPlugins`, and the set `claude plugin list --json` reports enabled. Emit one row per
    plugin: id, scopes, the component types it ships, hook-wiring or not, class, and the Phase 2
    action. A plugin is hook-wiring when it ships `hooks/hooks.json` or a manifest `hooks` field.
-   **Claim:** those are the two places a plugin declares hooks. **Basis:** the plugins
-   reference "Standard layout" table and `hooks` manifest field
-   (<https://code.claude.com/docs/en/plugins/manifest-reference>), fetched 2026-10-07. **As of:**
-   2026-10-07. **Recheck:** that page names another hook location. Classify each wired
+   **Pointer:** when deciding where a plugin declares hooks, fetch
+   [plugin manifest reference: standard layout](https://code.claude.com/docs/en/plugins/manifest-reference#standard-layout)
+   and [plugin manifest reference: hooks](https://code.claude.com/docs/en/plugins/manifest-reference#hooks)
+   live. **As of:** 2026-10-11. **Recheck trigger:** that page names another hook location.
+   Classify each wired
    entry with the "Classifying a hook" rubric linked above; do not restate it and do not invent
    a second hook rubric. A plugin whose every component is policy (or behavioral with a
    non-derivable oracle) is kept, classified `policy`. One that carries such an entry beside a
@@ -283,15 +285,14 @@ Apply the confirmed strip plan:
   `<hook>_enabled`-style userConfig option): record the option flipped and its prior value,
   restoring by flipping it back. No switch means the hook stays loaded:
   `unstripped-behavioral-hook` or `unstripped-hybrid-hook`, as before.
-  **Claim:** a project-scope `enabledPlugins` value of `false` overrides a user-scope `true` for
-  the same `plugin@marketplace` key. **Basis:** the settings reference
-  `enabledPlugins` section, "Project settings take precedence over user settings"
-  (<https://code.claude.com/docs/en/settings-reference>), fetched 2026-09-28. The worked example
-  on that page is the other direction: a user `false` does not disable a project `true`.
-  **As of:** 2026-09-28. **Recheck:** that section no longer says project settings take
-  precedence over user settings, or it states that a project `false` does not override a user
-  `true`. Do not call an arm stripped until a fresh session's `claude plugin list --json` omits
-  the plugin. One that is still listed is a confound; local or managed scope can still win.
+  We rely on a project-scope `false` overriding a user-scope `true` for the same
+  `plugin@marketplace` key. **Pointer:** when deciding which scope's `enabledPlugins` value wins,
+  fetch
+  [settings reference: enabledPlugins](https://code.claude.com/docs/en/settings-reference#enabledplugins)
+  live. **As of:** 2026-10-11. **Recheck trigger:** that section changes the precedence between
+  project and user settings for the key. Do not call an arm stripped until a fresh session's
+  `claude plugin list --json` omits the plugin. One that is still listed is a confound; local or
+  managed scope can still win.
 - Print the "you are bare" summary: what a fresh session will now load, which plugins were
   disabled, which were kept as policy or tooling, which are `unstripped-mixed-plugin`, and how
   to restore everything (`readd` phase reads the manifest; `git` holds the files).
@@ -453,11 +454,12 @@ scheduling surfaces vary per consumer and are the operator's choice.
   product, audited by their own acceptance gates, not stripped by this experiment. Phase 1 records
   each one under `plugins/<name>/` as `unstripped-product-surface`, and changelog-parity is why.
 - **`CLAUDE_CODE_SIMPLE=1` / `--bare` and `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` are not part of this
-  contract.** Two distinct, documented switches (official env-vars reference; binary-verified
-  2026-08-17): simple mode (`CLAUDE_CODE_SIMPLE=1`, CLI flag `--bare`) disables fetches, keychain
-  reads, and `CLAUDE.md` auto-discovery, while `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` swaps in the
-  lean built-in system prompt. Both ablate *Claude Code's own* surfaces, so this skill neither sets
-  nor depends on either: the experiment here ablates *your* instructions, which is the part you
+  contract.** They are two distinct documented switches, and both ablate *Claude Code's own*
+  surfaces, so this skill neither sets nor depends on either (Pointer: when deciding what each
+  switch turns off, fetch their rows in
+  [environment variables: variables](https://code.claude.com/docs/en/env-vars#variables) live. As
+  of: 2026-10-11. Recheck trigger: either row starts turning off a surface the operator owns, or the
+  two merge): the experiment here ablates *your* instructions, which is the part you
   own. (Measuring what those product-side switches buy belongs to a context-budget audit, not to
   this experiment.)
 - **Windows:** repo-relative restore paths in `manifest.json` use forward slashes. The manifest

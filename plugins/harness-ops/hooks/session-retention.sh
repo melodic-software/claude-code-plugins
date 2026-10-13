@@ -5,8 +5,10 @@
 # (session_log_keep_sessions, default 30; session_log_keep_days, default 14):
 # a file survives when it is among the newest N OR younger than D days.
 #
-# Budget: SessionEnd hooks get 1.5 s by default, and a plugin-provided timeout
-# cannot raise it (Hooks reference, SessionEnd), so this hook does the least
+# The plugin's hooks module (register.ts) runs it on SessionEnd, beside the
+# event's log line, with the plugin's options as CLAUDE_PLUGIN_OPTION_*.
+#
+# Budget: the session is closing when it runs, so this script does the least
 # possible: FOUR processes on a run that prunes (a sweep of stale pending
 # directories, one `ls -t` for recency, one `find` for age, one `mv` or `rm`
 # over the whole doomed set), and it never reads stdin. The payload is not

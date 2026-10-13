@@ -607,6 +607,10 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   A modest tree whose oldest entry keeps aging is evidence that nothing reclaims it, which a size
   threshold alone cannot see until the volume is already at risk. The contrast case is
   `$CLAUDE_JOB_DIR/tmp`, which has a documented cleanup owner and stays small indefinitely.
+  Pointer: that owner is in
+  [Where state is stored](https://code.claude.com/docs/en/agent-view#where-state-is-stored). As of:
+  2026-10-11. Recheck trigger: that section stops naming when the per-session scratch directory is
+  removed, or is renamed.
 
 - **Why a per-file arm, and why it runs before the walk:** a single runaway background-task output
   can hold nearly all of the tree's bytes. A total-size verdict alone never says which file to
@@ -698,10 +702,14 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   cannot leak a secret the check never loaded. The check never writes: no `Set-Item`,
   `Set-ItemProperty`, `SetEnvironmentVariable`, or Path rewrite.
 
-- **Notes:** `DISABLE_AUTOUPDATER` is the Claude Code / Electron auto-update kill switch. A
-  truthy User-scope value silently freezes the installed binary at whatever version it holds,
-  with no error and no prompt, which is why a set value is a WARN. Duplicate and missing PATH
-  entries are INFO because presence is a shape, not a verdict that the entry should be removed.
+- **Notes:** a truthy persisted `DISABLE_AUTOUPDATER` turns off Claude Code's background
+  updates for every session that inherits it, with no error and no prompt, which is why a set
+  value is a WARN. What the variable does and does not block (manual updates, the separate
+  variable that blocks every update path) is stated in
+  [Disable auto-updates](https://code.claude.com/docs/en/setup#disable-auto-updates); fetch it
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes which update paths
+  `DISABLE_AUTOUPDATER` stops. Duplicate and missing PATH entries are INFO because presence is a
+  shape, not a verdict that the entry should be removed.
 
 ---
 

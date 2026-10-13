@@ -53,6 +53,21 @@
         "Does not query the default recurring literal after the remap",
         "Does not falsely flag schedule entries whose remapped open items exist"
       ]
+    },
+    {
+      "id": 5,
+      "name": "publish-plan-edits-own-marked-comment-in-place",
+      "narration": true,
+      "prompt": "/work-items:track publish-plan 812 .work/invoice-export/PLAN.md\n\nPLAN.md has an Approval: line. Item #812 already has two comments whose first line is <!-- planning:plan v1 -->: comment 4410 written by my login last week, and comment 4502 written by another account that copied the marker.",
+      "expected_output": "Resolves #812 to its qualified ID, reads PLAN.md and checks its Approval: line, writes the marker line, a blank line and the plan text to a temporary file, lists the item's comments, keeps only marker comments authored by the publishing login, and edits comment 4410 in place from the file. Comment 4502 is neither edited nor counted. It reports the update with comment 4410's ID and posts no new comment.",
+      "files": [],
+      "expectations": [
+        "The published body's first line is exactly <!-- planning:plan v1 --> followed by the unchanged plan text",
+        "Matches an earlier plan comment by its first line and by the publishing login, so comment 4502 is ignored",
+        "Edits comment 4410 in place rather than posting a second plan comment",
+        "Passes the body to the adapter as a file, not as text on a command line",
+        "Checks the plan file for an Approval: line before any write"
+      ]
     }
   ]
 }
