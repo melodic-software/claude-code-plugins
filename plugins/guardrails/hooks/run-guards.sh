@@ -99,7 +99,8 @@
 #     heredoc whose delimiter is quoted (`<<'EOF'`, `<<"EOF"`, `<<\EOF`,
 #     `<<-'EOF'`): bash expands nothing there and the library skips it.
 #     block-root-delete-target's substitution scan still reads such a body as
-#     commands unless it plainly feeds `cat`, `tee` or `gh` (#6625). A body
+#     commands unless the whole command is one `cat` or `gh` line feeding it
+#     (#6625). A body
 #     that gives it no work to judge (`$(: rm)`) never starts
 #     its RDT_DEADLINE, so --max-command-len is what bounds the cost: about
 #     1.1 ms per spelling, 2.6 to 3.7 s measured at 16,384 characters. A

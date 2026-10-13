@@ -52,7 +52,7 @@ On the Bash tool, text inside a single-quoted span does not count, whichever spe
 holds, because bash substitutes nothing there. Nor does the body of a heredoc whose
 delimiter is quoted (`<<'EOF'`, `<<"EOF"`, `<<\EOF`): bash expands nothing there, and
 `block-root-delete-target` still reads such a body as commands, at about 1.1 ms per
-spelling, unless the body plainly feeds `cat`, `tee` or `gh`. For a body that gives it
+spelling, unless the whole command is one `cat` or `gh` line feeding it. For a body that gives it
 nothing to judge (`$(: rm)`) its 25-second deadline never starts, so the 16384-character
 command ceiling bounds the cost: 2.6 to 3.7 s measured. Unquoted, double-quoted and unquoted-heredoc-body substitutions still
 count. A command that names a shell, `eval`, `su`, `env`, `source`,
