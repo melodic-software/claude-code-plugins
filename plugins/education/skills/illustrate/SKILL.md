@@ -91,7 +91,8 @@ skill is not installed, say the STE register is unavailable and write in the pla
 
 ## Step 3. Build the record and the page
 
-Pick a short kebab-case slug for the topic. Write the model with the Write tool to
+Pick a short slug for the topic from lowercase letters, digits and hyphens only, since it lands in
+the command below. Write the model with the Write tool to
 `${CLAUDE_PLUGIN_DATA}/illustrate/models/<slug>.json`, then pass that path:
 
 ```bash
