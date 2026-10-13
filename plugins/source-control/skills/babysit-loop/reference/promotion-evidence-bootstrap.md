@@ -148,10 +148,11 @@ binding.
 
 [`scripts/publish-promotion-evidence.mjs`](../scripts/publish-promotion-evidence.mjs) builds the
 events file from GitHub alone, through read-only `gh api` calls: merged pull requests classed by the
-`work-class:` label on their linked issues (or on the pull request when no linked issue has one),
-which of them the `--lane-login` identities merged, reverts of those merges,
-check runs on their merge commits, and the missed-blocking label a human applied. Its header
-comment states what counts as each event, including the judgment mappings.
+`work-class:` labels their linked issues and the pull request carried at merge time, which of them
+the `--lane-login` identities merged, reverts of those merges, every check run and commit status
+on their merge commits, and the missed-blocking label a human applied. Its header comment states
+what counts as each event, including the judgment mappings and how to set `--lane-login` for
+merge-queue merges.
 
 - **Report mode** (no `--out`) prints the events array and the C3 promotion-evidence report to
   stdout and writes nothing. The report gives each promotable cell's predicate terms from
@@ -160,7 +161,8 @@ comment states what counts as each event, including the judgment mappings.
   it could not match to a merge.
 - **`--out <dir>`** writes `evidence.json` and the sidecar `evidence.meta.json`
   (`generated_at`, `through`, `sha256` of the events file, `prev_sha256`), each by a temp file
-  and a rename. It refuses to publish when the new events drop one the previous file held.
+  and a rename. It refuses to publish when the previous events file does not match its sidecar's
+  `sha256`, or when the new events drop one the previous file held.
 
 Run it as the operator, never from the lane, and point `--out` at a directory the lane cannot
 write. Which host runs it, under which identity and on what schedule is not decided yet: it waits

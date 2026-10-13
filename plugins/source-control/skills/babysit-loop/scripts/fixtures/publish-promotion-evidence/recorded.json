@@ -2,6 +2,7 @@
   "pullListItem": {
     "body": "Refs: #7339",
     "labels": [],
+    "created_at": "2026-10-13T00:54:35Z",
     "merge_commit_sha": "aad0b2b69bc22154c61b0857307a183d0c7821a8",
     "merged_at": "2026-10-13T02:42:17Z",
     "number": 7352,
@@ -28,6 +29,12 @@
     "conclusion": "success",
     "name": "lint-repo",
     "status": "completed"
+  },
+  "status": {
+    "context": "ci-lanes",
+    "state": "success",
+    "created_at": "2026-10-13T02:42:00Z",
+    "updated_at": "2026-10-13T02:42:00Z"
   },
   "commit": {
     "commit": {
@@ -59,10 +66,16 @@
       "repository": {
         "pullRequest": {
           "closingIssuesReferences": {
+            "pageInfo": {
+              "hasNextPage": false
+            },
             "nodes": [
               {
                 "number": 6007,
                 "labels": {
+                  "pageInfo": {
+                    "hasNextPage": false
+                  },
                   "nodes": [
                     {
                       "name": "priority: medium"
