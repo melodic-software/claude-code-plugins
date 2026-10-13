@@ -147,6 +147,49 @@ Agent-unwritable, because an agent that can write the file can delete a `reverte
 keep its cell promoted. Outside the target repository's blast radius, for the same reason as the
 binding.
 
+#### The publisher
+
+[`scripts/publish-promotion-evidence.mjs`](../scripts/publish-promotion-evidence.mjs) builds the
+events file from GitHub alone, through read-only `gh api` calls: merged pull requests classed by
+the `work-class:` labels their linked issues and the pull request carried at merge time, which of
+them merged autonomously (no human enqueued them, or a `--lane-login` identity merged them),
+reverts of those merges, the post-merge gate (the full and canary workflow runs on any later
+commit that contains the merge, the dispatch deadline and the pin read-back, read as
+`babysit-prs/scripts/babysit_postmerge.py` reads them, and the checks named by the required
+`--gate-check` on the merge commit), and the missed-blocking label a human applied. An autonomous
+merge whose class cannot be read is listed as unclassed, and its contrary events count against
+every promotable cell. Its header comment states what counts as each event, including the
+judgment mappings and how to set `--lane-login` for merge-queue merges.
+
+- **Report mode** (no `--out`) prints the events array and the C3 promotion-evidence report to
+  stdout and writes nothing. The report gives each promotable cell's predicate terms from
+  [work-classes.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/reference/guardrails/work-classes.md)
+  "Suggested default predicates" with counts, window and pass or fail, and lists merged reverts
+  it could not match to a merge.
+- **Deployment defaults:** `--missed-blocking-label ai-review: missed-blocking` (the script's
+  default), and `--ai-reviewer claude[bot] --ai-reviewer chatgpt-codex-connector[bot]`, the REST
+  spellings of the review bots on this repository's pull requests (read from #7361's reviews,
+  2026-10-13).
+- **Every revert counts** as `reverted-merge`, whoever merged or enqueued the revert pull request
+  (a human, a bot or the lane), and so does a revert commit pushed with no pull request. The
+  trade-off: a bot able to merge reverts can hold a cell down. That fails safe, because a revert
+  can only demote.
+- **`--out <dir>`** writes `evidence.json` and the sidecar `evidence.meta.json`
+  (`generated_at`, `through`, `sha256` of the events file, `prev_sha256`), each by a temp file
+  and a rename. It refuses to publish when the previous events file does not match its sidecar's
+  `sha256`, or when the new events drop one the previous file held.
+
+Run it as the operator, never from the lane, and point `--out` at a directory the lane cannot
+write. Which host runs it, under which identity and on what schedule is the operator's
+deployment choice. The resolver does not read the sidecar.
+
+The post-merge check dispatches its full run under the lane identity. Where the permission that
+dispatch needs also lets that identity delete a red run before the publisher reads it, either the
+dispatch moves to an identity the lane cannot use, or a deleted red run stays a named residual
+risk. Which permission covers dispatch and which covers run deletion: GitHub's
+[Actions repository permissions table](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions)
+(as of 2026-10-13; recheck when GitHub adds or splits an Actions permission).
+
 ### `promotion_evidence_checker`
 
 The `check-security-binding.mjs` the helper runs (the autonomy plugin's
