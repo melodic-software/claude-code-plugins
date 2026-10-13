@@ -53,8 +53,9 @@ save-point engine, different delivery.
 `$ARGUMENTS` carries `[unattended] [file|prompt] [topic] [purpose...]`, all optional and positional:
 
 - **`unattended`**. A leading bare `unattended` token is consumed before method detection. It
-  changes only the `/export` step (record the suggestion in output, do not ask) and is never read as
-  the topic or a method; the Method rule below then applies to the next token.
+  changes only the steps that would ask the user: the `/export` step (record the suggestion in
+  output, do not ask) and stuck dependent work ("Settle in-flight work before writing"). It is
+  never read as the topic or a method; the Method rule below then applies to the next token.
 - **Method** (`file` | `prompt`). Recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
   path").
@@ -184,6 +185,12 @@ warns on the second copy.
 The constraints re-scan attestation is not a cumulative entry. It goes on the `Re-scan:` line of
 `## This session`, which is rewritten every hop, so it never accumulates.
 
+## Settle in-flight work before writing
+
+Before `save_point.py new` (or the prompt-only rails prompt), sort every still-running item of
+off-thread work this session started or inherited per [`reference/settle-in-flight.md`](reference/settle-in-flight.md):
+wait for dependent work, record independent work, and on stuck dependent work let the user choose.
+
 ## WIP commit on an explicit pause
 
 `wip_commit` (default `false`) lets this skill make one local commit of the paused work before it
@@ -286,7 +293,8 @@ because the rails prompt is the deliverable the operator copies, and under heavy
 that ends on anything else can run out of room before the rails prompt appears: the save-point
 file exists, but the operator has nothing to paste after `/clear`. A response whose last text is
 not the rails block (plus its below-rail notes) is a FAILED handoff even when every box above is
-ticked. Emit the rails block before ending the turn, always.
+ticked. Emit the rails block before ending the turn, always. Except: a turn ended before `new`
+to wait for dependent work ("Settle in-flight work before writing") wrote no save-point yet.
 
 **Full path:**
 
@@ -295,7 +303,9 @@ ticked. Emit the rails block before ending the turn, always.
   current unit marked, completeness line, and the three one-line blocks, OR an explicit line saying
   the units would not resolve. Never a rail whose units were invented to fill it
 - [ ] `memory_dir` resolved (a root `CLAUDE.md` / `.claude/rules/` declares, else `.work`; never
-  the literal `.work` assumed), the root-equivalence refusal and the self-ignore guard run, and
+  the literal `.work` assumed), in-flight work settled per "Settle in-flight work before writing"
+  (each running item waited for, independent, or recorded in flight, OR none running), the
+  root-equivalence refusal and the self-ignore guard run, and
   `save_point.py new` invoked through the interpreter ladder as `"$PY" -X utf8 …` with
   `--previous <file>` or `--no-previous`. The path `new` printed is the ONE path used for every
   later step (`fill`, `validate`, `emit`, the directive), never recomputed in bash. `new` refused
@@ -396,6 +406,7 @@ ticked. Emit the rails block before ending the turn, always.
 **Prompt-only path:**
 
 - [ ] Prompt-only justified (all auto-detect criteria hold, OR `prompt` explicitly passed)
+- [ ] In-flight work settled before the rails prompt, as on the full path
 - [ ] Position panel emitted per the engine doc ("Emit the position panel"), OR an explicit line
   saying the units would not resolve. Prompt-only writes no file, so this is the ONLY place the
   operator sees where the work stands, the path where skipping it costs the most. Unit ladder rung
