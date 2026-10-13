@@ -836,16 +836,26 @@ def dequeue_identity_entries(
     for `numbers` when given, appending each pull request number to
     `dequeued` as it goes. Returns how many entries have an unknown enqueuer:
     those cannot be judged the identity's and are left for the caller to
-    report. Never touches another actor's entry. Raises `PostMergeReadError`
-    or `PostMergeWriteError`."""
+    report. Never touches another actor's entry. Every entry is tried; a
+    failed one does not stop the rest. Raises `PostMergeReadError`, or
+    `PostMergeWriteError` naming every failed entry."""
     owner, name = _split_repo(repo)
     entries, unknown = _identity_entries(owner, name, branch, identity)
+    failed: list[str] = []
     for pr_id, number in entries:
         if numbers is not None and number not in numbers:
             continue
-        _graphql(DEQUEUE_MUTATION, f"dequeue #{number}", PostMergeWriteError, id=pr_id)
+        try:
+            _graphql(
+                DEQUEUE_MUTATION, f"dequeue #{number}", PostMergeWriteError, id=pr_id
+            )
+        except PostMergeWriteError as exc:
+            failed.append(str(exc))
+            continue
         if dequeued is not None:
             dequeued.append(number)
+    if failed:
+        raise PostMergeWriteError("; ".join(failed))
     return unknown
 
 

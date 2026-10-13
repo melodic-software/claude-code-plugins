@@ -152,6 +152,63 @@ test("values offered only by the env mirror, the checkout, or another plugin's e
   rmSync(join(checkout, ".claude"), { recursive: true, force: true });
 });
 
+// A stub checker that records the evidence file it was handed, then prints `stdout`.
+function recordingStub(stdout, record) {
+  stubCount += 1;
+  const path = join(ops, `checker-${stubCount}.mjs`);
+  writeFileSync(
+    path,
+    `import { readFileSync, writeFileSync } from "node:fs";
+const [binding, flag, evidence, rootFlag, root] = process.argv.slice(2);
+if (binding !== ${JSON.stringify(surfaces.binding)} || flag !== "--evidence" || rootFlag !== "--probe-evidence-root" || root !== ${JSON.stringify(surfaces.root)}) process.exit(9);
+writeFileSync(${JSON.stringify(record)}, JSON.stringify({ evidence, events: JSON.parse(readFileSync(evidence, "utf8")) }));
+process.stdout.write(${JSON.stringify(stdout)});
+`,
+  );
+  return path;
+}
+
+test("--window-start hands the checker a copy with one gate-failure per cell at that instant", cli, () => {
+  const record = join(ops, "record.json");
+  const prior = { cell: "C2-auto-merge", event: "reverted-merge", at: "2026-10-01T00:00:00Z" };
+  writeFileSync(surfaces.evidence, JSON.stringify([prior]));
+  try {
+    const result = runWith(recordingStub(GOOD_OUTPUT, record), {}, { args: { "window-start": "2026-10-11T07:00:00Z" } });
+    assert.equal(result.failClosedReason, null);
+    const seen = JSON.parse(readFileSync(record, "utf8"));
+    assert.notEqual(seen.evidence, surfaces.evidence);
+    assert.deepEqual(seen.events, [prior, ...CELLS.map((cell) => ({ cell, event: "gate-failure", at: "2026-10-11T07:00:00Z" }))]);
+    // The copy is gone once the helper exits, and the source is untouched.
+    assert.throws(() => readFileSync(seen.evidence));
+    assert.deepEqual(JSON.parse(readFileSync(surfaces.evidence, "utf8")), [prior]);
+  } finally {
+    writeFileSync(surfaces.evidence, "[]");
+  }
+});
+
+test("a missing, empty or malformed --window-start fails closed", cli, () => {
+  const checker = recordingStub(GOOD_OUTPUT, join(ops, "unused.json"));
+  for (const bad of ["", "2026-10-11", "2026-10-11T07:00:00", "2026-02-30T07:00:00Z", "2026-10-11T07:00:00.123456Z"]) {
+    assertFailClosed(runWith(checker, {}, { args: { "window-start": bad } }), /--window-start .* is not an ISO 8601/);
+  }
+  writeSettings(operatorOptions(checker));
+  const run = spawnSync(process.execPath, [HELPER, "--checkout", checkout, "--window-start"], { encoding: "utf8", cwd: checkout });
+  assertFailClosed(JSON.parse(run.stdout), /usage: /);
+});
+
+test("--window-start over an unreadable or non-array source fails closed", cli, () => {
+  const checker = recordingStub(GOOD_OUTPUT, join(ops, "unused.json"));
+  const args = { args: { "window-start": "2026-10-11T07:00:00Z" } };
+  try {
+    writeFileSync(surfaces.evidence, "{ not json");
+    assertFailClosed(runWith(checker, {}, args), /promotion_evidence_source .* cannot be read as JSON/);
+    writeFileSync(surfaces.evidence, "{}");
+    assertFailClosed(runWith(checker, {}, args), /promotion_evidence_source .* is not a JSON array/);
+  } finally {
+    writeFileSync(surfaces.evidence, "[]");
+  }
+});
+
 test("checker exiting 1 fails closed", cli, () => {
   assertFailClosed(runWith(stub(GOOD_OUTPUT, 1)), /checker exited 1/);
 });

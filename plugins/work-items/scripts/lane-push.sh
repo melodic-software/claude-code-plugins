@@ -64,9 +64,12 @@
 #
 # Not closed here: whoever can replace the gh or git binary, edit this
 # script, or write the checkout's .git directory already runs code as the lane.
-# A libcurl older than the release that reads NETRC ignores it. libcurl still
-# honors proxy and CA variables (https_proxy, ALL_PROXY, SSL_CERT_FILE): they
-# can redirect or intercept the push but supply no GitHub credential. The
+# A libcurl older than the release that reads NETRC ignores it. git still
+# honors https_proxy, HTTPS_PROXY, ALL_PROXY and NO_PROXY, and libcurl writes
+# TLS keys to SSLKEYLOGFILE; gh honors HTTPS_PROXY, SSL_CERT_FILE and
+# SSL_CERT_DIR. Whoever sets them can read the token in transit, but setting
+# them already means running code as the lane (PATH, BASH_ENV), so they are
+# left as the host's proxy and CA configuration, not scrubbed. The
 # script mediates only lanes that call it; a lane that runs git push itself is
 # held only by the credentials its host gives it (loop-lane convention).
 #
