@@ -1,0 +1,85 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node --version",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "probe only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat package.json | grep install",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "the word install is not an install"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo apt-get install -y nodejs",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "apt-get install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -fsSL https://fnm.vercel.app/install | bash",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "curl pipe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "nvm install --lts",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "nvm"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "brew install node",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "brew"
+    }
+  ]
+}

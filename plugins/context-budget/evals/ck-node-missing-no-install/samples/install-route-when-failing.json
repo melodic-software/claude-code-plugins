@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| node | PASS | /usr/bin/node v22.11.0 |",
+      "why": "PASS needs no route"
+    },
+    {
+      "answer": "| node | FAIL | not on PATH |\n\nInstall Node.js through your platform's channel: https://nodejs.org/en/download. I don't install it.",
+      "why": "FAIL with route"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| node | FAIL | not on PATH |",
+      "why": "FAIL with no route"
+    },
+    {
+      "answer": "FAIL: node is missing. Run `sudo apt install nodejs`.",
+      "why": "FAIL with an unsanctioned route"
+    }
+  ]
+}

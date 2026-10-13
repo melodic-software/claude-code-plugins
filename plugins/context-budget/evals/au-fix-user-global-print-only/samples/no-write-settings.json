@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/home/u/.claude/settings.json"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/home/u/.claude/plugins/data/context-budget/audit/x/reports/r.md",
+            "content": "report"
+          }
+        }
+      ],
+      "why": "report write is not a settings write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/home/u/.claude/settings.json",
+            "content": "{\"permissions\":{\"deny\":[\"WebFetch\"]}}"
+          }
+        }
+      ],
+      "why": "wrote user settings"
+    }
+  ]
+}

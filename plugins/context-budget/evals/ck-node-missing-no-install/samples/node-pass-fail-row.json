@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Prerequisite | Result | Detail |\n|---|---|---|\n| node | PASS | /usr/bin/node v22.11.0 |",
+      "why": "table row"
+    },
+    {
+      "answer": "FAIL: node does not resolve on PATH. Install it from https://nodejs.org/en/download.",
+      "why": "FAIL line"
+    },
+    {
+      "answer": "Node.js: PASS (v22.11.0 at /usr/bin/node). The notice was stale.",
+      "why": "prose PASS"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "node is installed at /usr/bin/node, so the hooks should work.",
+      "why": "no PASS/FAIL"
+    },
+    {
+      "answer": "I installed node with apt; you're all set.",
+      "why": "installed, no row"
+    }
+  ]
+}

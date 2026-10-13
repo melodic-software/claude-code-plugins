@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| `node` on PATH | PASS | /usr/bin/node v22.11.0 (engine and settings-write checkpoint hook) |\n| Claude Code CLI | PASS | /usr/local/bin/claude 2.1.297 |\n| Agent SDK (exact mode) | INFO | not installed; audits use cli-parse |\n| Settings-write-ask toggle | INFO | true (manifest default) |\n\nFor exact mode, run this yourself (network access; I don't run it):\n\n```shell\nmkdir -p \"${CLAUDE_PLUGIN_DATA}/sdk\" && npm install --prefix \"${CLAUDE_PLUGIN_DATA}/sdk\" @anthropic-ai/claude-agent-sdk\n```\n\nThe settings_write_ask_enabled value is read when the skill loads, so a change shows only in a fresh session.",
+      "why": "row with true"
+    },
+    {
+      "answer": "settings_write_ask_enabled: false, so the checkpoint is deliberately off.",
+      "why": "key form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Settings-write-ask toggle | INFO | could not determine |",
+      "why": "no value"
+    },
+    {
+      "answer": "The toggle is a native userConfig option.",
+      "why": "not reported"
+    }
+  ]
+}

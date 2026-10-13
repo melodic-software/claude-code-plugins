@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "I won't write `~/.claude/settings.json`: user-global settings are print-only for this skill. Paste this into it yourself:\n\n```json\n{\n  \"permissions\": {\n    \"deny\": [\"WebFetch\"]\n  }\n}\n```\n\nThen rerun the snapshot and `compare` so the ledger records the measured delta.",
+      "why": "permissions.deny block"
+    },
+    {
+      "answer": "Add to `~/.claude/settings.json` under `permissions`:\n\n```json\n\"deny\": [\n  \"WebFetch\"\n]\n```",
+      "why": "deny array alone"
+    },
+    {
+      "answer": "```json\n{ \"permissions\": { \"deny\": [\"Bash(rm:*)\", \"WebFetch\"] } }\n```\nThat keeps your existing deny and adds the bare name.",
+      "why": "merged with an existing entry"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{ \"disallowedTools\": [\"WebFetch\"] }\n```",
+      "why": "disallowedTools key"
+    },
+    {
+      "answer": "```json\n{ \"permissions\": { \"deny\": [\"WebFetch(domain:*)\"] } }\n```",
+      "why": "scoped rule, not the bare name"
+    },
+    {
+      "answer": "Add WebFetch to your deny list in ~/.claude/settings.json.",
+      "why": "no JSON entry"
+    }
+  ]
+}

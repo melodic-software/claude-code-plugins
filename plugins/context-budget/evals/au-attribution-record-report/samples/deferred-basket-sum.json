@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Stamp:** `/usr/local/lib/claude-code/bin/claude` 2.1.297, mode `sdk` (exact), sessionKind headless.\n\n| Tool | prefixDelta | deferredDelta | comparable |\n|---|---|---|---|\n| WebFetch | -1,387 | -2,264 | yes |\n| NotebookEdit | -913 | -1,478 | yes |\n| TodoWrite | -622 | 0 | yes |\n| Workflow | incomparable: skill-listing signature changed between the baseline and the deny run | | no |\n\nBasket of WebFetch, NotebookEdit and TodoWrite: the deferred side adds, so it saves 3,742 tokens of request weight. The prefix sum, 2,922, is only an upper bound: prefix deltas double-count. Run `attribute --verify-additivity` to measure the combined deny.",
+      "why": "3,742"
+    },
+    {
+      "answer": "Deferred side: 2264 + 1478 + 0 = 3742 tokens of request weight.",
+      "why": "unformatted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stamp: 2.1.297 at /usr/local/lib/claude-code/bin/claude, sdk, headless.\n\n| Tool | saved |\n|---|---|\n| Workflow | 5,000 |\n| WebFetch | 3,651 |\n| NotebookEdit | 2,391 |\n| TodoWrite | 622 |\n\nDenying the three together saves 6,664 tokens.",
+      "why": "merged total only"
+    }
+  ]
+}

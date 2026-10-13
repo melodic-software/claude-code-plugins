@@ -1,0 +1,128 @@
+{
+  "skill": "context-budget:audit",
+  "plugin": "context-budget",
+  "skill_dir": "plugins/context-budget/skills/audit",
+  "ranking_note": "Authored from the before descriptions at commit 1e8ff6f8bbc232b84b12f6888a85dafc502d5f8b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the context-budget setup skill (user-invoked, a near-miss target) and the nearby model-invoked skills.",
+  "competitors": [
+    "context-budget:setup",
+    "context-guard:check",
+    "harness-ops:observability",
+    "harness-ops:audit-skill-visibility"
+  ],
+  "competitor_dirs": {
+    "context-budget:setup": "plugins/context-budget/skills/setup",
+    "context-guard:check": "plugins/context-guard/skills/check",
+    "harness-ops:observability": "plugins/harness-ops/skills/observability",
+    "harness-ops:audit-skill-visibility": "plugins/harness-ops/skills/audit-skill-visibility"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I type anything, how many tokens does Claude Code already load into a fresh session?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My context seems half full the moment I open a new chat. Can you break down where that comes from?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which of the built-in tools weigh the most in my prompt payload?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I turned off a few MCP servers yesterday. Did that actually make the startup prompt smaller?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a per-item accounting of the baseline prompt size, tool by tool."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run a measurement of the initial prompt cost, and be thorough about it, every tool."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I disabled a built-in tool in settings. Prove whether it saved anything."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Show me the ledger of every knob I've tried to shrink startup tokens and what each one gained."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Trim the single biggest contributor to my opening prompt, I'll approve it."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What does the cold-start prompt cost me per tool, measured against the real CLI?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "How full is my context window right now, mid-conversation?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why did this session use so many tokens? Walk me through it in plain words."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which of my skills is Claude not able to see because the listing overflows?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is node installed so the context-budget hooks can run?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What did my token spend look like across the last week of sessions?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which hooks fired in the previous session and how slow were they?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check whether the context-guard hook has what it needs, node and jq."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Set up context-budget for me and tell me why exact mode is unavailable."
+    }
+  ]
+}

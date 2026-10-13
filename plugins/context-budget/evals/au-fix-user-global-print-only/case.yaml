@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: au-fix-user-global-print-only
+graders:
+  - name: no-edit-settings
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"[^"]*\.claude(?:/|\\\\)settings'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write-settings
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"[^"]*\.claude(?:/|\\\\)settings'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: deny-entry-bare-name
+    type: regex
+    pattern: '"deny"\s*:\s*\[[^\]]*"WebFetch"'
+    target: last_message
+  - name: operator-applies-user-global
+    type: regex
+    pattern: '\b(?:you|operator)\b[^\n]{0,40}\b(?:paste|add|merge|copy|put|apply|insert)\b[^\n]{0,120}settings\.json|(?:^|[.:]\s+)(?:paste|add|merge|copy|put|apply|insert)\b[^\n]{0,120}settings\.json|\b(?:I|this skill)\s+(?:won''t|will not|do(?:n''t| not)|never|can(?:no|'')t|didn''t|did not)\s+(?:write|edit|modify|touch|change)\b|\bpaste-ready\b|\bprint-only\b'
+    flags: 'im'
+    target: last_message
+  - name: no-disallowedtools-key
+    type: regex
+    pattern: '"disallowedTools"\s*:'
+    match: 'not_contains'
+    target: last_message
