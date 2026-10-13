@@ -368,7 +368,7 @@ test("a surface the lane user owns, or a directory above it, fails closed naming
 test("a settings file the lane user owns, or a directory above it, fails closed naming the file", cli, () => {
   for (const owned of [userSettings, config]) {
     const result = runWith(stub(GOOD_OUTPUT), {}, { helper: seam({ owned: [owned] }) });
-    assertFailClosed(result, new RegExp(`^lane-writable:${RegExp.escape(userSettings)}$`));
+    assertFailClosed(result, new RegExp(`^lane-writable:${escapeRe(userSettings)}$`));
   }
 });
 
