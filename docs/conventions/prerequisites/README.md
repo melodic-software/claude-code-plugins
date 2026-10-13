@@ -2,8 +2,8 @@
 
 A plugin declares every external dependency it needs in one file, `prerequisites.json` at the
 plugin root. One checker reads that file for setup skills, check skills, hooks and the fleet
-report, and one CI gate fails when the file and the plugin's scripts disagree. The absence classes, and the rule that a skipped
-feature is never silent, stay in
+report, and one CI gate fails when the file and the plugin's scripts disagree. The absence
+classes, and the rule that a skipped feature is never silent, stay in
 [`docs/plugin-philosophy.md`](../../plugin-philosophy.md#prerequisites-and-failure-behavior); this
 document owns the file, the checker, the gate, and the rule for
 [offering a fix when a check fails](#when-a-check-fails-offer-the-fix-run-it-on-a-yes).
