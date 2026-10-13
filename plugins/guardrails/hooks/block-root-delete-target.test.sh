@@ -1967,7 +1967,7 @@ expect_both 'PS ::$INDEX_ALLOCATION on a drive root blocks with no cwd' 2 \
 expect_both 'PS a drive letter before ::$INDEX_ALLOCATION blocks as the drive' 2 \
   --tool PowerShell --command "Remove-Item -Recurse -Force 'C::\$INDEX_ALLOCATION'"
 expect_both 'PS ::$INDEX_ALLOCATION on a UNC share root blocks with no cwd' 2 \
-  --tool PowerShell --command "Remove-Item -Recurse -Force '\\\\srv\\share::\$INDEX_ALLOCATION'"
+  --tool PowerShell --command "Remove-Item -Recurse -Force '\\\\srv\\share::\$INDEX_ALLOCATION'" # portability-ok: Windows UNC path string in a test fixture
 expect_both 'PS ::$INDEX_ALLOCATION on ~ blocks with no cwd' 2 \
   --tool PowerShell --command "Remove-Item -Recurse -Force '~::\$INDEX_ALLOCATION'"
 # The literal-`$` marker byte is one the command does not carry, so a control
