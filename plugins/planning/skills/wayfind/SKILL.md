@@ -183,8 +183,8 @@ session. Do not fabricate a map.
      Never reopen the old item or edit its resolution comment.
 7. **Map closure → destination handoff.** When the frontier is empty and every decision item
    is closed, the destination is coherent: close the map issue and hand the destination
-   onward (`/planning:interview` or `/planning:prd` for a Brief/PRD; `/planning:plan`
-   for a PLAN). A map's job ends where the pipeline's begins.
+   onward (`/planning:interview` or `/planning:prd` for a Brief/PRD; `/planning:design`,
+   ahead of `/planning:plan`, for a PLAN). A map's job ends where the pipeline's begins.
 
 ## Escalation. Pull the user back to charting at choke points
 
@@ -204,7 +204,7 @@ owns the trigger's meaning (too-big + fog, both, not either alone).
 | Design-space item | `/planning:design`, `/event-storming:*` | `design`-typed items route here |
 | Feasibility / UX unknown | `/prototype:pressure-test`, `/prototype:explore-directions` | `prototype`-typed items route here |
 | External-evidence item | `/discovery:research` | `research`-typed items route here (autonomous) |
-| The plan itself | `/planning:plan` | Graduation target when the destination is a PLAN |
+| The plan itself | `/planning:plan` | Follows `/planning:design` when the destination is a PLAN |
 
 For pre-implementation efforts, the routed items above compose into a known order (blindspot →
 brainstorm/prototype → PRD → interview, escalating here when it outgrows one session → reference
@@ -232,7 +232,7 @@ the marketplace repository states it with rationale.
 
 - A brand-new effort with no interview behind it: /planning:interview.
 - The map is charted: /planning:wayfind work.
-- The map closed and its destination is a PLAN: /planning:plan.
+- The map closed: /planning:interview for a Brief destination, /planning:prd for a PRD, /planning:design ahead of the plan for a PLAN.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## Reference

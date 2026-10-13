@@ -72,6 +72,10 @@ slice that fails one before moving to the next:
 
 When two cuts both pass, take the one with more, thinner vertical slices.
 
+A source that is one unit of work (a plan handed to a later session, an AFK lane or another person)
+publishes as one vertical slice. It still goes through Step 3's approval, and its body still carries
+the acceptance criteria and the quoted design part.
+
 **Classify each vertical slice:**
 
 | Type | Meaning | Role → label |
