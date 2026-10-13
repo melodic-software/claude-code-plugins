@@ -12,7 +12,7 @@ TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 CASE_NUM=0
-EXPECTED_CASES=21
+EXPECTED_CASES=22
 
 pass() { CASE_NUM=$((CASE_NUM + 1)); printf 'PASS: %s\n' "$1"; }
 fail() {
@@ -37,9 +37,11 @@ por="$TEST_TMPDIR/list.z"
 git -C "$TEST_TMPDIR/repo" worktree list --porcelain -z >"$por"
 worktree_facts_parse_z "$por"
 # Porcelain paths are git's own spelling of the fixture dir: C:/... on Windows
-# Git Bash, symlinks resolved elsewhere. Match against that, read from the main
-# checkout's record, not the /tmp/... spelling mktemp returned.
-GIT_TMPDIR="${WT_FACT_PATH[0]%/repo}"
+# Git Bash, symlinks resolved elsewhere. Build that spelling without the parser
+# under test, not the /tmp/... spelling mktemp returned.
+GIT_TMPDIR="$(cd "$TEST_TMPDIR" && pwd -P)"
+if command -v cygpath >/dev/null 2>&1; then GIT_TMPDIR="$(cygpath -m "$GIT_TMPDIR")"; fi
+assert_eq "main checkout path is git's spelling of the fixture" "${WT_FACT_PATH[0]}" "$GIT_TMPDIR/repo"
 assert_eq "helper lock: reason round-trips through porcelain" "${WT_FACT_LOCKED[1]}" "$helper_reason"
 if worktree_reason_is_ours "${WT_FACT_LOCKED[1]}" sess-owner; then
   pass "helper lock: check-enter token matches the creator"
