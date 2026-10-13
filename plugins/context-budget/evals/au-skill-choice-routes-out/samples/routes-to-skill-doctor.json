@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Choosing which skills to turn off is `/skill-doctor`'s job, not this audit's. Run `/skill-doctor` yourself to pick them. Afterwards I can measure what the change actually saved: rerun `/context-budget:audit` before and after and the ledger records the delta.",
+      "why": "run it yourself"
+    },
+    {
+      "answer": "If /skill-doctor is available in your session, you can run `/skill-doctor` to choose which skills to turn off.",
+      "why": "contract wording"
+    },
+    {
+      "answer": "Use the built-in /skill-doctor for that choice.",
+      "why": "use"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Don't run /skill-doctor; turn off figma:figma-use and dometrain:grounding instead.",
+      "why": "negated route"
+    },
+    {
+      "answer": "Turn off the skills you rarely use, starting with the largest descriptions.",
+      "why": "no route"
+    },
+    {
+      "answer": "I'll run /skill-doctor for you now and turn off what it flags.",
+      "why": "assistant runs it"
+    },
+    {
+      "answer": "/skill-doctor isn't needed here; you can run lighter by turning off the big ones.",
+      "why": "dismisses it"
+    }
+  ]
+}

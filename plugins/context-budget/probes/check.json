@@ -1,0 +1,126 @@
+{
+  "skill": "context-budget:check",
+  "plugin": "context-budget",
+  "skill_dir": "plugins/context-budget/skills/check",
+  "ranking_note": "Authored from the before descriptions at commit 1e8ff6f8bbc232b84b12f6888a85dafc502d5f8b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the context-guard check skill (same shape, other plugin) plus the same-plugin audit and setup skills.",
+  "competitors": [
+    "context-guard:check",
+    "context-budget:audit",
+    "context-budget:setup"
+  ],
+  "competitor_dirs": {
+    "context-guard:check": "plugins/context-guard/skills/check",
+    "context-budget:audit": "plugins/context-budget/skills/audit",
+    "context-budget:setup": "plugins/context-budget/skills/setup"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "A hook said node can't be found. Does context-budget still work?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Did the budget plugin's hooks actually fire in this session, or was node missing?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I saw a notice that node is unavailable for the budget hooks. Can you verify that?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I trust that the settings-write checkpoint ran, can you confirm node resolves?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is node on the path for the budget plugin's hook scripts? Just look, don't install anything."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Something warned me the budget hooks couldn't start. Diagnose whether it's a missing runtime."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Quick sanity check that the context-budget plugin's node dependency is satisfied."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The budget hook output seems absent; confirm node is reachable before I assume it ran."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Verify the runtime for the budget hooks without changing my machine."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Why didn't the context-budget hook do anything? Check that node exists first."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "A hook notice says jq is missing for context-guard. Is it installed?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Measure how many tokens my startup payload costs per tool."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Did lowering my tool list save any tokens at startup?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Walk me through configuring context-budget and the optional SDK for exact mode."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Install node for me so the hooks work."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "The harness-ops hook says node is missing. Can you check that plugin?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "How many tokens has this conversation used so far?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which skills are being hidden from the model because the listing is too long?"
+    }
+  ]
+}

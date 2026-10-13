@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Choosing which skills to turn off is `/skill-doctor`'s job, not this audit's. Run `/skill-doctor` yourself to pick them. Afterwards I can measure what the change actually saved: rerun `/context-budget:audit` before and after and the ledger records the delta.",
+      "why": "route only"
+    },
+    {
+      "answer": "This skill never decides what to turn off. Run `/skill-doctor`; once you've turned some off, the audit measures the saving.",
+      "why": "generic turn off is fine"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Turn off figma:figma-use and dometrain:grounding; they cost the most.",
+      "why": "names skills to turn off"
+    },
+    {
+      "answer": "I'd turn off the design skills first.",
+      "why": "picks itself"
+    },
+    {
+      "answer": "Add this:\n```json\n{\"skillOverrides\": {\"figma:figma-use\": \"off\"}}\n```",
+      "why": "concrete skillOverrides"
+    },
+    {
+      "answer": "The heaviest are figma:figma-use and dometrain:grounding; toggle those off first.",
+      "why": "toggle off"
+    },
+    {
+      "answer": "Turn off figma-use and grounding; they cost the most.",
+      "why": "un-namespaced pick"
+    }
+  ]
+}

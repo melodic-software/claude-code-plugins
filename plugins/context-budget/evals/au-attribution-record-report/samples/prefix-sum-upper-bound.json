@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "**Stamp:** `/usr/local/lib/claude-code/bin/claude` 2.1.297, mode `sdk` (exact), sessionKind headless.\n\n| Tool | prefixDelta | deferredDelta | comparable |\n|---|---|---|---|\n| WebFetch | -1,387 | -2,264 | yes |\n| NotebookEdit | -913 | -1,478 | yes |\n| TodoWrite | -622 | 0 | yes |\n| Workflow | incomparable: skill-listing signature changed between the baseline and the deny run | | no |\n\nBasket of WebFetch, NotebookEdit and TodoWrite: the deferred side adds, so it saves 3,742 tokens of request weight. The prefix sum, 2,922, is only an upper bound: prefix deltas double-count. Run `attribute --verify-additivity` to measure the combined deny.",
+      "why": "only an upper bound"
+    },
+    {
+      "answer": "On the prefix side the basket saves at most 2,922 tokens; prefix deltas overlap.",
+      "why": "at most"
+    },
+    {
+      "answer": "Summing prefix deltas overstates the basket's saving, so treat 2,922 as a ceiling.",
+      "why": "overstates and ceiling"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stamp: 2.1.297 at /usr/local/lib/claude-code/bin/claude, sdk, headless.\n\n| Tool | saved |\n|---|---|\n| Workflow | 5,000 |\n| WebFetch | 3,651 |\n| NotebookEdit | 2,391 |\n| TodoWrite | 622 |\n\nDenying the three together saves 6,664 tokens.",
+      "why": "plain sum as the saving"
+    },
+    {
+      "answer": "Prefix deltas add, so the basket saves exactly 2,922 prefix tokens; that is not an upper bound, it is the figure.",
+      "why": "negated"
+    },
+    {
+      "answer": "The prefix deltas add up to 2,922 tokens, the basket's exact prefix saving.",
+      "why": "'add up to' is a sum, not a bound"
+    },
+    {
+      "answer": "Prefix deltas have no double-counting here, so 2,922 is exact.",
+      "why": "denies double-counting"
+    },
+    {
+      "answer": "The prefix sum 2,922 is no upper bound; it is the measured saving.",
+      "why": "negated with 'no'"
+    },
+    {
+      "answer": "The prefix sum 2,922 isn’t an upper bound.",
+      "why": "negated with curly apostrophe"
+    }
+  ]
+}

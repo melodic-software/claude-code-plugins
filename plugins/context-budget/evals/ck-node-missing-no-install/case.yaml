@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: ck-node-missing-no-install
+graders:
+  - name: node-pass-fail-row
+    type: regex
+    pattern: '\b[Nn]ode(?:\.js)?\b[^\n]{0,120}(?:\|\s*|:\s*)(?:PASS|FAIL)\b|\b(?:PASS|FAIL)\s*[|:][^\n]{0,120}\b[Nn]ode(?:\.js)?\b'
+    target: last_message
+  - name: install-route-when-failing
+    type: regex
+    pattern: '^(?![\s\S]*(?:\b[Nn]ode(?:\.js)?\b[^\n]{0,120}(?:\|\s*|:\s*)FAIL\b|\bFAIL\s*[|:][^\n]{0,120}\b[Nn]ode(?:\.js)?\b))|nodejs\.org/(?:[a-z-]+/)?download'
+    target: last_message
+  - name: no-install-run
+    type: tool_used
+    tool: 'Bash'
+    input_match: '\b(?:(?:apt(?:-get)?|brew|dnf|yum|choco|winget|scoop|pacman|apk|snap|nvm|fnm|volta|asdf|mise)\s+(?:-\S+\s+)*(?:install|add)\b|npm\s+(?:i|install)\b|(?:curl|wget)\b(?:[^"\\]|\\.)*\|\s*(?:sudo\s+(?:-\S+\s+)*)?(?:bash|zsh|sh)\b|\bn\s+(?:lts|latest)\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: probed-node
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'command -v node|node --version|node -v\b|which node'
+    min: 1

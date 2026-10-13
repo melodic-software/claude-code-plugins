@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "I can't measure that here: the engine needs Bash and node, and neither is available in this session.",
+      "why": "can't measure"
+    },
+    {
+      "answer": "Measurement is unavailable: this session has no shell, so `measure.mjs` cannot run. No number until it does.",
+      "why": "unavailable"
+    },
+    {
+      "answer": "I could not run the startup measurement, so the Bash tool's cost is unmeasured on this machine.",
+      "why": "could not run"
+    },
+    {
+      "answer": "No measurement was taken in this session, so there is no figure to report.",
+      "why": "no measurement"
+    },
+    {
+      "answer": "No figure from me: the measurement did not complete, because the snapshot found no Claude Code binary to pin. Point the audit at one with --binary and rerun it.",
+      "why": "subject-first gap wording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The Bash tool costs about 1,400 tokens at startup on a typical install.",
+      "why": "estimate, no gap"
+    },
+    {
+      "answer": "I measured it: denying Bash by bare name saved 1,412 prefix tokens.",
+      "why": "claims a measurement it could not run"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    },
+    {
+      "answer": "The measurement did run and finished cleanly; the startup cost of Bash is low.",
+      "why": "affirms a measurement ran"
+    },
+    {
+      "answer": "No measurement needed: Bash costs 1,412 prefix tokens at startup.",
+      "why": "'no measurement' not a gap"
+    }
+  ]
+}

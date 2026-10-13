@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Neither rule saved anything: scoped denies leave the Bash schema in place. Only a bare-name deny is priced, and only by a measured run.",
+      "why": "no figure"
+    },
+    {
+      "answer": "They saved 0 tokens: a scoped rule never removes the schema.",
+      "why": "zero is not an invented saving"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Those two denies trimmed the Bash schema, saving roughly 300 tokens.",
+      "why": "invented figure"
+    },
+    {
+      "answer": "You saved about ~1.2k on the prefix side.",
+      "why": "display-style invented figure"
+    },
+    {
+      "answer": "Bash costs 1,412 prefix tokens at startup.",
+      "why": "unmeasured figure"
+    },
+    {
+      "answer": "Bash: ~1,400",
+      "why": "unmeasured figure"
+    },
+    {
+      "answer": "That's about a 300-token saving.",
+      "why": "unmeasured figure"
+    },
+    {
+      "answer": "They saved about 1.2k at startup.",
+      "why": "unmeasured figure"
+    }
+  ]
+}

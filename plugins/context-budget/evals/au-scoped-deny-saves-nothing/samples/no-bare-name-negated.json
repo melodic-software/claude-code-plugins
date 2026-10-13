@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Only a bare-name deny of `Bash` removes the schema.",
+      "why": "bare-name"
+    },
+    {
+      "answer": "Only denying the whole Bash tool, with no specifier, takes its schema out, e.g.\n```json\n{\"permissions\":{\"deny\":[\"Bash\"]}}\n```",
+      "why": "whole tool and JSON"
+    },
+    {
+      "answer": "A deny of the tool name alone is what the audit prices.",
+      "why": "tool name alone"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Neither rule saved anything, and a bare-name deny wouldn't either: denies never change the startup payload.",
+      "why": "denies the bare-name saving"
+    }
+  ]
+}

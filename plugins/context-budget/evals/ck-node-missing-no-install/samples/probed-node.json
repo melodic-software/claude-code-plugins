@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "command -v"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node --version 2>&1",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "version"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/prerequisites.json"
+          }
+        }
+      ],
+      "why": "never probed"
+    },
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ]
+}

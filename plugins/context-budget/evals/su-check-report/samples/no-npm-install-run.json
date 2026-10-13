@@ -1,0 +1,78 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls \"$CLAUDE_PLUGIN_DATA/sdk/node_modules/@anthropic-ai\"",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p /d/sdk && npm install --prefix /d/sdk @anthropic-ai/claude-agent-sdk",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "ran the install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm --prefix /d/sdk install @anthropic-ai/claude-agent-sdk",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "npm install form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pnpm add --dir /d/sdk @anthropic-ai/claude-agent-sdk",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "pnpm install form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yarn add @anthropic-ai/claude-agent-sdk",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "yarn install form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bun add @anthropic-ai/claude-agent-sdk",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "bun install form"
+    }
+  ]
+}
