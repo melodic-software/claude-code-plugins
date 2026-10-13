@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Neither rule saved anything: `Bash(rm:*)` and `Bash(curl:*)` are scoped denies, and a scoped deny saves nothing because the Bash schema stays loaded. Only a bare-name deny of `Bash` removes it.",
+      "why": "saved nothing"
+    },
+    {
+      "answer": "Those scoped rules block the commands but don't reduce the startup payload at all; the Bash definition remains in the prompt.",
+      "why": "don't reduce"
+    },
+    {
+      "answer": "Zero saving to report: a scoped rule is not a saving. Only a bare-name deny is priced.",
+      "why": "not a saving"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Those two denies trimmed the Bash schema, saving roughly 300 tokens.",
+      "why": "invented saving"
+    },
+    {
+      "answer": "Scoped denies shrink the Bash tool description a little, so you saved some context.",
+      "why": "claims a saving"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    },
+    {
+      "answer": "Your two scoped denies trimmed the Bash schema a little, which saves context; they don't change what Bash can do otherwise. A bare-name deny removes it entirely.",
+      "why": "claims a saving; the negation is about behavior"
+    }
+  ]
+}

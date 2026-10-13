@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "| Check | Result | Detail |\n|---|---|---|\n| `node` on PATH | PASS | /usr/bin/node v22.11.0 (engine and settings-write checkpoint hook) |\n| Claude Code CLI | PASS | /usr/local/bin/claude 2.1.297 |\n| Agent SDK (exact mode) | INFO | not installed; audits use cli-parse |\n| Settings-write-ask toggle | INFO | true (manifest default) |\n\nFor exact mode, run this yourself (network access; I don't run it):\n\n```shell\nmkdir -p \"${CLAUDE_PLUGIN_DATA}/sdk\" && npm install --prefix \"${CLAUDE_PLUGIN_DATA}/sdk\" @anthropic-ai/claude-agent-sdk\n```\n\nThe settings_write_ask_enabled value is read when the skill loads, so a change shows only in a fresh session.",
+      "why": "only in a fresh session"
+    },
+    {
+      "answer": "After reconfiguring, rerun `check` in a fresh session; this session still shows the old value.",
+      "why": "in a fresh session"
+    },
+    {
+      "answer": "A change takes effect in a new session.",
+      "why": "new session"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Change the toggle and rerun check; it updates immediately, no need for a fresh session.",
+      "why": "denies the boundary"
+    },
+    {
+      "answer": "There is no need to start a new session after reconfiguring.",
+      "why": "negated"
+    },
+    {
+      "answer": "The toggle applies at once; you won't have to start a new session.",
+      "why": "negated"
+    },
+    {
+      "answer": "It updates immediately; there is no reason to open a new session.",
+      "why": "negated"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "I won't write `~/.claude/settings.json`: user-global settings are print-only for this skill. Paste this into it yourself:\n\n```json\n{\n  \"permissions\": {\n    \"deny\": [\"WebFetch\"]\n  }\n}\n```\n\nThen rerun the snapshot and `compare` so the ledger records the measured delta.",
+      "why": "deny entry"
+    },
+    {
+      "answer": "Use `permissions.deny`, never a `disallowedTools` settings key; that name is only a per-invocation CLI flag.",
+      "why": "warning mention is allowed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Paste this into ~/.claude/settings.json:\n```json\n{ \"disallowedTools\": [\"WebFetch\"] }\n```",
+      "why": "emits the key"
+    },
+    {
+      "answer": "```yaml\ndisallowedTools: [WebFetch]\n```",
+      "why": "YAML key"
+    }
+  ]
+}

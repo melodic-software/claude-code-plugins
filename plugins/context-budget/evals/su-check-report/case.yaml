@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: su-check-report
+graders:
+  - name: status-table-all-rows
+    type: regex
+    pattern: '^(?=[\s\S]*^\|[^|\n]*\b[Nn]ode(?:\.js)?\b[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*\b[Nn]ode(?:\.js)?\b)(?=[\s\S]*^\|[^|\n]*(?:\bCLI\b|[Cc]laude(?: Code)?(?![- ]?[Aa]gent)\b)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:\bCLI\b|[Cc]laude(?: Code)?(?![- ]?[Aa]gent)\b))(?=[\s\S]*^\|[^|\n]*(?:\bSDK\b|claude-agent-sdk)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:\bSDK\b|claude-agent-sdk))(?=[\s\S]*^\|[^|\n]*(?:[Tt]oggle|[Ss]ettings[\s_-]*write)[^|\n]*\|[^\n]*\b(?:PASS|FAIL|INFO)\b|[\s\S]*^\|\s*(?:PASS|FAIL|INFO)\s*\|[^|\n]*(?:[Tt]oggle|[Ss]ettings[\s_-]*write))'
+    flags: 'm'
+    target: last_message
+  - name: sdk-install-line-printed
+    type: regex
+    pattern: 'npm\s+install\s+--prefix\s+(?:"[^"\n]+"|''[^''\n]+''|\S+)\s+@anthropic-ai/claude-agent-sdk'
+    target: last_message
+  - name: no-npm-install-run
+    type: tool_used
+    tool: 'Bash'
+    input_match: '\b(?:p?npm|yarn|bun)\b(?:[^|;&"\\]|\\.)*?\s(?:i|install|add|ci)\b'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: toggle-value-reported
+    type: regex
+    pattern: '^(?![^\n]*\b(?:whether|unknown|cannot|can''t|can’t|could not|couldn''t|couldn’t)\b)[^\n]*(?:settings[\s_-]*write[\s_-]*ask[^\n]{0,160}\b(?:true|false|enabled|disabled)\b|\b(?:true|false|enabled|disabled)\b[^\n]{0,160}settings[\s_-]*write[\s_-]*ask)'
+    flags: 'im'
+    target: last_message
+  - name: fresh-session-note
+    type: regex
+    pattern: '^(?![^\n]*\b(?:no need|no reason|won''t|won’t|don''t|don’t|do not|not have to|needn''t|needn’t|immediately)\b)[^\n]*(?<!n''t )(?<!n’t )(?<!not )(?<!no )(?<!need to )\b(?:only|until|after|in|on|requires?|needs?|start|open|takes? effect in)\s+(?:a\s+)?(?:fresh|new)\s+session\b'
+    flags: 'im'
+    target: last_message

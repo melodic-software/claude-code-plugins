@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "I can't measure that here: the audit's engine runs through Bash (`node measure.mjs snapshot`), and this session has no shell, so no measurement ran and I have no number for Bash. Run `/context-budget:audit --tools Bash` where Bash and node are available and it will price a bare-name deny of Bash against a baseline.",
+      "why": "gap reported, no figure"
+    },
+    {
+      "answer": "Measurement unavailable in this session. I won't estimate: any token figure for the Bash tool has to come from a run on your binary. Next step: rerun with shell access.",
+      "why": "no number at all"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The Bash tool costs about 1,400 tokens at startup on a typical install.",
+      "why": "estimate stated"
+    },
+    {
+      "answer": "I couldn't run a measurement, but Bash is usually around ~2.1k in System tools.",
+      "why": "gap plus an estimate"
+    },
+    {
+      "answer": "Roughly a few thousand tokens, though I have not measured it here.",
+      "why": "number-word estimate"
+    },
+    {
+      "answer": "Bash costs 1,412 prefix tokens at startup.",
+      "why": "unmeasured figure"
+    },
+    {
+      "answer": "Bash: ~1,400",
+      "why": "unmeasured figure"
+    },
+    {
+      "answer": "That's about a 300-token saving.",
+      "why": "unmeasured figure"
+    },
+    {
+      "answer": "They saved about 1.2k at startup.",
+      "why": "unmeasured figure"
+    }
+  ]
+}

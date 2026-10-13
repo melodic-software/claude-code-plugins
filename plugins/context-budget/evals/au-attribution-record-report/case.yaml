@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: au-attribution-record-report
+graders:
+  - name: stamp-carried
+    type: regex
+    pattern: '^(?=[\s\S]*2\.1\.297)(?=[\s\S]*/usr/local/lib/claude-code/bin/claude)(?=[\s\S]*\b(?:sdk|exact)\b)(?=[\s\S]*\bheadless\b)'
+    flags: 'i'
+    target: last_message
+  - name: prefix-deferred-separate
+    type: regex
+    pattern: '^(?=[\s\S]*\bprefix)(?=[\s\S]*\bdeferred)(?=[\s\S]*\b1,?387\b)(?=[\s\S]*\b2,?264\b)(?=[\s\S]*\b913\b)(?=[\s\S]*\b1,?478\b)(?=[\s\S]*\bTodoWrite\b[^\n]{0,80}\b622\b[^\n]{0,80}?(?<![\d,.])0(?![\d,.]))'
+    flags: 'i'
+    target: last_message
+  - name: workflow-marked-incomparable
+    type: regex
+    pattern: '\bWorkflow\b(?:(?!\b(?:WebFetch|NotebookEdit|TodoWrite)\b)[\s\S]){0,400}?(?<!not )(?<!n''t )(?<!n’t )(?:incomparable|not comparable|comparable\W{0,4}false)|(?<!not )(?<!n''t )(?<!n’t )(?:incomparable|not comparable|comparable\W{0,4}false)(?:(?!\b(?:WebFetch|NotebookEdit|TodoWrite)\b)[^\n.;]){0,160}?\bWorkflow\b'
+    flags: 'i'
+    target: last_message
+  - name: workflow-reason-carried
+    type: regex
+    pattern: '\bWorkflow\b(?:(?!\b(?:WebFetch|NotebookEdit|TodoWrite)\b)[\s\S]){0,400}?(?:skill[- ]listing(?: signature)?\s+(?:(?:has|was|is)\s+)?(?:changed|differ\w*|mismatch\w*)|(?:changed|different|mismatched)\s+skill[- ]listing|listing signature\s+(?:(?:has|was|is)\s+)?(?:changed|differ\w*|mismatch\w*)|signature (?:changed|mismatch|differ))|(?:skill[- ]listing(?: signature)?\s+(?:(?:has|was|is)\s+)?(?:changed|differ\w*|mismatch\w*)|(?:changed|different|mismatched)\s+skill[- ]listing|listing signature\s+(?:(?:has|was|is)\s+)?(?:changed|differ\w*|mismatch\w*)|signature (?:changed|mismatch|differ))(?:(?!\b(?:WebFetch|NotebookEdit|TodoWrite)\b)[\s\S]){0,200}?\bWorkflow\b'
+    flags: 'i'
+    target: last_message
+  - name: workflow-numbers-withheld
+    type: regex
+    pattern: '\b4,?471\b|\b5,?000\b|(?<![0-9,.])529\b|(?<![\d.])(?:4\.[45]|0?\.5|5(?:\.0)?)\s*k\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: prefix-sum-upper-bound
+    type: regex
+    pattern: '(?:\bprefix|\b2,?922\b)[\s\S]{0,250}?(?<!not )(?<!n''t )(?<!n’t )(?<!never )(?<!no )(?<!not an )(?<!n''t an )(?<!n’t an )(?<!not a )(?<!n''t a )(?<!n’t a )\b(?:upper bound|ceiling|at most|no more than|overstat\w*|double[- ]?count\w*)\b|(?<!not )(?<!n''t )(?<!n’t )(?<!never )(?<!no )(?<!not an )(?<!n''t an )(?<!n’t an )(?<!not a )(?<!n''t a )(?<!n’t a )\b(?:upper bound|ceiling|at most|no more than|overstat\w*|double[- ]?count\w*)\b[\s\S]{0,250}?(?:\bprefix|\b2,?922\b)'
+    flags: 'i'
+    target: last_message
+  - name: deferred-basket-sum
+    type: regex
+    pattern: '\b3,?742\b'
+    target: last_message
