@@ -3,6 +3,12 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.33] - 2026-10-13
+
+### Changed
+
+- `/github:advise` points at the live commands reference for what `/install-github-app` sets up instead of restating it, and the browser-automation reference records its Chrome WSL pointer with an as-of date and recheck trigger.
+
 ## [0.3.32] - 2026-10-07
 
 ### Changed

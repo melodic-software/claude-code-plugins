@@ -3,6 +3,12 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.7] - 2026-10-13
+
+### Changed
+
+- `/adhd:clarify` points at the live string-substitutions section instead of restating it, and reads the Artifact tool's requirements from its definition instead of listing them; the README points at where a saved option value can reach.
+
 ## [0.5.6] - 2026-10-03
 
 ### Changed

@@ -3,6 +3,29 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.10] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- `/context7:check` and `/context7:lookup` replace restated Claude Code skill, plugin-variable and MCP config behavior with anchored pointer records (as of 2026-10-11, with recheck triggers), keeping each decision in our own words.
+
+- **`/context7:lookup` synced to upstash/context7 `522c4db`.** The vendored `find-docs` and `context7-cli` baselines are refreshed, and `metadata.upstream-version` now names that commit instead of `master`. The lookup workflow passes the user's language through `docs --language` when the installed CLI's `docs --help` lists it, and omits it on an older install, with a pointer record in place of a copy of the flag's behavior; it also gains the advice to describe what to look up rather than the task. The CLI reference is re-verified against `ctx7` 0.6.0. Upstream's switch to `npx ctx7@latest` for every call is not ported: this plugin keeps the global install its setup and context lines depend on, with `npx` as the documented fallback.
+- **`update.sh` pins one upstream commit per run.** It resolves `upstash/context7` master once, fetches both baselines at that commit, and `--refresh-baseline` stamps that commit as `upstream-version` beside `synced`, so the baselines and the stamp always name the same revision.
+
+### Fixed
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.6.9] - 2026-10-07
 
 ### Changed

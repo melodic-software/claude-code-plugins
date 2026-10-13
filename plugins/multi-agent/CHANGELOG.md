@@ -3,6 +3,45 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0] - 2026-10-13
+
+### Added
+
+- **`/multi-agent:assess` names the run's shape.** A `workflow` or `subagent` verdict gains a third line, `shape: <sections|race (<selection rule>)|mixed>`. A race states its selection rule before any agent is spawned; one without a rule is reported, not run.
+- **`/multi-agent:route` notes the effort cap.** The output ends with a line pointing at the new "Hard cap" section of `reference/config.md`, which documents `maxEffortLevel` and where role effort applies (workflow `agent()` calls, not Agent tool dispatches).
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **The `mechanical` workload runs the worker on `sonnet` by default** (`roles.worker.workloads.mechanical.model: sonnet`); `code` and `research` keep the role's model. Opt out with `roles.worker.workloads.mechanical.model: inherit` in any layer.
+- **`scripts/yaml-subset.awk` is now a generated copy of the repository's `lib/yaml-subset.awk`.** The parser also reads block and flow sequences, flow mappings, quoted keys, YAML quote escapes (`''`, `\"`, `\\`) and a document at a uniform base indent, so the shared concern reader can use it. Valid YAML inside the subset reads the same as before, except that an escape inside quotes now yields the character it stands for. Four non-standard forms the old parser read now make the layer a parse error, so it is skipped and named: a key indented between its parent and the block it closes (`planner:` at two spaces after `worker:` at four, both under `roles:`), text after a closing quote (`a: "x"y"`), an unclosed quote (`a: "x`), and a tag (`a: !true`). A sequence, which used to be an error, now flattens to indexed keys (`a.0`) that the resolver reports as unknown.
+
+- The README, the `check` and `setup` skills, the drift-audit agents, `resolve-roles.sh` and the `assess` availability script point at the exact Claude Code docs sections for hook failure and timeouts, mod hook ordering, `disable-model-invocation`, subagent `maxTurns`, model aliases, effort levels and the workflow off switches, each with an as-of date and recheck trigger, instead of restating them.
+
+- Every role default in `reference/defaults.yaml` now records a basis per value: `upstream`, naming the section and statement that set it (`pointer_<field>`, `claim_<field>`), or `judgment` with a `reason_<field>`. No model or effort value changed. Upstream: worker and verifier effort (model-config, choose an effort level), the worker's `mechanical` workload model (costs, choose the right model; recorded as `basis_mechanical_model`, the form every `workloads.<w>.<field>` value uses). Judgment: orchestrator model and effort, worker and verifier model, retrieval model and effort. The generic `pointer`, `pointer_cost` and `pointer_model_split` on the roles are gone; `pointer_skill` and `pointer_spawn` stay as mechanism pointers. (#6265)
+- `/multi-agent:route` prints a `basis` (`upstream`, `judgment`, `config` or `unrecorded`) beside each role's model, fan-out model and effort; a guarded fan-out model takes the fan-out guard's basis.
+- `/multi-agent:audit-defaults` reports `unsupported` when a cited section states neither the value nor a rule it follows from, proposing `basis_<field>: judgment` in the diff when the owner records an upstream basis for it, and lists judgment values with their reasons instead of checking them.
+
+### Fixed
+
+- **`/multi-agent:audit-defaults` no longer tells the caller to pass `defaults` to `list-pointers.sh`.** The script reads that word as an owner and exits 2. Step 3 now says to pass only a role or `fanout`, or nothing.
+- **The `fanout` and `worker` defaults are rechecked as of 2026-10-10.** The cost page still recommends Opus 5.5 at medium effort, so no model or effort value changes. The two recheck triggers now say "a new model named on the cost page", because that page has no model table.
+
+- **The shared `yaml-subset.awk` parser trims trailing blanks and strips trailing comments (a `#` after a space) in one pass**, where two regexes rescanned a long run of spaces from every start; a 200,000-space line now parses in well under a second with the same records.
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.
+- **The shared `yaml-subset.awk` refuses a tab indent and an unquoted colon followed by a space in a value (`key: a: b`).** Both parsed before although a YAML loader rejects them; a file holding either now reads as a parse error, so quote a value that holds a colon followed by a space. A tab in a markdown fence's base indent is still accepted.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.8.0] - 2026-10-11
 
 ### Added
