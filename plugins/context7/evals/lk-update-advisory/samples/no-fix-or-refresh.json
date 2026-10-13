@@ -80,6 +80,30 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm update -g ctx7",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "update is an install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm --location=global install ctx7@latest",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "flag before the verb"
     }
   ]
 }

@@ -60,6 +60,30 @@
         }
       ],
       "why": "after a shell separator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd \"$TMPDIR\" && timeout 60 npx -y ctx7@latest library \"react\" \"useEffect cleanup timing\" 2>&1 | head -40",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "timeout wrapper after a separator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pnpm dlx ctx7 library react \"useEffect cleanup timing\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "pnpm dlx runner"
     }
   ],
   "fail": [
@@ -102,6 +126,18 @@
     {
       "answer": [],
       "why": "no command at all"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"note; ctx7 library react\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "separator inside quoted echo text"
     }
   ]
 }

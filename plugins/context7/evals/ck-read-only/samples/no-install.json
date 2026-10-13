@@ -98,6 +98,98 @@
         }
       ],
       "why": "chained install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm --location=global install ctx7@latest",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "flag before the verb"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm --silent install -g ctx7",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "flag before the verb"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx -p ctx7 ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "npx with a package flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx --package=ctx7 ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "npx with a package flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pnpm dlx ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yarn dlx ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bunx ctx7 --version",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm exec ctx7 -- --version",
+            "description": "Run command"
+          }
+        }
+      ]
     }
   ]
 }

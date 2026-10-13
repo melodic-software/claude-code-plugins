@@ -28,6 +28,18 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v ctx7 && ctx7 --version 2>&1 | head -3",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after a shell separator"
     }
   ],
   "fail": [
@@ -45,6 +57,18 @@
     {
       "answer": [],
       "why": "nothing run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"try: ctx7 --version\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "only inside echoed text"
     }
   ]
 }

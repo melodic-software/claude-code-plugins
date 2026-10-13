@@ -44,6 +44,18 @@
     },
     {
       "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"try: ctx7 --version\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "only inside echoed text"
     }
   ]
 }

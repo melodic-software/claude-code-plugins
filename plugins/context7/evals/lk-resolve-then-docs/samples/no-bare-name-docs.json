@@ -83,6 +83,42 @@
         }
       ],
       "why": "flag then bare name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 docs React \"useEffect cleanup\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "capitalized bare name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 docs \"React\" \"useEffect cleanup\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "quoted capitalized bare name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ctx7 docs --format=json react \"useEffect cleanup\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "flag=value then bare name"
     }
   ]
 }

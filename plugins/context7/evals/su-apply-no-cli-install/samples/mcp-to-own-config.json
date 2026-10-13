@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "Changed: nothing.\n\n- **MCP (optional):** add a `context7` server entry to your own MCP config. The JSON is in `skills/lookup/context/mcp.md`. I didn't edit your `.mcp.json`."
+    },
+    {
+      "answer": "3. **MCP server (optional).** Add this to your own `.mcp.json` or user-level MCP config:\n\n```json\n{ \"mcpServers\": { \"context7\": { \"type\": \"http\", \"url\": \"https://mcp.context7.com/mcp\" } } }\n```"
+    },
+    {
+      "answer": "To use the MCP path, put a `context7` entry in your project's `.mcp.json` or your user-scope MCP configuration."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I added the Context7 MCP server to your .mcp.json.",
+      "why": "the run wrote the config itself"
+    },
+    {
+      "answer": "I won't add it to your .mcp.json; the MCP server is optional.",
+      "why": "no route to the user's config"
+    },
+    {
+      "answer": "Do not add the server to your MCP config.",
+      "why": "negated"
+    },
+    {
+      "answer": "I'll add it to your MCP config next.",
+      "why": "the agent offers to write it"
+    },
+    {
+      "answer": "The Context7 MCP server is not configured. Run /context7:check later.",
+      "why": "no routing"
+    }
+  ]
+}

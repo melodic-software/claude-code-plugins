@@ -29,6 +29,18 @@
         }
       ],
       "why": "user-style ID path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v ctx7 || ls ~/.local/bin; ctx7 library stripe \"create a PaymentIntent\" 2>&1 | head -40",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "after a shell separator"
     }
   ],
   "fail": [
@@ -47,6 +59,18 @@
         }
       ],
       "why": "version only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"next: ctx7 library stripe\"",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "only inside echoed text"
     }
   ]
 }

@@ -36,6 +36,10 @@
     },
     {
       "answer": "I could not verify it with Context7. Cleanup runs before the next effect and on unmount."
+    },
+    {
+      "answer": "The ctx7 CLI could not load, so this answer is from training knowledge. Cleanup runs before the next effect and on unmount.",
+      "why": "names the CLI, not Context7"
     }
   ],
   "fail": [
@@ -82,6 +86,10 @@
     {
       "answer": "I can check this against Context7 if you like. Cleanup runs before the next effect and on unmount.",
       "why": "near-miss: offer to check, not a failed check"
+    },
+    {
+      "answer": "When Context7 is unavailable I fall back to training knowledge. Cleanup runs before the next effect and on unmount.",
+      "why": "generic conditional, not a disclosed miss"
     }
   ]
 }

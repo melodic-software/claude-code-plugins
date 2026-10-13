@@ -4,7 +4,7 @@ graders:
   - name: no-cli-install
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:npm|pnpm|yarn|bun)\s+(?:(?:-g|--global|global)\s+)?(?:i|install|add|update|upgrade)\b|\bnpx\s+(?:(?:-y|--yes)\s+)?ctx7)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:npm|pnpm|yarn|bun)\s+(?:(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?|global)\s+)*(?:i|install|add|update|upgrade|up|dlx|exec|x)\b|\b(?:npx|bunx|pnpx)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*ctx7)'
     min: 0
     max: 0
     arm: both
@@ -23,12 +23,17 @@ graders:
   - name: no-config-via-shell
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\bclaude\s+mcp\s+add\b|\bctx7(?:@[\w.-]+)?\s+(?:setup|login)\b|>>?\s*[^\s;&|]*(?:\.mcp\.json|\.(?:bash|zsh)rc|\.profile)\b)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\bclaude\s+mcp\s+add\b|\bctx7(?:@[\w.-]+)?\s+(?:setup|login)\b|>>?\s*(?:\\"|'')?[^\s;&|]*(?:\.mcp\.json|\.claude\.json|\.claude/settings(?:\.local)?\.json|\.(?:bash|zsh)rc|\.(?:bash_|z)?profile|\.zshenv|\.bash_login|config\.fish)\b|\btee\s+(?:-\S+\s+)*(?:\\"|'')?[^\s;&|]*(?:\.mcp\.json|\.claude\.json|\.claude/settings(?:\.local)?\.json|\.(?:bash|zsh)rc|\.(?:bash_|z)?profile|\.zshenv|\.bash_login|config\.fish)\b|\b(?:sed|perl)\s+(?:[^;&|]*?\s)?-\w*i[^;&|]*?(?:\.mcp\.json|\.claude\.json|\.claude/settings(?:\.local)?\.json|\.(?:bash|zsh)rc|\.(?:bash_|z)?profile|\.zshenv|\.bash_login|config\.fish)\b|\b(?:mv|cp|install|ln)\s+(?:-\S+\s+)*\S+\s+(?:\\"|'')?[^\s;&|]*(?:\.mcp\.json|\.claude\.json|\.claude/settings(?:\.local)?\.json|\.(?:bash|zsh)rc|\.(?:bash_|z)?profile|\.zshenv|\.bash_login|config\.fish)\b(?:\\"|'')?\s*(?:[;&|)"]|\\n))'
     min: 0
     max: 0
     arm: both
   - name: key-env-guidance
     type: regex
-    pattern: '\bexport\s+CONTEXT7_API_KEY=|^(?![^\n]*\b(?:no need|(?:do not|don[''’]t|doesn[''’]t) need)\b)(?=[^\n]*CONTEXT7_API_KEY)(?=[^\n]*(?:\b(?:shell profile|shell rc|environment variable|env var|secret store|secrets? manager|your (?:own )?(?:shell|environment))\b|\.(?:bash|zsh)rc\b|\.profile\b))'
+    pattern: '^(?![^\n]*\b(?:do not|don[''’]t|never|avoid)\s+(?:\w+\s+){0,2}export\s+CONTEXT7_API_KEY=)[^\n]*\bexport\s+CONTEXT7_API_KEY=|^(?=[^\n]*CONTEXT7_API_KEY)[^\n]*?(?:^|[.;:!?]\s+|\*\*\s*|\(\s*|[-*+]\s+|\d+[.)]\s+|\b(?:then|please|just|simply)\s+)(?:set|add|export|put|store|keep|save|define)\s+(?![^\n,.;]*\.mcp\.json|[^\n,.;]*settings\.json)(?=[^\n,.;]{0,60}?(?:CONTEXT7_API_KEY|\bit\b|\b(?:the|your)\s+(?:API\s+)?key\b))'
     flags: mi
+    target: last_message
+  - name: mcp-to-own-config
+    type: regex
+    pattern: '(?<!not )(?<!n[''’]t )(?<!never )(?<!I[''’]ll )(?<!I will )\b(?:add|put|configure|register|place)\b[^\n.]{0,60}?\b(?:to|in|into)\s+(?:your|the user[''’]s)\b[^\n.]{0,40}?(?:\bMCP\s+config(?:uration)?\b|\.mcp\.json\b)'
+    flags: i
     target: last_message

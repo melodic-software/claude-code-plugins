@@ -40,6 +40,18 @@
         }
       ],
       "why": "reading is fine"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp ~/.zshrc /tmp/zshrc.bak; sed -n '1,5p' ~/.zshrc",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "rc file as a copy source or sed without -i"
     }
   ],
   "fail": [
@@ -98,6 +110,64 @@
         }
       ],
       "why": "heredoc into .mcp.json"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'export CONTEXT7_API_KEY=x' | tee -a ~/.bashrc",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "tee -a into an rc file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i '$a export CONTEXT7_API_KEY=x' ~/.zshrc",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "sed -i on an rc file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'export CONTEXT7_API_KEY=x' >> ~/.bash_profile",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'export CONTEXT7_API_KEY=x' >> ~/.zprofile",
+            "description": "Run command"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.mcpServers.context7={}' ~/.claude.json > /tmp/c && mv /tmp/c ~/.claude.json",
+            "description": "Run command"
+          }
+        }
+      ],
+      "why": "mv into ~/.claude.json"
     }
   ]
 }

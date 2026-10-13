@@ -4,22 +4,22 @@ graders:
   - name: resolve-attempted
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|(]|\$\())?\s*(?:\w+=\S*\s+)*(?:npx\s+(?:(?:-y|--yes)\s+)?)?ctx7(?:@[\w.-]+)?\s+library\b'
+    input_match: '"command":"(?:(?:[^"\\'']|\\[^"]|\\"(?:[^"\\]|\\[^"])*\\"|''[^'']*'')*?(?:&&|\|\||[;|(]|\$\(|\\n))?\s*(?:(?:\w+=\S*|timeout(?:\s+-\S+)*\s+\S+|command|exec|env|time|nice)\s+)*(?:(?:npx|bunx|pnpx)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*|(?:pnpm|yarn|bun)\s+(?:dlx|x)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*|npm\s+(?:exec|x)\s+(?:-{1,2}[\w-]+(?:[= ][^\s-]\S*)?\s+)*(?:--\s+)?)?(?:[^\s"\\;&|]*/)?ctx7(?:@[\w.-]+)?\s+library\b'
     min: 1
   - name: no-bare-name-docs
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:[^"\\]|\\.)*?\bctx7(?:@[\w.-]+)?\s+docs\s+(?:--?[\w-]+\s+)*(?:\\"|'')?react\b'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bctx7(?:@[\w.-]+)?\s+docs\s+(?:-{1,2}[\w-]+(?:=\S+)?\s+(?:(?![\\"''/-])\w+\s+)?)*(?:\\"|'')?(?:[Rr]eact|REACT)\b'
     min: 0
     max: 0
     arm: both
   - name: discloses-context7-miss
     type: regex
-    pattern: '(?:^|[.!?;:]\s+)(?![^.!?;:\n]*?\b(?:if|unless|in\s+case|whenever|should)\b[^.!?;:\n]*?\bContext7\b)(?![^.!?;:\n]*?\bContext7\b(?:\s+[\w`()*''’-]+){0,3}?\s+(?:would|might|may|will|can|could(?!\s*n))\b)[^.!?;:\n]*?(?:\bContext7\b[^.!?;:,\n]{0,40}?(?:\b(?:did|does|could|can|was|is|were|has|had)\s*(?:n[o'']t|n’t)\s+(?:return|cover|have|find|work|respond|run|give|provide|produce|load|answer|include|reach|be\s+reached|be\s+used)\b|\b(?:failed|crashed|errored)\b|\breturned\s+(?:nothing|no\b|an?\s+error|empty)|\b(?:is|was|were|are)\s+(?:unavailable|unreachable|down)\b|\b(?:(?:is|was|were|are)\s+not|isn[''’]t|wasn[''’]t|aren[''’]t|weren[''’]t)\s+(?:available|reachable|configured|installed|working|set\s+up)\b|\bgave\s+(?:nothing|no\b))|\b(?:couldn[''’]t|could\s+not|can[''’]?not|can[''’]t|was\s+unable\s+to|unable\s+to|failed\s+to)\s+(?:reach|use|query|get|fetch|retrieve|run|load|check|verify|look(?:\s+\w+)?\s+up)\b[^.!?;:,\n]{0,40}?\bContext7\b|\bno\s+(?:results?|docs|documentation|answer)\s+(?:came\s+back\s+)?from\s+Context7\b)'
+    pattern: '(?:^|[.!?;:]\s+)(?![^.!?;:\n]*?\b(?:if|unless|in\s+case|whenever|when|should)\b[^.!?;:\n]*?\b(?:Context7|ctx7)\b)(?![^.!?;:\n]*?\b(?:Context7|ctx7)\b(?:\s+[\w`()*''’-]+){0,3}?\s+(?:would|might|may|will|can|could(?!\s*n))\b)[^.!?;:\n]*?(?:\b(?:Context7|ctx7)\b[^.!?;:,\n]{0,40}?(?:\b(?:did|does|could|can|was|is|were|has|had)\s*(?:n[o'']t|n’t)\s+(?:return|cover|have|find|work|respond|run|give|provide|produce|load|answer|include|reach|be\s+reached|be\s+used)\b|\b(?:failed|crashed|errored)\b|\breturned\s+(?:nothing|no\b|an?\s+error|empty)|\b(?:is|was|were|are)\s+(?:unavailable|unreachable|down)\b|\b(?:(?:is|was|were|are)\s+not|isn[''’]t|wasn[''’]t|aren[''’]t|weren[''’]t)\s+(?:available|reachable|configured|installed|working|set\s+up)\b|\bgave\s+(?:nothing|no\b))|\b(?:couldn[''’]t|could\s+not|can[''’]?not|can[''’]t|was\s+unable\s+to|unable\s+to|failed\s+to)\s+(?:reach|use|query|get|fetch|retrieve|run|load|check|verify|look(?:\s+\w+)?\s+up)\b[^.!?;:,\n]{0,40}?\b(?:Context7|ctx7)\b|\bno\s+(?:results?|docs|documentation|answer)\s+(?:came\s+back\s+)?from\s+(?:Context7|ctx7)\b)'
     flags: mi
     target: last_message
   - name: answers-from-training
     type: regex
-    pattern: '\bunmount(?:s|ed|ing)?\b'
+    pattern: '^(?=[\s\S]*?\bunmount(?:s|ed|ing)?\b)(?=[\s\S]*?\bbefore\s+(?:(?:it|React)\s+)?(?:the\s+|that\s+)?(?:next\b|new\b|re-?run|running\b|(?:same\s+)?effect\s+(?:runs?\s+again|re-?runs?)|runs?\s+(?:the\s+|that\s+)?(?:new\s+|same\s+)?effect))'
     flags: i
     target: last_message
