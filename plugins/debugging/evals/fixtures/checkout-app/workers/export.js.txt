@@ -1,0 +1,9 @@
+"use strict";
+const { readFileSync, writeFileSync } = require("node:fs");
+
+const rows = JSON.parse(readFileSync(process.argv[2] || "orders.json", "utf8"));
+let csv = "";
+for (const row of rows) {
+  csv = csv + [row.id, row.customer, row.total].join(",") + "\n";
+}
+writeFileSync("orders.csv", csv);

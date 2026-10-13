@@ -607,6 +607,9 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("the finish is an Activity entry marked finished", (await state()).questions.activity.pop().finished === true);
     await tap("#finClose", 300);
     ok("the modal closes and stays dismissed", !(await page.$eval("#finDlg", el => el.open)) && await page.evaluate(() => Object.keys(localStorage).some(k => /:finSeen$/.test(k))));
+    await pick("Q1");
+    const shut = await page.evaluate(() => ({radios: [...document.querySelectorAll("#choices input")].every(r => r.disabled), save: document.querySelector("[data-save]").disabled, hint: (document.getElementById("saveHint") || {}).textContent}));
+    ok("once finished, the answer controls are disabled and the dock says answers are no longer saved", shut.radios && shut.save && shut.hint === "The interview is finished. Answers are no longer saved.", JSON.stringify(shut));
     await tap("#sumBtn", 300);
     ok("the summary shows the finished state in place of the Finish control", !!(await page.$("#finished")) && !(await page.$("[data-wrapup]")) && /docs\/PLAN\.md/.test(await text("#finished")) && /You can close this tab/.test(await text("#finished")), await text("#finished"));
     ok("the pill reads Finished and the terminal status is the Claude line", (await text("#pill")) === "Finished" && (await text("#clText")) === "Done: the Brief is written", (await text("#pill")) + " / " + await text("#clText"));

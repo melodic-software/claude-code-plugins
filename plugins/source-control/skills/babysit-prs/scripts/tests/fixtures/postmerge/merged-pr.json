@@ -1,0 +1,17 @@
+{
+  "number": 7001,
+  "url": "https://github.com/example-org/example-repo/pull/7001",
+  "mergedAt": "2026-10-12T10:00:00Z",
+  "updatedAt": "2026-10-12T10:00:05Z",
+  "headRefOid": "2222222222222222222222222222222222222222",
+  "mergeCommit": {"oid": "3333333333333333333333333333333333333333"},
+  "timelineItems": {
+    "nodes": [
+      {
+        "createdAt": "2026-10-12T09:50:00Z",
+        "actor": {"__typename": "Bot", "login": "example-sync"},
+        "enqueuer": {"__typename": "User", "login": "example-sync[bot]"}
+      }
+    ]
+  }
+}

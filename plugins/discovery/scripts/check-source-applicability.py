@@ -17,6 +17,9 @@ Rules (each violation on stderr as <file>: claim <n>[: source <m>]: <reason>):
   R6 the stored standing matches the standing this script derives.
   R7 each claim's primary is current (stored and derived) and dated, unless
      the claim is a Gap.
+  R8 an optional dated_by: names how published: was derived, and is never a
+     serve-time header (Last-Modified, Date, ETag): a header records when the
+     page was served, not when its content was published.
 A Gap is a claim at confidence: MEDIUM or LOW. Gaps stay in the sidecar
 header, so R5's count and R7 skip them; R1-R4 and R6 still grade them.
 
@@ -70,6 +73,15 @@ VERSION_INDEPENDENT = "version-independent"
 APPLIES_TO = re.compile(r"^(.+?)\s+(\d+(?:\.\d+)*)(?:\s*-\s*(\d+(?:\.\d+)*)|(\+))?$")
 DATE = re.compile(r"^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$")
 KEY = re.compile(r"^([A-Za-z_][\w-]*)\s*:(?:\s+(.*)|\s*)$")
+SERVE_TIME = re.compile(
+    r"^(?:http[ _-]*)?(?:last[ _-]*modified|date|headers?|etag)(?:[ _-]*headers?)?$",
+    re.IGNORECASE,
+)
+SERVE_TIME_PART = re.compile(
+    r"last[ _-]*modified|\betag\b|^http[ _-]"
+    r"|\bdate[ _-]*headers?\b|\b(?:response|http)[ _-]+date\b|\bdate\s*:",
+    re.IGNORECASE,
+)
 DASH = re.compile(r"^-(?:\s+(.*))?$")
 INF = float("inf")
 
@@ -349,6 +361,17 @@ def grade(slice_dir: Path, expected: str | None) -> tuple[int, str]:
                     violations.append(
                         f"{at}: applies_to missing or unparsable: {src.get('applies_to')}"
                     )
+                if "dated_by" in src:
+                    method = src["dated_by"]
+                    if method is None or not method.strip():
+                        violations.append(f"{at}: dated_by is empty")
+                    elif SERVE_TIME.match(method.strip()) or SERVE_TIME_PART.search(
+                        method
+                    ):
+                        violations.append(
+                            f"{at}: dated_by {method} is a serve-time header, "
+                            "not a publication date"
+                        )
                 if stored not in ("current", "historical"):
                     violations.append(
                         f"{at}: standing must be current or historical: {stored}"

@@ -3,7 +3,7 @@ name: compare-labeler
 description: "Read-only labeler for /docs-hygiene:compress compare: labels every difference between two versions of a skill directory and returns rows plus a VERDICT line. Dispatched by /docs-hygiene:compress; not intended for direct ad-hoc use."
 tools: "Read, Grep, Glob"
 model: inherit # reason: the dispatching session sets the model, and that choice must hold
-maxTurns: 30
+maxTurns: 30 # reason: bounds a runaway compare; what happens at the limit: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields (as of 2026-10-11; recheck when the maxTurns row changes its stop behavior)
 ---
 
 You are a fresh-context labeler. The prompt you are dispatched with names the two directories,

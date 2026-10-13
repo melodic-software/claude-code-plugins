@@ -8,48 +8,46 @@
 # reports managed policy as counts, another as presence only, and a third reads
 # it to compute an effective merge. Only the LOCATIONS are shared.
 #
-# WHY THIS EXISTS: managed policy is not one file. Per the official settings doc
-# it is, per OS, a JSON file plus a `managed-settings.d/` drop-in directory, plus
-# a Windows registry policy key or a macOS managed-preferences domain. Three
-# components in this marketplace need that enumeration, and a third hand-written
-# copy would drift the moment upstream adds or moves a surface — as it already
-# had: the copies disagreed about whether the drop-in directory existed at all.
+# WHY THIS EXISTS: managed policy is not one file. Each OS has several
+# surfaces (files, a drop-in directory, an OS policy store), listed at
+# https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy
+# with the drop-in directory at
+# https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams
+# (as of 2026-10-11; recheck when either section gains, drops or moves a
+# surface). Three components in this marketplace need that enumeration, and a
+# third hand-written copy would drift the moment upstream adds or moves a
+# surface, as it already had: the copies disagreed about whether the drop-in
+# directory existed at all. The paths are documented, not discoverable: a
+# machine with no policy deployed looks identical to a machine whose policy
+# this file fails to find. A location the first section says Claude Code does
+# not read is deliberately never probed, so nothing reports policy that is not
+# in force.
 #
-# Server-managed settings are fetched at sign-in and cached at
-# `<config-root>/remote-settings.json` (`mscope::remote_cache_file`). The cache
-# is not an admin-written policy file: it is user-writable, it can be stale, and
-# several cached keys stay withheld until the server confirms the payload. A
-# reader may report the cache's presence. It must not fold the cache into the
-# effective managed policy, and it must not treat a missing cache as "no
-# organization policy". The failure read is the Organization policy line in
-# `/status` (and `claude doctor`'s managed-settings remote line).
-# Basis: https://code.claude.com/docs/en/server-managed-settings and
-# https://code.claude.com/docs/en/managed-settings. Verified 2026-09-28.
-# Recheck when either page moves the cache path or changes what `/status` reports
-# on a failed fetch.
+# The server-managed cache (`mscope::remote_cache_file`) is not an admin-written
+# policy file: it is user-writable and it can be stale. A reader may report the
+# cache's presence. It must not fold the cache into the effective managed
+# policy, and it must not treat a missing cache as "no organization policy";
+# whether a fetch failed is read from Claude Code's own status report instead.
+# Upstream records, as of 2026-10-11:
+#   * the cache path:
+#     https://code.claude.com/docs/en/server-managed-settings#invalid-entries-in-delivered-settings
+#   * when the cache applies and which cached keys wait for the server:
+#     https://code.claude.com/docs/en/server-managed-settings#fetch-and-caching-behavior
+#   * where a failed fetch is reported:
+#     https://code.claude.com/docs/en/server-managed-settings#verify-settings-delivery
+# Recheck when the invalid-entries section names a cache path other than the
+# one mscope::remote_cache_file returns, the fetch-and-caching section changes
+# when cached settings apply or which cached keys wait for the server, or the
+# verify section stops naming /status or claude doctor as where a failed fetch
+# shows.
 #
-# Cross-source combination is not "arrays concatenated, objects deep-merged".
-# Under `managedSourcesBehavior: "merge"` Claude Code combines keys by kind
-# (lists union, locks take the strictest value, restriction allowlists and
-# values-taken-whole come from the highest source that sets them, provided MCP
-# server names union with the higher entry winning on a clash, and a named set
-# of keys is read from the highest source only). `sandbox.credentials.awsPairs`
-# and `sandbox.ripgrep` are values taken whole since v2.1.257. `env` merges per
-# variable. Basis: https://code.claude.com/docs/en/settings-reference
-# (`managedSourcesBehavior`) and https://code.claude.com/docs/en/managed-settings
-# ("Compose every managed source"). Verified 2026-09-28. Recheck when that table
-# gains or drops a key kind, or when awsPairs / ripgrep leave the whole-value row.
-#
-# The legacy Windows location C:\ProgramData\ClaudeCode\managed-settings.json is
-# unsupported since v2.1.75 and is deliberately never probed — reporting it would
-# report policy that is not in force.
-#
-# Verified against https://code.claude.com/docs/en/settings and
-# https://code.claude.com/docs/en/managed-settings on 2026-09-28.
-# Recheck trigger: that page's managed-settings location list gains, drops, or
-# moves a surface. Basis: the paths are documented, not discoverable — a machine
-# with no policy deployed looks identical to a machine whose policy this file
-# fails to find.
+# Cross-source combination is not "arrays concatenated, objects deep-merged":
+# a reader that computes an effective merge follows the per-key rules at
+# https://code.claude.com/docs/en/managed-settings#compose-every-managed-source
+# and https://code.claude.com/docs/en/settings-reference#managedsourcesbehavior,
+# and drop-in files combine by the rules in the split-a-file section above
+# (as of 2026-10-11; recheck when any of those sections gains or drops a key
+# kind or a combination rule).
 
 # mscope::base_file [override] — absolute path to the managed-settings.json this
 # OS reads. A non-empty <override> is returned verbatim, so a caller's own test

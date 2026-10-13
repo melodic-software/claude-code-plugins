@@ -16,6 +16,10 @@ formats on edit only when your repo has opted into Biome.
   filter per extension (`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.mts`, `.cts`,
   `.json`, `.jsonc`), so a Write/Edit of any other file never starts a hook process
   for it; the extension check inside the script is unchanged.
+  - **Pointer**: when deciding whether an `if` row keeps a handler from spawning, fetch
+    [hooks: Common fields](https://code.claude.com/docs/en/hooks#common-fields) live.
+    **As of**: 2026-10-11. **Recheck trigger**: that section changes when an `if` rule
+    keeps a handler from running, or which events evaluate it.
 - **Opt-in on `biome.json`.** Biome runs **only when a `biome.json` or
   `biome.jsonc` governs the edited file**, found by walking up from the file to
   the repository root. A repo without a Biome config is left untouched rather

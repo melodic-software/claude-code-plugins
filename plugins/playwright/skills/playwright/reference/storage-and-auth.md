@@ -123,7 +123,9 @@ expands to an empty string and the fill succeeds while typing nothing.
 
 For a real site the owner uses (GitHub first), one state file per site lets every agent session run logged in at once: each loads the file into its own in-memory browser after `open` ([SKILL.md](../SKILL.md#logged-in-sites)). A `--persistent` or `--profile` directory cannot do this, because a browser profile admits one running browser at a time.
 
-The owner saves the file once, from a headed session, and re-saves it only when the site expires the login (a loaded session lands on a sign-in page). Agents never run these steps: auto mode denied an agent's `state-save` as credential materialization (observed 2026-10-09), and the owner, not an agent, should decide when a login is written to disk.
+The owner saves the file once, from a headed session, and re-saves it only when the site expires the login (a loaded session lands on a sign-in page). Agents never run these steps: the owner, not an agent, decides when a login is written to disk. In one session on 2026-10-09 the auto-mode classifier also denied an agent's `state-save` as credential materialization; that single session is the only evidence, so treat it as an observation, not a guarantee.
+
+- **Pointer**: when an agent's save step is denied or allowed unexpectedly, fetch [Permission modes: How auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions) live. **As of**: 2026-10-11. **Recheck trigger**: that section changes what auto mode blocks by default.
 
 Linux and macOS, in a shell (in Claude Code, prefix each command line with `!`):
 

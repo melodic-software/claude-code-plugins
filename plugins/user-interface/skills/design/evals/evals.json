@@ -58,6 +58,49 @@
       "expectations": [
         "The response points to /prototype:explore-directions for throwaway layout variants"
       ]
+    },
+    {
+      "id": 6,
+      "name": "animation-build-routes-to-authoring",
+      "prompt": "Our design is settled. Now add an entrance animation to the onboarding cards.",
+      "expected_output": "Building an interface animation is the animation-authoring concern. The skill routes to its highest-ranked installed route, this plugin’s /user-interface:write-animation when nothing ranked above it applies, and says which route it took.",
+      "files": [],
+      "expectations": [
+        "The response routes the request to the animation-authoring concern or to /user-interface:write-animation",
+        "The response says which route it took"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "animation-review-routes-to-audit",
+      "prompt": "Can you check whether the animations we added in this branch are any good?",
+      "expected_output": "Reviewing existing animation is the animation-audit concern, whose first route is /user-interface:audit-animation; the skill routes there instead of reviewing the motion itself.",
+      "files": [],
+      "expectations": [
+        "The response routes the review to /user-interface:audit-animation or the animation-audit concern"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "touch-web-guidance-read",
+      "prompt": "Design the mobile web version of our signup form. Most people fill it in on their phones.",
+      "expected_output": "The skill reads web.md and, because the form is used by touch on phones, touch-web.md; the answer applies touch guidance such as press feedback without hover dependence, target sizes that meet the WCAG target size criterion, the right on-screen keyboard per field, no zoom lock, and safe viewport sizing.",
+      "files": [],
+      "expectations": [
+        "The answer reads or cites touch-web.md or applies at least three of its rules (hover gating, target size, input keyboard, no zoom lock, viewport units)",
+        "The answer does not lock zoom"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "installed-component-library-kept",
+      "prompt": "We need a date picker for the booking form. Our app already uses a headless component library for its dialogs and menus. What should we use?",
+      "expected_output": "With nothing routed for the concern, the skill answers from component-libraries.md: it prefers the library the project already uses (or a picker built on the same primitives) and does not churn the installed dependency, choosing on accessibility, stack fit, maintenance and license.",
+      "files": [],
+      "expectations": [
+        "The answer prefers the component library already in the project, or explains why it cannot cover a date picker",
+        "The answer does not propose replacing the installed library"
+      ]
     }
   ]
 }

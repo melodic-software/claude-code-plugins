@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Hygiene checks, then the browser suites, for the interview surface.
 #   bash surface.test.sh
-# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_journey.js, tests/ui_live.js,
+# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_e.js, tests/ui_journey.js, tests/ui_live.js,
 # tests/ui_page.js
 # (the user journey, run against tests/fixtures/journey), schema.py, and the JSON
 # Schemas schema/questions.schema.json, schema/responses.schema.json, schema/event.schema.json,
@@ -91,6 +91,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   c="$tmp/c3"
   e="$tmp/e3"
   j="$tmp/journey"
+  g="$tmp/g3"
   session="iv-$$"
   # playwright-cli writes its logs under the working directory, so it runs from the scratch dir.
   pw() { (cd "$tmp" && playwright-cli -s="$session" "$@"); }
@@ -100,7 +101,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
     bash "$here/round.sh" --dir "$c" stop >/dev/null 2>&1
     bash "$here/round.sh" --dir "$e" stop >/dev/null 2>&1
     bash "$here/round.sh" --dir "$j" stop >/dev/null 2>&1
-    [[ -z "${g:-}" ]] || bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
+    bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
+    [[ -z "${pg:-}" ]] || bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
     case "$tmp" in
       */iv-surface.*) rm -rf -- "$tmp" ;;
       *) ;;
@@ -216,6 +218,15 @@ if command -v playwright-cli >/dev/null 2>&1; then
   pw run-code --filename "$(script_path "$tmp/ui_c6.js")" >"$tmp/ui_c6.out" 2>&1
   wait "$handler" 2>/dev/null
   bash "$here/round.sh" --dir "$f" stop >/dev/null 2>&1
+
+  # ui_e runs against its own server: one recommended and one withheld question, no events.
+  mkdir -p "$g"
+  cp tests/fixtures/ui_e/questions.json "$g/"
+  bash "$here/round.sh" --dir "$g" ensure-running --port 0 >/dev/null
+  gport=$(sed -n 's/^PORT=//p' "$g/.interview-session.env" | tr -d '\r')
+  sed "s/__PORT__/$gport/" tests/ui_e.js >"$tmp/ui_e.js"
+  pw run-code --filename "$(script_path "$tmp/ui_e.js")" >"$tmp/ui_e.out" 2>&1
+  bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
 
   # The journey runs against a fifth server seeded with an empty interview. It walks the whole
   # flow on one page in twenty phases; the shell writes as Claude between them.
@@ -361,18 +372,18 @@ if command -v playwright-cli >/dev/null 2>&1; then
 
   # ui_page runs against a seventh server on its own round: the choices, chips, banners, header
   # and layout of one question page, with the shell writing as Claude between phases.
-  g="$tmp/page"
-  mkdir -p "$g/ops"
-  cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$g/"
-  bash "$here/round.sh" --dir "$g" add-round --file tests/fixtures/ui_page/round.json --round 1 >/dev/null || bad "page: add-round refused"
-  bash "$here/round.sh" --dir "$g" ensure-running --port 0 >/dev/null
-  gport=$(sed -n 's/^PORT=//p' "$g/.interview-session.env" | tr -d '\r')
+  pg="$tmp/page"
+  mkdir -p "$pg/ops"
+  cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$pg/"
+  bash "$here/round.sh" --dir "$pg" add-round --file tests/fixtures/ui_page/round.json --round 1 >/dev/null || bad "page: add-round refused"
+  bash "$here/round.sh" --dir "$pg" ensure-running --port 0 >/dev/null
+  gport=$(sed -n 's/^PORT=//p' "$pg/.interview-session.env" | tr -d '\r')
   gphases=8
   for n in $(seq 1 "$gphases"); do
     sed "s/__PORT__/$gport/; s/__PHASE__/$n/" tests/ui_page.js >"$tmp/up$n.js"
   done
   grun() { pw run-code --filename "$(script_path "$tmp/up$1.js")" >"$tmp/up$1.out" 2>&1; }
-  grev() { bash "$here/round.sh" --dir "$g" revise "$@" --affects none --keep-alternatives --force >/dev/null || bad "page: revise $1 refused"; }
+  grev() { bash "$here/round.sh" --dir "$pg" revise "$@" --affects none --keep-alternatives --force >/dev/null || bad "page: revise $1 refused"; }
   grun 1
   grev Q1 --rec "Ship it on Tuesday. Watch the error logs for a week after."
   grun 2
@@ -382,19 +393,20 @@ if command -v playwright-cli >/dev/null 2>&1; then
   grev Q3 --rec "The default image, pinned by digest."
   grun 5
   grun 6
-  read -r -a gs <<<"$(unhandled "$g")"
-  bash "$here/round.sh" --dir "$g" reply Q8 --text "The support team reads them first." --seq "${gs[${#gs[@]} - 1]}" >/dev/null || bad "page: reply refused"
+  read -r -a gs <<<"$(unhandled "$pg")"
+  bash "$here/round.sh" --dir "$pg" reply Q8 --text "The support team reads them first." --seq "${gs[${#gs[@]} - 1]}" >/dev/null || bad "page: reply refused"
   grun 7
   grun 8
-  bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
+  bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4 5 6; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+  grade ui_e "$tmp/ui_e.out"
   for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
   for n in 1 2 3 4; do grade "ui_live.$n" "$tmp/ul$n.out"; done
   for n in $(seq 1 "$gphases"); do grade "ui_page.$n" "$tmp/up$n.out"; done
 else
-  browser=492 journey=221
+  browser=508 journey=222
   echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi

@@ -122,15 +122,17 @@ style conflicts route to the consuming ecosystem, not a house verdict.
   Lowercase-dash names, noun-verb subcommands, a full `--flag` for every
   short flag. These are syntactic conventions that do not transfer to other
   modalities.
-- Claude Code skills, official docs: [cc-skills]. PRIMARY. The
-  `description`, not the `name`, is what Claude uses to decide when to load
-  a skill (combined description text truncated at 1,536 chars in the skill
-  listing). So the name serves the human; the trigger phrases live in the
+- Claude Code skills, official docs: [cc-skills]. PRIMARY. Our decision: a
+  skill's name serves the human, and its trigger phrases live in the
   description. HIGH confidence. Falsification survived in the research pass.
-  Verified 2026-08-31 against
-  <https://code.claude.com/docs/en/skills#frontmatter-reference>; recheck
-  trigger: that page changing the discovery mechanism or the cap re-derives
-  this entry.
+  Which field Claude reads to decide when to load a skill, and any cap on the
+  listing text, are the page's to state.
+  - **Pointer**: when naming a skill, fetch
+    <https://code.claude.com/docs/en/skills#frontmatter-reference> live for
+    how the name and description fields are used.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes which field drives skill
+    loading, or the listing cap it states.
 - Documented, unresolved style conflicts. Route these to the consuming
   ecosystem's guide and do not pick a side:
   - abbreviation policy: .NET forbids ([dotnet-naming]) vs Go endorses

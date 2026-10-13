@@ -8,7 +8,7 @@ in any session.
 |---|---|---|---|
 | `update-config` is a bundled skill, invocable by the model and the person, not gated | The `/harness-ops:inventory` extraction of the installed 2.1.284 binary (`model_invocable: true`, `user_invocable: true`, `gated: false`) | 2026-09-29, Claude Code 2.1.284 | A release renames or removes the skill, or changes its invocability |
 | It configures the harness through `settings.json`: hooks for automated behaviors, permissions, environment variables, hook troubleshooting, and any change to `settings.json` or `settings.local.json`; for theme and model it points to `/config` | The same binary extraction's description | 2026-09-29, Claude Code 2.1.284 | A release changes the skill's description |
-| Given a described settings change, Claude edits the matching `settings.json` file | Its commands reference row, <https://code.claude.com/docs/en/commands> | 2026-09-29 | The commands page row changes |
+| We route a requested settings change to it rather than editing settings from this skill; what it edits is read from its row | Pointer: when routing, fetch its row of [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) live | 2026-10-11 | The commands page row changes |
 | It writes `Edit(path)` permission rules, not `Write(path)` rules, for file permissions | Claude Code changelog 2.1.275 | 2026-09-29 | A release note changes the rule shape it writes |
 
 ## Why the verdict is complementary
