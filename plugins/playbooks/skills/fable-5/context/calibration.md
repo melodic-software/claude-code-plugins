@@ -37,14 +37,14 @@ Same-vendor documentation is the easiest scope error to make, because it never f
 
 We treat a claude.ai system-prompt sentence as a fact about claude.ai and mobile, never about this harness.
 
-- **Pointer**: for which products those prompts cover, see the [published system prompts](https://platform.claude.com/docs/en/release-notes/system-prompts) index.
-- **As of**: 2026-09-28
+- **Pointer**: for which products those prompts cover, see the [published system prompts](https://platform.claude.com/docs/en/release-notes/system-prompts/overview) index (a single-section page with no heading anchors).
+- **As of**: 2026-10-11
 - **Recheck trigger**: the index stops scoping those prompts to claude.ai and mobile, or a sentence in either worked divergence below reappears in a current entry.
 
 Two worked divergences, both from published claude.ai system-prompt entries we read 2026-08-03, both false about this harness, and both already superseded. They stay examples from that read, not a fresh census:
 
-- The Claude Opus 4.1 entry, dated August 5 2025, on retaining information across chats. Here, CLAUDE.md files and auto memory carry knowledge across sessions ([Claude Code memory](https://code.claude.com/docs/en/memory)).
-- The Claude Sonnet 3.5 entry, dated November 22 2024, on opening URLs. Here, `WebFetch` is a documented tool ([tools reference](https://code.claude.com/docs/en/tools-reference)).
+- The Claude Opus 4.1 entry, dated August 5 2025, on retaining information across chats. Here, cross-session memory is a documented feature; read [Auto memory](https://code.claude.com/docs/en/memory#auto-memory) for what carries over (as of 2026-10-11; recheck when that section is renamed or removed, or a Claude Code release note changes auto memory).
+- The Claude Sonnet 3.5 entry, dated November 22 2024, on opening URLs. Here, fetching a URL is a documented tool; read [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior) for what it does (as of 2026-10-11; recheck when that section is renamed or removed, or a Claude Code release note changes WebFetch).
 
 As of that 2026-08-03 read, neither sentence survived in a current entry, which makes wrong-surface and stale-entry independent errors: a reader who caught only the surface mismatch would still be relying on a retired prompt. Clear both before a vendor sentence becomes a premise. Recheck when the published system-prompt notes restore either sentence.
 
@@ -64,14 +64,14 @@ A vendor's own blog, launch announcement, or engineering post is first-party and
 Per-model tables, listing which configurations a model accepts, what it defaults to, which values it rejects, and what its limits are, are the fastest-moving content a vendor publishes and the most tempting to paste, because a table reads as a fact rather than as a snapshot. A copied matrix is a fact about the day you copied it, and nothing in your artifact tells a later reader which day that was; a row is added or a default flips with each model release, and the copy stays confidently wrong.
 
 - TRIGGER: about to write a per-model matrix of supported values, defaults, capabilities, or limits into a chapter, rule, brief, or answer.
-- RULE: point at the vendor page that owns the table and let the reader read it there. For thinking configuration we treat the per-model table on [Troubleshooting thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting#supported-models) as the authority. Pointer: that section, whose anchor still resolves under its renamed heading. As of: 2026-10-01 (re-read after the MD5 changed: 21,840 B, MD5 `f8ec2c0cce3fdcc85153f82a87ac1b73`; the 2026-09-28 read was 17,981 B, MD5 `a247c28674c872f504ff7fc6c6a5bbea`). Recheck trigger: the next Claude model release, or a re-fetch whose MD5 differs. Nothing you restate from it is more current than it is.
+- RULE: point at the vendor page that owns the table and let the reader read it there. For thinking configuration we treat the per-model table on [Troubleshooting thinking](https://platform.claude.com/docs/en/build-with-claude/thinking-troubleshooting#supported-models) as the authority. Pointer: that section, whose anchor still resolves under its renamed heading. As of: 2026-10-10 (re-read after the MD5 changed: 23,159 B, MD5 `818edd2d09bdded2b300ebf221efd403`; the 2026-10-01 read was 21,840 B, MD5 `f8ec2c0cce3fdcc85153f82a87ac1b73`). Recheck trigger: the next Claude model release, or a re-fetch whose MD5 differs. Nothing you restate from it is more current than it is.
 - RULE: if you state a matrix anyway, because the reader cannot act without the values in front of them, attach a re-check trigger naming the next model release, so a stale row is found by a scheduled read rather than by a reader acting on it.
 - RULE: a vendor matrix is an API-surface fact, so "A claim's product surface travels with it" above applies to it row by row. Presence in the table is not reachability where you are running.
 
 > Worked instance, from our 2026-08-03 checks. Claude Mythos 5 has its own row in that per-model table. In Claude Code it is a known model in the registry with full gating machinery and is still not selectable: no alias resolves to it, it is absent from `latest_per_family`, it declares no capabilities, and it exposes no picker row. Its registry entry carries exactly one non-null provider id, `first_party`, beside seven null siblings.
 > Reading its row as an available option would be the copy error and the surface error at once, and on our read the table gave no signal that the two answers differ.
-> The availability gate is documented on a different page: read the [Availability](https://platform.claude.com/docs/en/about-claude/models/introducing-claude-fable-5-and-claude-mythos-5#availability) section of the introducing page. On the same day we checked that the matrix page carried no access-availability signal separating the two models, so the gap is real and not an artifact of reading one page carelessly. Three sources agree that the row exists, that its availability is gated, and that the gate is closed here, which makes the local registry reading more than one session's observation.
-> Pointer: the matrix section above and that Availability section. As of: 2026-08-03 for the introducing page and the local registry reading; 2026-10-01 for the matrix page, re-read that day with its Mythos 5 row still present. Recheck trigger, per the rule above: the next Claude model release, or any Mythos 5 availability announcement. Re-read both sections before citing this instance as current.
+> The availability gate is documented on a different page: read the [Fable vs. Mythos](https://platform.claude.com/docs/en/models/fable-5/overview#fable-vs-mythos) section of the Claude Fable 5 overview. On the same day we checked that the matrix page carried no access-availability signal separating the two models, so the gap is real and not an artifact of reading one page carelessly. Three sources agree that the row exists, that its availability is gated, and that the gate is closed here, which makes the local registry reading more than one session's observation.
+> Pointer: the matrix section above and that Fable vs. Mythos section. As of: 2026-08-03 for the local registry reading; 2026-10-10 for the overview section and the matrix page, re-read that day with its Mythos 5 row still present. Recheck trigger, per the rule above: the next Claude model release, or any Mythos 5 availability announcement. Re-read both sections before citing this instance as current.
 
 ## The check / skip decision
 
@@ -104,6 +104,14 @@ A session has no single correct effort level; each decision inside it does. Budg
 
 - STOP TRIGGERS, any one of which is sufficient: the next unit of analysis cannot alter what you do next; you are comparing options on dimensions where they do not differ; you are on a third pass over unchanged evidence; the concern is hypothetical with no concrete trigger anywhere in the actual task.
 - SURVEY DEPTH = PURSUIT DEPTH: enumerate options only as deep as you would actually pursue them. When a hard constraint eliminates a class of options, do not cost out members of that class. A comparison you will not act on is decoration.
+
+## Price optional hardening against what the attacker already holds
+
+- TRIGGER: about to recommend an optional security hardening, one no failing check or reported exploit demands.
+- RULE: state what the attacker must already hold to exploit the gap and what that holding already grants. If it already grants equal power, recommend against building it.
+
+> Weak: a forged dispatch record could start a lane run → recommend signing the record.
+> Strong: "Forging the record needs a workflow holding this repository's write token, which can already push to the branch the lane runs from. Not worth building."
 
 ## Settled means settled
 

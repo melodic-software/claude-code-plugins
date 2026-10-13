@@ -12,6 +12,7 @@
       { "name": "review" },
       { "name": "review-security" },
       { "name": "run-checks" },
+      { "name": "unblock" },
       { "name": "update" },
       { "name": "verify" }
     ],
@@ -27,6 +28,7 @@
     "merge",
     "report",
     "require",
+    "resolve",
     "review",
     "run",
     "simplify",

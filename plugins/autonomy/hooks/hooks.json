@@ -22,6 +22,10 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--run-if-any-set",
+              "LANE_STOP_GATE_ARM_ID,LANE_STOP_GATE_ENABLED",
+              "--run-if-settings-mention",
+              "lane_stop_gate",
               "${CLAUDE_PLUGIN_ROOT}/hooks/lane-stop-gate.sh"
             ],
             "timeout": 15,

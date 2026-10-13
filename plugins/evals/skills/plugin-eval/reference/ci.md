@@ -31,8 +31,9 @@ claude plugin eval . \
   [hub's CI section](../SKILL.md#ci). The pinned values are the operator's choice and carry their
   own refresh cadence: review them whenever the provider retires or renames a model, and record the swap alongside the
   trend so a step change in scores has a cause.
-- `--threshold 0.8` rather than the default 1.0. At 1.0 every stochastic near-miss is a red build,
-  and exit 1 stops carrying information.
+- `--threshold 0.8` rather than the default (read it at the Command options pointer under
+  **Exit codes**). A threshold that demands a perfect case score makes every stochastic near-miss
+  a red build, and exit 1 stops carrying information.
 - `--no-publish` keeps the HTML report local. It is a single self-contained file that makes no
   external requests, so attach it to the job.
 - `--max-cost-usd` is the ceiling the job cannot exceed. Prefer it over tight per-run limits.
@@ -40,21 +41,19 @@ claude plugin eval . \
 
 ## Exit codes
 
-| Code | Meaning |
-|---|---|
-| 0 | Every case met `--threshold` and every case file loaded |
-| 1 | Overloaded across six causes: a case below threshold, a case file that failed to load, no cases found, a run that could not start, an untrusted directory without `--trust-plugin`, or an invalid option |
-| 2 | Partial: the cost ceiling was hit, or the credential was rejected at or before the first run. The JSON is still written with `partial: true` |
-| 130 | Interrupted. Partial results are written |
-| 143 | Terminated, for example by a CI timeout |
+The gate never reads pass or fail from the exit code alone. One non-zero code covers several
+unrelated causes, and a partial run still writes its JSON, so the parser below decides from the
+document. A typo in `--case` is one of the causes that shares a code with a real failure.
 
-Report writing or publishing failures never change the exit code. A typo in `--case` produces exit 1
-with `No eval cases found matching --case "<glob>"`, which no exit code distinguishes from a real
-failure.
+- **Pointer**: when mapping an exit code to a cause, or relying on a flag default, fetch
+  [Run evals in CI](https://code.claude.com/docs/en/plugin-evals#run-evals-in-ci) and
+  [Command options](https://code.claude.com/docs/en/plugin-evals#command-options) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a release note touches `plugin eval`, `claude plugin eval --help` no longer
+  matches those sections, or a code's causes change. Then re-derive the parser's order.
 
-| Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
-|---|---|---|
-| The exit-code table above, the documented CI invocation, and the flag defaults it relies on (`--threshold` 1.0, `--judge-model` a small fast model, `--concurrency` 1 with a range of 1 to 8) | `claude plugin eval --help` plus <https://code.claude.com/docs/en/plugin-evals>, verified 2026-09-12, with the untrusted-directory refusal and the ceiling behavior reproduced locally | Recheck trigger: a release note touches `plugin eval`, or `--help` no longer matches a row. Then re-run `--help`, re-read the page, re-derive the table, and refresh this record with the outcome |
+The untrusted-directory refusal under `--trust-plugin` and the cost-ceiling behavior were also
+reproduced locally on 2026-09-12; the recipe's bullets above rest on that run.
 
 ## The parser
 
@@ -108,8 +107,12 @@ Three rules the parser encodes, each of which a naive reader gets wrong:
 ## What the job needs
 
 - A Claude Code install at or above the version floor, and credentials in the environment.
-- A sandbox backend on the runner if any case grants `Bash`, `PowerShell`, `Write`, or `Edit`: Linux needs
-  `bubblewrap` and `socat`. Without one, each granting run is refused rather than run unconfined.
+- A sandbox backend on the runner if any case grants a tool that runs sandboxed; which grants do,
+  and what a Linux runner installs for the backend, is the Grant tools record in
+  [case-authoring.md, Frontmatter bounds](case-authoring.md#frontmatter-bounds) (it has no heading
+  of its own). As of 2026-10-11. Recheck trigger: that record moves or its pointer stops covering
+  which grants run sandboxed or the Linux backend. Without one, each granting run is refused rather
+  than run unconfined.
 - Budget awareness: the command has no free mode, so an every-commit lane should use deterministic
   graders only, and the expensive judge lane should run on a schedule or on demand.
 - A fallback plan for the server-side switch. The command can answer

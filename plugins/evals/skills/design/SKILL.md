@@ -84,6 +84,17 @@ Case authoring (background: [eval-design.md](../methodology/reference/eval-desig
   for LLM/human-graded cases.
 - Draft a baseline set by hand with the consumer, then offer to generate more cases from it,
   favoring volume over polish. Volume means cheaper grading per case, never easier cases.
+- Evidence for an expectation comes from what the run left behind: its transcript (in
+  `claude plugin eval`, the `tool_used` and `tool_order` graders check which steps ran) or the
+  files it wrote. A model's description of its own work supports no expectation, so a case never
+  asks it to name the skills or rules it applied.
+- A model that can tell it is being watched behaves differently. Anything it reads, from the
+  prompt to fixture file and folder names to a slug or branch the case creates, stays free of
+  words like test case, benchmark, grader, rubric or eval. Fixtures take names from their domain:
+  `orders/2026-q3.csv` passes, `eval-inputs/case-07.csv` does not.
+- The prompt reads like something a real user would send, asking for the work in that user's
+  words. Nothing in it reveals that this is a test run, what the case checks, or which skill or
+  step the grader is looking for.
 
 ### Gathering cases
 

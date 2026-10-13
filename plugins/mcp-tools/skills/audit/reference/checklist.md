@@ -9,14 +9,16 @@ not recap them here, read them at the source:
   (correlate with [Anthropic: Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents))
 - [Claude Code: Connect Claude Code to tools via MCP](https://code.claude.com/docs/en/mcp). Claude-Code-specific client behavior: `_meta` annotations and result-size limits
 
-**Client-behavior record.** C17 and C18 act on values this skill holds as its own settings. C17
-treats 500,000 characters as the ceiling above which a declared `anthropic/maxResultSizeChars`
-value no longer applies, and treats a tool returning image content as outside that annotation. C18
-treats only the JSON boolean `true` as an effective `anthropic/requiresUserInteraction`, and grades
-any other value FAIL because the consent prompt it was meant to force never fires. C19 treats a
-tool's `anthropic/alwaysLoad: false` as a deliberate opt-out that keeps the tool deferred even when
-the server's own config loads it upfront, honored only for the server sources the per-tool pointer
-names.
+**Client-behavior record.** C17 and C18 grade a declared value against client behavior read live
+at the pointers below, never against a number or type copied here. C17 reads the ceiling above which
+a declared `anthropic/maxResultSizeChars` value stops applying, and which result content the
+annotation does not cover, from the result-size sections at audit time; a declared value past that
+ceiling, or on content outside it, is the ineffective shape. C18 grades as effective only the value
+the approval section names for `anthropic/requiresUserInteraction` (this skill reads it in its JSON
+type, so a string or number spelling of it fails) and grades any other value FAIL, because the
+consent prompt it was meant to force never fires. C19 treats a tool's `anthropic/alwaysLoad: false`
+as a deliberate opt-out that keeps the tool deferred even when the server's own config loads it
+upfront, honored only for the server sources the per-tool pointer names.
 
 - **Pointer**: for the result-size annotation, see
   <https://code.claude.com/docs/en/mcp#raise-the-limit-for-a-specific-tool> and
@@ -25,7 +27,7 @@ names.
   per-tool deferral and which server sources honor `false`, see
   <https://code.claude.com/docs/en/mcp#per-tool-alwaysload>; for the server-level field, see
   <https://code.claude.com/docs/en/mcp#exempt-a-server-from-deferral>.
-- **As of**: 2026-10-10 (per-tool deferral); 2026-09-06 (the other values)
+- **As of**: 2026-10-11
 - **Recheck trigger**: the page moves any of these values, or changes which server sources honor a
   per-tool `false`, or a release note names MCP `_meta` annotations.
 
@@ -136,8 +138,11 @@ documented in the Claude Code MCP page cited above. They are client behavior, no
 requirements, so every one is authority OPINION. A missing annotation here is at most info (an
 advisory that the server could benefit), and for C19 not a finding at all. Two defect shapes:
 
-- **Declared but ineffective**. Claude Code caps or ignores the value (C17 above the 500,000-character
-  ceiling or on an image-returning tool; C18 set to anything but the JSON boolean `true`). WARN
+- **Declared but ineffective**. Claude Code caps or ignores the value (C17 past the ceiling or on
+  content outside the annotation; C18 set to anything but the effective value; both per the
+  [Client-behavior record](#mcp-tool-audit-checklist), a bold paragraph under the title with no
+  heading of its own; as of 2026-10-11, recheck when that record moves or changes what C17 or C18
+  reads at its pointer). WARN
   generally, FAIL for `anthropic/requiresUserInteraction`, where a silently ignored value ships a
   consent gate that never fires.
 - **Declared, honored, and unwarranted**. Claude Code applies the value exactly as asked, and that is
@@ -153,8 +158,8 @@ wire-level field. C18 turns on the value's JSON type, so read it in that languag
 
 | # | Criterion | Authority | Severity | How to evaluate |
 |---|-----------|-----------|----------|-----------------|
-| C17 | **`anthropic/maxResultSizeChars` on inherently-large-output tools**. A tool whose text results are inherently large (full schemas, file trees, whole-board dumps) declares its own result-size ceiling | OPINION | info (WARN if set ineffectively) | Missing on a large-output tool = info: the tool's large text results fall back to the client's default handling (Client-behavior record). Set above 500,000 (this check's ceiling; the excess never applies) or on a tool returning image content (outside the annotation, per the record) = WARN |
-| C18 | **`anthropic/requiresUserInteraction` set, as JSON `true`, where per-call consent is the point**. A tool that exists to collect a person's go-ahead (granting access, accepting terms), so that approving it without a prompt would defeat its purpose, declares it | OPINION | info (FAIL if set to any value other than JSON `true`) | Missing on a consent-shaped tool = info. Declared with any value other than the JSON boolean `true` (e.g. the string `"true"`, `1`) = FAIL, because the intended consent gate silently never applies. How an honored annotation behaves in each permission mode is read at the Client-behavior record's pointer, not restated here |
+| C17 | **`anthropic/maxResultSizeChars` on inherently-large-output tools**. A tool whose text results are inherently large (full schemas, file trees, whole-board dumps) declares its own result-size ceiling | OPINION | info (WARN if set ineffectively) | Missing on a large-output tool = info: the tool's large text results fall back to the client's default handling ([Client-behavior record](#mcp-tool-audit-checklist), a bold paragraph under the title; as of 2026-10-11, recheck when that record moves or changes what C17 reads at its pointer). Set past the ceiling, or on a tool returning content outside the annotation, both read at the record's pointer = WARN |
+| C18 | **`anthropic/requiresUserInteraction` set, to the effective value, where per-call consent is the point**. A tool that exists to collect a person's go-ahead (granting access, accepting terms), so that approving it without a prompt would defeat its purpose, declares it | OPINION | info (FAIL if set to any value other than the value the Client-behavior record's pointer names) | Missing on a consent-shaped tool = info. Declared with any value other than the value the Client-behavior record's pointer names, read in its JSON type so a string or number spelling of it does not match = FAIL, because the intended consent gate silently never applies. How an honored annotation behaves in each permission mode is read at the Client-behavior record's pointer, not restated here |
 | C19 | **`anthropic/alwaysLoad` reserved for genuinely always-needed tools**. `"anthropic/alwaysLoad": true` opts that one tool out of tool-search deferral | OPINION | info (WARN if over-declared) | Absence is never a finding. Deferral is the correct default, and "needed on every turn" is not inferable from source. Declared `true` on a tool with no every-turn case, or on many of a server's tools (defeating deferral, since each upfront tool spends context), = WARN. Declared `false` is never a finding: it keeps a heavy tool deferred when a user configures the whole server to load upfront, on the server sources the Client-behavior record's pointer names, so it is the opt-out to suggest for a large tool on a server whose docs recommend the server-level `alwaysLoad`. Its absence is not a finding either: make that suggestion in the fix guidance, unscored, never as an info count. That server-level config field itself is client configuration, outside this audit |
 
 ## Scoring

@@ -141,6 +141,78 @@
         "Output does not treat an uncommitted edit to a fixture as intentional naming \u2014 the bypass is only for a target path the user typed",
         "This eval is narration-only regarding the hypothetical working-tree state"
       ]
+    },
+    {
+      "id": 11,
+      "name": "articles-default-keep-uses-edit-backend",
+      "prompt": "Compress evals/fixtures/verbose-onboarding-snippet.md relative to the skill directory. [The caveman plugin is installed, so detect-caveman.sh would print available. The repository has no docs/conventions/docs-hygiene.yaml, and the docs-hygiene userConfig option compress_articles is not set, so SKILL.md's userConfig line substitutes to its declared default, keep.]",
+      "expected_output": "compress_articles resolves to keep at the default level. The run does not invoke /caveman:compress even though caveman is installed: it uses the in-session Edit backend. Filler and hedging ('Basically', 'really', 'just', 'Honestly', 'perhaps') are cut, but every article stays: 'the required toolchain', 'the build', 'the root cause', 'the dev server' and 'the gateway' keep their 'the'. The summary's last line reads compress_articles: keep (default).",
+      "files": [
+        "evals/fixtures/verbose-onboarding-snippet.md"
+      ],
+      "expectations": [
+        "Does not invoke /caveman:compress; the backend is the in-session Edit fallback",
+        "Every a, an and the in the fixture is still present in the compressed text",
+        "Filler or hedging words such as 'Basically', 'Honestly' or 'perhaps' are removed",
+        "The last summary line names compress_articles as keep from the default level"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "articles-userconfig-cut-keeps-caveman",
+      "narration": true,
+      "prompt": "/docs-hygiene:compress docs/onboarding.md [The caveman plugin is installed. No docs/conventions/docs-hygiene.yaml. The docs-hygiene userConfig option compress_articles is set to cut, so SKILL.md's userConfig line substitutes to cut.]",
+      "expected_output": "The per-user level sets cut, so the run keeps the earlier behavior: Step A detects caveman, Step B runs /caveman:compress on a temp copy, and articles may be removed. The semantic-diff pass, revert pass and markdownlint still run. The summary's last line reads compress_articles: cut (userConfig).",
+      "files": [],
+      "expectations": [
+        "Runs caveman detection and uses /caveman:compress as the backend because caveman is installed",
+        "Treats articles as flavor that may be cut",
+        "Still runs the separate semantic-diff pass and markdownlint",
+        "The last summary line names compress_articles as cut from userConfig"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "articles-repo-file-wins-over-userconfig",
+      "prompt": "/docs-hygiene:compress docs/onboarding.md [The repository's docs/conventions/docs-hygiene.yaml is captured in evals/fixtures/docs-hygiene-articles-keep.yaml relative to the skill directory. The docs-hygiene userConfig option compress_articles is set to cut. The caveman plugin is installed.]",
+      "expected_output": "Both levels set the key and the repository file wins: the value is keep from docs/conventions/docs-hygiene.yaml, not cut from userConfig. The run uses the in-session Edit backend, not /caveman:compress, keeps every article, and the summary's last line names keep and the repository file.",
+      "files": [
+        "evals/fixtures/docs-hygiene-articles-keep.yaml"
+      ],
+      "expectations": [
+        "compress_articles resolves to keep from docs/conventions/docs-hygiene.yaml, not cut from userConfig",
+        "Does not invoke /caveman:compress",
+        "The reported level is the repository file"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "articles-invalid-repo-value-falls-back-to-default",
+      "prompt": "/docs-hygiene:compress docs/onboarding.md [The repository's docs/conventions/docs-hygiene.yaml is captured in evals/fixtures/docs-hygiene-articles-invalid.yaml relative to the skill directory. The docs-hygiene userConfig option compress_articles is set to cut.]",
+      "expected_output": "The repository file holds drop, which is not keep or cut. The run does not stop: it names docs/conventions/docs-hygiene.yaml, the key compress_articles and the value drop, and drops that layer. No valid layer sits above it, so the key falls back to the default, keep; the lower userConfig value cut is not used in its place. The run continues on the Edit backend with every article kept.",
+      "files": [
+        "evals/fixtures/docs-hygiene-articles-invalid.yaml"
+      ],
+      "expectations": [
+        "Names the file docs/conventions/docs-hygiene.yaml, the key compress_articles and the value drop as invalid",
+        "Still compresses the target; the invalid value does not stop the run",
+        "Resolves to keep at the default level and does not fall through to the userConfig value cut",
+        "Keeps every article in the compressed text"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "articles-keep-single-file-makes-word-level-cuts-only",
+      "prompt": "Compress evals/fixtures/restated-rule-name.md relative to the skill directory, cutting as much as is safe. [No docs/conventions/docs-hygiene.yaml; compress_articles substitutes to its default, keep. The caveman plugin is not installed.]",
+      "expected_output": "Under keep, a single-file run is held to the batch path's word-level set without articles, not the full matrix. 'really', 'just' and 'basically' may go, but no sentence or clause is deleted: the restatement 'Tag before you publish, because' and the sentence beginning 'As the rule name says' stay, since restatement deletion is allowed only under cut. Every 'the' and 'a' stays.",
+      "files": [
+        "evals/fixtures/restated-rule-name.md"
+      ],
+      "expectations": [
+        "Deletes no sentence and no restatement of a bold rule name; the text after each bold lead-in keeps its clauses",
+        "Every a, an and the in the fixture is still present",
+        "Only word-level cuts appear, such as removing 'really', 'just' or 'basically'"
+      ]
     }
   ]
 }

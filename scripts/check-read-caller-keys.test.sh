@@ -34,6 +34,7 @@ on:
     secrets:
       claude-code-oauth-token:
         required: false
+permissions: {}
 jobs:
   run:
     permissions:
@@ -183,13 +184,63 @@ run_case "a workflow that does not parse fails" 1 \
   "printf 'jobs: [unclosed\n' >.github/workflows/broken.yml" \
   ".github/workflows/broken.yml: does not parse as YAML"
 
+# append_check_job <job> <ref>: appends to the read workflow, from line 15, a
+# job holding id-token: write whose checkout step (line 20) checks out <ref>.
+append_check_job() {
+  printf '  %s:\n    permissions:\n      id-token: write\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@v7\n        with:\n          ref: %s\n' \
+    "$1" "$2" >>"$READ"
+}
+# rewrite <command...>: filters the read workflow through <command> in place.
+rewrite() {
+  "$@" <"$READ" >"$READ.tmp" && mv "$READ.tmp" "$READ"
+}
+# shellcheck disable=SC2016  # literal workflow expressions, never expanded
+TIP='${{ github.event.repository.default_branch }}'
+# shellcheck disable=SC2016
+HEAD_REF='${{ github.event.pull_request.head.sha }}'
+
 run_case "a read workflow that names id-token fails" 1 \
   "printf '      id-token: write\n' >>$READ" \
-  "$READ:14: the read workflow names id-token"
+  "$READ:15: the read workflow names id-token outside its broker-check job"
+
+run_case "id-token in the broker-check job that checks out the default branch tip passes" 0 \
+  "append_check_job broker-check '$TIP'" "(1 caller(s))"
+
+run_case "id-token in the run job still fails beside a broker-check job" 1 \
+  "append_check_job broker-check '$TIP' && rewrite awk '{ print } NR == 11 { print \"      id-token: write\" }'" \
+  "$READ:12: the read workflow names id-token outside its broker-check job"
+
+run_case "id-token in a job with another name fails" 1 \
+  "append_check_job broker-check-2 '$TIP'" \
+  "$READ:17: the read workflow names id-token outside its broker-check job"
+
+run_case "a broker-check job that checks out the PR head fails" 1 \
+  "append_check_job broker-check '$HEAD_REF'" \
+  "$READ:20: the broker-check job checks out something other than this repository's default branch tip"
+
+run_case "a broker-check checkout of another repository fails" 1 \
+  "append_check_job broker-check '$TIP' && printf '          repository: other/repo\n' >>$READ" \
+  "$READ:20: the broker-check job checks out something other than this repository's default branch tip"
+
+run_case "a broker-check job that is a reusable-workflow call fails" 1 \
+  "printf '  broker-check:\n    permissions:\n      id-token: write\n    uses: ./.github/workflows/other.yml\n' >>$READ" \
+  "$READ:16: the broker-check job must be steps, not a reusable-workflow call"
+
+run_case "write-all on the read workflow's run job fails" 1 \
+  "rewrite awk 'NR == 9 { print \"    permissions: write-all\" } NR < 9 || NR > 11'" \
+  "$READ:9: grants permissions: write-all in a run that reaches $READ"
+
+run_case "a read workflow with no top-level permissions fails" 1 \
+  "rewrite grep -v '^permissions: {}\$'" \
+  "$READ:1: the read workflow's top-level permissions is not {}"
+
+run_case "a read workflow job with no permissions map fails" 1 \
+  "rewrite awk 'NR < 9 || NR > 11'" \
+  "$READ:8: job run has no explicit permissions map"
 
 run_case "a read workflow that references the key fails" 1 \
   "printf '      app-private-key:\n        required: true\n' >>$READ" \
-  "$READ:14: references the App key"
+  "$READ:15: references the App key"
 
 run_case "a missing read workflow fails" 1 \
   "rm $READ" "$READ: missing"

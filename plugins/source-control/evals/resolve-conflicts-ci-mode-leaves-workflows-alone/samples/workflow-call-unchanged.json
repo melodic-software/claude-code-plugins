@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "name: release\non:\n  push:\n    tags: [\"v*\"]\njobs:\n  release:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: Bundle\n        run: source scripts/package.sh && build_bundle --compress\n", "why": "the file exactly as the merge left it"}
+  ],
+  "fail": [
+    {"answer": "name: release\non:\n  push:\n    tags: [\"v*\"]\njobs:\n  release:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: Bundle\n        run: source scripts/package.sh && make_bundle --compress\n", "why": "the model fixed the stale call in the workflow itself"},
+    {"answer": "name: release\non:\n  push:\n    tags: [\"v*\"]\njobs:\n  release:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n", "why": "the PR's step removed"},
+    {"answer": ""}
+  ]
+}

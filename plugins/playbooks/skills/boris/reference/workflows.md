@@ -30,7 +30,12 @@ Plan migration interactively; `/batch` fans work to parallel agents, each in its
 
 ## 31. /loop: Schedule Recurring Tasks
 
-`/loop` schedules recurring tasks in the current session; recurring jobs expire 7 days after creation. Claude runs your prompt on interval, handling long-running workflows autonomously.
+`/loop` schedules recurring tasks in the current session; how long a recurring job lives is upstream's to say (pointer below). Claude runs your prompt on interval, handling long-running workflows autonomously.
+
+- **Pointer**: before relying on a recurring `/loop` job outliving a long run, fetch
+  [Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes or removes the recurring-task expiry.
 
 ```
 > /loop babysit all my PRs. Auto-fix build issues and when comments come in, use a worktree agent to fix them
@@ -42,7 +47,11 @@ Plan migration interactively; `/batch` fans work to parallel agents, each in its
 
 Uses: PR babysitting, Slack summaries, deploy monitoring, any repeating workflow.
 
-Learn more: https://code.claude.com/docs/en/scheduled-tasks
+- **Pointer**: for the interval syntax `/loop` accepts, see
+  [Run on a fixed interval](https://code.claude.com/docs/en/scheduled-tasks#run-on-a-fixed-interval).
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes the interval syntax or moves, or a Claude Code release
+  note touches `/loop`.
 
 ## 32. Code Review: Agents Hunt for Bugs
 

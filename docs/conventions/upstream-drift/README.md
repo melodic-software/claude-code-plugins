@@ -9,6 +9,7 @@
 - [When a trigger fires](#when-a-trigger-fires)
 - [Reading the basis: the fetch route](#reading-the-basis-the-fetch-route)
 - [Drift signal: content hashing, deferred](#drift-signal-content-hashing-deferred)
+- [Pinned git upstreams](#pinned-git-upstreams)
 - [Enforceability](#enforceability)
 - [Adopters](#adopters)
 - [Why this name](#why-this-name)
@@ -367,6 +368,74 @@ real defect a stored hash would have flagged, or a fleet audit completes without
 stamped claim in its scope, at which point a hash store becomes its own designed issue, not an
 inline addition here.
 
+## Pinned git upstreams
+
+A `docs/upstream/` page that records what this repository took from, or rejected in, a git
+repository pins the commit it read. The forms below apply to those pages only. A page that records
+a docs site keeps its own forms; `docs/upstream/claude-code.md` keeps its `changelog through`
+marker, which the harness-ops changelog skill reads.
+
+- **Pin marker**: the page's line
+  ``**Last audited upstream state:** `<owner>/<repo>@<40-hex sha>` under `<scope>/` ``, followed
+  by free prose such as a release name. The `under` clause is optional and names the directory
+  whose units the page maps. A marker line holding a backticked `<owner>/<repo>@<hex>` that does
+  not match this form (a short SHA, a malformed `under` clause) is an error, not a skip. A marker
+  without `<owner>/<repo>` (`main@<short sha>`) is not this form; it is skipped until its page is
+  converted.
+- **Row link**: `https://github.com/<owner>/<repo>/(tree|blob)/<pin>/<path>`, carrying the page's
+  own pin. Links to other repositories are not drift inputs.
+- **Drift inputs**: a link outside the page's `## Map` section sits where we took or rejected
+  something, and any change under its path is drift. A link inside `## Map` names a unit we took
+  nothing from; it counts only when that unit is removed upstream. A file added under the scope
+  that no link covers is a new unit and counts.
+- **Page status**: `clean`, `drift`, or `untracked`. A page whose marker has no scope and that
+  links no path in its repository is `untracked`: the report lists it and never counts it as drift.
+- **Recheck trigger**, the same words on every git-pinned page: a change, between the pinned commit
+  and upstream HEAD, to a path a row we took or rejected something from links, a unit removed or
+  added under the scope: re-audit the affected rows.
+
+The [required parts](#required-parts) still bind: a row may name a topic and link to it, and holds
+no upstream text, quoted or paraphrased. Two parts take a git-specific shape. The 40-hex pin stands
+in for the as-of date: the commit fixes exactly what was read, and the page's git history records
+when. And git blob SHAs are a content hash the host already serves, so the
+[content-hashing deferral](#drift-signal-content-hashing-deferred) does not apply to git upstreams.
+
+### The drift check
+
+`scripts/check-upstream-drift.sh` reads every page under `docs/upstream/` whose marker is in the
+pin form, or each `--page <file>`, and compares the upstream git trees at the pin and at upstream
+HEAD through `gh api`. It needs `jq`, `gh`, and a token (`GH_TOKEN` in Actions, `gh auth login`
+locally). It is a member of the check-script family
+([README.md, "The check-script contract"](../../../README.md#the-check-script-contract)):
+
+| Mode | Output | Exit |
+|---|---|---|
+| default | one finding per drift event on stderr: `<page>:<line>: <owner>/<repo> <A, M or D> <file>`, `<page>: <owner>/<repo> new unit <file>`, `<page>:<line>: <owner>/<repo> removed unit <path>`; when clean, `upstream records: <n> pages, no drift` on stdout | 0 clean, 1 drift, 2 error |
+| `--report` | on stdout, a `page` line per page (`repo=`, `pin=`, `head=`, `status=`, `path=`), then its `row`, `new-unit` and `removed-unit` lines; `path=` is always the last field, so a path holding a space, `=` or `\|` cannot shift a field | 0 clean, 1 drift, 2 error |
+| `--links` | each link that is `missing-at-pin`, `wrong-sha` or `bad-form` on stderr; the clean statement on stdout | 0 every link ok, 1 any other, 2 error |
+
+A truncated tree read, a failed API call, a missing `gh` or `jq`, a near-miss marker (including an
+indented or quoted one), an `under` scope absent at the pin, or a tree path holding a control
+character exits 2 with nothing on stdout: an unread tree is never a clean
+report ([the fetch route's read rules](#reading-the-basis-the-fetch-route)). The script writes no
+file. A change that converts or re-pins a page runs `--links` on it.
+
+### Monthly drift issues
+
+A scheduled GitHub Actions workflow, `.github/workflows/maintenance-file-upstream-drift-issues.yml`,
+runs the check once a month with `--report` and hands the report to
+`scripts/upstream-drift-issues.sh`, which keeps one issue per upstream titled
+`Upstream drift: <owner>/<repo>`: it opens the issue when that upstream drifts, updates the same
+issue in place on later runs, and closes it once the upstream is clean. It also closes, with a
+comment, any open `Upstream drift:` issue the workflow's bot opened for a repository the report no
+longer names, such as one whose `docs/upstream` page was removed or renamed. The run fails only on a
+script error or a failed issue write; drift alone does not fail it. It differs from
+`maintenance-check-upstream-drift.yml`, which runs weekly over the vendored skills' own update
+scripts, fails on drift, and never opens an issue. Whether to adopt an
+upstream change stays a person's decision: the issue is the to-do, and re-auditing the rows, which
+moves the pin and records the outcome as [When a trigger fires](#when-a-trigger-fires) requires, is
+what closes it.
+
 ## Enforceability
 
 Classified per `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`:
@@ -375,7 +444,7 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 |---|---|
 | Every verification stamp carries a recheck trigger | **Deterministic** by nature (a presence check) once stamps and triggers use greppable forms. The candidate check, flagging any `Verified <date>` line or row whose surface states no trigger, is named but **not built**: per the tiers doc's routing rule, worth-mechanizing defaults to "not yet". Build trigger: a trigger-less stamp lands on `main` again after this doc. |
 | The trigger clears the observability bar | **Reasoning-only**. Whether an event is decidable from evidence is a judgment about meaning. |
-| A trigger has fired | **Reasoning-only** today; **detect-then-judge** if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
+| A trigger has fired | **Detect-then-judge** for [pinned git upstreams](#pinned-git-upstreams): `scripts/check-upstream-drift.sh` flags a change under a linked path or scope, and a person decides whether the change touches the decision. **Reasoning-only** for every other record today; detect-then-judge there too if a hash store lands: the hash mismatch flags, and judgment decides whether the page change touches the claim, because a changed page is not a changed fact. |
 
 ### Recorded decision: an adoption gate is deferred, and the check named above would have missed the case that prompted it
 
@@ -448,6 +517,7 @@ on touch.
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only: an undated in-repo deferral with no upstream pointer. |
 | `/ai-slop:audit`, the tell catalog it loads, §Upstream-drift record | new with 1.5.0 | Conforming record: a revision-pinned pointer to the Wikipedia source page (`oldid`), as-of date, and a recurring recheck trigger: each `ai-slop` release and each fleet audit, chosen over per-revision after measuring the page at 50+ edits/week. |
 | `/docs-hygiene:write-for-humans`, the source records it loads | new with docs-hygiene 0.18.0 | Conforming records: one pointer record per external writing standard the skill falls back to, each carrying the pointer, as-of date, and an observable recheck trigger: a publication event for an edition-pinned standard, a page-content divergence for a continuously edited one. The record names which. |
+| `docs/upstream/` pages pinned to a git commit (`cursor-pstack.md`, `mattpocock-skills.md`, `trailofbits-skills.md`, `tlaplus-agentskills.md`) | new with 3.0.0 | Conforming records in the [pinned git upstream](#pinned-git-upstreams) form: every row link resolves at the page pin (`scripts/check-upstream-drift.sh --links`), and the monthly drift issues name any row whose upstream changed since that pin. |
 
 Elsewhere the name binds on touch: living surfaces still saying "revisit trigger", "re-trigger",
 "re-derivation trigger", or "what would reopen it" (several plugin reference docs already use the

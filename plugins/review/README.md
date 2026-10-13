@@ -92,6 +92,13 @@ Invoke via `@review:<agent>` or let Claude delegate.
   rung (editorconfig severity, analyzer-pack rule, custom analyzer, Semgrep rule, architecture
   test, hook, or llm-only), and writes one proposal stub per finding naming that rung and its
   owner. It proposes a rung and never implements one.
+- **`/review:ratchet [<counter, rule or claim>]`**. Holds a count with a checked-in CI ceiling: a
+  lint rule's violations, a suppression count, a verified performance counter, or a telemetry
+  count. A zero count turns the rule on with no ceiling; a non-zero one is recorded at its measured
+  value in the ceilings file CI already checks (`.performance/ratchets.json` when CI calls
+  `ratchet.py check` with no `--file`), or in a new `.ratchets.json`, with a check step inside the
+  required job and a same-PR or scheduled tightening plan. Counters only, never durations. It
+  writes proposed files uncommitted and never merges.
 - **`/review:code-review`**. CI code-review lane command for a pull request
   (correctness / maintainability; security scoped out where a separate security
   lane runs, folded back in where none does).
@@ -171,9 +178,92 @@ directory.
 
 ## Configuration
 
-No `userConfig`. Consumer customization routes through your own project context: review
+Review criteria and findings location route through your own project context: review
 criteria docs and severity vocabulary override the bundled baseline, and a documented
 findings location in your `CLAUDE.md`/rules overrides the default path.
+
+Three settings. `ratchet_offer` decides whether `/review:audit-enforceability` stubs offer a
+`/review:ratchet` count ceiling; set it per user through the option below, or per repository in
+`docs/conventions/review.yaml` (written by `/review:setup apply`), which wins.
+`downstream_probe` decides whether `/review:quality-gate downstream` runs the one probe it writes
+for its safety fact (`run`) or only states it (`report`). It is a policy floor: `report` in either
+layer wins, and the repository value is read from the default branch. `fanout_diversity` decides
+whether `/review:fanout run-everything` runs one reviewer agent per concern (`lens`, the default)
+or sends one review prompt to each model tier the role map names (`model`). Keys, values and resolution:
+[`reference/config.md`](reference/config.md).
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `ratchet_offer` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATCHET_OFFER` | When on (default), /review:audit-enforceability stubs on a rung that counts violations offer /review:ratchet for a non-zero count once the rule exists. Off leaves the offer out. A repository's docs/conventions/review.yaml ratchet_offer wins over this option. |
+| `downstream_probe` | string | `"run"` | `CLAUDE_PLUGIN_OPTION_DOWNSTREAM_PROBE` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
+| `fanout_diversity` | string | `"lens"` | `CLAUDE_PLUGIN_OPTION_FANOUT_DIVERSITY` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: it sends one review prompt to each distinct fan-out model tier instead. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
+
+### How to set these
+
+Three supported routes, in the order most people want them:
+
+1. **Interactively.** Claude Code prompts for declared options when you enable the
+   plugin. To change them later: `/plugin configure review@<marketplace>`.
+2. **Headless.** Repeat `--config` for each option. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin install review@<marketplace> -s <scope> --config ratchet_offer=<value>
+   ```
+
+   The same command reconfigures a plugin that is **already installed**: it prints
+   `already installed` and still writes the value. The short-circuit message is
+   about the install, not the config write. Do **not** `claude plugin uninstall` to
+   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
+   resetting every option in the table above to its default. `-s` defaults to `user`,
+   so pass the scope `claude plugin list` reports for this plugin. The verified-version
+   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+
+   The value is stored immediately; the session you are in does not change. Hooks are
+   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
+   Claude Code session before expecting new behavior. A check run in the old session
+   still reports the old value, and that is not a failed write.
+
+3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "review@<marketplace>": {
+         "options": {
+           "ratchet_offer": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   Plugin option values are read from **user**, `--settings`, and managed settings
+   only, **not** from a project's `.claude/settings.json`. To vary behavior per
+   repository, enable or disable the plugin in that project's `enabledPlugins`
+   instead of setting an option there.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
+hands a configured value to a hook process; the value comes from the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->
 
 ## License
 

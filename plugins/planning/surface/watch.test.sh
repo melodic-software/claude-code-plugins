@@ -260,6 +260,14 @@ if [[ "$rc" -eq 124 && "$lines_before" =~ ^[0-9]+$ && "$lines_after" == "$lines_
 else
   bad "AC9: Claude lines on Q1 went from $lines_before to $lines_after (chain rc=$rc)"
 fi
+# The chain consumed ops.json, so running the same command again applies nothing and re-arms.
+CLAUDE_PLUGIN_ROOT="$(cd "$here/.." && pwd)" WAIT_FAILS=1 bounded 4 "$tmp/h2.out" "$tmp/h2.err" bash -c "$run"
+rc2=$?
+if [[ ! -e "$d/ops.json" && "$rc2" -eq 124 && "$(rev)" == "$rev_after" ]] && grep -q '^nothing to apply' "$tmp/h2.out"; then
+  ok "a re-run wake applies nothing twice and still re-arms the watcher"
+else
+  bad "re-run wake: ops.json $([[ -e "$d/ops.json" ]] && echo kept || echo gone) rc=$rc2 rev $rev_after to $(rev) out=$(cat "$tmp/h2.out") err=$(cat "$tmp/h2.err")"
+fi
 
 # (i) a data dir named with $( ), a backtick and a single quote: `next` stays one literal command
 # for that exact dir.

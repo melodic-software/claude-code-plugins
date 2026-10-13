@@ -10,7 +10,7 @@ Full detail for the `/source-control:worktree status` action. SKILL.md carries t
 
    `git worktree list --porcelain` emits correct absolute paths for every layout (standard clone, bare-clone hub, `.claude/worktrees/`), so `status` and `audit` need no layout-specific detection here, unlike Smart Default / `create` / `cleanup`, which resolve the hub root (`git rev-parse --git-common-dir` ending in `.bare`) for path construction.
 
-2. **PR cross-reference**: Run `gh pr list --state all --json number,title,state,headRefName` once (not per-branch, since batch is more efficient). Match each worktree's branch name against `headRefName`. Graceful degradation: if `gh` fails, skip PR info and note "GitHub API unavailable."
+2. **PR cross-reference**: List every PR with its number, title, state and `headRefName` once ([GitHub](../../../reference/providers/github/README.md#resolve-a-pull-request)) (not per-branch, since batch is more efficient). Match each worktree's branch name against `headRefName`. Graceful degradation: if `gh` fails, skip PR info and note "GitHub API unavailable."
 
 3. **Last commit date**: For each worktree branch, get date of last commit:
 
@@ -33,6 +33,22 @@ Full detail for the `/source-control:worktree status` action. SKILL.md carries t
    Join rows to worktrees on the `path` column. The columns this file consumes: `unpushed`, `landed`, `base`, `peers`, `risk`, `reason`.
 
    Graceful degradation: on a non-zero exit, note "stranded-work detection unavailable: the Work column is unproven" and set every Work cell to `unknown`. Do not fall back to a hand-rolled probe: `--branches` reports other branches' commits rather than this worktree's, `@{upstream}..HEAD` returns nothing for a branch with no upstream, and a per-commit patch-id cannot see a multi-commit squash-merge. An unproven column is honest; a wrong one is not.
+
+## Outside a repository: cross-repository mode
+
+When the session's working directory is not inside a repository (`git rev-parse --is-inside-work-tree` fails), inventory every repository that owns a worktree instead of stopping. Write the two root files exactly as [create.md § Create the worktree](create.md#create-the-worktree) does (the `mktemp -d` block, then the `Write` calls for `worktree-root` and `data-root`), then run:
+
+```bash
+bash "<scripts-dir>/worktree-discover.sh" --fallback-root-file "<root_dir>/worktree-root" \
+  --data-root-file "<root_dir>/data-root" --project-dir "<project directory carried from SKILL.md>"
+status=$?
+rm -rf "<root_dir>"
+exit "$status"
+```
+
+`--project-dir` takes the resolved path SKILL.md names, never the `${CLAUDE_PROJECT_DIR}` token: this file is read as raw bytes and the Bash tool's environment does not carry that variable. It resolves every worktree root with the chain `worktree-create.sh` uses, discovers repositories the way `/repo-fleet-hygiene:audit` does when given no scope, and prints tab-separated rows: `root <path> <rung>`, `repo <path> <linked-count>`, and `worktree <path> <owning-repo>` (`-` when git cannot resolve an owner). Exit 3 means no root resolved: report it, then continue with the `repo` rows, since worktrees outside a root still count. Pass `--repo-dir <path>` (repeatable) when the user named repositories: they replace the configured and discovered scope, though a repository owning a worktree under a resolved root is still listed, because the root scan needs it.
+
+Run the data collection above once per `repo` row whose linked count is above 0, passing the repository explicitly to every command (`git -C <repo> log ...`, the PR list against that repository), and present one table per repository under a `### <repo>` heading. List each `worktree` row with owner `-` under its own heading; the audit root scan classifies it.
 
 ## Status classification
 
