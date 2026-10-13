@@ -58,9 +58,10 @@ repo_args=()
 facts=$(gh pr view "$PR" ${repo_args[@]+"${repo_args[@]}"} --json title,body,labels,closingIssuesReferences) ||
   die 2 "gh pr view $PR failed"
 
-# The body pattern is babysit-prs' BODY_MERGE_HOLD_RE (babysit_merge.py): the
-# hyphenated label name is not matched, so a body that only names the label
-# holds nothing.
+# The body pattern is the do-not-merge alternative of babysit-prs'
+# BODY_MERGE_HOLD_RE (babysit_merge.py); its `Hold:` line alternative holds the
+# merge only, so it is left out here. The hyphenated label name is not matched,
+# so a body that only names the label holds nothing.
 reasons=$(jq -r '
   ([.labels[]?.name | select(ascii_downcase == "do-not-merge")] | if length > 0 then "label: the pull request carries do-not-merge" else empty end),
   (.body // "" | if test("\\bdo(?:n['"'"'\u2019]?t| not)\\s+merge\\b"; "i") then "body: it says do not merge" else empty end),
