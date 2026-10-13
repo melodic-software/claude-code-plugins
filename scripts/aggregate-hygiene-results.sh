@@ -39,7 +39,7 @@ escape_property() {
   printf '%s' "$s"
 }
 
-# tail_of <file>: the last N non-empty lines, colour codes stripped and each
+# tail_of <file>: the last N non-empty lines, color codes stripped and each
 # line cut at 500 characters so one minified line cannot swamp the annotation.
 tail_of() {
   local n=${HYGIENE_TAIL_LINES:-10}
@@ -178,7 +178,7 @@ self_test() {
   [[ "$out" == *'%0ARun: python scripts/sync-plugin-options-docs.py' ]] ||
     fail "a captured failure must end with the gate's last non-empty line, got: $out"
   [[ "$out" == *'%0ASTALE options docs: 100%25 of harness-ops%0A'* ]] ||
-    fail "a captured failure must escape percent signs and strip colour codes, got: $out"
+    fail "a captured failure must escape percent signs and strip color codes, got: $out"
   [[ "$out" != *preamble* && "$out" == *'%0Adetail 2%0A'* && "$out" != *'detail 1%0A'* ]] ||
     fail "a captured failure must carry exactly the last 10 non-empty lines, got: $out"
   [[ "$(printf '%s' "$out" | wc -l)" -eq 0 ]] ||
