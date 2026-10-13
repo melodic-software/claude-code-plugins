@@ -2900,6 +2900,19 @@ rdt_brace_rec() {
 # arithmetic: its `$` is stepped over and its two parens ride the stack as
 # ordinary ones, so its `))` balances them instead of closing a substitution.
 #
+# A HEREDOC BODY whose delimiter is quoted (`<<'EOF'`, `<<"EOF"`, `<<\EOF`,
+# `<<-'EOF'`) gets no expansion from the shell that reads the command, but it
+# is still the stdin of the command it feeds, and `bash <<'EOF'`, `cat <<'EOF' |
+# sh` or `bash -c "$(cat <<'EOF' …)"` run it. So it is skipped (#6625) only
+# where it is plainly data: the whole command is one `cat` or
+# `gh pr|issue|api|release` line with no pipe, list operator, redirection,
+# substitution or grouping (rdt_hd_plain, rdt_hd_reader), its opener at top
+# level with a plain word in quotes, and nothing but the body after it. Every
+# other body is scanned on its own, with bodies taken in
+# the order their openers appear, as bash reads them. An opener is recognized
+# only outside quotes and outside any ordinary paren or backtick body, so
+# `$((1<<2))` stays arithmetic.
+#
 # The stack depth is capped, and past the cap the guard REFUSES; see
 # MAX_SUBST_DEPTH. An unterminated substitution is parsed to end of text rather
 # than dropped, so a payload that never closes still fails closed.
@@ -2938,16 +2951,151 @@ rdt_scan_body() {
   hook::bash_parse_segments "$b" rdt_check_segment
 }
 
+# rdt_hd_plain <text>: true when the text around a heredoc opener holds no
+# character that could start another command, a pipe, a redirection, a
+# substitution or a grouping, so the opener's command is the line's only one.
+rdt_hd_plain() {
+  case "$1" in
+  *[\;\&\|\(\)\`\$\<\>]*) return 1 ;; # portability-ok: a bash case-pattern bracket of escaped operators, not a GNU grep word boundary
+  *) return 0 ;;
+  esac
+}
+
+# rdt_hd_reader <prefix>: true when the command ahead of a heredoc opener only
+# reads its stdin as data: `cat`, or a `gh` command that takes a body. A
+# shell, an interpreter, `git` (an alias can be `!sh`), `tee` (it writes a
+# file) and every launcher stay out.
+rdt_hd_reader() {
+  local -a hr_words
+  read -r -a hr_words <<<"$1"
+  case "${hr_words[0]:-}" in
+  cat) return 0 ;;
+  gh)
+    case "${hr_words[1]:-}" in
+    pr | issue | api | release) return 0 ;;
+    *) return 1 ;;
+    esac
+    ;;
+  *) return 1 ;;
+  esac
+}
+
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 rdt_scan_substitutions() {
   local s="$1" q="" c nx
   # Each open paren rides the stack with its KIND: 0 an ordinary paren that
   # only balances, 1 a `$( )` substitution, 2 a backtick one. Only 1 and 2
   # carry a body to parse, and only they count toward the depth cap.
-  local -i len=${#s} i=0 pd=0 sd=0 k st ansi=0
-  local -a st_start=() st_q=() st_kind=()
+  local -i len=${#s} i=0 pd=0 sd=0 k st ansi=0 hok hs hq
+  local -a st_start=() st_q=() st_kind=() hd_delim=() hd_strip=() hd_quoted=() hd_sfx=()
+  local hd line lc body pre hfull nested="${2:-}"
+  local hd_word_re="^('[A-Za-z0-9_]+'|\"[A-Za-z0-9_]+\"|\\\\[A-Za-z0-9_]+)$"
+  local -i hstart hend hcmt=-1
+  local -a hd_body=()
   while ((i < len)); do
     c="${s:i:1}"
+    # The unquoted newline that ends a line with heredoc openers on it starts
+    # their bodies. Each runs to a line that is exactly its delimiter (after
+    # leading tabs, for `<<-`), or to the end of the text.
+    if [[ -z "$q" && "$c" == $'\n' ]] && ((${#hd_delim[@]})); then
+      for ((k = 0; k < ${#hd_delim[@]}; k++)); do
+        hend=$i
+        ((hcmt >= hd_sfx[k])) && hend=$hcmt
+        rdt_hd_plain "${s:hd_sfx[k]:hend - hd_sfx[k]}" || hd_quoted[k]=0
+      done
+      i=$((i + 1))
+      hd_body=()
+      for ((k = 0; k < ${#hd_delim[@]}; k++)); do
+        body=""
+        while ((i < len)); do
+          line="${s:i}"
+          line="${line%%$'\n'*}"
+          i=$((i + ${#line} + 1))
+          lc="$line"
+          if ((hd_strip[k])); then
+            while [[ "$lc" == $'\t'* ]]; do lc="${lc#?}"; done
+          fi
+          [[ "$lc" == "${hd_delim[k]}" ]] && break
+          body+="$line"$'\n'
+        done
+        hd_body+=("$body")
+      done
+      # Inert only when nothing follows the body: a later line could pipe it,
+      # run what it wrote, or close a compound command around it.
+      [[ "${s:i}" == *[![:space:]]* ]] && hd_quoted=()
+      for ((k = 0; k < ${#hd_body[@]}; k++)); do
+        ((${hd_quoted[k]:-0})) || rdt_scan_substitutions "${hd_body[k]}" nested
+      done
+      hd_delim=()
+      hd_strip=()
+      hd_quoted=()
+      hd_sfx=()
+      hcmt=-1
+      continue
+    fi
+    # A heredoc opener `<<` or `<<-`, never the here-string `<<<`. The delimiter
+    # is quoted when any part of it is quoted or backslashed, as in bash.
+    if [[ -z "$q" && "$c" == '<' && "${s:i+1:1}" == '<' && "${s:i+2:1}" != '<' ]] &&
+      { ((i == 0)) || [[ "${s:i-1:1}" != '<' ]]; }; then
+      hok=1
+      for ((k = 0; k < pd; k++)); do
+        ((st_kind[k] == 1)) || {
+          hok=0
+          break
+        }
+      done
+      if ((hok)); then
+        hfull="${s:0:i}"
+        pre="${hfull##*$'\n'}"
+        i=$((i + 2))
+        hs=0
+        hq=0
+        hd=""
+        if [[ "${s:i:1}" == '-' ]]; then
+          hs=1
+          i=$((i + 1))
+        fi
+        while [[ "${s:i:1}" == ' ' || "${s:i:1}" == $'\t' ]]; do i=$((i + 1)); done
+        hstart=$i
+        while ((i < len)); do
+          c="${s:i:1}"
+          case "$c" in
+          ' ' | $'\t' | $'\n' | ';' | '&' | '|' | '<' | '>' | '(' | ')' | '`') break ;;
+          "'" | '"')
+            hq=1
+            i=$((i + 1))
+            while ((i < len)) && [[ "${s:i:1}" != "$c" ]]; do
+              hd+="${s:i:1}"
+              i=$((i + 1))
+            done
+            i=$((i + 1))
+            ;;
+          '\')
+            hq=1
+            hd+="${s:i+1:1}"
+            i=$((i + 2))
+            ;;
+          *)
+            hd+="$c"
+            i=$((i + 1))
+            ;;
+          esac
+        done
+        # Only the first line of the whole command, at top level, handing the
+        # body to a reader of data under a plain quoted word, makes it inert;
+        # see rdt_hd_plain. A word with `$` or `\` inside quotes is one this
+        # parser could end in the wrong place, so its body is scanned.
+        if ! [[ -z "$nested" && hcmt -lt 0 && "$pre" == "$hfull" && "${s:hstart:i-hstart}" =~ $hd_word_re ]] ||
+          ! { ((pd == 0)) && rdt_hd_plain "$pre" && rdt_hd_reader "$pre"; }; then
+          hq=0
+        fi
+        hd_delim+=("$hd")
+        hd_strip+=("$hs")
+        hd_quoted+=("$hq")
+        hd_sfx+=("$i")
+        continue
+      fi
+    fi
     # A single-quoted span performs no expansion at all; only its own closing
     # quote ends it. `$'…'` is the one spelling where a backslash still escapes.
     if [[ "$q" == "'" ]]; then
@@ -2975,6 +3123,17 @@ rdt_scan_substitutions() {
         i=$((i + 2))
       fi
       continue
+    fi
+    # An unquoted `#` that starts a word starts a comment to the end of the
+    # line: no heredoc opener after it is real, and the text after it cannot
+    # pipe or redirect a body.
+    if [[ -z "$q" ]]; then
+      if [[ "$c" == '#' ]] && ((hcmt < 0)) &&
+        { ((i == 0)) || [[ "${s:i-1:1}" == [[:space:]\;\&\|\(\)] ]]; }; then
+        hcmt=$i
+      elif [[ "$c" == $'\n' ]]; then
+        hcmt=-1
+      fi
     fi
     case "$c" in
     '"')

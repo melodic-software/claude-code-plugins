@@ -52,9 +52,9 @@ On the Bash tool, text inside a single-quoted span does not count, whichever spe
 holds, because bash substitutes nothing there. Nor does the body of a heredoc whose
 delimiter is quoted (`<<'EOF'`, `<<"EOF"`, `<<\EOF`): bash expands nothing there, and
 `block-root-delete-target` still reads such a body as commands, at about 1.1 ms per
-spelling. For a body that gives it nothing to judge (`$(: rm)`) its 25-second deadline never
-starts, so the 16384-character command ceiling bounds the cost: 2.6 to 3.7 s measured.
-Unquoted, double-quoted and unquoted-heredoc-body substitutions still
+spelling, unless the whole command is one `cat` or `gh` line feeding it. For a body that gives it
+nothing to judge (`$(: rm)`) its 25-second deadline never starts, so the 16384-character
+command ceiling bounds the cost: 2.6 to 3.7 s measured. Unquoted, double-quoted and unquoted-heredoc-body substitutions still
 count. A command that names a shell, `eval`, `su`, `env`, `source`,
 `. file` or `alias`, or that has quoting the scan does not model, counts whole. PowerShell commands
 count as text, quotes included.
@@ -536,7 +536,7 @@ out of scope until such a signal exists.
   very write that produced the `C:\tmp\tmp.rSFIkHm5DO` this lane exists to stop.
   Six seeded spellings were detected end to end.
 
-  **What that evidence does and does not support.** Precision is
+  **What that evidence supports and what it does not.** Precision is
   1/1, so the ratio is 100% and the sample is one. This is the ADR's
   near-zero-findings branch, where the seeded-detection burden carries the
   argument and the precision figure by itself does not. The corpus is one
@@ -1224,7 +1224,7 @@ said: the harness dispatches matching hooks in parallel, so the set wall is the
 max of its members rather than their sum, and a member costing ≈ 505 ms joining
 a set already walling at ≈ 1 s cannot raise that wall by more than its own cost
 and will usually raise it by less. A re-measurement on a quiet reference host is
-the way to replace this bound with a number, and is the follow-up.
+the way to replace this bound with a number, and is the follow-up to do.
 
 **Share of the budget, and the overage.** The convention's ceiling is
 ≤ 1 s typical / ≤ 2 s worst-case **per tool call, counting `PreToolUse` and

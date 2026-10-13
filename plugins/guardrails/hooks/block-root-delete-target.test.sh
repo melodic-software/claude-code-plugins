@@ -642,6 +642,39 @@ expect_both "single-quoted substitution text allowed" 0 --command "echo '\$(rm -
 expect_both 'escaped dollar-paren allowed' 0 --command 'echo "\$(rm -rf /)"'
 expect_both "single-quoted backtick text allowed" 0 --command "echo '\`rm -rf /\`'"
 expect_both 'escaped backtick allowed' 0 --command 'echo "\`rm -rf /\`"'
+# A heredoc whose delimiter is quoted is inert text: bash expands nothing in its
+# body, so a backticked delete quoted there as an example runs nothing (#6625).
+expect_both "quoted heredoc body with backticked rm allowed" 0 --command $'cat <<\'EOF\'\nnote: `rm -rf /`\nEOF'
+expect_both 'double-quoted heredoc delimiter allowed' 0 --command $'cat <<"EOF"\nnote: `rm -rf /`\nEOF'
+expect_both 'backslashed heredoc delimiter allowed' 0 --command $'cat <<\\EOF\nnote: $(rm -rf /)\nEOF'
+expect_both "tab-stripped quoted heredoc allowed" 0 --command $'cat <<-\'EOF\'\n\tnote: `rm -rf /`\n\tEOF'
+expect_both "quoted heredoc fed to gh pr create allowed" 0 --command $'gh pr create --title "fix: x" --body-file - <<\'EOF\'\nRun `rm -rf /` never.\nEOF'
+# A quoted body is still stdin: a shell reading it, a pipe into one, or a
+# substitution whose output a shell runs executes the text, so a substitution
+# in such a body still blocks.
+expect_both "quoted heredoc fed to bash blocks" 2 --command $'bash <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc piped into sh blocks" 2 --command $'cat <<\'EOF\' | sh\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc run through bash -c blocks" 2 --command $'bash -c "$(cat <<\'EOF\'\necho `rm -rf /`\nEOF\n)"'
+expect_both "quoted heredoc fed to git blocks" 2 --command $'git x <<\'EOF\'\necho `rm -rf /`\nEOF'
+# The skip holds only for the whole command: a compound opened on an earlier
+# line, a pipe after the body, a reader redefined earlier, a file tee wrote and
+# then ran, or a delimiter word with quote-removal edge cases all still block.
+expect_both "quoted heredoc inside a brace group piped into sh blocks" 2 --command $'{\ncat <<\'EOF\'\necho `rm -rf /`\nEOF\n} | sh'
+expect_both "quoted heredoc inside a loop piped into bash blocks" 2 --command $'for i in 1; do\ncat <<\'EOF\'\necho `rm -rf /`\nEOF\ndone | bash'
+expect_both "quoted heredoc fed to a redefined cat blocks" 2 --command $'cat() { sh; }\ncat <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to a backslash-continued shell blocks" 2 --command $'sh -s \\\ncat <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc written by tee blocks" 2 --command $'tee /tmp/x.sh <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "escaped quote in a heredoc delimiter blocks" 2 --command $'cat <<"E\\"F"\nbody\nE"F\necho `rm -rf /`'
+expect_both "ansi-c heredoc delimiter blocks" 2 --command $'cat <<$\'EOF\'\nbody\nEOF\necho `rm -rf /`'
+expect_both "heredoc opener inside a comment blocks" 2 --command $'cat # <<\'EOF\'\necho "$(rm -rf /)"'
+expect_both "trailing comment on a quoted heredoc opener allowed" 0 --command $'gh pr create --body-file - <<\'EOF\' # see $1\nRun `rm -rf /` never.\nEOF'
+expect_both "quoted heredoc fed to gh issue comment allowed" 0 --command $'gh issue comment 1 --body-file - <<\'EOF\'\nRun `rm -rf /` never.\nEOF\n'
+# An unquoted delimiter's body IS expanded, so its substitutions still run.
+expect_both 'unquoted heredoc body with backticked rm blocks' 2 --command $'cat <<EOF\nnote: `rm -rf /`\nEOF'
+expect_both "unquoted heredoc ahead of a quoted one on the same line blocks" 2 --command $'cat <<A <<\'B\'\n`rm -rf /`\nA\ninert\nB'
+expect_both "backticked rm after a quoted heredoc ends blocks" 2 --command $'cat <<\'EOF\'\nnote\nEOF\necho `rm -rf /`'
+expect_both 'arithmetic shift is not a heredoc opener' 2 --command $'echo $((1<<2))\necho `rm -rf /`'
+expect_both 'here-string is not a heredoc opener' 2 --command $'cat <<<x\necho `rm -rf /`'
 # A live substitution nested three deep whose innermost command is harmless is
 # parsed all the way down and still allowed, so the depth cap is not a blanket.
 expect_both 'benign 3-deep substitution allowed' 0 --command 'echo "$(echo "$(echo rm)")"'
