@@ -75,6 +75,8 @@ if command -v jq >/dev/null 2>&1; then
     "github:o/r#11" "$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
   assert_eq "child row is re-parented to the container" \
     "github:o/r#99" "$(jq -r '.items[0].parent_id' <<<"$OUT")"
+  assert_eq "the intersect carries list-items' truncated flag" \
+    "false" "$(jq -c '.truncated' <<<"$OUT")"
   # The cross-repo drop is a documented truncation, not a fault, so a well-formed
   # node set must stay silent or the diagnostic below is noise on every read.
   assert_eq "well-formed nodes emit no derivable-repo warning" \

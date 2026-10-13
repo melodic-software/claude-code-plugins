@@ -67,10 +67,13 @@ Present to the user:
   it could point at an unrelated directory.
 - That this deletes auto-memory notes only, **not** CLAUDE.md, rules, transcripts, or history.
   If the intent is the full per-project wipe, point to `claude purge` instead, and state
-  its scope to the user (what it deletes and what it leaves alone) from the record in
-  [reference/official-guidance.md](../reference/official-guidance.md), "Out of scope for this
-  skill", rather than from memory. Read the deletion plan and flags at
-  [Clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data).
+  its scope to the user (what it deletes and what it leaves alone) from a live read of
+  [Clear local data](https://code.claude.com/docs/en/claude-directory#clear-local-data), never
+  from memory (as of 2026-10-11; recheck when that section changes what `claude purge` deletes or
+  keeps). How this skill treats the command is in
+  [Out of scope for this skill](../reference/official-guidance.md#out-of-scope-for-this-skill-verified-deliberate)
+  (as of 2026-10-11; recheck when that section is renamed or moved, or drops its `claude purge`
+  record).
 - If `$manifest` is empty, report that there is nothing to purge and stop (no-op).
 
 ## Step 3: Confirmation gate (with backup offer)

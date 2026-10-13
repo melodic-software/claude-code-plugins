@@ -66,7 +66,7 @@ subject_pattern            ^[A-Z]+-\d+: .+             team
 pr_title_pattern           Same as subject_pattern      team
 trailer_policy             none                         local overlay
 pr_body_attribution        none                         local overlay
-pr_body_required_sections  Summary, Test plan           plugin default
+pr_body_required_sections  briefing                     plugin default
 branch_issue_pattern       ^[^/]+/([0-9]+)-             team
 ```
 
@@ -87,11 +87,12 @@ there is reported correctly; the script ignores the literal placeholder when the
 `pr_body_required_sections` is a **list**-valued key (like `type_list`, and unlike every scalar row
 above it), render it comma-joined for this report regardless of how many lines the winning layer's
 file spells it across. When every layer leaves it unset, the row still resolves, to the plugin's
-portable default, `Summary` and `Test plan`, so `won by` reads `plugin default` rather than the row
+portable default, the keyword `briefing`, so `won by` reads `plugin default` rather than the row
 going blank; this is the one key whose "no layer sets it" state is itself a reportable, named value,
 not a bare absence. A winning layer declaring the literal keyword `none` renders the row's value as
 `none (no required sections)` with that layer in `won by`, a resolved value distinct from the unset
-row above, per config-resolution.md.
+row above, per config-resolution.md. A winning `briefing` or `summary-test-plan` keyword renders as
+that keyword with its layer in `won by`.
 
 Per-layer verdicts:
 
@@ -157,18 +158,17 @@ the step UNKNOWN with remediation, never green.
    with `/source-control:babysit-prs` (its `help` mode prints it without taking any other action); a
    surviving literal `${user_config.…}` placeholder there means the key is unset. For each unset key
    state what will be inferred at run time. `babysit_watched_owners` → the current repo's owner,
-   `babysit_self_logins` → none (your `gh api user --jq .login` login is always used, extras only add
+   `babysit_self_logins` → none (your current forge login is always used, extras only add
    to it), `babysit_default_tier` → `safe`, `babysit_merge_method` → `auto` (repo convention, then squash),
    `babysit_stacked_prs` → `false` (a stack layer is held for a human), the
    review-trigger keys → module dormant, `babysit_worktree_root` → the plugin data dir's
    `worktrees/` subdirectory. Unset keys are INFO (documented defaults), not FAIL.
 2. **Branch-protection posture across watched repos.** For each watched owner (or the current repo's
    owner when `babysit_watched_owners` is unset), enumerate the repos babysit would touch. Repos
-   with open PRs authored by the self logins, via
-   `gh search prs --state open --author @me --owner <owner> --json repository`, and for each, read
-   the default branch's effective rules (`gh api repos/<owner>/<repo>/rules/branches/<default-branch>`,
-   falling back to `gh api repos/<owner>/<repo>/branches/<default-branch>/protection` for classic
-   protection). Flag every repo reporting zero required reviews AND zero required status contexts as
+   with open PRs authored by the self logins, via the forge's PR search across the owner, and for
+   each, read the default branch's effective rules, falling back to classic protection where the
+   forge has both (commands: [GitHub provider reference](../../reference/providers/github/README.md)
+   "Resolve a pull request" and "Branch rules"). Flag every repo reporting zero required reviews AND zero required status contexts as
    **unprotected**: the merge gate refuses gate-proven merges there for non-self authors, and for a
    self author whenever the base is not the default branch (`--allow-unprotected` is the deliberate
    override; `babysit_stacked_prs` judges a native stack layer against its trunk instead), so an
@@ -196,7 +196,7 @@ the step UNKNOWN with remediation, never green.
 
      These are the exact spellings the lane uses for every merge and for every readiness
      declaration, with `--help` so each prints usage and exits 0 without touching the network or
-     GitHub. Probe both: an allow rule or classifier decision covering the wrapper says
+     the forge. Probe both: an allow rule or classifier decision covering the wrapper says
      nothing about the readiness gate, so a canary that ran only the first would certify a
      path the lane's readiness verdict never travels, and the readiness gate has no degrade tier
      at all. A **tool-call denial on either is a FAILED prerequisite**, not an INFO note. The
@@ -217,7 +217,7 @@ the step UNKNOWN with remediation, never green.
      permitted, because the classifier decides per call, at call time. That per-call property cuts
      both ways: it leaves a pass provisional, and it is why the FAILED verdict above is a
      fail-closed choice rather than a proof. The probes stay `--help`-only
-     deliberately: the merge wrapper's read-only production shape is a live GitHub call, so a
+     deliberately: the merge wrapper's read-only production shape is a live forge call, so a
      representative probe would make a `check` run start touching the fleet it was asked to
      inspect, which the plugin's `babysit-wrapper-help` shell test exists to keep from
      regressing. The
@@ -244,18 +244,15 @@ the step UNKNOWN with remediation, never green.
      [auto-mode configuration reference](https://code.claude.com/docs/en/auto-mode-config).
 
    - **GraphQL reachability (a different wall, probed the same way).** The two canaries above prove
-     the lane's own scripts reach the classifier; this one proves GitHub will answer them. Sandboxed
-     sessions (Claude Code on the web and remote execution) serve only a pinned set of GraphQL
-     operations and refuse the rest with `HTTP 403`, and `gh pr view --json` is implemented entirely
-     over GraphQL. Probe it read-only against the repository itself:
+     the lane's own scripts reach the classifier; this one proves the forge will answer them.
+     A cloud session behind the GitHub proxy can refuse GraphQL, and the forge CLI's PR reads run
+     over GraphQL. Probe it read-only against the repository itself with the viewer-login query in
+     the [GitHub provider reference](../../reference/providers/github/README.md) "Sandboxed
+     sessions", which holds the upstream pointer.
 
-     ```bash
-     gh api graphql -f query='query{viewer{login}}' --jq '.data.viewer.login'
-     ```
-
-     A login means GraphQL is served and the lane runs at full fidelity. A `403`, or a message
-     saying the operation is not enabled for this session, is INFO rather than FAILED: the engine
-     re-sources the `gh pr view` bundle over REST by itself and keeps running. Report the one thing
+     A login means GraphQL is served and the lane runs at full fidelity. A `403` is INFO rather
+     than FAILED: the engine
+     re-sources its pull-request reads over REST by itself and keeps running. Report the one thing
      the operator loses, because it is the thing that stops merges: review-thread **resolution** has
      no REST equivalent, so the merge gate reports `threadResolutionProven: false` and holds every
      PR as readiness UNPROVEN (`skills/babysit-prs/SKILL.md` "Engine and degrade"). Say so at
@@ -359,7 +356,7 @@ both worktree roots. `babysit_worktree_root` falls back to `${CLAUDE_PLUGIN_DATA
 whenever it is unset, while `/source-control:worktree create` reaches that same directory only when
 neither the target repository's `worktreeroot.path` git config nor `worktree_root` resolves. So
 check where the roots actually resolve before assuming the directory is disposable: babysit's own
-worktrees are ephemeral scratch that rebuild from GitHub, but the state directory and any
+worktrees are ephemeral scratch that rebuild from the forge, but the state directory and any
 `/source-control:worktree` tree still holding uncommitted work do not.
 
 Reconfiguring `userConfig` does not reach the already-running session, after either path, the new

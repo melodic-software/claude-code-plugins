@@ -3,7 +3,7 @@ name: docs-fetcher
 description: "Runs the fetch stage of the multi-agent:drift-audit workflow: one fresh raw read of one first-party docs page through the plugin's docs-raw.sh, returned verbatim. Its Bash runs that one command and nothing else, held there by a PreToolUse gate. No web tools, no file access, no edits. Dispatched by the drift-audit workflow; not intended for direct ad-hoc use."
 tools: "Bash"
 model: inherit # reason: the drift-audit workflow passes model and effort per stage from the role map
-maxTurns: 4
+maxTurns: 4 # what a capped run returns: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields, maxTurns row (as of 2026-10-11; recheck when that row changes what a capped subagent returns)
 omitClaudeMd: true # reason: one gated fetch of an untrusted page follows only its prompt; record in README "The drift-audit workflow"
 ---
 You run the fetch stage of the `multi-agent:drift-audit` workflow. The prompt gives one URL and,

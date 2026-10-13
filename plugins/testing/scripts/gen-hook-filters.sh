@@ -7,15 +7,25 @@
 # for both events: the union of every shipped adapter's files: list,
 # deduplicated and sorted. An `if` holds one rule and names one tool, so each
 # glob gets a Write row and an Edit row: an Edit(...) row does not match a
-# Write call (probes.md). A glob with no slash matches the basename at any
+# Write call (the `if` probe, below). A glob with no slash matches the basename at any
 # depth (gitignore syntax). The task-end judge's background job (async) takes
 # the same PostToolUse rows; its Stop and SessionStart entries have no `if`.
 # The Stop entry runs with asyncRewake, so the turn ends without waiting for
-# it; it judges a finished subagent's writes with the parent's.
+# it; it judges a finished subagent's writes with the parent's. asyncRewake:
+# https://code.claude.com/docs/en/hooks#command-hook-fields (as of 2026-10-11;
+# recheck when that section changes whether an asyncRewake hook runs in the
+# background).
 #
 # PostToolUse also gets one Bash row with no `if`: a Bash `if` matches
-# the command string, not the files the call changed (probes.md), so
-# test-scan-bash.sh filters the payload's changed files by the same globs.
+# the command string, not the files the call changed (the bashEditDiff
+# probe, below), so test-scan-bash.sh filters the payload's changed files by
+# the same globs.
+# The `if` probe: https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md#if-row-matching-and-hook-input-claude-code-21284-wsl2-2026-09-28
+# (as of 2026-09-28; recheck when a Claude Code release note changes how a
+# hook's `if` rule matches a tool call).
+# The bashEditDiff probe: https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md#basheditdiff-claude-code-21285-wsl2-2026-09-30
+# (as of 2026-09-30; recheck when a Claude Code release note changes what a
+# Bash `if` rule matches or which changed files a Bash hook payload lists).
 # Its launcher flag --skip-unless-stdin-contains bashEditDiff skips the bash
 # start on a payload with no Bash change diff, the case the script itself
 # exits on first; the row is advisory, so the flag's fail-open stall is safe.
@@ -41,9 +51,11 @@ globs="$(awk -f "$AUDIT/scripts/adapter-load.awk" "$AUDIT"/adapters/*.yaml |
 
 # The task-end judge (test-judge*.sh) needs test-scan's session state, so its
 # rows are gated on both options. Its PostToolUse job runs async on the same
-# `if` rows as test-scan (no timeout: Claude Code enforces none on an async
-# command hook); Stop's 240 s, which Claude Code still enforces on an
-# asyncRewake hook, sits above the hook's own 180 s bound.
+# `if` rows as test-scan and gets no timeout; Stop's 240 s sits above the
+# hook's own 180 s bound. A timeout is written only where Claude Code enforces
+# one, per https://code.claude.com/docs/en/hooks#run-hooks-in-the-background
+# (as of 2026-10-11; recheck when that section changes which background hooks
+# have their timeout enforced).
 json="$(jq -R . <<<"$globs" | jq -s '. as $globs |
   def cmd($gates; $flags; $script): {
     type: "command",

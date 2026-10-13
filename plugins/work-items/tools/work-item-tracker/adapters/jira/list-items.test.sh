@@ -29,7 +29,7 @@ sent_jql() {
 
 # Two pages: page 1 carries a continuation token + isLast false, page 2 closes it.
 cat >"$JIRA_FIX/1.body" <<'JSON'
-{"issues":[{"key":"SW2-1","fields":{"summary":"First","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":["a"],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[]}}],"nextPageToken":"tok-2","isLast":false}
+{"issues":[{"key":"SW2-1","fields":{"summary":"First","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":["a"],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[],"created":"2026-01-02T03:04:05.000-0500"}}],"nextPageToken":"tok-2","isLast":false}
 JSON
 printf '200' >"$JIRA_FIX/1.status"
 cat >"$JIRA_FIX/2.body" <<'JSON'
@@ -42,10 +42,15 @@ assert_eq "list-items exit 0" "0" "$RC"
 assert_eq "schema_version" "1.0" "$(jq -r '.schema_version' <<<"$OUT")"
 assert_eq "paginated across 2 pages → 2 items" "2" "$(jq -r '.items | length' <<<"$OUT")"
 assert_eq "mock curl called twice" "2" "$(cat "$JIRA_FIX/.counter")"
+assert_eq "a walk that reached the last page carries truncated:false" "false" "$(jq -c '.truncated' <<<"$OUT")"
 assert_eq "page-1 item id" "jira:test.atlassian.net/SW2#1" "$(jq -r '.items[0].id' <<<"$OUT")"
 assert_eq "page-2 item id" "jira:test.atlassian.net/ABC#42" "$(jq -r '.items[1].id' <<<"$OUT")"
 assert_eq "page-2 item blocked_by_count" "1" "$(jq -r '.items[1].blocked_by_count' <<<"$OUT")"
 assert_eq "page-2 item parent qualified" "jira:test.atlassian.net/ABC#1" "$(jq -r '.items[1].parent_id' <<<"$OUT")"
+assert_eq "created (local offset) becomes UTC created_at" "2026-01-02T08:04:05Z" "$(jq -r '.items[0].created_at' <<<"$OUT")"
+assert_eq "an issue without created reads created_at null" "null" "$(jq -c '.items[1].created_at' <<<"$OUT")"
+assert_contains "the search asks for created" \
+  "$(awk '/^--data$/{getline; print; exit}' "$JIRA_FIX/1.args" | jq -c '.fields')" '"created"'
 case "$OUT" in *$'\r'*) fail "stdout CR-free" "no CR" "CR present" ;; *) pass "stdout CR-free" ;; esac
 
 # The literal JQL sent on page 1 scopes to the configured project_keys and excludes
@@ -61,6 +66,29 @@ printf '{"issues":[],"nextPageToken":null,"isLast":true}' >"$JIRA_FIX/1.body"
 printf '200' >"$JIRA_FIX/1.status"
 jira_run "$S" --repo "test.atlassian.net/ABC" --state all
 assert_eq "--repo scopes to one project" 'project in ("ABC") ORDER BY created ASC' "$(sent_jql 1)"
+
+# --label narrows the search, so the ceiling counts labeled issues only (#7173).
+jira_run "$S" --repo "test.atlassian.net/ABC" --state all --label "area:ci"
+assert_eq "--label → exit 0" "0" "$RC"
+assert_eq "--label adds a labels clause to the JQL" \
+  'project in ("ABC") AND labels = "area:ci" ORDER BY created ASC' "$(sent_jql 1)"
+jira_run "$S" --label 'x" OR labels is EMPTY OR labels = "y'
+assert_eq "a label holding a quote → usage (2)" "2" "$RC"
+if [[ ! -e "$JIRA_FIX/.counter" ]]; then
+  pass "a quoted --label made no HTTP call"
+else
+  fail "a quoted --label made no HTTP call" "no curl call" "curl invoked"
+fi
+jira_run "$S" --label 'a\z'
+assert_eq "a label holding a backslash → usage (2)" "2" "$RC"
+jira_run "$S" --label "area: ci"
+assert_eq "a label holding a space (no Jira label can) → exit 0" "0" "$RC"
+assert_eq "and lists nothing, complete" '[] false' "$(jq -c '.items, .truncated' <<<"$OUT" | paste -sd' ' -)"
+if [[ ! -e "$JIRA_FIX/.counter" ]]; then
+  pass "a whitespace --label made no HTTP call"
+else
+  fail "a whitespace --label made no HTTP call" "no curl call" "curl invoked"
+fi
 
 # --repo narrows to one project; a site mismatch is a usage error (before network).
 jira_run "$S" --repo "wrong.atlassian.net/SW2"
@@ -242,5 +270,21 @@ printf '200' >"$JIRA_FIX/1.status"
 printf '{"issues":[{"key":"NOT A JIRA KEY","fields":{"summary":"x","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[]}}],"nextPageToken":null,"isLast":true}' >"$JIRA_FIX/1.body"
 jira_run "$S" --state open
 assert_eq "un-normalizable issue in a page → unavailable (8)" "8" "$RC"
+assert_eq "and emits no envelope a caller could read as an empty listing" "" "$OUT"
+
+# --- the declared ceiling ends the walk and the envelope says so ---
+# A fixture copy of the adapter declares a ceiling of 1. Page 1 fills it while Jira
+# still offers a continuation token, so the walk stops short of the last page.
+FIX_ROOT="$JIRA_FIX/fixture"
+mkdir -p "$FIX_ROOT/adapters"
+cp -R "$(dirname "$S")" "$FIX_ROOT/adapters/jira"
+cp -R "$(dirname "$S")/../../lib" "$FIX_ROOT/lib"
+jq '.limits.list_items_max = 1' "$(dirname "$S")/capabilities.json" >"$FIX_ROOT/adapters/jira/capabilities.json"
+printf '200' >"$JIRA_FIX/1.status"
+printf '{"issues":[{"key":"SW2-1","fields":{"summary":"First","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[]}}],"nextPageToken":"tok-2","isLast":false}' >"$JIRA_FIX/1.body"
+jira_run "$FIX_ROOT/adapters/jira/list-items.sh" --state open
+assert_eq "a walk stopped at the ceiling → exit 0 (documented truncation)" "0" "$RC"
+assert_eq "the ceiling's worth of items" "1" "$(jq '.items | length' <<<"$OUT")"
+assert_eq "and the envelope carries truncated:true" "true" "$(jq -c '.truncated' <<<"$OUT")"
 
 [[ $FAILED -eq 0 ]] || exit 1

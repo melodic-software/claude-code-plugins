@@ -71,9 +71,13 @@ demonstrated.
 **Basis:** `scripts/hook-census.sh` on this host after that cut, and the
 interleaved wall samples above. `spawn_probe` / `is_measurable` as quoted.
 Hook-budget k is the fewest processes for the shape, including each program the
-script must start. Async was not used: an async hook's `additionalContext`
-arrives on the next turn (hooks reference, re-fetched 2026-09-28; the 0.41.1
-note in the README).
+script must start. Async was not used, because these guards need their output
+on the turn the edit happens (the 0.41.1 note in the README).
+
+- **Pointer**: when an async hook's output reaches Claude is in
+  [How async hooks execute](https://code.claude.com/docs/en/hooks#how-async-hooks-execute).
+  **As of**: 2026-10-11. **Recheck trigger**: that section changes which turn
+  an async hook's `additionalContext` reaches Claude on, or is renamed.
 
 **As of:** 2026-09-28.
 

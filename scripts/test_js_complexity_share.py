@@ -143,6 +143,32 @@ class JsComplexityShareTest(unittest.TestCase):
             "lizard=9.9.9 files=7 functions=8 over=4 share=50.00",
         )
 
+    def test_cluster_member_star_stops_at_a_slash(self) -> None:
+        # The member glob is gitignore-style, as in the code-metrics
+        # registry filter: `*` is one path segment, so a deeper path is not a
+        # sanctioned copy and keeps its own count.
+        self.write(
+            "registry.txt",
+            "tools/canon.js -> plugins/*/tools/canon.js\n",
+        )
+        self.write("tools/canon.js", "// cc=2\n")
+        self.write("plugins/a/tools/canon.js", "// cc=40\n")
+        self.write("plugins/a/deep/tools/canon.js", "// cc=30\n")
+        self.stage()
+
+        result = self.run_counter()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        handed = sorted(self.args_file.read_text(encoding="utf-8").split("\n"))
+        self.assertEqual(
+            handed, ["./plugins/a/deep/tools/canon.js", "./tools/canon.js"]
+        )
+        # Functions: canon.js 2, deep canon.js 30. One of two at or above 20.
+        self.assertEqual(
+            result.stdout.strip(),
+            "lizard=9.9.9 files=2 functions=2 over=1 share=50.00",
+        )
+
     def test_missing_lizard_exits_2(self) -> None:
         self.write("registry.txt", "")
         self.write("src/app.js", "// cc=25\n")

@@ -401,6 +401,71 @@ check "and the log names the test" 'grep -qF "judge not run after 2 failed attem
 STUB_MODE=fail stop s9
 check "no third attempt" '[[ "$(stub_calls)" == 2 ]]'
 
+# A judge that exits 0 with no usable result: its output is kept beside the
+# ledger and the log quotes the start of it, so the failure can be diagnosed.
+transcript s9g claude-sonnet-5
+G="$REPO/src/garbled.test.ts"
+js_file "$G" garbled
+record s9g w1 "$G" null
+STUB_MODE=garbage stop s9g
+check "no usable result: logged as a failed attempt" 'grep -qF "judge exited 0 with no usable result" "$DATA/test-judge.log"'
+assert_contains "and the log quotes the output" "$(grep -F "unusable judge output on $G" "$DATA/test-judge.log")" "result: not json"
+kept="$(find "$DATA/verdicts/$PKEY/s9g" -name 'unusable-*.txt' | head -1)"
+check "and the output is kept beside the ledger" '[[ -n "$kept" ]] && grep -qx "not json" "$kept"'
+check "and the log names the kept file" 'grep -qF "kept in $kept" "$DATA/test-judge.log"'
+transcript s9r claude-sonnet-5
+N="$REPO/src/renamed.test.ts"
+js_file "$N" "named"
+record s9r w1 "$N" null
+STUB_MODE=renamed stop s9r
+assert_contains "verdicts under a name no block has: the log shows the name the judge used" \
+  "$(grep -F "unusable judge output on $N" "$DATA/test-judge.log")" '"name":"named, renamed"'
+transcript s9e claude-sonnet-5
+X="$REPO/src/escaped.test.ts"
+js_file "$X" escaped
+record s9e w1 "$X" null
+STUB_MODE=escape stop s9e
+line="$(grep -F "unusable judge output on $X" "$DATA/test-judge.log")"
+assert_contains "control characters in the result: the rest is still quoted" "$line" "result: bad[2K text"
+check "and none of them reaches the log" '! LC_ALL=C grep -q "[[:cntrl:]]" <<<"$line"'
+
+# A file the session wrote that is gone (its worktree removed): skipped and
+# logged once, its records dropped, so a later Stop does not log it again.
+transcript s9d claude-sonnet-5
+D="$REPO/src/deleted.test.ts"
+js_file "$D" deleted
+record s9d w1 "$D" null
+record s9d w2 "$D" null
+K="$REPO/src/kept.test.ts"
+js_file "$K" kept
+record s9d w3 "$K" null
+rm -f "$D"
+stub_reset
+stop s9d
+check "a deleted file: logged as skipped" '[[ "$(grep -cF "skipped: $D no longer exists" "$DATA/test-judge.log")" == 1 ]]'
+check "and its records are dropped, the other file's kept" \
+  '[[ ! -e "$DATA/sessions/$PKEY/s9d/w1.json" && ! -e "$DATA/sessions/$PKEY/s9d/w2.json" && -f "$DATA/sessions/$PKEY/s9d/w3.json" ]]'
+check "and the other file is still judged" '[[ "$(stub_calls)" == 1 ]]'
+stop s9d
+check "a later Stop does not log it again" '[[ "$(grep -cF "skipped: $D no longer exists" "$DATA/test-judge.log")" == 1 ]]'
+# A recorded path holding a line break, gone: also logged only once.
+transcript s9c claude-sonnet-5
+record s9c w1 "$REPO/src/cr"$'\r'"break.test.ts" null
+stop s9c
+stop s9c
+check "a deleted path with a line break: logged once" '[[ "$(grep -c "break.test.ts no longer exists" "$DATA/test-judge.log")" == 1 ]]'
+# A missing name that equals a live one once its line break is taken out:
+# only the missing file's record is dropped.
+transcript s9l claude-sonnet-5
+L="$REPO/src/ab.test.ts"
+js_file "$L" live
+record s9l w1 "$L" null
+record s9l w2 "$REPO/src/a"$'\n'"b.test.ts" null
+stub_reset
+stop s9l
+check "a missing name that differs from a live one only by a line break: the live record is kept" \
+  '[[ -f "$DATA/sessions/$PKEY/s9l/w1.json" && ! -e "$DATA/sessions/$PKEY/s9l/w2.json" ]]'
+
 # Relay validation: a quote not in the file, and a diff touching another
 # file, are relayed as UNKNOWN.
 for mode in badquote otherfile; do
@@ -936,6 +1001,10 @@ check "and is not scanned again while unchanged" '[[ "$(scans)" == 0 ]]'
 printf '# Testing\n\n```yaml config\nrules:\n  rule-weak-oracle: error\n```\n' >"$REPO/docs/conventions/testing.md"
 TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
 check "an edited block re-derives again" '[[ "$(scans)" == 1 ]]'
+rm -f "$TMP/scans"
+printf 'rules:\n  rule-weak-oracle: warn\n' >"$REPO/docs/conventions/testing.yaml"
+TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
+check "a new docs/conventions/testing.yaml re-derives" '[[ "$(scans)" == 1 ]]'
 rm -rf "$REPO/docs" "$TMP/scans"
 transcript cache2 claude-sonnet-5
 CF2="$REPO/src/failscan.test.ts"

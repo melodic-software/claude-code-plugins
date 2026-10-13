@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Glob", "input": {"pattern": ".claude/skills/feature-map/*.md"}}],
+      "why": "looked, wrote nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".claude/skills/feature-map/weekly-timesheet-export.md", "content": "# Weekly timesheet export\n\nThe download is an empty file."}}],
+      "why": "wrote the regression into the map"
+    }
+  ]
+}

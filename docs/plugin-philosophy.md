@@ -843,6 +843,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | On-demand dependencies (pinned lockfile, `npm ci` into the plugin data directory, no vendored bundles) | [`docs/conventions/on-demand-dependencies/`](conventions/on-demand-dependencies/README.md) |
 | Prerequisites: the `prerequisites.json` schema, the `lib/prerequisites.mjs` checker, and the undeclared-tool gate | [`docs/conventions/prerequisites/`](conventions/prerequisites/README.md) |
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
+| Enforcement ladder: the rung order, each reader's selection rule, and where boundary rules live | [`docs/conventions/enforcement-ladder/`](conventions/enforcement-ladder/README.md), with generated plugin copies |
 | PR scope budget for agent-authored improvement PRs | [`docs/conventions/pr-scope-budget/`](conventions/pr-scope-budget/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
@@ -857,6 +858,8 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Routing as data: route rows, detection by name, team routing layer, degradation | [`docs/conventions/routing-as-data/`](conventions/routing-as-data/README.md) |
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
 | PR pipeline: stages, CI lane boundaries, activity contract, merge rungs, config schema | [`docs/conventions/pr-pipeline/`](conventions/pr-pipeline/README.md) |
+| Execution target: which host runs each local-lane stage, the cloud launch rule, the stage-start probe and fallback | [`docs/conventions/execution-target/`](conventions/execution-target/README.md) |
+| Workspace environment: the `setup`, `up`, `info` and `down` commands a consumer declares per worktree, read from the default branch | [`docs/conventions/workspace-environment/`](conventions/workspace-environment/README.md) |
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
 | Finding suppression (deliberately-kept audit findings) | [`docs/conventions/finding-suppression/`](conventions/finding-suppression/README.md) |
 | Liveness assertion (false-green / healthy-while-dead surfaces) | [`docs/conventions/liveness-assertion/`](conventions/liveness-assertion/README.md) |
@@ -963,10 +966,10 @@ is its sibling constraint, and the write-time doctrine budgeting both lives in
   adjacent comment). Anticipatory instructions are the veteran-engineer failure mode: they encode
   the last model's weaknesses as the next model's ceiling.
 - **Generation-triggered ablation.** Instructions are disposable per model generation. At each
-  frontier model release, re-audit standing instruction surfaces against the new model
-  (`harness-config:audit-instructions` for the static text-vs-doctrine pass;
-  `harness-config:unhobble` for the empirical bare-baseline experiment) and delete what the model no
-  longer needs. The trigger is the model release, not the calendar.
+  Claude model release, re-audit standing instruction surfaces against the new model
+  (`harness-config:audit-instructions` for the static text-vs-doctrine pass, on any release;
+  `harness-config:unhobble` for the empirical bare-baseline experiment, on a frontier release only)
+  and delete what the model no longer needs. The trigger is the model release, not the calendar.
 - **Evals outlive instructions.** Per-skill evals are the durable asset across this churn: keep and
   extend them until a model generation saturates them, then replace them with evals derived from
   newly observed struggles. Expect an eval to outlive the instructions it graded by roughly one to
@@ -1081,6 +1084,43 @@ unchecked; self-judging those stays the same-context judgment the rule targets e
 sits downstream. A step that self-reviews both is exempt only for the gated part. The rest is still owed a
 fresh-context pass.
 
+### Non-author verdicts across stages
+
+The author-verifier class applies at every stage of a change, not only at the merge gate. Skills cite
+this rule instead of restating it.
+
+1. **Every verdict comes from a non-author.** A review finding, a verification result, a judgment on
+   test quality, and the evidence a merge relies on each come from an agent or session that did not
+   write the change being judged. This holds while the work is planned, implemented, reviewed,
+   verified and merged.
+2. **Tests under TDD stay with the implementer.** The agent writing the code may also write its
+   tests, red then green, in the same context. Giving tests to one session and code to another is a
+   choice a consumer can make, not a default this marketplace imposes; upstream describes it as one
+   option among several multi-session patterns.
+   - **Pointer**: <https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions>.
+   - **As of**: 2026-10-04.
+   - **Recheck trigger**: that section drops the separate test-writer option or recommends it as
+     the default.
+3. **Mechanical phases keep their carve-out.** In `/implementation:implement-dispatch`, a mechanical,
+   behavior-preserving phase is verified by the orchestrator from the diff and the build and test
+   signal by default. Those phases still get a non-author verdict: the PR's verify stage, the
+   pipeline's verify verdict over the whole pull request, is their fresh-context check. A consumer
+   who wants a verifier on every phase sets `verify_mechanical_phases` to `true`, which turns the
+   carve-out off.
+   - **Pointer**: `/implementation:implement-dispatch`, its `verify_mechanical_phases` setting.
+   - **As of**: 2026-10-04.
+   - **Recheck trigger**: that setting is renamed or removed, or the carve-out stops naming the PR's
+     verify stage as its verdict.
+4. **The testing plugin's task-end judge is the precedent.** With `test_judge_enabled` on, a
+   separate model reviews the tests a session created or changed at the end of each task, so the
+   session that wrote a test never grades it.
+   - **Pointer**: the `test_judge_enabled` option of the testing plugin, documented in `/testing:setup`.
+   - **As of**: 2026-10-04.
+   - **Recheck trigger**: the option is renamed or removed, or the judge stops running in a context
+     separate from the session it judges.
+5. **Deterministic gates stay exempt**, within the narrow scope stated above: a script's pass or fail
+   is the verdict, so no author bias reaches it.
+
 ## Delegation mechanics
 
 How a fresh-eyes checkpoint dispatches. The mechanics live here once; a checkpoint site states its
@@ -1182,7 +1222,7 @@ Four rules decide a lane's model, applied in this order:
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility);
   for rule 4,
   [re-run failures at higher effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#re-run-failures-at-higher-effort).
-- **As of:** 2026-10-02.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** next model release, or any cited section changes.
 - **Judgment:** the advisor rule constrains an API advisor and executor pairing; applying it to a
   subagent verdict and the work it checks is our reading, not a source statement. What counts as an
@@ -1237,23 +1277,28 @@ For generic agents in a multi-agent run, the per-role defaults built on these ro
 |---|---|
 | Judgment verdict (never weaker than the work it checks) | `opus`, or the tier of the checked work when that is higher, with `fable` the rung above |
 | Mechanical work an objective failure signal backs | `sonnet` |
-| Bulk mechanical sweeps | `haiku` |
+| Bulk mechanical sweeps | `sonnet` |
+
+No row names `haiku`: no role routes to it until it passes this repository's routing eval, and the
+[routing rubric](../plugins/multi-agent/reference/routing-rubric.md) owns that rule and the effort
+a Haiku role runs at. The release evidence behind it is recorded in
+[docs/upstream/haiku-5-5-launch.md](upstream/haiku-5-5-launch.md).
 
 - **Pointer:** for what each alias resolves to on each provider, see
   [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases). For
   where the `sonnet` row's model fits against `opus`, see the
-  [models overview: latest models comparison](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison)
+  [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison)
   and [model config: available models](https://code.claude.com/docs/en/model-config#available-models)
   (correlate with <https://claude.dev/blog/building-with-claude-sonnet-5-5>;
   recheck when those docs pages cover what the post adds).
-- **As of:** 2026-10-01.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** any new model on Claude Code's model page.
 
 Row 1 is relative to the checked work by construction: a verdict on work done at the top tier runs
 at that tier, since there is no rung above it. The cost ordering behind the rows is
 upstream-owned and is not restated here (Pointer:
 [pricing: model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing).
-As of: 2026-08-10. Recheck
+As of: 2026-10-10. Recheck
 trigger: any new model on Claude Code's model page). No row binds a model that is not generally
 available to the fleet.
 
@@ -1282,7 +1327,7 @@ from the live roster, never from this file.
   [thinking: interleaved thinking](https://platform.claude.com/docs/en/build-with-claude/thinking#interleaved-thinking);
   for how Claude Code records the capability for a pinned model, see
   [model config: customize pinned model display and capabilities](https://code.claude.com/docs/en/model-config#customize-pinned-model-display-and-capabilities).
-- **As of:** 2026-10-01.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** any new model on Claude Code's model page, or that section's per-model
   statement changes.
 
@@ -1337,7 +1382,7 @@ upstream-owned: resolve it from the model page at decision time, never from this
   [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
   for the field itself, see
   [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference).
-- **As of:** 2026-10-01.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** any new model on Claude Code's model page, or the effort section changes how
   a frontmatter pin ranks.
 
@@ -1373,16 +1418,19 @@ same depth on two models):
   that reach, so the cache caveat below still applies.
 - **Read-only bulk mechanical sweeps may pin `low`.** We allow it where speed and cost matter more
   than depth, subagent sweeps included, and never for a lane that changes code, verifies a
-  change, or does work likely to hit edge cases (the [effort floor](#effort-floor)). Not at the model ladder's own bottom rung either, because the
-  two ladders do not compose there: which model the `haiku` alias lands on, and whether that model
-  has an effort dial, depends on the provider, so one pin does not mean one level across our
-  operators. A lane wanting the cheapest tier takes it by model alone and omits the
-  pin (Pointer: when a lane weighs a pin on the `haiku` alias, fetch
+  change, or does work likely to hit edge cases (the [effort floor](#effort-floor)). Never on the
+  `haiku` alias: no lane routes there until it passes the eval the
+  [routing rubric](../plugins/multi-agent/reference/routing-rubric.md) names, and a Haiku role then
+  runs at `high`. The two ladders also do not compose on that alias. Haiku 5.5 takes an effort
+  level on the Anthropic API, while `haiku` still resolves to Haiku 4.5, which takes none, on
+  Amazon Bedrock, Google Cloud's Agent Platform (Vertex AI), Microsoft Foundry and Claude Platform
+  on AWS, so one pin does not mean one level across our operators (Pointer: when a lane weighs a
+  pin on the `haiku` alias, fetch
   [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases) and
   [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) live;
   for what a lower level trades away, see
   [effort: how effort works](https://platform.claude.com/docs/en/build-with-claude/effort#how-effort-works).
-  As of: 2026-10-10. Recheck trigger: every model the `haiku` alias resolves to appears among the models that support effort).
+  As of: 2026-10-10. Recheck trigger: Haiku 4.5 retires, or a provider maps `haiku` to Haiku 5.5).
 - **Every other named agent pins the level its work's task row gives it**, never below `medium`
   for code-changing or verifying work (the [effort floor](#effort-floor); the per-pin rows under
   pinned agents name each row). Only a skill with no consequential output omits the pin and
@@ -1475,13 +1523,14 @@ writes unless the user overrides the level for a run; a passed value would overr
   changes, since a level name means a different depth on each model; the task rows change; a
   checker pinned `medium` misses a defect a `high` pin caught; or a maintainer changes or drops a
   named pin.
-- **Sources agree:** the newer effort post,
-  <https://claude.dev/blog/spending-your-effort/> (correlate only), and model config's
-  choose-an-effort-level section no longer disagree on implementation work. We pin the implementer
-  `medium` and its verifier `high`, the rows we read model config as giving each. Model config stays the source we follow if they diverge again, because a docs section outranks a
-  blog post under the
+- **Sources partly agree:** model config's choose-an-effort-level section and the rule of thumb in
+  the newer effort post, <https://claude.dev/blog/spending-your-effort/> (correlate only), put
+  feature implementation on the same row, but the post's own feature loop implements at a lower
+  level, which the [effort floor](#effort-floor) rules out for a code-changing lane. We pin the
+  implementer `medium` and its verifier `high`, the rows we read model config as giving each. Model
+  config is the source we follow, because a docs section outranks a blog post under the
   [upstream-drift convention](conventions/upstream-drift/README.md#required-parts). As of:
-  2026-10-02. Recheck trigger: next model release, or either page is revised on that point.
+  2026-10-10. Recheck trigger: next model release, or either page is revised on that point.
 
 **Per-pin rows.** Each pinned agent outside `plugins/implementation` follows one row of model
 config's effort-level table, read for the model its `model` alias resolves to. Review, verification
@@ -1624,7 +1673,7 @@ session level or saved level (Pointer: for how a level is set and saved, see
 [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level);
 for the ultracode setting, see
 [model config: adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level).
-As of: 2026-10-01. Recheck trigger: any new model on Claude Code's model page, or a new way to set
+As of: 2026-10-10. Recheck trigger: any new model on Claude Code's model page, or a new way to set
 or save a level).
 
 One exception, scoped to frontmatter: a skill or agent may pin `effort`, because the pin holds only
@@ -1653,7 +1702,7 @@ and the release.
   [model config: choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   for what each alias resolves to per provider, see
   [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases).
-- **As of:** 2026-10-01.
+- **As of:** 2026-10-10.
 - **Recheck trigger:** any new model on Claude Code's model page, or the effort section changes
   which models support effort.
 
