@@ -13,7 +13,7 @@ graders:
     target: last_message
   - name: says-rerun-with-yes
     type: regex
-    pattern: '(?:re-?run|run (?:it |this |the command )?again)[^\n]{0,80}--yes|--yes\W{0,4}\s*to apply'
+    pattern: '(?:re-?run|\brun\b|to apply)[\s\S]{0,60}?--yes|--yes\W{0,4}\s*to apply'
     flags: i
     target: last_message
   - name: app-still-legacy
@@ -29,7 +29,7 @@ graders:
   - name: never-ran-code-fix
     type: tool_used
     tool: Bash
-    input_match: '(?:\b(?:bash|sh|source)\s+|\.\s+|\./)\S*semantic-fix\.sh'
+    input_match: '(?:(?:^|[\s;&|(/"])(?:bash|sh|source)\s+|(?:^|[\s;&|("])\.\s+|\./)\S*semantic-fix\.sh'
     min: 0
     max: 0
     arm: both

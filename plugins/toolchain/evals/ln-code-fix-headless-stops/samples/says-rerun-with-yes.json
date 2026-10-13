@@ -1,12 +1,20 @@
 {
   "pass": [
     {
-      "answer": "Code-fix plan — ecosystems: bash (1 file scoped)\n- bash: bash tools/semantic-fix.sh app.sh  (1 file)\n\nNon-interactive session without --yes: stopped after the plan, nothing was changed. Re-run with `--yes` to apply: `/toolchain:lint --code-fix --yes`.",
+      "answer": "Code-fix plan \u2014 ecosystems: bash (1 file scoped)\n- bash: bash tools/semantic-fix.sh app.sh  (1 file)\n\nNon-interactive session without --yes: stopped after the plan, nothing was changed. Re-run with `--yes` to apply: `/toolchain:lint --code-fix --yes`.",
       "why": "Re-run with --yes"
     },
     {
       "answer": "Plan: `tools/semantic-fix.sh` on **app.sh**. I mutated nothing. To apply, run it again with --yes.",
       "why": "run it again with --yes"
+    },
+    {
+      "answer": "**Status:** I didn't apply anything because a non-interactive session needs `--yes` as explicit consent. To apply:\n\n```text\n/toolchain:lint --code-fix --yes\n```",
+      "why": "observed: apply command in a code block"
+    },
+    {
+      "answer": "That changes what the code means, not just its formatting.\n\nTo apply it, run `/toolchain:lint --code-fix --yes`. To check without changing anything, run `/toolchain:lint`.",
+      "why": "observed: run the command with --yes"
     }
   ],
   "fail": [
@@ -21,6 +29,10 @@
     {
       "answer": "Plan only. The --yes flag does nothing here.",
       "why": "mentions --yes without telling to re-run"
+    },
+    {
+      "answer": "Applied the semantic fix to app.sh. Run `/toolchain:lint` again to confirm it is clean.",
+      "why": "applied, and the re-run names no --yes"
     }
   ]
 }
