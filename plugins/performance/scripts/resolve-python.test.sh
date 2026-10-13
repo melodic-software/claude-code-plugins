@@ -35,7 +35,7 @@ PY_LINE="$(grep -m1 'resolve-python.sh' "$PREAMBLE_SKILL")"
 assert_contains "the preamble has a PY line" 'PY=' "$PY_LINE"
 
 # A plugin root whose path holds an apostrophe and a space, as a Windows
-# profile like C:\Users\O'Brien does.
+# profile directory named after a user like O'Brien does.
 ODD_ROOT="$WORK/o'brien dir/plugin"
 mkdir -p "$ODD_ROOT/scripts"
 cp "$SCRIPT_DIR/resolve-python.sh" "$SCRIPT_DIR/harness-lib.sh" "$ODD_ROOT/scripts/"
