@@ -34,7 +34,7 @@ mkdir -p "$TMP/textjq"
 {
   printf '#!/usr/bin/env bash\nset -o pipefail\n'
   printf 'if [[ ${1-} == -b ]]; then shift; exec %q "$@"; fi\n' "$(command -v jq)"
-  printf '%q "$@" | awk '"'"'{ printf "%%s\\r\\n", $0 }'"'"'\n' "$(command -v jq)"
+  printf '%q "$@" | awk -v BINMODE=3 '"'"'{ printf "%%s\\r\\n", $0 }'"'"'\n' "$(command -v jq)"
 } >"$TMP/textjq/jq"
 chmod +x "$TMP/textjq/jq"
 text_jq() { PATH="$TMP/textjq:$PATH" REPO_SWEEP_OSTYPE="$1" run; }
