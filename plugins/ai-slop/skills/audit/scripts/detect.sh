@@ -945,22 +945,23 @@ for entry in "${DENSITY_RULES[@]}"; do
     full_hits="${FULL_HITS[$kk]:-0}"
     [[ "$full_hits" -gt "$hits" ]] && decline_rule "$slug" $((full_hits - hits)) quote
     [[ "$hits" -lt "$DENSITY_MIN_HITS" ]] && continue
-    candidates+="$kk"$'\t'"$hits"$'\t'"$words"$'\t'"$threshold"$'\n'
+    candidates+="$kk"$'\t'"$hits"$'\t'"$words"$'\n'
   done
   [[ -z "$candidates" ]] && continue
   # Density and the threshold test as the per-file awk calls computed them: the
   # density string is split back into a field so the comparison sees two
-  # numeric strings, exactly as it did with two -v values.
+  # numeric strings, exactly as it did with two -v values. The threshold is
+  # config text, so it reaches awk only as -v, never as a row field.
   while IFS=$'\t' read -r kk hits words density over; do
-    [[ "$over" -eq 1 ]] || continue
+    [[ "$kk" =~ ^[0-9]+$ && "$over" == 1 ]] || continue
     first_line="$(LC_ALL=C grep -E -i -m1 -- "$ere" "$SCAN_DIR/W/$kk")"
     first_line="${first_line%%$'\t'*}"
     emit_finding "$kk" "$slug" "${first_line:-1}" \
       "density $density/1000 words, threshold $threshold ($hits hits in $words words)" \
       "density rule"
-  done < <(printf '%s' "$candidates" | awk -F '\t' '{
+  done < <(printf '%s' "$candidates" | awk -F '\t' -v t="$threshold" '{
     split(sprintf("%.1f", ($2 * 1000) / $3), d, "\n")
-    print $1 "\t" $2 "\t" $3 "\t" d[1] "\t" ((d[1] >= $4) ? 1 : 0)
+    print $1 "\t" $2 "\t" $3 "\t" d[1] "\t" ((d[1] >= t) ? 1 : 0)
   }')
 done
 
