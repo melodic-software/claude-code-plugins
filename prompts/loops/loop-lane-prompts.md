@@ -76,9 +76,10 @@ Leave `{{MERGE}}` at `--merge human-only` unless the target repository's rung
 question has been decided the other way. This repository's tracked rung is
 `c2-mechanical` (unattended auto-merge launches at C2 only, #6202). Keep the
 override
-until #4588 closes its remaining gaps (the checker gets no credential roots,
-no host has an operator-owned bootstrap, and no publisher writes the evidence)
-and the evidence predicate is met (see "C2 auto-merge may lack its
+until #4588 closes its remaining gaps (no host has an operator-owned
+bootstrap, the evidence publisher is not deployed and the resolver does not yet
+check its sidecar's freshness, and WSL or Windows lanes running as the operator
+are refused) and the evidence predicate is met (see "C2 auto-merge may lack its
 promotion evidence" under Known gaps).
 
 ## Per-repository profile

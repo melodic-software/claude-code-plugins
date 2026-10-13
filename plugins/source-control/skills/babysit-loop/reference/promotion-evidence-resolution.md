@@ -45,12 +45,15 @@ how a cell resolves effective-promoted or demoted. With no compliant bootstrap, 
 any fail-closed reason, or a helper failure, **every promotable cell resolves
 effective-unpromoted** and autonomous merge stays off for C2/C3 classes regardless of tracked rung.
 Operators keep `--merge human-only` on launch lines; lifting it is the owner's call after Phase 3.
-The resolver runs the checker with a fixed argv and passes no `--credential-roots`
-(`resolve-promotion-evidence.mjs`), so a binding whose L2 proof rests on a filesystem credential
-probe (for example a `$HOME/.netrc` path in the probe transcript) fails closed even with a
-compliant bootstrap; [`promotion-evidence-bootstrap.md`](promotion-evidence-bootstrap.md) lists a
-`--credential-roots` surface as out of scope
-([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)). The unattended
+The resolver passes `--credential-roots` to the checker when the operator sets
+`promotion_evidence_credential_roots`; unset, a binding whose L2 proof rests on a filesystem
+credential probe fails closed even with a compliant bootstrap. Three gaps remain open
+([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)): no host has an
+operator-owned bootstrap; the evidence publisher (`scripts/publish-promotion-evidence.mjs`)
+exists, but its deployment and the resolver's freshness check on its sidecar are not done and wait
+on the merge-authority decision; and a WSL or Windows lane running as the operator is refused under
+the per-host requirements in
+[`promotion-evidence-bootstrap.md`](promotion-evidence-bootstrap.md). The unattended
 merge path (`babysit_merge_policy.read_promotion`) additionally refuses any option value or
 settings file the lane can write, so on a single-user
 host user-scope settings never qualify there; only managed settings and surfaces owned by someone
@@ -59,8 +62,8 @@ What an operator supplies for the seam is in
 [`promotion-evidence-bootstrap.md`](promotion-evidence-bootstrap.md), and the lane-start preflight
 in [`cycle-shape.md`](cycle-shape.md) step 0 reports each missing or non-compliant surface by
 option name. The implementation checklist and phased plan are in
-[`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md), Phase 2
-implemented and Phase 3 unapproved
+[`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md), status of
+each phase
 ([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)). Whether the
 repository's evidence predicates
 ([`loop-lane-prompts.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/prompts/loops/loop-lane-prompts.md)
