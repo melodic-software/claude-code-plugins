@@ -120,6 +120,18 @@
         "Output flags the in-house-encoder choice as supported only by incumbency ('we already use it') and therefore unverified, rather than accepting it as evidence the choice still fits",
         "Output's finding names the exact follow-up `/planning:devils-advocate incumbent <target>` (the Alternatives Sweep on that incumbent) as a suggestion, not as an action it performs now"
       ]
+    },
+    {
+      "id": 11,
+      "name": "state-changing-job-gets-re-execution-probes",
+      "prompt": "/planning:devils-advocate stress-test this plan before we build it: a nightly cron job, rotate_partner_keys.py, runs on one VM. For each partner it generates a new API key, stores it in the vault, emails it to the partner's contact, then revokes the partner's previous key. It is a single script in a single environment.",
+      "expected_output": "Although the plan is one script in one environment, the review runs a re-execution probe on it: what happens when the job starts again right after a completed run (a second new key, a second email, revoking the key just sent), and what happens when it is killed between any two of its writes (key stored but never emailed, or the old key revoked before the partner has the new one). The mitigation is a reconciliation step at the start of each run that reads the current vault and key state per partner and does only the steps still missing, with at least one concrete technique (for example a per-partner record of the last completed step, or skipping a partner whose newest key was issued this cycle).",
+      "files": [],
+      "expectations": [
+        "Raises what happens when the job runs again right after a completed run (duplicate keys or emails, or revoking the key just issued)",
+        "Raises what happens when the job is killed between two of its writes, naming at least one concrete half-finished state (key stored but not emailed, or old key revoked early)",
+        "Proposes a reconciliation step that reads the existing per-partner state at the start of a run and acts only on what is still missing, with at least one concrete technique"
+      ]
     }
   ]
 }

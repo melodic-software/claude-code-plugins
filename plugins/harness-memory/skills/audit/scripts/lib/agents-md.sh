@@ -2,23 +2,15 @@
 # agents-md.sh: which of the project root's AGENTS.md files load as the project instructions?
 # One reader so the audit scripts cannot disagree about which file the session loaded.
 #
-#   Claim: Claude Code reads a repository's `AGENTS.md` and `.claude/AGENTS.md` as the
+#   Decision: this reader reports a root `AGENTS.md` or `.claude/AGENTS.md` as the
 #     project instructions only when no `CLAUDE.md`, `.claude/CLAUDE.md` or
-#     `CLAUDE.local.md` sits in the working directory or above it; where one does, it
-#     reads the `CLAUDE.md` files instead, and an `AGENTS.md` reaches context only
-#     through an import or a symlink. A user-scope `~/.claude/CLAUDE.md` and
-#     `.claude/rules/` files do not count for that check. Both AGENTS.md names load,
-#     and the doc states no precedence between them.
-#   Basis: code.claude.com/docs/en/memory, "AGENTS.md" and "When Claude Code reads
-#     AGENTS.md": "An `AGENTS.md`, and no `CLAUDE.md` or `CLAUDE.local.md` in your
-#     working directory or above it | Your `AGENTS.md`"; "Count, so Claude reads them
-#     instead of `AGENTS.md`: a `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md`
-#     in your working directory or any directory above it"; "Don't count, and keep
-#     loading alongside `AGENTS.md`: your `~/.claude/CLAUDE.md`, your organization's
-#     managed `CLAUDE.md`, and `.claude/rules/` files"; and, for the pair of names,
-#     "At session start: every `AGENTS.md` and `.claude/AGENTS.md` in your working
-#     directory and the directories above it".
-#   As of: 2026-09-20.
+#     `CLAUDE.local.md` sits in the working directory or above it, and otherwise as
+#     reaching context only through an import or a symlink. It does not count a
+#     user-scope `~/.claude/CLAUDE.md` or `.claude/rules/` files against an AGENTS.md,
+#     and treats both AGENTS.md names as loading, with no precedence between them.
+#   Pointer: https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
+#     and https://code.claude.com/docs/en/memory#choose-which-instruction-files-load
+#   As of: 2026-10-11.
 #   Recheck trigger: that section changes which file names count for the check, names a
 #     precedence between `AGENTS.md` and `.claude/AGENTS.md`, or the default **Project
 #     instructions** value stops being `claude-md-or-agents-md`.

@@ -12,9 +12,40 @@ activities:
     inputs: [changed-paths]
     applies-when:
       paths: ["**/*.md"]
+      labels-absent: [do-not-merge, needs-human]
+  resolve-conflicts:
+    skill: source-control:resolve-conflicts
+    args: ci
+    # The write runner merges the base tip before the skill and commits the
+    # result with both parents after it.
+    prepare: merge-base
+    effect: mutate-branch
+    # ci-status judges the merged tree.
+    gating: advisory
+    # Reads PR head files.
+    reads-untrusted: true
+    inputs: [pr, base-sha, head-sha]
+    applies-when:
+      # A PR that is only behind stays with the merge queue.
+      mergeable: [conflicting]
+      labels-absent: [do-not-merge, needs-human]
+      draft: [false]
+  report-escalation:
+    # Labels the PR needs-human and posts the reason with a resume key.
+    script: .github/scripts/pr-unblock/report-escalation.sh
+    effect: publish-artifact
+    gating: advisory
+    reads-untrusted: false
+    inputs: [pr, head-sha]
 
 lanes:
   pr-refine:
     stage: refine
     slots:
       - activity: fix-docs
+  pr-unblock:
+    stage: unblock
+    slots:
+      - activity: resolve-conflicts
+      - activity: report-escalation
+        needs: [resolve-conflicts]

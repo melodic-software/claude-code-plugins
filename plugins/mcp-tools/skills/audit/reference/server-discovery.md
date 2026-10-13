@@ -54,9 +54,11 @@ across projects. To support an additional MCP SDK (Go, Rust, JVM), add a languag
 same shape.
 
 `meta-extraction` locates the tool's protocol `_meta` object, the sole input to C17-C19. Record each
-key's **JSON type**, not just its presence: C18 FAILs on any value other than the JSON boolean `true`,
-so the language's own `true` literal has to be told apart from a quoted string or a number written in
-that language's syntax.
+key's **JSON type**, not just its presence: C18 grades on the type
+([checklist.md, Client-behavior record](checklist.md#mcp-tool-audit-checklist), a bold paragraph
+under the title with no heading of its own; as of 2026-10-11, recheck when that record moves or
+stops grading C18 on the JSON type), so the language's own `true` literal has to be told apart
+from a quoted string or a number written in that language's syntax.
 
 ### python (`mcp`)
 

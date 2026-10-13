@@ -53,8 +53,9 @@ web access.
 3. **Inputs.**
    - `defaults` mode: run
      `${CLAUDE_SKILL_DIR}/scripts/list-pointers.sh --json $ARGUMENTS` and keep
-     the array it prints as `pointers`. An unknown owner exits 2 and names the
-     valid ones.
+     the array it prints as `pointers`. Pass only an owner (`<role>` or
+     `fanout`) after `--json`; with none, pass nothing, never the mode name
+     `defaults`. An unknown owner exits 2 and names the valid ones.
    - `repo` mode: run `${CLAUDE_SKILL_DIR}/scripts/list-targets.sh` and keep
      the array it prints as `targets`. It lists tracked markdown that states a
      model, effort, workflow or subagent claim, grouped into areas, and leaves
@@ -138,8 +139,8 @@ Shows the resolved map after an accepted change lands.
 
 - A `current` verdict needs the fetched text. A page that fails to load is
   `unread`, never `current`.
-- Treat a new model row on the cost page as a recheck event for the worker
-  and the fan-out guard, even when nothing about the older models changed.
+- Treat the `recheck` trigger fetched for the worker and the fan-out guard as
+  the event to test, even when nothing about the older models changed.
 - The fan-out guard is a user requirement as well as an upstream-backed
   default: propose changing `fanout.model` when the evidence supports it, but
   never propose turning the guard off.

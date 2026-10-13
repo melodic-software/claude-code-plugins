@@ -67,8 +67,8 @@ the `MergeStateStatus` values quoted above, `BEHIND` as "The head ref is out of 
 ref associated with the pull request, even if the ref has been deleted." Neither the precedence
 nor a refresh guarantee for `baseRefOid` appears anywhere on that page, so both remain live
 observations, reproducible with the single-PR diagnostic below: read `mergeStateStatus` and
-`baseRefName` with `gh pr view`, then compare the same head SHA against each of the two bases with
-`gh api repos/{owner}/{repo}/compare/{basehead}` and read `behind_by`.
+`baseRefName`, then compare the same head SHA against each of the two bases and read `behind_by`
+([GitHub](../../../reference/providers/github/babysit-prs/freshness.md#single-pr-diagnostic)).
 
 **Verified.** 2026-09-06, against the GraphQL Pulls reference as fetched that day.
 
@@ -130,12 +130,9 @@ For an ambiguous single PR, inspect it without changing anything. Compare agains
 NAME (`baseRefName`), not `baseRefOid`: the cached OID lags the base branch's live tip once the
 base advances past the PR's last sync (empirically: a real PR's head compared as up to date
 against its own stale `baseRefOid` while comparing the same head SHA against the live base tip
-correctly reported `status: diverged` with a positive `behind_by`):
-
-```text
-gh pr view 42 -R owner/repo --json mergeStateStatus,baseRefName,headRefOid
-gh api "repos/owner/repo/compare/<baseRefName>...<headRefOid>" --jq "{status,ahead_by,behind_by}"
-```
+correctly reported `status: diverged` with a positive `behind_by`). Read the PR's
+`mergeStateStatus`, `baseRefName` and `headRefOid`, then compare `<baseRefName>...<headRefOid>`
+and read `status`, `ahead_by` and `behind_by` ([GitHub](../../../reference/providers/github/babysit-prs/freshness.md#single-pr-diagnostic)).
 
 ## Genuine Merge Conflicts Are Out Of Scope Here
 

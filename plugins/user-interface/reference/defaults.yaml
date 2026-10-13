@@ -1,0 +1,41 @@
+# Layer 1 of the user-interface config cascade: the plugin's own defaults.
+# Later layers override a key (userConfig, ~/docs/conventions/user-interface.yaml,
+# <home>/user-interface.yaml, <home>/user-interface.local.yaml); `*.disable` lists add up.
+# Keys and allowed values: team.schema.json. Block style only.
+version: 1
+css:
+  browser_target: "baseline widely available"
+  techniques:
+    disable: []
+  rules:
+    disable: []
+  important: avoid
+  layer: null
+  token_fallback: ask
+# Animation taste defaults: each curve is four cubic Bezier control points [x1, y1, x2, y2];
+# durations are the upper end of each role's range in milliseconds; the gesture threshold is
+# px/ms for a small element's swipe to dismiss. Project tokens beat every layer.
+animation:
+  easing:
+    out:
+      - 0.23
+      - 1
+      - 0.32
+      - 1
+    in_out:
+      - 0.77
+      - 0
+      - 0.175
+      - 1
+    drawer:
+      - 0.32
+      - 0.72
+      - 0
+      - 1
+  duration_ms:
+    press: 160
+    small: 200
+    medium: 250
+    large: 500
+  gesture:
+    velocity_threshold: 0.11

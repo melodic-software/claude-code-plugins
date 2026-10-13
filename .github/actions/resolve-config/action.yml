@@ -40,10 +40,22 @@ inputs:
     description: The PR, normally check-trusted-trigger's `pr-number` output.
     required: false
     default: ""
+  head-sha:
+    description: >
+      The gated head SHA. A mergeable predicate trusts GitHub's mergeability
+      only from a pull read whose head is this SHA.
+    required: false
+    default: ""
+  prepare-supported:
+    description: >
+      `true` only from a runner that performs a leaf's `prepare` step. An
+      applying leaf that sets `prepare` fails the step otherwise.
+    required: false
+    default: "false"
   github-token:
     description: >
       Read-only token, used only when an applies-when predicate needs the
-      PR's labels or changed files.
+      PR's labels, draft state, mergeability or changed files.
     required: false
     default: ${{ github.token }}
 
@@ -82,8 +94,11 @@ outputs:
     description: "`true` when the activity runs on this event; `false` comes with a skip-reason."
     value: ${{ steps.resolve.outputs.applies }}
   skip-reason:
-    description: "`disabled-by-config`, `not-applicable-paths`, `not-applicable`, or empty."
+    description: "`disabled-by-config`, `not-applicable-paths`, `not-applicable`, `awaiting-human`, `prerequisite-missing`, or empty."
     value: ${{ steps.resolve.outputs.skip-reason }}
+  prepare:
+    description: "The leaf's prepare mode (`merge-base`), empty when it sets none."
+    value: ${{ steps.resolve.outputs.prepare }}
   contents:
     description: The App grant's `contents` permission for the activity's effect.
     value: ${{ steps.resolve.outputs.contents }}
@@ -112,6 +127,8 @@ runs:
         EVENT_NAME: ${{ inputs.event-name }}
         EVENT_PATH: ${{ inputs.event-path }}
         PR_NUMBER: ${{ inputs.pr-number }}
+        HEAD_SHA: ${{ inputs.head-sha }}
+        PREPARE_SUPPORTED: ${{ inputs.prepare-supported }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
       run: |

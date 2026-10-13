@@ -39,7 +39,10 @@ The floor holds in every medium. A medium may raise it, never lower it.
 - **Text is the source.** Information lives in text a screen reader or a pipe can carry. Art,
   glyphs and animation decorate text; they never replace it.
 - **Motion is optional.** Anything that moves can be stopped or does not start: honor
-  reduced-motion settings, and never animate when output is not a live screen.
+  reduced-motion settings, and never animate when output is not a live screen. Under a
+  reduced-motion setting, remove movement (sliding, scaling, parallax, springs, overshoot); a short
+  change of opacity or color that helps the reader follow a state change may stay. What counts as
+  motion animation is WCAG 2.2 success criterion 2.3.3's to say.
 - **Keyboard first.** Every action is reachable from the keyboard, with a visible focus.
 - **Plain language.** Short sentences, the user's words, one idea each. Errors say what happened
   and what to do next.
@@ -47,6 +50,12 @@ The floor holds in every medium. A medium may raise it, never lower it.
 - **Pointer**: WCAG 2.2, <https://www.w3.org/TR/WCAG22/>
 - **As of**: 2026-10-04
 - **Recheck trigger**: a new WCAG version becomes a W3C Recommendation.
+- **Pointer**: WCAG 2.2 Understanding 2.3.3 Animation from Interactions,
+  <https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html>, read with the
+  WCAG 2.2 errata, <https://www.w3.org/WAI/WCAG22/errata/>
+- **As of**: 2026-10-11
+- **Recheck trigger**: the Understanding page or a new erratum changes what motion animation
+  excludes.
 
 ## Project first
 

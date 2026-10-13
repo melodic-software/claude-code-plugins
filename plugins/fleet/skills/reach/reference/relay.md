@@ -118,8 +118,10 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
 ```
 
 - The directory must be trusted: run `claude` there interactively once and accept the prompt.
-  Anywhere else the start fails with ``Workspace not trusted. Run `claude` in <dir> once and accept
-  the trust prompt, then retry.`` and exit 1.
+  Anywhere else the start fails with a workspace-not-trusted error and exit 1. For its wording,
+  fetch
+  [Workspace not trusted when dispatching a background session](https://code.claude.com/docs/en/errors#workspace-not-trusted-when-dispatching-a-background-session)
+  live (as of 2026-10-11; recheck when that entry's message or fix changes).
 - `claude agents --json --all` reports each session's `id`, `name`, `status` and `state` (for
   example `busy`/`working`, then `idle`/`blocked`). Poll it to know when a session is done.
 - We address `claude logs` and `claude attach` by the short `id` from `claude agents --json --all`
@@ -141,22 +143,21 @@ For a session that outlives the hop, the target lane's own supervisor hosts it:
 ## Mechanisms not used here
 
 Each fails the fleet's per-lane account split or needs a human; see the linked page before
-reconsidering one. Fetched 2026-09-29 against 2.1.284; recheck when a release note names the
-mechanism.
+reconsidering one. As of 2026-10-11 (first fetched 2026-09-29 against 2.1.284); recheck when a
+release note names the mechanism or a linked section changes.
 
 - **Remote Control and cross-machine `SendMessage`**: same claude.ai account only, and
   interactive only: `claude -p --remote-control` does not connect (the flag takes the next word as
   a session name, and the turn shows no bridge event).
   <https://code.claude.com/docs/en/cross-session-messaging#message-sessions-on-other-machines>
 - **Cloud sessions** (`claude -p "<msg>" --cloud <id>`): same account, and no CLI read-back of the
-  reply. <https://code.claude.com/docs/en/claude-code-on-the-web>
-- **Channels**: research preview; a custom channel needs
-  `--dangerously-load-development-channels`, which asks for confirmation at launch.
-  <https://code.claude.com/docs/en/channels>
-- **The inbox socket from a script**: only the auth line is documented, not the message format, so
-  do not script against it. <https://code.claude.com/docs/en/cross-session-messaging>
-- **Agent teams**: one team per session, and nothing crosses a lane.
-  <https://code.claude.com/docs/en/agent-teams>
+  reply. <https://code.claude.com/docs/en/claude-code-on-the-web#send-follow-ups-from-the-cli>
+- **Channels**: research preview, and a custom channel needs a human to confirm it at launch.
+  <https://code.claude.com/docs/en/channels#research-preview>
+- **The inbox socket from a script**: we do not script against it, since we found no documented
+  message format. <https://code.claude.com/docs/en/cross-session-messaging#the-sessions-inbox-socket>
+- **Agent teams**: a team is scoped to one session, and nothing crosses a lane.
+  <https://code.claude.com/docs/en/agent-teams#limitations>
 
 ## Getting a reply back
 
@@ -181,8 +182,10 @@ Check the target Windows lane before relying on it:
 <ssh> <wsl-alias> 'cd /mnt/c/Users/<user>/<scratch> && /mnt/c/Users/<user>/.local/bin/claude.exe -p "echo ok" < /dev/null'
 ```
 
-`Failed to authenticate: OAuth session expired and could not be refreshed` means the route worked
-and the Windows lane on the target is signed out. The fix is `/login` at that machine's console
+An expired-OAuth-session authentication error means the route worked and the Windows lane on the
+target is signed out (for the message's wording, fetch
+[Login expired](https://code.claude.com/docs/en/errors#login-expired) live; as of 2026-10-11;
+recheck when that entry's message changes). The fix is `/login` at that machine's console
 (or over RDP, which is always the console account). Do not try to fix it remotely, and never move a
 credential through a prompt or a copy.
 
@@ -194,12 +197,18 @@ Code 2.1.284. Recheck when a Claude Code release note touches `ListAgents`, `Sen
 Control session listing, `crossSessionInbound` or `-n`/`--name`, or when a route below fails its
 hop check.
 
-The documented flag behavior the hub restates (`notify_when_idle` is same-machine only, `--bare`
-binds no inbox socket, `--bg` rejects `-p`, `--session-id` takes a UUID, a `-p` receiver needs
-`crossSessionInbound: accept`) rests on
-<https://code.claude.com/docs/en/cross-session-messaging>,
-<https://code.claude.com/docs/en/cli-reference> and <https://code.claude.com/docs/en/agent-view>,
-fetched 2026-09-29 against 2.1.284. Recheck when a release note names any of those flags.
+The hub's guidance on `notify_when_idle`, `--bare`, `--bg`, `--session-id` and a `-p` receiver
+also rests on documented flag behavior.
+
+- **Pointer**: when one of those flags behaves other than the hub expects, fetch
+  [Get a notice when another session goes idle](https://code.claude.com/docs/en/cross-session-messaging#get-a-notice-when-another-session-goes-idle),
+  [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions),
+  [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) and
+  [Dispatch an agent from your shell](https://code.claude.com/docs/en/agent-view#dispatch-an-agent-from-your-shell)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a release note names any of those flags, or one of those sections changes
+  them.
 
 | Route | Result |
 |---|---|

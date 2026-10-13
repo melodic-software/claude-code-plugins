@@ -33,19 +33,18 @@ platform is not.
   is the report saying it could not look, not that it looked and found nothing.
 - **The local file is not under the worktree you are standing in.** `settings.local.json` resolves
   through worktrees to the main checkout, so a reader anchored on `git rev-parse --show-toplevel`
-  looks where the file is not and reports `absent`. Four documented conditions keep it in the start
-  directory instead: outside a git repository, when the repository root is the home directory, on
-  Windows, and when the repository root or its `.git` or `.claude` entry is not owned by the current
-  user. The reader resolves all four and names which one applied. A fifth case is not detectable and
+  looks where the file is not and reports `absent`. Documented conditions keep it in the start
+  directory instead; `criteria.md` §Scopes owns them and their pointer. The reader resolves every one
+  and names which applied. A further case is not detectable and
   is stated rather than guessed: the Agent SDK's `resolveSettings()` helper always reads the file from
   the starting directory, which is a helper's behavior and not a property of a running session.
 - **An empty merge is not an empty machine.** The merge exits 2 when the input carries no scope
   records at all, so a reader that died cannot feed it a clean "nothing in effect"; if you build your
   own pipeline around these scripts, check the status rather than the output.
-- **Two live copies of `settings.local.json` are normal, not a bug.** When a pre-v2.1.211 copy sits in
-  the start directory, the repository-root copy wins on a shared key but permission rules from both
-  stay in effect. Reporting only one of them under-reports what is live. The dated record for the
-  boundary is `criteria.md` §Scopes.
+- **Two live copies of `settings.local.json` are normal, not a bug.** When an older version's copy
+  sits in the start directory, the repository-root copy wins on a shared key but permission rules
+  from both stay in effect. Reporting only one of them under-reports what is live. The version
+  boundary and its dated record are in `criteria.md` §Scopes.
 - **A cloud session's user scope is not the operator's.** There, the operator's own user settings and
   local file are not read at all and only server-managed settings arrive, so a `present` user record
   describes the container. The run emits a note whenever `CLAUDE_CODE_REMOTE` says so; carry it into
