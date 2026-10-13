@@ -3,6 +3,16 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0] - 2026-10-13
+
+### Added
+
+- Seven outcome eval cases for `clarify` and `shape` under `evals/`, and frozen trigger-probe sets under `probes/`.
+
+### Changed
+
+- `clarify`'s body and both skills' descriptions are shorter. Eval cases and trigger probes measured each change against the old text before it shipped. `shape` keeps its original body, because the shorter version confirmed less often before a destructive step on Opus.
+
 ## [0.5.7] - 2026-10-13
 
 ### Changed
