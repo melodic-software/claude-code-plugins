@@ -20,9 +20,26 @@
 # CI passes the plugins a diff touched: each per-plugin pass reads only its own
 # directory, so an untouched plugin's verdict is the one its last green run gave.
 # A name that is not a plugin directory is an error, not a quiet skip.
+#
+# CHECK_DATA_ROOT names the tree to validate when it is not the one holding this
+# script (scripts/check-affected.sh sets it when it runs from a merge-base copy
+# of the tooling). The helpers then still run from this script's tree, and each
+# step that would run code from the checked tree prints `SKIP <step> (...)`
+# instead of running.
 set -uo pipefail
 
-cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || exit 1
+cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 1
+foreign=0
+[[ "$(pwd -P)" == "$(cd "$SCRIPT_DIR/.." && pwd -P)" ]] || foreign=1
+
+# runs_checked_code <step>: 0 to run a step that executes code from the checked
+# tree, which is only safe when that tree is this script's own.
+runs_checked_code() {
+  ((foreign)) || return 0
+  echo "SKIP $1 (runs code from the checked tree)"
+  return 1
+}
 
 limited=0
 only=()
@@ -56,7 +73,7 @@ fi
 # asserts the shipping tree draws none, but the selection runs that suite only
 # when the change reaches it, so a warning a pull request introduces would
 # otherwise pass its own run and fail first in the merge queue (#6215).
-contracts=$(node scripts/validate-plugin-contracts.mjs 2>&1) || {
+contracts=$(node "$SCRIPT_DIR/validate-plugin-contracts.mjs" 2>&1) || {
   printf '%s\n' "$contracts"
   exit 1
 }
@@ -65,10 +82,17 @@ if grep -q '^warning: ' <<<"$contracts"; then
   echo "error: the plugin contract validator printed a warning; the tree must draw none" >&2
   exit 1
 fi
-bash scripts/check-publisher-token-alignment.sh || exit 1
-node scripts/generate-catalog.mjs --check || exit 1
-node scripts/generate-cheatsheet.mjs --check || exit 1
-node plugins/autonomy/skills/setup/scripts/generate-identity-prerequisites.mjs --check || exit 1
+bash "$SCRIPT_DIR/check-publisher-token-alignment.sh" || exit 1
+node "$SCRIPT_DIR/generate-catalog.mjs" --check || exit 1
+# The cheatsheet generator imports scripts/cheatsheet-config.mjs from the tree it
+# checks; a byte-identical copy is this script's own code.
+if cmp -s "$SCRIPT_DIR/cheatsheet-config.mjs" scripts/cheatsheet-config.mjs ||
+  runs_checked_code "cheatsheet drift"; then
+  node "$SCRIPT_DIR/generate-cheatsheet.mjs" --check --root . || exit 1
+fi
+if runs_checked_code "identity-prerequisites drift"; then
+  node plugins/autonomy/skills/setup/scripts/generate-identity-prerequisites.mjs --check || exit 1
+fi
 
 # --- native-overlap registry: generated-view drift + freshness self-check ----
 #
@@ -77,48 +101,50 @@ node plugins/autonomy/skills/setup/scripts/generate-identity-prerequisites.mjs -
 # under a WindowsApps path component is the Store's App Execution Alias stub,
 # and executing it opens the Microsoft Store or hangs instead of running an
 # interpreter.
-OVERLAP="plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py"
-OVERLAP_FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$OVERLAP")"
-if [[ -z "$OVERLAP_FLOOR" ]]; then
-  echo "error: could not parse MIN_PYTHON from $OVERLAP" >&2
-  exit 2
-fi
-OVERLAP_PYTHON=""
-for candidate in python3 python; do
-  resolved="$(command -v "$candidate" 2>/dev/null)" || continue
-  lower="$(printf '%s' "$resolved" | tr '[:upper:]' '[:lower:]')"
-  if [[ "$lower" == *windowsapps* && ! -s "$resolved" ]]; then
-    continue
+if runs_checked_code "native-overlap registry"; then
+  OVERLAP="plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py"
+  OVERLAP_FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$OVERLAP")"
+  if [[ -z "$OVERLAP_FLOOR" ]]; then
+    echo "error: could not parse MIN_PYTHON from $OVERLAP" >&2
+    exit 2
   fi
-  if "$candidate" -c "import sys; floor = tuple(int(part) for part in '$OVERLAP_FLOOR'.split('.')); raise SystemExit(0 if sys.version_info >= floor else 1)" 2>/dev/null; then
-    OVERLAP_PYTHON="$candidate"
-    break
+  OVERLAP_PYTHON=""
+  for candidate in python3 python; do
+    resolved="$(command -v "$candidate" 2>/dev/null)" || continue
+    lower="$(printf '%s' "$resolved" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$lower" == *windowsapps* && ! -s "$resolved" ]]; then
+      continue
+    fi
+    if "$candidate" -c "import sys; floor = tuple(int(part) for part in '$OVERLAP_FLOOR'.split('.')); raise SystemExit(0 if sys.version_info >= floor else 1)" 2>/dev/null; then
+      OVERLAP_PYTHON="$candidate"
+      break
+    fi
+  done
+  if [[ -z "$OVERLAP_PYTHON" ]]; then
+    echo "error: Python ${OVERLAP_FLOOR}+ not found (tried python3, python) — the native-overlap registry checks cannot run" >&2
+    exit 2
   fi
-done
-if [[ -z "$OVERLAP_PYTHON" ]]; then
-  echo "error: Python ${OVERLAP_FLOOR}+ not found (tried python3, python) — the native-overlap registry checks cannot run" >&2
-  exit 2
-fi
 
-"$OVERLAP_PYTHON" "$OVERLAP" generate --check || exit 1
+  "$OVERLAP_PYTHON" "$OVERLAP" generate --check || exit 1
 
-# Exit-3 policy, stated here because it is a decision and not an oversight: the
-# self-check exits 0 ok / 1 broken / 3 degraded (2 stays argparse's usage
-# error). Degraded means the data is stale-but-honest or a comparison was not
-# locally decidable — an upstream release the registry does not own, or no
-# `claude` on PATH. Neither is a defect this repo can fix by editing the store,
-# and a chronically red gate on such a condition trains people to ignore it. So
-# broken fails the gate and degraded prints its summary and passes.
-"$OVERLAP_PYTHON" "$OVERLAP" self-check
-overlap_status=$?
-if [[ $overlap_status -eq 1 ]]; then
-  echo "Native-overlap registry self-check reported a broken registry." >&2
-  exit 1
-elif [[ $overlap_status -eq 3 ]]; then
-  echo "Native-overlap registry self-check is degraded (stale-but-honest) — passing with the summary above."
-elif [[ $overlap_status -ne 0 ]]; then
-  echo "error: native-overlap self-check exited $overlap_status (usage or environment error)" >&2
-  exit 2
+  # Exit-3 policy, stated here because it is a decision and not an oversight: the
+  # self-check exits 0 ok / 1 broken / 3 degraded (2 stays argparse's usage
+  # error). Degraded means the data is stale-but-honest or a comparison was not
+  # locally decidable — an upstream release the registry does not own, or no
+  # `claude` on PATH. Neither is a defect this repo can fix by editing the store,
+  # and a chronically red gate on such a condition trains people to ignore it. So
+  # broken fails the gate and degraded prints its summary and passes.
+  "$OVERLAP_PYTHON" "$OVERLAP" self-check
+  overlap_status=$?
+  if [[ $overlap_status -eq 1 ]]; then
+    echo "Native-overlap registry self-check reported a broken registry." >&2
+    exit 1
+  elif [[ $overlap_status -eq 3 ]]; then
+    echo "Native-overlap registry self-check is degraded (stale-but-honest) — passing with the summary above."
+  elif [[ $overlap_status -ne 0 ]]; then
+    echo "error: native-overlap self-check exited $overlap_status (usage or environment error)" >&2
+    exit 2
+  fi
 fi
 
 if ! command -v claude >/dev/null 2>&1; then
@@ -140,7 +166,7 @@ render_validate() {
   errfile="$(mktemp)"
   json="$(claude plugin validate --json "$@" "$dir" 2>"$errfile")"
   status=$?
-  if rendered="$(printf '%s' "$json" | node scripts/plugin-validate-report.mjs)"; then
+  if rendered="$(printf '%s' "$json" | node "$SCRIPT_DIR/plugin-validate-report.mjs")"; then
     printf '%s\n' "$rendered"
     if [[ "$status" -ne 0 ]]; then
       cat "$errfile" >&2
@@ -170,7 +196,9 @@ done
 echo "=== validate --strict (catalog manifest) ==="
 render_validate . --strict || failed=1
 
-bash scripts/test-plugin-mods.sh || failed=1
+if runs_checked_code "claude plugin test (mods)"; then
+  bash "$SCRIPT_DIR/test-plugin-mods.sh" || failed=1
+fi
 
 if [[ $failed -ne 0 ]]; then
   echo "Plugin validation failed." >&2

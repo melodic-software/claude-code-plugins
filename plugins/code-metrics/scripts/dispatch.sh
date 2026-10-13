@@ -28,7 +28,8 @@
 #
 # Configuration: without `--config`, the cascade is resolved here through
 # scripts/resolve-config.py (bundled defaults, then ~/.claude/code-metrics.yaml,
-# .claude/code-metrics.yaml, .claude/code-metrics.local.yaml, plus the
+# docs/conventions/code-metrics.yaml (or the older .claude/code-metrics.yaml
+# when that is absent), .claude/code-metrics.local.yaml, plus the
 # consumer's .claude/ecosystems/<lane>.yaml files); CODE_METRICS_HOME overrides
 # the home directory the user-global layer is read from. `--config` takes a
 # pre-resolved JSON document (the resolver's output) instead. Either way the
@@ -188,7 +189,7 @@ FILES_LIST="$WORK/files"
 : >"$FILES_LIST"
 
 json_str() {
-  "${PY[@]}" -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
+  "${PY[@]}" -I -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
 }
 
 count_lines() {
@@ -540,7 +541,7 @@ run_row() {
   # collector, reason, or hint is null. `hint` is the first install hint a
   # failed probe produced for the row, kept apart from the prose reason so a
   # renderer can print it once without parsing it back out.
-  "${PY[@]}" -c '
+  "${PY[@]}" -I -c '
 import json, sys
 lane, measure, collector, status, reason, hint = sys.argv[1:7]
 print(json.dumps({"lane": lane, "measure": measure, "collector": collector or None,

@@ -843,6 +843,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | On-demand dependencies (pinned lockfile, `npm ci` into the plugin data directory, no vendored bundles) | [`docs/conventions/on-demand-dependencies/`](conventions/on-demand-dependencies/README.md) |
 | Prerequisites: the `prerequisites.json` schema, the `lib/prerequisites.mjs` checker, and the undeclared-tool gate | [`docs/conventions/prerequisites/`](conventions/prerequisites/README.md) |
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
+| Enforcement ladder: the rung order, each reader's selection rule, and where boundary rules live | [`docs/conventions/enforcement-ladder/`](conventions/enforcement-ladder/README.md), with generated plugin copies |
 | PR scope budget for agent-authored improvement PRs | [`docs/conventions/pr-scope-budget/`](conventions/pr-scope-budget/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
@@ -857,6 +858,8 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Routing as data: route rows, detection by name, team routing layer, degradation | [`docs/conventions/routing-as-data/`](conventions/routing-as-data/README.md) |
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
 | PR pipeline: stages, CI lane boundaries, activity contract, merge rungs, config schema | [`docs/conventions/pr-pipeline/`](conventions/pr-pipeline/README.md) |
+| Execution target: which host runs each local-lane stage, the cloud launch rule, the stage-start probe and fallback | [`docs/conventions/execution-target/`](conventions/execution-target/README.md) |
+| Workspace environment: the `setup`, `up`, `info` and `down` commands a consumer declares per worktree, read from the default branch | [`docs/conventions/workspace-environment/`](conventions/workspace-environment/README.md) |
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
 | Finding suppression (deliberately-kept audit findings) | [`docs/conventions/finding-suppression/`](conventions/finding-suppression/README.md) |
 | Liveness assertion (false-green / healthy-while-dead surfaces) | [`docs/conventions/liveness-assertion/`](conventions/liveness-assertion/README.md) |
@@ -1081,6 +1084,43 @@ unchecked; self-judging those stays the same-context judgment the rule targets e
 sits downstream. A step that self-reviews both is exempt only for the gated part. The rest is still owed a
 fresh-context pass.
 
+### Non-author verdicts across stages
+
+The author-verifier class applies at every stage of a change, not only at the merge gate. Skills cite
+this rule instead of restating it.
+
+1. **Every verdict comes from a non-author.** A review finding, a verification result, a judgment on
+   test quality, and the evidence a merge relies on each come from an agent or session that did not
+   write the change being judged. This holds while the work is planned, implemented, reviewed,
+   verified and merged.
+2. **Tests under TDD stay with the implementer.** The agent writing the code may also write its
+   tests, red then green, in the same context. Giving tests to one session and code to another is a
+   choice a consumer can make, not a default this marketplace imposes; upstream describes it as one
+   option among several multi-session patterns.
+   - **Pointer**: <https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions>.
+   - **As of**: 2026-10-04.
+   - **Recheck trigger**: that section drops the separate test-writer option or recommends it as
+     the default.
+3. **Mechanical phases keep their carve-out.** In `/implementation:implement-dispatch`, a mechanical,
+   behavior-preserving phase is verified by the orchestrator from the diff and the build and test
+   signal by default. Those phases still get a non-author verdict: the PR's verify stage, the
+   pipeline's verify verdict over the whole pull request, is their fresh-context check. A consumer
+   who wants a verifier on every phase sets `verify_mechanical_phases` to `true`, which turns the
+   carve-out off.
+   - **Pointer**: `/implementation:implement-dispatch`, its `verify_mechanical_phases` setting.
+   - **As of**: 2026-10-04.
+   - **Recheck trigger**: that setting is renamed or removed, or the carve-out stops naming the PR's
+     verify stage as its verdict.
+4. **The testing plugin's task-end judge is the precedent.** With `test_judge_enabled` on, a
+   separate model reviews the tests a session created or changed at the end of each task, so the
+   session that wrote a test never grades it.
+   - **Pointer**: the `test_judge_enabled` option of the testing plugin, documented in `/testing:setup`.
+   - **As of**: 2026-10-04.
+   - **Recheck trigger**: the option is renamed or removed, or the judge stops running in a context
+     separate from the session it judges.
+5. **Deterministic gates stay exempt**, within the narrow scope stated above: a script's pass or fail
+   is the verdict, so no author bias reaches it.
+
 ## Delegation mechanics
 
 How a fresh-eyes checkpoint dispatches. The mechanics live here once; a checkpoint site states its
@@ -1247,7 +1287,7 @@ a Haiku role runs at. The release evidence behind it is recorded in
 - **Pointer:** for what each alias resolves to on each provider, see
   [model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases). For
   where the `sonnet` row's model fits against `opus`, see the
-  [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#compare-models)
+  [models overview: compare models](https://platform.claude.com/docs/en/about-claude/models/overview#latest-models-comparison)
   and [model config: available models](https://code.claude.com/docs/en/model-config#available-models)
   (correlate with <https://claude.dev/blog/building-with-claude-sonnet-5-5>;
   recheck when those docs pages cover what the post adds).

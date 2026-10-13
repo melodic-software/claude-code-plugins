@@ -44,6 +44,14 @@ cited source for applicability rather than quote presence, and check that the an
 [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/dispatch.md),
 "Brief it on applicability too".
 
+**Grade the recorded dating method, never pick your own.** A source whose page prints no date
+carries `dated_by:` in the sidecar header beside `published:`, naming how the researcher derived the
+date. Re-derive the date by that method where you can fetch what it points at, and confirm it
+matches `published:`. A serve-time HTTP header (`Last-Modified`, `Date`, `ETag`) is never a
+publication date, whatever `published:` says. A derived date with no `dated_by:`, or a method you
+cannot re-derive, goes in `problems:` and fails the era check of the claim's row 12. Do not
+substitute a date you found another way.
+
 ## How you grade
 
 For each accepted claim in the sidecars, re-fetch the primary the claim's header names and confirm

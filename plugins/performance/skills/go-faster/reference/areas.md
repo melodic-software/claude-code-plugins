@@ -113,7 +113,8 @@ Never invoked, named only as a fix owner or as a step for the user:
 - `/harness-ops:audit-performance`: it writes a report file.
 
 **Upstream pointers.** The commands and file lists below depend on these upstream specifics; read
-them live when a command's output, or the files you find, do not match the entry.
+them live when a command's output, or the files you find, do not match the entry. The
+`permissions` and `instructions` entries fetch theirs in every run.
 
 - **Pointer**: [git update-index, `--test-untracked-cache` and UNTRACKED CACHE](https://git-scm.com/docs/git-update-index)
 - **As of**: 2026-10-03
@@ -134,16 +135,15 @@ them live when a command's output, or the files you find, do not match the entry
 - **Pointer**: [Claude Code settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect),
   [where the local settings file sits in a git repository](https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository),
   and [ask and deny rules](https://code.claude.com/docs/en/permissions#manage-permissions)
-- **As of**: 2026-10-03
+- **As of**: 2026-10-11
 - **Recheck trigger**: a settings file moves, or `permissions.ask` or `permissions.deny` is renamed.
 
 - **Pointer**: [how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load),
   [when Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md),
   [path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) and
   [user-level rules](https://code.claude.com/docs/en/memory#user-level-rules)
-- **As of**: 2026-10-03
-- **Recheck trigger**: the set of files loaded at launch changes, or rules stop using a `paths:`
-  frontmatter key.
+- **As of**: 2026-10-11
+- **Recheck trigger**: any of those sections moves, or rules stop using a `paths:` frontmatter key.
 
 - **Pointer**: [gh auth status](https://cli.github.com/manual/gh_auth_status),
   [gh auth login](https://cli.github.com/manual/gh_auth_login) and
@@ -152,7 +152,7 @@ them live when a command's output, or the files you find, do not match the entry
 - **Recheck trigger**: a gh release renames `gh auth status` or `gh auth login`, or
   `GH_CONFIG_DIR` stops naming gh's configuration directory.
 
-- **Pointer**: [CLAUDE_CONFIG_DIR](https://code.claude.com/docs/en/env-vars)
+- **Pointer**: [CLAUDE_CONFIG_DIR](https://code.claude.com/docs/en/env-vars#variables)
 - **As of**: 2026-10-03
 - **Recheck trigger**: the page changes what `CLAUDE_CONFIG_DIR` moves; this file relies on it
   moving the user's `settings.json` only, and names the user `CLAUDE.md` and `rules/` by their
@@ -214,10 +214,12 @@ them live when a command's output, or the files you find, do not match the entry
 
 ## permissions
 
-- **Source**: the permission rules in the settings files this run can read: the project's
-  `.claude/settings.json` and `.claude/settings.local.json`, and the user's `settings.json` under
-  `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`. Outside Windows, in a git repository, the local file
-  sits at the repository root (the main checkout's root in a worktree).
+- **Source**: the permission rules in the project, local and user settings files this run can
+  read. Resolve each file's path from the settings pointers in the **Upstream pointers** block
+  above (as of 2026-10-11; recheck trigger: those pointers leave that block), fetched live in this run the way a catalog pointer is: where each file sits,
+  including where the local file sits in a git repository or a worktree, is the page's to state.
+  The user file honors `CLAUDE_CONFIG_DIR` (its record is also in the **Upstream pointers** block above;
+  as of 2026-10-11; recheck trigger: that record leaves that block).
   Settings files can hold tokens in `env`, so never Read them; findings.py reads them and prints
   only counts.
 - **Run**: `"$PY" "$ROOT/scripts/findings.py" permission-counts --file <path> --file <path> ...`
@@ -231,20 +233,21 @@ them live when a command's output, or the files you find, do not match the entry
   events, which this version does not read".
 - **Not checked**: no ask or deny rule in any scope read: `no-data`, reason "no ask or deny rule
   in <scopes read>; prompt timing needs OpenTelemetry tool_decision events, which this version
-  does not read" plus the unread scopes.
+  does not read" plus the unread scopes. The settings page fetch is unread: `no-data`, reason "the
+  settings page could not be read in this run, so the settings file paths are unknown; rerun
+  /performance:go-faster where code.claude.com is reachable".
 - **Guard**: every finding in this area is `flag-only`.
 - **Catalog**: [catalog/harness.md](catalog/harness.md) rows with area `permissions`;
   [catalog/measurement.md](catalog/measurement.md) rows with area `all`.
 
 ## instructions
 
-- **Source**: the instruction files loaded at launch, read only: `CLAUDE.md` and
-  `CLAUDE.local.md` in the working directory and every directory above it, `.claude/CLAUDE.md`,
-  `AGENTS.md` and `.claude/AGENTS.md` when a `CLAUDE.md` imports them or when no `CLAUDE.md`,
-  `.claude/CLAUDE.md` or `CLAUDE.local.md` other than the user's own exists in the working
-  directory or above it, the user's `~/.claude/CLAUDE.md`, and each project
-  `.claude/rules/**/*.md` and user `~/.claude/rules/**/*.md` with no `paths:` key in its
-  frontmatter. Startup token history through its owner.
+- **Source**: the instruction files loaded at launch, read only: the instruction files, the
+  `AGENTS.md` files and the rules without a `paths:` key that the memory pointers in the
+  **Upstream pointers** block above (as of 2026-10-11; recheck trigger: those pointers leave that
+  block) say load at launch. Fetch those sections live in this run the way a
+  catalog pointer is, and take the file list and the conditions on it from them; this file keeps
+  no copy. Startup token history through its owner.
 - **Run**: `wc -l` over the files that exist; `/context-budget:audit --ledger`.
 - **Owner**: context-budget (history only). A missing or stopped owner drops only the token
   finding; the line-count candidate still stands.
@@ -256,7 +259,10 @@ them live when a command's output, or the files you find, do not match the entry
   `startup ledger, latest row`, `command` `/context-budget:audit --ledger`, `fix_owner`
   `/instruction-placement:audit`, horizon `later`, route `next-run`.
 - **Not checked**: no instruction file exists: `no-data`, reason "no always-loaded instruction
-  file found: nothing loads at launch, so there is no instruction cost to measure".
+  file found: nothing loads at launch, so there is no instruction cost to measure". The memory
+  page fetch is unread: `no-data`, reason "the memory page could not be read in this run, so the
+  launch-loaded file list is unknown; rerun /performance:go-faster where code.claude.com is
+  reachable".
 - **Guard**: an instruction that blocks, denies or asks is a guard; a finding that would remove or
   relax one is `flag-only`. A speedup that conflicts with a loaded instruction sets
   `conflicts_instruction` to the file and line, and is `flag-only`.
@@ -415,13 +421,15 @@ them live when a command's output, or the files you find, do not match the entry
 - **Owner**: none (a cross-session baseline waits on session-flow).
 - **Record**: a measured finding (tier E1, `command` that same line, workload `transcript counts`)
   for each of: the tool with the most `wait_ms` (unit `wait-ms`), each command in
-  `repeated_commands` and each file in `repeated_reads` (unit `count`), and any tool whose
+  `repeated_commands` and each entry in `repeated_reads` (unit `count`), each entry in
+  `unverified_repeated_commands` and `unverified_repeated_reads` (unit `count`), and any tool whose
   `errors` exceed one (unit `count`). A repeat whose cure changes only how this session works
   (reuse the earlier output while its inputs are unchanged) is horizon `now`, effect `batching`,
   confidence `HIGH` (a direct count), with `guard_metric` "a reused result differs from a fresh run" and `revert_if` "the inputs
   changed since the earlier run"; its `fix_owner` is `steps-for-you` with `fix_steps` "reuse the
   earlier output while its inputs are unchanged" and its route is `next-run`. Everything else is
-  `later`, route `next-run`, `fix_owner` `/performance:goal`.
+  `later`, route `next-run`, `fix_owner` `/performance:goal`. An unverified repeat is always
+  `later`: the transcript does not hold its results, so a changed input cannot be ruled out.
 - **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
   found for session unknown: the session id did not expand; this area reads only the live
   session's transcript". `TRANSCRIPT` `none` otherwise: `no-data`, reason "no transcript found

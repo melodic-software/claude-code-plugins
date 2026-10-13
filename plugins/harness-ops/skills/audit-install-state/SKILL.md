@@ -122,12 +122,13 @@ possible **sole copy** of somebody's revert path: propose nothing for it, check 
 ## Phase 2. Retention, before any staleness claim
 
 Read `retention`. Report `effective_days` with its `effective_evidence`: `measured` when a file
-supplied it, `documented-default` when upstream's 30-day default applies. The highest-severity
-finding lives here: **an unparsable user `settings.json` pauses the retention sweep and warns in
-`/status`**. If `settings-unparsable-pauses-sweep` appears in `retention.findings`, lead with it
-and treat every staleness reading below as suspect. If
-`managed-settings-unparsable-refuses-start` appears, Claude Code refuses to start (exit 1) and
-names the managed source; that is not a paused sweep.
+supplied it, `documented-default` when upstream's default applies. The highest-severity finding
+lives here: **an unparsable user `settings.json` can pause the retention sweep**. If
+`settings-unparsable-pauses-sweep` appears in `retention.findings`, lead with it and treat every
+staleness reading below as suspect. If `managed-settings-unparsable-refuses-start` appears, report
+a refused start naming the managed source; that is not a paused sweep. The pointer records for the
+default, the pause causes and the managed-source refusal are in
+[reference/surfaces.md](reference/surfaces.md#the-retention-sweep).
 
 `.last-cleanup` is read by the engine and its timestamp is observed to advance when the sweep runs,
 but no upstream page names the file, so `sentinels` carries it as `observed-undocumented` with an
@@ -155,9 +156,10 @@ its `why`; `node_modules` elsewhere under `plugins/` is measured apart and attri
 
 `unreferenced_versions` lists each `plugins/cache/<marketplace>/<plugin>/<version>/` directory that
 no `installPath` in `plugins/installed_plugins.json` references, largest first, with `bytes`, the
-`.orphaned_at` marker's `orphaned_at` and `marker_age_days`, and `past_sweep_window` (true at 14
-days or more). A directory with no marker has `orphaned_at: null` and is never past the window: the
-sweep is documented as starting from the marker, so it has no removal date. The report keeps only
+`.orphaned_at` marker's `orphaned_at` and `marker_age_days`, and `past_sweep_window` (true once
+the marker is `ORPHAN_SWEEP_DAYS` old). A directory with no marker has `orphaned_at: null` and is
+never past the window: the sweep is documented as starting from the marker, so it has no removal
+date. The report keeps only
 the 25 largest, so the field stops growing with the version count (each row repeats its path, so
 very long directory names still make rows large).
 `unreferenced_versions_total` is the full count and `unreferenced_versions_truncated` is true when
@@ -173,13 +175,15 @@ A running session keeps the plugin version it loaded, so hook, guard, and denial
 the previous version's path after an update. Restart the session to pick up the new version; the
 old path is expected, not a defect.
 
-Basis for the 14-day window, the marker, and the running-session behavior: the plugin caching
-section of <https://code.claude.com/docs/en/plugins/loading> ("removes that directory in a
-background cleanup 14 days later, so a session that already loaded the old version keeps running").
-Verified 2026-09-29 against Claude Code 2.1.285 and that page as fetched that day. Recheck when the
-page changes the window, the marker name, or the sweep condition, or a release note names plugin
-cache cleanup; then update `ORPHAN_SWEEP_DAYS` in `lib/plugin_cache_versions.py` and its byte-identical copy in
-`disk-hygiene`.
+`ORPHAN_SWEEP_DAYS` in `lib/plugin_cache_versions.py` (and its byte-identical copy in
+`disk-hygiene`) is our runtime copy of the window, used without a live fetch.
+
+- **Pointer**: when stating the window, the marker name, or the running-session behavior, fetch
+  [plugins loading: cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes the window, the marker name, or the sweep condition,
+  or a release note names plugin cache cleanup; then update `ORPHAN_SWEEP_DAYS` and its copy.
 
 ## Phase 4. Numeric names and liveness
 
@@ -196,8 +200,9 @@ not run reports `unverified`, **never** `dead`. Schemes: [reference/name-schemes
 ## Phase 5. Home-root state
 
 `~/.claude.json` lives in the home directory, and **no value of `cleanupPeriodDays` touches it**.
-Report its size and mtime, never its values; the supported remedy for its growth is `claude project
-purge <path>`, which confirms before removing anything and supports `--dry-run`.
+Report its size and mtime, never its values; route its growth to `claude purge <path>`, never to
+the retired `claude project purge` name. What the command removes and how it confirms are read
+live from the purge pointer in [reference/surfaces.md](reference/surfaces.md#home-root-state-outside-the-swept-tree).
 `.claude.json.tmp.<n>.<hash>` siblings are failed atomic-write remnants whose number is unverified,
 so the engine marks it `unknown` and attempts no lookup.
 

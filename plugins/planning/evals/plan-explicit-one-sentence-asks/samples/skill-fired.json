@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "planning:plan", "args": "rename cnt to count inside tally() in utils/stats.py"}}
+      ],
+      "why": "the plan skill fired"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "utils/stats.py"}},
+        {"tool": "Skill", "input": {"skill": "plan"}}
+      ],
+      "why": "unqualified skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "planning:plan-panel"}}
+      ],
+      "why": "a different skill whose name starts with plan"
+    },
+    {
+      "answer": [
+        {"tool": "Read", "input": {"file_path": "utils/stats.py"}}
+      ],
+      "why": "no skill call at all"
+    }
+  ]
+}

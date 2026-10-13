@@ -37,7 +37,9 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-cd "$SCRIPT_DIR/.." || exit 2
+# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this
+# script (scripts/check-affected.sh sets it; code still loads from SCRIPT_DIR).
+cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 # shellcheck source=lib/gate-entry.sh
 . "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
 # shellcheck source=lib/changelog-fragments.sh

@@ -79,7 +79,7 @@ to `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliab
 | Granting `Bash` puts every command under Claude Code's OS-level sandbox; on a machine with no backend each run is refused rather than run unconfined, so the case reports a run error and usually scores 0. Native Windows has no backend; macOS is supported. The Linux and WSL2 packages, and WSL1's lack of support, are what [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2) lists; read them there | <https://code.claude.com/docs/en/plugin-evals> platform notes, verified 2026-09-12; that sandboxing section, fetched 2026-10-04 | Recheck trigger: either page names a Windows backend, or the section adds or drops a package or changes its WSL notes. Then re-read it, re-derive the table above, and refresh this row with the outcome |
 | The CLI refuses a whole `Bash`-granting pass when the Docker credential store (`$DOCKER_CONFIG`, else `~/.docker`) holds a symbolic link inside it; the store's root may itself be a link. Every run, read-only cases included, ends at 0 turns with a run error naming the credential store. Docker Desktop's WSL integration links `contexts` and `features.json` into `/mnt/c`. Our gate decision: on macOS from Claude Code 2.1.293, preflight exempts links under `~/.docker/bin` | Our observation: the refusal on all 60 runs of one pass at Claude Code 2.1.289 under WSL2, observed 2026-10-04. **Pointer**: when the refusal's current wording or which store paths are exempt matters, fetch <https://code.claude.com/docs/en/changelog> live (2.1.293). **As of**: 2026-10-10. **Docs lag**: the Docker credential-store refusal is not covered by <https://code.claude.com/docs/en/plugin-evals> or <https://code.claude.com/docs/en/sandboxing> as of 2026-10-10. The current refusal wording is not captured here: it needs a macOS or WSL2 host | Recheck trigger: either page documents the check, or a release note touches sandbox credential exclusion or the exempt paths. Then re-read both pages, re-run one `Bash`-granting case on a host with such a link, and refresh this row with the outcome |
 
-**Refuse before any spend** when `sandbox_backend` is not `present` and any case requests `Bash`, `PowerShell`, `Write`, or `Edit`. Name both halves in the refusal: why each granting run would be refused by the CLI and score 0 rather than measuring anything, and the route. For `absent` or `unknown`, the backend is missing; the route on Linux or WSL2 is to install each missing package, restart Claude Code, and confirm with `/sandbox`, and otherwise WSL2, a Linux host with `bubblewrap` and `socat`, macOS, or a Claude cloud session. For `not-ready`, the backend is present and the packages resolve; the cause is the named links, and the route is to resolve them or run on a host without them. Never suggest repointing `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check. Read-only suites (`Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `AskUserQuestion`, `Agent`, `TodoWrite`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `TaskStop`: the set the validator's `READ_ONLY_TOOLS` mirrors from <https://code.claude.com/docs/en/plugin-evals#grant-tools>, as of 2026-10-10, recheck when that section's allowed-tools sentence changes) are unaffected and run anywhere.
+**Refuse before any spend** when `sandbox_backend` is not `present` and any case requests `Bash`, `PowerShell`, `Write`, or `Edit`. Name both halves in the refusal: why each granting run would be refused by the CLI and score 0 rather than measuring anything, and the route. For `absent` or `unknown`, the backend is missing; the route on Linux or WSL2 is to install each missing package, restart Claude Code, and confirm with `/sandbox`, and otherwise WSL2, a Linux host with `bubblewrap` and `socat`, macOS, or a Claude cloud session, whose host and missing packages the route takes from the session's documented tool inventory at run time (**Pointer**: when choosing the cloud route, fetch [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) live and apply the matching row of the table above; **As of**: 2026-10-11; **Recheck trigger**: that section changes its host description or its package list). For `not-ready`, the backend is present and the packages resolve; the cause is the named links, and the route is to resolve them or run on a host without them. Never suggest repointing `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check. Read-only suites (`Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `AskUserQuestion`, `Agent`, `TodoWrite`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `TaskStop`: the set the validator's `READ_ONLY_TOOLS` mirrors from <https://code.claude.com/docs/en/plugin-evals#grant-tools>, as of 2026-10-10, recheck when that section's allowed-tools sentence changes) are unaffected and run anywhere.
 
 `suite_tools` is `read-only` when every case's `allowed_tools` sits inside that set; otherwise it
 lists the gated tools, which are exactly the ones needing an `--allow-tools` grant. A case cannot
@@ -164,24 +164,24 @@ Four grader types are free (`regex`, `tool_used`, `tool_order`, `file_exists`); 
 are billed. Carry the estimate as "roughly": the reported `costUsd` is a list-price estimate, and
 arm costs are not symmetric.
 
-Sizing anchors, measured on this plugin's own read-only suite at Claude Code 2.1.287 on 2026-10-02,
-with no `--model` (it served opus-5-5): 24 runs (four cases, three runs, two arms, sonnet judge)
-cost 1.67 USD, 16 runs (two runs, haiku judge) 0.98 USD, and 42 short single-arm calibration runs
-1.79 USD: 0.04 to 0.07 USD per run on average, judge calls included, 0.03 to 0.17 USD for one run.
+Sizing anchors, list-price estimates measured on this plugin's own read-only suite with no `--model` (it served opus-5-5): at Claude Code
+2.1.287 on 2026-10-02, 24 runs (four cases, three runs, two arms, sonnet judge) cost 1.67 USD, 16 runs (two runs, haiku judge, then Haiku 4.5)
+0.98 USD, and 42 short single-arm calibration runs 1.79 USD; at 2.1.296 on 2026-10-11, 16 runs (four cases, two runs, two arms, haiku judge,
+then Haiku 5.5) 1.98 USD. That is 0.04 to 0.125 USD per run on average, judge calls included, 0.03 to 0.2 USD for one run. An opus-judged run costs more; size it from its own first run.
 
-**A fresh suite is priced at 0.1 USD per run in either arm, judge calls included, and the figure is
+**A fresh suite is priced at 0.2 USD per run in either arm, judge calls included, and the figure is
 called headroom.** It has no pass of its own to scale, while cases x runs x arms is known before any
-spend. 0.1 USD is 1.4 to 2.4 times the per-run cost of each pass above, and prices six cases at
-three runs and two arms at 3.6 USD. Once a suite has run, scale from its own last `costUsd` instead.
+spend. 0.2 USD is 1.6 to 4.7 times the per-run cost of each pass above, and prices four cases at
+three runs and two arms at 4.8 USD. Once a suite has run, scale from its own last `costUsd` instead.
 
-The older anchor of 0.8 USD per without-run, which prices the same six cases at about 16 USD, comes
+The older anchor of 0.8 USD per without-run, which prices the same four cases at about 12 USD, comes
 from passes at 2.1.270 (2026-09-12 and 2026-09-13) whose without-arm loaded the bundled `claude-api`
 skill and cost five to seven times the with-arm. At 2.1.287 no without-run loaded a skill, and that
 arm cost less than the with-arm. Estimate each arm from its own runs, and use 0.8 for a case only
 when a kept trace shows its without-arm loading a large skill. A suite with no such trace is priced
-at 0.1 alone, and the older anchor is no caveat or risk to that estimate. Re-derive these anchors
+at 0.2 alone, and the older anchor is no caveat or risk to that estimate. Re-derive these anchors
 from the last three passes when a Claude Code release note touches `plugin eval`, the model a run
-serves changes, or a pass averages more than 0.1 USD per run.
+serves changes, or a pass averages more than 0.2 USD per run.
 
 Ceiling: `${user_config.max_cost_usd}` USD, unlimited: `${user_config.unlimited_cost}`. If either
 renders empty or as the literal placeholder text, use 5 USD and `false`, the manifest defaults, and
@@ -193,7 +193,7 @@ state the ceiling you used without commenting on the setting's state.
    printed is the whole disclosure.
 3. Ceiling set and estimate under it: the pass goes through. Pass `--max-cost-usd <ceiling>` and
    start, without stopping to ask. A question about whether a pass fits gets the same answer: it
-   will go through and starts now under the ceiling, for example "about 3.6 USD, under the 5 USD
+   will go through and starts now under the ceiling, for example "about 4.8 USD, under the 5 USD
    ceiling, so it starts with `--max-cost-usd 5` and no confirmation".
 4. Ceiling set and estimate over it: stop and offer three exits, then proceed only on the answer:
    raise the ceiling, narrow the run with `--case <glob>` or `--tag <tag>`, or accept a partial run
@@ -225,10 +225,10 @@ committed `mocks/.replay/` so agent mocks replay without a model call.
 3. Invoke the CLI. Confirm the target comes first, before any list-taking flag:
 
    ```bash
-   claude plugin eval <target> --trust-plugin --keep-temp --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
+   claude plugin eval <target> --trust-plugin --keep-temp --judge-model opus --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
    ```
 
-   `--keep-temp` keeps each run's trace, which the validity gate under "Reading the delta" reads.
+   `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta"; a run that feeds a decision keeps `--judge-model opus`, since the CLI's default judge is uncalibrated for decisions; only an exploratory run drops it.
    Run it in the foreground with a tool timeout that covers the estimate (a three-case pass took
    about six minutes here) and wait. Never background the CLI from a headless `-p` session: the run
    ends with the session. The run is finished when the process exits and `results.json` exists; read
@@ -264,27 +264,24 @@ Read in this order. Stopping early at any step is the finding.
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/run-validity.py" results.json --runs <the run count the eval used>
    ```
 
-   The run count is the run's `--runs`, else the cases' `runs`, else 3. In this repository's
-   checkout the script is `plugins/evals/skills/plugin-eval/scripts/run-validity.py`. It needs the
-   traces `--keep-temp` kept; without them it reports the trace checks unchecked and the run
-   INVALID. Report a score, delta, or interval only from `verdict: VALID` (exit 0), naming any
-   warnings it printed. On `verdict: INVALID` (exit 1), report INVALID with every reason on that
-   line and no number, then fix the cause and rerun. Tell the user to post that INVALID line and
-   its reasons in place of the number; "post nothing" is not the instruction. Exit 2 means the file could not be read or an
-   argument was wrong: say which. The steps below still apply to a VALID run.
+   The run count is the run's `--runs`, else the cases' `runs`, else 3. In this repository's checkout the script is
+   `plugins/evals/skills/plugin-eval/scripts/run-validity.py`. It needs the traces `--keep-temp` kept; without them it reports
+   the trace checks unchecked and the run INVALID. Report a score, delta, or interval only from `verdict: VALID` (exit 0),
+   naming any warnings it printed. On `verdict: INVALID` (exit 1), report INVALID with every reason on that line and no number,
+   then fix the cause and rerun. Tell the user to post that INVALID line and its reasons in place of the number; "post nothing"
+   is not the instruction. Exit 2 means the file could not be read or an argument was wrong: say which. The steps below still
+   apply to a VALID run.
 
-   A with-arm denial aimed at or under the plugin's own directory, at a directory above it (which
-   covers its files), or with no absolute path or no known plugin directory, is a FAIL: the agent reached for a plugin file it could not
-   read, so the fact belongs in the hub. Any other denial, in
-   either arm, is a warning only when that run scored the same as every denial-free run of its case
-   in the same arm, so it left the score unchanged; with a different score, or no denial-free run to
-   compare, it is a FAIL.
+   A with-arm denial aimed at or under the plugin's own directory, at a directory above it (which covers its files), or with no
+   absolute path or no known plugin directory, is a FAIL: the agent reached for a plugin file it could not read, so the fact
+   belongs in the hub. Any other denial, in either arm, is a warning only when that run scored the same as every denial-free run
+   of its case in the same arm, so it left the score unchanged; with a different score, or no denial-free run to compare, it is
+   a FAIL.
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
-3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still scored,
-   as a failure with `explanation: "skipped: cost ceiling"`, so it silently depresses the arm. A
-   non-null `error` does not imply score 0, because the run is graded on what it produced. Either
-   makes the case not comparable; say so instead of reporting its number.
+3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still scored, as a failure with
+   `explanation: "skipped: cost ceiling"`, so it silently depresses the arm. A non-null `error` does not imply score 0, because
+   the run is graded on what it produced. Either makes the case not comparable; say so instead of reporting its number.
 4. `cases[].aggregates.delta`. It is **omitted** when the arms are not comparable. An omitted delta
    is never zero, and neither is a missing `scoreWithout`.
 5. Only now read the delta: with-arm score minus without-arm score. A case the gate's `ceiling`
@@ -298,11 +295,10 @@ Read in this order. Stopping early at any step is the finding.
 
    `<method>` is `${user_config.interval_method}`, and an empty or unfilled value there means the
    default, `normal`, applies; do not mention the setting's state to the user. Pass `--grader-agreement` unless `${user_config.grader_run_twice}`
-   is `false`. Any other method value is passed as is, and the script falls back to `normal`. These
-   values set the command this skill runs; they say nothing about a user's own run. In
-   this repository's checkout the script is `plugins/evals/skills/plugin-eval/scripts/noise-report.py`.
-   Exit 2 means the file could not be read or an argument was malformed: say which, and report no
-   interval.
+   is `false`. Any other method value is passed as is, and the script falls back to `normal`. These values set the command this
+   skill runs; they say nothing about a user's own run. In this repository's checkout the script is
+   `plugins/evals/skills/plugin-eval/scripts/noise-report.py`. Exit 2 means the file could not be read or an argument was
+   malformed: say which, and report no interval.
 
 Read the noise report's lines this way:
 
@@ -326,6 +322,8 @@ Read the noise report's lines this way:
   [local-decisions.md, Interval method](../methodology/reference/local-decisions.md#interval-method)
   records the decision for a human reader.
 
+Spot-read outputs against verdicts before trusting any delta. For each case whose delta you report, open a few runs from each arm (the grader explanations in `results.json`, and the kept trace from `--keep-temp`), at least one its graders passed and one they failed where both exist, and check each verdict against what the output does. A pass on a wrong output, or a fail on a correct one, makes the grader or its rubric the finding: fix it and rerun before quoting the number, and say which run showed it.
+
 What the number means:
 
 - A case at 1.00 in both arms proves the plugin contributed nothing to that case. It is a passing
@@ -341,6 +339,8 @@ What the number means:
 - Spoke reach is version-bound (record below): at 2.1.270 and 2.1.287 every with-arm `Read` under
   the plugin directory was denied; at 2.1.289 `context/`, `reference/`, `actions/` and `templates/`
   reads succeeded. Check the trace for a denied `Read` before crediting a spoke.
+
+End the reading with one line on the change under test: `promote` only when the run is VALID, the noise report's verdict is that the interval excludes 0 with the with-arm ahead, and the spot-read found no verdict it disagrees with; otherwise `do not promote`, followed by the first of those conditions that failed.
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
