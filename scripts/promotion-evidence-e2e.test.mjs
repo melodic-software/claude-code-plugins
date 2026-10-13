@@ -45,6 +45,18 @@ for (const name of ["resolve-promotion-evidence.mjs", "operator-options.mjs"]) c
 const RESOLVER = join(install, "resolve-promotion-evidence.mjs");
 const userSettings = join(config, "settings.json");
 
+// The resolver refuses a surface or settings file the lane user can write, and every file here
+// belongs to whoever runs the suite. Cases run its main() through its test seam instead: a wrapper
+// beside it on linux that reports every path administrator-owned (uid 0) and unwritable, so the
+// writability test passes and the case reaches the checker.
+const SEAM = join(install, "seam.mjs");
+writeFileSync(
+  SEAM,
+  `import { main } from "./resolve-promotion-evidence.mjs";
+main({ platform: "linux", uid: 1000, access: () => false, stat: () => ({ uid: 0 }) });
+`,
+);
+
 // The resolver also reads the host's managed settings; one that configures these options would
 // decide the result, so the suite skips on such a host.
 const { managedSettingsFiles } = await import(join(RESOLVER_DIR, "operator-options.mjs"));
@@ -81,8 +93,8 @@ function operatorOptions(overrides = {}) {
 
 const settingsFor = (options) => JSON.stringify({ pluginConfigs: { "source-control@mkt": { options } } });
 
-function runResolver({ args = [], env = {} } = {}) {
-  const run = spawnSync(process.execPath, [RESOLVER, "--checkout", checkout, ...args], {
+function runResolver({ args = [], env = {}, helper = SEAM } = {}) {
+  const run = spawnSync(process.execPath, [helper, "--checkout", checkout, ...args], {
     encoding: "utf8",
     cwd: checkout,
     env: { ...process.env, ...env },
@@ -123,6 +135,11 @@ describe("promoted", () => {
     assert.deepEqual(effective(result), ALL("promoted"));
     assert.equal(result.cells["C3-auto-merge"].bound, "promoted");
     assert.deepEqual(result.options.promotion_evidence_checker, { value: CHECKER, scope: "user", file: userSettings });
+  });
+
+  test("without the seam the same configuration fails closed: the lane user owns the checker", cli, () => {
+    // The checker is a file in this checkout, owned by the user running the suite.
+    assertFailClosed(resolveWith({}, { helper: RESOLVER }), /^lane-writable:promotion_evidence_checker$/);
   });
 });
 
