@@ -762,9 +762,19 @@ def read_key(args: dict) -> str:
     return json.dumps([args["file_path"], window])
 
 
-def shown_read(key: str) -> str:
-    path, window = json.loads(key)
-    return inert(f"{path} ({window})" if window else path)
+def shown_reads(counts: dict[str, int]) -> dict[str, int]:
+    """Repeated reads keyed as shown; two reads that show alike get distinct labels, never a sum."""
+    out: dict[str, int] = {}
+    for key, n in counts.items():
+        if n > 1:
+            path, window = json.loads(key)
+            label = shown = inert(f"{path} ({window})" if window else path)
+            seq = 1
+            while label in out:
+                seq += 1
+                label = f"{shown} #{seq}"
+            out[label] = n
+    return out
 
 
 def repeats(
@@ -1000,9 +1010,9 @@ def transcript_counts(path: Path) -> dict:
         "work_before_invocation": len(prior_calls),
         "tokens": ledger.totals(),
         "tools": tools,
-        "repeated_reads": merged(same_reads, shown_read),
+        "repeated_reads": shown_reads(same_reads),
         "repeated_commands": merged(same_commands, shown_command),
-        "unverified_repeated_reads": merged(unknown_reads, shown_read),
+        "unverified_repeated_reads": shown_reads(unknown_reads),
         "unverified_repeated_commands": merged(unknown_commands, shown_command),
         "skills": skills,
         "subagents": sum(started_before_cut(s.path) for s in tr.iter_subagents(path)),

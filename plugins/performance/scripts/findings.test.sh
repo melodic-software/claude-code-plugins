@@ -1191,14 +1191,20 @@ UC="$WORK/unchanged.jsonl"
   use 9 u4 s4 Grep '["not an object"]' 5
   result 10 s4 false
   # A path that spells a window is not that window of another file.
+  # Each group repeats on its own; a shared label would add the two.
   use 11 u5 s5 Read '{"file_path":"foo (offset 1)"}' 5
   result 12 s5 false '"same"'
   use 13 u6 s6 Read '{"file_path":"foo","offset":1}' 5
   result 14 s6 false '"same"'
+  use 15 u7 s7 Read '{"file_path":"foo (offset 1)"}' 5
+  result 16 s7 false '"same"'
+  use 17 u8 s8 Read '{"file_path":"foo","offset":1}' 5
+  result 18 s8 false '"same"'
 } >"$UC"
 run transcript-counts "$UC"
 assert_eq "transcript-counts exits 0 on a non-object tool input" "0" "$RUN_RC"
-assert_eq "file_unchanged re-reads count as repeats of the first read" '{"x.py":3}' "$(q '.repeated_reads | tojson')"
+assert_eq "file_unchanged re-reads count as repeats; a path that spells a window stays apart from it" \
+  '{"foo (offset 1)":2,"foo (offset 1) #2":2,"x.py":3}' "$(q '.repeated_reads | tojson')"
 assert_eq "a tool call with a non-object input is still counted" "1" "$(q '.tools.Grep.calls')"
 
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
