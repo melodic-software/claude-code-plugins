@@ -78,11 +78,13 @@ function canWrite(path) {
 }
 
 // The lane user can write the path, or replace it through any directory above it (written, or
-// owned and so re-permissioned), as given or after symlinks resolve: the rule of _lane_writable
-// in babysit_merge_policy.py. Throws when the path does not exist. access, stat and uid are the
-// test seam; uid undefined (no process.getuid) skips the owner test.
+// owned and so re-permissioned), as given (".." segments kept, like Python's Path.absolute()),
+// normalized, or after symlinks resolve: the rule of _lane_writable in babysit_merge_policy.py.
+// Throws when the path does not exist. access, stat and uid are the test seam; uid undefined (no
+// process.getuid) skips the owner test.
 export function laneWritable(path, { access = canWrite, stat = statSync, uid = process.getuid?.() } = {}) {
-  for (const candidate of new Set([resolve(path), realpathSync.native(path)])) {
+  const given = isAbsolute(path) ? path : `${process.cwd()}${sep}${path}`;
+  for (const candidate of new Set([given, resolve(path), realpathSync.native(path)])) {
     for (let node = candidate; ; node = dirname(node)) {
       if (access(node)) return true;
       if (uid !== undefined && stat(node).uid === uid) return true;

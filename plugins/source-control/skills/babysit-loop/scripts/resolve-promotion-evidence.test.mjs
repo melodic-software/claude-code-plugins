@@ -36,14 +36,20 @@ const userSettings = join(config, "settings.json");
 // `owned` is the lane user's (uid 1000), everything else an administrator's (uid 0), and access()
 // grants nothing.
 let seamCount = 0;
-function seam({ platform = "linux", owned = [] } = {}) {
+// A path listed in `denied` throws EACCES from stat().
+function seam({ platform = "linux", owned = [], denied = [] } = {}) {
   seamCount += 1;
   const path = join(installScripts, `seam-${seamCount}.mjs`);
   writeFileSync(
     path,
     `import { main } from "./resolve-promotion-evidence.mjs";
 const owned = ${JSON.stringify(owned)};
-main({ platform: ${JSON.stringify(platform)}, uid: 1000, access: () => false, stat: (p) => ({ uid: owned.includes(p) ? 1000 : 0 }) });
+const denied = ${JSON.stringify(denied)};
+function stat(p) {
+  if (denied.includes(p)) throw Object.assign(new Error("denied"), { code: "EACCES" });
+  return { uid: owned.includes(p) ? 1000 : 0 };
+}
+main({ platform: ${JSON.stringify(platform)}, uid: 1000, access: () => false, stat });
 `,
   );
   return path;
@@ -366,7 +372,16 @@ test("a settings file the lane user owns, or a directory above it, fails closed 
 });
 
 test("on win32 the helper fails closed without judging any surface", cli, () => {
-  assertFailClosed(runWith(stub(GOOD_OUTPUT), {}, { helper: seam({ platform: "win32" }) }), /^writability-unverifiable-on-win32$/);
+  // The checker is lane-owned, so a surface judged first would report lane-writable instead.
+  const checker = stub(GOOD_OUTPUT);
+  assertFailClosed(runWith(checker, {}, { helper: seam({ platform: "win32", owned: [checker] }) }), /^writability-unverifiable-on-win32$/);
+});
+
+test("a directory whose owner cannot be read fails closed as unverifiable", cli, () => {
+  assertFailClosed(
+    runWith(stub(GOOD_OUTPUT), {}, { helper: seam({ denied: [ops] }) }),
+    /^writability-unverifiable:promotion_evidence_checker \(EACCES\)$/,
+  );
 });
 
 test("administrator-owned surfaces and settings pass the writability check", cli, () => {
@@ -396,6 +411,15 @@ test("laneWritable: a symlink resolving into a lane-owned directory", () => {
   symlinkSync(join(owned, "binding.json"), link);
   assert.equal(laneWritable(link, ownedBy(owned)), true);
   assert.equal(laneWritable(link, ownedBy()), false);
+});
+
+test("laneWritable: a '..' path judges the directories it names as given", () => {
+  // Python's Path.absolute() keeps "..", so _lane_writable walks <owned>/.. and <owned>; a
+  // normalized or resolved walk never visits <owned>.
+  const owned = mkdtempSync(join(base, "dotdot-"));
+  const path = `${owned}/../ops/binding.json`;
+  assert.equal(laneWritable(path, ownedBy(owned)), true);
+  assert.equal(laneWritable(path, ownedBy()), false);
 });
 
 test("laneWritable: a missing path throws", () => {

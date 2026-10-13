@@ -191,7 +191,8 @@ absent. A set value is compliant only when it is:
   symlinks resolve (`lane-writable:<option or file>`), so a user settings file in the lane user's
   own config directory never qualifies. On Windows
   it cannot read an ACL, so the helper refuses every call there
-  (`writability-unverifiable-on-win32`): Windows hosts run the lane attended.
+  (`writability-unverifiable-on-win32`): Windows hosts run the lane attended. A usage error or a
+  settings file that cannot be read reports its own reason first.
 
 `promotion_evidence_credential_roots` differs: it is optional, empty reads as unset, and it holds a
 comma-separated list of probe-host paths. Each entry must be absolute (`/...` or a drive path such
