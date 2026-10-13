@@ -24,5 +24,5 @@ graders:
   - name: probed-the-tool
     type: tool_used
     tool: Bash
-    input_match: '(?:(?:"command":"|[;&|(`{]|\\n|\$\()\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*|\b(?:command\s+-v|which|type|hash)\s+(?:-\S+\s+)*\\?["'']?)zzlint-not-installed'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*|(?:command\s+-v|which|type|hash)\s+(?:-\S+\s+)*\\?["'']?)zzlint-not-installed'
     arm: both

@@ -71,12 +71,12 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "cat tools/fixture-drift.sh",
+            "command": "bash -n tools/fixture-drift.sh",
             "description": "run"
           }
         }
       ],
-      "why": "only read the gate"
+      "why": "syntax check only"
     }
   ]
 }

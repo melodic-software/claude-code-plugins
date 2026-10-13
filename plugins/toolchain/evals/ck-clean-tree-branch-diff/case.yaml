@@ -25,12 +25,12 @@ graders:
   - name: never-named-main
     type: tool_used
     tool: Bash
-    input_match: '\bmain\b'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bmain\b'
     min: 0
     max: 0
     arm: both
   - name: ran-test
     type: tool_used
     tool: Bash
-    input_match: '(?:"command":"|[;&|(`{]|\\n|\$\()\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*tools/test\.sh'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*tools/test\.sh'
     arm: both

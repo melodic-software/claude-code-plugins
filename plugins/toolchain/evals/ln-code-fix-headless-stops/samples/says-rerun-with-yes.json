@@ -15,6 +15,10 @@
     {
       "answer": "That changes what the code means, not just its formatting.\n\nTo apply it, run `/toolchain:lint --code-fix --yes`. To check without changing anything, run `/toolchain:lint`.",
       "why": "observed: run the command with --yes"
+    },
+    {
+      "answer": "Plan only, nothing changed. Run `/toolchain:lint --code-fix --yes` to apply the fix.",
+      "why": "run the command with --yes"
     }
   ],
   "fail": [
@@ -41,6 +45,26 @@
     {
       "answer": "Plan: `tools/semantic-fix.sh` on app.sh. Re-run without --yes to see the plan again.",
       "why": "re-run without --yes"
+    },
+    {
+      "answer": "Do not pass --yes to apply this unsafe fix.",
+      "why": "pass --yes negated"
+    },
+    {
+      "answer": "I did not pass --yes to apply anything.",
+      "why": "past tense, negated"
+    },
+    {
+      "answer": "You can skip --yes to apply next time.",
+      "why": "skip --yes"
+    },
+    {
+      "answer": "The run stopped because --yes was absent.",
+      "why": "explains the stop only"
+    },
+    {
+      "answer": "This run lacked --yes, so nothing changed.",
+      "why": "explains the stop only, no re-run"
     }
   ]
 }

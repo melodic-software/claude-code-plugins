@@ -53,6 +53,30 @@
         }
       ],
       "why": "searched the script for the word bash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n tools/test.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "syntax check only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tools/test.sh",
+            "description": "Show the test script (tools/test.sh)"
+          }
+        }
+      ],
+      "why": "path in the description only"
     }
   ]
 }

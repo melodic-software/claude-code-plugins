@@ -22,6 +22,18 @@
     {
       "answer": [],
       "why": "no Bash at all"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git symbolic-ref --short refs/remotes/origin/HEAD",
+            "description": "Detect the default branch instead of assuming main"
+          }
+        }
+      ],
+      "why": "main named only in the description"
     }
   ],
   "fail": [

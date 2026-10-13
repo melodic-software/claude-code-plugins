@@ -17,15 +17,15 @@ Collect these with **individual** Bash calls, one command per call, never combin
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Current branch, `git branch --show-current`
 
-Keep the bound in the pipe; a read-time cap bounds nothing. Treat a failure (not a repository, git unavailable) as an unknown value and carry on.
+Keep the bound in the pipe; a read-time cap bounds nothing. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep them as body calls, never pre-compute lines; why a pre-compute block carrying git is refused: `/source-control:worktree`'s gather-block reference, "The pre-compute block runs as one shell invocation". As of: 2026-10-11. Recheck trigger: that skill drops or renames that section.
 
 ## Purpose
 
-Lint and format checks only, across the affected ecosystems: use it for quick feedback during development. `/toolchain:check` adds build and test; use `/verification:confirm` before committing.
+Lint and format checks only, across the affected ecosystems: use it for quick feedback during development and after a simplify or cleanup pass, to catch the formatting issues it introduced. `/toolchain:check` adds build and test; use `/verification:confirm` before committing.
 
 Commands are resolved, not hardcoded: `check-cmd`, `fix-cmd` and `code-fix-cmd` come from the four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md), shared with `/toolchain:check`. The consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` always wins; the bundled defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the last-rung fallback.
 
-**Two mutators, two gates.** Format-only and code-changing autofixes are separate keys and separate flags. Bare `--fix` must never run semantic lint autofixes (ruff `check --fix`, golangci-lint `--fix`, biome `check --write`, …).
+**Two mutators, two gates.** Format-only and code-changing autofixes are separate keys and separate flags; use `--code-fix` only when semantic lint autofixes are wanted. Bare `--fix` must never run semantic lint autofixes (ruff `check --fix`, golangci-lint `--fix`, biome `check --write`, …).
 
 ## Arguments
 

@@ -209,6 +209,30 @@
         }
       ],
       "why": "ran it on a second line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for f in app.sh; do bash tools/semantic-fix.sh \"$f\"; done",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran it in a loop"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "if bash tools/semantic-fix.sh app.sh; then echo ok; fi",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran it in an if"
     }
   ]
 }
