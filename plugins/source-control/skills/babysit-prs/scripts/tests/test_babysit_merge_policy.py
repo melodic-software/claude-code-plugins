@@ -914,6 +914,44 @@ class Eligibility(unittest.TestCase):
         ]
         self.assertEqual(eligibility().reason, "opt-in-label:labeler-not-human")
 
+    def test_the_enqueue_recheck_reads_the_opt_in_again(self) -> None:
+        # #7339 comment 2: a removal, or a removal and a bot re-add, between
+        # the eligibility read and the enqueue must refuse the enqueue.
+        def recheck() -> str | None:
+            return policy.recheck_opt_in(
+                REPO, 7, agent_identity=IDENTITY, permission=HUMANS
+            )
+
+        eligibility_fake(self, pr={"author": user(OPERATOR)})
+        self.assertEqual(recheck(), "not-lane-authored-or-opted-in")
+
+        labeled = {"totalCount": 1, "nodes": [{"name": policy.OPT_IN_LABEL}]}
+        gh = eligibility_fake(self, pr={"author": user(OPERATOR), "labels": labeled})
+        gh.rest[f"repos/{REPO}/issues/7/timeline?per_page=100"] = [
+            {
+                "event": "labeled",
+                "label": {"name": policy.OPT_IN_LABEL},
+                "actor": {"login": "maintainer", "type": "User"},
+                "created_at": "2026-10-12T12:30:00Z",
+            },
+            {
+                "event": "unlabeled",
+                "label": {"name": policy.OPT_IN_LABEL},
+                "actor": {"login": "maintainer", "type": "User"},
+                "created_at": "2026-10-12T12:40:00Z",
+            },
+            {
+                "event": "labeled",
+                "label": {"name": policy.OPT_IN_LABEL},
+                "actor": {"login": "some-app[bot]", "type": "Bot"},
+                "created_at": "2026-10-12T12:45:00Z",
+            },
+        ]
+        self.assertEqual(recheck(), "opt-in-label:labeler-not-human")
+
+        eligibility_fake(self)
+        self.assertIsNone(recheck())
+
     def test_exactly_one_same_repository_linked_issue(self) -> None:
         second = {
             "number": 41,
@@ -1157,6 +1195,43 @@ class PromotionOptions(unittest.TestCase):
         self.assertIsNone(real)
         self.assertTrue(real_reason.startswith("settings-lane-writable"))
 
+    def test_a_lane_writable_surface_or_checker_refuses(self) -> None:
+        # #7339 item 1: the four paths get the settings files' test.
+        import tempfile
+
+        for option, path in self.FOUR.items():
+            with self.subTest(option), tempfile.TemporaryDirectory() as tmp:
+                settings = self.settings(pathlib.Path(tmp), self.FOUR)
+                values, reason = policy.read_promotion_options(
+                    settings,
+                    managed=lambda: [],
+                    writable=lambda p, path=path: p == pathlib.Path(path),
+                )
+                self.assertIsNone(values)
+                self.assertEqual(reason, f"evidence-lane-writable:{option}")
+
+    def test_a_writable_ancestor_directory_is_lane_writable(self) -> None:
+        # #7339 item 1: renaming a writable grandparent replaces the file.
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp).resolve()
+            target = root / "a" / "b" / "evidence.json"
+            target.parent.mkdir(parents=True)
+            target.write_text("[]", encoding="utf-8")
+            with (
+                mock.patch.object(
+                    policy.os, "access", side_effect=lambda p, _m: p == root / "a"
+                ),
+                mock.patch.object(policy.os, "getuid", return_value=-1, create=True),
+            ):
+                self.assertTrue(policy._lane_writable(target))
+            with (
+                mock.patch.object(policy.os, "access", return_value=False),
+                mock.patch.object(policy.os, "getuid", return_value=-1, create=True),
+            ):
+                self.assertFalse(policy._lane_writable(target))
+
     def test_an_unset_option_refuses(self) -> None:
         import tempfile
 
@@ -1177,7 +1252,9 @@ class ReadPromotion(unittest.TestCase):
     """The resolver runs on a copy of the evidence written outside the checkout;
     a demotion record adds a contrary event per cell at its creation."""
 
-    def run_resolver(self, events: Any, window_start: Any) -> tuple[Any, list[Any]]:
+    def run_resolver(
+        self, events: Any, window_start: Any, worktrees: Any = lambda c: []
+    ) -> tuple[Any, list[Any]]:
         import tempfile
 
         seen: list[Any] = []
@@ -1205,8 +1282,38 @@ class ReadPromotion(unittest.TestCase):
                     checkout=pathlib.Path(__file__).resolve().parents[5],
                     window_start=window_start,
                     options=(values, None),
+                    worktrees=worktrees,
                 )
         return result, seen
+
+    def test_every_worktree_is_a_root_the_resolver_refuses(self) -> None:
+        # #7339 item 1: without the roots a surface in a sibling worktree passed.
+        roots = ["/w/main", "/w/sibling"]
+        _, seen = self.run_resolver([], None, worktrees=lambda c: roots)
+        argv = seen[0][0]
+        passed = [argv[i + 1] for i, a in enumerate(argv) if a == "--worktree-root"]
+        self.assertEqual(passed, roots)
+
+    def test_unlisted_worktrees_promote_nothing(self) -> None:
+        result, seen = self.run_resolver([], None, worktrees=lambda c: None)
+        self.assertEqual(result.reason, "worktrees-unreadable")
+        self.assertEqual(seen, [])
+
+    def test_worktree_roots_come_from_git(self) -> None:
+        proc = subprocess.CompletedProcess(
+            [],
+            0,
+            "worktree /w/main\nHEAD abc\nbranch refs/heads/main\n\n"
+            "worktree /w/side\nHEAD def\ndetached\n",
+            "",
+        )
+        with mock.patch.object(policy, "run_command", return_value=proc):
+            self.assertEqual(
+                policy.worktree_roots(pathlib.Path("/w/main")), ["/w/main", "/w/side"]
+            )
+        failed = subprocess.CompletedProcess([], 128, "", "not a git repository")
+        with mock.patch.object(policy, "run_command", return_value=failed):
+            self.assertIsNone(policy.worktree_roots(pathlib.Path("/w/main")))
 
     def test_the_source_events_pass_unchanged_without_a_demotion(self) -> None:
         events = [{"cell": "C2-auto-merge", "event": "gate-failure", "at": "x"}]
@@ -1258,6 +1365,7 @@ class ReadPromotion(unittest.TestCase):
                     checkout=pathlib.Path(tmp) / "checkout",
                     window_start=None,
                     options=(values, None),
+                    worktrees=lambda c: [],
                 )
         self.assertEqual(result.reason, "--checker not set")
         self.assertFalse(result.promoted("C2"))
@@ -1306,9 +1414,30 @@ class EntryHold(unittest.TestCase):
     def test_a_human_blocking_comment(self) -> None:
         gh = self.fake()
         gh.rest[f"repos/{REPO}/issues/5/comments?per_page=100"] = [
-            {"user": {"login": OPERATOR, "type": "User"}, "body": "don't merge this"}
+            {
+                "user": {"login": OPERATOR, "type": "User"},
+                "author_association": "MEMBER",
+                "body": "don't merge this",
+            }
         ]
         self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+
+    def test_a_strangers_blocking_text_is_no_hold(self) -> None:
+        # #7339 item 4: this repository is public, so anyone can comment.
+        gh = self.fake()
+        for kind, association in (
+            ("issues/5/comments", "NONE"),
+            ("pulls/5/reviews", "CONTRIBUTOR"),
+            ("pulls/5/comments", "FIRST_TIME_CONTRIBUTOR"),
+        ):
+            gh.rest[f"repos/{REPO}/{kind}?per_page=100"] = [
+                {
+                    "user": {"login": "passer-by", "type": "User"},
+                    "author_association": association,
+                    "body": "do not merge, this is blocking",
+                }
+            ]
+        self.assertIsNone(self.hold())
 
     def test_the_opt_in_label_removed_since_the_enqueue(self) -> None:
         gh = self.fake()
