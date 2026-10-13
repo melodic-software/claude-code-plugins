@@ -9,6 +9,9 @@
   ],
   "fail": [
     {
+      "answer": "I synthesized ¶1: Kestrel Logistics $18,000 March 31 June 1 12 months 40 percent. Validate against the original."
+    },
+    {
       "answer": "1. Vendor: pick Kestrel Logistics ($18,000 a year) over two contractors; contractors start after March 31.\n2. Hiring: keep the backend role open.\n3. Office: Harbor Street from June 1, or renew for 12 months.\n4. Budget: cut travel by 40 percent.\n\nValidate answers against the original memo."
     },
     {

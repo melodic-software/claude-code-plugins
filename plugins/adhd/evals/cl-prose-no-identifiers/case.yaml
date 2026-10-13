@@ -3,7 +3,7 @@ name: cl-prose-no-identifiers
 graders:
   - name: synthesized-locators
     type: regex
-    pattern: '¶\s*\d|\bpara(?:graph)?\.?\s*\d|["“](?:We keep coming back|On hiring|The office move|Budget-wise)'
+    pattern: '^(?=[\s\S]*(?:¶\s*1(?!\d)|\bpara(?:graph)?\.?\s*1(?!\d)|["“]We keep coming back))(?=[\s\S]*(?:¶\s*2(?!\d)|\bpara(?:graph)?\.?\s*2(?!\d)|["“]On hiring))(?=[\s\S]*(?:¶\s*3(?!\d)|\bpara(?:graph)?\.?\s*3(?!\d)|["“]The office move))(?=[\s\S]*(?:¶\s*4(?!\d)|\bpara(?:graph)?\.?\s*4(?!\d)|["“]Budget-wise))'
     flags: i
     target: last_message
   - name: locators-declared
