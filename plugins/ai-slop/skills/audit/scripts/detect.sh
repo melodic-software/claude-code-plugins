@@ -160,7 +160,8 @@ Usage:
 With no paths, scans the repository's tracked markdown (git ls-files '*.md').
 A --paths-file with no non-blank line scans nothing; it also reads --list-targets output.
 --list-targets ignores --offset/--limit; --show-config wins over it.
-Exit: 0 on audit, 2 on unknown arguments or unreadable --paths-file.
+Exit: 0 on audit; 2 on unknown arguments, unreadable --paths-file, no
+temporary directory, or failed prose extraction.
 EOF
 }
 
@@ -749,6 +750,11 @@ SCAN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ai-slop-detect.XXXXXX")" || {
   exit 2
 }
 trap 'rm -rf "$SCAN_DIR"' EXIT
+# A signal taken inside a `done < <(...)` loop skips the EXIT trap unless the
+# signal itself exits.
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 mkdir -p "$SCAN_DIR/P" "$SCAN_DIR/W" "$SCAN_DIR/TP" "$SCAN_DIR/TW" \
   "$SCAN_DIR/DP" "$SCAN_DIR/DW" "$SCAN_DIR/TDW" || exit 2
 
