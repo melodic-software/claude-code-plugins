@@ -60,7 +60,7 @@ All notable changes to the `user-experience` plugin are documented here. Format 
 
 ### Added
 
-- `shape` skill: the front door. It runs detect, states the app's stage with its signals, the
+- `shape` skill: the entry point. It runs detect, states the app's stage with its signals, the
   audience, the project's own evidence and the team settings, then chains the job skills below in
   order through the Skill tool, asking for access it lacks.
 - `plan-user-research` skill: research plans and instruments (discussion and facilitator guides,
