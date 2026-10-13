@@ -138,8 +138,11 @@ describe("promoted", () => {
   });
 
   test("without the seam the same configuration fails closed: the lane user owns the checker", cli, () => {
-    // The checker is a file in this checkout, owned by the user running the suite.
-    assertFailClosed(resolveWith({}, { helper: RESOLVER }), /^lane-writable:promotion_evidence_checker$/);
+    // A copy of the checker in the suite's own temp directory, so the user running the suite owns
+    // it whoever owns the checkout.
+    const owned = join(ops, "check-security-binding.mjs");
+    copyFileSync(CHECKER, owned);
+    assertFailClosed(resolveWith({ promotion_evidence_checker: owned }, { helper: RESOLVER }), /^lane-writable:promotion_evidence_checker$/);
   });
 });
 
