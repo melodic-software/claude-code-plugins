@@ -148,6 +148,18 @@ lib/check-retirements.sh -> plugins/*/lib/check-retirements.sh
 # plugins/repo-fleet-hygiene/scripts/ to fix a drift failure.
 scripts/worktree-root-resolve.sh
 
+# No dedicated check: repository discovery walker, used by the fleet audit and
+# the worktree skill's cross-repository mode. Canonical copy:
+# plugins/repo-fleet-hygiene/scripts/fleet-discovery.sh; copy it into
+# plugins/source-control/scripts/ to fix a drift failure.
+scripts/fleet-discovery.sh
+
+# No dedicated check: repository discovery no-scope ladder, used by the fleet
+# audit and the worktree skill's cross-repository mode. Canonical copy:
+# plugins/repo-fleet-hygiene/scripts/scope-resolve.sh; copy it into
+# plugins/source-control/scripts/ to fix a drift failure.
+scripts/scope-resolve.sh
+
 # No dedicated check: retired worktree-root alias peel, sourced by the
 # resolver. Delete both copies after 2026-12-31. Canonical copy:
 # plugins/source-control/scripts/worktree-root-legacy.sh.
@@ -448,3 +460,21 @@ scripts/lib/installed.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/installed.mjs -> plugins/*/scripts/lib/installed.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/lane-push.sh, the one way an unattended lane pushes. The source-control
+# (babysit) and work-items (work) plugins carry the generated copies.
+scripts/lane-push.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/lane-push.sh -> plugins/*/scripts/lane-push.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/pydeps.py. animation, speech and explainer-video carry the generated
+# copies; each plugin's settings live in scripts/pydeps.json beside it.
+scripts/pydeps.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/pydeps.py -> plugins/animation/scripts/pydeps.py plugins/speech/scripts/pydeps.py plugins/explainer-video/scripts/pydeps.py

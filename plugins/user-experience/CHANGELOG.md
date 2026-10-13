@@ -3,6 +3,14 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.6] - 2026-10-12
+
+### Fixed
+
+- Shared library comments that restated Claude Code hook and plugin behavior now point at the
+  live docs sections, and the prerequisites probe no longer gives a wrong reason for always
+  exiting 0.
+
 ## [0.1.5] - 2026-10-11
 
 ### Changed

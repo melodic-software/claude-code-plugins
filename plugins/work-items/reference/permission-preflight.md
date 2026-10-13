@@ -92,16 +92,20 @@ What it covers, at a glance (read the component for the authoritative list):
   environment prefixes, and secret-material `Read()` patterns. Deny always wins over allow.
 
 The preflight probes a small representative subset of the allow floor: `git add`, `git commit`,
-`git push`, `gh pr create`, `gh issue comment` (a commit flow stages before it commits, so `git add`
-is probed too). It reads the effective `permissions.allow` from the operator's user-global settings
+`gh pr create`, `gh issue comment` (a commit flow stages before it commits, so `git add` is probed
+too). It does not probe a push: the lane never runs `git push`, it pushes only with `bash
+<plugin-root>/scripts/lane-push.sh …` (loop-lane convention, "Lane write identity"). That call
+is interpreter-led, so no allow rule pre-approves it
+([permission-rule-hygiene](../../../docs/conventions/permission-rule-hygiene/README.md)); the
+permission mode decides it, the auto-mode classifier in an unattended lane. It reads the effective `permissions.allow` from the operator's user-global settings
 and the project settings. It never runs a live permission probe. A verb counts as covered only by an
 **open-glob** grant: `Bash(git commit *)` or `Bash(git commit:*)`. A **bare-exact** rule
 (`Bash(git commit)`) is **not** coverage: it permits only the argumentless command, and a work-lane
 invocation always carries arguments, so the real call would still prompt. When a gapped verb has
 *only* a bare-exact grant, the gap message says so precisely. That grant does cover an argumentless
-caller (e.g. the babysit fix cycle's plain `git push`) but not the work lane's argument-carrying
-call, and the remedy is to add the open glob (`git push *`). A narrower, flag-scoped rule
-(`Bash(git commit --amend)`, a force-with-lease-only push rule) is likewise not coverage. A missing
+call but not the work lane's argument-carrying one, and the remedy is to add the open glob
+(`git commit *`). A narrower, flag-scoped rule
+(`Bash(git commit --amend)`) is likewise not coverage. A missing
 verb means the floor is not composed in on this machine; the remediation is to apply the component
 operator-side, not to add a one-off rule.
 
@@ -116,7 +120,7 @@ false *denied* report is safe whereas a missed one is not. It is still **exact-s
 not simulate glob semantics, so a broader deny pattern that would match the verb at runtime (a
 wildcard spanning it) is not caught here. That conservatism never false-flags the standard deny
 floor, whose destructive-verb rules are flag-scoped (`git push --force …`) rather than the bare
-`git push` / `git commit` / `git add` shape.
+`git commit` / `git add` shape.
 
 **`settings.local.json` scope on the autonomous path.** The preflight treats the **main
 checkout's** `.claude/settings.local.json` as shared by the repository's linked worktrees, because

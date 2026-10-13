@@ -37,16 +37,17 @@ File issue bodies from a path, not from stdin.
 heredoc whose text mentioned git; direct script paths, one git command per call, and a body file
 were accepted. Basis: observed during the melodic-software/.github sweep (PR
 melodic-software/.github#153), recorded in
-[#4537](https://github.com/melodic-software/claude-code-plugins/issues/4537). Rechecked against
-Claude Code 2.1.284 on 2026-09-29: the Command shape bullet of
-<https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation> and the changelog
-after 2.1.259 through 2.1.284 name none of the three forms. Changelog 2.1.257 stopped refusing
-heredocs that never touch git and 2.1.259 stopped refusing loops, xargs pipelines and
-launcher-wrapped commands that cannot reach the main checkout; 2.1.274 refused more nested
-expansions. Status: all three forms unverified, so the conservative procedure stays. Not
-re-probed in a live isolated session. As of: 2026-09-29. Recheck: the Command shape bullet or a
-release note changes which Bash forms an isolated session accepts, or a live isolated session
-runs the three forms. The procedure files point here for these shapes.
+[#4537](https://github.com/melodic-software/claude-code-plugins/issues/4537). Release notes have
+since changed which Bash forms isolation refuses, but neither the section below nor the release
+notes read through Claude Code 2.1.296 name these three forms, so all three stay unverified and
+the conservative procedure stays. Not re-probed in a live isolated session. The procedure files
+point here for these shapes.
+
+- **Pointer**: when deciding which Bash forms an isolated session accepts, fetch
+  <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation> live.
+- **As of**: 2026-10-11 (section and release notes through 2.1.296)
+- **Recheck trigger**: that section or a release note changes which Bash forms an isolated
+  session accepts, or a live isolated session runs the three forms.
 
 ## Scripts
 
@@ -147,16 +148,18 @@ After the last step, to merge the base, verify, and mark the sweep PR ready.
   ([#4601](https://github.com/melodic-software/claude-code-plugins/issues/4601)); no docs page
   states it. As of 2026-09-29, from that observation. Recheck when that docs table changes or a
   Claude Code release note gives bundled skills their own versions.
-- A session keeps the plugin versions it loaded until `/reload-plugins` or a new session, while
-  `installed_plugins.json` moves on a mid-session update. Without `--dir`, `skill-version.sh`
-  reports the installed version, which may never have run; `next` passes each skill's loaded
-  directory and stops after an update notice. A `--plugin-dir` sweep sets
-  `REPO_SWEEP_PLUGIN_DIRS` to the same directories. Record: the running session keeps the
-  versions it loaded
-  ([plugins: loading](https://code.claude.com/docs/en/plugins/loading), fetched 2026-09-28);
-  the Skill tool's "Base directory for this skill" line is the only source of the loaded path,
-  and no docs page names it. Recheck when the loading page changes or a plugin env var exposes
-  the loaded version.
+- The plugin version a session runs can differ from the one `installed_plugins.json` records
+  after a mid-session update. Without `--dir`, `skill-version.sh` reports the installed version,
+  which may never have run; `next` passes each skill's loaded directory and stops after an
+  update notice. A `--plugin-dir` sweep sets `REPO_SWEEP_PLUGIN_DIRS` to the same directories.
+  The Skill tool's "Base directory for this skill" line is the only source of the loaded path,
+  and no docs page names it.
+  - **Pointer**: when deciding whether a running session has picked up an updated plugin, fetch
+    [When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs)
+    live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes when a running session applies an update, or a
+    plugin env var exposes the loaded version.
 - One session per sweep. `tick.sh` verifies its own write but takes no lock; two sessions ticking
   one PR body can lose a tick.
 - An override exists only while a skill hardcodes its own branch, PR, or commit structure and

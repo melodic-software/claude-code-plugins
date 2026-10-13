@@ -6,6 +6,8 @@ Full detail for the `/source-control:worktree audit` action. SKILL.md carries th
 
 Periodic health check for worktree infrastructure. Suitable as a recurring item in your work-item tracker.
 
+**Outside a repository**, Step 1 runs `status` in its cross-repository mode ([status.md § Outside a repository](status.md#outside-a-repository-cross-repository-mode)), keeping the `worktree-discover.sh` rows. Run Step 2's per-repository checks once for each `repo` row whose linked count is above 0, with `<repo>` set to it (the `.worktreeinclude` check reads that repository's root). Step 2b's "resolved worktree root" is every `root` row. Step 2c runs once per `root` row, with `--root <root>` and every `repo` row as a `--repo-dir`. Present findings grouped by repository.
+
 ## Step 2: Check configuration health
 
 | Check | How | Expected |
@@ -138,7 +140,7 @@ directory another repository owns classifies as `live` instead of a proposal. Ex
 does not resolve (an unmounted drive): report "root scan unavailable" and offer nothing.
 
 ```bash
-bash "<scripts-dir>/worktree-root-scan.sh" --repo-dir <repo> [--repo-dir <repo> ...]
+bash "<scripts-dir>/worktree-root-scan.sh" [--root <root>] --repo-dir <repo> [--repo-dir <repo> ...]
 ```
 
 Report each row (`<path>`, `<class>`, `<proposed>`) by class:

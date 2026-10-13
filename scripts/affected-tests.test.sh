@@ -401,6 +401,34 @@ else
   fail "shared-walk file falsely unmapped (rc=$RC): $out"
 fi
 
+# --- seeds sharing a basename reuse the lookup cache, not each other's hits --
+# Two unsynced util.sh copies give both seeds one pattern list, so the second
+# seed's git grep is a cache hit; the name is ambiguous, so each copy must still
+# resolve to its own plugin's consumer and never to the other's.
+for p in alpha beta; do
+  printf 'u() { :; }\n' >"$repo/plugins/$p/hooks/util.sh"
+  # shellcheck disable=SC2016 # deliberate: the emitted file must expand these
+  printf 'source "$(dirname "${BASH_SOURCE[0]}")/util.sh"\n' >"$repo/plugins/$p/hooks/$p-tool.sh"
+  suite_body "$p-tool" >"$repo/plugins/$p/hooks/$p-tool.test.sh"
+done
+run_sel "$repo" plugins/alpha/hooks/util.sh
+alone="$OUT"
+run_sel "$repo" plugins/beta/hooks/util.sh
+alone+=$'\n'"$OUT"
+run_sel "$repo" plugins/alpha/hooks/util.sh plugins/beta/hooks/util.sh
+out="$OUT"
+if [[ "$RC" -eq 0 ]] &&
+  has_line "$out" plugins/alpha/hooks/alpha-tool.test.sh &&
+  has_line "$out" plugins/beta/hooks/beta-tool.test.sh &&
+  [[ "$(sort -u <<<"$out")" == "$(sort -u <<<"$alone")" ]]; then
+  ok "two seeds sharing a basename select the union of what each selects alone"
+else
+  fail "shared-basename seeds (rc=$RC): got [$out], alone [$alone]"
+fi
+for p in alpha beta; do
+  rm -f "$repo/plugins/$p/hooks/util.sh" "$repo/plugins/$p/hooks/$p-tool.sh" "$repo/plugins/$p/hooks/$p-tool.test.sh"
+done
+
 # --- a no-suite class is NOT an unmapped failure ---------------------------
 out="$(cd "$repo" && bash scripts/affected-tests.sh plugins/alpha/README.md 2>&1)"
 RC=$?

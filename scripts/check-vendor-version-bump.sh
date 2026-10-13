@@ -14,8 +14,9 @@
 # half enforced by its sync gate's --check-bump; this gate enforces it for the
 # intra-plugin shape.
 #
-# WHAT IS CHECKED. For every plugin whose tracked plugins/<name>/vendor/ tree
-# differs from <base-ref> — an edit, an addition, or a deletion, since each is
+# WHAT IS CHECKED. For every plugin whose tracked plugins/<name>/vendor/ tree,
+# or skill-level plugins/<name>/skills/<skill>/vendor/ tree (it installs with
+# the plugin just the same), differs from <base-ref> — an edit, an addition, or a deletion, since each is
 # a source change installed consumers must receive — the plugin's
 # .claude-plugin/plugin.json `version` must also differ from <base-ref>, or, for
 # a plugin in fragment mode, the change set must add a changelog fragment whose
@@ -102,10 +103,16 @@ for path in ${changed_paths[@]+"${changed_paths[@]}"}; do
   plugins/*/vendor/*)
     name="${path#plugins/}"
     name="${name%%/*}"
-    # Only a vendor/ directly at the plugin root is the ADR's shape; a
-    # vendor/ nested deeper (e.g. a skill-private one) belongs to whatever
-    # gate owns that surface.
-    [[ "$path" == "plugins/$name/vendor/"* ]] || continue
+    # Two shapes install with the plugin and so oblige a bump: the plugin-root
+    # vendor/ (ADR 0019) and a skill-level vendor/ (plugins/<name>/skills/<s>/
+    # vendor/, exactly one skill segment). The case glob's `*` crosses slashes,
+    # so the exact shapes are confirmed here; a vendor/ nested any deeper is
+    # not claimed.
+    skill_rest="${path#"plugins/$name/skills/"}"
+    if [[ "$path" != "plugins/$name/vendor/"* ]] &&
+      { [[ "$skill_rest" == "$path" ]] || [[ "$skill_rest" != "${skill_rest%%/*}/vendor/"* ]]; }; then
+      continue
+    fi
     [[ -z "${seen_plugins[$name]:-}" ]] || continue
     seen_plugins["$name"]=1
     changed_plugins+=("$name")
@@ -189,14 +196,14 @@ for plugin in "${changed_plugins[@]}"; do
       fi
     fi
     if [[ "$dependabot" == yes ]]; then
-      echo "Dependabot-only change to plugins/$plugin/vendor/: scripts/dependabot-fragments.sh writes its fragment after the merge."
+      echo "Dependabot-only change to a vendor/ tree of plugins/$plugin/: scripts/dependabot-fragments.sh writes its fragment after the merge."
       continue
     fi
-    echo "STALE VERSION: plugins/$plugin/vendor/ changed vs $base but $plugin, in fragment mode, has no fragment for it" >&2
+    echo "STALE VERSION: a vendor/ tree of plugins/$plugin/ changed vs $base but $plugin, in fragment mode, has no fragment for it" >&2
     echo "  Run scripts/new-changelog-fragment.sh $plugin patch and describe the vendored change." >&2
     stale_fragment=1
   elif ((rc == 1)); then
-    echo "STALE VERSION: plugins/$plugin/vendor/ changed vs $base but $manifest is still ${head_version:-absent}" >&2
+    echo "STALE VERSION: a vendor/ tree of plugins/$plugin/ changed vs $base but $manifest is still ${head_version:-absent}" >&2
     stale=1
   elif ((rc != 0)); then
     exit 2

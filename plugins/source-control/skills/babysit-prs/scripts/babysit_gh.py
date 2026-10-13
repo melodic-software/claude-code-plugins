@@ -120,9 +120,7 @@ GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
 #   As-of: 2026-10-11.
 #   Recheck trigger: that section stops rejecting GraphQL outright, or changes
 #   the refusal's message prefix.
-GRAPHQL_UNAVAILABLE_MARKERS = (
-    "graphql is not available from claude code sessions",
-)
+GRAPHQL_UNAVAILABLE_MARKERS = ("graphql is not available from claude code sessions",)
 
 
 class GraphQLUnavailableError(RuntimeError):
@@ -881,7 +879,9 @@ def base_requires_merge_queue(repo: str, base_ref: str) -> bool | None:
     that cycle and the next snapshot reads the rules again.
     """
     try:
-        rules = gh_json(["api", f"repos/{repo}/rules/branches/{quote(base_ref, safe='')}"])
+        rules = gh_json(
+            ["api", f"repos/{repo}/rules/branches/{quote(base_ref, safe='')}"]
+        )
     except (RuntimeError, json.JSONDecodeError):
         return None
     if not is_json_array(rules):
@@ -1103,7 +1103,8 @@ def fetch_review_threads(
     resolution state, re-source those over REST
     (`fetch_unresolved_review_comments`).
 
-    Each thread record carries: `id`, `isResolved`, `isOutdated`, `comments`
+    Each thread record carries: `id`, `isResolved`, `isOutdated`, `resolvedBy`
+    ({__typename login}, or None when open or the resolver is unknown), `comments`
     (each with author{__typename login}, body, path, url, createdAt, updatedAt,
     databaseId), `comments_total_count`, and `comments_truncated`. Resolved
     threads are dropped unless `include_resolved`. `projection` maps each
@@ -1116,7 +1117,7 @@ def fetch_review_threads(
         "query($o:String!,$r:String!,$n:Int!,$cursor:String){"
         "repository(owner:$o,name:$r){pullRequest(number:$n){"
         "reviewThreads(first:100,after:$cursor){pageInfo{hasNextPage endCursor} "
-        "nodes{id isResolved isOutdated "
+        "nodes{id isResolved isOutdated resolvedBy{__typename login} "
         f"comments(first:{comments_first})"
         "{totalCount pageInfo{hasNextPage} "
         "nodes{author{__typename login} body path url createdAt updatedAt databaseId}}}}}}}"
@@ -1159,6 +1160,10 @@ def fetch_review_threads(
                 or not isinstance(thread.get("id"), str)
                 or not isinstance(thread.get("isResolved"), bool)
                 or not isinstance(thread.get("isOutdated"), bool)
+                or not (
+                    thread.get("resolvedBy") is None
+                    or is_json_object(thread["resolvedBy"])
+                )
             ):
                 raise RuntimeError(f"Malformed review thread for {repo}#{number}")
             if thread["isResolved"] and not include_resolved:
@@ -1210,6 +1215,7 @@ def fetch_review_threads(
                 "id": thread["id"],
                 "isResolved": thread["isResolved"],
                 "isOutdated": thread["isOutdated"],
+                "resolvedBy": thread.get("resolvedBy"),
                 "comments": comments,
                 "comments_total_count": total_count,
                 "comments_truncated": bool(comment_page_info["hasNextPage"]),
@@ -1221,6 +1227,66 @@ def fetch_review_threads(
         if not cursor:
             raise RuntimeError(f"Missing review-thread cursor for {repo}#{number}")
     return threads
+
+
+def collect_lane_runs(
+    repo: str,
+    number: int,
+    head_ref: str,
+    lanes: Iterable[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    """The `runs` input of `babysit_review_evidence.bind()` for one pull request.
+
+    `lanes` gives each lane's (caller workflow path, lane job name suffix).
+    Each workflow's `pull_request` runs are listed by `head_ref` with no
+    `head_sha` filter and kept when their `pull_requests` name `number`, so
+    earlier heads' reviews are included. Each kept run's attempt count comes
+    from a fresh `GET actions/runs/{id}` taken after the listing; each attempt
+    carries its jobs, and each lane job its check run's annotations. Any read
+    failure, a deleted or expired run included, raises `RuntimeError`, which
+    the caller turns into unbound evidence.
+    """
+    runs: list[dict[str, Any]] = []
+    for path, job_suffix in lanes:
+        workflow = quote(path.rsplit("/", 1)[-1], safe="")
+        listing = fetch_paginated_api(
+            f"repos/{repo}/actions/workflows/{workflow}/runs"
+            f"?branch={quote(head_ref, safe='')}&event=pull_request&per_page=100",
+            f"{workflow} runs",
+            items_key="workflow_runs",
+        )
+        for item in listing:
+            if not any(
+                json_object(pr).get("number") == number
+                for pr in json_array(item.get("pull_requests"))
+            ):
+                continue
+            run_id = item.get("id")
+            if not isinstance(run_id, int) or isinstance(run_id, bool):
+                raise RuntimeError(f"{workflow} run without an id")
+            latest = json_object(
+                gh_json(["api", f"repos/{repo}/actions/runs/{run_id}"])
+            )
+            count = latest.get("run_attempt")
+            if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+                raise RuntimeError(f"run {run_id}: no attempt count")
+            attempts = []
+            for n in range(1, count + 1):
+                base = f"repos/{repo}/actions/runs/{run_id}/attempts/{n}"
+                attempt = json_object(gh_json(["api", base]))
+                jobs = fetch_paginated_api(
+                    f"{base}/jobs?per_page=100", f"run {run_id} jobs", items_key="jobs"
+                )
+                for job in jobs:
+                    if str(job.get("name") or "").rsplit(" / ", 1)[-1] == job_suffix:
+                        job["annotations"] = fetch_paginated_api(
+                            f"repos/{repo}/check-runs/{job.get('id')}/annotations"
+                            "?per_page=100",
+                            f"job {job.get('id')} annotations",
+                        )
+                attempts.append({**attempt, "jobs": jobs})
+            runs.append({**item, "attempts": attempts})
+    return runs
 
 
 def fetch_unresolved_review_comments(repo: str, number: int) -> list[dict[str, Any]]:

@@ -100,7 +100,7 @@ PKEY="$(printf '%s\n%s' "$REPO" "$TDIR" | sha256 | cut -c1-16)"
 # else PASS. STUB_SLEEP delays the answer. STUB_MODE=denied answers UNKNOWN,
 # "the Read permission was denied", for a name holding "deny" and lists a
 # Read in the result's permission_denials; deniedtext gives the same answer
-# with no denial listed. For a FLAG, commentdiff proposes a diff that only adds
+# with no denial listed. renamed answers under a name no block has. For a FLAG, commentdiff proposes a diff that only adds
 # a // comment line, and realdiff one that changes the expected value.
 cat >"$TMP/judge-stub.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -121,6 +121,7 @@ hang)
   ;;
 budget) echo '{"type":"result","subtype":"error_max_budget_usd","is_error":true}'; exit 1 ;;
 garbage) echo 'not json'; exit 0 ;;
+escape) echo '{"type":"result","result":"bad\u001b[2K\u0007 text"}'; exit 0 ;;
 esac
 verdicts=()
 while read -r _ ord range name; do
@@ -134,6 +135,7 @@ while read -r _ ord range name; do
   fi
   case "${STUB_MODE:-ok}" in
   badquote) first="this line is not in the file" ;;
+  renamed) name+=", renamed" ;;
   implquote) second="  ${STUB_IMPL_QUOTE:-}  " ;;
   otherfile) diff="$(printf 'other\n' | diff -u --label a/other.txt --label b/other.txt - <(printf 'changed\n'))" ;;
   commentdiff | realdiff)

@@ -38,7 +38,7 @@ async page => { // answer controls: radios by keyboard, a withheld question, pas
   // a withheld question offers nothing to accept and stays out of Accept all
   await pick("E2");
   const l2 = await labels();
-  ok("a withheld question shows no Rec, Accept with note or Hedged row", !l2.some(l => /^(Rec|Accept with note|Hedged)$/.test(l)) && l2.includes("Own answer") && l2.includes("Defer"), l2.join(", "));
+  ok("a withheld question shows no Rec, Accept with note or Hedged row, and keeps Someone else decides", !l2.some(l => /^(Rec|Accept with note|Hedged)$/.test(l)) && l2.includes("Own answer") && l2.includes("Defer") && l2.includes("Someone else decides"), l2.join(", "));
   ok("its recommendation block reads Recommendation withheld", /^Recommendation withheld$/.test((await text(".blk h4")).trim()), await text(".blk h4"));
   await page.click("#qhead"); await page.keyboard.press("a"); await page.waitForTimeout(150);
   ok("key a arms nothing on a withheld question", !(await page.$(".choice.armed")));

@@ -5,9 +5,13 @@
 #   (a) the working directory is not a git repository — a NOTE, since a lane
 #       that operates in an out-of-tree worktree can still proceed once (c) is
 #       covered; the SKILL interprets it against the lane's needs.
-#   (b) a core git/gh working verb (probe set: git add, git commit, git push,
+#   (b) a core git/gh working verb (probe set: git add, git commit,
 #       gh pr create, gh issue comment) is blocked by a matching deny rule, or
-#       is missing from the effective allow-list. Deny wins over allow.
+#       is missing from the effective allow-list. Deny wins over allow. The
+#       lane never runs `git push`: it pushes with
+#       `bash <plugin-root>/scripts/lane-push.sh …`, an interpreter-led call no
+#       allow rule pre-approves (docs/conventions/permission-rule-hygiene), so
+#       the permission mode decides it and nothing here probes it.
 #   (c) the configured out-of-tree worktree root is not covered by any
 #       permissions.additionalDirectories entry, so every write into it
 #       prompts (reference/permission-preflight.md pointer record).
@@ -406,8 +410,8 @@ verb_in_rules() {
   #                    signals the verb is off-limits).
   #   bare-exact-only — the bare verb only. Used to sharpen the gap message when
   #                    open-glob coverage is absent but a bare-only grant exists
-  #                    (it serves an argumentless caller like babysit's plain
-  #                    `git push`, but not the work lane's argument-carrying call).
+  #                    (it serves an argumentless caller but not the work
+  #                    lane's argument-carrying call).
   # A rule whose next token is a specific flag or argument (`git commit --amend`,
   # a force-with-lease-only push) never matches — it is a narrower slice.
   # Exact-shape only, by deliberate design: this does NOT simulate glob semantics,
@@ -492,14 +496,13 @@ while IFS= read -r verb; do
   fi
   verb_covered "$verb" && continue
   if verb_bare_exact "$verb"; then
-    emit_gap "(b) '$verb' has only a bare-exact allow rule: it covers argumentless invocations (e.g. the babysit fix cycle's plain \`git push\`) but not argument-carrying ones (the work lane's \`$verb …\`). Grant the open glob (\`$verb *\`) operator-side. See reference/permission-preflight.md."
+    emit_gap "(b) '$verb' has only a bare-exact allow rule: it covers argumentless invocations but not argument-carrying ones (the work lane's \`$verb …\`). Grant the open glob (\`$verb *\`) operator-side. See reference/permission-preflight.md."
     continue
   fi
   emit_gap "(b) no Bash()/PowerShell() allow rule covers '$verb'. Apply the fleet permission floor operator-side (standards components/claude-permissions, composed into settings via dotfiles#233) — never a plugin self-grant. See reference/permission-preflight.md."
 done <<PROBES
 git add
 git commit
-git push
 gh pr create
 gh issue comment
 PROBES
