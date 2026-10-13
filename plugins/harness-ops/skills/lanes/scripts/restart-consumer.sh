@@ -65,10 +65,14 @@
 #                        sibling script next to this one).
 #   --agents-json FILE   read the session list from FILE instead of
 #                        `claude agents --json` (offline / test injection).
+#   --app-slug SLUG      the GitHub App whose installation token gh runs under;
+#                        lane comments are then read from SLUG[bot]. See
+#                        WRITE IDENTITY below.
 #   --telemetry-json FILE
 #                        read lane telemetry from FILE instead of `gh`: a JSON
 #                        object mapping lane name -> that issue's comments array,
-#                        e.g. {"work":[{"body":"..."}]} (offline / test injection).
+#                        e.g. {"work":[{"body":"..."}]} (offline / test injection;
+#                        the operator's own file, so no author filter applies).
 #   --now EPOCH          treat EPOCH as the current time (deterministic tests).
 #   --dry-run            with `run`: decide and report, but neither relaunch nor
 #                        write the ledger or the telemetry comment.
@@ -80,7 +84,8 @@
 #     "telemetry": { "issue": 42, "marker": "work-items:work-loop",
 #                    "instance": "laptop-a", "repo": "owner/name" } }
 #   issue    default: the open issue titled exactly `Lane telemetry: <name>`.
-#   marker   default: any comment on that issue carrying the shared sentinel
+#   marker   default: any comment on that issue written by the WRITE IDENTITY
+#            (below) and carrying the shared sentinel
 #            `<!-- harness-ops:lane-telemetry marker=... -->` whose fenced JSON
 #            block has a `restart_request` key. A bound marker matches that lane
 #            type across EVERY writer instance (`<marker>@<instance>`, #1295) —
@@ -93,6 +98,20 @@
 #            sibling machine's ask must not start this machine's lane. Only the
 #            legacy un-suffixed comment is actionable without a pin.
 #   repo     default: --target-repo.
+#
+# WRITE IDENTITY. The sentinel is public, so anyone who can comment on a
+# telemetry issue can post a lookalike carrying `restart_request`. Only comments
+# whose author is the lanes' write identity are read; every other comment is
+# ignored, whatever it carries. The identity is resolved once per run, before any
+# lane is read, in this order:
+#   1. `gh api user` reports a User: that login (a personal or machine-user token).
+#   2. that call fails or reports a Bot: SLUG[bot] from --app-slug SLUG.
+#   3. a Bot report with no --app-slug: the reported login, plus `[bot]` when
+#      missing.
+# Anything else, or a login outside [A-Za-z0-9_-] plus an optional [bot], exits 4
+# before any lane is read: an unresolved identity acts on nothing rather than
+# falling back to any author. The consumer must therefore run under the same
+# account its lanes write telemetry as.
 #
 # THE SHAPE CONSUMED. The producers (work-loop, babysit-loop) document
 # `restart_request` only as the field "where a budget or expiry hit records the
@@ -163,8 +182,9 @@
 # Exit codes:
 #   0  ok (including "nothing asked for a restart", and a skipped locked tick)
 #   3  invalid argument / malformed config
-#   4  prerequisite missing (jq, gh, claude), or repo / config unresolved, or the
-#      lock store is unusable (a held lock is not that: it exits 0)
+#   4  prerequisite missing (jq, gh, claude), or repo / config / write identity
+#      unresolved, or the lock store is unusable (a held lock is not that: it
+#      exits 0)
 #   5  at least one lane could not be evaluated or relaunched: a failed relaunch,
 #      one that never came up, an open breaker, or a telemetry read that errored
 
@@ -183,6 +203,8 @@ LAUNCHER=""
 AGENTS_JSON_FILE=""
 TELEMETRY_JSON_FILE=""
 TELEMETRY_ISSUE=""
+APP_SLUG=""
+WRITE_IDENTITY=""
 NO_TELEMETRY=0
 DRY_RUN=0
 MAX_RESTARTS=3
@@ -279,6 +301,12 @@ parse_args() {
       shift
       ;;
     --telemetry-json=*) TELEMETRY_JSON_FILE="${1#*=}" ;;
+    --app-slug)
+      check_optarg "$1" "${2:-}" || exit 3
+      APP_SLUG="$2"
+      shift
+      ;;
+    --app-slug=*) APP_SLUG="${1#*=}" ;;
     --telemetry-issue)
       check_optarg "$1" "${2:-}" || exit 3
       check_uint "$1" "$2" || exit 3
@@ -346,6 +374,10 @@ parse_args() {
     esac
     shift
   done
+  if [[ -n "$APP_SLUG" && ! "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+    err "--app-slug must be a GitHub App slug, got: $APP_SLUG"
+    exit 3
+  fi
   if ((INTERVAL_MINUTES < 1 || INTERVAL_MINUTES > 999)); then
     err "--interval-minutes must be 1..999 (Task Scheduler's MINUTE range)"
     exit 3
@@ -377,6 +409,30 @@ require_gh() {
     err "gh not found (required unless --telemetry-json covers every read)"
     exit 4
   }
+}
+
+# The login whose comments count as lane telemetry (WRITE IDENTITY in the
+# header). Returns 1 when none resolves; the caller acts on nothing.
+resolve_write_identity() {
+  local who=""
+  if who="$(gh api user --jq '.login + " " + .type' 2>/dev/null | tr -d '\r')" && [[ "$who" == *" User" ]]; then
+    WRITE_IDENTITY="${who% User}"
+  elif [[ -n "$APP_SLUG" ]]; then
+    WRITE_IDENTITY="${APP_SLUG}[bot]"
+  elif [[ "$who" == *" Bot" ]]; then
+    WRITE_IDENTITY="${who% Bot}"
+    [[ "$WRITE_IDENTITY" == *"[bot]" ]] || WRITE_IDENTITY+="[bot]"
+  else
+    return 1
+  fi
+  [[ "$WRITE_IDENTITY" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*(\[bot\])?$ ]]
+}
+
+require_write_identity() {
+  [[ -n "$TELEMETRY_JSON_FILE" ]] && return 0
+  resolve_write_identity && return 0
+  err "cannot resolve the lanes' write identity (gh api user failed or reported no User); pass --app-slug under an App token. No lane was read or relaunched."
+  exit 4
 }
 
 require_claude() {
@@ -828,8 +884,12 @@ lane_comment_bodies() {
     jq -c --arg l "$lane" '[ (.[$l] // [])[] | .body // "" ]' "$TELEMETRY_JSON_FILE" 2>/dev/null || return 1
     return 0
   fi
-  raw="$(gh api --paginate "repos/$repo/issues/$issue/comments?per_page=100" -q '.[] | {body}' 2>/dev/null)" || return 1
-  printf '%s' "$raw" | jq -s -c '[ .[].body // "" ]' 2>/dev/null || return 1
+  # Only the write identity's comments: a lookalike sentinel from any other
+  # author is never lane state.
+  raw="$(gh api --paginate "repos/$repo/issues/$issue/comments?per_page=100" \
+    -q '.[] | {body, login: .user.login}' 2>/dev/null)" || return 1
+  printf '%s' "$raw" | jq -s -c --arg me "$WRITE_IDENTITY" \
+    '[ .[] | select(.login == $me) | .body // "" ]' 2>/dev/null || return 1
 }
 
 # The first fenced code block that parses as a JSON object carrying a
@@ -1237,10 +1297,12 @@ action_print_schedule() {
   opts=""
   [[ -n "$CONFIG" ]] && opts+=" --config $CONFIG"
   [[ -n "$TARGET_REPO" ]] && opts+=" --target-repo $TARGET_REPO"
+  [[ -n "$APP_SLUG" ]] && opts+=" --app-slug $APP_SLUG"
   # Single-quoted variant for the cron and offline forms, which quote their args.
   opts_sq=""
   [[ -n "$CONFIG" ]] && opts_sq+=" --config '$CONFIG'"
   [[ -n "$TARGET_REPO" ]] && opts_sq+=" --target-repo '$TARGET_REPO'"
+  [[ -n "$APP_SLUG" ]] && opts_sq+=" --app-slug '$APP_SLUG'"
   # The offline form's --data-dir must be COPY-PASTEABLE, because the warning
   # under it is that a second data dir splits the breaker ledger. When the caller
   # passed one, echo it back; otherwise keep the placeholder that says what to
@@ -1326,6 +1388,7 @@ main() {
   resolve_target_repo
   resolve_launcher
   require_gh
+  require_write_identity
   require_claude
   load_sessions
 

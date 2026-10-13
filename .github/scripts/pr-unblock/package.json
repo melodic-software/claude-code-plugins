@@ -1,0 +1,7 @@
+{
+  "name": "pr-unblock",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

@@ -3,6 +3,22 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-10-11
+
+### Changed
+
+- **Shared `exec-bash.mjs` launcher synced; no change to this plugin's hooks.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once.
+
+## [2.0.0] - 2026-10-11
+
+### Changed
+
+- **Breaking:** `model_notices` replaces `rate_limit_lines_enabled` and is off by default. Off, nothing from this plugin enters Claude's context; the toast, transcript line, band row, status tool and snapshot work as before. Set `model_notices` to `true` for the approach, threshold, reset and options lines; a stored `rate_limit_lines_enabled: true` no longer applies (#7135).
+
+### Removed
+
+- The reader contract's orchestration fallback, which told sessions to start agent fan-out narrow when rate-limit headroom could not be observed. Unobservable headroom is now reactive-only with no sizing rule (#7135).
+
 ## [1.0.0] - 2026-10-11
 
 ### Changed

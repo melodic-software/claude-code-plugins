@@ -7,8 +7,8 @@ the installed 2.1.284 binary, 2026-09-29.
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
-| `install-github-app` is a built-in command described as "Set up Claude GitHub Actions for a repository". User-invocable only (not model-invocable), gated, not hidden | The extraction | 2026-09-29 | A release renames or removes it, ungates it, or changes its invocability |
-| The commands reference documents `/install-github-app` as installing the Claude GitHub App for a repository, with an optional step to set up GitHub Actions workflows and secrets | <https://code.claude.com/docs/en/commands>, as parsed by `/harness-ops:inventory --docs` on 2026-09-29 | 2026-09-29 | That row changes or is removed |
+| `install-github-app` is a built-in setup command for Claude GitHub Actions on one repository. User-invocable only (not model-invocable), gated, not hidden | The extraction | 2026-09-29 | A release renames or removes it, ungates it, or changes its invocability |
+| What `/install-github-app` installs and sets up | Pointer: when routing a setup ask or explaining the command, fetch [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands) (the `/install-github-app` row) live; the page has no per-command anchor | 2026-10-11 | That row changes or is removed |
 
 ## Why the verdict is complementary
 

@@ -38,7 +38,8 @@ BASE_SPEC='{
     "create-item": true, "get-item": true, "claim": false, "renew-lease": false,
     "release": false,
     "reclaim": false, "link-blocks": false, "add-sub-item": false,
-    "list-items": true, "list-sub-items": false, "change-link": true, "capabilities": true
+    "list-items": true, "list-sub-items": false, "label-provenance": false,
+    "change-link": true, "capabilities": true
   },
   "features": { "cross_repo_edges": false, "sub_items": false, "leases": false, "labels": true },
   "limits": { "sub_items_per_parent": 0, "sub_item_depth": 0, "dependencies_per_type": 0, "list_items_max": 1000 },
@@ -542,7 +543,7 @@ assert_contains "missing seam lib names the remedy" "$seam_err" "WIT_SEAM_LIB_DI
 
 ADAPTER_VERB_LIST="$(sed -n '/^readonly ADAPTER_VERBS=(/,/^)/p' "$S" | sed '1d;$d' | tr -s ' ' '\n' | sed '/^$/d' | sort)"
 # The dispatcher's first `case "$verb" in` arm is the public verb set minus list-frontier
-# (core-derived) and list-items (adapter-only).
+# (core-derived) and list-items (each in an arm of its own).
 DISPATCH_VERB_LIST="$({
   awk '/case "\$verb" in/ { getline; print; exit }' "$SEAM/work-item-tracker.sh" | sed 's/).*//' | tr -d ' ' | tr '|' '\n'
   echo list-items

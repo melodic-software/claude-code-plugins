@@ -5,7 +5,41 @@ mutate at the resolved autonomy tier, and where the escalation and no-progress c
 stop modes in [`../SKILL.md`](../SKILL.md) decide whether a cycle runs; this file decides what one
 is.
 
-0. **Lane-start preflight (once per lane, before the first cycle).** Keep step 5's unconditional
+**Identity gate (every cycle, first, before any write).** The gate runs at the start of every
+cycle, the first included (ahead of step 0), so a lane that was already running when the target
+adopted an identity, or whose credential changed mid-run, is caught on its next cycle. Read the
+target's `docs/conventions/pr-pipeline.yaml` fresh from its default branch through the forge's
+contents read (provider reference: [GitHub](../../../reference/providers/github/README.md), "Read
+a tracked file from a repository's default branch"), never from the local checkout, the same
+source the worker lane reads. Then:
+
+- **Unreadable or unparsable is a refusal, never a skip.** A failed read (any answer but the
+  content or not-found), a body that does not decode, or a file that does not parse as YAML stops
+  the lane as below.
+- **A readable config that names no `merge.agent-identity` skips the gate**, and so does a
+  not-found answer when the repository's contents root at the same ref reads 200 (no file means
+  no merge block, as the merge gate reads it). A not-found answer with the root unreadable is a
+  refusal: the file may exist but be hidden from the token. The lane then runs under whatever
+  credential the session holds (the convention's named residual).
+- **A named identity runs the preflight:** `bash
+  <plugin-root>/skills/babysit-prs/scripts/babysit-postmerge.sh --repo <owner/repo>
+  --agent-identity <merge.agent-identity> --preflight`, then `bash
+  <plugin-root>/scripts/lane-push.sh --login <merge.agent-identity> --check` from the checkout
+  the lane pushes from. The first applies the merge gate's identity and credential rules alone:
+  the session must act as that identity and hold no other account. The second runs every refusal
+  the lane's pushes will run but the push, so a checkout that could not push fails before any
+  write. A lane launched from a neutral directory has no such checkout at cycle start (per-PR
+  checkouts come later), so where `git rev-parse --is-inside-work-tree` fails it skips the second
+  command; each push's `lane-push.sh` still runs every
+  refusal before it pushes. Every push the lane makes then goes through `lane-push.sh` (every refusal either can
+  print: the convention's "Lane write identity", §1).
+
+On a refusal or any exit but 0, the lane writes nothing that cycle (no telemetry, escalation, fix,
+thread resolution, dequeue or merge), reports the reason (the printed `error`, or the config
+read's failure) in the session output, and stops: no `ScheduleWakeup`.
+
+0. **Lane-start preflight (once per lane, before the first cycle, after its identity gate).** Keep
+   step 5's unconditional
    record write out of the tracked tree, per §2: if `git check-ignore -q .claude/lane-escalations/`
    reports the path unignored, append `/.claude/lane-escalations/` to the clone's untracked
    `$(git rev-parse --git-common-dir)/info/exclude`. Skipped outside a git checkout, which the
@@ -49,6 +83,25 @@ is.
    the snapshot failure and its stderr reason and a fresh `heartbeat_at`, then schedule the next
    wakeup at the current backoff. The drain exit and
    the open-PR and open-issue counts every later step uses come only from an exit-0 snapshot.
+   **Post-merge check (every cycle, before any merge).** When this cycle's identity gate read a
+   `merge.agent-identity`, run
+   `bash <plugin-root>/skills/babysit-prs/scripts/babysit-postmerge.sh --repo <owner/repo>
+   --agent-identity <merge.agent-identity>`. With no `--since` it computes the merge gate's floor:
+   the commit that enabled the unattended path, or the newest human close of a demotion record
+   when later. It judges every merge since the floor that a human did not
+   enqueue or merge (Dependabot and sync-App merges included) and prints a JSON verdict. Add
+   `--remediate`, since this cycle's identity gate passed (a refusal would have stopped the lane
+   before this step): it then triggers the one attribution
+   re-run, dispatches one full run on the branch tip when an unverified merge has no identity
+   dispatch run covering it, dequeues the identity's queue entries, and files or comments on the
+   demotion issue.
+   Only exit 0 (no failure, every auto-merge verified) lets the cycle merge. Exit 5 means an
+   auto-merge still awaits its runs: the merge-eligible set of step 3 is empty this cycle, with
+   nothing to escalate. On any other exit (1 a failure, 2 a refused identity, 3 unreadable, 4 a write failed)
+   the merge-eligible set of step 3 is empty this cycle; report the verdict and escalate each
+   failure per Escalation below. The cycle report carries `demotion_events` (the verdict's
+   `remediation.telemetry.demotion_events`, new demotion issues filed this cycle) and lists its
+   `flakes`; step 6 adds that count to the state block's `demotion_events` total.
 2. **Grace-window overlay.** From the snapshot, mark every PR whose head moved or that received
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a
    work-in-progress title marker, a do-not-merge label, or non-green checks). Marked PRs are
@@ -56,7 +109,8 @@ is.
 3. **Rung partition (deterministic, fail closed).** When the resolved tier is merge-capable,
    compute the merge-eligible set mechanically before any babysit-prs invocation: for each open
    PR in the snapshot not already excluded by step 2, resolve its close-linked work item (the
-   provider's own computed close-linkage, `gh api graphql`, `closingIssuesReferences`) and read
+   provider's own computed close-linkage,
+   [GitHub](../../../reference/providers/github/babysit-loop/cycle-shape.md#close-linked-work-item)) and read
    that item's recorded work-class classification **from its `work-class:` label only**, never
    from a `Work-class: C<n>` body trailer. The class widens merge authority, so it is read only
    from a surface whose write authority the provider enforces: labeling takes triage or write
@@ -69,9 +123,10 @@ is.
    A trailer stays legitimate as recorded operator context and as a proposal, and is reported as
    such, but it never partitions: an item classified only in its body counts as **unclassified
    here**, not eligible at any rung, exactly as an item with no record at all.
-   Close-linkage is GraphQL-only, and `closingIssuesReferences` is unavailable where only a pinned
-   set of GraphQL operations is served (Claude Code on the web and remote execution;
-   `skills/babysit-prs/SKILL.md` "Engine and degrade"). That is the no-close-linkage case already
+   Close-linkage is GraphQL-only, and `closingIssuesReferences` is unreadable wherever the forge refuses
+   that GraphQL read (a cloud session behind the GitHub proxy; `skills/babysit-prs/SKILL.md` "Engine and
+   degrade", and the upstream pointer in `reference/providers/github/README.md` "Sandboxed
+   sessions"). That is the no-close-linkage case already
    ruled on below, so it partitions the same way, NOT eligible, at any rung. It is also moot for
    merging there: the merge gate itself holds every PR as readiness UNPROVEN in such a session,
    because review-thread resolution has no REST equivalent. Report the restriction once for the
@@ -83,15 +138,15 @@ is.
    work-class comparison, once per cycle, resolve each cell through the trusted seam. When the
    effective rung is merge-capable and step 0's bootstrap check found no problem, run
    `node <plugin-root>/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` with
-   `--binding`, `--probe-evidence-root`, `--evidence` and `--checker` set to the
-   `promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source` and
-   `promotion_evidence_checker` values from the substituted block in [`../SKILL.md`](../SKILL.md)
-   (never the `CLAUDE_PLUGIN_OPTION_*` mirror, and never a path the lane found or chose: the lane
-   does not look for the autonomy plugin's install), `--checkout` the target checkout, and one
-   `--worktree-root` per worktree root step 0 names. The helper refuses a path inside the checkout
-   or a worktree root, or containing one; it cannot tell an operator's value from one the lane
-   chose, so only the substituted values are passed. It prints `{source, failClosedReason, cells}`
-   and exits 0. Decide each cell from `cells` with the resolution table: it is effective-promoted
+   `--checkout` the target checkout and one `--worktree-root` per worktree root step 0 names, and
+   nothing else. The helper reads the four `promotion_evidence_*` values from the operator's
+   managed and user settings itself (channel F,
+   [the contract](promotion-evidence-bootstrap.md#allowed-source-class)), so the lane passes no
+   surface or checker path; it rejects the retired `--binding`, `--probe-evidence-root`,
+   `--evidence` and `--checker` arguments as a usage error. It refuses a path inside the checkout
+   or a worktree root, or containing one. It prints `{source, failClosedReason, options, cells}`,
+   `options` naming the settings file each value came from, and exits 0. Decide each cell from
+   `cells` with the resolution table: it is effective-promoted
    only when `failClosedReason` is null and its `effective` is `promoted`. A fail-closed reason, a
    skipped invocation (`human-only`, a non-merge-capable tier, a step 0 problem, which includes an
    unset checker option), or a helper failure (non-zero exit, unparsable output) leaves every cell
@@ -156,10 +211,14 @@ is.
      merge-capable tier, one `/source-control:babysit-prs <tier> <owner/repo>#<N>` per PR, the
      invocation brief carrying the partitioned head SHA as the merge gate's required
      `--expected-head` (the lane pin; `babysit-prs/reference/safety.md`, "Lane-pinned merge
-     authorization"), and the brief tells it to pass the merge gate's `--auto`, which arms
-     auto-merge only once both AI review checks passed on that head and no thread is open
-     (same file, "Merge-lane auto-merge"); every other non-report-only PR is invoked at `safe` (fixes and reports;
-     never resolves threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
+     authorization"), and the brief tells it to merge only through the gate's `--unattended
+     --merge`, never `--auto`: `--unattended` refuses `--auto`, and a plain `--merge` refuses the
+     identity's token (same file, "Unattended Merge Path"). A plain `--merge` under the operator's
+     token cannot reach this step either: wherever the target names an identity, this cycle's
+     identity gate already stopped a lane not acting as it, except in the cycle in which that
+     config lands (the convention's one-cycle latency residual). Where the target does not configure
+     that path, the gate refuses and the PR is reported merge-ready for a human. Every other
+     non-report-only PR is invoked at `safe` (fixes and reports; never resolves threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
      Under the explicit-`autopilot` widening, a merge-eligible PR blocked on a machine-escalated
      `needs-human` item, an open finding, or a contradictory thread gets the leased fresh-subagent
      resolution dispatch ("Explicit-`autopilot` widening" above, Escalation below) ahead of its `autopilot` per-PR invocation, not instead of it, and only where the next bullet permits it.

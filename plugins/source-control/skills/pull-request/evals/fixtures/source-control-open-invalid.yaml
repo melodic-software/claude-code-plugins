@@ -1,0 +1,2 @@
+# Eval fixture: a repository's docs/conventions/source-control.yaml with a value outside the schema enum.
+pr_open_state: published

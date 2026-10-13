@@ -1,5 +1,29 @@
 # Changelog: session-flow plugin
 
+## [0.55.1] - 2026-10-11
+
+### Changed
+
+- **Shared `exec-bash.mjs` launcher synced; no change to this plugin's hooks.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once.
+
+## [0.55.0] - 2026-10-11
+
+### Added
+
+- `/session-flow:workflow continue` offers a cloud session as advice when the next chunk of work fits one, pointing at the upstream local-versus-cloud criteria and noting which account a cloud session draws on. The new `cloud_route` option (`offer` by default, or `off`) controls the suggestion.
+- `/session-flow:continue-in-background --cloud` launches a cloud session with `claude --cloud` under the same explicit-request gate, after checking the tree is clean and the fetched branch matches its remote, and reports the teleport and follow-up commands. A plan-backed continuation launches through the prompt-only path with the committed plan's repo-relative path; it passes `--effort` like the `--bg` launch, falling back to advising `/effort` in the session if the CLI rejects the flag.
+
+### Changed
+
+- The `Brain Fried` output style now matches the built-in styles in the `/config` picker: its
+  name is title case and its description says what Claude does. The saved `outputStyle` value
+  is case-sensitive, so if you had selected `Brain fried`, select `Brain Fried` again in
+  `/config` or with `/output-style`; until then the session falls back to the default style.
+
+### Removed
+
+- `/session-flow:orchestrate` no longer tells a session to treat unobservable rate-limit headroom as thin and start fan-out narrow; imperative 7 keeps only "do not invent window percentages" and the backoff on real rate-limit errors (#7135).
+
 ## [0.54.0] - 2026-10-11
 
 ### Added

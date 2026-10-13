@@ -190,7 +190,7 @@ assert_eq "fd 3 is opened from /dev/tty exactly once (the seam this suite rewrit
 # The extraction must have cut above the example stage, or every library case
 # below would be running the wizard's demo content too.
 assert_not_contains "extracted library stops above the example stage" \
-  "$(cat "$LIB")" "STRIPE_SECRET_KEY"
+  "$(cat "$LIB")" "MAIL_API_TOKEN"
 
 missing_fns=""
 for fn in fatal banner stage say step note warn open_url pause confirm ask \

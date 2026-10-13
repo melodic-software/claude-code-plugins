@@ -3,14 +3,15 @@
 
 Exit-code contract (see ``main`` / ``_decide`` / ``_watchdog_fire``): only ``0``
 (a deliberate JSON allow/ask/deny decision on stdout) and ``2`` (a blocking
-deny, one-line diagnostic on stderr) are reachable. Exit ``1`` is a Claude Code
-*non-blocking* status for PreToolUse
-(https://code.claude.com/docs/en/hooks, fetched 2026-08-10: "Claude Code treats
-exit code 1 as a non-blocking error and proceeds with the action... If your
-hook is meant to enforce a policy, use exit 2") — every internal failure path
-that could once fall through to the interpreter's default (uncaught exception
--> exit 1, no diagnostic) now denies instead (#1423). Recheck when the hooks reference states that a
-PreToolUse exit code 1 blocks the action.
+deny, one-line diagnostic on stderr) are reachable. Any other exit would not
+enforce the guard, so every internal failure path that could once fall through
+to the interpreter's default (uncaught exception -> exit 1, no diagnostic) now
+denies instead (#1423).
+Pointer: when checking what a PreToolUse exit code other than 0 or 2 does,
+fetch https://code.claude.com/docs/en/hooks#other-exit-codes live. As of:
+2026-10-11. Recheck trigger: that section states that a PreToolUse exit code 1
+blocks the action, or this plugin's registrations start setting a hook failure
+option.
 
 Investigation note for the one observed #1423 occurrence (engine-gate mode,
 ``exitCode: 1``, empty stderr, ``durationMs: 17054``, Windows, no reproduction):
@@ -1280,14 +1281,14 @@ def resolve_disk_hygiene_enabled() -> bool:
     prevent every deletion lane. The guard reads ``disk_hygiene_enabled`` straight
     out of the ``settings.json`` files (``lib/killswitch_config.py``, the single
     reader it shares with the report-only probe) — never the process environment.
-    Since Claude Code 2.1.207 that key is honored only from user, managed, and
-    ``--settings`` scope, never a project or local ``settings.json``
-    (https://code.claude.com/docs/en/settings-reference#pluginconfigs and
-    https://code.claude.com/docs/en/settings#change-a-setting-for-one-session,
-    as of 2026-10-07), so a hostile repo cannot flip the
-    switch. Managed settings are the highest-precedence, non-overridable scope, so
-    a value configured there wins over the user file — that is how an organization
-    enforces audit-only mode. The ``--settings`` file is a session CLI flag a hook
+    The key is read only from the scopes a project or local ``settings.json``
+    cannot write (https://code.claude.com/docs/en/settings-reference#pluginconfigs,
+    as of 2026-10-11; recheck when that section changes which scopes the key is
+    read from), so a hostile repo cannot flip the switch. The guard reads managed
+    settings so an organization can enforce audit-only mode there
+    (https://code.claude.com/docs/en/managed-settings#deploy-a-managed-settings-file,
+    as of 2026-10-11; recheck when that section moves a platform's
+    managed-settings path or stops describing the file as an enforced policy). The ``--settings`` file is a session CLI flag a hook
     cannot observe, the one honored source not read here (see
     ``killswitch_config.managed_settings_path`` for the full residual list). The
     environment is rejected on purpose: a repo ``settings.json`` ``env`` block
@@ -1295,7 +1296,7 @@ def resolve_disk_hygiene_enabled() -> bool:
     env-borne toggle (or an env-borne user-settings path) would reopen the hole
     this closes — hence the user settings file is located from the tamper-resistant
     ``--plugin-root`` first (see ``_resolve_user_settings_path``), and the managed
-    file from its fixed root-owned system path. A local-directory marketplace
+    file from its fixed system path. A local-directory marketplace
     install passes no exact ``<name>@<marketplace>`` id, so both reads match
     any ``disk-hygiene`` key, as broad as before that install's user settings
     were read at all: the channel can only add a deny.
@@ -2524,8 +2525,9 @@ def _write_diagnostic(message: str) -> None:
     an already-closed stream) from inside the very handler that is about to
     deny — the exception escapes, ``return 2`` / ``os._exit(2)`` never runs, and
     the process exits with something PreToolUse treats as non-blocking
-    (https://code.claude.com/docs/en/hooks), running the destructive command
-    ungated. Losing the message is acceptable; losing the deny is not.
+    (https://code.claude.com/docs/en/hooks#exit-code-output, as of 2026-10-11;
+    recheck when that section states that a PreToolUse exit other than 0 or 2
+    blocks the action), running the destructive command ungated. Losing the message is acceptable; losing the deny is not.
 
     On failure fd 2 is pointed at the null device, because a write failure can
     leave data buffered and the interpreter's own shutdown flush of ``sys.stderr``

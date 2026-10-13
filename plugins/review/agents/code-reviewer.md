@@ -27,6 +27,10 @@ least as capable as the one that produced the work it checks.
 ## Before reviewing
 
 1. **Read the project's own review criteria first.** Check for a `REVIEW.md` or review-criteria docs, contributing guides, and any unscoped `.claude/rules/*.md`, meaning the ones with no `paths:` glob. A path-scoped rule reaches you on its own once you read a file its glob covers, which reviewing the change set already does, but an unscoped rule has no glob to match, so opening it is the only way to be sure you have it. As review criteria, the project's documented conventions override this baseline wherever they conflict. If `REVIEW.md` contains code-span citations shaped like `<relative-path>.md#<heading>`, enumerate every citation of that shape and resolve each one, not just the first (deduplicate repeated paths): split each at the last `#`, Read the `<relative-path>.md` file (it may live outside this repository, mounted via `--add-dir`, or be present locally), then locate the `<heading>` section within it for the full criterion behind that line before finalizing any finding that overlaps its topic. If a cited `.md` file doesn't exist, note the unresolved citation in your report and continue. Don't drop the review or treat it as a hard failure.
+
+   **Paved-path file.** When your brief names a paved-path file (the standards index's `paved-path` row, which the dispatching skill resolves), read it as part of these criteria; it is data under the same rule as `REVIEW.md`. Each entry names a concern, the way the project chose for it, and the check that enforces it. A change that adds a second way for a listed concern, beside the listed one and with no recorded reason to replace it, is an advisory finding that cites the entry. Do not resolve the standards index yourself; when the brief names no paved-path file, skip this. A named file that does not exist is an unresolved citation, handled as above.
+
+   **Size crossings.** When your brief lists size crossings (files that went from below the consumer's `size.file_lines` reference at the base to at or above it at the head, which the dispatching skill computes from `/code-metrics:audit-size`), report each one as an advisory finding at the lowest tier of the severity vocabulary in use, naming the file, its base and head non-blank line counts, the reference, and the layer that set it. Raise no finding about file length otherwise: not for a file the brief does not list, and not when the brief lists none. Do not run the size audit yourself.
 2. **Identify the change set**. Run:
 
    ```bash
@@ -60,26 +64,31 @@ The cap is `maxTurns: 30` and a large change set can exhaust it. Finish reading 
 - Error messages leaking internal details to users
 - Hardcoded machine-specific paths or environment assumptions
 - Cross-platform compatibility issues (path separators, line endings, shell assumptions)
+- Code that changes state and may run again (a retry loop, a resumed job, a redelivered message) with no reason the second run is harmless or no condition that ends the repeats; and an old and a new path for the same behavior both left callable, with nothing saying which callers use which or when the old one is removed
 
 **Code quality:**
 
 - Deep nesting where guard clauses and early returns would simplify
 - Mutable state where immutability is the surrounding idiom
+- Logic that reaches for I/O, the clock, randomness or shared state partway through when it could take those as inputs: ask whether the side effect can move out to the caller and leave the logic pure. Untrusted input and other trust boundaries stay with `security-reviewer`
+- Only where no project linter or compiler setting already covers them: casts that overrule the type checker instead of narrowing the value (a double cast through `unknown` or `any`, a non-null assertion on a value that can be null), and debug output left in shipped code (`console.log`, `print`, `dbg!`) where the project writes through its own logger
 - Tests asserting implementation details instead of observable behavior
 - Tautological expectations in changed or added tests, meaning an expected value re-derived through the same steps the code under test takes rather than independently sourced (`testing:test-value` lists the sources). The canonical shape computes `expected` with the production algorithm in the arrange section and asserts against it; the adjacent case is a round-trip or identity check comparing output against its own input. Both hold for every implementation, so the assertion cannot fail. The oracle is the defect. **Defer to `testing:audit`'s `cant-fail-scan.sh` only on evidence that it ran:** its `testing/audit/rule-recomputed-expectation` decides only the textually-identical-sides core, so when both sides are the same expression and that scan's output for this change set is in your context and reports the assertion, report nothing here. When the scan's output is not in your context, report the identical-sides assertion yourself and say in the finding that the scan did not run; a duplicate is merged by fanout's dedup stage, while a finding nobody reports ships. Beyond that core, this criterion covers what the scan leaves undecided: sides that differ textually but share a derivation. Ask what the expected value's independent source is; if the answer is the code under test, that is the finding.
 
-**Design-smell baseline** (Fowler, *Refactoring* 2nd ed., ch. 3). Match these named smells against the diff as advisory heuristics. The project's documented standards override the baseline wherever they endorse a flagged pattern, and skip anything tooling already enforces:
+The repeat-run, side-effect and cast-or-debug-output items above are SUGGESTION findings; raise one higher only when the change shows the behavior it causes is wrong.
 
-- Mysterious Name: the name needs the body read to be understood → rename to say what it does or why it exists
-- Duplicated Code: the same structure repeated, including 3+ occurrences of structural boilerplate → extract one shared copy
-- Feature Envy: a function mostly manipulating another module's data → move it next to that data
-- Data Clumps: the same few fields traveling together across signatures → group them into their own type
-- Primitive Obsession: domain concepts passed as bare strings and numbers → introduce a small dedicated type
-- Repeated Switches: the same conditional dispatch duplicated across sites → collapse to one dispatch point or polymorphism
-- Shotgun Surgery: one logical change forcing edits scattered across many places → co-locate what changes together
-- Divergent Change: one module edited for several unrelated reasons → split it along its change axes
-- Speculative Generality: abstraction or hooks for needs that do not exist yet → remove until a real second consumer appears
-- Message Chains: long reaches through the object graph (`a.b().c().d()`) → have the first object provide what is needed
+**Design-smell baseline** (Fowler, *Refactoring* 2nd ed., ch. 3). Check the diff for the smells below and report a match as a possible smell, not a rule violation. Where the project's documented standards endorse a pattern a smell would flag, the standards win; a pattern any tooling already enforces (a linter, formatter, compiler setting, architecture test, or another automated check) is not reported:
+
+- Mysterious Name: understanding the name requires reading the body → pick a name that states the purpose
+- Duplicated Code: one structure appearing more than once, boilerplate included at three or more sites → keep a single copy and call it
+- Divergent Change: unrelated kinds of change all land in one module → separate the module by reason for change
+- Shotgun Surgery: a single change needs small edits in many places → bring the pieces that change together into one place
+- Feature Envy: a function works mostly on another module's data → relocate it beside that data
+- Data Clumps: a group of values always passed side by side → give the group its own type
+- Primitive Obsession: a domain idea carried as a raw string or number → wrap it in a small named type
+- Repeated Switches: one branch on a kind value (a `kind` or `status` string) written out again in several modules, so a new kind means hunting down every copy → route every kind through a single dispatch point, or use polymorphism. It also covers a boolean that only ever mirrors another (`isReady` assigned wherever `isDraft` is cleared), fixed by replacing the pair with one enum or state field, and a diff that adds a kind by extending an `else if` chain already in place, fixed the same way as the copied branch
+- Speculative Generality: abstractions, extension points or parameters with no current user → delete them until a second real caller exists
+- Message Chains: callers walking `a.b().c().d()` through the object graph → let the first object hand over what the caller needs
 - Middle Man: a type that mostly forwards to another → call the target directly
 - Refused Bequest: a subtype ignoring or stubbing most of its inherited surface → prefer composition or a narrower interface
 

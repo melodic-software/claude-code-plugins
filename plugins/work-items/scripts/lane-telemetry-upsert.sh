@@ -10,7 +10,7 @@
 #
 # Usage:
 #   lane-telemetry-upsert.sh --lane work-loop|attend-queue --instance <id> \
-#     --repo <owner/name> --issue <n> --body-file <path>
+#     --repo <owner/name> --issue <n> --body-file <path> [--app-slug <slug>]
 #
 #   --lane        Lane type. Names the marker's lane half.
 #   --instance    Lane-instance id, ^[a-z0-9][a-z0-9-]{0,31}$. Names the WRITER,
@@ -29,7 +29,22 @@
 #                 payload bytes below line 1. The lookup matches on that prefix,
 #                 so a body composed without it would never be found again and
 #                 the next cycle would post a second comment.
+#   --app-slug    The GitHub App whose installation token gh runs under; its
+#                 writes land as <slug>[bot].
 #   --help
+#
+# WRITE IDENTITY. The `gh api user` login when that call reports a User; when it
+# fails (an App installation token cannot call it) or reports a Bot, <slug>[bot]
+# from --app-slug, else the reported Bot login with its [bot] suffix. Unresolved:
+# exit 15, nothing written. A create is checked to have landed under that login:
+# a wrong --app-slug still posts one never-found comment per cycle, but every
+# such cycle exits 15 instead of reporting success, so the cause is visible.
+#
+# WRITER CHECK. The sentinel is public text anyone can paste into a comment, so
+# the lookup adopts only comments the write identity authored. A foreign sentinel
+# comment is never made canonical, written to, or tombstoned; without the check a
+# lower-id foreign comment would become canonical and its author would seed the
+# durable state the lane re-reads every cycle.
 #
 # MARKER. `work-items:<lane>@<instance>`, and the sentinel written as the body's
 # first line is `<!-- harness-ops:lane-telemetry marker=<marker> -->`. The sentinel
@@ -60,7 +75,7 @@
 # marker and never enters the list.
 #
 # Exit codes. Codes 2-8 are caller errors; 9 and 10 mean NOTHING was written, so
-# fix the body composition and do not re-run blind; 11-14 mean the lane is
+# fix the body composition and do not re-run blind; 11-15 mean the lane is
 # UNREPORTED for this cycle and must carry that forward, because stderr does not
 # survive the session and the next cycle has to see that this one did not report.
 # A non-zero exit is never a reason to end the loop or the pass.
@@ -89,6 +104,9 @@
 #   14  the canonical comment does NOT hold this cycle's body after the write
 #       (a different body, an earlier cycle's included, or no readable body) —
 #       lane UNREPORTED; do not trust the timestamp
+#   15  the write identity is unresolved, or --app-slug is not a slug — NOTHING
+#       written; or a create landed under another login (a wrong --app-slug) —
+#       lane UNREPORTED either way
 #
 # KNOWN LIMITS. Not implemented: the 64 KiB cap, body-file containment, and read
 # retries that the `harness-ops` lanes wrapper carries. An installed plugin cannot invoke a sibling plugin's scripts, which is
@@ -112,11 +130,12 @@ INSTANCE=""
 REPO=""
 ISSUE=""
 BODY_FILE=""
+APP_SLUG=""
 while (($#)); do
   case "$1" in
   # Normalize `--opt=value` to `--opt value` for the next pass. Known options only,
   # so an unknown `--bogus=x` still reaches the catch-all intact.
-  --lane=* | --instance=* | --repo=* | --issue=* | --body-file=*)
+  --lane=* | --instance=* | --repo=* | --issue=* | --body-file=* | --app-slug=*)
     set -- "${1%%=*}" "${1#*=}" "${@:2}"
     ;;
   --lane)
@@ -142,6 +161,11 @@ while (($#)); do
   --body-file)
     require_value "$@"
     BODY_FILE="$2"
+    shift 2
+    ;;
+  --app-slug)
+    require_value "$@"
+    APP_SLUG="$2"
     shift 2
     ;;
   -h | --help)
@@ -199,7 +223,7 @@ fi
 
 # Checked before any gh api URL path: GitHub's routing normalizes `..` segments,
 # redirecting the write to another repository the token can reach.
-if [[ ! "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+if [[ ! "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ || "/$REPO/" =~ /\.+/ ]]; then
   err "--repo must be owner/name (got: '$REPO')"
   exit 6
 fi
@@ -244,13 +268,36 @@ if ! sentinel_ok "$BODY_TEXT"; then
   exit 10
 fi
 
+# --- Write identity ----------------------------------------------------------
+# A User login is the identity; a failed call or a Bot means an App token, whose
+# writes land as <slug>[bot]. Validated before it enters a jq program.
+if [[ -n "$APP_SLUG" && ! "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  err "--app-slug must be a GitHub App slug (got: '$APP_SLUG') - nothing written; treat the lane as UNREPORTED"
+  exit 15
+fi
+WRITER=""
+if who="$(gh api user --jq '.login + " " + .type' 2>/dev/null)" && [[ "$who" == *" User" ]]; then
+  WRITER="${who% User}"
+elif [[ -n "$APP_SLUG" ]]; then
+  WRITER="${APP_SLUG}[bot]"
+elif [[ "${who:-}" == *" Bot" ]]; then
+  WRITER="${who% Bot}"
+  [[ "$WRITER" == *"[bot]" ]] || WRITER="${WRITER}[bot]"
+fi
+if [[ ! "$WRITER" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*(\[bot\])?$ ]]; then
+  err "cannot resolve the write identity ('$WRITER'); under an App token pass --app-slug - nothing written; treat the lane as UNREPORTED"
+  exit 15
+fi
+
 # --- Singleton lookup --------------------------------------------------------
 # Without `--paginate` a comment past page 1 is invisible and a duplicate posts every
 # cycle. `startswith` on the FULL sentinel, never `contains`: a quoted sibling is not adopted.
+# Only the writer's own comments count, because anyone can paste the sentinel.
 lookup() {
   local pages ids
   pages="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100" 2>/dev/null)" || return 1
-  ids="$(jq -r --arg s "$SENT" '.[] | select((.body // "") | startswith($s)) | .id' <<<"$pages" 2>/dev/null)" || return 1
+  ids="$(jq -r --arg s "$SENT" --arg w "$WRITER" \
+    '.[] | select(((.body // "") | startswith($s)) and (.user.login == $w)) | .id' <<<"$pages" 2>/dev/null)" || return 1
   printf '%s\n' "$ids"
 }
 
@@ -260,7 +307,12 @@ if ! LIST="$(lookup)"; then
 fi
 
 if [[ -z "${LIST//[[:space:]]/}" ]]; then
-  gh api --method POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE" >/dev/null 2>&1 || true
+  POSTED_AS="$(gh api --method POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE" --jq '.user.login' 2>/dev/null)" || POSTED_AS=""
+  # A wrong --app-slug would otherwise post a fresh, never-found comment every cycle.
+  if [[ -n "$POSTED_AS" && "$POSTED_AS" != "$WRITER" ]]; then
+    err "the comment was posted as '$POSTED_AS', not the resolved write identity '$WRITER'; fix --app-slug before the next cycle - treat the lane as UNREPORTED"
+    exit 15
+  fi
   # A failure re-listing here is not fatal: the create may have landed, and the
   # next cycle's ordinary upsert performs the same reconcile.
   LIST="$(lookup)" || LIST=""

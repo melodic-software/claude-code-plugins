@@ -11,11 +11,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=common.sh
 source "$SCRIPT_DIR/common.sh"
 
-USAGE='usage: list-items.sh [--state open|closed|all] [--repo <workspace>/<TEAMKEY>]'
+USAGE='usage: list-items.sh [--state open|closed|all] [--repo <workspace>/<TEAMKEY>] [--label <name>]'
 wit_help_if_requested "$USAGE" "$@"
 
 STATE="open"
 REPO=""
+LABEL=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --state)
@@ -26,6 +27,11 @@ while [[ $# -gt 0 ]]; do
   --repo)
     [[ $# -ge 2 ]] || wit_usage_error "--repo needs a value"
     REPO="$2"
+    shift 2
+    ;;
+  --label)
+    [[ $# -ge 2 && -n "$2" ]] || wit_usage_error "--label needs a value"
+    LABEL="$2"
     shift 2
     ;;
   *) wit_usage_error "unexpected argument: $1" ;;
@@ -50,12 +56,19 @@ else
   TEAMS="$(jq -c '[.[] | split("/")[1]]' <<<"$WIT_LINEAR_SCOPES")"
 fi
 
-# State filtering happens CORE-SIDE, after normalization, rather than in the GraphQL
-# filter. The open/closed split is defined by config.linear.done_state_types, which the
-# normalizer already applies — pushing it into the query would mean encoding that same
-# classification a second time in a different language, and the two would drift.
-QUERY='query($teams: [String!], $first: Int!, $after: String) {
-  issues(filter: { team: { key: { in: $teams } } }, first: $first, after: $after) {
+# The state and label filters travel IN the query, so the ceiling below counts only
+# matching issues: a team with thousands of closed issues and a few open ones lists
+# complete. Both are built from the same done_state_types the normalizer reads, and the
+# state check after normalization stays as a guard. The filter is one VARIABLE, never
+# text spliced into the query.
+FILTER="$(jq -cn --argjson t "$TEAMS" --arg s "$STATE" --argjson dt "$WIT_LINEAR_DONE_TYPES" --arg l "$LABEL" '
+  {team: {key: {in: $t}}}
+  + (if $s == "open" then {state: {type: {nin: $dt}}} # spellchecker:disable-line
+     elif $s == "closed" then {state: {type: {in: $dt}}}
+     else {} end)
+  + (if $l == "" then {} else {labels: {some: {name: {eq: $l}}}} end)')"
+QUERY='query($filter: IssueFilter!, $first: Int!, $after: String) {
+  issues(filter: $filter, first: $first, after: $after) {
     nodes { '"$WIT_LINEAR_ISSUE_FIELDS"' }
     pageInfo { hasNextPage endCursor }
   }
@@ -65,16 +78,16 @@ ITEMS='[]'
 CURSOR=""
 COUNT=0
 TRUNCATED=false
-# The declared ceiling from capabilities.json bounds the walk: COUNT is every node fetched,
-# and each page asks for at most one node past the ceiling, so a node that arrives past it
+# The declared ceiling from capabilities.json bounds the walk: COUNT is every node fetched
+# (every node the filter matched), and each page asks for at most one node past the ceiling, so a node that arrives past it
 # proves more exist. Exceeding it is a DOCUMENTED truncation, not an error, but never a
 # silent one: stderr says so and the envelope carries `truncated: true`.
 while :; do
   FIRST=$((WIT_LINEAR_LIST_ITEMS_MAX + 1 - COUNT))
   ((FIRST > WIT_LINEAR_PAGE_SIZE)) && FIRST="$WIT_LINEAR_PAGE_SIZE"
   wit_linear_gql "$QUERY" \
-    "$(jq -cn --argjson t "$TEAMS" --argjson f "$FIRST" --arg a "$CURSOR" \
-      '{teams: $t, first: $f, after: (if ($a | length) > 0 then $a else null end)}')" \
+    "$(jq -cn --argjson filter "$FILTER" --argjson f "$FIRST" --arg a "$CURSOR" \
+      '{filter: $filter, first: $f, after: (if ($a | length) > 0 then $a else null end)}')" \
     "listing issues"
   PAGE="$(jq -c '.issues // {nodes: [], pageInfo: {hasNextPage: false}}' <<<"$WIT_LINEAR_DATA")"
   while IFS= read -r node; do

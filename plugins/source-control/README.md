@@ -115,7 +115,9 @@ naming, EnterWorktree, post-create setup checks), `status` (porcelain parse,
 batched PR cross-reference, staleness classification, unclaimed-lock
 report), `cleanup`
 (file-lock-aware removal that never counts a Windows husk as deleted, emits
-destructive branch deletion for the user), `audit` (configuration health,
+destructive branch deletion for the user, reports the disk space freed, and on a
+macOS host with `xcrun` lists Xcode build output and unavailable simulators,
+deleting each only on its own yes), `audit` (configuration health,
 including linked worktrees with no lock reason).
 
 Supported interface: `scripts/worktree-create.sh --existing-branch <name>` checks out
@@ -508,8 +510,9 @@ distinct across concurrent instances; two lanes on one machine each need an expl
 opaque id if a machine name should not be published in a public tracker.
 
 **`promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source`,
-`promotion_evidence_checker`.** Each is honored from user, `--settings`, or managed plugin settings
-only, never from `.claude/source-control.md` or any repository file. Contract:
+`promotion_evidence_checker`.** The resolution helper reads each from user or managed plugin
+settings only, never from `--settings`, the `CLAUDE_PLUGIN_OPTION_*` mirror,
+`.claude/source-control.md`, or any repository file. Contract:
 [promotion-evidence-bootstrap.md](skills/babysit-loop/reference/promotion-evidence-bootstrap.md).
 The binding is the binding argument of the autonomy plugin's `check-security-binding.mjs`. The
 probe root is the protected evidence surface the seam resolves isolation probe transcripts against.
@@ -533,6 +536,7 @@ reads it from.
 | `pr_body_linkage_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_BODY_LINKAGE_GATE_ENABLED` | Blocks a gh pr create or gh pr edit whose statically readable PR body would fail the repository's required PR-contract check: no closing keyword, or a missing or empty Summary, Fix, Verification, or Related section. On by default. A body the hook cannot read statically always passes. |
 | `pr_linkage_mcp_gate_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PR_LINKAGE_MCP_GATE_ENABLED` | Blocks a GitHub MCP create_pull_request or update_pull_request whose PR body would fail the repository's required PR-contract check, covering sessions that open PRs without the gh CLI. On by default. Enforced only for the repository the origin remote names. |
 | `branch_issue_pattern` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BRANCH_ISSUE_PATTERN` | Deprecated fallback: set branch_issue_pattern in .claude/source-control.md instead, which wins. A POSIX ERE whose last capture group extracts the numeric GitHub issue number from the branch name. Absent: the built-in <type>/<N>-<slug> (and routine-issue-<N>) convention. |
+| `pr_open_state` | string | `"draft"` | `CLAUDE_PLUGIN_OPTION_PR_OPEN_STATE` | State /source-control:pull-request create opens a PR in. draft (default) opens a draft that the ready action flips later; ready opens it for review at once. A repository's pr_open_state in docs/conventions/source-control.yaml wins over this value. |
 | `fetch_logs_max_bytes` | number<br>*min 1* | `52428800` | `CLAUDE_PLUGIN_OPTION_FETCH_LOGS_MAX_BYTES` | Aborts a CI-log ZIP fetch larger than this many bytes. Default 52428800 (50 MiB). |
 | `worktree_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT` | External root under which /worktree create places worktrees, as <root>/<owner>-<repo>-<slug>, a path outside every repository (on Windows, the same drive as the repo). Absent: the worktrees/ subdirectory of the plugin data dir. Never the in-repo .claude/worktrees/ default. |
 | `worktree_stale_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_WORKTREE_STALE_DAYS` | Days since last commit before /worktree status classifies a worktree as stale. Default 14. |
@@ -565,10 +569,10 @@ reads it from.
 | `babysit_worker_concurrency_cap` | number | `10` | `CLAUDE_PLUGIN_OPTION_BABYSIT_WORKER_CONCURRENCY_CAP` | Maximum per-PR workers dispatched concurrently in one cycle. Default 10. |
 | `babysit_worktree_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_BABYSIT_WORKTREE_ROOT` | Root directory for babysit-managed ephemeral worktrees. Absent: the worktrees/ subdirectory of the plugin data dir. |
 | `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's babysit-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: the sanitized lowercased hostname. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$. It appears verbatim in tracker comments. |
-| `promotion_evidence_binding` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_BINDING` | Absolute path to the security binding document the babysit-loop promotion-evidence seam reads. It must sit outside the target repository and every lane worktree, readable but not writable by the lane. Absent: no bootstrap is configured and every promotable cell stays effective-unpromoted. |
-| `promotion_evidence_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_ROOT` | Absolute path to the directory passed as --probe-evidence-root, the protected surface isolation probe transcripts resolve against. Outside the target repository and every lane worktree, read-only to the lane. Absent: every promotable cell stays effective-unpromoted. |
-| `promotion_evidence_source` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_SOURCE` | Absolute path to the epoch-scoped promotion-evidence events file passed as --evidence, published by an operator-side process. Outside the target repository and every lane worktree, read-only to the lane. Absent: every promotable cell stays effective-unpromoted. |
-| `promotion_evidence_checker` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_CHECKER` | Absolute path to the check-security-binding.mjs the promotion-evidence seam runs, from an autonomy plugin install the operator trusts. Outside the target repository and every lane worktree, read-only to the lane. Absent: every promotable cell stays effective-unpromoted. |
+| `promotion_evidence_binding` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_BINDING` | Absolute path to the security binding document the babysit-loop promotion-evidence seam reads, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
+| `promotion_evidence_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_ROOT` | Absolute path to the protected --probe-evidence-root directory isolation probe transcripts resolve against, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
+| `promotion_evidence_source` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_SOURCE` | Absolute path to the operator-published, epoch-scoped promotion-evidence events file (--evidence), outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
+| `promotion_evidence_checker` | file | *(none)* | `CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_CHECKER` | Absolute path to the check-security-binding.mjs the seam runs, from an autonomy install the operator trusts, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted. |
 | `setup_inference_window` | string | `"1 year"` | `CLAUDE_PLUGIN_OPTION_SETUP_INFERENCE_WINDOW` | git log --since window /source-control:setup samples for commit-subject convention inference; any git approxidate, for example 1 year or 6 months. Default 1 year. |
 | `setup_inference_recency_days` | number<br>*min 1* | `90` | `CLAUDE_PLUGIN_OPTION_SETUP_INFERENCE_RECENCY_DAYS` | Boundary for the recency split in /source-control:setup's convention-inference report: subjects newer than this many days are the recent bucket, weighted as the live convention when its share diverges from the older bucket. Default 90. |
 | `setup_inference_min_commits` | number<br>*min 1* | `50` | `CLAUDE_PLUGIN_OPTION_SETUP_INFERENCE_MIN_COMMITS` | Below this many classifiable subjects in the window, /source-control:setup widens inference to full history; still below it, the inference is reported low-confidence. Default 50. |
