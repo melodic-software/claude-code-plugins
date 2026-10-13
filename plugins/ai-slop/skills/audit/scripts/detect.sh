@@ -756,7 +756,10 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 mkdir -p "$SCAN_DIR/P" "$SCAN_DIR/W" "$SCAN_DIR/TP" "$SCAN_DIR/TW" \
-  "$SCAN_DIR/DP" "$SCAN_DIR/DW" "$SCAN_DIR/TDW" || exit 2
+  "$SCAN_DIR/DP" "$SCAN_DIR/DW" "$SCAN_DIR/TDW" || {
+  echo "detect.sh: cannot create the scan's stream directories; nothing was scanned" >&2
+  exit 2
+}
 
 # scan_grep <stream> <grep args...>: one grep over every file of one stream.
 scan_grep() {
@@ -958,17 +961,30 @@ for entry in "${DENSITY_RULES[@]}"; do
   # density string is split back into a field so the comparison sees two
   # numeric strings, exactly as it did with two -v values. The threshold is
   # config text, so it reaches awk only as -v, never as a row field.
+  fired=()
   while IFS=$'\t' read -r kk hits words density over; do
-    [[ "$kk" =~ ^[0-9]+$ && "$over" == 1 ]] || continue
-    first_line="$(LC_ALL=C grep -E -i -m1 -- "$ere" "$SCAN_DIR/W/$kk")"
-    first_line="${first_line%%$'\t'*}"
-    emit_finding "$kk" "$slug" "${first_line:-1}" \
-      "density $density/1000 words, threshold $threshold ($hits hits in $words words)" \
-      "density rule"
+    [[ "$kk" =~ ^[0-9]+$ && "$over" == 1 ]] && fired+=("$kk"$'\t'"$hits"$'\t'"$words"$'\t'"$density")
   done < <(printf '%s' "$candidates" | awk -F '\t' -v t="$threshold" '{
     split(sprintf("%.1f", ($2 * 1000) / $3), d, "\n")
     print $1 "\t" $2 "\t" $3 "\t" d[1] "\t" ((d[1] >= t) ? 1 : 0)
   }')
+  [[ "${#fired[@]}" -eq 0 ]] && continue
+  # Each file's first matching line, from one grep over the stream: rows read
+  # "W/k:<line number><TAB><text>".
+  FIRST=()
+  while IFS= read -r row; do
+    kk="${row%%:*}"
+    kk="${kk#W/}"
+    row="${row#*:}"
+    [[ "$kk" =~ ^[0-9]+$ ]] && FIRST[kk]="${row%%$'\t'*}"
+  done < <(scan_grep W -E -i -m1 -- "$ere")
+  for row in "${fired[@]}"; do
+    IFS=$'\t' read -r kk hits words density <<<"$row"
+    first_line="${FIRST[kk]:-}"
+    emit_finding "$kk" "$slug" "${first_line:-1}" \
+      "density $density/1000 words, threshold $threshold ($hits hits in $words words)" \
+      "density rule"
+  done
 done
 
 for ((k = 1; k <= N_TARGETS; k++)); do
