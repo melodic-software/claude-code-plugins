@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing created"
+    },
+    {
+      "answer": ["notes/e2e-counters.md"],
+      "why": "a note is not a ceilings file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [".ratchets.json"],
+      "why": "a ceilings file was created, by any tool"
+    }
+  ]
+}

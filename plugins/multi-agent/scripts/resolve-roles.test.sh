@@ -72,6 +72,18 @@ out="$(run plain worker --session-model sonnet --workload research)"
 assert_contains "research workload keeps the worker's own effort" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium"'
 assert_lacks "one role asked, one role returned" "$out" '"verifier"'
 
+out="$(run plain worker --session-model opus --workload mechanical)"
+assert_contains "mechanical workload: worker runs sonnet at medium in both variants" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"medium","guarded":false},"fanout":{"model":"sonnet","omit_model":false,"effort":"medium","guarded":false}'
+
+out="$(run plain worker --session-model opus --workload code)"
+assert_contains "code workload: worker keeps inherit" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium"'
+
+fixture mechoptout
+mkdir -p "$T/mechoptout/repo/docs/conventions"
+printf '```yaml config\nschema: 1\nroles:\n  worker:\n    workloads:\n      mechanical:\n        model: inherit\n```\n' >"$T/mechoptout/repo/docs/conventions/multi-agent.md"
+out="$(run mechoptout worker --session-model opus --workload mechanical)"
+assert_contains "team block restores inherit for mechanical work" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"fanout":{"model":"inherit","omit_model":true'
+
 run plain nosuch >/dev/null
 assert_eq "unknown role exits 2" 2 "$?"
 assert_contains "unknown role lists the valid roles" "$(cat "$T/plain.err")" "valid roles: orchestrator worker verifier retrieval"

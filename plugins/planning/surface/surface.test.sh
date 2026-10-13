@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Hygiene checks, then the browser suites, for the interview surface.
 #   bash surface.test.sh
-# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_journey.js, tests/ui_live.js
+# Suites and files it grades: index.html, tests/ui_a.js, tests/ui_b.js, tests/ui_c.js, tests/ui_e.js, tests/ui_journey.js, tests/ui_live.js,
+# tests/ui_page.js
 # (the user journey, run against tests/fixtures/journey), schema.py, and the JSON
 # Schemas schema/questions.schema.json, schema/responses.schema.json, schema/event.schema.json,
 # schema/visual.schema.json and schema/ops.schema.json.
@@ -90,6 +91,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   c="$tmp/c3"
   e="$tmp/e3"
   j="$tmp/journey"
+  g="$tmp/g3"
   session="iv-$$"
   # playwright-cli writes its logs under the working directory, so it runs from the scratch dir.
   pw() { (cd "$tmp" && playwright-cli -s="$session" "$@"); }
@@ -99,6 +101,8 @@ if command -v playwright-cli >/dev/null 2>&1; then
     bash "$here/round.sh" --dir "$c" stop >/dev/null 2>&1
     bash "$here/round.sh" --dir "$e" stop >/dev/null 2>&1
     bash "$here/round.sh" --dir "$j" stop >/dev/null 2>&1
+    bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
+    [[ -z "${pg:-}" ]] || bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
     case "$tmp" in
       */iv-surface.*) rm -rf -- "$tmp" ;;
       *) ;;
@@ -116,7 +120,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   script_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
   pw open >/dev/null 2>&1
   pw run-code --filename "$(script_path "$tmp/ui_a.js")" >"$tmp/ui_a.out" 2>&1
-  bash "$here/round.sh" --dir "$d" revise N2 --rec "Yes. Changed by Claude after you started." --affects none --force >/dev/null
+  bash "$here/round.sh" --dir "$d" revise N2 --rec "Yes. Changed by Claude after you started." --affects none --keep-alternatives --force >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_b.js")" >"$tmp/ui_b.out" 2>&1
 
   # ui_c runs against a third server seeded with settings in every layer: the repo file through
@@ -141,12 +145,12 @@ if command -v playwright-cli >/dev/null 2>&1; then
     sed "s/__PORT__/$cport/; s/__PHASE__/$n/" tests/ui_c.js >"$tmp/ui_c$n.js"
   done
   pw run-code --filename "$(script_path "$tmp/ui_c1.js")" >"$tmp/ui_c1.out" 2>&1
-  bash "$here/round.sh" --dir "$c" revise A2 --rec "Yes, batch two, changed by Claude." --affects none --force >/dev/null
+  bash "$here/round.sh" --dir "$c" revise A2 --rec "Yes, batch two, changed by Claude." --affects none --keep-alternatives --force >/dev/null
   # Drops alternative (b), which stale P2's kept decision names: phase 2 checks no Reconfirm is offered.
   bash "$here/round.sh" --dir "$c" revise Q1 --commit "Uses a private cache" --commit "Runs on every commit" --force >/dev/null
   bash "$here/round.sh" --dir "$c" revise P2 --alt "a:No" --alt "c:Never" --force >/dev/null
   # A recommendation change on P1 marks its decided dependent P2 upstream changed: phase 2 reads the banner.
-  bash "$here/round.sh" --dir "$c" revise P1 --rec "Yes, the upstream step, revised." --affects none --force >/dev/null
+  bash "$here/round.sh" --dir "$c" revise P1 --rec "Yes, the upstream step, revised." --affects none --keep-alternatives --force >/dev/null
   bash "$here/round.sh" --dir "$c" ensure-running --emoji-markers false >/dev/null
   pw run-code --filename "$(script_path "$tmp/ui_c2.js")" >"$tmp/ui_c2.out" 2>&1
   py=$(command -v python3 || command -v python)
@@ -215,6 +219,15 @@ if command -v playwright-cli >/dev/null 2>&1; then
   wait "$handler" 2>/dev/null
   bash "$here/round.sh" --dir "$f" stop >/dev/null 2>&1
 
+  # ui_e runs against its own server: one recommended and one withheld question, no events.
+  mkdir -p "$g"
+  cp tests/fixtures/ui_e/questions.json "$g/"
+  bash "$here/round.sh" --dir "$g" ensure-running --port 0 >/dev/null
+  gport=$(sed -n 's/^PORT=//p' "$g/.interview-session.env" | tr -d '\r')
+  sed "s/__PORT__/$gport/" tests/ui_e.js >"$tmp/ui_e.js"
+  pw run-code --filename "$(script_path "$tmp/ui_e.js")" >"$tmp/ui_e.out" 2>&1
+  bash "$here/round.sh" --dir "$g" stop >/dev/null 2>&1
+
   # The journey runs against a fifth server seeded with an empty interview. It walks the whole
   # flow on one page in twenty phases; the shell writes as Claude between them.
   mkdir -p "$j/ops"
@@ -262,7 +275,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   japply e2 '{"ops": [{"op": "note-reply", "text": "One more thing: what should the cache key include?"}]}'
   jrun 4
   jhandle
-  bash "$here/round.sh" --dir "$j" revise Q7 --rec "Yes, from the merged pull requests and their linked issues." --affects none --force >/dev/null
+  bash "$here/round.sh" --dir "$j" revise Q7 --rec "Yes, from the merged pull requests and their linked issues." --affects none --keep-alternatives --force >/dev/null
   japply f '{"ops": [{"op": "restate", "sections": {"goal": "Ship green builds to staging, with the linked issues in the release notes.",
     "constraints": "Builds stop at ten minutes."}}]}'
   jrun 5
@@ -343,7 +356,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   done
   lrun() { pw run-code --filename "$(script_path "$tmp/ul$1.js")" >"$tmp/ul$1.out" 2>&1; }
   lrun 1
-  printf '%s' '{"ops": [{"op": "reply", "id": "Q1", "text": "Narrowed.", "rec": "Yes, but only for tagged releases.", "why": "Pushes are too noisy.", "affects": "none"}]}' >"$l/ops/a.json"
+  printf '%s' '{"ops": [{"op": "reply", "id": "Q1", "text": "Narrowed.", "rec": "Yes, but only for tagged releases.", "why": "Pushes are too noisy.", "affects": "none", "keepAlternatives": true}]}' >"$l/ops/a.json"
   bash "$here/round.sh" --dir "$l" apply --file "$l/ops/a.json" >/dev/null || bad "live: reply op refused"
   lrun 2
   bash "$here/round.sh" --dir "$l" revise Q1 --rec "Yes, every push on main and every tag." --alt "a:Only on tags" --alt "b:Only by hand" --affects none --force >/dev/null || bad "live: revise refused"
@@ -356,13 +369,52 @@ if command -v playwright-cli >/dev/null 2>&1; then
   bash "$here/round.sh" --dir "$l" apply --file "$l/ops/c.json" >/dev/null || bad "live: handle op refused"
   lrun 4
   bash "$here/round.sh" --dir "$l" stop >/dev/null 2>&1
+
+  # ui_page runs against a seventh server on its own round: the choices, chips, banners, header
+  # and layout of one question page, with the shell writing as Claude between phases.
+  pg="$tmp/page"
+  mkdir -p "$pg/ops"
+  cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$pg/"
+  bash "$here/round.sh" --dir "$pg" add-round --file tests/fixtures/ui_page/round.json --round 1 >/dev/null || bad "page: add-round refused"
+  bash "$here/round.sh" --dir "$pg" ensure-running --port 0 >/dev/null
+  gport=$(sed -n 's/^PORT=//p' "$pg/.interview-session.env" | tr -d '\r')
+  gphases=10
+  for n in $(seq 1 "$gphases"); do
+    sed "s/__PORT__/$gport/; s/__PHASE__/$n/" tests/ui_page.js >"$tmp/up$n.js"
+  done
+  grun() { pw run-code --filename "$(script_path "$tmp/up$1.js")" >"$tmp/up$1.out" 2>&1; }
+  grev() { bash "$here/round.sh" --dir "$pg" revise "$@" --affects none --keep-alternatives --force >/dev/null || bad "page: revise $1 refused"; }
+  grun 1
+  grev Q1 --rec "Ship it on Tuesday. Watch the error logs for a week after."
+  grun 2
+  grev Q1 --rec "Ship it on Wednesday."
+  grun 3
+  grun 4
+  grev Q3 --rec "The default image, pinned by digest."
+  grun 5
+  grun 6
+  read -r -a gs <<<"$(unhandled "$pg")"
+  bash "$here/round.sh" --dir "$pg" reply Q8 --text "The support team reads them first." --seq "${gs[${#gs[@]} - 1]}" >/dev/null || bad "page: reply refused"
+  grun 7
+  grun 8
+  grun 9
+  printf '%s' '{"ops": [{"op": "add", "question": {"id": "Q9", "group": "g1", "stage": "interview", "short": "Notes owner", "title": "Who writes the release notes?", "recommendation": "The release owner.", "dependsOn": ["Q8"], "commits": [], "alternatives": [{"key": "a", "text": "Each author"}, {"key": "b", "text": "Nobody"}]}},
+    {"op": "record-terminal", "id": "Q9", "decision": "accept"}]}' >"$pg/ops/t.json"
+  bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/t.json" >/dev/null || bad "page: add and record-terminal refused"
+  # An older terminal record has no rev: strip it, then revise Q9 so only the time orders the two.
+  "$py" -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); [q["terminal"].pop("rev", None) for q in d["questions"] if q["id"] == "Q9"]; json.dump(d, open(p, "w"))' "$pg/questions.json"
+  grev Q9 --rec "The release owner, with the support lead."
+  grun 10
+  bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
   grade ui_a "$tmp/ui_a.out"
   grade ui_b "$tmp/ui_b.out"
   for n in 1 2 3 4 5 6; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+  grade ui_e "$tmp/ui_e.out"
   for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do grade "ui_journey.$n" "$tmp/uj$n.out"; done
   for n in 1 2 3 4; do grade "ui_live.$n" "$tmp/ul$n.out"; done
+  for n in $(seq 1 "$gphases"); do grade "ui_page.$n" "$tmp/up$n.out"; done
 else
-  browser=457 journey=221
+  browser=550 journey=228
   echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi

@@ -10,14 +10,16 @@
 - Body: direct, unquoted `${CLAUDE_SKILL_DIR}/scripts/<name>.sh`
 - Rule: `Bash(${CLAUDE_SKILL_DIR}/scripts/<name>.sh:*)`
 
-Claude Code substitutes `${CLAUDE_SKILL_DIR}` in two places, the skill's markdown content and Bash
-rules in `allowed-tools`
-([skills docs](https://code.claude.com/docs/en/skills#available-string-substitutions)), verified
-2026-09-06 against Claude Code 2.1.263 and that page as fetched that day. Recheck when that page
-names a third place, drops the two-place wording, or when a release note names string substitution
-in skills. The five
-grants for scripts that delete nothing (`resolve-clean-action.sh`, `scan.sh`, `preflight.sh`, `git-branch-audit.sh`,
-`git-stash-audit.sh`) are fully paired through this surface.
+The pairing relies on Claude Code substituting `${CLAUDE_SKILL_DIR}` in both the body and the
+`allowed-tools` rules. The five grants for scripts that delete nothing (`resolve-clean-action.sh`,
+`scan.sh`, `preflight.sh`, `git-branch-audit.sh`, `git-stash-audit.sh`) are fully paired through
+this surface.
+
+- **Pointer**: where the token is substituted is in
+  [Available string substitutions](https://code.claude.com/docs/en/skills#available-string-substitutions).
+  **As of**: 2026-10-11. **Recheck trigger**: that section stops naming `allowed-tools` rules or
+  the skill body among the places it substitutes, or a release note names string substitution in
+  skills.
 
 ## Interpreter-led form: bundled `context/*.md`
 
@@ -57,21 +59,30 @@ guard that `context/*.md` never carry a `${…}` token for a script path.
 `CLEAN_GUARD_ACK=1` satisfies only this skill's own PreToolUse guard. Claude Code evaluates its
 permission layer independently of that guard, so a confirmed apply can still be denied or prompt:
 
-- Permission rules run deny, then ask, then allow, and the first match decides. A PreToolUse hook
-  cannot override a matching deny or ask rule.
-- In auto mode the classifier reviews the command as well. It blocks `git stash drop` and similar
-  discards by default, and it denied hand-rolled bulk removals and batched worktree scripts on the
-  audited machine ([why](../context/clean-batch.md#why-this-exists)).
-- An allow rule such as `Bash(<script>:*)` does not match a command that starts with
-  `CLEAN_GUARD_ACK=1` and a space. The prefix assigns a variable outside the built-in known-safe set, and allow
-  rules do not match past such an assignment. Deny and ask rules do match past it. The skill's own
-  `allowed-tools` grants cover only scripts that delete nothing, which never take the prefix.
+- A matching permission rule is not lifted by this guard's ack, and how rules are ordered and how a
+  hook's decision interacts with them is the permissions page's to state.
+- In auto mode the classifier reviews the command as well. It denied hand-rolled bulk removals and
+  batched worktree scripts on the audited machine
+  ([why](../context/clean-batch.md#why-this-exists)), and its default block list is upstream's.
+- An allow rule such as `Bash(<script>:*)` cannot be counted on to match a command that starts with
+  `CLEAN_GUARD_ACK=1` and a space: the page does not list `CLEAN_GUARD_ACK` among the assignments it
+  strips before matching. The skill's own `allowed-tools` grants cover only scripts that delete
+  nothing, which never take the prefix.
 
 When the confirmed apply is denied or prompts, tell the user which layer stopped it and let them
 decide. Never work around it with a hand-rolled `rm` or another script.
 
-| Claim | Basis | As of | Recheck |
-|---|---|---|---|
-| Rules evaluate deny, then ask, then allow; a hook decision does not bypass a matching deny or ask rule. | [permissions](https://code.claude.com/docs/en/permissions) ("Manage permissions", "Extend permissions with hooks"). | 2026-09-29 | The page changes the evaluation order or the hook wording. |
-| An allow rule does not match past a leading assignment of a variable outside the known-safe set; a deny or ask rule does. The page does not list the set, so `CLEAN_GUARD_ACK` is not documented as known-safe. | [permissions](https://code.claude.com/docs/en/permissions) ("Wrappers"). | 2026-09-29 | The page lists the known-safe variables or changes the assignment wording. |
-| Auto mode reviews shell commands with a classifier and blocks `git stash drop` and similar discards by default. | [permission modes](https://code.claude.com/docs/en/permission-modes) ("What the classifier blocks by default"). | 2026-09-29 | The blocked-by-default list drops those entries, or `claude auto-mode defaults` shows otherwise. |
+- **Pointer**: rule evaluation order is in
+  [Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions), and what a
+  hook decision can override is in
+  [Extend permissions with hooks](https://code.claude.com/docs/en/permissions#extend-permissions-with-hooks).
+  **As of**: 2026-10-11. **Recheck trigger**: either section changes the evaluation order or what
+  a hook decision can override, or is renamed.
+- **Pointer**: which leading assignments a rule matches past is in
+  [Wrappers](https://code.claude.com/docs/en/permissions#process-wrappers). **As of**: 2026-10-11.
+  **Recheck trigger**: that section lists the known-safe variables, changes how allow and deny
+  rules treat a leading assignment, or is renamed.
+- **Pointer**: the classifier's default block list is in
+  [What the classifier blocks by default](https://code.claude.com/docs/en/permission-modes#what-the-classifier-blocks-by-default).
+  **As of**: 2026-10-11. **Recheck trigger**: that list stops covering stash discards and similar
+  removals, `claude auto-mode defaults` shows otherwise, or the section is renamed.

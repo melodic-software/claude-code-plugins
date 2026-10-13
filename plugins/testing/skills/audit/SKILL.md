@@ -90,7 +90,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/cant-fail-scan.sh" --file <path
 Scan root: the current repo's git toplevel (or `$CANT_FAIL_SCAN_ROOT` to narrow/point explicitly,
 a supported operator lever). Ecosystems: JS/TS (`*.test.*`/`*.spec.*`: Jest, Vitest, node:test,
 Playwright), Python (`test_*.py`/`*_test.py`: pytest, unittest), C# (`*Test.cs`/`*Tests.cs`,
-Reqnroll `*StepDefinitions.cs`, `UnitTest*.cs`: xUnit, NUnit, MSTest), Bash (`*.test.sh`
+Reqnroll `*StepDefinitions.cs` with each `[Then]` step judged as a test, `UnitTest*.cs`: xUnit,
+NUnit, MSTest), Bash (`*.test.sh`
 harnesses, `*.bats`), PowerShell (`*.Tests.ps1`, Pester) and Go (`*_test.go`), each defined by an
 adapter file in `adapters/`.
 
@@ -151,6 +152,17 @@ A deliberate case is recorded in-file: `cant-fail-ok: <reason>` on the test's de
 line above it, or inside the body, the same recorded-decision shape as the repo gate's
 `discriminating-skip-ok`. In a Playwright config it is file-scoped: one `cant-fail-ok:` anywhere in
 the file suppresses every config finding. Exemptions are counted in the coverage block, never silent.
+
+Type tests never reach the scan: no adapter claims `*.test-d.ts` or `*.test-d.tsx`, since the
+type checker evaluates those files and nothing runs them (basis: vitest.dev/guide/testing-types and
+the tsd README at github.com/tsdjs/tsd; as-of 2026-10-10; recheck when either changes its default
+type-test file pattern or starts running those files).
+
+Agreement between rows of a table the test declares itself is a valid exemption reason. Such a
+test, for example one asserting that each shipping band ends at the weight where the next band
+starts, calls no code under test, so `rule-constant-restatement` reports it. What it guards is
+that agreement, so keep the test as written and annotate the assertion, on its line or the line
+above, with `cant-fail-ok: relation across rows`.
 
 ## What this skill does NOT do
 

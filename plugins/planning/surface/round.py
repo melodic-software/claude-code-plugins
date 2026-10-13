@@ -4,8 +4,10 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
   add             add a question (from --file JSON or flags)
   add-round       add several groups, questions and visuals from one JSON file, in one write
   group           add or update a question group
+  group-order     reorder the groups (every group id once, in the new order)
   reply           append a Claude line to a question's thread; optional revised recommendation
-  revise          change a question's wording, recommendation, alternatives, commitments or dependencies
+  revise          change a question's wording, recommendation, alternatives, commitments,
+                  dependencies or group
   handle          mark page events handled with no reply (plain accepts, undo, wrapup)
   note-reply      post or reply in the Notes to Claude thread; --needs-answer pins it as a loose end
   record-terminal record an answer the user gave in the terminal
@@ -39,9 +41,11 @@ reply --rec and revise --rec need --affects <id,...>|none, and refuse when the q
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
 unhandled user event on it), unless --force. A recommendation change also sets aside the
 question's counted `own` answer; record-terminal --decision own records the resolved decision.
-revise --alt keeps at least two alternatives. reply --rec and revise --rec or --alt refuse when an
-alternative, case and trailing punctuation folded, equals or contains (as whole words) the recommendation or is
-contained by it; pass revised alternatives in the same revise (--alt).
+reply --rec and revise --rec need --alt (the revised alternatives) or --keep-alternatives (the
+current ones were checked against the new recommendation) and refuse with neither (R-I); --alt
+keeps at least two alternatives. reply --rec and revise --rec or --alt refuse when an alternative,
+case and trailing punctuation folded, equals or contains (as whole words) the recommendation or is
+contained by it; pass revised alternatives in the same op (--alt).
 revise --commit replaces the commitment list (`--commit none` alone clears it); when the list
 changes, the recorded confirmations are dropped and confirm events at or below the question's
 commitsSinceSeq no longer count.
@@ -294,6 +298,34 @@ def require_affects(qid, affects):
         sys.exit(
             f"refused: a recommendation change on {qid} needs --affects <id,...>|none (R2)"
         )
+
+
+def require_alt_review(qid, alts, keep):
+    """A recommendation change states its alternatives: new ones, or that the current ones were
+    checked against it (R-I)."""
+    if alts is not None and keep:
+        sys.exit(
+            f"refused: {qid} takes --alt or --keep-alternatives, not both (keepAlternatives)"
+        )
+    if alts is None and not keep:
+        sys.exit(
+            f"refused: a recommendation change on {qid} needs its alternatives reviewed: pass "
+            "revised ones (--alt, `alternatives`) or --keep-alternatives "
+            "(`keepAlternatives: true`) after checking the current ones against it (R-I)"
+        )
+
+
+def checked_alts(qid, alts):
+    """`alts` parsed and capped, or a refusal when fewer than two remain (R-I)."""
+    alts = [split_alt(s) for s in alts]
+    for alt in alts:
+        capped(f"{qid} alternative {alt['key']}", alt["text"], LINE_CAP)
+    if len(alts) < 2:
+        sys.exit(
+            f"refused: {qid} would have {len(alts)} alternatives; every question needs at "
+            "least 2 genuine alternatives besides the recommendation (R-I)"
+        )
+    return alts
 
 
 def set_aside_own(r, doc, q):
@@ -730,6 +762,29 @@ def op_group(d, doc, a):
     return [], f"group {a.id} saved"
 
 
+def op_group_order(d, doc, a):
+    """Reorder the groups to the full list of their ids; the rail lists groups in this order."""
+    ids, known = list(a.ids or []), [g["id"] for g in doc["groups"]]
+    repeated = sorted({i for i in ids if ids.count(i) > 1})
+    unknown = [i for i in ids if i not in known]
+    missing = [i for i in known if i not in ids]
+    if repeated or unknown or missing:
+        sys.exit(
+            "refused: group-order takes every group id once; "
+            + "; ".join(
+                f"{label}: {', '.join(v)}"
+                for label, v in (
+                    ("repeated", repeated),
+                    ("unknown", unknown),
+                    ("missing", missing),
+                )
+                if v
+            )
+        )
+    doc["groups"].sort(key=lambda g: ids.index(g["id"]))
+    return [], f"group order {', '.join(ids)}"
+
+
 def set_resolution(d, q, text):
     """Record `text` as the accepted reading of the question's counted `own` answer; exits unless
     one counts."""
@@ -783,24 +838,38 @@ def op_reply(d, doc, a):
     }
     if a.seq is not None:
         line["replyTo"] = a.seq
+    if (a.alt is not None or a.keepAlternatives) and not a.rec:
+        sys.exit(
+            f"refused: reply on {a.id} takes alternatives or keepAlternatives only with "
+            "rec; use revise --alt"
+        )
     if a.rec:
+        affects = parse_affects(a.affects)
+        require_affects(a.id, affects)
+        require_alt_review(a.id, a.alt, a.keepAlternatives)
+        alts = None if a.alt is None else checked_alts(a.id, a.alt)
         check_rec_alts(
             a.id,
             a.rec,
-            q.get("alternatives"),
-            "reply cannot change alternatives; use revise --rec with --alt in one op",
+            q.get("alternatives") if alts is None else alts,
+            "pass revised alternatives in the same op (--alt)",
         )
-        affects = parse_affects(a.affects)
-        require_affects(a.id, affects)
         snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
         set_aside_own(snapshot, doc, q)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
-        q["revised"] = a.why or "Recommendation revised."
+        q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         q["contentRev"] = (q.get("contentRev") or 0) + 1
+        if alts is not None:
+            q["alternatives"] = alts
+        kept = "kept" if alts is None else "rewritten"
         line["text"] = (
-            (a.text + " " if a.text else "") + "Revised recommendation: " + a.rec
+            (a.text + " " if a.text else "")
+            + "Revised recommendation: "
+            + a.rec
+            + f" (alternatives {kept})"
         )
+        line["alternatives"] = kept
         line["affects"] = affects
         line["pageSeq"] = snapshot.get("seq", 0)
         line["rev"] = doc["rev"] + 1
@@ -854,12 +923,18 @@ def op_revise(d, doc, a):
     affects = parse_affects(a.affects)
     if a.rec is not None:
         require_affects(a.id, affects)
+        require_alt_review(a.id, a.alt, a.keepAlternatives)
+    elif a.keepAlternatives:
+        sys.exit(f"refused: {a.id} keepAlternatives goes with a rec change")
     deps = None if a.dependsOn is None else checked_depends(doc, a.id, a.dependsOn)
-    if a.rec is not None or a.alt is not None:
+    if a.group is not None and a.group not in {g["id"] for g in doc["groups"]}:
+        sys.exit(f"refused: unknown group {a.group!r} for {a.id}")
+    alts = None if a.alt is None else checked_alts(a.id, a.alt)
+    if a.rec is not None or alts is not None:
         check_rec_alts(
             a.id,
             q.get("recommendation") if a.rec is None else a.rec,
-            q.get("alternatives") if a.alt is None else [split_alt(s) for s in a.alt],
+            q.get("alternatives") if alts is None else alts,
             "pass revised alternatives in the same op (revise --alt)",
         )
     snapshot = guard_revision(d, doc, a.id, a.seq, a.force)
@@ -877,17 +952,9 @@ def op_revise(d, doc, a):
         set_aside_own(snapshot, doc, q)
         q["previousRecommendation"] = q.get("recommendation", "")
         q["recommendation"] = a.rec
-        q["revised"] = a.why or "Recommendation revised."
+        q["revised"] = a.why or True  # the page says "Recommendation revised." itself
         changed.append("recommendation")
-    if a.alt is not None:
-        alts = [split_alt(s) for s in a.alt]
-        for alt in alts:
-            capped(f"revise alternative {alt['key']}", alt["text"], LINE_CAP)
-        if len(alts) < 2:
-            sys.exit(
-                f"refused: {a.id} would have {len(alts)} alternatives; every question needs at "
-                "least 2 genuine alternatives besides the recommendation (R-I)"
-            )
+    if alts is not None:
         q["alternatives"] = alts
         changed.append("alternatives")
     if commits is not None and commits != (q.get("commits") or []):
@@ -904,20 +971,36 @@ def op_revise(d, doc, a):
             q["dependsOn"] = deps
         else:
             q.pop("dependsOn")
-    if not changed and not moved:
+    regroup = None
+    if a.group is not None and a.group != q.get("group"):
+        regroup = f"{q.get('group') or 'none'} -> {a.group}"
+        old, q["group"] = q.get("group"), a.group
+        for gid in (old, a.group):
+            g = next((x for x in doc["groups"] if x["id"] == gid), None)
+            if g and "summaryOf" in g and g["summaryOf"] != group_members(doc, gid):
+                warn(
+                    f"group {gid} summary predates moving {a.id}; refresh it with: "
+                    f"round.py group {gid} --summary ..."
+                )
+    if not changed and not moved and not regroup:
         sys.exit("nothing to revise")
     lines = []
     if changed:
         q["contentRev"] = (q.get("contentRev") or 0) + 1
+        kept = a.rec is not None and alts is None
         line = {
             "at": now(),
             "by": "claude",
             "kind": "revise",
-            "text": a.text or "Revised " + ", ".join(changed) + ".",
+            "text": a.text
+            or "Revised "
+            + ", ".join(changed)
+            + (" (alternatives kept)." if kept else "."),
         }
         if affects is not None:
             line["affects"] = affects
         if a.rec is not None:
+            line["alternatives"] = "kept" if kept else "rewritten"
             line["pageSeq"] = snapshot.get("seq", 0)
             line["rev"] = doc["rev"] + 1
         lines.append(line)
@@ -931,6 +1014,11 @@ def op_revise(d, doc, a):
             }
         )
         changed.append(f"dependencies ({moved})")
+    if regroup:
+        lines.append(
+            {"at": now(), "by": "claude", "kind": "group", "text": f"Group: {regroup}."}
+        )
+        changed.append(f"group ({regroup})")
     if a.seq is not None:
         lines[0]["replyTo"] = a.seq
     q.setdefault("history", []).extend(lines)
@@ -1243,8 +1331,18 @@ def op_add_round_linted(d, doc, a):
     return result
 
 
+def read_input(path, kind, as_json=False, newline=None):
+    """Read an input file named on the command line; refuse cleanly when it is missing or malformed."""
+    try:
+        with open(path, encoding="utf-8", newline=newline) as f:
+            text = f.read()
+        return json.loads(text) if as_json else text
+    except (OSError, ValueError) as e:
+        sys.exit(f"refused: cannot read {kind} {path}: {e}")
+
+
 def cmd_add(d, a):
-    q = json.loads(Path(a.file).read_text(encoding="utf-8")) if a.file else {}
+    q = read_input(a.file, "question file", as_json=True) if a.file else {}
     for field in (
         "id",
         "group",
@@ -1276,7 +1374,7 @@ def cmd_add(d, a):
 
 
 def cmd_add_round(d, a):
-    spec = json.loads(Path(a.file).read_text(encoding="utf-8"))
+    spec = read_input(a.file, "round file", as_json=True)
     a.meta, a.groups, a.questions, a.visuals = (
         spec.get("meta"),
         spec.get("groups"),
@@ -1299,6 +1397,8 @@ OP_ARGS = {
             "why": None,
             "resolution": None,
             "affects": None,
+            "alternatives": None,
+            "keepAlternatives": False,
             "handled": None,
             "force": False,
         },
@@ -1317,8 +1417,10 @@ OP_ARGS = {
             "alternatives": None,
             "commits": None,
             "dependsOn": None,
+            "group": None,
             "seq": None,
             "affects": None,
+            "keepAlternatives": False,
             "force": False,
         },
     ),
@@ -1339,6 +1441,7 @@ OP_ARGS = {
         op_group,
         {"id": None, "title": None, "summary": None, "dependsOn": None},
     ),
+    "group-order": (op_group_order, {"ids": None}),
     "meta": (op_meta, {"set": None}),
     "note-reply": (op_note_reply, {"seq": None, "text": None, "needsAnswer": False}),
     "handle": (op_handle, {"seqs": None}),
@@ -1374,11 +1477,49 @@ def unhandled_events(doc, r):
 
 
 def cmd_apply(d, a):
-    """Every op against one loaded document, one validated write; any refusal writes nothing."""
+    """Every op against one loaded document, one validated write; any refusal writes nothing.
+
+    Under the lock the ops file is renamed to a claimed name before it is read, so overlapping wakes
+    apply one batch once and a batch written meanwhile waits for the next run; a refusal restores it.
+    """
+    src = Path(a.file)
+    claimed = src.with_name(src.name + ".applying")
+    with sidecar_lock(d):
+        if claimed.exists() and src.exists():
+            sys.exit(
+                f"refused: {claimed} holds a batch an earlier apply did not finish; "
+                f"merge it into {a.file} or delete it, then re-run"
+            )
+        if claimed.exists():
+            os.replace(claimed, src)
+        if not src.exists():
+            print(f"nothing to apply: no {a.file}")
+            return
+        os.replace(src, claimed)
+        try:
+            doc, lines = apply_ops_file(d, a.file, claimed)
+        except BaseException:
+            if not src.exists():
+                os.replace(claimed, src)
+            raise
+        claimed.unlink(missing_ok=True)
+    for line in lines:
+        print(line)
+    print(f"applied {len(lines)} ops (rev {doc['rev']})")
+    if not bridge.watcher_lease(d, NAME):
+        r = load_json(d / "responses.json", EMPTY_RESPONSES)
+        print(
+            f"no watcher armed; {len(unhandled_events(doc, r))} unhandled events",
+            file=sys.stderr,
+        )
+
+
+def apply_ops_file(d, name, claimed):
+    """Validate and apply the claimed ops file; the caller holds the sidecar lock."""
     try:
-        spec = json.loads(Path(a.file).read_text(encoding="utf-8"))
+        spec = json.loads(claimed.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        sys.exit(f"refused: cannot read ops file {a.file}: {e}")
+        sys.exit(f"refused: cannot read ops file {name}: {e}")
     ops_schema = schema.load("ops")
     if (
         not isinstance(spec, dict)
@@ -1401,43 +1542,35 @@ def cmd_apply(d, a):
         )
         if err:
             sys.exit(f"refused: {err}")
-    with sidecar_lock(d):
-        doc = load(d)
-        touched, lines, added, logged = [], [], [], []
-        for op in spec["ops"]:
-            fn, defaults = OP_ARGS[op["op"]]
-            args = argparse.Namespace(
-                **{**defaults, **{k: v for k, v in op.items() if k != "op"}}
-            )
-            if op["op"] == "revise":
-                args.alt = args.alternatives
-                args.commit = args.commits
-            if op["op"] == "handle":
-                args.seq = args.seqs
-            t, msg = fn(d, doc, args)
-            touched += [q for q in t if q not in touched]
-            if op["op"] == "add":
-                added.append(args.question)
-            elif op["op"] == "add-round":
-                added += args.questions or []
-            lines.append(f"{op['op']}: {msg}")
-            if op["op"] in LOGGED_OPS:
-                logged.append((op["op"], msg, t))
-        summarize(doc, logged)
-        lint_questions(doc, added)
-        for op in spec["ops"]:
-            if op["op"] not in ("add", "add-round", "meta"):
-                warn_bare_issue_refs(doc, f"{op['op']} op", op)
-        save(d, doc, touched)
-    for line in lines:
-        print(line)
-    print(f"applied {len(lines)} ops (rev {doc['rev']})")
-    if not bridge.watcher_lease(d, NAME):
-        r = load_json(d / "responses.json", EMPTY_RESPONSES)
-        print(
-            f"no watcher armed; {len(unhandled_events(doc, r))} unhandled events",
-            file=sys.stderr,
+    doc = load(d)
+    touched, lines, added, logged = [], [], [], []
+    for op in spec["ops"]:
+        fn, defaults = OP_ARGS[op["op"]]
+        args = argparse.Namespace(
+            **{**defaults, **{k: v for k, v in op.items() if k != "op"}}
         )
+        if op["op"] in ("reply", "revise"):
+            args.alt = args.alternatives
+        if op["op"] == "revise":
+            args.commit = args.commits
+        if op["op"] == "handle":
+            args.seq = args.seqs
+        t, msg = fn(d, doc, args)
+        touched += [q for q in t if q not in touched]
+        if op["op"] == "add":
+            added.append(args.question)
+        elif op["op"] == "add-round":
+            added += args.questions or []
+        lines.append(f"{op['op']}: {msg}")
+        if op["op"] in LOGGED_OPS:
+            logged.append((op["op"], msg, t))
+    summarize(doc, logged)
+    lint_questions(doc, added)
+    for op in spec["ops"]:
+        if op["op"] not in ("add", "add-round", "meta"):
+            warn_bare_issue_refs(doc, f"{op['op']} op", op)
+    save(d, doc, touched)
+    return doc, lines
 
 
 def effective(q, resp):
@@ -1559,7 +1692,7 @@ LEDGER_VERSION = re.compile(r"^Planning version: *(\d+\.\d+\.\d+\S*)", re.M)
 def cmd_doctor(d, a):
     """Report what the running version needs and the ledger or page lacks; write nothing. Exit 1 on any missing element."""
     running = plugin_version() or "unknown"
-    text = Path(a.ledger).read_text(encoding="utf-8")
+    text = read_input(a.ledger, "ledger")
     missing = [
         f"{a.ledger} has no `{heading}` section"
         for heading in ("## Constraint ledger", "## Open-question register")
@@ -1640,7 +1773,7 @@ def write_text(path, text):
 
 def cmd_export(d, a):
     if a.what == "brief":
-        ledger = Path(a.ledger).read_text(encoding="utf-8") if a.ledger else None
+        ledger = read_input(a.ledger, "ledger") if a.ledger else None
         text = exporters.export_brief(d, ledger)
     else:
         text = exporters.export_report(d)
@@ -1659,7 +1792,7 @@ def report_notes(notes, kinds):
 
 def cmd_export_ledger(d, a):
     if a.diff:
-        text = Path(a.diff).read_text(encoding="utf-8")
+        text = read_input(a.diff, "ledger")
         report_notes(
             exporters.merged_register(d, text)[2], ("change", "conflict", "kept")
         )
@@ -1667,7 +1800,7 @@ def cmd_export_ledger(d, a):
         return
     if not a.out:
         sys.exit("export-ledger needs --out (or --diff LEDGER)")
-    text = Path(a.ledger).read_text(encoding="utf-8") if a.ledger else None
+    text = read_input(a.ledger, "ledger") if a.ledger else None
     write_text(a.out, exporters.export_ledger(d, text))
     print(f"wrote {a.out}")
     if text is not None:
@@ -1677,8 +1810,9 @@ def cmd_export_ledger(d, a):
 def cmd_sync_ledger(d, a):
     path = Path(a.ledger)
     # Read untranslated so a CRLF ledger keeps its line endings.
-    with open(path, encoding="utf-8", newline="") as f:
-        text, notes = exporters.sync_ledger(d, f.read(), a.ledger)
+    text, notes = exporters.sync_ledger(
+        d, read_input(path, "ledger", newline=""), a.ledger
+    )
     tmp = path.with_name(f".{path.name}.sync")
     write_text(tmp, text)
     os.replace(tmp, path)
@@ -1687,7 +1821,7 @@ def cmd_sync_ledger(d, a):
 
 
 def cmd_import_ledger(d, a):
-    text = Path(a.ledger).read_text(encoding="utf-8")
+    text = read_input(a.ledger, "ledger")
     with sidecar_lock(d):
         doc = load(d)
         if doc["questions"]:
@@ -1997,7 +2131,17 @@ def main(argv=None):
     )
     s.set_defaults(fn=write_op(op_group, "group"))
 
+    s = sub.add_parser(
+        "group-order", help="reorder the groups: every group id once, in the new order"
+    )
+    s.add_argument("ids", nargs="+", metavar="id")
+    s.set_defaults(fn=write_op(op_group_order, "group-order"))
+
     affects_help = "question ids this change affects, comma-separated, or none (required with --rec)"
+    keep_help = (
+        "with --rec and no --alt: the current alternatives were checked against the new "
+        "recommendation (a --rec needs --alt or this)"
+    )
     s = sub.add_parser(
         "reply", help="append a Claude line; optional revised recommendation"
     )
@@ -2011,6 +2155,17 @@ def main(argv=None):
         "the answer and keep the user's words as its note",
     )
     s.add_argument("--affects", help=affects_help)
+    s.add_argument(
+        "--alt",
+        action="append",
+        help="with --rec: key:text, repeatable; replaces all alternatives",
+    )
+    s.add_argument(
+        "--keep-alternatives",
+        dest="keepAlternatives",
+        action="store_true",
+        help=keep_help,
+    )
     s.add_argument("--kind", choices=("reply", "rephrase", "note"))
     s.add_argument(
         "--seq", type=int, help="page event seq this answers; marks it handled"
@@ -2037,6 +2192,12 @@ def main(argv=None):
         "--alt", action="append", help="key:text, repeatable; replaces all alternatives"
     )
     s.add_argument(
+        "--keep-alternatives",
+        dest="keepAlternatives",
+        action="store_true",
+        help=keep_help,
+    )
+    s.add_argument(
         "--commit",
         action="append",
         help="repeatable; replaces all commitments; `--commit none` alone clears them",
@@ -2047,6 +2208,7 @@ def main(argv=None):
         action="append",
         help="question id, repeatable; replaces all dependencies; `--depends none` alone clears them",
     )
+    s.add_argument("--group", help="move the question to this existing group")
     s.add_argument(
         "--seq", type=int, help="page event seq this answers; marks it handled"
     )

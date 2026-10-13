@@ -112,7 +112,11 @@ Present the triaged result: the collapsed CONFIRMED block, the real questions, a
 |---|---|---|
 | Produce the answers to validate | `/planning:interview` | Writes the Brief / general summary / ledger this consumes; the human confirmation round hands back to its stop/handoff path. Its Step 3 recap and `--procedure` check show the user the Q&A and that the procedure ran; this skill adversarially re-validates the answers, and neither composes nor duplicates the other |
 | Evidence discipline each validator applies | `/planning:devils-advocate` | Its evidence-backed, no-recall, fresh-eyes discipline is cited, not duplicated |
-| Plan the implementation | `/planning:plan` | Downstream: the confirmed Brief feeds planning, exactly as a hand-answered interview's would |
+| Plan the implementation | `/planning:plan` | Downstream, after `/planning:design`: the confirmed Brief feeds planning, exactly as a hand-answered interview's would |
+
+## Next
+
+/planning:design takes the confirmed Brief next, as it would after a hand-answered interview; it records a one-line early exit when no design question is open.
 
 ## Gotchas
 

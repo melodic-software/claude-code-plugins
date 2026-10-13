@@ -1,0 +1,93 @@
+{
+  "skill_name": "ratchet",
+  "evals": [
+    {
+      "id": 1,
+      "name": "lint-count-gets-a-ceiling-in-the-required-job",
+      "narration": true,
+      "prompt": "/review:ratchet the eslint rule no-floating-promises. `npm run lint:count -- no-floating-promises` prints violations=37. CI has no ratchet yet; the required check is the `verify` job in .github/workflows/ci.yml.",
+      "expected_output": "Measures the count with ratchet.py add and records a ceiling of 37, the measured value, in a new .ratchets.json at the repository root, passing --file .ratchets.json on every ratchet.py call. Vendors ratchet.py beside it without the two generated header lines. Adds one check step inside the `verify` job that runs the vendored script with --file .ratchets.json. Leaves the rule from failing the build by itself (warning severity or its own invocation). Writes the files uncommitted, does not merge, and routes to /source-control:pull-request.",
+      "files": [],
+      "expectations": [
+        "Records a ceiling of 37 from ratchet.py add, not a rounded-up value",
+        "Proposes .ratchets.json at the repository root and passes --file .ratchets.json to add and check",
+        "Puts the check step inside the `verify` job, the required check",
+        "Commits, pushes and merges nothing; the Output block ends awaiting human approval"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "refuses-a-duration-ceiling",
+      "prompt": "/review:ratchet our API test suite takes 212 seconds in CI. Freeze that as a ceiling so it never gets slower.",
+      "expected_output": "Declines to ratchet a wall-clock duration: it moves with runner load, so the ceiling would fail at random and invite someone to raise it. Names a count that moves only with the code (number of tests, HTTP calls, database queries per run) as the thing to ratchet instead, or says there is nothing to ratchet until such a counter exists. Runs no ratchet.py add on the duration.",
+      "files": [],
+      "expectations": [
+        "Does not record a ceiling on 212 seconds or any duration",
+        "States that a duration ceiling fails with host load rather than with the code",
+        "Names a counter to ratchet instead, or says one must exist first"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "zero-count-lands-the-rule",
+      "prompt": "/review:ratchet the ruff rule B006 (mutable default arguments). `ruff check --select B006 --statistics` reports 0 violations today.",
+      "expected_output": "Lands the rule: turns B006 on in the ruff configuration so the build fails on the first violation, and writes no ceilings entry and no CI ratchet step, because a zero count needs no ceiling. Reports that the rule landed and that no ceiling was recorded.",
+      "files": [],
+      "expectations": [
+        "Turns the rule on in the linter configuration so a violation fails the build",
+        "Writes no ceilings file entry and runs no ratchet.py add",
+        "Reports that the rule landed with no ceiling"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "joins-the-existing-performance-ceilings-file",
+      "narration": true,
+      "prompt": "/review:ratchet the count of `# type: ignore` comments; `python3 tools/count_ignores.py` prints ignores=9. CI already runs `python3 .performance/ratchet.py check` in the required `tests` job.",
+      "expected_output": "Reads the existing check call, sees no --file, and so adds the counter to .performance/ratchets.json, the script's default, using the repository's vendored .performance/ratchet.py. Proposes no .ratchets.json and no second CI step, since the existing step already checks that file. Records a ceiling of 9.",
+      "files": [],
+      "expectations": [
+        "Adds the counter to .performance/ratchets.json",
+        "Does not propose .ratchets.json or a second ceilings file",
+        "Adds no new CI step, because the existing check covers the file",
+        "Records a ceiling of 9"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "refuses-to-merge-the-tighten-pr",
+      "prompt": "/review:ratchet set up the weekly job that lowers our ceilings, and have it merge its own PR so nobody has to.",
+      "expected_output": "Declines the auto-merge: the scheduled job runs propose-tighten --write and opens a draft PR, and a human merges it. Keeps the measure job read-only and the PR job free of counter commands. Names the repository setting a GITHUB_TOKEN needs to open a pull request.",
+      "files": [],
+      "expectations": [
+        "Refuses to have the job merge its pull request",
+        "The proposed job opens a draft PR from propose-tighten --write",
+        "Names the setting that lets GitHub Actions create pull requests"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "zero-suppressions-with-a-forbidding-rule-land-it",
+      "prompt": "/review:ratchet the count of `eslint-disable` comments. `bash count-disables.sh` prints disables=0. The project already uses the @eslint-community/eslint-comments plugin, whose no-use rule reports every disable directive; that rule is off today.",
+      "expected_output": "Because the count is 0 and a rule exists that forbids the suppression comment itself, lands that rule: sets @eslint-community/eslint-comments/no-use to error so the first new disable comment fails the build. Writes no ceilings entry and runs no ratchet.py add. Reports that the rule landed with no ceiling.",
+      "files": [],
+      "expectations": [
+        "Turns the no-use rule on at error severity",
+        "Runs no ratchet.py add and writes no ceilings entry",
+        "Reports that the rule landed with no ceiling"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "zero-suppressions-without-a-forbidding-rule-ratchet-at-zero",
+      "prompt": "/review:ratchet the count of `# noqa` comments. `bash count-noqa.sh` prints noqa=0. Ruff has no rule that rejects every noqa comment.",
+      "expected_output": "Does not treat the zero as a landed rule, because no linter rule fails on the first new noqa comment. Records the counter with ratchet.py add at a ceiling of 0 in the ceilings file CI checks (or a new .ratchets.json with --file on every call) and adds the check step inside the required job.",
+      "files": [],
+      "expectations": [
+        "Records a ceiling of 0 with ratchet.py add",
+        "Does not claim a linter rule now blocks new noqa comments",
+        "Adds or reuses a check step inside the required job"
+      ]
+    }
+  ]
+}

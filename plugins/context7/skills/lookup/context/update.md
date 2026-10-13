@@ -20,7 +20,7 @@ bash "<skill-dir>/scripts/update.sh" --fix
 The script does four things:
 
 1. **CLI version check**: compares `ctx7 --version` (installed) with `npm view ctx7 version` (latest). With `--fix`, runs `npm install -g ctx7@latest`
-2. **Upstream skill fetch**: pulls `find-docs/SKILL.md` and `context7-cli/SKILL.md` from `upstash/context7` master
+2. **Upstream skill fetch**: resolves the `upstash/context7` master commit once, then pulls `find-docs/SKILL.md` and `context7-cli/SKILL.md` at that commit
 3. **Baseline diff**: compares current upstream against the plugin's `vendor/find-docs/SKILL.md` (and `vendor/cli/SKILL.md`). Shows the diff as "what Upstash changed since the last review"
 4. **Manual-integration prompt**: if diff is non-empty, prints the new upstream guidance for review and the files that might need touching
 
@@ -35,7 +35,9 @@ The script does four things:
 bash "<skill-dir>/scripts/update.sh" --refresh-baseline
 ```
 
-This overwrites `vendor/find-docs/SKILL.md` (and `vendor/cli/SKILL.md`) with current upstream and stamps `synced:` in the skill frontmatter. It writes next to the script itself, so run it only in a working clone, never in the installed plugin cache.
+This overwrites `vendor/find-docs/SKILL.md` (and `vendor/cli/SKILL.md`) with upstream at the resolved commit and stamps `synced:` and `upstream-version: upstash/context7@<commit>` in the skill frontmatter, so both baselines and the stamp name the same revision. It writes next to the script itself, so run it only in a working clone, never in the installed plugin cache.
+
+Upstash publishes no version for these files, so the commit is the record of what was reviewed, and the marketplace's vendor gate accepts a `vendor/` change only with a changed `upstream-version`.
 
 ## What to preserve when integrating upstream changes
 

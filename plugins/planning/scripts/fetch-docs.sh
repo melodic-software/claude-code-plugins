@@ -346,7 +346,7 @@ pin() {
   if ! map_get PINS "$1" v; then
     v=96
     if resolve_python; then
-      v="$(with_timeout 30 "$PY" -c "$PIN_PY" "$1" 2>/dev/null </dev/null)" || rc=$?
+      v="$(with_timeout 30 "$PY" -I -c "$PIN_PY" "$1" 2>/dev/null </dev/null)" || rc=$?
       case "$rc" in
       0) v="${v%%,*}" v="${v%$'\r'}" ;;
       3) v=97 ;;
@@ -649,7 +649,7 @@ resolve_python() {
   PY_STATE=none
   for c in python3 python; do
     command -v "$c" >/dev/null 2>&1 || continue
-    v="$(with_timeout 30 "$c" -c 'import sys; print(sys.version_info[0])' 2>/dev/null </dev/null)"
+    v="$(with_timeout 30 "$c" -I -c 'import sys; print(sys.version_info[0])' 2>/dev/null </dev/null)"
     [[ "${v%$'\r'}" == 3 ]] || continue
     PY="$c" PY_STATE=ok
     return 0

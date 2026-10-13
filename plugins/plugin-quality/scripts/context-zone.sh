@@ -38,10 +38,12 @@
 #   (conservative-min). When only one is computable, it stands alone. When
 #   neither is, the zone is unknown.
 #
-# TOKEN-SHAPE VERSION GATE: total_input_tokens / total_output_tokens mean
-# *current context occupancy* only since Claude Code 2.1.132 — before that
-# they were cumulative session totals, which would misfire the bands badly.
-# A cumulative total is NOT observable from the numbers alone: 170k
+# TOKEN-SHAPE VERSION GATE: total_input_tokens / total_output_tokens are read
+# as current context occupancy only from the release the changelog names for
+# that fix (https://code.claude.com/docs/en/changelog#2-1-132; field meanings at
+# https://code.claude.com/docs/en/statusline#context-window-fields; as of
+# 2026-10-11, recheck when either section changes what the token fields count).
+# Earlier snapshots would misfire the bands badly. A cumulative total is NOT observable from the numbers alone: 170k
 # cumulative in a 200k window is a perfectly plausible current occupancy and
 # resolves dumb while the live context may be nowhere near it. So the token
 # shape requires the snapshot's cli_version to be >= 2.1.132; an absent,

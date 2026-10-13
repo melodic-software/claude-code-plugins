@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Next: /planning:plan for the export change. Alongside it, /planning:questionnaire turns the deferred SSH key type question into a document the partner's ops lead fills in.",
+      "why": "questionnaire beside the next pipeline step, no key type chosen"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /planning:questionnaire for the partner's ops lead and wait for the answer before doing anything else.",
+      "why": "questionnaire replaces the next step"
+    },
+    {
+      "answer": "Next: /planning:plan. Assume ed25519 keys; most SFTP servers accept them.",
+      "why": "no questionnaire, and picks a key type"
+    }
+  ]
+}
