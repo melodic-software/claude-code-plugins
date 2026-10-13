@@ -173,10 +173,9 @@ def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
 # --------------------------------------------------------------------------
 # Surfaces: what upstream documents about each path under ~/.claude
 #
-# Basis for every SWEPT / KEPT row: https://code.claude.com/docs/en/claude-directory.md
-# ("Application data" -> "Cleaned up automatically" / "Kept until you delete
-# them"), read as raw markdown, verified 2026-08-11. See reference/surfaces.md.
-# Recheck when either section adds, moves or drops a path row.
+# Pointer for every SWEPT / KEPT row: https://code.claude.com/docs/en/claude-directory#application-data,
+# read as raw markdown. As of 2026-10-11. See reference/surfaces.md.
+# Recheck when that section adds, moves or drops a path row.
 # --------------------------------------------------------------------------
 
 SWEPT = "product-managed-swept"  # deleted at startup once older than cleanupPeriodDays
@@ -201,6 +200,9 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
     "debug": (SWEPT, "Per-session debug logs (--debug / /debug only)"),
     "paste-cache": (SWEPT, "Contents of large pastes"),
     "image-cache": (SWEPT, "Attached images"),
+    "uploads": (SWEPT, "Uploads; see claude-directory#cleaned-up-automatically"),
+    "dev-mods": (SWEPT, "Mods; see claude-directory#cleaned-up-automatically"),
+    "usage-data": (SWEPT, "Usage data; see claude-directory#cleaned-up-automatically"),
     "session-env": (SWEPT, "Per-session environment metadata"),
     "tasks": (SWEPT, "Per-session task lists"),
     "shell-snapshots": (
@@ -209,7 +211,7 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
     ),
     "backups": (
         SWEPT,
-        "Timestamped copies of ~/.claude.json taken before config migrations",
+        "~/.claude.json backups; see claude-directory#cleaned-up-automatically",
     ),
     "feedback-bundles": (SWEPT, "Redacted transcript archives written by /feedback"),
     "todos": (
@@ -236,6 +238,7 @@ SURFACE_TABLE: dict[str, tuple[str, str]] = {
         "Cached feature policy settings for your organization",
     ),
     "cache": (KEPT, "cache/changelog.md is a cached copy of the Claude Code changelog"),
+    "jobs": (KEPT, "Background session state; see claude-directory#state-files-to-keep"),
     # Session-scoped, explicitly NOT age-swept
     "sessions": (
         SESSION_SCOPED,

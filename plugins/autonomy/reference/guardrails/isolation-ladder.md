@@ -11,7 +11,11 @@ document names substrate classes as marked examples only, never an instance list
   version-control permissions are the only containment. Attended interactive use only.
 - **`L1`: per-command OS sandbox.** The sandbox wraps shell-command execution only; file
   tools, hooks, and protocol-connected tool surfaces still execute on the host. An attended
-  ergonomics tier, not an autonomy tier.
+  ergonomics tier, not an autonomy tier. Which level a harness's own sandbox reaches is read live:
+  see the guardrail slice's
+  [sandbox rating record](../../skills/setup/context/guardrail-slice.md#harness-records-for-the-vendor-neutral-leaves)
+  (as of 2026-10-11; recheck when that record's trigger fires, or the linked heading is renamed or
+  removed).
 - **`L2`: whole-process OS-enforced boundary with default-deny egress, credential
   protection, contained workspace host-writes, and policy nothing the run can install may
   widen.** The minimum for any unattended run.
@@ -21,8 +25,8 @@ document names substrate classes as marked examples only, never an instance list
   The levels above describe the process boundary; the workspace mount is a deliberate hole
   through it, which is why containment of writes that reach the host is named here rather than
   assumed. A boundary can deny egress and hide every credential while still accepting writes the
-  host later executes. A version-control config file is a command key ring, and one of its keys
-  fires on a read-only-looking status call. Scope is deliberately write containment: read
+  host later executes. A version-control config file can define commands, and one of them runs
+  on a status call that looks read-only. Scope is deliberately write containment: read
   exposure is not covered at this level, and a copy-on-read workspace leaves reads fully open.
 
   The widening clause names a direction, because that is what generalizes. An additive policy

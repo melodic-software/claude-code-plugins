@@ -61,6 +61,6 @@ Plus relative-link integrity on changed files: for each `](<relative>.md)` refer
 
 ## Preferred research sources
 
-- **Anthropic skill-authoring best-practices guide** (`platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices`), for "is this prose effective for Claude" questions
+- **Anthropic skill-authoring best-practices guide**, for "is this prose effective for Claude" questions: start at [Checklist for effective Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#checklist-for-effective-skills) and follow it to the section a candidate touches. As of: 2026-10-11. Recheck trigger: that section is renamed or removed
 - **Boris Cherny**: Claude Code creator; canonical patterns for skill content and progressive disclosure
 - **Diátaxis framework** (`diataxis.fr`), for "is this doc the right kind of doc" reading-order questions

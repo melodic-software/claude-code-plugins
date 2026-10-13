@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.21.1] - 2026-10-11
+
+### Changed
+
+- **`docpage-digest` reads `claude.dev/blog` posts through their raw-markdown channel.** The publisher profile now fetches `https://claude.dev/blog/<slug>.md` as `source.md`, keeps the rendered page as `source.html` for figure text, and falls back to `extract_blog_body.py` when the `.md` fetch fails, is not markdown, or lacks the article's title. The channel's observed shape lives in a probe record the profile points at, and a new eval case covers the raw-first, HTML-companion and fallback path.
+
 ## [0.21.0] - 2026-10-11
 
 ### Added

@@ -29,11 +29,12 @@ three. A root that cannot be resolved here is unknown, and fails every condition
 | # | Holds when | Read it from |
 |---|---|---|
 | A | Nothing takes precedence over an `AGENTS.md`: no `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` at or above the working directory other than the shims going, **and** no directory on the path from the repository root to a nested `AGENTS.md`, that directory included, holds a `.claude/CLAUDE.md` or a non-shim `CLAUDE.md` or `CLAUDE.local.md` | The ancestor walk below, run from each directory contributors start sessions in; the nested path walk below, over every `AGENTS.md` inside the repository, tracked or not; and the operator for the other machines, whose ancestors (a `~/work/CLAUDE.md`) and uncommitted `CLAUDE.local.md` files this machine cannot see |
-| B | **Project instructions** on this machine reads `AGENTS.md` with no `CLAUDE.md`: `claude-md-or-agents-md` (the default) or `claude-md-and-agents-md` | `pluginConfigs["agents-md@builtin"].options.instructionFiles` in `<config>/settings.json`, managed settings and any `--settings` file; absent everywhere is the default. Project and local settings are ignored for it, so never read them as the answer. `claude-md` or `managed-only` fails |
+| B | **Project instructions** on this machine reads `AGENTS.md` with no `CLAUDE.md`: `claude-md-or-agents-md` (the default) or `claude-md-and-agents-md` | `pluginConfigs[<id>].options.instructionFiles` in `<config>/settings.json`, managed settings and any `--settings` file, for `<id>` both `agents-md@builtin` and the `id` the condition C lane prints; absent everywhere is the default. Project and local settings are ignored for it, so never read them as the answer. `claude-md` or `managed-only` fails |
 | C | The loader is present and not disabled on this machine | `/harness-ops:inventory --bundled`, `builtin_plugins.cc-plugin-agents-md` (`in_loader`, `load`, `gated`, `gate_flags`), and no `enabledPlugins` entry set `false` in any scope (`<config>` user settings, managed, project, local, `--settings`) for `agents-md@builtin` or the `id` the lane prints. Inventory absent, the lane `broken`, or the entry missing is unknown. With `disableAllHooks` or `allowManagedHooksOnly` set `true` in any scope, C holds only on v2.1.287 or later, the build on which built-in mods are verified to keep running under both; an older or unknown version is unknown |
 | D | Every user, machine and organization the repository serves reads `AGENTS.md` directly | Ask the operator, with the list below. Any yes, and any "don't know", fails |
 | E | Nothing reachable through the `@` import graph of any `AGENTS.md`, root or nested, lies outside the working directory | The import-graph walk below, from every `AGENTS.md` and from each session start directory. Any `EXTERNAL`, `UNRESOLVED` or `DEPTH` row fails |
 | F | No hook depends on `InstructionsLoaded` reporting the `AGENTS.md` load, or the operator accepts losing that | Every hook source, inside the repository and out: grep for `InstructionsLoaded` in the repository's `.claude/settings*.json`, hook scripts and CI; `<config>/settings.json` and `<config>/settings.local.json`; the managed settings file and any `managed-settings.d/` beside it; every `--settings` file contributors pass; each installed plugin's `hooks/hooks.json` and `plugin.json` `hooks` under `<plugins>`; the `hooks:` frontmatter of every skill, command and agent file in the repository, under `<config>`, under `<plugins>` and in the managed settings directory, by the frontmatter scan below; and the plugins loaded per session or outside an install: ask the operator whether contributors use `--plugin-dir`, `--plugin-url`, `CLAUDE_CODE_PLUGIN_DIRS` or `--add-dir`, and scan each directory or archive they name, plus every `<config>/skills/*/` that holds a `.claude-plugin/plugin.json`. A source that cannot be read here, and every other machine, is the operator's to answer. A hit the operator has not accepted, or a source nobody can answer for, fails |
+| G | No nested directory depends on its shim for a load trigger: every trigger the memory page names for a subdirectory's `CLAUDE.md` it also names for a subdirectory's `AGENTS.md` read directly, or the operator accepts the nested instructions loading on fewer triggers once the shims go | Holds outright when the repository has no nested `AGENTS.md`. Otherwise compare the two trigger lists live at the pointers in [`sources.md`](sources.md), "The nested write trigger", and read the `Nested write trigger` line of this machine's `cutover-check` run. G holds without the operator only when the lists match **and** the probe printed `[LOADS]`. A trigger on the `CLAUDE.md` list missing from the `AGENTS.md` list, a probe that printed `[NO-LOAD]` or `[UNREACH]`, or a run with `--skip-canary` fails G until the operator accepts the loss, and the acceptance is recorded beside the condition |
 
 B and C read this machine only. The setting is per user and no repository can ship it, so D is
 where the operator answers for every other machine.
@@ -62,6 +63,15 @@ says "your `~/.claude/CLAUDE.md`" does not count, so a `FOUND $HOME/.claude/CLAU
 one exemption, and only while `<config>` resolves to `$HOME/.claude`. With `CLAUDE_CONFIG_DIR`
 pointing elsewhere, the page does not say whether that file still counts, so the row fails A. An
 `UNREADABLE` row is unknown, and fails A.
+
+**A `CLAUDE.local.md` row has a replacement to offer.** A developer who keeps one for personal,
+uncommitted notes can move them to a gitignored, unscoped `.claude/rules/<name>.local.md`. Whether
+such a file counts against `AGENTS.md` is read live at
+<https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> (as of 2026-10-11;
+recheck when that section changes which files count). An `@` import inside such a rule is
+undocumented: it loaded on one measured build, recorded in [`sources.md`](sources.md), "The nested
+write trigger", and is re-measured on each release before it is relied on. The offer changes no
+verdict: A still fails while the `CLAUDE.local.md` exists.
 
 ## The nested path walk for condition A
 
@@ -225,7 +235,7 @@ Ask each, and record the answer beside the condition:
    moves the user settings, user `CLAUDE.md` or plugins this rule reads, so conditions A, B, C and
    F hold for that contributor only when their roots are named and read. "Don't know" fails D.
 7. **Is there any other way instructions reach Claude for this repository, or anything else that
-   consumes `InstructionsLoaded`, beyond what conditions A to F and questions 1 to 6 cover?** This
+   consumes `InstructionsLoaded`, beyond what conditions A to G and questions 1 to 6 cover?** This
    question catches every case not listed here, so a gap found later keeps the shim without a
    change to this file. "Don't know" fails D.
 
@@ -236,8 +246,9 @@ What the memory page states, and the verdict that follows:
 - `claude-md-or-agents-md`: a subdirectory's `AGENTS.md` loads "when Claude opens a file there
   with the Read tool and that subdirectory has none of the three `CLAUDE.md` files of its own".
   Nested shims leave with the root only when condition A holds for every such subdirectory and
-  every directory between it and the root; a blocker anywhere on that path keeps its shim, and since
-  `remove-shims` takes root and nested together, the repository keeps all of them.
+  every directory between it and the root, and condition G holds; a blocker anywhere on that path,
+  or a load trigger only a shim carries, keeps its shim, and since `remove-shims` takes root and
+  nested together, the repository keeps all of them.
 - `claude-md-and-agents-md`: "each directory's `CLAUDE.md` files first and its `AGENTS.md` after
   them"; the page does not say when a subdirectory's file loads. A repository with nested
   `AGENTS.md` keeps every shim under this mode.

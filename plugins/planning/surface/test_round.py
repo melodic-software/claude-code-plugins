@@ -426,12 +426,16 @@ class TestAffects(DirCase):
         self.assertIn("--affects", out)
 
     def test_reply_rec_stores_affects_on_the_history_line(self):
-        rc, out, err = self.rp("reply", "Q1", "--rec", "New.", "--affects", "Q2,Q3")
+        rc, out, err = self.rp(
+            "reply", "Q1", "--rec", "New.", "--affects", "Q2,Q3", "--keep-alternatives"
+        )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["history"][-1]["affects"], ["Q2", "Q3"])
 
     def test_revise_rec_affects_none_is_an_empty_list(self):
-        rc, out, err = self.rp("revise", "Q1", "--rec", "New.", "--affects", "none")
+        rc, out, err = self.rp(
+            "revise", "Q1", "--rec", "New.", "--affects", "none", "--keep-alternatives"
+        )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["history"][-1]["affects"], [])
 
@@ -473,11 +477,28 @@ class TestAffects(DirCase):
         )
         for cmd in ("reply", "revise"):
             out = self.assert_refused(
-                cmd, "Q1", "--rec", "New.", "--affects", "none", "--seq", "1"
+                cmd,
+                "Q1",
+                "--rec",
+                "New.",
+                "--affects",
+                "none",
+                "--seq",
+                "1",
+                "--keep-alternatives",
             )
             self.assertIn("refused", out)
             rc, out, err = self.rp(
-                cmd, "Q1", "--rec", "New.", "--affects", "none", "--seq", "1", "--force"
+                cmd,
+                "Q1",
+                "--rec",
+                "New.",
+                "--affects",
+                "none",
+                "--seq",
+                "1",
+                "--force",
+                "--keep-alternatives",
             )
             self.assertEqual(rc, 0, out + err)
 
@@ -491,12 +512,28 @@ class TestAffects(DirCase):
         ]
         self.write_events(events)
         rc, out, err = self.rp(
-            "revise", "Q1", "--rec", "New.", "--affects", "none", "--seq", "1"
+            "revise",
+            "Q1",
+            "--rec",
+            "New.",
+            "--affects",
+            "none",
+            "--seq",
+            "1",
+            "--keep-alternatives",
         )
         self.assertEqual(rc, 0, out + err)
         self.write_events([*events, {**accept, "seq": 3, "at": at}])
         out = self.assert_refused(
-            "revise", "Q1", "--rec", "Newer.", "--affects", "none", "--seq", "1"
+            "revise",
+            "Q1",
+            "--rec",
+            "Newer.",
+            "--affects",
+            "none",
+            "--seq",
+            "1",
+            "--keep-alternatives",
         )
         self.assertIn("#3", out)
 
@@ -523,13 +560,17 @@ class TestRevise(DirCase):
 class TestRecAlternativeCollision(DirCase):
     def test_reply_rec_equal_or_containing_an_alternative_is_refused(self):
         for rec in ("  no.", "Pick no, then ship it"):
-            out = self.assert_refused("reply", "Q1", "--rec", rec, "--affects", "none")
+            out = self.assert_refused(
+                "reply", "Q1", "--rec", rec, "--affects", "none", "--keep-alternatives"
+            )
             self.assertIn("Q1", out)
             self.assertIn("(a)", out)
-            self.assertIn("revise", out)
+            self.assertIn("--alt", out)
 
     def test_revise_rec_colliding_with_an_alternative_is_refused(self):
-        out = self.assert_refused("revise", "Q1", "--rec", "No", "--affects", "none")
+        out = self.assert_refused(
+            "revise", "Q1", "--rec", "No", "--affects", "none", "--keep-alternatives"
+        )
         self.assertIn("revise --alt", out)
 
     def test_revise_rec_with_alt_that_removes_the_collision_saves(self):
@@ -555,16 +596,167 @@ class TestRecAlternativeCollision(DirCase):
 
     def test_reply_rec_without_a_collision_saves(self):
         rc, out, err = self.rp(
-            "reply", "Q1", "--rec", "Ship it now.", "--affects", "none"
+            "reply",
+            "Q1",
+            "--rec",
+            "Ship it now.",
+            "--affects",
+            "none",
+            "--keep-alternatives",
         )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["recommendation"], "Ship it now.")
 
 
+class TestRecReviewsAlternatives(DirCase):
+    """R-I: a recommendation change carries revised alternatives or states the current ones were
+    checked against it (keepAlternatives); the history line records which."""
+
+    REC = ["--rec", "Ship it now.", "--affects", "none"]
+    ALTS = ["--alt", "a:Wait a week", "--alt", "b:Never"]
+
+    def apply(self, *ops):
+        return self.rp("apply", "--file", self.file("ops.json", {"ops": list(ops)}))
+
+    def test_rec_without_alternatives_or_keep_is_refused_naming_the_question(self):
+        for cmd in ("reply", "revise"):
+            with self.subTest(cmd=cmd):
+                out = self.assert_refused(cmd, "Q1", *self.REC)
+                self.assertIn("Q1", out)
+                self.assertIn("--keep-alternatives", out)
+        op = {"op": "revise", "id": "Q1", "rec": "Ship it now.", "affects": "none"}
+        out = self.assert_refused(
+            "apply", "--file", self.file("ops.json", {"ops": [op]})
+        )
+        self.assertIn("keepAlternatives", out)
+
+    def test_revise_with_alternatives_records_both_changes(self):
+        rc, out, err = self.rp("revise", "Q1", *self.REC, *self.ALTS)
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertEqual(q["alternatives"][0], {"key": "a", "text": "Wait a week"})
+        line = q["history"][-1]
+        self.assertEqual(line["alternatives"], "rewritten")
+        self.assertIn("recommendation, alternatives", line["text"])
+
+    def test_keep_alternatives_applies_and_records_that_they_were_kept(self):
+        for cmd in ("reply", "revise"):
+            with self.subTest(cmd=cmd):
+                rc, out, err = self.rp(cmd, "Q1", *self.REC, "--keep-alternatives")
+                self.assertEqual(rc, 0, out + err)
+                q = self.q("Q1")
+                self.assertEqual(
+                    [a["text"] for a in q["alternatives"]], ["No", "Later"]
+                )
+                self.assertEqual(q["history"][-1]["alternatives"], "kept")
+                self.assertIn("alternatives kept", q["history"][-1]["text"])
+
+    def test_reply_with_rec_and_alternatives_lands_in_one_op(self):
+        alts = [{"key": "a", "text": "Wait a week"}, "b:Never"]
+        op = {"op": "reply", "id": "Q1", "text": "Yes.", "rec": "Ship it now.", "affects": "none", "alternatives": alts}  # fmt: skip
+        rc, out, err = self.apply(op)
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertEqual(q["recommendation"], "Ship it now.")
+        self.assertEqual([a["key"] for a in q["alternatives"]], ["a", "b"])
+        self.assertEqual(q["history"][-1]["alternatives"], "rewritten")
+
+    def test_a_new_alternative_repeating_the_new_recommendation_is_refused(self):
+        for cmd in ("reply", "revise"):
+            with self.subTest(cmd=cmd):
+                out = self.assert_refused(cmd, "Q1", *self.REC, "--alt", "a:Ship it now", "--alt", "b:Never")  # fmt: skip
+                self.assertIn("(a)", out)
+
+    def test_both_or_keep_without_rec_is_refused(self):
+        out = self.assert_refused(
+            "revise", "Q1", *self.REC, *self.ALTS, "--keep-alternatives"
+        )
+        self.assertIn("not both", out)
+        for cmd in ("reply", "revise"):
+            with self.subTest(cmd=cmd):
+                self.assert_refused(cmd, "Q1", "--text", "Hi.", "--keep-alternatives")
+        self.assert_refused("reply", "Q1", "--text", "Hi.", *self.ALTS)
+
+
+class TestRevisedReason(DirCase):
+    """A recommendation change stores its why as given, else true: the page says the
+    "Recommendation revised." phrase itself, so it is never stored as the reason."""
+
+    def test_no_why_stores_true_and_a_why_is_stored_as_given(self):
+        for cmd in ("reply", "revise"):
+            with self.subTest(cmd=cmd):
+                rec = ["--rec", f"New by {cmd}.", "--affects", "none"]
+                rc, out, err = self.rp(cmd, "Q1", *rec, "--keep-alternatives")
+                self.assertEqual(rc, 0, out + err)
+                self.assertIs(self.q("Q1")["revised"], True)
+                rec[1] = f"Newer by {cmd}."
+                rc, out, err = self.rp(
+                    cmd, "Q1", *rec, "--keep-alternatives", "--why", "Faster."
+                )
+                self.assertEqual(rc, 0, out + err)
+                self.assertEqual(self.q("Q1")["revised"], "Faster.")
+
+
+class TestRegroup(DirCase):
+    """#5914: revise --group moves a question between existing groups, and group-order reorders
+    the groups, both in place: the question keeps its id, thread and answer."""
+
+    def test_revise_group_moves_the_question_and_logs_it(self):
+        rc, out, err = self.rp("revise", "Q1", "--group", "g2")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q1")
+        self.assertEqual(q["group"], "g2")
+        self.assertEqual(q["history"][-1]["kind"], "group")
+        self.assertEqual(q["history"][-1]["text"], "Group: g1 -> g2.")
+        self.assertIn("group (g1 -> g2)", out)
+
+    def test_a_move_warns_on_a_summary_written_for_the_old_members(self):
+        rc, out, err = self.rp("group", "g1", "--summary", "Q1 and Q2.")
+        self.assertEqual(rc, 0, out + err)
+        rc, out, err = self.rp("revise", "Q1", "--group", "g2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("group g1 summary predates moving Q1", out + err)
+
+    def test_unknown_group_or_a_no_op_move_is_refused(self):
+        self.assertIn(
+            "unknown group", self.assert_refused("revise", "Q1", "--group", "g9")
+        )
+        self.assertIn(
+            "nothing to revise", self.assert_refused("revise", "Q1", "--group", "g1")
+        )
+
+    def test_group_order_reorders_the_groups(self):
+        rc, out, err = self.rp("group-order", "g2", "g1")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual([g["id"] for g in self.doc()["groups"]], ["g2", "g1"])
+
+    def test_group_order_needs_every_group_once(self):
+        for ids, word in ((["g2"], "missing: g1"), (["g2", "g1", "g9"], "unknown: g9"), (["g2", "g1", "g2"], "repeated: g2")):  # fmt: skip
+            with self.subTest(ids=ids):
+                self.assertIn(word, self.assert_refused("group-order", *ids))
+
+    def test_apply_takes_both_ops(self):
+        ops = [{"op": "group-order", "ids": ["g2", "g1"]}, {"op": "revise", "id": "Q3", "group": "g1"}]  # fmt: skip
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", {"ops": ops}))
+        self.assertEqual(rc, 0, out + err)
+        doc = self.doc()
+        self.assertEqual([g["id"] for g in doc["groups"]], ["g2", "g1"])
+        self.assertEqual(self.q("Q3")["group"], "g1")
+
+
 class TestReviseCommits(DirCase):
     def revise_commits(self, *commits):
         args = [a for c in commits for a in ("--commit", c)]
-        return self.rp("revise", "Q1", "--rec", "New.", "--affects", "none", *args)
+        return self.rp(
+            "revise",
+            "Q1",
+            "--rec",
+            "New.",
+            "--affects",
+            "none",
+            "--keep-alternatives",
+            *args,
+        )
 
     def test_cli_writes_the_commitments_in_order(self):
         rc, out, err = self.revise_commits("A", "B")
@@ -698,11 +890,25 @@ class TestRecChangeStampsPageSeq(DirCase):
 
     def test_revise_and_reply_with_rec_stamp_the_seq_and_other_changes_do_not(self):
         rc, out, err = self.rp(
-            "revise", "Q1", "--rec", "New.", "--affects", "Q3", "--force"
+            "revise",
+            "Q1",
+            "--rec",
+            "New.",
+            "--affects",
+            "Q3",
+            "--force",
+            "--keep-alternatives",
         )
         self.assertEqual(rc, 0, out + err)
         rc, out, err = self.rp(
-            "reply", "Q1", "--rec", "Newer.", "--affects", "none", "--force"
+            "reply",
+            "Q1",
+            "--rec",
+            "Newer.",
+            "--affects",
+            "none",
+            "--force",
+            "--keep-alternatives",
         )
         self.assertEqual(rc, 0, out + err)
         rc, out, err = self.rp(
@@ -893,6 +1099,39 @@ class TestDirRequired(unittest.TestCase):
         self.assertIn("--dir", p.stderr)
 
 
+class TestInputFiles(DirCase):
+    """DX-2: a missing or malformed input file is a one-line refusal, never a traceback."""
+
+    def check(self, *args):
+        rc, out, err = self.rp(*args)
+        self.assertEqual(rc, 1, out + err)
+        self.assertNotIn("Traceback", err)
+        self.assertIn("refused: cannot read", err)
+
+    def test_missing_files_refuse_cleanly(self):
+        gone = str(self.tmp / "missing.json")
+        out = str(self.tmp / "out.md")
+        for args in (
+            ("export-brief", "--out", out, "--ledger", gone),
+            ("export-ledger", "--out", out, "--ledger", gone),
+            ("export-ledger", "--diff", gone),
+            ("add", "--file", gone),
+            ("add-round", "--file", gone),
+            ("import-ledger", "--ledger", gone),
+            ("doctor", "--ledger", gone),
+            ("sync-ledger", "--ledger", gone),
+        ):
+            with self.subTest(args=args):
+                self.check(*args)
+
+    def test_malformed_json_refuses_cleanly(self):
+        bad = self.tmp / "bad.json"
+        bad.write_text("# not json\n", encoding="utf-8")
+        for cmd in ("add", "add-round"):
+            with self.subTest(cmd=cmd):
+                self.check(cmd, "--file", str(bad))
+
+
 class TestApply(DirCase):
     """AC10, AC9: one atomic write for a list of ops."""
 
@@ -944,6 +1183,41 @@ class TestApply(DirCase):
         self.assertEqual(self.q("Q1")["history"][-1]["replyTo"], 1)
         self.assertIn("reply: replied on Q1", out)
         self.assertIn("handle: handled 2", out)
+
+    def test_a_rerun_wake_applies_the_ops_file_once(self):
+        """DX-1: apply consumes ops.json, so re-running the watcher's next adds no duplicate reply."""
+        path = self.file(
+            "ops.json", {"ops": [{"op": "reply", "id": "Q1", "text": "Once."}]}
+        )
+        rc, out, err = self.rp("apply", "--file", path)
+        self.assertEqual(rc, 0, out + err)
+        self.assertFalse(
+            Path(path).exists(), "a successful apply leaves ops.json behind"
+        )
+        rev = self.doc()["rev"]
+        rc, out, err = self.rp("apply", "--file", path)
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("nothing to apply", out)
+        self.assertEqual(self.doc()["rev"], rev)
+        texts = [h.get("text") for h in self.q("Q1").get("history", [])]
+        self.assertEqual(texts.count("Once."), 1, texts)
+
+    def test_an_unfinished_claim_beside_a_new_ops_file_refuses(self):
+        """A killed apply leaves ops.json.applying; a fresh ops.json must not overwrite that batch."""
+        old = {"ops": [{"op": "reply", "id": "Q1", "text": "Orphaned."}]}
+        path = self.file("ops.json.applying", old)[: -len(".applying")]
+        self.file("ops.json", {"ops": [{"op": "reply", "id": "Q1", "text": "New."}]})
+        out = self.assert_refused("apply", "--file", path)
+        self.assertIn("ops.json.applying", out)
+        self.assertEqual(json.loads(Path(path + ".applying").read_text()), old)
+        self.assertTrue(Path(path).exists())
+
+    def test_a_refused_apply_keeps_the_ops_file(self):
+        path = self.file(
+            "ops.json", {"ops": [{"op": "reply", "id": "Q9", "text": "x"}]}
+        )
+        self.assert_refused("apply", "--file", path)
+        self.assertTrue(Path(path).exists())
 
     def test_only_a_reply_line_carries_a_reply_kind(self):
         ops = {
@@ -1851,7 +2125,7 @@ class TestReplyResolution(DirCase):
 class TestReviseSetsAsideOwn(DirCase):
     """A recommendation revision sets aside the counted own answer; other decisions stay."""
 
-    REC = ["--rec", "Use the lock.", "--affects", "none"]
+    REC = ["--rec", "Use the lock.", "--affects", "none", "--keep-alternatives"]
     CLOSED = "First group: 1 of 2 closed; open: Q2 Short Q2"
     OPEN = "First group: 0 of 2 closed; open: Q1 Short Q1, Q2 Short Q2"
 
@@ -1936,7 +2210,13 @@ class TestReviseSetsAsideOwn(DirCase):
             {"op": "record-terminal", "id": "Q1", "decision": "own", "text": "x"}
         )
         self.apply_ops(
-            {"op": "revise", "id": "Q1", "rec": "Use the lock.", "affects": "none"}
+            {
+                "op": "revise",
+                "id": "Q1",
+                "rec": "Use the lock.",
+                "affects": "none",
+                "keepAlternatives": True,
+            }
         )
         q = self.q("Q1")
         self.assertGreater(q["setAsideRev"], q["terminal"]["rev"])
@@ -1961,6 +2241,7 @@ class TestReviseSetsAsideOwn(DirCase):
                 "id": "Q1",
                 "rec": "Use the lock.",
                 "affects": "none",
+                "keepAlternatives": True,
                 "seq": 1,
             },
             {
@@ -2095,6 +2376,48 @@ class TestLock(DirCase):
         self.assertEqual(rc, 1, out + err)
         self.assertIn("questions.json.lock", out + err)
         self.assertEqual(self.raw(), before)
+
+    def apply_later(self, path):
+        p = subprocess.Popen(
+            [
+                sys.executable,
+                str(ROUND),
+                "--dir",
+                str(self.dir),
+                "apply",
+                "--file",
+                path,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.addCleanup(p.communicate, timeout=30)
+        return p
+
+    def replies(self):
+        return [h.get("text") for h in self.q("Q1").get("history", [])]
+
+    def test_overlapping_applies_claim_the_ops_file_under_the_lock(self):
+        """Two wakes waiting on the lock apply one batch once, and the batch on disk when the lock frees
+        is the one applied: one written while they waited is neither lost nor shadowed by the old one."""
+
+        def reply(text):
+            return {"ops": [{"op": "reply", "id": "Q1", "text": text}]}
+
+        path = self.file("ops.json", reply("Old."))
+        holder = self.hold(2)
+        first, second = self.apply_later(path), self.apply_later(path)
+        time.sleep(0.7)
+        self.file("ops.json", reply("New."))
+        holder.wait(30)
+        for p in (first, second):
+            out, err = p.communicate(timeout=30)
+            self.assertEqual(p.returncode, 0, out + err)
+        self.assertEqual(self.replies().count("New."), 1, self.replies())
+        self.assertNotIn("Old.", self.replies())
+        self.assertFalse(Path(path).exists())
+        self.assertFalse(Path(path + ".applying").exists())
 
 
 class TestRebuild(unittest.TestCase):

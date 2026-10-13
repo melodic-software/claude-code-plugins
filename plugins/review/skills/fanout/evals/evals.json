@@ -506,6 +506,128 @@
         "The uncertain finding is present and labeled medium or low, not omitted and not given high",
         "The severity field uses the caller's vocabulary; no CRITICAL, IMPORTANT or SUGGESTION tier label replaces it"
       ]
+    },
+    {
+      "id": 41,
+      "name": "every-surface-gets-one-intent-paragraph",
+      "prompt": "/review:fanout\n\n[Scenario: medium-tier branch, 140 changed lines, open PR titled 'Cap webhook redelivery at five attempts'. The PR body says the goal is to stop a failing subscriber from receiving the same event forever. Two commits: 'add attempt counter to delivery row' and 'stop redelivery after the fifth failure'. pr-review-toolkit is installed; codex is not.]",
+      "expected_output": "Before dispatch, writes one short paragraph in its own words stating what the change is meant to do (stop redelivering a webhook event after five failed attempts), drawn from the PR title, PR body and commit subjects. The same paragraph goes into the prompt of every surface it dispatches, the code-reviewer and security-reviewer leaves and the pr-review-toolkit orchestrator alike, labeled as what the author says the change is for, which the reviewer checks the change against rather than trusts.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States the change's intent in one paragraph before any surface is dispatched",
+        "The intent paragraph is drawn from the PR title, PR body or commit subjects rather than invented",
+        "Every dispatched surface's prompt carries the same intent paragraph, not only the code-reviewer's",
+        "The paragraph is framed as the author's purpose to check against, not as verified fact"
+      ]
+    },
+    {
+      "id": 42,
+      "name": "demoted-findings-listed-under-dismissed",
+      "prompt": "/review:fanout\n\n[Scenario: small-tier branch. The code-reviewer leaf returns two CRITICAL findings. One says ledger/post.py:88 divides by a count that can be zero; the cited line does divide by `len(entries)` with no guard. The other says ledger/post.py:120 closes the database connection twice; at line 120 the connection is closed once, inside a `with` block, and nothing else closes it.]",
+      "expected_output": "Reads both cited lines before the CRITICAL findings enter the report. The divide-by-zero finding stays CRITICAL. The double-close finding is not borne out, so it drops to low confidence and stays in `## Findings` at that confidence. The persisted report also carries a `## Dismissed` section that lists the double-close finding with one line of reason (line 120 closes the connection once, inside a with block). No finding is removed from the report.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The divide-by-zero finding stays in the report as CRITICAL",
+        "The double-close finding remains in `## Findings` at low confidence rather than being removed",
+        "The report has a `## Dismissed` section listing the double-close finding with a one-line reason drawn from the cited line",
+        "The divide-by-zero finding does not appear under `## Dismissed`"
+      ]
+    },
+    {
+      "id": 43,
+      "name": "fix-pass-writes-a-red-test-covering-every-site-first",
+      "prompt": "/review:fanout fix\n\n[Scenario: one unconsumed findings file for this branch. Its only row is CRITICAL, high confidence, Location billing/proration.py:41: `prorate()` rounds each partial month down with int(), so a customer who cancels mid-month is refunded one cent less; the same int() truncation appears again at billing/proration.py:77 in `prorate_upgrade()`. The project keeps pytest tests under tests/billing/. The user confirms the plan.]",
+      "expected_output": "Before changing billing/proration.py, adds a test under tests/billing/ that fails because of the truncation and that exercises both sites, `prorate()` and `prorate_upgrade()`, then runs it and sees it fail. Only then does it fix both lines, re-runs the test and sees it pass. The report names the test and its red-then-green result.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes a failing test before editing billing/proration.py",
+        "The test exercises both prorate() and prorate_upgrade(), not only the cited line",
+        "Runs the test red before the fix and green after it",
+        "The report names the test and states its red-then-green result"
+      ]
+    },
+    {
+      "id": 44,
+      "name": "fanout-diversity-nothing-set-resolves-lens-default",
+      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 120 changed lines under inventory/. The skill text shows the user option as the literal placeholder ${user_config.fanout_diversity}. The setup-apply --check run prints `INFO docs/conventions/review.yaml: absent; every key resolves from userConfig or its default`. /multi-agent:route is not among the available skills.]",
+      "expected_output": "Resolves fanout_diversity before the launch: the placeholder reads as unset and the repository file is absent, so the default applies. Reports `fanout_diversity: lens (default)` and launches review:fanout-sweep with args.diversity set to lens.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the line `fanout_diversity: lens (default)`",
+        "Launches the review:fanout-sweep workflow with args.diversity \"lens\"",
+        "Does NOT treat the literal ${user_config.fanout_diversity} placeholder as a value"
+      ]
+    },
+    {
+      "id": 45,
+      "name": "fanout-diversity-user-option-model-only",
+      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 90 changed lines under shipping/. The user option renders as `model`. The setup-apply --check run prints `INFO docs/conventions/review.yaml: absent; every key resolves from userConfig or its default`. /multi-agent:route resolves and prints fan-out variants inherit for orchestrator, worker and verifier and sonnet for retrieval.]",
+      "expected_output": "With no repository file, the user option supplies the value. Reports `fanout_diversity: model (user option)` and launches review:fanout-sweep with args.diversity set to model and the route's roles object.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports fanout_diversity as `model` supplied by the user option layer",
+        "Launches the review:fanout-sweep workflow with args.diversity \"model\"",
+        "Passes the route's roles object as args.roles"
+      ]
+    },
+    {
+      "id": 46,
+      "name": "fanout-diversity-repository-model-only",
+      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 200 changed lines under payroll/, none of them in docs/conventions/. The skill text shows the user option as the literal placeholder ${user_config.fanout_diversity}. The setup-apply --check run prints `PASS ratchet_offer: (unset)`, `PASS downstream_probe: (unset)` and `PASS fanout_diversity: model`.]",
+      "expected_output": "The user option is unset and the repository file sets model. Reports `fanout_diversity: model (docs/conventions/review.yaml)` and launches review:fanout-sweep with args.diversity set to model.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the line `fanout_diversity: model (docs/conventions/review.yaml)`",
+        "Launches the review:fanout-sweep workflow with args.diversity \"model\""
+      ]
+    },
+    {
+      "id": 47,
+      "name": "fanout-diversity-repository-lens-wins-over-user-model",
+      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 75 changed lines under clinic/scheduling/. The user option renders as `model`. The setup-apply --check run prints `PASS ratchet_offer: (unset)`, `PASS downstream_probe: (unset)` and `PASS fanout_diversity: lens`.]",
+      "expected_output": "Both layers are valid and the repository file is the later layer, so its lens wins over the user's model. Reports `fanout_diversity: lens (docs/conventions/review.yaml)` and launches review:fanout-sweep with args.diversity set to lens.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the line `fanout_diversity: lens (docs/conventions/review.yaml)`",
+        "Launches the review:fanout-sweep workflow with args.diversity \"lens\"",
+        "Does NOT use the user option's value model"
+      ]
+    },
+    {
+      "id": 48,
+      "name": "fanout-diversity-invalid-repository-value-drops-to-default",
+      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 140 changed lines under greenhouse/sensors/, none of them in docs/conventions/. The user option renders as `model`. The setup-apply --check run exits 1 and prints `PASS ratchet_offer: (unset)`, `PASS downstream_probe: (unset)` and a WARN line saying docs/conventions/review.yaml sets fanout_diversity=models, which is not one of lens, model.]",
+      "expected_output": "Names the file docs/conventions/review.yaml, the key fanout_diversity and the value models, and drops the repository layer for that key. No valid layer above it remains, so the key takes its default: reports `fanout_diversity: lens (default)` and launches with args.diversity set to lens. It does not fall back to the user option's model, and the run continues.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Names docs/conventions/review.yaml, fanout_diversity and the value models as invalid",
+        "Reports fanout_diversity as `lens` from the default layer",
+        "Launches the review:fanout-sweep workflow with args.diversity \"lens\"",
+        "Does NOT resolve to the lower user option value model",
+        "Does NOT stop the review because of the invalid value"
+      ]
+    },
+    {
+      "id": 49,
+      "name": "fanout-diversity-skips-repository-layer-the-change-edits",
+      "prompt": "/review:fanout run-everything\n\n[Scenario: the Workflow tool is available; a reviewable branch of 60 changed lines whose diff adds `fanout_diversity: model` to docs/conventions/review.yaml and edits library/loans.py. The skill text shows the user option as the literal placeholder ${user_config.fanout_diversity}. The setup-apply --check run on the working tree would print `PASS fanout_diversity: model`.]",
+      "expected_output": "Because the reviewed change set edits docs/conventions/review.yaml, the repository layer is skipped for fanout_diversity and the report says why. With the user option unset, it reports `fanout_diversity: lens (default)` and launches with args.diversity set to lens, not model.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States that the repository layer is skipped because the change set edits docs/conventions/review.yaml",
+        "Reports fanout_diversity as `lens` from the default layer",
+        "Launches the review:fanout-sweep workflow with args.diversity \"lens\"",
+        "Does NOT take model from the edited docs/conventions/review.yaml"
+      ]
     }
   ]
 }

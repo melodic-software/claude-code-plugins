@@ -1,15 +1,23 @@
 name: Check kill switch
 description: >
-  Gate a CI lane on the org kill switch. Emits proceed=true only when the
-  switch value reads exactly `false`; unset, empty and every other value
-  emit proceed=false reason=kill-switch. Always exits 0: the model step's
-  `if:` reads the output, so a missing output also keeps the lane stopped.
+  Gate a CI lane on the org and repository kill switches. Emits proceed=true
+  only when both values read exactly `false`; unset, empty and every other
+  value emit proceed=false reason=kill-switch. Always exits 0: the model
+  step's `if:` reads the output, so a missing output also keeps the lane
+  stopped.
 
 inputs:
   value:
     description: >
-      The kill-switch value, normally `vars.CLAUDE_LANES_DISABLED`. Only the
-      exact string `false` lets the lane proceed.
+      The org kill-switch value, normally `vars.CLAUDE_LANES_DISABLED`. Only
+      the exact string `false` lets the lane proceed.
+    required: false
+    default: ""
+  repo-value:
+    description: >
+      The repository kill-switch value, normally
+      `vars.CLAUDE_LANES_REPO_DISABLED`. Only the exact string `false` lets
+      the lane proceed.
     required: false
     default: ""
 
@@ -29,4 +37,5 @@ runs:
       shell: bash
       env:
         KILL_SWITCH_VALUE: ${{ inputs.value }}
+        REPO_KILL_SWITCH_VALUE: ${{ inputs.repo-value }}
       run: node "$GITHUB_ACTION_PATH/check-kill-switch.mjs"

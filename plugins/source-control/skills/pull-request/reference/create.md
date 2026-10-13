@@ -112,7 +112,7 @@ fi
 
 **Skip conditions:** branch has zero commits ahead (nothing to rebase), or merge-base already equals `$REMOTE/$DEFAULT_BRANCH` (branch is current).
 
-**Sandboxed sessions: resolve the default branch over REST.** The CLI's repository read sends the same GraphQL query its PR create does, so this is the *first* step on the normal `create` path to fail with `HTTP 403` where only a pinned set of GraphQL operations is served. See §2.4.0 for the full restriction and the placeholder-anchoring rule. Substitute the REST repository read ([GitHub](../../../reference/providers/github/pull-request/create.md#default-branch-over-rest)).
+**Sandboxed sessions: resolve the default branch over REST.** The CLI's repository read sends the same GraphQL query its PR create does, so this is the *first* step on the normal `create` path to fail with `HTTP 403` when the GitHub proxy refuses GraphQL. See §2.4.0 for the full restriction and the placeholder-anchoring rule. Substitute the REST repository read ([GitHub](../../../reference/providers/github/pull-request/create.md#default-branch-over-rest)).
 
 ## 2.3 Stage and commit
 
@@ -193,7 +193,7 @@ issue is missing or not open, clears `ISSUE_NUM`, and the orphan-PR prompt below
 
 **Single-issue branch:** parser returns `N` from `<type>/<N>-<slug>` (and `chore/routine-issue-<N>-<slug>` for cloud routines). When the issue read confirms the issue exists and its state is `OPEN`, `${CLOSES_LINE}` becomes `Closes #N`. If the issue is missing, closed, or otherwise not open, the flow falls through to the orphan-PR prompt. Never ship a stale or unverified keyword.
 
-**Sandboxed sessions: run this check over REST.** The CLI's issue read routes through GitHub's GraphQL API, and sandboxed sessions (Claude Code on the web and remote execution) serve only a pinned set of GraphQL operations, refusing the rest with `HTTP 403`, whatever credentials are supplied. The default block swallows that 403 and leaves `ISSUE_STATE` empty, so the flow reports a live, open issue as "missing or not open" and drops the very `Closes #N` line §2.4.2.1 then gates on. Substitute the REST issue read, which reports `state` in lower case ([GitHub](../../../reference/providers/github/pull-request/create.md#issue-state-over-rest), with the evidence and its recheck trigger).
+**Sandboxed sessions: run this check over REST.** The CLI's issue read routes through GitHub's GraphQL API, so where the GitHub proxy refuses that GraphQL read, it fails with `HTTP 403` whatever credentials are supplied. The default block swallows that 403 and leaves `ISSUE_STATE` empty, so the flow reports a live, open issue as "missing or not open" and drops the very `Closes #N` line §2.4.2.1 then gates on. Substitute the REST issue read, which reports `state` in lower case ([GitHub](../../../reference/providers/github/pull-request/create.md#issue-state-over-rest), with the evidence and its recheck trigger).
 
 **Placeholder anchoring.** A REST call's `{owner}` and `{repo}` placeholders expand from the repository of the **current directory** ([GitHub](../../../reference/providers/github/pull-request/create.md#placeholder-anchoring)). That is safe on the normal `create` path, whose cwd is the branch's own clone, but not under §2.7, where the invoking orchestrator sits out-of-tree: there, run the call from `$WT` (the subshell form §2.7 already uses for `resolve-remote.sh`) or name the repository explicitly. The same rule governs the REST PR-create fallback in §2.4.3.
 
@@ -233,32 +233,71 @@ bash "<skill-dir>/scripts/push-branch.sh" || exit 1
 
 Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by the resolved section scaffold and a config-gated attribution line.
 
-**Resolve the required section scaffold first.** Run `bash "<plugin-root>/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only, with no `Related` (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). The literal keyword `none` resolves to **zero required sections**: the winning layer's `none` overrides a lower layer's list the same way a list would (a resolved value, never an absence; parallel to `trailer_policy`/`pr_body_attribution`), the body file below gets no scaffold blocks, and the §2.4.2.2 gate has nothing to require. Track which file/layer supplied the effective list, because the §2.4.2 gate cites it verbatim on failure.
+**Resolve the required section scaffold first.** Run `bash "<plugin-root>/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's value is taken whole, never merged with an earlier layer's). The value is a heading list or one of three keywords, each a resolved value that overrides a lower layer the same way a list would (never an absence; parallel to `trailer_policy`/`pr_body_attribution`):
+
+- **Absent everywhere, or `briefing`**: the short-briefing preset below. No `Related` is required (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the default excludes it).
+- **`summary-test-plan`**: `Summary` and `Test plan`, both required.
+- **`none`**: **zero required sections**. The body file below gets no scaffold blocks, and the §2.4.2.2 gate has nothing to require.
+
+Track which file/layer supplied the effective value, because the §2.4.2 gate cites it verbatim on failure.
+
+**The briefing preset.** The whole body should take under a minute to read. Each section sits under its own `##` heading, in this order:
+
+```markdown
+## Why
+
+## What changed
+
+## Scope
+
+## Tradeoffs
+
+## Risk
+
+## Verification
+```
+
+- `Why` (required): up to three sentences: what was wrong or missing, and how this PR addresses it.
+- `What changed` (required): up to three bullets describing the difference a user or caller will notice.
+- `Scope` (required): up to three items: what is in this PR, and what is deliberately left out of it.
+- `Tradeoffs` (only when a real alternative was weighed): the option not taken and why.
+- `Risk` (only when it has content): a sentence or two naming the callers, data or environments the change reaches, and whether that reach is safe.
+- `Verification` (required): up to three bullets, one per command or check you ran, with what it printed or returned.
+
+Keep each section to plain statements. Leave out commit hashes and file-by-file listings; the diff already shows them.
+Point at longer evidence rather than pasting it: a benchmark log, a review report or a test run's output gets a link from the section it backs. The body also gives no lane-by-lane history of review or CI runs and what each one decided.
 
 ```bash
-# REQUIRED_SECTIONS: resolved at the model level from the three source-control.md layers'
-# `## pr_body_required_sections` bullet lists (one heading per `- ` line), per-key whole-list
-# override. Shown here with the portable default; a resolved config layer replaces both the
-# array and the source string wholesale.
-REQUIRED_SECTIONS=("Summary" "Test plan")
-REQUIRED_SECTIONS_SOURCE="plugin default (no source-control.md layer sets pr_body_required_sections)"
-# When a layer resolves the key, e.g.:
-#   REQUIRED_SECTIONS=("Summary" "Test plan" "Related")
+# SECTION_ORDER: every heading the draft may emit, in order. REQUIRED_SECTIONS: the subset the
+# §2.4.2.2 gate checks. Both are resolved at the model level from the three source-control.md
+# layers' `## pr_body_required_sections` value (a `- ` bullet list or one keyword), per-key
+# whole-value override. Shown here with the briefing default; a resolved layer replaces both
+# arrays and the source string wholesale.
+SECTION_ORDER=("Why" "What changed" "Scope" "Tradeoffs" "Risk" "Verification")
+REQUIRED_SECTIONS=("Why" "What changed" "Scope" "Verification")
+REQUIRED_SECTIONS_SOURCE="plugin default, briefing (no source-control.md layer sets pr_body_required_sections)"
+# When the winning layer declares `summary-test-plan`:
+#   SECTION_ORDER=("Summary" "Test plan"); REQUIRED_SECTIONS=("${SECTION_ORDER[@]}")
+#   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer, summary-test-plan)"
+# When a layer resolves a heading list, every listed heading is required, e.g.:
+#   SECTION_ORDER=("Summary" "Test plan" "Related"); REQUIRED_SECTIONS=("${SECTION_ORDER[@]}")
 #   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer)"
-# When the winning layer declares the literal keyword `none` (no required sections):
-#   REQUIRED_SECTIONS=()
+# When the winning layer declares `none` (no required sections):
+#   SECTION_ORDER=(); REQUIRED_SECTIONS=()
 #   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer, none)"
 ```
 
-Build one `## <heading>` block per entry in `${REQUIRED_SECTIONS[@]}`, real content in each, never
-literal placeholder text. `Related` uses `${REFS_LINES}` (collected in §2.4.0) when non-empty, else the
+Build one `## <heading>` block per entry in `${SECTION_ORDER[@]}`, real content in each, never
+literal placeholder text. A heading in `${SECTION_ORDER[@]}` but not in `${REQUIRED_SECTIONS[@]}`
+(`Tradeoffs` and `Risk` under `briefing`) is emitted only when it has real content; otherwise it is
+left out, never filled with `N/A` or `None`. `Related` uses `${REFS_LINES}` (collected in §2.4.0) when non-empty, else the
 established default `N/A`. This resolution is the SAME regardless of whether `Related` reached the
 scaffold via `${REQUIRED_SECTIONS[@]}` (configured) or the ad hoc append below (not configured, but
 genuine refs exist): there is exactly one place `Related`'s content is decided, never two. `Test plan`
-gets its established default (verification steps actually taken) when nothing more specific applies;
+and `Verification` get the verification steps actually taken when nothing more specific applies;
 any other heading (including a repo-declared custom one) gets content matching what that heading names,
 the same way `Summary` already does. If `${REFS_LINES}` is non-empty and `Related` is **not** in
-`${REQUIRED_SECTIONS[@]}`, still append a `## Related` section carrying those lines, since real
+`${SECTION_ORDER[@]}`, still append a `## Related` section carrying those lines, since real
 user-supplied content is never dropped, but do **not** add it to `${REQUIRED_SECTIONS[@]}`: an ad hoc
 `Related` section is present only because it has real content, and the §2.4.2 gate must never come to
 require a section the resolved config does not list. Under a resolved `none` the body file below gets
@@ -268,7 +307,7 @@ user-supplied content), and the §2.4.3 attribution line.
 
 The content inside those headings is prose a reviewer reads: plain language, bottom line first, no filler, by invoking `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. It rewords section content only, so the closing-keyword line, the resolved `${REQUIRED_SECTIONS[@]}` headings, and `${REFS_LINES}` are untouched and the §2.4.2 gate sees the same shape either way.
 
-**Visual evidence.** When the diff changes rendered visual or audio output, the section that records verification (`Verification`, or `Test plan` under the portable default) carries before/after media captured while verifying, for example by `/testing:run-e2e` or the Chrome screenshot and GIF tools. The PR create command has no option that uploads a file ([GitHub](../../../reference/providers/github/pull-request/create.md#body-overrides-the-template)), so the section lists each capture's local path and asks the person to drag the files into the PR description on GitHub; when no media could be captured, it says no visual evidence was attached. A project turns this step off in its own CLAUDE.md or AGENTS.md.
+**Visual evidence.** When the diff changes rendered visual or audio output, the section that records verification (`Verification`, or `Test plan` under `summary-test-plan`) carries before/after media captured while verifying, for example by `/testing:run-e2e` or the Chrome screenshot and GIF tools. The PR create command has no option that uploads a file ([GitHub](../../../reference/providers/github/pull-request/create.md#body-overrides-the-template)), so the section lists each capture's local path and asks the person to drag the files into the PR description on GitHub; when no media could be captured, it says no visual evidence was attached. A project turns this step off in its own CLAUDE.md or AGENTS.md.
 
 - **Pointer**: when the person asks how to add the captures, fetch GitHub's [Attaching files](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files) live for the upload routes and size limits.
 - **As of**: 2026-10-02
@@ -276,7 +315,7 @@ The content inside those headings is prose a reviewer reads: plain language, bot
 
 **Left out.** The section that records verification (`Verification`, or `Test plan` under the portable default) ends with one `Left out:` line naming what was not run or checked, each with its reason (for example, `Left out: end-to-end suite, needs a staging environment`), so a reviewer can tell a gap from an omission; when everything relevant was run, it says `Left out: nothing`. When that section closes the body, the §2.4.3 attribution line still follows it as the body's footer.
 
-**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}` and a blank line when it is non-empty, then one `## <heading>` block per entry in `${REQUIRED_SECTIONS[@]}` with real content (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
+**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}` and a blank line when it is non-empty, then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
 
 **Why a file, not a shell variable:** the Write tool's content is a JSON string that no shell parses, so a `$(...)`, `${...}` or backtick typed into the orphan-PR or multi-issue prompt stays literal text with no quoting rule to get right, and a long body never pushes a Bash command past the tool's length cap (observed: inline `--body` calls rejected for length on an unattended lane). The §2.4.2 gates read the same file `--body-file` hands to `gh`.
 
@@ -313,7 +352,7 @@ A body passed at PR creation fully overrides the repository's PR template ([GitH
 **Linkage scaffolds: always emitted, independent of the section scaffold.** The closing-keyword line and the section scaffold are two separate mechanisms that happen to compose on the same body:
 
 - **Closing-keyword line** (`${CLOSES_LINE}` at top): always populated by §2.4.0 (branch-derived `Closes #N`, the multi-issue prompt, or the orphan-PR opt-out) and asserted by the §2.4.2 gate before create. It is a required, always-present scaffold, not a conditional decoration, and entirely independent of `pr_body_required_sections`.
-- **`## Related` section**: present when `Related` is in the resolved `${REQUIRED_SECTIONS[@]}` (defaults to the literal `N/A`, replaced by `${REFS_LINES}` when genuinely related-but-not-closed references exist: sibling PRs, ADRs, decision-log entries), or ad hoc when `${REFS_LINES}` is non-empty even though `Related` is not required. Absent in the portable default (no config) with no genuine refs to carry. The issue this PR *closes* belongs on the closing-keyword line, not here, in every case.
+- **`## Related` section**: present when `Related` is in the resolved `${REQUIRED_SECTIONS[@]}` (defaults to the literal `N/A`, replaced by `${REFS_LINES}` when genuinely related-but-not-closed references exist: sibling PRs, ADRs, decision-log entries), or ad hoc when `${REFS_LINES}` is non-empty even though `Related` is not required. Absent under the `briefing` default (no config) with no genuine refs to carry. The issue this PR *closes* belongs on the closing-keyword line, not here, in every case.
 
 A PR that references an issue without closing it carries `Refs: #N` (or `Relates to: #N`) alone on its own line. That non-closing marker satisfies the §2.4.2 pre-create gate, the `pr-body-linkage-gate` hook, and the repository's own `pr-contract` check; the accepted forms are in the header of [`hooks/pr-linkage-validator.sh`](../../../hooks/pr-linkage-validator.sh). A `Refs #N` without the colon, and the `Refs #Y — <why>` bullets that `${REFS_LINES}` carries into `## Related`, are not linkage. A closing keyword under a negation (`does not close #N`) still registers as a closing reference on GitHub, so the hook and CI block it; use the `Refs:` line instead. When the branch resolves a real `Closes #N` (the common path) linkage is met; a PR that closes nothing needs a `Refs: #N` line or a `No related issue:` line.
 
@@ -363,7 +402,7 @@ When user explicitly selected `No related issue: <reason>` in §2.4.0, the gate 
 
 #### 2.4.2.2 Verify required sections (config-driven)
 
-For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the portable default), confirm a `## <heading>` section exists in `$BODY_FILE` **and** its body is non-empty. `scripts/check-body-sections.sh` judges this with the same checker the `pr-body-linkage-gate.sh` hook uses, so what counts as a heading or as content (comments, code, heading levels) is defined there, not here. This is a generic mechanism. It verifies whatever the resolved config lists, never a section name baked into this skill. A resolved `none` (§2.4.1) leaves `${REQUIRED_SECTIONS[@]}` empty, so this check passes with nothing to verify. The §2.4.2.1 closing-keyword check is independent and still runs. The gate checks presence and non-empty content only; placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section minimum-content rules are out of scope here (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
+For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the `briefing` default), confirm a `## <heading>` section exists in `$BODY_FILE` **and** its body is non-empty. `scripts/check-body-sections.sh` judges this with the same checker the `pr-body-linkage-gate.sh` hook uses, so what counts as a heading or as content (comments, code, heading levels) is defined there, not here. This is a generic mechanism. It verifies whatever the resolved config lists, never a section name baked into this skill. A resolved `none` (§2.4.1) leaves `${REQUIRED_SECTIONS[@]}` empty, so this check passes with nothing to verify. The §2.4.2.1 closing-keyword check is independent and still runs. The gate checks presence and non-empty content only; placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section minimum-content rules are out of scope here (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
 
 ```bash
 if ! bash "<skill-dir>/scripts/check-body-sections.sh" "${REQUIRED_SECTIONS[@]}" <"$BODY_FILE"; then
@@ -377,6 +416,36 @@ fi
 The message names the exact missing heading(s) and the resolved config source (§2.4.1's `${REQUIRED_SECTIONS_SOURCE}`: the winning layer's file path, or the plugin default when no layer sets the key), so an actor who never saw the convention learns where it lives from the failure itself.
 
 ### 2.4.3 Create PR
+
+**Resolve the open state first.** `pr_open_state` decides whether the PR opens as a draft. Its
+levels are in [../../../reference/config-resolution.md](../../../reference/config-resolution.md),
+"YAML keys"; read it yourself, since no script resolves it:
+
+1. **Repository level.** When §2.4.1's `config-root.sh classify` printed `repo`, read
+   `docs/conventions/source-control.yaml` at the PR's base branch in the base repository, never
+   from the working tree or the branch being opened, the same way the review-bot rubric is read
+   ([config-resolution.md](../../../reference/config-resolution.md#review-bot-triage-rubric-docsconventionssource-controlmd);
+   [GitHub](../../../reference/providers/github/pull-request/create.md#read-the-open-state-at-the-base-branch)).
+   The head branch is the change under review, so a value it sets would let the change pick its
+   own path past the `ready` phase's base merge, security review and verify gate. A 404 means the
+   level is unset. If the file has a top-level `pr_open_state:` key, its value (quotes and a
+   trailing `# comment` removed) wins. Report the level as `repository
+   (docs/conventions/source-control.yaml at <base-branch>)`.
+2. **Per-user level.** Otherwise take the substituted value from SKILL.md's "PR open state" line.
+   `ready` reports the level as `userConfig`.
+3. **Default.** Otherwise, including a substituted `draft` and the unsubstituted token, the state
+   is `draft` and the level is `default`.
+
+A value other than `draft` or `ready` at the level that supplied it is not used: say which level
+held which value, open the PR as a draft, and report the level as `default (invalid value at
+<level>)`.
+
+**An unattended run always opens a draft.** When no person is driving this run (a loop lane, a CI
+lane, a `dontAsk` session, a worker or orchestrator dispatched by another skill, and every
+`--pushed` run), a resolved `ready` is not used: open the PR as a draft and report the level as
+`draft (unattended run; <level> set ready)`. Such a run acts on text it did not choose, so it
+leaves the flip to `/source-control:pull-request ready`, whose gates run first. Set the flag for the commands below from the result: `DRAFT_FLAG=(--draft)` and
+`DRAFT_JSON=true` for `draft`; `DRAFT_FLAG=()` and `DRAFT_JSON=false` for `ready`.
 
 Append `${ATTRIBUTION}` (resolved in §2.4.1) to `$BODY_FILE` only now, after both §2.4.2 gates have
 passed against the attribution-free body, never earlier, per §2.4.1's note on why the footer stays
@@ -394,8 +463,8 @@ if [[ -z "$BRANCH" ]]; then
 fi
 ```
 
-Then open the PR as a draft from head `$BRANCH`, with the title and the body file, and capture
-`PR_URL` and `PR_NUMBER`
+Then open the PR from head `$BRANCH` in the resolved open state (`DRAFT_FLAG`), with the title and
+the body file, and capture `PR_URL` and `PR_NUMBER`
 ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-draft-pr)). That
 number is the source of truth for the rest of this phase: pass it explicitly to every later forge
 call.
@@ -408,12 +477,13 @@ call.
 - **Title shape:** whatever the resolved subject/title convention requires (Conventional Commits
   default shown; a custom resolved `pr_title_pattern` or the project's own convention overrides
   it).
-- **Draft:** every PR opens as a draft. Draft is the state in which no review is owed;
-  `/source-control:pull-request ready` performs the flip ([ready-for-review.md](ready-for-review.md)).
+- **Open state:** a draft unless §2.4.3 resolved `pr_open_state` to `ready`. Draft is the state in
+  which no review is owed; `/source-control:pull-request ready` performs the flip
+  ([ready-for-review.md](ready-for-review.md)).
 
-**Draft is not a preference here.** A draft is the state in which nothing is owed: review lanes that filter drafts skip it, and the flip out of draft is what asks for them, so opening ready-for-review claims a review that has not happened yet. The flip belongs to [ready-for-review.md](ready-for-review.md). A consuming project whose own convention opens PRs ready for review overrides this.
+**Why `draft` is the default.** A draft owes no review: review lanes that filter drafts skip it, and the flip out of draft is what asks for them, so opening ready for review claims a review that has not happened yet. The flip belongs to [ready-for-review.md](ready-for-review.md). A repository or user that wants PRs opened ready for review sets `pr_open_state: ready`; the PR then skips the base merge, security review and verify gate that `ready` runs before its flip.
 
-**Sandboxed sessions: open the PR over REST.** The CLI's PR create sends a GraphQL query before it touches the pull-request API at all, so under the pinned-GraphQL restriction described in §2.4.0 it returns `HTTP 403` having created nothing. The REST pull-request endpoint works, with differences that matter: the base branch must be passed (resolved over REST as well, since §2.2's repository read 403s alongside the rest), a head from a fork must be namespaced `<fork-owner>:<branch>`, the body is sent from its file, `draft` is sent as a boolean, and the response carries the PR number and URL ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-over-rest)). Placeholder expansion and the out-of-tree anchoring rule are as stated in §2.4.0, and apply to both of its calls.
+**Sandboxed sessions: open the PR over REST.** The CLI's PR create sends a GraphQL query before it touches the pull-request API at all, so under the GraphQL restriction described in §2.4.0 it returns `HTTP 403` having created nothing. The REST pull-request endpoint works, with differences that matter: the base branch must be passed (resolved over REST as well, since §2.2's repository read 403s alongside the rest), a head from a fork must be namespaced `<fork-owner>:<branch>`, the body is sent from its file, `draft` is sent as a boolean, and the response carries the PR number and URL ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-over-rest)). Placeholder expansion and the out-of-tree anchoring rule are as stated in §2.4.0, and apply to both of its calls.
 
 **The REST form has no hook backstop.** `pr-body-linkage-gate.sh` matches the CLI's PR create and edit commands and names the REST pulls call among the invocations it deliberately does not see, so this path bypasses it. Inside this skill that costs nothing. §2.4.2's gates already ran against `$BODY_FILE`, which is why they are the authority rather than the hook. A REST PR opened *outside* the skill has no second check at all, and the repository's own PR-contract check is then the first thing that notices a missing closing keyword or an empty required section.
 
@@ -435,7 +505,7 @@ Record the expected set for comparison in Phase 3.
 
 ## 2.6 Report and stop
 
-Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Say that the PR is a draft and that `/source-control:pull-request ready` is what flips it. End Phase 2 there. The flip (Phase 2.5) and monitoring (Phase 3), if needed, are invoked explicitly via `/source-control:pull-request ready`, `/source-control:pull-request monitor`, or `/source-control:pull-request full`.
+Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Report the open state and the level that supplied it (§2.4.3), for example `open state: draft (default)` or `open state: ready (repository (docs/conventions/source-control.yaml))`. For a draft, say that `/source-control:pull-request ready` is what flips it. End Phase 2 there. The flip (Phase 2.5) and monitoring (Phase 3), if needed, are invoked explicitly via `/source-control:pull-request ready`, `/source-control:pull-request monitor`, or `/source-control:pull-request full`.
 
 ## 2.7 `create --pushed`: PR-only entry for an orchestrated flow
 
@@ -472,7 +542,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
 - **§2.2 (rebase onto the default branch):** skipped. Bringing the branch current is the worker's pre-return responsibility, and residual staleness is caught by the Phase 3 mergeability read and CI. The out-of-tree orchestrator cannot rebase a branch it is not on with a clean tree, so it never owns this step.
 - **§2.4.1 (push):** skipped, replaced by the unpushed-commits assertion above.
 - **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional and running it with `CLAUDE_PROJECT_DIR="$WT"` (`CLAUDE_PROJECT_DIR="$WT" parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`), so it reads the worktree's own `source-control.md` layers rather than the orchestrator's. The script defaults to `git branch --show-current` **in its own process**, which an out-of-tree orchestrator cannot redirect with `git -C`, so leaving it implicit would parse `Closes #N` from the orchestrator's own branch and silently drop the linkage.
-- **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). Draft is as §2.4.3 states it.
+- **§2.4.3 (create):** the PR create MUST name the head `$BRANCH` explicitly, since the invoker is not on the branch ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-from-an-out-of-tree-orchestrator)). `DRAFT_FLAG` and `DRAFT_JSON` come from §2.4.3's open-state step, which reads `docs/conventions/source-control.yaml` at the PR's base branch, never from `$WT` or the worker's branch. A `--pushed` run is unattended, so it always opens a draft: `DRAFT_FLAG=(--draft)` and `DRAFT_JSON=true`.
 
   In a sandboxed session that 403s, substitute §2.4.3's REST form, and anchor it, because the `{owner}`/`{repo}` placeholders expand from the current directory, which here is not the target repository. Run it from the worktree, in the subshell form this section already uses for `resolve-remote.sh`.
 

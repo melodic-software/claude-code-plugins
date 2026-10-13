@@ -144,7 +144,7 @@ jobs:
   # Linux). A new step needs a line in scripts/test-windows-plan.txt under its
   # job, keyed as its `if:` is.
   #
-  # SIX PARALLEL JOBS (#5830, #5988). Every slow step is a bash suite bound by
+  # PARALLEL JOBS (#5830, #5988, #6135). Every slow step is a bash suite bound by
   # that spawn cost, so the lane's wall time is its longest job. The rename
   # executor suite, the longest at about 270 s, runs as two shards in two jobs
   # (APPLY_RENAME_TEST_SHARD=1 and 2); each shard prints its group and case
@@ -161,6 +161,11 @@ jobs:
   #             exec-form probe 9, exec-bash launcher 5, resolver 1      = 198
   #   lib       block-windows-drive-tmp 85, hook-utils 84, DLSS 5 22,
   #             Pester + kindle-dedrm 6                                  = 197
+  #   worktree  the source-control worktree-claim, worktree-facts and
+  #             worktree-root-scan suites and the playbooks repo-sweep
+  #             tick and state suites (#6135): git paths come back in
+  #             the C:/ form and native jq.exe writes CRLF only there.
+  #             A seventh job because their times are not measured yet.
   # Each suite is a step of its own so its log shows its own duration. Put a
   # new suite in the job with the smallest total, and keep each install step
   # in the job whose suites need it, gated like the step it serves: Pester
@@ -412,6 +417,11 @@ jobs:
       - name: Run shared lib tests on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'lib/hook-utils.test.sh')
         run: bash lib/hook-utils.test.sh
+      # Git for Windows names the repository root C:/... while the shell's own
+      # paths are /c/..., which the --added-since target matching must survive.
+      - name: Test audit-comment-residue detect on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/code-tidying/skills/audit-comment-residue/scripts/detect.test.sh')
+        run: bash plugins/code-tidying/skills/audit-comment-residue/scripts/detect.test.sh
       # pwsh directly, not the .test.sh wrapper: the wrapper SKIPs with exit 0
       # when pwsh is missing, which would read as green here. The selftest's
       # exit code is its failure count.
@@ -437,3 +447,36 @@ jobs:
           $config.Run.Exit = $true
           $config.Output.Verbosity = 'Detailed'
           Invoke-Pester -Configuration $config
+
+  test-windows-worktree:
+    needs: [select-tests-windows]
+    if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-worktree') }}
+    runs-on: windows-2025
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Git hands paths back in the C:/ form and `pwd -P` turns that into /c/...,
+      # not the /tmp/... mktemp returned; the symlink case prints a SKIP line
+      # when `ln -s` copies instead of linking.
+      - name: Test the worktree claim helper on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/source-control/scripts/worktree-claim.test.sh')
+        run: bash plugins/source-control/scripts/worktree-claim.test.sh
+      - name: Test the worktree fact record on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/source-control/scripts/lib/worktree-facts.test.sh')
+        run: bash plugins/source-control/scripts/lib/worktree-facts.test.sh
+      - name: Test the worktree root scan on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/source-control/scripts/worktree-root-scan.test.sh')
+        run: bash plugins/source-control/scripts/worktree-root-scan.test.sh
+      # The native jq.exe here writes text-mode CRLF unless passed -b.
+      - name: Test the repo-sweep tick script on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh')
+        run: bash plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh
+      - name: Test the repo-sweep state script on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/playbooks/skills/repo-sweep/scripts/state.test.sh')
+        run: bash plugins/playbooks/skills/repo-sweep/scripts/state.test.sh

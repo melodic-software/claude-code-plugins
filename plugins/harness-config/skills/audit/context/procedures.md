@@ -74,9 +74,10 @@ added, and neither is mechanical:
 1. **Is the family already covered?** A **live** `PreToolUse` hook on the tool surface that pattern
    defends may already block it, in which case the finding is `info` rather than `error` and the rule
    is redundant. See [required-permissions.md](../reference/required-permissions.md) "Narrowing the
-   baseline", whose three preconditions govern: installed and enabled is not enough (`disableAllHooks`
-   and the managed `allowManagedHooksOnly` lever, or `strictPluginOnlyCustomization` set to `true` or
-   to an array that includes `"hooks"`, switches hooks off; an array of only `"mcp"` does not),
+   baseline", whose three preconditions govern: installed and enabled is not enough (`disableAllHooks`,
+   the managed `allowManagedHooksOnly` lever, or a `strictPluginOnlyCustomization` value that covers
+   hooks switches hooks off; which values cover hooks is read from the pointer in
+   [validation-categories.md](validation-categories.md) Category D),
    a `Bash` hook does not cover the `Read`-pattern family, and one command family's coverage says
    nothing about another's. **The inventory half is a lookup**: Phase 1.0's
    `scripts/check-hook-coverage.sh` enumerates settings-declared *and* plugin-declared hooks,

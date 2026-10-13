@@ -72,7 +72,9 @@ class OnDemandInstall(unittest.TestCase):
         _, digest = make_wheel(self.wheels)
         self.lock = self.tmp / 'requirements.txt'
         self.lock.write_text(lock_text(digest), encoding='utf-8')
-        self.env = {**os.environ, 'PIP_NO_INDEX': '1', 'PIP_FIND_LINKS': str(self.wheels)}
+        # Pin this Python: without the marker pydeps.py hands over to the first supported one on PATH.
+        self.env = {**os.environ, 'PIP_NO_INDEX': '1', 'PIP_FIND_LINKS': str(self.wheels),
+                    'SPEECH_PYDEPS_INTERPRETER': sys.executable}
 
     def pydeps(self, action, *args, env=None):
         return subprocess.run([sys.executable, str(SCRIPT), action, '--requirements', str(self.lock), *args],
@@ -148,6 +150,16 @@ class OnDemandInstall(unittest.TestCase):
         self.assertEqual(r.stdout, '')
         self.assertEqual(self.installs(), [])
 
+    def test_check_reports_the_install_and_never_installs(self):
+        r = self.pydeps('check', '--data-dir', str(self.data))
+        self.assertEqual(r.returncode, 1)
+        self.assertRegex(r.stdout, r'(?m)^FAIL  Python packages  not installed .*install --data-dir')
+        self.assertEqual(self.installs(), [])
+        self.pydeps('install', '--data-dir', str(self.data))
+        r = self.pydeps('check', '--data-dir', str(self.data))
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertRegex(r.stdout, r'(?m)^PASS  Python packages  ')
+
 
 class DataDir(unittest.TestCase):
     def test_resolution_order(self):
@@ -190,7 +202,7 @@ class Launcher(unittest.TestCase):
             fake, log = Path(tmp) / 'bin', Path(tmp) / 'log'
             fake.mkdir()
             (fake / 'python3').write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')   # below the floor
-            (fake / 'python').write_text(f'#!/bin/sh\n[ "$1" = -c ] && exit 0\necho "$@" > {log}\n', encoding='utf-8')
+            (fake / 'python').write_text(f'#!/bin/sh\n[ "$1" = -I ] && exit 0\necho "$@" > {log}\n', encoding='utf-8')
             for f in fake.iterdir():
                 f.chmod(0o755)
             code = 'import sys, pydeps; pydeps.MIN_PYTHON = (99, 0); sys.exit(pydeps.main(["run", "--", "x.py"]))'

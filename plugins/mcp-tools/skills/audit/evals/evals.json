@@ -92,6 +92,23 @@
         "Output audits the whole project when $ARGUMENTS is empty, rather than a remembered server",
         "Output identifies the skill as a blocking fork (context: fork, background: false)"
       ]
+    },
+    {
+      "id": 8,
+      "name": "x-mcp-header-constraints",
+      "prompt": "Audit the MCP tool definitions in evals/fixtures/x-mcp-header.md relative to the skill directory against the design-quality checklist. Give me the per-tool scorecard and tell me what to fix first.",
+      "expected_output": "A per-tool scorecard rating C20 FAIL on resize_cluster (an x-mcp-header on a number parameter, and two values that differ only by case), WARN on export_report (an API key mirrored into a header), and PASS on run_query and list_reports. The C20 FAIL is prioritized ahead of WARN and info items.",
+      "files": [
+        "evals/fixtures/x-mcp-header.md"
+      ],
+      "expectations": [
+        "Rates C20 FAIL on resize_cluster for the x-mcp-header on the number-typed scale parameter",
+        "Rates C20 FAIL on resize_cluster for the x-mcp-header values Cluster and cluster, which are not case-insensitively unique",
+        "Rates C20 WARN, not FAIL, on export_report because partnerApiKey is a sensitive parameter marked with x-mcp-header",
+        "Rates C20 PASS on run_query, whose Region header sits on a string parameter",
+        "Does not flag list_reports under C20: a tool with no x-mcp-header passes",
+        "Prioritizes the C20 FAIL ahead of WARN and info items"
+      ]
     }
   ]
 }
