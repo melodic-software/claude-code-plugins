@@ -1,10 +1,13 @@
 {
   "pass": [
     {"answer": []},
-    {"answer": [{"tool": "Bash", "input": {"command": "sed -n 1,40p /plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs"}}], "why": "reading the helper is not running it"}
+    {"answer": [{"tool": "Bash", "input": {"command": "sed -n 1,40p /plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs"}}], "why": "reading the helper is not running it"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node --version && sed -n 1,40p \"$CLAUDE_PLUGIN_ROOT/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs\""}}], "why": "node runs, then a separate command only reads the helper"}
   ],
   "fail": [
     {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs --checkout /work"}}]},
-    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/autonomy/skills/setup/scripts/check-security-binding.mjs /op/binding.json --evidence /op/events.json"}}], "why": "the checker run directly"}
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"$CLAUDE_PLUGIN_ROOT/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs\" --checkout \"$PWD\""}}], "why": "quoted helper path"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node /plugins/autonomy/skills/setup/scripts/check-security-binding.mjs /op/binding.json --evidence /op/events.json"}}], "why": "the checker run directly"},
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/autonomy/skills/setup/scripts/check-security-binding.mjs\" /op/binding.json"}}], "why": "quoted checker path"}
   ]
 }

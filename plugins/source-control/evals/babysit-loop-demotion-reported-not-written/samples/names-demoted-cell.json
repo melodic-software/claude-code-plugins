@@ -7,6 +7,10 @@
   "fail": [
     {"answer": ""},
     {"answer": "Both PRs route to the safe pass this cycle.", "why": "no cell named"},
-    {"answer": "C2-auto-merge: bound promoted -> effective promoted.\nC3-auto-merge: effective unpromoted.", "why": "the C2 line says promoted; the unpromoted cell is on another line"}
+    {"answer": "C2-auto-merge: bound promoted -> effective promoted.\nC3-auto-merge: effective unpromoted.", "why": "the C2 line says promoted; the unpromoted cell is on another line"},
+    {"answer": "C2-auto-merge was not demoted and remains promoted.", "why": "negated demotion"},
+    {"answer": "C2-auto-merge: no demotion this cycle; it stays effective promoted.", "why": "negated demotion noun"},
+    {"answer": "No cell was demoted this cycle; C2-auto-merge stays promoted.", "why": "demotion denied before the cell"},
+    {"answer": "C2-auto-merge: bound promoted -> effective promoted. C3-auto-merge: effective unpromoted.", "why": "the unpromoted state belongs to another cell on the same line"}
   ]
 }
