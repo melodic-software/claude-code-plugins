@@ -45,12 +45,16 @@ const LEVELS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
 const isCount = (v) => Number.isInteger(v) && v >= 0;
 const isStrings = (v) => Array.isArray(v) && v.every((s) => typeof s === "string" && s !== "");
+/** risk_paths caps: a layer past either bound is ignored whole, so matching cost stays small. */
+export const MAX_RISK_PATHS = 64;
+export const MAX_GLOB_LENGTH = 256;
+const isGlobs = (v) => isStrings(v) && v.length <= MAX_RISK_PATHS && v.every((s) => s.length <= MAX_GLOB_LENGTH);
 const VALID = {
   digest_policy: (v) => POLICIES.includes(v),
   max_files: isCount,
   max_changed_lines: isCount,
   blast_radius: (v) => isStrings(v) && v.every((s) => LEVELS.includes(s)),
-  risk_paths: isStrings,
+  risk_paths: isGlobs,
   opt_in_label: (v) => typeof v === "string",
 };
 
@@ -262,24 +266,87 @@ export function resolveMedium(warnings, baseOid) {
 
 // ------------------------------------------------------------ decision
 
-/** Glob to RegExp: `**` spans directories, `*` and `?` stay inside one segment. */
-export function globRegExp(glob, flags = "") {
-  let out = "";
-  for (let i = 0; i < glob.length; i += 1) {
-    const c = glob[i];
-    if (c === "*" && glob[i + 1] === "*") {
-      const slash = glob[i + 2] === "/";
-      out += slash ? "(?:.*/)?" : ".*";
+/**
+ * Glob matcher: `**` spans directories (`**` + `/` also matches no directory),
+ * `*` and `?` stay inside one segment, every other character is literal.
+ * It runs the glob as a set of positions over the path, one step per character,
+ * so a pattern of many stars costs time linear in the path (times the pattern
+ * length), never a regex's backtracking.
+ * @param {string} glob
+ * @param {{nocase?: boolean}} [options]
+ * @returns {{test: (path: string) => boolean}}
+ */
+export function globMatcher(glob, { nocase = false } = {}) {
+  const fold = (s) => (nocase ? s.toLowerCase() : s);
+  /** @type {{kind: "lit" | "one" | "seg" | "any" | "dirs", ch?: string}[]} */
+  const tokens = [];
+  // Code points, as test() walks the path: a surrogate half never equals a whole character.
+  const chars = [...glob];
+  for (let i = 0; i < chars.length; i += 1) {
+    const c = chars[i];
+    if (c === "*" && chars[i + 1] === "*") {
+      const slash = chars[i + 2] === "/";
+      tokens.push({ kind: slash ? "dirs" : "any" });
       i += slash ? 2 : 1;
     } else if (c === "*") {
-      out += "[^/]*";
+      tokens.push({ kind: "seg" });
     } else if (c === "?") {
-      out += "[^/]";
+      tokens.push({ kind: "one" });
     } else {
-      out += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+      tokens.push({ kind: "lit", ch: fold(c) });
     }
   }
-  return new RegExp(`^${out}$`, flags);
+  const end = tokens.length;
+  // A state is a token index; `dirs` tokens also have an "inside" state at end + 1 + index,
+  // reached once `**/` has consumed a character and left only when it consumes a `/`.
+  const inside = (t) => end + 1 + t;
+  const close = (states) => {
+    const stack = [...states];
+    while (stack.length) {
+      const s = stack.pop();
+      if (s >= end) continue;
+      const k = tokens[s].kind;
+      if ((k === "seg" || k === "any" || k === "dirs") && !states.has(s + 1)) {
+        states.add(s + 1);
+        stack.push(s + 1);
+      }
+    }
+    return states;
+  };
+  return {
+    test(path) {
+      let states = close(new Set([0]));
+      for (const raw of String(path)) {
+        const ch = fold(raw);
+        const next = new Set();
+        for (const s of states) {
+          if (s > end) {
+            const t = s - end - 1;
+            next.add(s);
+            if (ch === "/") next.add(t + 1);
+            continue;
+          }
+          if (s === end) continue;
+          const tok = tokens[s];
+          if (tok.kind === "lit") {
+            if (ch === tok.ch) next.add(s + 1);
+          } else if (tok.kind === "one") {
+            if (ch !== "/") next.add(s + 1);
+          } else if (tok.kind === "seg") {
+            if (ch !== "/") next.add(s);
+          } else if (tok.kind === "any") {
+            next.add(s);
+          } else {
+            next.add(inside(s));
+            if (ch === "/") next.add(s + 1);
+          }
+        }
+        if (!next.size) return false;
+        states = close(next);
+      }
+      return states.has(end);
+    },
+  };
 }
 
 /**
@@ -300,7 +367,7 @@ export function decide(facts, options, config) {
       : files.reduce((sum, f) => sum + num(f?.additions) + num(f?.deletions), 0);
   const labels = (Array.isArray(facts.labels) ? facts.labels : []).map((l) => (typeof l === "string" ? l : l?.name));
   // Config paths match in any case: a case-insensitive filesystem reads every variant.
-  const patterns = [...CONFIG_PATHS.map((p) => globRegExp(p, "i")), ...value("risk_paths").map((p) => globRegExp(p))];
+  const patterns = [...CONFIG_PATHS.map((p) => globMatcher(p, { nocase: true })), ...value("risk_paths").map((p) => globMatcher(p))];
 
   const triggers = [];
   if (paths.length > value("max_files")) triggers.push("files");

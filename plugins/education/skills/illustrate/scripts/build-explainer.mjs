@@ -2,8 +2,10 @@
 // Build the illustrate explainer from one JSON model: the markdown record, and
 // optionally the interactive page view of it.
 //
-//   build-explainer.mjs --record <out.md> [--page <out.html>] < model.json
+//   build-explainer.mjs --record <out.md> [--page <out.html>] [--model <model.json>]
 //   build-explainer.mjs --check <page.html>
+//
+// The model is read from --model when given, else from stdin.
 //
 // The page comes only from the checked-in template plus the model as JSON data,
 // through the shared view builder's interactive profile, so no model text is
@@ -283,10 +285,11 @@ function write(path, text) {
 }
 
 function main(args) {
-  const usage = "usage: build-explainer.mjs --record <out.md> [--page <out.html>] < model.json | --check <page.html>";
+  const usage =
+    "usage: build-explainer.mjs --record <out.md> [--page <out.html>] [--model <model.json> | < model.json] | --check <page.html>";
   const opts = {};
   for (let i = 0; i < args.length; i += 2) {
-    if (!["--record", "--page", "--check"].includes(args[i]) || !args[i + 1]) return [2, "", usage];
+    if (!["--record", "--page", "--check", "--model"].includes(args[i]) || !args[i + 1]) return [2, "", usage];
     opts[args[i].slice(2)] = args[i + 1];
   }
   if (opts.check) {
@@ -303,9 +306,9 @@ function main(args) {
   if (!opts.record) return [2, "", usage];
   let model;
   try {
-    model = JSON.parse(readFileSync(0, "utf8"));
+    model = JSON.parse(readFileSync(opts.model ?? 0, "utf8"));
   } catch (error) {
-    return [2, "", `invalid JSON (${error.message})`];
+    return [2, "", error.code ? `cannot read the model (${error.message})` : `invalid JSON (${error.message})`];
   }
   if (!model || typeof model !== "object" || Array.isArray(model)) {
     return [2, "", "JSON root must be an object"];
