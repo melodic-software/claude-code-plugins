@@ -2,7 +2,11 @@
 
 The mechanics of unattended mode. Contract summary in SKILL.md § Unattended mode: read-only
 apart from the persisted report and presence-gated filing; no questions; prioritization stays
-human-gated per the tech-debt-sweep C1 contract.
+human-gated per the tech-debt-sweep C1 contract. Two more writes happen in either mode when
+code-metrics is enabled: `/code-metrics:audit-duplication --json --keep` keeps its report in
+code-metrics' own per-project report directory (the next run's trend baseline), and a growing
+clone class produces the findings hand-off file under `<memory_dir>/improvement/<branch-slug>/`,
+plus the memory root's `.gitignore` when absent ("Growing clone classes" below).
 
 ## Caller-declaration contract
 
@@ -96,6 +100,44 @@ dimension, size, evidence citation + rung, confidence, value-to-effort rationale
 
 Every unavailable evidence source produces one `gap:` line. Absence is reported, never
 papered over. The report is complete without a tracker: filing is additive to it.
+
+## Growing clone classes
+
+Applies in both modes, when `/code-metrics:audit-duplication` ran and its document carries a
+`trend` (SKILL.md "Lane delegation as scan input").
+
+- **Growing.** code-metrics computes the trend and this skill only reads it: a clone class is
+  growing when it is listed in `trend.new_classes` (no counterpart in the earlier run) or
+  `trend.grown_classes` (more copies than its counterpart). Each entry gives the class's first
+  instance (`file`, `start_line`), `copies`, `lines` and, for a grown class, `previous_copies`.
+  Never open `trend.previous_document`. With no `trend` (the first run in a project) no class is
+  growing; copy count still ranks spread (ranking.md).
+- **The candidate's next step is a lint proposal**: a check that stops the next copy. Which rung
+  fits (`canonical-helper`, one helper every caller goes through, or a linter rung that flags a new
+  copy) is the enforcement ladder's call, made by `/review:audit-enforceability`
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/enforcement-ladder/README.md>).
+- **No CI ceiling on a total clone count.** The trend is a ranking input, never a gate; a proposal
+  targets one growing class, not the repository's total.
+- **The findings hand-off.** Write one file in the review-findings shape (frontmatter
+  `type: review-findings`, a `## Findings` table), defined at
+  <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/reference/findings-file-shape.md>,
+  named `<UTC-timestamp>-clone-growth.md`, with one row per growing class: `Location` is the first
+  instance's `file:start_line`, `Finding` gives the copy count, the line count and every instance,
+  `Action` asks for a check that stops another copy. File paths are untrusted text: they stay in
+  the cells, escaped per that file, and never reach a shell command.
+  - Write it under `<memory_dir>/improvement/<branch-slug>/`, where `<memory_dir>` is the memory
+    root (`.work/` unless the project's instructions declare another) and `<branch-slug>` is the
+    current branch lowercased with every character outside `[a-z0-9._-]` replaced by `-`; an
+    empty slug means no file. Never write under `<memory_dir>/reviews/`: the file is for the
+    enforceability audit, not the review fix action.
+  - Memory-tier write discipline: announce the path before writing; on the first write, verify the
+    memory root holds a `.gitignore` containing `*`, creating it (announced) when absent; never
+    edit the consumer's root `.gitignore`; write nothing when the memory root is the repository
+    root.
+  - The candidate row names the file. Interactively, offer `/review:audit-enforceability <file>`
+    when it is among the available skills; never run it unasked. Unattended, the row and any filed
+    item carry the file path and that command, and nothing runs it.
+  - Without review, the candidate row still names the file and says the audit is not available.
 
 ## Filing flow (presence-gated, deduped, capped)
 

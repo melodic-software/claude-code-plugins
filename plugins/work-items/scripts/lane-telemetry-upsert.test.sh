@@ -36,6 +36,7 @@ method="GET"
 endpoint=""
 body_file=""
 body_text=""
+jqexpr=""
 while (($#)); do
   case "$1" in
   api) shift ;;
@@ -51,7 +52,10 @@ while (($#)); do
     esac
     shift 2
     ;;
-  --jq) shift 2 ;;
+  --jq)
+    jqexpr="$2"
+    shift 2
+    ;;
   -*) shift ;;
   *)
     [[ -z "$endpoint" ]] && endpoint="$1"
@@ -71,14 +75,26 @@ elif [[ "$path" == */issues/comments/* && "$method" == "PATCH" ]]; then
   op=patch
 elif [[ "$path" == */issues/comments/* && "$method" == "GET" ]]; then
   op=get
+elif [[ "$path" == "user" ]]; then
+  op=user
 else
   op=unknown
 fi
 [[ "$fails" == *" $op "* ]] && exit 1
 
-emit() { jq -Rs --arg id "$1" '{id: ($id|tonumber), body: .}' <"$2"; }
+# A comment's author is its `.author` file, else the token's own login.
+LOGIN="${FAKE_GH_LOGIN:-lane-bot}"
+emit() {
+  local author
+  author="$(cat "$STATE/c-$1.author" 2>/dev/null || printf '%s' "$LOGIN")"
+  jq -Rs --arg id "$1" --arg a "$author" '{id: ($id|tonumber), user: {login: $a}, body: .}' <"$2"
+}
 
 case "$op" in
+user)
+  # The real call runs `--jq '.login + " " + .type'`, so it prints both.
+  printf '%s %s\n' "$LOGIN" "${FAKE_GH_TYPE:-User}"
+  ;;
 list)
   if [[ "${FAKE_GH_BAD_JSON:-0}" == "1" ]]; then
     printf 'not json at all\n'
@@ -102,9 +118,15 @@ post)
   printf '%s' "$((next + 1))" >"$STATE/next_id"
   if [[ "${FAKE_GH_POST_DROP:-0}" != "1" ]]; then
     cp "$body_file" "$STATE/c-$next.body"
-    emit "$next" "$STATE/c-$next.body"
+    # The token's real comment author; it differs from LOGIN only to model a wrong --app-slug.
+    [[ -n "${FAKE_GH_POST_AS:-}" ]] && printf '%s' "$FAKE_GH_POST_AS" >"$STATE/c-$next.author"
+    if [[ -n "$jqexpr" ]]; then
+      emit "$next" "$STATE/c-$next.body" | jq -r "$jqexpr"
+    else
+      emit "$next" "$STATE/c-$next.body"
+    fi
   else
-    printf '{"id":%s,"body":""}\n' "$next"
+    printf '{"id":%s,"user":{"login":"%s"},"body":""}\n' "$next" "$LOGIN" | jq -r "${jqexpr:-.}"
   fi
   ;;
 patch)
@@ -114,6 +136,10 @@ patch)
   if [[ -n "$body_file" ]]; then
     if [[ "${FAKE_GH_PATCH_MANGLE:-0}" == "1" ]]; then
       tail -n +2 "$body_file" >"$target"
+    elif [[ "${FAKE_GH_PATCH_STALE:-0}" == "1" ]]; then
+      : # reports success and stores nothing: the comment keeps its earlier body
+    elif [[ "${FAKE_GH_PATCH_LF:-0}" == "1" ]]; then
+      tr -d '\r' <"$body_file" >"$target"
     else
       cp "$body_file" "$target"
     fi
@@ -146,7 +172,7 @@ SENT="<!-- harness-ops:lane-telemetry marker=work-items:$LANE@$INSTANCE -->"
 run() { # sets RC, STDERR, STDOUT; args after the fixed five
   STDERR="$WORK/stderr.txt"
   STDOUT="$(bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" \
-    --issue "$ISSUE" --body-file "$1" 2>"$STDERR")"
+    --issue "$ISSUE" --body-file "$1" "${@:2}" 2>"$STDERR")"
   RC=$?
 }
 
@@ -156,7 +182,7 @@ fresh_state() {
   rm -rf "$FAKE_GH_STATE"
   mkdir -p "$FAKE_GH_STATE"
   : >"$FAKE_GH_ARGV"
-  unset FAKE_GH_FAIL FAKE_GH_BAD_JSON FAKE_GH_POST_DROP FAKE_GH_PATCH_MANGLE
+  unset FAKE_GH_FAIL FAKE_GH_BAD_JSON FAKE_GH_POST_DROP FAKE_GH_PATCH_MANGLE FAKE_GH_PATCH_STALE FAKE_GH_PATCH_LF FAKE_GH_LOGIN FAKE_GH_TYPE FAKE_GH_POST_AS
   export FAKE_GH_STATE FAKE_GH_ARGV
 }
 
@@ -253,6 +279,127 @@ else
   fail "a comment merely quoting the sentinel was adopted"
 fi
 
+# --- 5b. a sentinel comment another login wrote is never adopted -------------
+# Anyone can paste the public sentinel. A foreign comment with a LOWER id would
+# otherwise win the lowest-id canonical rule and take this cycle's state.
+fresh_state
+printf '%s\nforged durable state\n' "$SENT" >"$FAKE_GH_STATE/c-3.body"
+printf 'mallory' >"$FAKE_GH_STATE/c-3.author"
+printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
+run "$GOOD"
+check_rc 0 "$RC" "a foreign sentinel comment beside the lane's own still exits 0"
+if grep -q 'clean_streak=1' "$FAKE_GH_STATE/c-77.body"; then
+  pass "the lane's own comment stays canonical over a lower-id foreign one"
+else
+  fail "the lane's own comment did not receive this cycle's body"
+fi
+if grep -q 'forged durable state' "$FAKE_GH_STATE/c-3.body"; then
+  pass "a foreign sentinel comment is neither written to nor tombstoned"
+else
+  fail "a foreign sentinel comment was written to"
+fi
+
+fresh_state
+printf '%s\nforged durable state\n' "$SENT" >"$FAKE_GH_STATE/c-3.body"
+printf 'mallory' >"$FAKE_GH_STATE/c-3.author"
+run "$GOOD"
+check_rc 0 "$RC" "a foreign sentinel comment alone still exits 0"
+if grep -q -- '--method POST' "$FAKE_GH_ARGV" && grep -q 'forged durable state' "$FAKE_GH_STATE/c-3.body"; then
+  pass "with only a foreign sentinel comment present, the lane creates its own"
+else
+  fail "a foreign-only sentinel comment was adopted instead of creating the lane's own"
+fi
+
+# Under an App installation token `gh api user` is refused; --app-slug names the bot.
+fresh_state
+printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
+printf 'lane-app[bot]' >"$FAKE_GH_STATE/c-77.author"
+FAKE_GH_FAIL=user
+export FAKE_GH_FAIL
+run "$GOOD" --app-slug lane-app
+check_rc 0 "$RC" "--app-slug resolves the identity when gh api user is refused"
+if grep -q 'clean_streak=1' "$FAKE_GH_STATE/c-77.body"; then
+  pass "--app-slug adopts the App bot's own comment"
+else
+  fail "--app-slug did not adopt the bot-authored comment"
+fi
+
+# A Bot reported with no slug: the reported login plus [bot].
+fresh_state
+printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
+printf 'lane-app[bot]' >"$FAKE_GH_STATE/c-77.author"
+FAKE_GH_LOGIN=lane-app FAKE_GH_TYPE=Bot
+export FAKE_GH_LOGIN FAKE_GH_TYPE
+run "$GOOD"
+check_rc 0 "$RC" "a Bot reported by gh api user resolves to its [bot] login"
+if grep -q 'clean_streak=1' "$FAKE_GH_STATE/c-77.body"; then
+  pass "the reported Bot login plus [bot] adopts the bot's own comment"
+else
+  fail "the reported Bot did not adopt its own comment"
+fi
+
+# Logins may carry underscores (enterprise managed users).
+fresh_state
+printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
+printf 'kyle_corp' >"$FAKE_GH_STATE/c-77.author"
+FAKE_GH_LOGIN=kyle_corp
+export FAKE_GH_LOGIN
+run "$GOOD"
+check_rc 0 "$RC" "a login with an underscore resolves"
+if grep -q 'clean_streak=1' "$FAKE_GH_STATE/c-77.body" && ! grep -q -- '--method POST' "$FAKE_GH_ARGV"; then
+  pass "an underscore login adopts its own comment rather than posting a new one"
+else
+  fail "an underscore login did not adopt its own comment"
+fi
+
+# Resolution order: a User login wins over --app-slug; a Bot report yields to it.
+fresh_state
+printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
+run "$GOOD" --app-slug lane-app
+check_rc 0 "$RC" "a User login with --app-slug still exits 0"
+if grep -q 'clean_streak=1' "$FAKE_GH_STATE/c-77.body"; then
+  pass "a User login wins over --app-slug"
+else
+  fail "--app-slug overrode a User login"
+fi
+fresh_state
+printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
+printf 'lane-app[bot]' >"$FAKE_GH_STATE/c-77.author"
+FAKE_GH_LOGIN=other-app FAKE_GH_TYPE=Bot
+export FAKE_GH_LOGIN FAKE_GH_TYPE
+run "$GOOD" --app-slug lane-app
+if grep -q 'clean_streak=1' "$FAKE_GH_STATE/c-77.body"; then
+  pass "--app-slug wins over a reported Bot login"
+else
+  fail "a reported Bot login overrode --app-slug"
+fi
+
+fresh_state
+FAKE_GH_FAIL=user
+export FAKE_GH_FAIL
+run "$GOOD"
+check_rc 15 "$RC" "an unresolved write identity exits 15"
+if grep -qE -- '--method (POST|PATCH)' "$FAKE_GH_ARGV"; then
+  fail "an unresolved write identity still wrote a comment"
+else
+  pass "an unresolved write identity writes nothing"
+fi
+fresh_state
+run "$GOOD" --app-slug 'Not_A_Slug'
+check_rc 15 "$RC" "a malformed --app-slug exits 15"
+
+# A wrong --app-slug: the create lands under the token's real login.
+fresh_state
+FAKE_GH_FAIL=user FAKE_GH_POST_AS='real-app[bot]'
+export FAKE_GH_FAIL FAKE_GH_POST_AS
+run "$GOOD" --app-slug wrong-app
+check_rc 15 "$RC" "a create posted under another login exits 15"
+if grep -q -- '--method PATCH' "$FAKE_GH_ARGV"; then
+  fail "a mismatched create went on to PATCH"
+else
+  pass "a mismatched create writes nothing further"
+fi
+
 # --- 6. usage refusals ------------------------------------------------------
 fresh_state
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "$ISSUE" \
@@ -306,6 +453,9 @@ fi
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "owner/repo/../../other/target" \
   --issue "$ISSUE" --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
 check_rc 6 "$?" "a traversal-shaped --repo exits 6 before any API call"
+bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "../.." \
+  --issue "$ISSUE" --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
+check_rc 6 "$?" "a dot-segment --repo exits 6 before any API call"
 bash "$UPSERT" --lane "$LANE" --instance "$INSTANCE" --repo "$REPO" --issue "4a2" \
   --body-file "$GOOD" >/dev/null 2>"$WORK/e.txt"
 check_rc 7 "$?" "a non-numeric --issue exits 7"
@@ -437,6 +587,31 @@ if grep -q 'sibling duplicate body' "$FAKE_GH_STATE/c-88.body"; then
 else
   fail "duplicates were superseded on an unverified write"
 fi
+
+# A PATCH that reports success while the comment keeps the previous cycle's body:
+# that body is well-formed telemetry, so only a comparison with THIS cycle's body
+# file catches it.
+fresh_state
+printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
+printf '%s\nsibling duplicate body\n' "$SENT" >"$FAKE_GH_STATE/c-88.body"
+FAKE_GH_PATCH_STALE=1
+export FAKE_GH_PATCH_STALE
+run "$GOOD"
+check_rc 14 "$RC" "a write that leaves the previous cycle's well-formed body in place exits 14"
+if grep -q 'sibling duplicate body' "$FAKE_GH_STATE/c-88.body"; then
+  pass "a stale read-back never tombstones a racing session's comment"
+else
+  fail "duplicates were superseded on a stale read-back"
+fi
+
+# The comparison tolerates line endings: a CRLF body file read back as LF verifies.
+fresh_state
+printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"
+printf '%s\r\ncycle=7 clean_streak=1 item_cap=2\r\n' "$SENT" >"$WORK/crlf2.md"
+FAKE_GH_PATCH_LF=1
+export FAKE_GH_PATCH_LF
+run "$WORK/crlf2.md"
+check_rc 0 "$RC" "a CRLF body stored with LF line endings still verifies"
 
 fresh_state
 printf '%s\nold cycle body here\n' "$SENT" >"$FAKE_GH_STATE/c-77.body"

@@ -502,6 +502,41 @@ for bad_timeout in 0 0.0 00 0.000001; do
     "$(wc -l <"$P/.observability/claude/sessions/s13.jsonl" 2>/dev/null | tr -d ' ')"
 done
 
+# --- the mod's environment writes the record the settings row wrote ---------------
+# The module (register.ts) runs this script with the event's payload on stdin and
+# CLAUDE_EFFORT and TRACEPARENT cleared; a settings row got CLAUDE_EFFORT from the
+# payload's effort object. For each payload the two runs must write the same
+# record, all but ts and duration_ms, which measure the run itself.
+P=$(project parity)
+PLOG() { printf '%s' "$P/.observability/claude/sessions/$1.jsonl"; }
+parity_case() { # <label> <event> <payload-members> <settings-row effort or ""> [env...]
+  local label="$1" event="$2" members="$3" effort="$4" row mod
+  shift 4
+  run "$P" "$(payload "row-$event" "$event" "$members")" "$ON" ${effort:+CLAUDE_EFFORT=$effort} "$@" >/dev/null
+  run "$P" "$(payload "mod-$event" "$event" "$members")" "$ON" CLAUDE_EFFORT= TRACEPARENT= "$@" >/dev/null
+  row=$(jq -cS 'del(.ts, .duration_ms, .session_id)' "$(PLOG "row-$event")" 2>/dev/null)
+  mod=$(jq -cS 'del(.ts, .duration_ms, .session_id)' "$(PLOG "mod-$event")" 2>/dev/null)
+  if [[ -n "$row" && "$row" == "$mod" ]]; then ok "mod env, $label: same record as the settings row"; else bad "mod env, $label: row=$row mod=$mod"; fi
+}
+parity_case "Stop with effort" Stop "\"effort\":{\"level\":\"high\"},$STOP_TAIL" high
+parity_case "PostToolBatch" PostToolBatch '"effort":{"level":"low"},"tool_calls":[{"tool_name":"Edit","tool_use_id":"toolu_9","tool_input":{"file_path":"'"$P"'/src/a.ts"}}]' low
+parity_case "SessionStart" SessionStart '"source":"startup","model":"claude-opus-5-5"' ""
+parity_case "SubagentStop" SubagentStop '"stop_hook_active":false,"agent_id":"agent-7","agent_type":"Explore","last_assistant_message":"done"' ""
+parity_case "UserPromptSubmit with content on" UserPromptSubmit "$PROMPT_TAIL" "" "$CONTENT_ON"
+# With tracing on, a settings row got TRACEPARENT and the module gets none: the record
+# loses its traceparent key and nothing else. The value is the W3C trace context example.
+# spellchecker:ignore-next-line
+TP=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+run "$P" "$(payload row-traced Stop "$STOP_TAIL")" "$ON" TRACEPARENT="$TP" >/dev/null
+run "$P" "$(payload mod-traced Stop "$STOP_TAIL")" "$ON" CLAUDE_EFFORT= TRACEPARENT= >/dev/null
+assert_eq "traced settings row: the record carries the row's traceparent" "$TP" "$(jq -r .traceparent "$(PLOG row-traced)")"
+assert_eq "traced, mod env: the record has no traceparent key" "false" "$(jq 'has("traceparent")' "$(PLOG mod-traced)")"
+row=$(jq -cS 'del(.ts, .duration_ms, .session_id, .traceparent)' "$(PLOG row-traced)" 2>/dev/null)
+mod=$(jq -cS 'del(.ts, .duration_ms, .session_id)' "$(PLOG mod-traced)" 2>/dev/null)
+if [[ -n "$row" && "$row" == "$mod" ]]; then ok "traced: traceparent is the only record difference"; else bad "traced: row=$row mod=$mod"; fi
+run "$P" "$(payload mod-host Stop "$STOP_TAIL")" "$ON" CLAUDE_EFFORT= TRACEPARENT= >/dev/null
+assert_eq "mod env: no effort object records unset, whatever the host's CLAUDE_EFFORT" "unset" "$(jq -r .effort "$(PLOG mod-host)")"
+
 # --- the producer sources nothing from hook-utils --------------------------------
 assert_eq "no hook-utils.sh source" 0 "$(grep -cE '^[[:space:]]*(source|\.)[[:space:]].*hook-utils' "$HOOK" "$HOOK_DIR/session-log-lib.sh" | awk -F: '{ s += $2 } END { print s + 0 }')"
 assert_eq "kill switch is the first statement after set" 1 \

@@ -249,13 +249,17 @@ and the run exits non-zero unless every one is `[MET]`.
 | 3, the local canary | One metered `claude -p` turn per cwd, **with no tools available**, against a lone non-empty `AGENTS.md` in a scratch directory the script creates and removes: one under home, one on a second drive or path |
 | 4, path detection | Every `PATHDET` row, matched against the repository's reviewed `.claude/cutover-pathdet-ack.txt` |
 
+One more probe is **reported, not graded**: the nested write trigger, one metered `claude -p` turn
+offered **only the Write tool** that writes into `sub/` of a scratch tree with a root and a `sub/`
+`AGENTS.md` and no `CLAUDE.md`. It prints `[LOADS]`, `[NO-LOAD]` or `[UNREACH]`; condition G reads it.
+
 **A canary that can read files proves nothing.** With a `Read` tool and an `AGENTS.md` in the
 working directory, a reply quoting that file is equally consistent with the model having read it
 for itself. Both canaries here run `--tools ""`, so the session has no tools at all: instructions
 load at session start, and a quotation from a session that *could* not read anything is evidence
 of a load. Measured before adoption on 2.1.278: a scratch directory holding one `AGENTS.md` and
 nothing else returned the token line with no tools, and a directory with no `AGENTS.md` answered
-`NONE`.
+`NONE`. The nested write probe keeps that rule: Write alone, and the file it asked for must exist.
 
 **`[UNREACH]` is never a pass.** A probe that could not measure is not a condition that holds, and
 the script treats an unreadable bundle, a restructured docs page, a pin outside the release map and
@@ -284,11 +288,12 @@ detector by design.
 
 `cutover-check` grades the build and the fleet, not whether this repository's users lose
 instructions without the shim. Before offering `remove-shims`, read
-[`reference/shim-droppable.md`](reference/shim-droppable.md) and grade its six conditions:
+[`reference/shim-droppable.md`](reference/shim-droppable.md) and grade its seven conditions:
 precedence, this machine's mode, the loader's state, the operator's answers for every other user
-and surface, external `@` imports, and `InstructionsLoaded` dependents. It also gives the verdict for
-nested `AGENTS.md` under each mode. **Unknown is failed**: any condition not shown to hold keeps the
-recommendation at "keep the shim" and names it. This recommends, never removes.
+and surface, external `@` imports, `InstructionsLoaded` dependents, and nested load triggers only
+a shim carries. It also gives the verdict for nested `AGENTS.md` under each mode. **Unknown is
+failed**: any condition not shown to hold keeps the recommendation at "keep the shim" and names it.
+This recommends, never removes.
 
 ### `remove-shims`, one repository per run
 
@@ -337,7 +342,9 @@ so and the run still exits non-zero.
 Removal is priced, and the price is printed before the confirmation: the hook-visible load goes,
 and `/memory` becomes the only place to see the file
 ([`reference/sources.md`](reference/sources.md), "What shim removal costs"). That is a decision to
-make, not tidying.
+make, not tidying. With a nested `AGENTS.md` the price also names the nested write-trigger loss, and
+again after the probe unless it printed `[LOADS]`; the run does not refuse on it, since condition G
+decides that before `--confirm`. With no nested `AGENTS.md` the probe is skipped.
 
 ## Verify the load, never assume it
 
@@ -408,13 +415,17 @@ so the gates keep the default's answer.
 
 One native Claude Code surface works on the same file, and the two are easy to conflate:
 
-- **`cc-plugin-agents-md` (plugin-backed built-in)**: the built-in plugin the docs call
-  `agents-md@builtin`. It reads `AGENTS.md` as project instructions where the project has no
-  `CLAUDE.md`, and by its **Project instructions** (`instructionFiles`) option beside `CLAUDE.md`,
-  not at all (`claude-md`), or with every project and user instruction file dropped
-  (`managed-only`). It moves no file and writes no shim. Whether this build registers it, requires
-  it in this session type, and gates it is read at run time from `/harness-ops:inventory`'s
-  `builtin_plugins` lane, never assumed.
+- **`cc-plugin-agents-md` (plugin-backed built-in)**: the built-in plugin that reads `AGENTS.md` as
+  project instructions, under its **Project instructions** (`instructionFiles`) option. It moves
+  no file and writes no shim. Whether this build registers it, requires it in this session type,
+  and gates it is read at run time from `/harness-ops:inventory`'s `builtin_plugins` lane, never
+  assumed.
+  - **Pointer**: for the plugin's settings IDs and the option's values, fetch
+    [memory § Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load)
+    live; the IDs are in the paragraphs after its table.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes the plugin's settings IDs, the version note on the
+    earlier ID, or the option's values.
 - **This skill**: moves a repository's instruction content into `AGENTS.md`, keeps the one-line
   `CLAUDE.md` shim, and decides when the shim can go.
 
@@ -478,7 +489,8 @@ in sync after the move.
 - **A committed symlink is not portable.** On a Windows checkout it materializes as a plain text
   file holding the link target, so the import is the form that works everywhere.
 - **A `CLAUDE.local.md` one developer keeps silently turns `AGENTS.md` off for them.** It counts for
-  the same check as `CLAUDE.md`, and no gate in the repository can see it.
+  the same check as `CLAUDE.md`, and no gate in the repository can see it. Offer the replacement
+  and its caveat in `reference/shim-droppable.md`, condition A.
 - **Codex truncates past its project-doc budget**, which is one cumulative allowance across the
   files it loads, not a per-file cap (the dated record is beside `CODEX_PROJECT_DOC_BUDGET` in
   `scripts/plan-migration.sh`). A `BUDGET` row reading `OVER` means a Codex

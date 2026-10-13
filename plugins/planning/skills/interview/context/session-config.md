@@ -68,7 +68,8 @@ For non-trivial work this skill does not recommend a faster main model running
 **without** a stronger advisor: it recommends the faster main model paired with a
 stronger advisor that the main model escalates hard decisions to, rather than paying
 for the stronger model on every routine turn (for when the advisor is consulted, see
-<https://code.claude.com/docs/en/advisor#when-claude-consults-the-advisor>).
+<https://code.claude.com/docs/en/advisor#when-claude-consults-the-advisor>, as of 2026-10-11;
+recheck when that section changes when the main model consults the advisor).
 The concrete tier names that fill this **faster-main + stronger-advisor** shape are
 exactly the values that drift between versions, and which specific pairings are
 accepted drifts with them. Source them live (below), never pin them here: the durable
@@ -106,10 +107,13 @@ it degrades.
 
 Primary sources, fetched once when you form the recommendation (not per round):
 
-- `https://code.claude.com/docs/en/model-config`: model aliases and the effort setting
+- `https://code.claude.com/docs/en/model-config#model-aliases` and `https://code.claude.com/docs/en/model-config#adjust-effort-level`: model aliases and the effort setting
 - `https://claude.com/blog/claude-model-and-effort-level-in-claude-code`: correlate only, for which model and effort fit which work
-- `https://code.claude.com/docs/en/advisor`: advisor enablement and accepted main+advisor pairings
+- `https://code.claude.com/docs/en/advisor#enable-the-advisor` and `https://code.claude.com/docs/en/advisor#common-model-pairings`: advisor enablement and accepted main+advisor pairings
 - `https://claude.com/blog/the-advisor-strategy`: correlate only, for why a faster main + stronger advisor works
+
+As of 2026-10-11. Recheck when any docs section above is renamed or moved, or stops covering the
+topic it is listed for.
 
 **Fetch failure degrades, never halts.** The recommendation is an auxiliary output, so
 a doc-fetch failure must not block the interview or the Brief. Fall back to the
@@ -122,18 +126,21 @@ one, and never a guessed-from-memory model name.
 
 The skill knows its own main model, stated in the system prompt. It reads effort from
 `${CLAUDE_EFFORT}` in its body, or from `CLAUDE_EFFORT` in a Bash subprocess, and treats an absent
-value as a model without effort support rather than an unset level. It knows of no surface that
-reads the configured advisor back, so it treats advisor state as unknown.
+value as a model without effort support rather than an unset level. The user can work with the
+advisor through `/advisor` (what a bare `/advisor` shows is read live), but the skill has no way to read it from inside its
+own session, so it treats advisor state as unknown and may suggest the user check it.
 
 - **Pointer**: for the effort values, see
   <https://code.claude.com/docs/en/skills#available-string-substitutions> and
-  <https://code.claude.com/docs/en/env-vars#variables>; for choosing and disabling the advisor,
-  see <https://code.claude.com/docs/en/advisor#enable-the-advisor> and
+  <https://code.claude.com/docs/en/env-vars#variables>; for choosing, checking and disabling the
+  advisor, see <https://code.claude.com/docs/en/advisor#enable-the-advisor>,
+  <https://code.claude.com/docs/en/advisor#use-the-advisor-command> and
   <https://code.claude.com/docs/en/advisor#turn-the-advisor-off>.
-- **As of**: 2026-09-06
-- **Recheck trigger**: the skills page drops the `${CLAUDE_EFFORT}` substitution row, a surface for
-  reading the configured advisor appears on the advisor or environment-variables page, or a
-  release note names either.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the skills page drops the `${CLAUDE_EFFORT}` substitution row, the advisor
+  or environment-variables page adds a way for a session itself (not the user's `/advisor`
+  command) to read the configured advisor, the "Use the `/advisor` command" section changes what
+  a bare `/advisor` shows, or a release note names either.
 
 So split the framing. Where effort is readable, say what it is and recommend from there. Where
 advisor state is not, frame the recommendation as a delta the user applies rather than a fact about

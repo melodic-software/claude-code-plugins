@@ -28,3 +28,8 @@ readonly WIT_HUMAN_FLOOR_WORK_CLASS_LABELS=(
   "work-class: structural"
   "work-class: untrusted-provenance"
 )
+
+# The human floor holds provenance labels as well as work classes: an item filed
+# from a signal is C5 whatever its work-class label says.
+# shellcheck disable=SC2034
+readonly WIT_HUMAN_FLOOR_PROVENANCE_LABELS=("provenance: signal")

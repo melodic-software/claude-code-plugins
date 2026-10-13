@@ -18,6 +18,10 @@ dispatch prompt.
 
 If any is missing, or `SESSION` is the literal text `${CLAUDE_SESSION_ID}`, say which and stop.
 
+This plugin's runnable scripts, `findings.py` and `harness-lib.sh` among them, live in
+`$ROOT/scripts/`; `$ROOT/lib/` holds `state-key.sh` and helper modules. To reproduce a failure the
+session reports in one of them, look there.
+
 ## Rules
 
 - **You write nothing yourself.** Every file you produce is a `"$PY" "$ROOT/scripts/findings.py"`
@@ -89,7 +93,7 @@ Add findings with `"$PY" "$ROOT/scripts/findings.py" add --run "$RUN" --json '<f
 | Field | Rule |
 |---|---|
 | `id` | `<area>-<n>`, unique in the run |
-| `key` | `<area>/<slowdown class>`, stable across runs; baselines and adoptions key on it |
+| `key` | `<area>/<slowdown class>`, plus `/<workflow>` where `reference/areas.md` says so; stable across runs; baselines and adoptions key on it |
 | `area` | one of the sixteen area slugs in `reference/areas.md` |
 | `title` | one line naming the slowdown |
 | `status` | `measured`, `candidate`, `flag-only`, `not-checked` |

@@ -818,11 +818,18 @@ def release_lease(s, name):
         conn.close()
 
 
-# The channels adapter: Claude Code's native channels, a research preview. Basis, as of 2026-10-03:
-# https://code.claude.com/docs/en/channels and /channels-reference (the claude/channel capability,
-# the notification, the flags, channelsEnabled, allowedChannelPlugins) and
-# /server-managed-settings and /managed-settings (where managed settings are read from). Recheck
-# when either page changes the flags, the capability or the policy keys.
+# The channels adapter: Claude Code's native channels. Basis, as of 2026-10-11:
+# https://code.claude.com/docs/en/channels#research-preview (the flags),
+# https://code.claude.com/docs/en/channels-reference#server-options (the capability),
+# https://code.claude.com/docs/en/channels-reference#notification-format (the notification),
+# https://code.claude.com/docs/en/channels#enterprise-controls (the policy keys and the plans that
+# block channels until enabled), and
+# https://code.claude.com/docs/en/managed-settings#where-each-mechanism-stores-the-policy (where
+# managed settings are read from). Recheck when the research-preview section changes a flag, the
+# server-options section changes the channel capability, the notification-format section changes
+# the notification method or its params, the enterprise-controls section changes a policy key or
+# a plan default, or the where-each-mechanism section moves the managed-settings file or its
+# drop-in directory.
 
 CHANNELS_FLAG = "--channels"
 DEV_FLAG = "--dangerously-load-development-channels"
@@ -834,7 +841,7 @@ THIRD_PARTY = (
     "CLAUDE_CODE_USE_MANTLE",
     "CLAUDE_CODE_USE_ANTHROPIC_AWS",
 )
-ORG_PLANS = ("team", "enterprise")  # channels stay blocked until an Owner enables them
+ORG_PLANS = ("team", "enterprise")  # plan default: see channels#enterprise-controls above
 CONTROL_KEYS = ("wslInheritsWindowsSettings", "managedSourcesBehavior")
 MCP_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 WAIT_FAILS = 12  # unreachable polls, 5 s apart, before the relay stops (as watch.sh)
