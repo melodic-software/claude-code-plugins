@@ -481,14 +481,16 @@ describe("hosted publish: gate the built page, then pages-publish and the sideca
   const bin = join(scratch, "fake-bin");
   const log = join(scratch, "pages-publish.log");
   mkdirSync(bin, { recursive: true });
-  // The fake records its argv, one JSON line per call, and answers a publish with FAKE_OUT.
+  // The fake records its argv, one JSON line per call, and answers a publish with FAKE_OUT. A replace (--id)
+  // exits FAKE_REPLACE_EXIT when it is set, so a test can fail the replace and let the create succeed.
   writeFileSync(
     join(bin, "pages-publish"),
     `#!/usr/bin/env node
 const { appendFileSync } = require("node:fs");
 appendFileSync(process.env.FAKE_LOG, JSON.stringify(process.argv.slice(2)) + "\\n");
+const replaceExit = process.argv.includes("--id") ? process.env.FAKE_REPLACE_EXIT : "";
 if (process.argv[2] !== "--delete") process.stdout.write((process.env.FAKE_OUT || "") + "\\n");
-process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DELETE_EXIT : process.env.FAKE_EXIT) || 0);
+process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DELETE_EXIT : replaceExit || process.env.FAKE_EXIT) || 0);
 `,
   );
   chmodSync(join(bin, "pages-publish"), 0o755);
@@ -531,7 +533,7 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     return { page, data, sidecarPath: join(data, "hosted/acme__app__7.json") };
   };
   /** `gh` is what the fake gh prints for the visibility lookup; `extra` appends arguments. */
-  const publish = ({ page, data }, { gh = "public", ghExit = 0, authed = "", repo = "acme/app", extra = [], out = "", exit = 0, deleteExit = 0, env = {} } = {}) =>
+  const publish = ({ page, data }, { gh = "public", ghExit = 0, authed = "", repo = "acme/app", extra = [], out = "", exit = 0, replaceExit = "", deleteExit = 0, env = {} } = {}) =>
     spawnSync(process.execPath, [PUBLISH, page, "--repo", repo, "--pr", "7", "--data-dir", data, ...extra], {
       encoding: "utf8",
       env: {
@@ -544,6 +546,7 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
         FAKE_LOG: log,
         FAKE_OUT: out,
         FAKE_EXIT: String(exit),
+        FAKE_REPLACE_EXIT: String(replaceExit),
         FAKE_DELETE_EXIT: String(deleteExit),
         ...env,
       },
@@ -706,6 +709,33 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
       assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).id, idA);
       assert.equal(JSON.parse(result.stdout).medium, "file");
     }
+  });
+  test("a replace of a page deleted elsewhere fails, so one create publishes a new page and the sidecar takes it", runsFake, () => {
+    const at = setup(sample, answer(idA, "public"));
+    const out = publish(at, { replaceExit: 6, out: answer(idB, "public") });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(calls(), [
+      [at.page, "--visibility", "public", "--id", idA],
+      [at.page, "--visibility", "public"],
+      ["--delete", idA, "--visibility", "public"],
+    ]);
+    assert.deepEqual(JSON.parse(readFileSync(at.sidecarPath, "utf8")), JSON.parse(answer(idB, "public")));
+    assert.equal(JSON.parse(out.stdout).url, `https://public.pages.example/${idB}/`);
+  });
+  test("one create follows only a failed replace: a refusal, a failed create and a failed first publish are not retried", runsFake, () => {
+    let at = setup(sample, answer(idA, "public"));
+    assert.equal(publish(at, { replaceExit: 4, out: answer(idB, "public") }).status, 4);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "public", "--id", idA]]);
+    at = setup(sample, answer(idA, "public"));
+    assert.equal(publish(at, { exit: 6, out: answer(idB, "public") }).status, 1);
+    assert.deepEqual(calls(), [
+      [at.page, "--visibility", "public", "--id", idA],
+      [at.page, "--visibility", "public"],
+    ]);
+    assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).id, idA);
+    at = setup();
+    assert.equal(publish(at, { exit: 6, out: answer(idB, "public") }).status, 1);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "public"]]);
   });
   test("a page the builder did not make, or bad arguments, exit 2 with no upload", () => {
     const at = setup();
