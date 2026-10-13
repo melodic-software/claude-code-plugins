@@ -33,7 +33,8 @@ Runs **before** CLI bootstrap, when `source/companion-sources.md` exists. **SSOT
 `companion-primary-sources.md`.
 
 WebFetch companion URL(s) → subagent fan-out per section table → `source/companion-digest/<section-slug>.md`
-plus hub `source/companion-digest/README.md` → `mark-phase <slice-dir> companion`. No surface
+plus hub `source/companion-digest/README.md`. Once the CLI bootstrap has written `watch.json`,
+`mark-phase <slice-dir> companion` (it fails without `watch.json`). No surface
 reads; use deep external research per section. Downstream phases frame against the digest (claim
 inventory, research agenda, vision, synthesis).
 
@@ -191,7 +192,8 @@ Template: `templates/deck-inventory.md`; contract: `synthesis-contract.md`.
 
 - **Pass A (before full vision fan-out):** no script classifies links, so type them yourself: add
   a `kind` (`deck` | `doc` | `attachment` | `repo` | `other`) to each entry in
-  `source/harvested-links.json`, plus a `sessionSlug` on each `deck`. Then fetch every `deck`,
+  `source/harvested-links.json`, plus a `sessionSlug` on each `deck` (one path segment of letters,
+  digits, `.`, `_` or `-`; the fetcher skips any other). Then fetch every `deck`,
   `doc` and `attachment` entry (`--dry-run` lists destinations without fetching), and record the
   result in `source/deck-inventory.md`:
 

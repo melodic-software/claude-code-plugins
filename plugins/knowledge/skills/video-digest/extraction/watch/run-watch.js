@@ -116,7 +116,13 @@ export async function runWatchCli(argv) {
     writeStderr("`--target` requires a value");
     return 1;
   }
-  const target = targetIndex !== -1 ? portableTargetName(argv[targetIndex + 1]) : undefined;
+  let target;
+  try {
+    target = targetIndex !== -1 ? portableTargetName(argv[targetIndex + 1]) : undefined;
+  } catch (error) {
+    writeStderr(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
   const strategyArg = parseTranscriptStrategyOverride(argv);
   if (!strategyArg.ok) {
     writeStderr(strategyArg.error);
