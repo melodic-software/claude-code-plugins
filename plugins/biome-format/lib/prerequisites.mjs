@@ -354,8 +354,9 @@ function expandPluginPath(p, ctx) {
 // A plugin that commits requirements.txt installs its Python packages into the
 // plugin data directory, at <data>/python/<first 12 hex of the lock's sha256>-<the
 // interpreter's sys.implementation.cache_tag>/ (docs/conventions/on-demand-dependencies,
-// Rule P3). pluginPythonSet -> null when the plugin has no lock, { dir: null } when
-// the data directory is unknown here, else { dir } for the found interpreter.
+// Rule P3). pluginPythonSet -> null when the plugin has no lock or the interpreter's
+// cache tag cannot be read, { dir: null } when the data directory is unknown here,
+// else { dir } for that interpreter.
 function pluginPythonSet(python, ctx) {
   const lock = path.join(ctx.root, "requirements.txt");
   if (!existsSync(lock)) return null;
@@ -399,24 +400,34 @@ export function detectEntry(entry, ctx) {
       return { status: "missing", detail: `${bin} ${args.join(" ")} did not report ${d.probe.pattern}` };
     }
     case "python-pkg": {
-      const found = firstOnPath(d.any, ctx);
+      const pythons = [...new Set(d.any.map((n) => which(n, ctx.env, ctx.platform, ctx.fs)).filter(Boolean))];
+      const [found] = pythons;
       if (!found) return { status: "missing", detail: `no Python interpreter (${d.any.join(", ")}) on PATH` };
-      if (run(found, ["-c", `import ${d.import}`]).ok)
+      // PYTHONSAFEPATH keeps the working directory off sys.path, so a same-named
+      // module there cannot satisfy (or run during) the import.
+      const env = { ...ctx.env, PYTHONSAFEPATH: "1" };
+      if (run(found, ["-c", `import ${d.import}`], env).ok)
         return { status: "present", detail: `${found} imports ${d.import}` };
       // Not importable on its own: try the plugin's installed set, the way its
       // launcher runs it (PYTHONPATH set to the set, -S so no ambient site-packages).
-      const set = pluginPythonSet(found, ctx);
-      if (set?.dir === null) {
-        return {
-          status: "unverified",
-          detail: `${found} cannot import ${d.import} on its own, and the plugin data directory is unknown here; pass --data-dir`,
-        };
+      // The launcher may pick any listed interpreter, so each one's set is tried.
+      const setEnv = { ...env };
+      delete setEnv.PYTHONHOME;
+      const tried = [];
+      for (const python of pythons) {
+        const set = pluginPythonSet(python, ctx);
+        if (!set) continue;
+        if (set.dir === null) {
+          return {
+            status: "unverified",
+            detail: `${found} cannot import ${d.import} on its own, and the plugin data directory is unknown here; pass --data-dir`,
+          };
+        }
+        tried.push(set.dir);
+        if (existsSync(set.dir) && run(python, ["-S", "-c", `import ${d.import}`], { ...setEnv, PYTHONPATH: set.dir }).ok)
+          return { status: "present", detail: `${python} imports ${d.import} from ${set.dir}` };
       }
-      if (set && existsSync(set.dir)) {
-        if (run(found, ["-S", "-c", `import ${d.import}`], { ...process.env, PYTHONPATH: set.dir }).ok)
-          return { status: "present", detail: `${found} imports ${d.import} from ${set.dir}` };
-      }
-      const where = set ? ` on its own or from ${set.dir}` : "";
+      const where = tried.length ? ` on its own or from ${tried.join(", ")}` : "";
       return { status: "missing", detail: `${found} cannot import ${d.import}${where}` };
     }
     case "node-pkg": {
