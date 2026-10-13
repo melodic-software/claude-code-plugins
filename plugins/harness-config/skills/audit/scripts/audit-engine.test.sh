@@ -218,8 +218,8 @@ make_machine() {
 #
 # With neither DOCS_FIXTURE nor a --docs-dir of the case's own, the default
 # pages arrive through --docs-dir, so the run makes no fetcher call. The fetcher
-# starts about half of a run's processes, and on Git for Windows each process
-# start is what makes this suite slow (#6882). The cases about the fetch route
+# starts many of a run's processes, and on Git for Windows each process start is
+# what makes this suite slow. The cases about the fetch route
 # set DOCS_FIXTURE, or set RUN_FETCH=1 to keep the default fixture fetched.
 run() {
   local -a docs_args=()
