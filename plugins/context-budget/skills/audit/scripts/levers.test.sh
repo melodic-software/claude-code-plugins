@@ -145,19 +145,21 @@ const lean = (cat.levers ?? []).find((l) => l.id === "simple-system-prompt");
 if (!lean) problems.push("missing simple-system-prompt");
 else {
   const cond = String(lean.conditions || "");
-  if (!/opus-5/i.test(cond)) problems.push("simple-system-prompt conditions do not name opus-5");
   if (!/already-default|already defaults lean/i.test(cond)) {
     problems.push("simple-system-prompt conditions do not explain a zero as already-default");
   }
-  if (!/legacy list|claude-opus-4-0/i.test(cond)) {
-    problems.push("simple-system-prompt conditions do not cite the binary legacy-list check");
+  if (!cond.includes("docs/upstream/claude-code-lean-prompt-selector.md")) {
+    problems.push("simple-system-prompt conditions do not point at the lean-prompt probe record");
+  }
+  if (/lean_prompt|claude-[a-z]+-\d|opus-\d|haiku|sonnet|\b2\.1\.\d/i.test(cond)) { // portability-ok: JS RegExp, not grep or sed
+    problems.push("simple-system-prompt conditions restate the selector instead of pointing at the record");
   }
 }
 console.log(problems.length ? problems.join("\n") : "CLEAN");
 ' "$CATALOGUE")"
 
 report_clean "$routeout" \
-  "include-git-instructions names the env route; simple-system-prompt resolves opus-5 lean default"
+  "include-git-instructions names the env route; simple-system-prompt points at the lean-prompt probe record"
 
 outputout="$(node -e '
 const cat = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));

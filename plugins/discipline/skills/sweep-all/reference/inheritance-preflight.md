@@ -5,8 +5,8 @@
 fetched that day. Recheck trigger: either page stops carrying a quoted span below, either page
 states a different fork-mode default, or a release note names fork mode, subagent tool filtering,
 or `CLAUDE_CODE_FORK_SUBAGENT`. The same stamp covers the fork claims in
-[`../SKILL.md`](../SKILL.md) and [`batched-pass.md`](batched-pass.md), which cite it rather than
-repeating it.
+[`batched-pass.md`](batched-pass.md), which cites it rather than repeating it;
+[`../SKILL.md`](../SKILL.md) carries its own pointer records.
 
 What [`../SKILL.md`](../SKILL.md) runs before step 1 of a full-batch pass, to establish rather than
 assume that its subagents inherit this conversation. A batched pass whose members inherited nothing

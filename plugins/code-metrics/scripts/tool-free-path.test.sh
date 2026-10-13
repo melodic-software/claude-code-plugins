@@ -119,5 +119,18 @@ leftover_shim="$(cm_resolvable_ladder_collectors "$EMPTY_SHIM" | sort -u | tr '\
 leftover_shim="${leftover_shim% }"
 assert_eq "a PATH-mutating python3 shim does not restore mypy-report" "" "$leftover_shim"
 
+# The ladder reader's Python runs isolated: an ast.py in the working directory
+# is not imported in place of the standard library's.
+mkdir -p "$WORK/planted"
+printf 'open("%s", "w").close()\nraise SystemExit(0)\n' "$WORK/planted/PWNED" >"$WORK/planted/ast.py"
+planted_bins="$(cd "$WORK/planted" && cm_ladder_path_bins | tr '\n' ' ')"
+planted_bins="${planted_bins% }"
+if [[ -e "$WORK/planted/PWNED" ]]; then
+  fail "a planted ast.py in the working directory is not imported" "no marker" "marker created"
+else
+  pass "a planted ast.py in the working directory is not imported"
+fi
+assert_eq "the ladder reader's output is the same beside a planted ast.py" "$bins" "$planted_bins"
+
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))

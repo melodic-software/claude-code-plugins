@@ -68,16 +68,23 @@ Per-route detail, the receiver and the reply patterns are in [reference/relay.md
 ## Verify the hop before you trust it
 
 Run the row with `hostname && <agent> -p "echo ok"` as the agent part. The hostname proves which
-machine answered; `ok` proves that lane's Claude is signed in. A Windows lane that answers
-`Failed to authenticate: OAuth session expired and could not be refreshed` routed correctly and is
-signed out: someone runs `/login` at that machine's console (or over RDP). Nothing remote fixes it,
-and no credential travels in a prompt.
+machine answered; `ok` proves that lane's Claude is signed in. A Windows lane that answers with
+an expired-OAuth-session authentication error routed correctly and is signed out: someone runs
+`/login` at that machine's console (or over RDP). Nothing remote fixes it, and no credential
+travels in a prompt.
+
+- **Pointer**: when matching a lane's answer to a signed-out state, fetch
+  [Login expired](https://code.claude.com/docs/en/errors#login-expired) live. **As of**:
+  2026-10-11. **Recheck trigger**: that entry's message text changes.
 
 ## Verbs
 
 Each verb fills `<agent-args>` in a matrix row. All but the first start an agent, and each agent
-turn costs real usage (about 22 to 31 US cents for a one-line turn, mostly SessionStart hooks and
-context loading). When a script can do the job, run the script.
+turn costs real usage, even a one-line turn, mostly from SessionStart hooks and context loading
+(what drives usage and how to read it:
+[Manage costs: Track your costs](https://code.claude.com/docs/en/costs#track-your-costs); the
+Cost row of [reference/relay.md § Verified behavior](reference/relay.md#verified-behavior) holds
+the dated measurement and says how to re-measure it). When a script can do the job, run the script.
 
 | Verb | `<agent-args>` | Status |
 |---|---|---|
@@ -99,8 +106,10 @@ context loading). When a script can do the job, run the script.
   stays open. Per-turn `--resume` survives a disconnect. `--session-id` picks the id up front, so
   nothing parses the first turn's output; use a UUID from `/proc/sys/kernel/random/uuid` where
   `uuidgen` is missing.
-- **Background sessions** need a trusted working directory. Anywhere else the start fails with
-  ``Workspace not trusted. Run `claude` in <dir> once and accept the trust prompt`` and exit 1.
+- **Background sessions** need a trusted working directory. Anywhere else the start fails with a
+  workspace-not-trusted error and exit 1 (for its wording and fix, fetch
+  [Workspace not trusted when dispatching a background session](https://code.claude.com/docs/en/errors#workspace-not-trusted-when-dispatching-a-background-session)
+  live; as of 2026-10-11; recheck when that entry's message or fix changes).
   Address `claude logs` and `claude attach` by the `id` from `claude agents --json --all` (bare
   `--json` lists only active sessions), so a lane on an older CLI behaves like a current one;
   pass a name only after checking the lane's version
@@ -118,6 +127,15 @@ context loading). When a script can do the job, run the script.
 - Session names belong to the target lane. List first, then message a name from that list.
 - `--resume` ids belong to the lane that made them. Resume against the same row. `--session-id`
   picks the id up front, so nothing has to parse the first turn's output.
+- **Pointer**: the receiver, `--bare` and Remote Control bullets above rest on our probes and the
+  flag behavior recorded in
+  [reference/relay.md § Verified behavior](reference/relay.md#verified-behavior); when one stops
+  holding, fetch
+  [Control inbound messages](https://code.claude.com/docs/en/cross-session-messaging#control-inbound-messages),
+  [Non-interactive sessions](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions)
+  and [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) live. **As of**:
+  2026-10-11. **Recheck trigger**: a release note names `crossSessionInbound`, `--bare`, `--bg`,
+  `--session-id` or Remote Control, or a route fails its hop check.
 
 The receiver's nested quoting, background sessions, and the mechanisms not used here (Remote
 Control, cloud sessions, Channels) are in [reference/relay.md](reference/relay.md).
@@ -138,6 +156,17 @@ So the peer tools are same-lane only, and no setting widens them. Every other ro
 inside the target lane, where the peer tools are local. Do not propose sharing an account: the
 split is the decision, not an oversight.
 
+- **Pointer**: the three facts are our probes' results
+  ([reference/relay.md § Verified behavior](reference/relay.md#verified-behavior)); when one is in
+  doubt, fetch
+  [See which sessions Claude can reach](https://code.claude.com/docs/en/cross-session-messaging#see-which-sessions-claude-can-reach)
+  and
+  [Message sessions on other machines](https://code.claude.com/docs/en/cross-session-messaging#message-sessions-on-other-machines)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes which sessions a session can see or reach across
+  platforms, machines or accounts.
+
 ## Port 22 is not an agent lane
 
 `ssh-admin` is a separate Windows account with no Claude sign-in and no DPAPI. Use port 22 for pwsh
@@ -146,9 +175,12 @@ on-demand tasks FLEET.md lists.
 
 ## Permission and safety posture
 
-- Every verb except running a script starts an agent in another lane, same machine included. The
-  auto-mode classifier reaches only read-only remote commands, so these prompt under auto mode.
-  That is intended; let them prompt. A script is judged on its own content.
+- Every verb except running a script starts an agent in another lane, same machine included, and
+  these prompt under auto mode. That is intended; let them prompt. A script is judged on its own
+  content. When a prompt's cause is in doubt, fetch
+  [Eliminate prompts with auto mode](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
+  live (as of 2026-10-11; recheck when that section changes what the classifier lets through
+  for remote commands).
 - There is no `Bash(ssh ...)` allow rule anywhere in this fleet, and adding one is not the fix for a
   prompt. If asked to stop the prompting, say what the rule would cost and decline.
 - Neither side runs `bypassPermissions`.

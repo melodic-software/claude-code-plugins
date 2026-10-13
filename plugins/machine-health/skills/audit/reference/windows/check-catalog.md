@@ -199,10 +199,14 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
     behind with no KEV match can still be raised to `CRIT` when `upgrades_count` rises by 5 or more.
   - `INFO`: 1–10 apps behind, none on KEV.
   - `OK`: no upgrades available.
+  - `UNKNOWN`: upgrades are pending but no usable KEV list exists (the fetch failed with no prior
+    cache, the feed came back empty, or the lookup threw), so "no KEV match" cannot be vouched
+    for. `ran_successfully` is false, `error` names the cause, and `detail` keeps the measured
+    upgrades. A count-based `INFO` or `WARN` never stands in for a KEV check that did not run.
   - The "upgrade(s)" figure in a KEV summary counts distinct upgrade ids (`kev_upgrade_count`);
     one upgrade can match several KEV rows, counted separately as `kev_match_count`.
 
-- **Notes:** The full list goes in the report appendix. `catalog/cisa-kev.json` refreshed weekly by `scripts/windows/lib/Get-CisaKevCache.ps1` from `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json`. Log the outbound URL every time. If feed fetch fails, keep the cached copy and record a `notes` entry.
+- **Notes:** The full list goes in the report appendix. `catalog/cisa-kev.json` refreshed weekly by `scripts/windows/lib/Get-CisaKevCache.ps1` from `https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json`. Log the outbound URL every time. `detail.kev_cache_state` records which list correlation used: `fresh`, `stale` (refresh failed, prior cache used), `unavailable` (refresh failed, no prior cache), `empty` (feed had no entries) or `unknown` (the lookup threw or returned no labeled list), with `kev_cache_age_days` beside it. If the fetch fails and a prior cache exists, keep it, keep the severity, and say so in `notes` and in the summary. With no usable list, report `UNKNOWN` as above, unless no upgrades are pending, which stays `OK` with a `notes` entry.
 
 - **KEV feed record:**
   - Claim: a KEV entry has no field for affected versions. Its fields are `cveID`, `vendorProject`,
@@ -603,6 +607,10 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   A modest tree whose oldest entry keeps aging is evidence that nothing reclaims it, which a size
   threshold alone cannot see until the volume is already at risk. The contrast case is
   `$CLAUDE_JOB_DIR/tmp`, which has a documented cleanup owner and stays small indefinitely.
+  Pointer: that owner is in
+  [Where state is stored](https://code.claude.com/docs/en/agent-view#where-state-is-stored). As of:
+  2026-10-11. Recheck trigger: that section stops naming when the per-session scratch directory is
+  removed, or is renamed.
 
 - **Why a per-file arm, and why it runs before the walk:** a single runaway background-task output
   can hold nearly all of the tree's bytes. A total-size verdict alone never says which file to
@@ -694,10 +702,14 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   cannot leak a secret the check never loaded. The check never writes: no `Set-Item`,
   `Set-ItemProperty`, `SetEnvironmentVariable`, or Path rewrite.
 
-- **Notes:** `DISABLE_AUTOUPDATER` is the Claude Code / Electron auto-update kill switch. A
-  truthy User-scope value silently freezes the installed binary at whatever version it holds,
-  with no error and no prompt, which is why a set value is a WARN. Duplicate and missing PATH
-  entries are INFO because presence is a shape, not a verdict that the entry should be removed.
+- **Notes:** a truthy persisted `DISABLE_AUTOUPDATER` turns off Claude Code's background
+  updates for every session that inherits it, with no error and no prompt, which is why a set
+  value is a WARN. What the variable does and does not block (manual updates, the separate
+  variable that blocks every update path) is stated in
+  [Disable auto-updates](https://code.claude.com/docs/en/setup#disable-auto-updates); fetch it
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes which update paths
+  `DISABLE_AUTOUPDATER` stops. Duplicate and missing PATH entries are INFO because presence is a
+  shape, not a verdict that the entry should be removed.
 
 ---
 

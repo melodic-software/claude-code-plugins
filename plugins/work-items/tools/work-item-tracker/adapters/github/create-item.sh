@@ -113,8 +113,8 @@ if ((native)); then
     exit "$EX_INTERNAL"
   }
 else
-  # `gh issue create` resolves through GraphQL, which sandboxed sessions refuse
-  # with HTTP 403; REST issue creation is served. Sub-issue and dependency edges
+  # `gh issue create` resolves through GraphQL, so sandboxed sessions create over
+  # REST (README "View item"). Sub-issue and dependency edges
   # have no REST form here (the dispatcher gates them on the same gh version).
   [[ -z "$parent" && -z "$blocked_by" ]] ||
     wit_usage_error "--parent and --blocked-by require gh >= 2.94"

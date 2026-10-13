@@ -14,6 +14,10 @@ own and runs only when your repo has opted into Ruff.
 - **Spawned only for Python files.** The hook is registered with the `if` filters
   `Edit(*.py)` and `Edit(*.pyi)`, so a Write/Edit of any other file never starts a
   hook process for it; the extension check inside the script is unchanged.
+  - **Pointer**: when deciding whether an `if` row keeps a handler from spawning, fetch
+    [hooks: Common fields](https://code.claude.com/docs/en/hooks#common-fields) live.
+    **As of**: 2026-10-11. **Recheck trigger**: that section changes when an `if` rule
+    keeps a handler from running, or which events evaluate it.
 - **Opt-in on a Ruff config.** Ruff runs **only when a `.ruff.toml`,
   `ruff.toml`, or `pyproject.toml` with a `[tool.ruff]` section governs the
   edited file**, found by walking up from the file to the repository root, the

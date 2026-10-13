@@ -14,7 +14,11 @@ both forms against the pages linked below at audit time, never from memory.
 
 ## Check
 
-- **Naming collisions**: a same-named skill wins over a command; flag shadowing.
+- **Naming collisions**: flag a command that shares its name with a skill, and say which one runs.
+  When deciding which wins, fetch
+  [Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)
+  live. As of 2026-10-11. Recheck trigger: that section changes the precedence between a skill and
+  a command.
 - **Frontmatter**: argument handling, tool permissions.
 - **Determinism & escape hatches**: same as any workflow, meaning reliable steps and a clean bypass.
 - **Migration**: would it be better as a skill (supporting files, progressive disclosure,

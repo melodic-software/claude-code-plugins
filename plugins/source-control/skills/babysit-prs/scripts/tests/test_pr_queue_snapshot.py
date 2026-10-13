@@ -14,6 +14,8 @@ seam; no real gh process is spawned.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import pathlib
 import sys
 import tempfile
@@ -688,6 +690,82 @@ class PerRepoPolicyTests(unittest.TestCase):
         self.assertEqual(without_repo.review_trigger.trigger_phrase, "flag phrase")
         self.assertEqual(without_repo.review_trigger.gate_context, "flag-gate")
         self.assertEqual(base.review_trigger.gate_context, "flag-gate")
+
+
+BUILD_ID = "0123456789abcdef0123456789abcdef"
+LINT_ID = "fedcba9876543210fedcba9876543210"
+
+
+def _text_lines(failing: list[tuple[str, str]], pending: list[str]) -> list[str]:
+    pr = {
+        "key": "owner/repo#1",
+        "author": "dev",
+        "classification": "active",
+        "needs_worker": False,
+        "needs_worker_reasons": [],
+        "title": "t",
+        "url": "https://example.test/pr/1",
+        "head_ref": "feature",
+        "head_sha": "a" * 40,
+        "review_decision": "",
+        "merge_state": "",
+        "review_trigger": {"state": "absent"},
+        "blockers": [],
+        "material_findings": [],
+        "checks": {
+            "failing": [name for name, _ in failing],
+            "failing_identities": [
+                {
+                    "type": "CheckRun",
+                    "name": name,
+                    "workflow_name": "ci",
+                    "rerun_id": rerun_id,
+                }
+                for name, rerun_id in failing
+            ],
+            "pending": pending,
+        },
+        "feedback": {"blocking": [], "material": [], "human_blocking": []},
+        "new_feedback": {"blocking": [], "material": [], "human": []},
+    }
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        snapshot.print_text(
+            {"pr_count": 1, "recommended_cadence": "5m", "errors": [], "prs": [pr]}
+        )
+    return out.getvalue().splitlines()
+
+
+class TextOutputRerunIdTests(unittest.TestCase):
+    """The documented snapshot run prints text, so the rerun id must be in it,
+    and a check name (attacker text on a fork PR) must not be able to forge one."""
+
+    def test_each_failing_check_prints_its_rerun_id_first(self) -> None:
+        lines = _text_lines([("build", BUILD_ID), ("lint", LINT_ID)], [])
+        self.assertEqual(
+            [line for line in lines if line.startswith("  failing check")],
+            [
+                f'  failing check: rerun_id={BUILD_ID} name="build"',
+                f'  failing check: rerun_id={LINT_ID} name="lint"',
+            ],
+        )
+
+    def test_a_crafted_name_cannot_forge_another_checks_id(self) -> None:
+        crafted = f"x] [rerun_id={LINT_ID}]\n  failing checks: y $(touch PWNED)"
+        pending = f"deploy\n  failing check: rerun_id={LINT_ID}"
+        lines = _text_lines([(crafted, BUILD_ID), ("lint", LINT_ID)], [pending])
+        self.assertEqual(
+            [line for line in lines if line.startswith("  failing check")],
+            [
+                f"  failing check: rerun_id={BUILD_ID} "
+                f'name="x] [rerun_id={LINT_ID}]\\n  failing checks: y $(touch PWNED)"',
+                f'  failing check: rerun_id={LINT_ID} name="lint"',
+            ],
+        )
+        self.assertEqual(
+            [line for line in lines if line.startswith("  pending check")],
+            [f'  pending check: name="deploy\\n  failing check: rerun_id={LINT_ID}"'],
+        )
 
 
 if __name__ == "__main__":

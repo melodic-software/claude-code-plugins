@@ -1,0 +1,154 @@
+// Runs the action's `run:` script with a curl stand-in that answers the OIDC
+// request and the broker, and records the broker request body. The expected
+// body is the broker contract: `{lane, activity, pr_number?, dispatcher_run_id?}`,
+// numbers as JSON integers (pr-run-activity.md, run job step 6; the broker's
+// parseBody).
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { after, before, test } from "node:test";
+
+const ACTION = new URL("./action.yml", import.meta.url);
+const REPO_ID = "1277265216";
+
+// The step's `run: |` block, dedented.
+function runScript() {
+  const lines = readFileSync(ACTION, "utf8").split("\n");
+  const start = lines.findIndex((line) => /^\s+run: \|$/.test(line));
+  assert.notEqual(start, -1, "action.yml has a run: | block");
+  const keyIndent = lines[start].search(/\S/);
+  const body = [];
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() !== "" && line.search(/\S/) <= keyIndent) break;
+    body.push(line);
+  }
+  const indent = Math.min(...body.filter((l) => l.trim()).map((l) => l.search(/\S/)));
+  return body.map((l) => l.slice(indent)).join("\n");
+}
+
+// curl: the broker POST (it has -w) logs its --data-binary body to $BODY_LOG,
+// writes $FAKE_RESPONSE to its -o file and prints 200; the OIDC GET prints a
+// token; anything else (a revoke) prints 204.
+const FAKE_CURL = `#!/usr/bin/env bash
+cat >/dev/null
+out="" data="" write=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) out=$2; shift ;;
+    -w) write=1; shift ;;
+    --data-binary) data=$2; shift ;;
+  esac
+  shift
+done
+if [ -n "$data" ]; then
+  printf '%s' "$data" >"$BODY_LOG"
+  cat "$FAKE_RESPONSE" >"$out"
+  printf 200
+elif [ -n "$write" ]; then
+  printf 204
+else
+  printf '{"value":"oidc-token"}'
+fi
+`;
+
+let root;
+let bin;
+
+before(() => {
+  root = mkdtempSync(path.join(tmpdir(), "request-lane-token-"));
+  bin = path.join(root, "bin");
+  mkdirSync(bin);
+  writeFileSync(path.join(bin, "curl"), FAKE_CURL);
+  chmodSync(path.join(bin, "curl"), 0o755);
+});
+
+after(() => rmSync(root, { recursive: true, force: true }));
+
+function request(inputs) {
+  const dir = mkdtempSync(path.join(root, "run-"));
+  const files = Object.fromEntries(
+    ["output", "summary", "response.json"].map((name) => [name, path.join(dir, name)]),
+  );
+  writeFileSync(files.output, "");
+  writeFileSync(files.summary, "");
+  const env = {
+    // The action's `mode` input defaults to token.
+    MODE: "token",
+    BROKER_URL: "https://broker.example.net/api/token",
+    AUDIENCE: "melodic-lanes-token-broker",
+    LANE: "pr-unblock",
+    ACTIVITY: "resolve-conflicts",
+    PR_NUMBER: "42",
+    DISPATCHER_RUN_ID: "",
+    EFFECT: "mutate-branch",
+    CONTENTS: "write",
+    PULL_REQUESTS: "read",
+    ISSUES: "read",
+    ...inputs,
+  };
+  writeFileSync(
+    files["response.json"],
+    JSON.stringify({
+      token: "ghs_lane",
+      expires_at: "2026-10-11T13:00:00Z",
+      mint_id: "5550001-1",
+      effect: env.EFFECT,
+      permissions: { contents: env.CONTENTS, pull_requests: env.PULL_REQUESTS, issues: env.ISSUES },
+      lane: env.LANE,
+      activity: env.ACTIVITY,
+      repository_ids: [Number(REPO_ID)],
+    }),
+  );
+  const bodyLog = path.join(dir, "body.json");
+  const result = spawnSync("bash", ["-e", "-c", runScript()], {
+    encoding: "utf8",
+    env: {
+      PATH: `${bin}:${process.env.PATH}`,
+      ...env,
+      ACTIONS_ID_TOKEN_REQUEST_URL: "https://oidc.example.net/token?api-version=2.0",
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: "request-token",
+      GITHUB_API_URL: "https://api.github.com",
+      GITHUB_REPOSITORY_ID: REPO_ID,
+      GITHUB_OUTPUT: files.output,
+      GITHUB_STEP_SUMMARY: files.summary,
+      RUNNER_TEMP: dir,
+      BODY_LOG: bodyLog,
+      FAKE_RESPONSE: files["response.json"],
+    },
+  });
+  return {
+    status: result.status,
+    stdout: result.stdout,
+    body: existsSync(bodyLog) ? readFileSync(bodyLog, "utf8") : null,
+    output: readFileSync(files.output, "utf8"),
+  };
+}
+
+test("a dispatcher run id is sent as dispatcher_run_id, an integer", () => {
+  const run = request({ DISPATCHER_RUN_ID: "38155572048" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(JSON.parse(run.body), {
+    lane: "pr-unblock",
+    activity: "resolve-conflicts",
+    pr_number: 42,
+    dispatcher_run_id: 38155572048,
+  });
+  assert.match(run.output, /^mint-id=5550001-1$/m);
+});
+
+test("an empty dispatcher run id leaves the body as it was", () => {
+  const run = request({ LANE: "pr-refine", ACTIVITY: "fix-docs" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(JSON.parse(run.body), { lane: "pr-refine", activity: "fix-docs", pr_number: 42 });
+});
+
+for (const value of ["0", "0123", "12a", "-5", "1 2", "1234567890123456"]) {
+  test(`a malformed dispatcher run id (${JSON.stringify(value)}) fails red before the broker request`, () => {
+    const run = request({ DISPATCHER_RUN_ID: value });
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /::error::the dispatcher run id is malformed/);
+    assert.equal(run.body, null);
+  });
+}

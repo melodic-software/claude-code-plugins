@@ -190,10 +190,10 @@ rosters per host; a merged list cannot be acted on.
 
 Baked phrases live in frontmatter descriptions, which are the routing-effective surface:
 descriptions load into model context by default, while bodies load only on invocation. That surface
-is budgeted twice over, the combined `description` + `when_to_use` text truncates at 1,536
-characters per entry by default, and the listing as a whole is capped at a share of the context
-window (1% by default), on overflow keeping every skill *name* and dropping whole descriptions
-lowest-score-first. The score is decay-weighted and the walk is first-fit, so raw invocation count
+is budgeted twice over: a per-entry cap on the combined `description` + `when_to_use` text, and a
+listing-wide cap set as a share of the context window, whose values come from the pointers in the
+table at the end of this file. On overflow our binary reading keeps every skill *name* and drops
+whole descriptions lowest-score-first. The score is decay-weighted and the walk is first-fit, so raw invocation count
 is NOT the exposure ranking and description length matters too; see
 [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md).
 
@@ -385,7 +385,7 @@ Two upstream dependencies of this skill, each with the trigger that obliges re-d
 
 | Decision | Pointer | As of | Recheck when |
 |---|---|---|---|
-| We treat the description as the routing surface and measure a baked description against a 1,536-character per-entry cap and a listing budget of 1% of the context window. For which entries overflow drops, we use the order our own binary reading records in [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md); the docs page and that reading disagree on the drop order | [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short), [`skillListingMaxDescChars`](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars), [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction); the drop order is our binary reading | 2026-09-01 | Either default moves, or the binary's scorer or grant loop diverges from that reference |
+| We treat the description as the routing surface and measure a baked description against the per-entry cap and the listing budget, reading both values from the settings pointers here. For which entries overflow drops, we use the order our own binary reading records in [`audit-skill-visibility/reference/listing-scorer.md`](../audit-skill-visibility/reference/listing-scorer.md); the docs page and that reading disagree on the drop order | [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short), [`skillListingMaxDescChars`](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars), [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction); the drop order is our binary reading | 2026-10-11 | Either default moves, or the binary's scorer or grant loop diverges from that reference |
 | We make no static availability claim for a native surface, because we treat settings and environment, plan, platform or provider, and host surface as each able to remove one | [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills), [environment variables](https://code.claude.com/docs/en/env-vars), [Commands](https://code.claude.com/docs/en/commands), [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#what%E2%80%99s-available-in-cloud-sessions) | 2026-08-23 | A release or docs change adds, removes, or renames a gating axis |
 
 ## Gotchas

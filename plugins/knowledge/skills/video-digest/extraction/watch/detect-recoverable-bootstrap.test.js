@@ -189,4 +189,56 @@ describe("resolveWorkArtifacts", () => {
 
     expect(resolveWorkArtifacts(workDir).vttPath.endsWith("captions.en.vtt")).toBe(true);
   });
+
+  describe("with info.json subtitles", () => {
+    /** A workDir holding both English tracks and an info.json with the given `subtitles`. */
+    function makeWorkDirWithSubtitles(subtitles) {
+      const workDir = makeWorkDir("x.en-orig.vtt");
+      fs.writeFileSync(path.join(workDir, "x.en.vtt"), "WEBVTT\n");
+      fs.writeFileSync(path.join(workDir, "meta.info.json"), JSON.stringify({ subtitles }));
+      return workDir;
+    }
+
+    it("takes .en-orig.vtt over a bare .en.vtt when no manual English track is listed", () => {
+      const workDir = makeWorkDirWithSubtitles({});
+
+      expect(resolveWorkArtifacts(workDir).vttPath).toBe(path.join(workDir, "x.en-orig.vtt"));
+    });
+
+    it("keeps the bare .en.vtt when info.json lists a manual en track", () => {
+      const workDir = makeWorkDirWithSubtitles({ en: [{ ext: "vtt" }] });
+
+      expect(resolveWorkArtifacts(workDir).vttPath).toBe(path.join(workDir, "x.en.vtt"));
+    });
+
+    it("still takes a caption in another language the ladder does not rank", () => {
+      const workDir = makeWorkDir("x.fr.vtt");
+      fs.writeFileSync(path.join(workDir, "meta.info.json"), JSON.stringify({ subtitles: {} }));
+
+      expect(resolveWorkArtifacts(workDir).vttPath).toBe(path.join(workDir, "x.fr.vtt"));
+    });
+  });
+
+  it("scopes caption and info.json to the video's media entry in a multi-video work dir", () => {
+    const workDir = mkTmp("video-extraction-");
+    for (const name of ["111.mp4", "111.und.vtt", "111.info.json", "222.en.vtt", "222.info.json"]) {
+      fs.writeFileSync(path.join(workDir, name), name.endsWith(".json") ? "{}" : "x");
+    }
+
+    const artifacts = resolveWorkArtifacts(workDir, "platform-asr");
+
+    expect(artifacts.vttPath).toBe(path.join(workDir, "111.und.vtt"));
+    expect(artifacts.infoPath).toBe(path.join(workDir, "111.info.json"));
+  });
+
+  it("refuses a sibling entry's caption and info.json when the video's own are missing", () => {
+    const workDir = mkTmp("video-extraction-");
+    for (const name of ["111.mp4", "222.en.vtt", "222.info.json"]) {
+      fs.writeFileSync(path.join(workDir, name), name.endsWith(".json") ? "{}" : "x");
+    }
+
+    expect(() => resolveWorkArtifacts(workDir, "platform-asr")).toThrow(
+      /Missing vtt\/info\.json for 111\.mp4/,
+    );
+  });
 });

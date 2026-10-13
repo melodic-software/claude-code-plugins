@@ -2,6 +2,8 @@
 
 - Status: accepted
 - Date: 2026-10-04
+- Amended by [ADR 0069](0069-trust-the-default-branch-tip-for-a-conflicting-pr.md): point 1, for
+  callers that pass `trusted-base: default-tip`
 
 ## Context
 

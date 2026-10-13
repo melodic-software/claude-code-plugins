@@ -1,7 +1,9 @@
 // Trigger gate for CI lanes: proceed only for a same-repository PR whose event
 // actor and PR author are both on the trusted-actor list, matched by numeric
 // id, and whose re-runner is listed by login. A denied id stops the lane even
-// when it is listed. Every failure ends in proceed=false with a
+// when it is listed. A workflow_dispatch sent by github-actions[bot] stands in
+// for its sender through a checked dispatcher run, and require-pr false checks
+// the actors without a PR. Every failure ends in proceed=false with a
 // reason; main never throws.
 import { readFileSync } from "node:fs";
 import process from "node:process";
@@ -15,6 +17,24 @@ const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 // Branch names reach later steps; anything beyond these characters stops the
 // lane rather than travel on.
 const HEAD_REF = /^[A-Za-z0-9._/-]+$/;
+const SHA = /^[0-9a-f]{40}$/;
+const RUN_ID = /^[1-9][0-9]{0,19}$/;
+// github-actions[bot], the sender of every GITHUB_TOKEN workflow dispatch.
+const ACTIONS_BOT_ID = 41898282;
+const DISPATCHER_EVENTS = new Set(["push", "workflow_dispatch"]);
+// The dispatcher dispatches within seconds of starting; a longer run must not
+// keep its window open.
+const WINDOW_MS = 10 * 60 * 1000;
+// The artifact the dispatcher run uploads after its dispatch loop, named with
+// every run id it dispatched.
+const RECORD_NAME = /^pr-unblock-dispatched(-[1-9][0-9]{0,14})+$/;
+const RECORD_PREFIX = "pr-unblock-dispatched-";
+// The record can land after this run's gate starts: re-read every 5 s while
+// the dispatcher run is still going, for at most 2 min (judgment).
+const RECORD_WAIT_MS = 5000;
+const RECORD_MAX_SLEEPS = 24;
+
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class GitHubError extends Error {
   constructor(status, what) {
@@ -83,6 +103,7 @@ export function loadTrustedList(listPath) {
     throw new Error("trusted-actor list does not match its schema");
   }
   const ids = new Set();
+  const humans = new Set();
   const logins = new Map();
   for (const actor of list.actors) {
     if (
@@ -96,9 +117,12 @@ export function loadTrustedList(listPath) {
       throw new Error("trusted-actor entry does not match its schema");
     }
     ids.add(actor.id);
+    if (actor.kind === "human") {
+      humans.add(actor.id);
+    }
     logins.set(actor.login.toLowerCase(), actor.id);
   }
-  return { ids, logins };
+  return { ids, humans, logins };
 }
 
 export const loadTrustedActors = (listPath) => loadTrustedList(listPath).ids;
@@ -154,6 +178,200 @@ async function resolveRunPull(github, repository, run) {
   return matches[0];
 }
 
+// The context gives the re-runner's login only, so it is matched by login.
+// A re-run keeps the event, so a stop here could otherwise turn an earlier
+// red check on the same SHA neutral: its reason has no skip mapping, and
+// an empty login stops too.
+function checkRerunnerLogin({ ids, logins }, deniedIds, triggeringActor, pool = ids) {
+  const rerunnerId = logins.get(String(triggeringActor).toLowerCase());
+  if (rerunnerId === undefined || !pool.has(rerunnerId) || deniedIds.has(rerunnerId)) {
+    throw new Stop("untrusted-rerunner");
+  }
+}
+
+const timeOf = (value) => (typeof value === "string" ? Date.parse(value) : Number.NaN);
+
+async function readOrRefuse(github, apiPath) {
+  let body;
+  try {
+    body = await github("GET", apiPath);
+  } catch {
+    throw new Stop("untrusted-actor");
+  }
+  if (!isPlainObject(body)) {
+    throw new Stop("untrusted-actor");
+  }
+  return body;
+}
+
+// Whether the dispatcher run holds an unexpired record of its own whose name
+// lists this run's id. A failed or malformed read refuses.
+async function isRecorded(github, runPath, dispatcherRunId, runId) {
+  const body = await readOrRefuse(github, `${runPath}/artifacts?per_page=100`);
+  if (!Array.isArray(body.artifacts)) {
+    throw new Stop("untrusted-actor");
+  }
+  return body.artifacts.some(
+    (artifact) =>
+      isPlainObject(artifact) &&
+      artifact.expired === false &&
+      Number.isSafeInteger(artifact.workflow_run?.id) &&
+      String(artifact.workflow_run.id) === dispatcherRunId &&
+      typeof artifact.name === "string" &&
+      RECORD_NAME.test(artifact.name) &&
+      artifact.name.slice(RECORD_PREFIX.length).split("-").includes(runId),
+  );
+}
+
+// The dispatcher run records the ids the dispatch API returned to it, so a
+// dispatch it did not send is never in its record. Each read takes the
+// dispatcher run's status before its artifacts, so an upload landing between
+// the two is not refused. While the run is still going, an absent record is
+// re-read after RECORD_WAIT_MS, at most RECORD_MAX_SLEEPS times. At the first
+// completed status one more read follows the same wait, for any lag between
+// the run and its artifact list, and then the gate refuses. That wait counts
+// toward the cap, so the whole wait stays within 2 min.
+async function requireRecorded({ github, repository, dispatcherRunId, runId, sleep }) {
+  const runPath = `/repos/${repository}/actions/runs/${dispatcherRunId}`;
+  for (let sleeps = 0; ; sleeps += 1) {
+    const { status } = await readOrRefuse(github, runPath);
+    if (await isRecorded(github, runPath, dispatcherRunId, runId)) {
+      return;
+    }
+    if (sleeps === RECORD_MAX_SLEEPS) {
+      throw new Stop("untrusted-actor");
+    }
+    console.log(
+      `check-trusted-trigger: dispatcher record: absent, re-read ${sleeps + 1} (dispatcher run ${dispatcherRunId}, run ${runId})`,
+    );
+    await sleep(RECORD_WAIT_MS);
+    if (status === "completed") {
+      if (await isRecorded(github, runPath, dispatcherRunId, runId)) {
+        return;
+      }
+      throw new Stop("untrusted-actor");
+    }
+  }
+}
+
+// A dispatch sent by github-actions[bot] names no human, so it is trusted only
+// through the dispatcher run it names: that workflow, on the default branch,
+// started by a push or a listed human, its head SHA an ancestor of the branch
+// tip, a re-run attempt started by a listed human, its record listing this
+// run, and this run, the dispatched workflow on the default branch, created
+// between the dispatcher run's start and the earlier of its last update and
+// WINDOW_MS after its start. Returns this run's own record.
+async function verifyDispatcher({
+  github,
+  repository,
+  event,
+  list,
+  deniedIds,
+  dispatcherRunId,
+  dispatcherWorkflow,
+  dispatchedWorkflow,
+  runId,
+  sleep,
+}) {
+  const defaultBranch = event.repository?.default_branch;
+  if (
+    !RUN_ID.test(dispatcherRunId) ||
+    !RUN_ID.test(runId) ||
+    dispatcherWorkflow === "" ||
+    dispatchedWorkflow === "" ||
+    typeof defaultBranch !== "string" ||
+    !HEAD_REF.test(defaultBranch) ||
+    event.ref !== `refs/heads/${defaultBranch}`
+  ) {
+    throw new Stop("untrusted-actor");
+  }
+  const isListedHuman = (user) =>
+    Number.isInteger(user?.id) && list.humans.has(user.id) && !deniedIds.has(user.id);
+  const dispatcher = await readOrRefuse(
+    github,
+    `/repos/${repository}/actions/runs/${dispatcherRunId}`,
+  );
+  const own = await readOrRefuse(github, `/repos/${repository}/actions/runs/${runId}`);
+  const created = timeOf(own.created_at);
+  const started = timeOf(dispatcher.run_started_at);
+  const attempt = dispatcher.run_attempt;
+  // Comparisons with NaN are false, so a missing or unparseable time refuses.
+  const trusted =
+    own.path === dispatchedWorkflow &&
+    own.event === "workflow_dispatch" &&
+    dispatcher.repository?.full_name === repository &&
+    dispatcher.path === dispatcherWorkflow &&
+    dispatcher.head_branch === defaultBranch &&
+    DISPATCHER_EVENTS.has(dispatcher.event) &&
+    (dispatcher.event === "push" || isListedHuman(dispatcher.actor)) &&
+    SHA.test(dispatcher.head_sha ?? "") &&
+    Number.isInteger(attempt) &&
+    attempt >= 1 &&
+    (attempt === 1 || isListedHuman(dispatcher.triggering_actor)) &&
+    started <= created &&
+    created <= Math.min(timeOf(dispatcher.updated_at), started + WINDOW_MS);
+  if (!trusted) {
+    throw new Stop("untrusted-actor");
+  }
+  // A tag with the branch's name would give a run on that tag the same
+  // head_branch, so one must not exist; only a 404 proves that.
+  let tagAbsent = false;
+  try {
+    await github("GET", `/repos/${repository}/git/ref/tags/${defaultBranch}`);
+  } catch (error) {
+    tagAbsent = error instanceof GitHubError && error.status === 404;
+  }
+  if (!tagAbsent) {
+    throw new Stop("untrusted-actor");
+  }
+  const tip = await readOrRefuse(github, `/repos/${repository}/git/ref/heads/${defaultBranch}`);
+  if (tip.ref !== `refs/heads/${defaultBranch}` || !SHA.test(tip.object?.sha ?? "")) {
+    throw new Stop("untrusted-actor");
+  }
+  const comparison = await readOrRefuse(
+    github,
+    `/repos/${repository}/compare/${dispatcher.head_sha}...${tip.object.sha}`,
+  );
+  if (comparison.status !== "ahead" && comparison.status !== "identical") {
+    throw new Stop("untrusted-actor");
+  }
+  await requireRecorded({ github, repository, dispatcherRunId, runId, sleep });
+  return own;
+}
+
+// The re-runner of a dispatched run, read by id from this run's own record:
+// github-actions[bot] on the first attempt, a listed id on any re-run.
+function checkDispatchedRerunner({ ids }, deniedIds, own) {
+  const rerunner = own.triggering_actor;
+  const trusted =
+    Number.isInteger(rerunner?.id) &&
+    !deniedIds.has(rerunner.id) &&
+    ((rerunner.id === ACTIONS_BOT_ID && own.run_attempt === 1) || ids.has(rerunner.id));
+  if (!trusted) {
+    throw new Stop("untrusted-rerunner");
+  }
+}
+
+// require-pr: false. A workflow_dispatch checks its sender and the triggering
+// actor, a push only the triggering actor; no PR is read. require-kind human
+// narrows both to actors listed as human.
+function evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind }) {
+  if (eventName !== "workflow_dispatch" && eventName !== "push") {
+    throw new Stop("no-pr");
+  }
+  const pool = requireKind === "human" ? list.humans : list.ids;
+  if (eventName === "workflow_dispatch") {
+    if (Number.isInteger(event.sender?.id) && deniedIds.has(event.sender.id)) {
+      throw new Stop("bot-actor");
+    }
+    if (!isListed(pool, event.sender)) {
+      throw new Stop("untrusted-actor");
+    }
+  }
+  checkRerunnerLogin(list, deniedIds, triggeringActor, pool);
+  return { ...stopped("ok"), proceed: "true" };
+}
+
 export async function evaluateTrigger({
   eventName,
   event,
@@ -162,10 +380,26 @@ export async function evaluateTrigger({
   deniedIds = new Set(),
   triggeringActor = "",
   prNumber,
+  dispatcherRunId = "",
+  dispatcherWorkflow = "",
+  requirePr = "true",
+  requireKind = "",
+  runId = "",
+  dispatchedWorkflow = "",
   github,
+  sleep = defaultSleep,
 }) {
-  const { ids, logins } = list;
+  const { ids } = list;
   if (typeof repository !== "string" || !repository.includes("/")) {
+    throw new Stop("no-pr");
+  }
+  if (requireKind !== "" && requireKind !== "human") {
+    throw new Stop("no-pr");
+  }
+  if (requirePr === "false") {
+    return evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind });
+  }
+  if (requirePr !== "true") {
     throw new Stop("no-pr");
   }
   let pull;
@@ -195,24 +429,37 @@ export async function evaluateTrigger({
   }
   if (
     !HEAD_REF.test(pull.head.ref ?? "") ||
-    !/^[0-9a-f]{40}$/.test(pull.head.sha ?? "") ||
-    !/^[0-9a-f]{40}$/.test(pull.base?.sha ?? "")
+    !SHA.test(pull.head.sha ?? "") ||
+    !SHA.test(pull.base?.sha ?? "")
   ) {
     throw new Stop("no-pr");
   }
   if (actors.some((actor) => Number.isInteger(actor?.id) && deniedIds.has(actor.id))) {
     throw new Stop("bot-actor");
   }
-  if (!actors.every((actor) => isListed(ids, actor))) {
-    throw new Stop("untrusted-actor");
-  }
-  // The context gives the re-runner's login only, so it is matched by login.
-  // A re-run keeps the event, so a stop here could otherwise turn an earlier
-  // red check on the same SHA neutral: its reason has no skip mapping, and
-  // an empty login stops too.
-  const rerunnerId = logins.get(String(triggeringActor).toLowerCase());
-  if (rerunnerId === undefined || deniedIds.has(rerunnerId)) {
-    throw new Stop("untrusted-rerunner");
+  if (
+    eventName === "workflow_dispatch" &&
+    event.sender?.id === ACTIONS_BOT_ID &&
+    dispatcherRunId !== ""
+  ) {
+    const own = await verifyDispatcher({
+      github,
+      repository,
+      event,
+      list,
+      deniedIds,
+      dispatcherRunId,
+      dispatcherWorkflow,
+      dispatchedWorkflow,
+      runId,
+      sleep,
+    });
+    checkDispatchedRerunner(list, deniedIds, own);
+  } else {
+    if (!actors.every((actor) => isListed(ids, actor))) {
+      throw new Stop("untrusted-actor");
+    }
+    checkRerunnerLogin(list, deniedIds, triggeringActor);
   }
   if (!isListed(ids, pull.user)) {
     throw new Stop("untrusted-author");
@@ -238,7 +485,7 @@ function stopped(reason) {
   };
 }
 
-export async function main({ env = process.env, github } = {}) {
+export async function main({ env = process.env, github, sleep = defaultSleep } = {}) {
   let result;
   try {
     let list;
@@ -263,7 +510,14 @@ export async function main({ env = process.env, github } = {}) {
       deniedIds,
       triggeringActor: env.TRIGGERING_ACTOR ?? "",
       prNumber: env.PR_NUMBER,
+      dispatcherRunId: env.DISPATCHER_RUN_ID ?? "",
+      dispatcherWorkflow: env.DISPATCHER_WORKFLOW ?? "",
+      requirePr: env.REQUIRE_PR ?? "true",
+      requireKind: env.REQUIRE_KIND ?? "",
+      dispatchedWorkflow: env.DISPATCHED_WORKFLOW ?? "",
+      runId: env.GITHUB_RUN_ID ?? "",
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
+      sleep,
     });
   } catch (error) {
     if (!(error instanceof Stop)) {
