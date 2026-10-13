@@ -406,7 +406,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   for n in 1 2 3 4; do grade "ui_live.$n" "$tmp/ul$n.out"; done
   for n in $(seq 1 "$gphases"); do grade "ui_page.$n" "$tmp/up$n.out"; done
 else
-  browser=508 journey=222
+  browser=546 journey=228
   echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi
