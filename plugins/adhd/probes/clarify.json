@@ -1,0 +1,122 @@
+{
+  "skill": "adhd:clarify",
+  "plugin": "adhd",
+  "skill_dir": "plugins/adhd/skills/clarify",
+  "ranking_note": "Authored blind from the before descriptions at commit f5fc7d61b07c1eef96d13bd0025cbd34dc088592, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitor is the sibling model-invoked adhd skill.",
+  "competitors": [
+    "adhd:shape"
+  ],
+  "competitor_dirs": {
+    "adhd:shape": "plugins/adhd/skills/shape"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "That last reply is a pile of dense decisions and I can't tell what I'm supposed to pick. Lay it out so I know what to do with it."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Your message above has six different choices tangled together. Split them up so I can handle one at a time."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I keep rereading what you just wrote and the terms you coined along the way mean nothing to me. Untangle it without dropping any detail."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Turn the options in that previous answer into a numbered grid so I can answer line by line."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Too much going on in that response. What exactly do you need me to decide?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Reformat that dense reply: keep the exact wording of the key terms but put the questions for me in an order I can follow."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Help me digest the message above; I'm lost on which parts need an answer from me."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Restructure that last message so the choices are separated and the jargon from this session is spelled out. Don't simplify the substance."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The long reply on screen is unreadable to me. Give me just the things that are mine to choose, as a short numbered list."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "That wall of text above, break it into pieces please."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "From now on, keep every answer action-first with the next step on top and no preamble."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Use the ADHD-friendly format for the rest of this session."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explain that last answer like I'm a beginner, with an analogy and no jargon."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw me a diagram of how that architecture fits together, ELI5 style."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Summarize that last message in two sentences."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me a TL;DR of the thread above, I just want the gist."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Keep your replies short and lead with what to do, from here on."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Rephrase what you just said in simple everyday words, I don't know the terms."
+    }
+  ]
+}

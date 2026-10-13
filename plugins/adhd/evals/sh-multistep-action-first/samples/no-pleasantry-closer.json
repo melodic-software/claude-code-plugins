@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "1. Run `cd ~/code/invoicer && python3 -m venv .venv`\n2. Run `source .venv/bin/activate`\n3. Run `pip install requests pytest`\n4. Run `pytest`\n\nNext: paste the first failing line if `pytest` reports a failure."
+    },
+    {
+      "answer": "Run `cd ~/code/invoicer` first.\n\n1. Create the environment: `python3 -m venv .venv`\n2. Activate it: `source .venv/bin/activate`\n3. Install: `pip install requests pytest`\n4. Run the tests:\n   ```bash\n   pytest\n   ```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Great question! Setting up a virtual environment is a good habit. Let me walk you through it.\n\n1. Open a terminal in ~/code/invoicer.\n2. Create the environment with `python3 -m venv .venv`.\n3. Activate it and install: `pip install requests pytest`.\n4. Run `pytest`.\n\nHope this helps! Let me know if you need anything else."
+    },
+    {
+      "answer": "1. Run `pytest`\n\nGood luck!"
+    }
+  ]
+}

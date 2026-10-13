@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "About 4 to 6 hours if the tests already cover the routes; a full day if they do not.\n\nDo now:\n1. Bump `express` to 5 in package.json and run `npm install`\n2. Update the 12 route files\n3. Fix the failing tests\n4. Update the CI config\n5. Bump the Docker base image\n\nLater:\n1. Update the README\n2. Tell the team in Slack\n\nNext: run `npm install express@5`."
+    },
+    {
+      "answer": "Run `npm install express@5` now. Estimate: roughly half a day.\n\n- Must: route files, tests, CI config\n- Nice to have: README, Slack note"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This will take some work, depending on how many tests break.\n\n1. Bump express\n2. Update the 12 route files\n3. Fix the tests\n4. Update the CI config\n5. Bump the Docker base image\n6. Update the README\n7. Tell the team in Slack"
+    },
+    {
+      "answer": "About 5 hours.\n\n- Bump express\n- Update the 12 route files\n  - start with the auth routes\n- Fix the tests\n- Update the CI config\n- Bump the Docker base image\n- Update the README\n- Tell the team in Slack"
+    }
+  ]
+}

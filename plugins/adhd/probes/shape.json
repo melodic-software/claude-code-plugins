@@ -1,0 +1,122 @@
+{
+  "skill": "adhd:shape",
+  "plugin": "adhd",
+  "skill_dir": "plugins/adhd/skills/shape",
+  "ranking_note": "Authored blind from the before descriptions at commit f5fc7d61b07c1eef96d13bd0025cbd34dc088592, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitor is the sibling model-invoked adhd skill.",
+  "competitors": [
+    "adhd:clarify"
+  ],
+  "competitor_dirs": {
+    "adhd:clarify": "plugins/adhd/skills/clarify"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you answer in an ADHD-friendly way from now on?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "For this whole session, put the thing I should do first and skip the wind-up."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I get overwhelmed by long answers. Going forward, number the steps and give me a time estimate for each."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Please stop recapping what we just did and ending with offers. Just give me the next move each time."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Set up your replies so I can follow them: short ranked lists, where we are restated each turn, and a note when something is done."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Respond in low-friction mode until we finish chatting, action first."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My focus drifts mid-task. Always begin by telling me the next action and cap lists at a few items."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Use the structured version of answers from here on, and tell me how long each step will take."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "No more throat-clearing at the start of replies, and remind me where we left off every time."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I have ADHD, so please format everything you say for that going forward."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Rewrite the message you just sent so the decisions are separated and its jargon is defined."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "That last reply is a wall of text; chunk it into one decision at a time."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Walk me through in full detail how OAuth token refresh works, I want the whole story."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a thorough narrative explanation of why the build pipeline is structured this way."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Be more terse to save tokens."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Cut your output length by half to reduce token usage on this task."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Take your previous answer apart and tell me which parts I actually have to decide."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me a long, detailed essay on the history of the actor model."
+    }
+  ]
+}

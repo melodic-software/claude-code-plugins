@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| # | Item | Recommendation | Basis | Alternative | What you're deciding |\n|---|------|----------------|-------|-------------|----------------------|\n| 1 | D1 | \"Rename the `invoice_v2` table to `invoices` during the Sunday window\" | judgment | none offered | Whether the rename rides the Sunday window. |\n| 2 | D2 | \"Switch the webhook signer from HMAC-SHA1 to HMAC-SHA256\" | none stated | none offered | Whether to change the signer. |\n| 3 | D3 | withheld | \"a dry run of the rotation on staging would settle it\" | before or after cutover | When to rotate the production Stripe secret. |\n| 4 | D4 | \"Set the invoice PDF retention to 400 days\" | \"legal memo LM-17 §2\" | none offered | Whether 400 days stands. |\n\nLeft out: nothing.\n\nThis is a clarification; validate final answers against the original text, not this restructuring."
+    },
+    {
+      "answer": "1. **D1**: rename `invoice_v2` to `invoices` Sunday. Basis: judgment.\n2. **D2**: switch the signer to HMAC-SHA256. Basis: none stated.\n3. **D3**: Recommendation withheld; the evidence that settles it is a dry run of the rotation on staging.\n4. **D4**: retention 400 days. Basis: legal memo LM-17 §2.\n\nVerify against the original before answering."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    },
+    {
+      "answer": "D2: none stated. D3: withheld."
+    }
+  ]
+}

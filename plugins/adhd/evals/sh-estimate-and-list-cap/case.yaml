@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: sh-estimate-and-list-cap
+graders:
+  - name: concrete-time-estimate
+    type: regex
+    pattern: '\b\d+(?:\.\d+)?(?:\s*(?:-|–|to)\s*\d+(?:\.\d+)?)?\s*(?:minutes?|hours?|days?|working days?|weeks?)\b|\b(?:an?|one|half an?|half a|a full|one full)\s+(?:hour|afternoon|morning|day|working day|week)\b'
+    flags: i
+    target: last_message
+  - name: no-list-over-five
+    type: regex
+    pattern: '(?:^(?:\*\*)?\d+[.)][ \t][^\n]*\n(?:(?:[ \t]+[^\n]*)?\n)*){5}^(?:\*\*)?\d+[.)][ \t]|(?:^[-*+][ \t][^\n]*\n(?:(?:[ \t]+[^\n]*)?\n)*){5}^[-*+][ \t]'
+    flags: m
+    match: not_contains
+    target: last_message
+  - name: no-preamble-opener
+    type: regex
+    pattern: '^\s*(?:#{1,6}\s*)?(?:\*\*)?(?:great|sure|certainly|of course|absolutely|happy to|good question|let me|let(?:''|’)s|i(?:''|’)ll|i will|here(?:''|’)s how|here is how|okay|ok\b|alright|got it|(?:adhd|shape|shaping)\b[^\n]*\b(?:on|active|enabled|applied)\b)'
+    flags: i
+    match: not_contains
+    target: last_message

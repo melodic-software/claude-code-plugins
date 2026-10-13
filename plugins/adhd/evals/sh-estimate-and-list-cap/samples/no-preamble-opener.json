@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "About 4 to 6 hours if the tests already cover the routes; a full day if they do not.\n\nDo now:\n1. Bump `express` to 5 in package.json and run `npm install`\n2. Update the 12 route files\n3. Fix the failing tests\n4. Update the CI config\n5. Bump the Docker base image\n\nLater:\n1. Update the README\n2. Tell the team in Slack\n\nNext: run `npm install express@5`."
+    },
+    {
+      "answer": "Run `npm install express@5` now. Estimate: roughly half a day.\n\n- Must: route files, tests, CI config\n- Nice to have: README, Slack note"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Great question! Migrations can be tricky.\n\nAbout 5 hours."
+    },
+    {
+      "answer": "Okay, here is the plan.\n\nAbout 5 hours."
+    }
+  ]
+}

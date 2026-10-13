@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: cl-trivial-escape-hatch
+graders:
+  - name: says-nothing-dense
+    type: regex
+    pattern: '\bnothing (?:dense|to (?:clarify|untangle|restructure|break down|decide))\b|\bno (?:decisions?|dense)\b|\b(?:isn(?:''|’)t|is not|not) (?:dense|decision-heavy)\b|\balready (?:clear|plain)\b'
+    flags: i
+    target: last_message
+  - name: asks-what-to-clarify
+    type: regex
+    pattern: '\b(?:what|which)\b[^\n?]*\b(?:clarify|clarified|want|wanted|mean|unclear|looking for|part)\b[^\n?]*\?'
+    flags: i
+    target: last_message
+  - name: no-decision-table
+    type: regex
+    pattern: '^\s*\|?(?:\s*:?-{3,}:?\s*\|)+|what you(?:''|’)re deciding'
+    flags: mi
+    match: not_contains
+    target: last_message
