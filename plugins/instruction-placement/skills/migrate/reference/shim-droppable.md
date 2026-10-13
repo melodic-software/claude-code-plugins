@@ -65,9 +65,9 @@ pointing elsewhere, the page does not say whether that file still counts, so the
 `UNREADABLE` row is unknown, and fails A.
 
 **A `CLAUDE.local.md` row has a replacement to offer.** A developer who keeps one for personal,
-uncommitted notes can move them to a gitignored, unscoped `.claude/rules/<name>.local.md`, which
-the memory page does not count against `AGENTS.md`
-(<https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md>; as of 2026-10-11;
+uncommitted notes can move them to a gitignored, unscoped `.claude/rules/<name>.local.md`. Whether
+such a file counts against `AGENTS.md` is read live at
+<https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md> (as of 2026-10-11;
 recheck when that section changes which files count). An `@` import inside such a rule is
 undocumented: it loaded on one measured build, recorded in [`sources.md`](sources.md), "The nested
 write trigger", and is re-measured on each release before it is relied on. The offer changes no

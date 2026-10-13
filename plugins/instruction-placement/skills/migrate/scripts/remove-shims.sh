@@ -170,8 +170,14 @@ echo
 # A nested AGENTS.md is where removal can cost more than the record above
 # prices: a load trigger only its shim carries (shim-droppable.md condition G,
 # measured by cutover-check's nested write probe). Counted from disk, tracked
-# or not, so a file the plan would not list still prices the run.
-NESTED_AGENTS="$(find "$REPO" -mindepth 2 -name AGENTS.md -not -path '*/.git/*' 2>/dev/null | wc -l | tr -d ' ')"
+# or not, so a file the plan would not list still prices the run. Same walk
+# as the line index below, and a failed walk refuses: an undercount would
+# leave the loss out of the price and skip the probe.
+nested_rc=0
+nested_out="$(find "$REPO" \( -name .git -o -name node_modules \) -prune -o \
+  -name 'AGENTS.md' \( -type f -o -type l \) -print 2>/dev/null)" || nested_rc=$?
+((nested_rc == 0)) || refuse "the AGENTS.md walk failed (find exited $nested_rc) while counting nested files; an undercount would leave the nested write-trigger loss unpriced."
+NESTED_AGENTS="$(printf '%s\n' "$nested_out" | grep -cvxF -e "$REPO/AGENTS.md" -e '')"
 nested_loss() { # <the probe's result, or "not yet run">
   echo "  Nested AGENTS.md files: $NESTED_AGENTS. The nested write probe says: $1. Unless it says"
   echo "  LOADS, removing their shims also drops the nested load a Write or Edit there triggers"
@@ -234,6 +240,9 @@ echo
 PROBE_ARGS=()
 ((NESTED_AGENTS > 0)) || PROBE_ARGS=(--skip-write-probe)
 CHECK_OUT="$(mktemp)"
+# Until on_exit takes over below, this trap removes the capture on any exit.
+trap 'rm -f "$CHECK_OUT"' EXIT
+trap 'exit 1' INT TERM HUP
 bash "$CUTOVER_CHECK" --repo "$REPO" ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"} \
   "${CHECK_ARGS[@]+"${CHECK_ARGS[@]}"}" | tee "$CHECK_OUT"
 CHECK_RC=${PIPESTATUS[0]}

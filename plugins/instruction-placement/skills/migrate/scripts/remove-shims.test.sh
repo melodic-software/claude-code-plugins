@@ -113,7 +113,15 @@ case " \$* " in
 esac
 EOF
 printf '#!/usr/bin/env bash\necho NONE\n' >"$TMP/bin/claude-unmet"
-chmod +x "$TMP/bin/claude-met" "$TMP/bin/claude-unmet"
+# `loads` is `met` with the nested AGENTS.md also answering the write probe.
+cat >"$TMP/bin/claude-loads" <<EOF
+#!/usr/bin/env bash
+case " \$* " in
+*" --tools Write "*) echo hello >sub/canary.txt; cat AGENTS.md sub/AGENTS.md ;;
+*) cat AGENTS.md ;;
+esac
+EOF
+chmod +x "$TMP/bin/claude-met" "$TMP/bin/claude-unmet" "$TMP/bin/claude-loads"
 
 cat >"$TMP/installed-current.json" <<'EOF'
 {
@@ -467,6 +475,31 @@ assert_eq "a flat ready repository exits 0" 0 "$rc"
 assert_not_contains "and spends no write-probe turn" "$(cat "$TMP/claude-args.log")" "--tools Write"
 assert_contains "because the probe was skipped" "$OUT" "--skip-write-probe: the probe did not run"
 assert_not_contains "and no nested loss is priced" "$OUT" "Nested AGENTS.md files"
+
+# A LOADS result means no load rides on the nested shim: the post-probe price
+# is not repeated.
+LOADS_REPO="$TMP/loads"
+build_ready_repo "$LOADS_REPO"
+LOADS_ARGS=("${CHECK_ARGS[@]:0:${#CHECK_ARGS[@]}-1}" "$TMP/bin/claude-loads")
+rc=0
+OUT=$(bash "$SCRIPT" --root "$LOADS_REPO" --confirm --installed-plugins "$TMP/installed-current.json" \
+  --claude-bin "$TMP/bin/claude-loads" "${LOADS_ARGS[@]}") || rc=$?
+assert_eq "a LOADS repository exits 0" 0 "$rc"
+assert_contains "the probe reports LOADS" "$OUT" "(not graded): LOADS."
+assert_not_contains "and the price is not repeated after it" "$OUT" "The price, now that the probe has run:"
+
+# An AGENTS.md under node_modules is a tree nobody edits: it is not counted,
+# so it neither prices a loss nor spends a probe turn.
+VENDORED="$TMP/vendored"
+make_repo "$VENDORED"
+printf '# Conventions\n\n%s\n' "$AGENTS_LINE" >"$VENDORED/AGENTS.md"
+printf '@AGENTS.md\n' >"$VENDORED/CLAUDE.md"
+printf 'node_modules/\n' >"$VENDORED/.gitignore"
+commit_all "$VENDORED"
+mkdir -p "$VENDORED/node_modules/pkg"
+printf 'Vendored instructions.\n' >"$VENDORED/node_modules/pkg/AGENTS.md"
+OUT=$(bash "$SCRIPT" --root "$VENDORED" --installed-plugins "$TMP/installed-current.json" 2>&1)
+assert_not_contains "a vendored AGENTS.md prices no nested loss" "$OUT" "Nested AGENTS.md files"
 
 # --- Case 8: a canary miss restores every shim this run removed -----------
 
