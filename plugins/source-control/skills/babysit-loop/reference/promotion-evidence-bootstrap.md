@@ -149,10 +149,11 @@ binding.
 [`scripts/publish-promotion-evidence.mjs`](../scripts/publish-promotion-evidence.mjs) builds the
 events file from GitHub alone, through read-only `gh api` calls: merged pull requests classed by the
 `work-class:` labels their linked issues and the pull request carried at merge time, which of them
-the `--lane-login` identities merged, reverts of those merges, every check run and commit status
-on their merge commits, and the missed-blocking label a human applied. Its header comment states
-what counts as each event, including the judgment mappings and how to set `--lane-login` for
-merge-queue merges.
+merged autonomously (no human enqueued them, or a `--lane-login` identity merged them), reverts of
+those merges, every check run and commit status on their merge commits, and the missed-blocking
+label a human applied. An autonomous merge whose class cannot be read is listed as unclassed, and
+its contrary events count against every promotable cell. Its header comment states what counts as
+each event, including the judgment mappings and how to set `--lane-login` for merge-queue merges.
 
 - **Report mode** (no `--out`) prints the events array and the C3 promotion-evidence report to
   stdout and writes nothing. The report gives each promotable cell's predicate terms from

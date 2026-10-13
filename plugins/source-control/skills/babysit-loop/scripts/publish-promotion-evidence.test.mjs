@@ -28,9 +28,33 @@ after(() => rmSync(base, { recursive: true, force: true }));
 const shaOf = (number) => number.toString(16).padStart(40, "0");
 const later = (at, minutes) => new Date(Date.parse(at) + minutes * 60_000).toISOString().replace(".000Z", "Z");
 
-function pr(number, mergedAt, { labels = [], merger = LANE, title = REC.pullListItem.title, body = REC.pullListItem.body } = {}) {
+// GraphQL spells an App as `__typename: Bot` with the bare slug; REST adds `[bot]`.
+const actorOf = (login) => (login === null ? null : login.endsWith("[bot]") ? { __typename: "Bot", login: login.slice(0, -5) } : { __typename: "User", login });
+const page1 = (nodes, hasNextPage = false) => ({ pageInfo: { hasNextPage }, nodes });
+// REC.pullGraph: PR #7063, which closes issue #6007 (labeled `work-class: scoped`).
+const ISSUE_6007 = REC.pullGraph.data.repository.pullRequest.closingIssuesReferences.nodes;
+const queued = (at, enqueuer, actor = enqueuer) => ({ __typename: "AddedToMergeQueueEvent", createdAt: at, actor: actorOf(actor), enqueuer: actorOf(enqueuer) });
+const link = (type, issue, at) => ({ __typename: type, createdAt: at, subject: { __typename: "Issue", number: issue } });
+
+function pr(
+  number,
+  mergedAt,
+  { labels = [], merger = LANE, title = REC.pullListItem.title, body = REC.pullListItem.body, linked = [], timeline = [], lastEditedAt = null, patch = {} } = {},
+) {
   const names = labels.map((name) => ({ name }));
   return {
+    graph: {
+      ...REC.pullGraph.data.repository.pullRequest,
+      number,
+      mergedAt,
+      lastEditedAt,
+      mergeCommit: { oid: shaOf(number) },
+      mergedBy: actorOf(merger),
+      labels: page1(names),
+      closingIssuesReferences: page1(linked),
+      timelineItems: page1(timeline),
+      ...patch,
+    },
     list: {
       ...REC.pullListItem,
       number,
@@ -42,11 +66,8 @@ function pr(number, mergedAt, { labels = [], merger = LANE, title = REC.pullList
       updated_at: later(mergedAt, 1),
       merge_commit_sha: shaOf(number),
     },
-    detail: { ...REC.pull, number, title, labels: names, merged_at: mergedAt, merge_commit_sha: shaOf(number), merged_by: { login: merger, type: merger === LANE ? "Bot" : "User" } },
   };
 }
-
-const linkedTo = (nodes, hasNextPage = false) => ({ data: { repository: { pullRequest: { closingIssuesReferences: { pageInfo: { hasNextPage }, nodes } } } } });
 const labelEvent = (event, name, at, login = "kyle-sexton", type = "User") => ({ ...REC.issueEvent, event, label: { name }, actor: { login, type }, created_at: at });
 
 // A recorded GitHub: answers only the GET paths the publisher is expected to call, with the
@@ -54,17 +75,18 @@ const labelEvent = (event, name, at, login = "kyle-sexton", type = "User") => ({
 // newest first), and throws on any other, so an unexpected or mutating call fails the case.
 // A run marked `superseded` was re-run: only `filter=all` returns it.
 // `bumpOnPage2` updates that PR (a comment, a label) between the listing's first and second page.
-function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, linked = {}, bumpOnPage2 }) {
+function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, bumpOnPage2 }) {
   const page = (items, path) => {
     const n = Number(/[?&]page=(\d+)/.exec(path)[1]);
     return items.slice((n - 1) * 100, n * 100);
   };
-  const runsFor = (number) => checkRuns[number] ?? [{ ...REC.checkRun, completed_at: later(pulls.find((p) => p.detail.number === number).detail.merged_at, 5) }];
+  const runsFor = (number) => checkRuns[number] ?? [{ ...REC.checkRun, completed_at: later(pulls.find((p) => p.graph.number === number).graph.mergedAt, 5) }];
   return (path, graphql) => {
     if (path === "graphql") {
       assert.deepEqual([graphql.variables.owner, graphql.variables.name], REPO.split("/"));
       assert.match(graphql.query, /^query\(/);
-      return linked[graphql.variables.number] ?? linkedTo([]);
+      assert.doesNotMatch(graphql.query, /mutation/);
+      return { data: { repository: { pullRequest: pulls.find((p) => p.graph.number === graphql.variables.number).graph } } };
     }
     const prefix = `repos/${REPO}/`;
     assert.ok(path.startsWith(prefix), path);
@@ -76,7 +98,7 @@ function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issue
       const sign = m[2] === "asc" ? 1 : -1;
       return page(pulls.map((p) => p.list).sort((a, b) => sign * a[key].localeCompare(b[key])), rest);
     }
-    if ((m = /^pulls\/(\d+)$/.exec(rest))) return pulls.find((p) => p.detail.number === Number(m[1])).detail;
+    if ((m = /^issues\/(\d+)$/.exec(rest))) return issues[m[1]];
     if ((m = /^pulls\/(\d+)\/reviews\?/.exec(rest))) return page(reviews[m[1]] ?? [], rest);
     if (/^commits\?since=[^&]+&until=[^&]+&/.test(rest)) return page(commits, rest);
     if ((m = /^commits\/([0-9a-f]{40})\/check-runs\?/.exec(rest))) {
@@ -161,10 +183,8 @@ test("20 autonomous C2 merges over 14+ days pass the C2 term and 19 fail it", ()
 });
 
 test("a class carried only by the linked issue counts, and the higher of issue and PR class wins", () => {
-  // REC.linkedIssues: PR #7063 closes issue #6007, labeled `work-class: scoped`.
   const result = run({
-    pulls: [pr(801, "2026-09-01T00:00:00Z"), pr(802, "2026-09-02T00:00:00Z", { labels: [MECHANICAL] })],
-    linked: { 801: REC.linkedIssues, 802: REC.linkedIssues },
+    pulls: [pr(801, "2026-09-01T00:00:00Z", { linked: ISSUE_6007 }), pr(802, "2026-09-02T00:00:00Z", { labels: [MECHANICAL], linked: ISSUE_6007 })],
   });
   assert.equal(termOf(result, "C3-auto-merge", "autonomous C3 completions").value, 2);
   assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
@@ -215,7 +235,7 @@ test("the class is read as of the merge: post-merge relabeling neither adds nor 
     pulls: [
       pr(905, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }),
       pr(906, "2026-09-01T00:00:00Z"),
-      pr(907, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }),
+      pr(907, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], linked: ISSUE_6007 }),
     ],
     issueEvents: {
       905: [labelEvent("labeled", MECHANICAL, "2026-09-02T00:00:00Z")],
@@ -223,7 +243,6 @@ test("the class is read as of the merge: post-merge relabeling neither adds nor 
       // Linked issue #6007 is labeled scoped now, but gained that label after #907 merged.
       6007: [labelEvent("labeled", SCOPED, "2026-09-03T00:00:00Z")],
     },
-    linked: { 907: REC.linkedIssues },
   });
   assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 2);
   assert.equal(termOf(result, "C3-auto-merge", "autonomous C3 completions").value, 0);
@@ -242,11 +261,69 @@ test("--through is clamped to now", () => {
 });
 
 test("a linked-issue read with another page fails closed", () => {
-  const nodes = REC.linkedIssues.data.repository.pullRequest.closingIssuesReferences.nodes;
-  const fixture = (more) => ({ pulls: [pr(908, "2026-09-01T00:00:00Z")], linked: { 908: linkedTo(nodes, more) } });
-  assert.throws(() => run(fixture(true)), (error) => error instanceof PublishError && /hasNextPage/.test(error.message));
-  const labelsPaged = linkedTo([{ ...nodes[0], labels: { ...nodes[0].labels, pageInfo: { hasNextPage: true } } }]);
-  assert.throws(() => run({ pulls: [pr(908, "2026-09-01T00:00:00Z")], linked: { 908: labelsPaged } }), /hasNextPage/);
+  const paged = (patch) => ({ pulls: [pr(908, "2026-09-01T00:00:00Z", { linked: ISSUE_6007, patch })] });
+  assert.throws(() => run(paged({ closingIssuesReferences: page1(ISSUE_6007, true) })), (error) => error instanceof PublishError && /hasNextPage/.test(error.message));
+  const labelsPaged = [{ ...ISSUE_6007[0], labels: { ...ISSUE_6007[0].labels, pageInfo: { hasNextPage: true } } }];
+  assert.throws(() => run(paged({ closingIssuesReferences: page1(labelsPaged) })), /hasNextPage/);
+});
+
+test("an issue unlinked after the merge still classes the merge; one linked after it does not", () => {
+  const result = run({
+    pulls: [
+      pr(1101, "2026-09-01T00:00:00Z", { timeline: [link("ConnectedEvent", 6007, "2026-08-31T00:00:00Z"), link("DisconnectedEvent", 6007, "2026-09-02T00:00:00Z")] }),
+      pr(1102, "2026-09-01T00:00:00Z", { linked: ISSUE_6007, timeline: [link("ConnectedEvent", 6007, "2026-09-02T00:00:00Z")] }),
+    ],
+    issues: { 6007: REC.issue },
+  });
+  assert.equal(termOf(result, "C3-auto-merge", "autonomous C3 completions").value, 1);
+  assert.deepEqual(result.unclassedAutonomous, [{ number: 1102, reason: "no work-class label at merge" }]);
+});
+
+test("an autonomous merge whose links cannot be rebuilt is unclassed, and its contrary events hit every cell", () => {
+  const failing = { ...REC.checkRun, conclusion: "failure", completed_at: "2026-09-01T00:10:00Z" };
+  const result = run({
+    pulls: [pr(1103, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], lastEditedAt: "2026-09-02T00:00:00Z" })],
+    checkRuns: { 1103: [failing] },
+  });
+  assert.deepEqual(result.unclassedAutonomous, [{ number: 1103, reason: "PR body edited after the merge: closing-keyword links unknown" }]);
+  assert.deepEqual(result.events, ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"].map((cell) => ({ cell, event: "gate-failure", at: "2026-09-01T00:10:00Z" })));
+  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
+});
+
+test("a revert of an unclassed autonomous merge yields reverted-merge against every cell", () => {
+  const result = run({
+    pulls: [pr(1104, "2026-09-01T00:00:00Z"), pr(1105, "2026-09-02T00:00:00Z", { body: `Reverts ${REPO}#1104`, merger: "kyle-sexton" })],
+  });
+  assert.deepEqual(result.events, ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"].map((cell) => ({ cell, event: "reverted-merge", at: "2026-09-02T00:00:00Z" })));
+});
+
+test("lane logins match case-insensitively", () => {
+  const result = run({ pulls: [pr(1106, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "Lane-User", timeline: [queued("2026-08-31T23:00:00Z", "Lane-User")] })] }, { laneLogins: ["lane-user"] });
+  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 1);
+});
+
+test("a merge a bot or nobody enqueued is autonomous even under a human merged_by; a human enqueue is not", () => {
+  const result = run({
+    pulls: [
+      pr(1107, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", null, "some-app[bot]")] }),
+      pr(1108, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", "kyle-sexton")] }),
+      pr(1109, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "kyle-sexton" }),
+    ],
+  });
+  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 1);
+});
+
+test("a cancelled gate run counts as a failure unless a later run of the same check succeeded", () => {
+  const cancelled = (name, at) => ({ ...REC.checkRun, name, conclusion: "cancelled", completed_at: at });
+  const result = run({
+    pulls: [pr(1110, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1111, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })],
+    checkRuns: {
+      1110: [cancelled("lint-repo", "2026-09-01T00:10:00Z")],
+      1111: [cancelled("lint-repo", "2026-09-01T00:10:00Z"), { ...REC.checkRun, completed_at: "2026-09-01T00:20:00Z" }],
+    },
+  });
+  assert.deepEqual(result.events, [{ cell: "C2-auto-merge", event: "gate-failure", at: "2026-09-01T00:10:00Z" }]);
+  assert.deepEqual(termOf(result, "C2-auto-merge", "deterministic-gate pass").detail, { passed: 1, failed: 1, unsettled: 0, total: 2 });
 });
 
 test("a revert seen in both the PR body and the squash commit yields one event at the earlier time", () => {

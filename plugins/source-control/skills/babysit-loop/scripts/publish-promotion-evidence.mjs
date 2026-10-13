@@ -9,35 +9,49 @@
 //          [--through <ISO>] [--ai-reviewer <login> ...] [--missed-blocking-label <name>] [--out <dir>]
 // Exit 0 = report printed (and published with --out); 1 = publish refused; 2 = usage or GitHub read error.
 //
-// Report mode (no --out) prints {repo, since, through, events, unresolvedReverts, cells} to
+// Report mode (no --out) prints {repo, since, through, events, unresolvedReverts, unclassedAutonomous, cells} to
 // stdout and writes nothing. --through defaults to, and is clamped to, now. With --out it also
 // writes <dir>/evidence.json (the events array) and <dir>/evidence.meta.json ({generated_at,
 // through, sha256, prev_sha256}). Both temp files are written before either rename, the events
 // file renamed first. It refuses when an existing evidence.json is not a JSON array, has no
 // sidecar or does not match the sidecar's sha256, or holds an event the new array lacks.
 //
-// --lane-login: GitHub records the merge-queue enqueuer as merged_by. Probed 2026-10-12 on PR
-// #7352: merged_by.login was the login of the AddedToMergeQueueEvent enqueuer, not a queue bot.
-// So pass the identity the lane enqueues or merges with (its App bot login, `<slug>[bot]`); a
-// lane PR a human enqueued counts as a human merge. Recheck if merged_by stops matching the
-// enqueuer.
+// Cost: every run pages the repository's whole closed-PR history (one REST page per 100 closed
+// PRs, created ascending, so no merge is skipped while paging), then reads, per merged PR in the
+// window, one GraphQL query and the issue events of the PR and each linked issue, and per
+// autonomous merge its check runs and statuses.
+//
+// Autonomy follows babysit_merge_policy.py derive_auto_merge: the latest AddedToMergeQueueEvent's
+// actor and enqueuer, or merged_by when the merge bypassed the queue; a merge is autonomous when
+// any of them is null or not human (a User outside --lane-login, not `github-actions`, not a
+// `[bot]` login; derive_auto_merge's write-permission read is not made), or merged_by is a
+// --lane-login. Logins compare case-insensitively with `[bot]` dropped. GitHub records the
+// enqueuer as merged_by (probed 2026-10-12 on PR #7352: merged_by.login matched the
+// AddedToMergeQueueEvent enqueuer), so --lane-login names any lane identity that runs as a User
+// (a machine user); an App lane is a Bot and counts without it. Recheck if merged_by stops
+// matching the enqueuer.
 //
 // What counts (judgment where the contract names no GitHub source):
 // - A merged PR's work class is the highest `work-class:` label (the label set
-//   babysit-prs/scripts/babysit_merge_policy.py WORK_CLASS_LABELS maps) on its linked issues
-//   (closingIssuesReferences) and on the PR, each label set rebuilt as of merged_at by undoing
-//   later labeled/unlabeled events, so relabeling after the merge changes nothing. A linked-issue
-//   or label list with another page fails closed. A PR with no class is not counted.
-// - Autonomous means merged_by is a --lane-login identity.
+//   babysit-prs/scripts/babysit_merge_policy.py WORK_CLASS_LABELS maps) on the issues it linked
+//   at merge and on the PR, each label set rebuilt as of merged_at by undoing later
+//   labeled/unlabeled events, so relabeling after the merge changes nothing. The linked set is
+//   closingIssuesReferences with later ConnectedEvent/DisconnectedEvent undone; when the PR body
+//   was edited after the merge, its closing-keyword links at merge are unknown and the class is
+//   none. A list with another page fails closed.
+// - A C2/C3 merge is counted. An autonomous merge with no class is listed in
+//   unclassedAutonomous, never counted toward a positive term, and each of its contrary events
+//   is emitted against every promotable cell.
 // - reverted-merge: an autonomous C2/C3 merge named by a merged PR body or a default-branch
 //   commit as `Reverts <owner/repo>#<n>` (GitHub's revert button) or `This reverts commit
 //   <sha>` (git revert); one event per reverted merge, at the earliest revert seen. A merged PR
 //   titled revert... with neither form is listed in unresolvedReverts for a human to read.
 // - gate-failure: every check run on an autonomous merge's merge commit (filter=all, so a run
 //   later re-run green still counts) concluding failure, timed_out or startup_failure, and every
-//   commit status in state failure or error, whenever it completed. The gate-pass term also
-//   fails while a run is not completed with success, neutral or skipped, or a context's latest
-//   status is not success.
+//   commit status in state failure or error, whenever it completed. A run concluding cancelled,
+//   action_required, stale or anything else not green also counts, unless a later run of the
+//   same check name on that commit succeeded. The gate-pass term also fails while a run is in
+//   progress or a context's latest status is not success.
 // - verification-divergence: a human (a User actor outside --lane-login) applied
 //   --missed-blocking-label to a merged C3 PR (cell C3-ai-review-blocking) or an autonomous C2
 //   PR (cell C2-auto-merge), read from the label timeline, so removing the label later does not
@@ -79,7 +93,7 @@ function instant(value, name) {
   return ms;
 }
 
-// A REST path is read with GET; "graphql" runs a query (read-only: LINKED_ISSUES is the only one).
+// A REST path is read with GET; "graphql" runs a query (read-only: PULL_QUERY is the only one).
 function realGh(path, graphql) {
   const args = graphql
     ? ["api", "graphql", "-f", `query=${graphql.query}`, ...Object.entries(graphql.variables).flatMap(([key, value]) => ["-F", `${key}=${value}`])]
@@ -89,8 +103,30 @@ function realGh(path, graphql) {
   return JSON.parse(run.stdout);
 }
 
-const LINKED_ISSUES =
-  "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){closingIssuesReferences(first:50){pageInfo{hasNextPage} nodes{number labels(first:100){pageInfo{hasNextPage} nodes{name}}}}}}}";
+const PULL_QUERY =
+  "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){" +
+  "number mergedAt lastEditedAt mergeCommit{oid} mergedBy{__typename login} labels(first:100){pageInfo{hasNextPage} nodes{name}} " +
+  "closingIssuesReferences(first:50){pageInfo{hasNextPage} nodes{number labels(first:100){pageInfo{hasNextPage} nodes{name}}}} " +
+  "timelineItems(first:100,itemTypes:[CONNECTED_EVENT,DISCONNECTED_EVENT,ADDED_TO_MERGE_QUEUE_EVENT]){pageInfo{hasNextPage} nodes{__typename " +
+  "... on ConnectedEvent{createdAt subject{__typename ... on Issue{number}}} ... on DisconnectedEvent{createdAt subject{__typename ... on Issue{number}}} " +
+  "... on AddedToMergeQueueEvent{createdAt actor{__typename login} enqueuer{__typename login}}}}}}}";
+const CELLS = ["C2-auto-merge", "C3-ai-review-blocking", "C3-auto-merge"];
+
+// A login compared across REST (`app[bot]`) and GraphQL (`app`) spellings, as
+// babysit_merge_policy.py _login_key does.
+function loginKey(login) {
+  return String(login ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\[bot\]$/, "");
+}
+
+function onePage(connection, what) {
+  if (!Array.isArray(connection?.nodes) || connection.pageInfo?.hasNextPage !== false) {
+    throw new PublishError(`gh api graphql: ${what} unreadable or hasNextPage`);
+  }
+  return connection.nodes;
+}
 
 function pages(gh, path, key) {
   const out = [];
@@ -124,7 +160,11 @@ function eventKey(event) {
 export function collect({ repo, since, through, laneLogins, aiReviewers = [], missedBlockingLabel, gh = realGh }) {
   const sinceMs = instant(since, "--since");
   const throughMs = Math.min(instant(through, "--through"), Date.now());
-  const lane = new Set(laneLogins);
+  const lane = new Set(laneLogins.map(loginKey));
+  // babysit_merge_policy.py is_human, without its permission read: a User that is not a lane
+  // login, `github-actions` or a `[bot]` login. A null actor is not human.
+  const human = (actor) =>
+    actor?.__typename === "User" && !lane.has(loginKey(actor.login)) && loginKey(actor.login) !== "github-actions" && !/\[bot\]$/i.test(actor.login ?? "");
   const inWindow = (at) => typeof at === "string" && Date.parse(at) >= sinceMs && Date.parse(at) <= throughMs;
   const events = new Map();
   const addEvent = (cell, event, at) => {
@@ -144,43 +184,54 @@ export function collect({ repo, since, through, laneLogins, aiReviewers = [], mi
     return issueEvents.get(number);
   };
   const [owner, name] = repo.split("/");
-  const classes = new Map();
-  const classOf = (number, prLabels, mergedAt) => {
-    if (!classes.has(number)) {
-      const refs = gh("graphql", { query: LINKED_ISSUES, variables: { owner, name, number } })?.data?.repository?.pullRequest?.closingIssuesReferences;
-      if (!Array.isArray(refs?.nodes) || refs.pageInfo?.hasNextPage !== false) {
-        throw new PublishError(`gh api graphql: closingIssuesReferences for #${number} unreadable or hasNextPage`);
-      }
-      const atMs = Date.parse(mergedAt);
-      const names = labelsAsOf((prLabels ?? []).map((label) => label?.name), eventsOf(number), atMs);
-      for (const issue of refs.nodes) {
-        if (!Array.isArray(issue?.labels?.nodes) || issue.labels.pageInfo?.hasNextPage !== false) {
-          throw new PublishError(`gh api graphql: labels of issue #${issue?.number} unreadable or hasNextPage`);
-        }
-        names.push(...labelsAsOf(issue.labels.nodes.map((label) => label?.name), eventsOf(issue.number), atMs));
-      }
-      classes.set(number, workClass(names));
+
+  // The class at merge: labels of the PR and of the issues linked at merge, each rebuilt as of
+  // mergedAt. Links: the current set with later Connected/Disconnected events undone; a body
+  // edited after the merge leaves the closing-keyword links unknown, so the class is too.
+  const classAtMerge = (g, timeline) => {
+    const atMs = Date.parse(g.mergedAt);
+    if (g.lastEditedAt && Date.parse(g.lastEditedAt) > atMs) return { cls: null, reason: "PR body edited after the merge: closing-keyword links unknown" };
+    const linked = new Map();
+    for (const issue of onePage(g.closingIssuesReferences, `closingIssuesReferences of #${g.number}`)) {
+      linked.set(issue.number, onePage(issue.labels, `labels of issue #${issue.number}`).map((label) => label?.name));
     }
-    return classes.get(number);
+    const laterLinks = timeline
+      .filter((e) => ["ConnectedEvent", "DisconnectedEvent"].includes(e.__typename) && e.subject?.__typename === "Issue" && Date.parse(e.createdAt) > atMs)
+      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    for (const e of laterLinks) {
+      if (e.__typename === "ConnectedEvent") linked.delete(e.subject.number);
+      else if (!linked.has(e.subject.number)) linked.set(e.subject.number, (gh(`repos/${repo}/issues/${e.subject.number}`).labels ?? []).map((label) => label?.name));
+    }
+    const names = labelsAsOf(onePage(g.labels, `labels of #${g.number}`).map((label) => label?.name), eventsOf(g.number), atMs);
+    for (const [issue, labels] of linked) names.push(...labelsAsOf(labels, eventsOf(issue), atMs));
+    const cls = workClass(names);
+    return { cls, reason: cls ? null : "no work-class label at merge" };
+  };
+
+  // Autonomy as babysit_merge_policy.py derive_auto_merge reads it: the latest
+  // AddedToMergeQueueEvent's actor and enqueuer, or merged_by when the merge bypassed the
+  // queue; any of them null or not human makes the merge autonomous.
+  const autonomousOf = (g, timeline) => {
+    const queued = timeline.filter((e) => e.__typename === "AddedToMergeQueueEvent").sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+    const actors = queued.length > 0 ? [queued.at(-1).actor, queued.at(-1).enqueuer] : [g.mergedBy];
+    return actors.some((actor) => !human(actor)) || lane.has(loginKey(g.mergedBy?.login));
   };
 
   const details = new Map();
   const record = (number) => {
     if (!details.has(number)) {
-      const pr = gh(`repos/${repo}/pulls/${number}`);
-      details.set(number, {
-        number,
-        cls: classOf(number, pr.labels, pr.merged_at),
-        autonomous: lane.has(pr.merged_by?.login),
-        mergedAt: pr.merged_at,
-        sha: pr.merge_commit_sha,
-        reverted: false,
-      });
+      const g = gh("graphql", { query: PULL_QUERY, variables: { owner, name, number } })?.data?.repository?.pullRequest;
+      if (!g?.mergedAt) throw new PublishError(`gh api graphql: pull request #${number} unreadable or not merged`);
+      const timeline = onePage(g.timelineItems, `timeline of #${number}`);
+      details.set(number, { number, ...classAtMerge(g, timeline), autonomous: autonomousOf(g, timeline), mergedAt: g.mergedAt, sha: g.mergeCommit?.oid, reverted: false });
     }
     return details.get(number);
   };
-  const counted = merged.filter((pr) => ["C2", "C3"].includes(classOf(pr.number, pr.labels, pr.merged_at))).map((pr) => record(pr.number));
-  const bySha = new Map(counted.map((r) => [r.sha, r]));
+  // Tracked: C2/C3 merges, and autonomous merges with no class, which are never counted toward
+  // a positive term but whose contrary events go against every cell.
+  const tracked = merged.map((pr) => record(pr.number)).filter((r) => ["C2", "C3"].includes(r.cls) || (r.autonomous && r.cls === null));
+  const cellsOf = (r) => (r.cls ? [`${r.cls}-auto-merge`] : CELLS);
+  const bySha = new Map(tracked.map((r) => [r.sha, r]));
 
   // Reverts, from merged PR bodies and default-branch commit messages; earliest per target.
   const own = repo.toLowerCase();
@@ -216,42 +267,53 @@ export function collect({ repo, since, through, laneLogins, aiReviewers = [], mi
   }
   for (const [number, at] of firstRevert) {
     const target = record(number);
-    if (target.autonomous && ["C2", "C3"].includes(target.cls)) {
+    if (target.autonomous && (["C2", "C3"].includes(target.cls) || target.cls === null)) {
       target.reverted = true;
-      addEvent(`${target.cls}-auto-merge`, "reverted-merge", at);
+      for (const cell of cellsOf(target)) addEvent(cell, "reverted-merge", at);
     }
   }
 
   // Post-merge gate on each autonomous merge commit: every check run and every commit status.
-  for (const r of counted.filter((c) => c.autonomous)) {
+  // A run that did not finish green or red (cancelled, action_required, stale) fails the gate
+  // unless a later run of the same check succeeded, so cancelling a red run cannot erase it.
+  for (const r of tracked.filter((c) => c.autonomous)) {
     const runs = pages(gh, `repos/${repo}/commits/${r.sha}/check-runs?filter=all`, "check_runs");
     const statuses = pages(gh, `repos/${repo}/commits/${r.sha}/statuses`);
-    const failedRuns = runs.filter((run) => run.status === "completed" && GATE_FAILED.has(run.conclusion));
+    const outcome = (run) => {
+      if (run.status !== "completed") return "unsettled";
+      if (GATE_FAILED.has(run.conclusion)) return "failed";
+      if (GATE_OK.has(run.conclusion)) return "ok";
+      const rerunGreen = runs.some(
+        (o) => o !== run && o.name === run.name && o.status === "completed" && o.conclusion === "success" && Date.parse(o.completed_at) > Date.parse(run.completed_at ?? 0),
+      );
+      return rerunGreen ? "ok" : "failed";
+    };
+    const failedRuns = runs.filter((run) => outcome(run) === "failed");
     const failedStatuses = statuses.filter((status) => STATUS_FAILED.has(status.state));
-    for (const run of failedRuns) addEvent(`${r.cls}-auto-merge`, "gate-failure", run.completed_at);
-    for (const status of failedStatuses) addEvent(`${r.cls}-auto-merge`, "gate-failure", status.created_at);
+    for (const cell of cellsOf(r)) {
+      for (const run of failedRuns) addEvent(cell, "gate-failure", run.completed_at ?? r.mergedAt);
+      for (const status of failedStatuses) addEvent(cell, "gate-failure", status.created_at);
+    }
     const latest = new Map();
     for (const status of [...statuses].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))) {
       if (!latest.has(status.context)) latest.set(status.context, status.state);
     }
-    const settled =
-      runs.length + latest.size > 0 &&
-      runs.every((run) => run.status === "completed" && GATE_OK.has(run.conclusion)) &&
-      [...latest.values()].every((state) => state === "success");
+    const settled = runs.length + latest.size > 0 && runs.every((run) => outcome(run) === "ok") && [...latest.values()].every((state) => state === "success");
     r.gate = failedRuns.length + failedStatuses.length > 0 ? "failed" : settled ? "passed" : "unsettled";
   }
 
   // Human-confirmed missed-blocking AI-review findings, from the label timeline.
-  for (const r of counted.filter((c) => c.cls === "C3" || c.autonomous)) {
+  for (const r of tracked.filter((c) => c.cls === "C3" || c.autonomous)) {
     const confirmed = eventsOf(r.number).filter(
-      (e) => e.event === "labeled" && e.label?.name === missedBlockingLabel && e.actor?.type === "User" && !lane.has(e.actor.login) && inWindow(e.created_at),
+      (e) => e.event === "labeled" && e.label?.name === missedBlockingLabel && e.actor?.type === "User" && !lane.has(loginKey(e.actor.login)) && inWindow(e.created_at),
     );
     r.missedBlocking = confirmed.length > 0 ? 1 : 0;
-    for (const e of confirmed) addEvent(r.cls === "C3" ? "C3-ai-review-blocking" : "C2-auto-merge", "verification-divergence", e.created_at);
+    const cells = r.cls === "C3" ? ["C3-ai-review-blocking"] : r.cls === "C2" ? ["C2-auto-merge"] : CELLS;
+    for (const e of confirmed) for (const cell of cells) addEvent(cell, "verification-divergence", e.created_at);
   }
   const reviewers = new Set(aiReviewers);
   if (reviewers.size > 0) {
-    for (const r of counted.filter((c) => c.cls === "C3")) {
+    for (const r of tracked.filter((c) => c.cls === "C3")) {
       r.aiReviewed = pages(gh, `repos/${repo}/pulls/${r.number}/reviews`).some((review) => reviewers.has(review.user?.login));
     }
   }
@@ -263,7 +325,10 @@ export function collect({ repo, since, through, laneLogins, aiReviewers = [], mi
     through: new Date(throughMs).toISOString(),
     events: sorted,
     unresolvedReverts,
-    cells: report(counted, sorted, reviewers.size > 0),
+    unclassedAutonomous: [...details.values()]
+      .filter((r) => r.autonomous && r.cls === null && (tracked.includes(r) || r.reverted))
+      .map((r) => ({ number: r.number, reason: r.reason })),
+    cells: report(tracked, sorted, reviewers.size > 0),
   };
 }
 

@@ -13,17 +13,6 @@
       "type": "User"
     }
   },
-  "pull": {
-    "labels": [],
-    "merge_commit_sha": "aad0b2b69bc22154c61b0857307a183d0c7821a8",
-    "merged_at": "2026-10-13T02:42:17Z",
-    "merged_by": {
-      "login": "kyle-sexton",
-      "type": "User"
-    },
-    "number": 7352,
-    "title": "fix(source-control): settle unattended merge residuals before Phase 15"
-  },
   "checkRun": {
     "completed_at": "2026-10-13T02:38:54Z",
     "conclusion": "success",
@@ -61,10 +50,26 @@
       "type": "Bot"
     }
   },
-  "linkedIssues": {
+  "pullGraph": {
     "data": {
       "repository": {
         "pullRequest": {
+          "number": 7063,
+          "mergedAt": "2026-10-13T01:47:44Z",
+          "lastEditedAt": "2026-10-13T01:38:02Z",
+          "mergeCommit": {
+            "oid": "6fa4f210dd0eb904a9ca1504344d8b66294ee6f5"
+          },
+          "mergedBy": {
+            "__typename": "User",
+            "login": "kyle-sexton"
+          },
+          "labels": {
+            "pageInfo": {
+              "hasNextPage": false
+            },
+            "nodes": []
+          },
           "closingIssuesReferences": {
             "pageInfo": {
               "hasNextPage": false
@@ -93,9 +98,45 @@
                 }
               }
             ]
+          },
+          "timelineItems": {
+            "pageInfo": {
+              "hasNextPage": false
+            },
+            "nodes": [
+              {
+                "__typename": "AddedToMergeQueueEvent",
+                "createdAt": "2026-10-13T01:42:44Z",
+                "actor": {
+                  "__typename": "User",
+                  "login": "kyle-sexton"
+                },
+                "enqueuer": {
+                  "__typename": "User",
+                  "login": "kyle-sexton"
+                }
+              }
+            ]
           }
         }
       }
     }
+  },
+  "issue": {
+    "labels": [
+      {
+        "name": "priority: medium"
+      },
+      {
+        "name": "status: ready"
+      },
+      {
+        "name": "needs-human"
+      },
+      {
+        "name": "work-class: scoped"
+      }
+    ],
+    "number": 6007
   }
 }
