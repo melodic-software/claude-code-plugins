@@ -205,6 +205,8 @@ After each push, run this loop until convergence (**every** check in a terminal 
 6. **On new comment:** route to 3.3 (evaluate + respond)
 7. **After any fix push:** restart the loop (new push = new monitoring cycle)
 
+**One fix round per head, including a delegated one.** Evaluating findings as they arrive (steps 4 and 6) is not dispatching a fix for each. When a worker does the fixing, hold the brief until every check and every reviewer on the current head is terminal (§3.3.2 step 0), then send one brief carrying all of the head's findings together: each failing check with its log excerpt, each unresolved review thread, and any independent verifier's failed criteria. A brief sent while a check or reviewer is still pending leaves the late finding for a second round and a second push, and each round pays for context and a full CI run again. Repeat only when the new head produces new findings.
+
 ### Polling CI from more than one worker
 
 When more than one worker polls CI under the same token (parallel PR monitors, babysit-prs workers,
