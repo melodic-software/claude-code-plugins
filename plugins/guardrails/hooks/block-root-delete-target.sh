@@ -533,6 +533,11 @@ rdt_block() {
       "BLOCKED: this recursive delete cannot be judged, because the hook payload's $target carries a NUL byte." \
       'Fix: reissue the tool call; if it repeats, report the malformed payload.' >&2
     ;;
+  control-bytes)
+    printf '%s\n' \
+      "BLOCKED: recursive delete of $target, whose \$ signs cannot be read as literal or expanded because the command carries every control byte the guard could mark them with." \
+      'Fix: remove the control characters from the command.' >&2
+    ;;
   judge-error)
     printf '%s\n' \
       'BLOCKED: judging where this recursive delete lands failed unexpectedly.' \
@@ -3075,8 +3080,9 @@ rdt_ps_piped=0
 # The walker writes a literal `$` (single-quoted, or escaped by a backtick) as
 # this byte, so rdt_ps_operand can tell it from one PowerShell expands: the
 # first control byte the command does not carry (\001 is taken above; tab, LF
-# and CR are skipped). Empty, and every `$` read as before, only when the
-# command carries all of them.
+# and CR are skipped). Empty only when the command carries all of them; then
+# rdt_ps_operand refuses any target holding a `$`, since a literal one cannot
+# be told from an expansion.
 RDT_PS_LIT=""
 for rdt_b in $'\002' $'\003' $'\004' $'\005' $'\006' $'\007' $'\010' $'\013' \
   $'\014' $'\016' $'\017' $'\020' $'\021' $'\022' $'\023' $'\024' $'\025' \
@@ -3174,6 +3180,7 @@ rdt_ps_cmd_split_to() {
 # read only the old way.
 rdt_ps_operand() {
   local w="$1" lit="" re_stream
+  [[ -z "$RDT_PS_LIT" && "$w" == *'$'* ]] && rdt_block "control-bytes" "$w"
   if [[ -n "$RDT_PS_LIT" && "$w" == *"$RDT_PS_LIT"* ]]; then
     if [[ "$w" != *'$'* ]]; then
       lit="$w"

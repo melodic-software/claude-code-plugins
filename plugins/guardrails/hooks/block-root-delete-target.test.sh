@@ -1974,6 +1974,11 @@ expect_both 'PS ::$INDEX_ALLOCATION on ~ blocks with no cwd' 2 \
 # byte in the command (here in a trailing comment) does not turn the reading off.
 expect_both 'PS a \002 byte in the command does not turn the literal reading off' 2 \
   --tool PowerShell --command "Remove-Item -Recurse -Force 'C:\\::\$INDEX_ALLOCATION' # "$'\002'
+rdt_all_ctl=$'\002\003\004\005\006\007\010\013\014\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037'
+expect_both 'PS every marker byte in the command refuses a target holding a $' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force 'D:\\rdt-x\\a\$b' # $rdt_all_ctl"
+expect_both 'PS every marker byte in the command still allows a target with no $' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force './build' # $rdt_all_ctl"
 expect_both 'PS -Recurse:'"'"'$false'"'"' is read as not recursive' 0 \
   --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse:'\$false' D:\\rdt-x\\y"
 expect_both 'PS single-quoted $ name alone still blocks (bare variable)' 2 \
