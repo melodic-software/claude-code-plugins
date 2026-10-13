@@ -468,7 +468,7 @@ test("a revert-button PR of an autonomous C2 merge yields reverted-merge at the 
     ],
   });
   assert.deepEqual(result.events, [{ cell: "C2-auto-merge", event: "reverted-merge", at: "2026-09-02T00:00:00Z" }]);
-  assert.deepEqual(termOf(result, "C2-auto-merge", "human-reverted merges"), { term: "human-reverted merges", value: 1, threshold: "0", pass: false });
+  assert.deepEqual(termOf(result, "C2-auto-merge", "reverted merges"), { term: "reverted merges", value: 1, threshold: "0", pass: false });
 });
 
 test("a git-revert commit pushed straight to the default branch yields reverted-merge for C3 auto-merge", () => {

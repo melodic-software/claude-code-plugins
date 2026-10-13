@@ -658,7 +658,7 @@ function report(counted, events, reviewsMeasured) {
       term("autonomous C2 completions", c2.length, ">= 20", c2.length >= 20),
       term("window days", c2Window.days, ">= 14", c2Window.days >= 14),
       gateTerm("deterministic-gate pass", c2),
-      term("human-reverted merges", reverted(c2), "0", reverted(c2) === 0),
+      term("reverted merges", reverted(c2), "0", reverted(c2) === 0),
     ]),
     "C3-auto-merge": cell(windowOf([...c2, ...c3]), [
       term("autonomous C2 merges", c2.length, ">= 20", c2.length >= 20),
@@ -666,7 +666,7 @@ function report(counted, events, reviewsMeasured) {
       term("C2 demotion events", c2Demotions, "0", c2Demotions === 0),
       term("autonomous C3 completions", c3.length, ">= 10", c3.length >= 10),
       gateTerm("C3 deterministic-gate pass", c3),
-      term("C3 human-reverted merges", reverted(c3), "0", reverted(c3) === 0),
+      term("C3 reverted merges", reverted(c3), "0", reverted(c3) === 0),
       term("C3 human-confirmed missed-blocking findings", missed(c3), "0", missed(c3) === 0),
     ]),
     "C3-ai-review-blocking": cell(windowOf(c3All), [
