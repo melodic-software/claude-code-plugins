@@ -337,7 +337,8 @@ Describe 'Test-WingetUpgrades -- KEV data gaps never read as a clean KEV check (
         { Assert-CheckResult $result } | Should -Not -Throw
         $result.severity | Should -Be 'UNKNOWN'
         $result.ran_successfully | Should -BeFalse
-        $result.error | Should -Not -BeNullOrEmpty
+        $result.error | Should -Match 'empty or unparsable'
+        $result.detail.kev_cache_state | Should -Be 'unknown'
     }
 
     It 'emits UNKNOWN when the KEV lookup throws' {
