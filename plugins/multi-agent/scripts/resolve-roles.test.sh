@@ -242,7 +242,7 @@ assert_contains "worker basis: judgment model, upstream effort" "$out" '"worker"
 
 # A guarded fan-out model takes fanout.model's basis, not the role's.
 out="$(run plain worker --session-model fable)"
-assert_contains "guarded fan-out: the guard's model is not labelled with the role's basis" "$out" '"basis":{"model":"judgment","fanout_model":"unrecorded","effort":"upstream"}'
+assert_contains "guarded fan-out: the guard's model is not labeled with the role's basis" "$out" '"basis":{"model":"judgment","fanout_model":"unrecorded","effort":"upstream"}'
 fixture guardconfig
 printf 'schema: 1\nroles:\n  worker:\n    model: fable\n' >"$T/guardconfig/repo/.claude/multi-agent.yaml"
 out="$(run guardconfig worker --session-model opus)"
