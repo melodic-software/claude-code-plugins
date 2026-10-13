@@ -13,7 +13,7 @@ import { renderQualityAudit } from "./render-quality-audit.js";
 import { renderTriageLog } from "./render-triage-log.js";
 import { runValidatePromotionDecisions } from "./validate-promotion-decisions.js";
 import { runValidateTriageJson } from "./validate-triage-json.js";
-import { resolveContainedFrame, visionGatedPromote } from "./vision-gated-promote.js";
+import { checkContainedFrame, visionGatedPromote } from "./vision-gated-promote.js";
 
 const tempDirs = [];
 
@@ -261,7 +261,7 @@ describe("visionGatedPromote", () => {
   });
 });
 
-describe("resolveContainedFrame", () => {
+describe("checkContainedFrame", () => {
   function makeFramesDir() {
     const framesDir = fs.mkdtempSync(path.join(os.tmpdir(), "vision-contained-"));
     tempDirs.push(framesDir);
@@ -271,7 +271,7 @@ describe("resolveContainedFrame", () => {
 
   it("returns the real path of a frame directly inside the frames directory", () => {
     const framesDir = makeFramesDir();
-    expect(resolveContainedFrame(framesDir, "scene_0001.png")).toBe(
+    expect(checkContainedFrame(framesDir, "scene_0001.png").path).toBe(
       path.join(fs.realpathSync(framesDir), "scene_0001.png"),
     );
   });
@@ -283,7 +283,7 @@ describe("resolveContainedFrame", () => {
     } catch {
       ctx.skip();
     }
-    expect(resolveContainedFrame(framesDir, "alias.png")).toBe(
+    expect(checkContainedFrame(framesDir, "alias.png").path).toBe(
       path.join(fs.realpathSync(framesDir), "scene_0001.png"),
     );
   });
@@ -297,18 +297,30 @@ describe("resolveContainedFrame", () => {
     "/etc/passwd",
   ])("refuses %j before touching the file system", (sourceFile) => {
     const framesDir = makeFramesDir();
-    expect(() => resolveContainedFrame(framesDir, sourceFile)).toThrow(/sourceFile/);
+    expect(() => checkContainedFrame(framesDir, sourceFile)).toThrow(/sourceFile/);
   });
 
   it("refuses a directory inside the frames directory", () => {
     const framesDir = makeFramesDir();
     fs.mkdirSync(path.join(framesDir, "nested"));
-    expect(() => resolveContainedFrame(framesDir, "nested")).toThrow(/not a regular file/);
+    expect(() => checkContainedFrame(framesDir, "nested")).toThrow(/not a regular file/);
   });
 
   it("reports a missing frame as missing", () => {
     const framesDir = makeFramesDir();
-    expect(() => resolveContainedFrame(framesDir, "absent.png")).toThrow(/source frame missing/);
+    expect(() => checkContainedFrame(framesDir, "absent.png")).toThrow(/source frame missing/);
+  });
+
+  it("reports a frame that cannot be resolved with its error code, not as missing", (ctx) => {
+    const framesDir = makeFramesDir();
+    try {
+      fs.symlinkSync(path.join(framesDir, "loop.png"), path.join(framesDir, "loop.png"));
+    } catch {
+      ctx.skip();
+    }
+    expect(() => checkContainedFrame(framesDir, "loop.png")).toThrow(
+      /cannot be resolved \(ELOOP\)/,
+    );
   });
 });
 

@@ -27,21 +27,10 @@ import { promoteKeyFrames } from "./promote-key-frames.js";
 import { watchStatePath } from "./watch-state.js";
 
 /**
- * Resolve a promotion `sourceFile` to the real path of a regular file directly inside `framesDir`.
- * Throws when the name is not a bare file name, when the file is missing, or when it resolves
- * (through `..` or a symlink) to anywhere other than `framesDir` itself.
- *
- * @param {string} framesDir
- * @param {string} sourceFile
- * @returns {string}
- */
-export function resolveContainedFrame(framesDir, sourceFile) {
-  return checkContainedFrame(framesDir, sourceFile).path;
-}
-
-/**
- * `resolveContainedFrame`, plus the checked file's identity, so the copy can prove it reads the
- * same file the check passed.
+ * Resolve a promotion `sourceFile` to the real path of a regular file directly inside `framesDir`,
+ * plus that file's identity, so the copy can prove it reads the same file the check passed.
+ * Throws when the name is not a bare file name, when the file is missing or cannot be resolved, or
+ * when it resolves (through `..` or a symlink) to anywhere other than `framesDir` itself.
  *
  * @param {string} framesDir
  * @param {string} sourceFile
@@ -61,8 +50,10 @@ export function checkContainedFrame(framesDir, sourceFile) {
   let realSource;
   try {
     realSource = fs.realpathSync(path.join(realFramesDir, sourceFile));
-  } catch {
-    throw new Error(`source frame missing: ${sourceFile}`);
+  } catch (error) {
+    const code = /** @type {NodeJS.ErrnoException} */ (error)?.code;
+    if (code === "ENOENT") throw new Error(`source frame missing: ${sourceFile}`);
+    throw new Error(`source frame ${sourceFile} cannot be resolved (${code ?? "unknown error"})`);
   }
   if (path.dirname(realSource) !== realFramesDir) {
     throw new Error(`source frame ${sourceFile} resolves outside the frames directory`);
@@ -76,8 +67,8 @@ export function checkContainedFrame(framesDir, sourceFile) {
 
 /**
  * Copy a checked frame without following a symlink swapped in after the check. The source is
- * opened with O_NOFOLLOW where the platform defines it, else re-checked with lstat just before
- * the open; either way the open descriptor must be a regular file with the checked dev/ino.
+ * opened with O_NOFOLLOW where the platform defines it, and the open descriptor must be a regular
+ * file with the checked dev/ino, which refuses a swap on every platform.
  * A hard link to an outside file made before the check passes, since it IS the checked file.
  *
  * @param {string} sourcePath
@@ -85,16 +76,11 @@ export function checkContainedFrame(framesDir, sourceFile) {
  * @param {{ dev: number, ino: number }} expected
  * @returns {Promise<void>}
  */
-export async function copyCheckedFrame(sourcePath, destPath, expected) {
+async function copyCheckedFrame(sourcePath, destPath, expected) {
   const changed = () => new Error(`source frame ${sourcePath} changed after it was checked`);
-  const noFollow = fs.constants.O_NOFOLLOW;
-  if (noFollow === undefined) {
-    const now = await fsp.lstat(sourcePath);
-    if (!now.isFile() || now.dev !== expected.dev || now.ino !== expected.ino) throw changed();
-  }
   let handle;
   try {
-    handle = await fsp.open(sourcePath, fs.constants.O_RDONLY | (noFollow ?? 0));
+    handle = await fsp.open(sourcePath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
   } catch (error) {
     if (error && error.code === "ELOOP") throw changed();
     throw error;
