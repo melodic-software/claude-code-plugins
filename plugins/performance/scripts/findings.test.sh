@@ -1190,6 +1190,11 @@ UC="$WORK/unchanged.jsonl"
   done
   use 9 u4 s4 Grep '["not an object"]' 5
   result 10 s4 false
+  # A path that spells a window is not that window of another file.
+  use 11 u5 s5 Read '{"file_path":"foo (offset 1)"}' 5
+  result 12 s5 false '"same"'
+  use 13 u6 s6 Read '{"file_path":"foo","offset":1}' 5
+  result 14 s6 false '"same"'
 } >"$UC"
 run transcript-counts "$UC"
 assert_eq "transcript-counts exits 0 on a non-object tool input" "0" "$RUN_RC"

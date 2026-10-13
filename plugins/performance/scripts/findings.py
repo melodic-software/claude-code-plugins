@@ -753,13 +753,18 @@ UNCHANGED = "file_unchanged"
 
 
 def read_key(args: dict) -> str:
-    """A Read as repeats key it: the path, plus the window when one is set."""
+    """A Read as repeats key it: the path and its window, kept apart so no path can pose as one."""
     window = ", ".join(
         f"{name} {args[name]}"
         for name in ("offset", "limit", "pages")
         if args.get(name) is not None
     )
-    return f"{args['file_path']} ({window})" if window else args["file_path"]
+    return json.dumps([args["file_path"], window])
+
+
+def shown_read(key: str) -> str:
+    path, window = json.loads(key)
+    return inert(f"{path} ({window})" if window else path)
 
 
 def repeats(
@@ -995,9 +1000,9 @@ def transcript_counts(path: Path) -> dict:
         "work_before_invocation": len(prior_calls),
         "tokens": ledger.totals(),
         "tools": tools,
-        "repeated_reads": merged(same_reads, inert),
+        "repeated_reads": merged(same_reads, shown_read),
         "repeated_commands": merged(same_commands, shown_command),
-        "unverified_repeated_reads": merged(unknown_reads, inert),
+        "unverified_repeated_reads": merged(unknown_reads, shown_read),
         "unverified_repeated_commands": merged(unknown_commands, shown_command),
         "skills": skills,
         "subagents": sum(started_before_cut(s.path) for s in tr.iter_subagents(path)),
