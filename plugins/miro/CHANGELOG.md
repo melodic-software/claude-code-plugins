@@ -3,6 +3,38 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.10] - 2026-10-13
+
+### Changed
+
+- **Bump the npm-minor-patch group across 1 directory with 5 updates** (#6510).
+  - `@biomejs/biome` 2.5.14→2.5.15
+  - `@modelcontextprotocol/sdk` 1.30.1→1.32.1
+  - `@types/node` 26.6.3→26.6.4
+  - `@vitest/coverage-v8` 5.0.2→5.0.3
+  - `vitest` 5.0.2→5.0.3
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **Bump proxy-addr from 2.0.7 to 2.0.8 in /plugins/miro/server** (#6470).
+
+- **Restated Claude Code behavior in the README and `/miro:setup` becomes anchored pointer records.** Where sensitive option values are stored, when options are prompted for, the plugin CLI's scope defaults and flag spellings, and when Claude Code installs a plugin root's npm dependencies are read live. The setup bootstrap still passes the scope explicitly on every command; only its scope defaults and flag spellings are now read live instead of restated.
+
+### Fixed
+
+- **The vault-exec recipe's MCP pointers reach real sections.** The tool-name and deduplication basis named headings that do not exist; it now points at the MCP page's plugin-provided servers and scope-precedence sections.
+- **The vault-exec recipe's per-project `/mcp` disable step points at the section that records it.** Where `/mcp` stores a disabled-server choice is read from the MCP page's "Disable a server without removing it" section, not the scope-precedence section, which does not cover it.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.6.9] - 2026-10-07
 
 ### Changed

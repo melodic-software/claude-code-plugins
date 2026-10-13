@@ -3,6 +3,8 @@ description: "Verify the rate-limit-guard plugin on this machine: node, whether 
 argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(command -v node*)"
 shell: bash
 ---
 
@@ -11,7 +13,7 @@ shell: bash
 `check`'s `node` probe ran at load time. Read this row instead of re-issuing it; it shows the
 tool's path when present, or `absent` when missing:
 
-- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
+- `node`: !`command -v node 2>/dev/null || echo absent`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run the
 `command -v node` probe via Bash instead.

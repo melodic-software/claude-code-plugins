@@ -9,7 +9,7 @@
       "files": [],
       "expectations": [
         "Grounds first by fetching a primary source for the concept, rather than drawing from memory",
-        "Runs the checked-in builder with both --record and --page, piping one JSON model on stdin",
+        "Runs the checked-in builder with both --record and --page, passing one JSON model by --model from a file it wrote",
         "Never hand-writes HTML or pastes fetched text into markup",
         "Writes the record and the page outside the consuming repository, in different folders"
       ]

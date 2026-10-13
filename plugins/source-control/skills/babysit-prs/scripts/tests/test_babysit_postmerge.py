@@ -158,6 +158,10 @@ class FakeGh:
         # A login's repository permission, or the HTTP status its read fails with.
         self.permissions: dict[str, str | int] = {"maintainer": "write"}
         self.viewer = IDENTITY
+        # `gh auth status --json hosts`: the accounts the session holds.
+        self.accounts: list[dict[str, Any]] = [
+            {"login": IDENTITY, "active": True, "host": "github.com"}
+        ]
         # The pull request's last comments, as the pin read returns them.
         self.pin_comments: list[dict[str, Any]] = []
         # Comment pages served in order, one per pin read, when set.
@@ -185,6 +189,8 @@ class FakeGh:
                 return completed(returncode=1, stderr="gh: Server Error (HTTP 502)")
         if args[:2] == ["api", "graphql"]:
             return self._graphql(joined)
+        if args[:2] == ["auth", "status"]:
+            return completed({"hosts": {"github.com": self.accounts}})
         endpoint = next(a for a in args if a.startswith("repos/"))
         if endpoint == f"repos/{REPO}":
             if self.default_branch is None:
@@ -1333,6 +1339,112 @@ class IdentityRefusal(CheckCase):
         self.assertEqual(code, 0)
 
 
+class IdentityPreflight(CheckCase):
+    """The lane-start preflight (plan Phase 14, Design T23): the merge gate's
+    identity and credential rules, run alone; exit 2 refuses every lane write."""
+
+    def preflight(self, *argv: str) -> tuple[int, dict[str, Any]]:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = pm.main(
+                ["--repo", REPO, "--agent-identity", IDENTITY, "--preflight", *argv]
+            )
+        return code, json.loads(out.getvalue())
+
+    def test_a_session_holding_only_the_identity_passes_with_no_other_read(
+        self,
+    ) -> None:
+        code, report = self.preflight()
+        self.assertEqual((code, report), (0, {"ok": True, "identity": IDENTITY}))
+        self.assertEqual(
+            [c[:2] for c in self.gh.calls], [["api", "graphql"], ["auth", "status"]]
+        )
+        self.assertEqual(self.gh.writes(), [])
+
+    def test_the_operator_token_is_refused(self) -> None:
+        self.gh.viewer = "maintainer"
+        code, report = self.preflight()
+        self.assertEqual((code, report["error"]), (2, "acting-login-mismatch"))
+
+    def test_a_second_account_beside_the_identity_is_refused(self) -> None:
+        self.gh.accounts.append(
+            {"login": "maintainer", "active": False, "host": "github.com"}
+        )
+        code, report = self.preflight()
+        self.assertEqual(
+            (code, report["error"]), (2, "credentials:other-account-listed")
+        )
+
+    def test_an_unreadable_acting_login_is_refused(self) -> None:
+        self.gh.fail_reads.add("PolicyViewer")
+        code, report = self.preflight()
+        self.assertEqual((code, report["error"]), (2, "acting-login-unreadable"))
+
+    def configured(self, identity: str | None = None, error: str | None = None):
+        """push-branch.sh's call: --preflight with no --agent-identity reads the
+        identity the repository configures on its default branch."""
+        resolve = mock.patch.object(
+            pm.policy,
+            "resolve",
+            side_effect=pm.policy.PolicyReadError(error) if error else None,
+            return_value=pm.policy.UnattendedPolicy(
+                pm.policy.NOT_ASSESSED, identity, enabled=False
+            ),
+        )
+        out = io.StringIO()
+        with resolve as read, contextlib.redirect_stdout(out):
+            code = pm.main(["--repo", REPO, "--preflight"])
+        return code, json.loads(out.getvalue()), read
+
+    def test_preflight_without_an_identity_reads_the_configured_one(self) -> None:
+        code, report, read = self.configured(IDENTITY)
+        self.assertEqual((code, report), (0, {"ok": True, "identity": IDENTITY}))
+        read.assert_called_once_with(REPO)
+
+    def test_a_configured_identity_the_session_does_not_act_as_is_refused(
+        self,
+    ) -> None:
+        self.gh.viewer = "other-lane[bot]"
+        code, report, _ = self.configured(IDENTITY)
+        self.assertEqual((code, report["error"]), (2, "acting-login-mismatch"))
+
+    def test_a_repository_that_configures_no_identity_is_refused(self) -> None:
+        code, report, _ = self.configured(None)
+        self.assertEqual((code, report["error"]), (2, "agent-identity-unconfigured"))
+
+    def test_an_unreadable_config_is_refused(self) -> None:
+        code, report, _ = self.configured(error="pr-pipeline.yaml: status 502")
+        self.assertEqual(code, 2)
+        self.assertTrue(report["error"].startswith("config-unreadable"))
+
+    def test_only_the_preflight_may_omit_the_identity(self) -> None:
+        with (
+            self.assertRaises(SystemExit) as raised,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            pm.main(["--repo", REPO])
+        self.assertEqual(raised.exception.code, 2)
+        self.assertEqual(self.gh.calls, [])
+
+    def test_preflight_never_combines_with_remediate(self) -> None:
+        with (
+            self.assertRaises(SystemExit) as raised,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            pm.main(
+                [
+                    "--repo",
+                    REPO,
+                    "--agent-identity",
+                    IDENTITY,
+                    "--preflight",
+                    "--remediate",
+                ]
+            )
+        self.assertEqual(raised.exception.code, 2)
+        self.assertEqual(self.gh.calls, [])
+
+
 def pin(sha: str, *, author: Any = APP_ACTOR, edited: str | None = None) -> Any:
     return {"author": author, "body": pm.pin_comment(sha), "lastEditedAt": edited}
 
@@ -1521,6 +1633,19 @@ class DequeueIdentityEntries(CheckCase):
         mutations = [c for c in self.gh.calls if any("dequeue" in a for a in c)]
         self.assertEqual(len(mutations), 1)
         self.assertIn("id=PR_b", mutations[0])
+
+    def test_a_failed_dequeue_does_not_stop_the_rest(self) -> None:
+        # #7339: the first failed mutation used to leave every later entry queued.
+        self.gh.queue = [
+            {"enqueuer": APP_ACTOR, "pullRequest": {"id": "PR_a", "number": 1}},
+            {"enqueuer": APP_ACTOR, "pullRequest": {"id": "PR_b", "number": 2}},
+        ]
+        self.gh.fail_reads = {"id=PR_a"}
+        done: list[int] = []
+        with self.assertRaises(pm.PostMergeWriteError) as raised:
+            pm.dequeue_identity_entries(REPO, "main", IDENTITY, dequeued=done)
+        self.assertEqual(done, [2])
+        self.assertIn("dequeue #1", str(raised.exception))
 
 
 if __name__ == "__main__":

@@ -3,6 +3,28 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.3] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- `/skill-quality:check`, `/skill-quality:setup`, the README, the invocation-probes reference and the two checker scripts now point at the exact upstream docs sections, each with an as-of date and a recheck trigger, instead of restating the listing caps, budget defaults, plugin cache layout, plugin eval case shape, `pluginConfigs` scopes and `claude plugin install --config` behavior. The listing-cap constant has one record, in `check-skill.sh`.
+
+### Fixed
+
+- The `check-skill.sh` comment on unresolved `plugin:skill` names no longer says the plugin cache's version nesting is undocumented; the plugin loading reference now documents it.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.29.2] - 2026-10-10
 
 ### Changed

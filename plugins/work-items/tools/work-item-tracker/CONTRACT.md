@@ -188,7 +188,7 @@ user-global layer.
 ## Verbs (core public surface)
 
 ```text
-work-item-tracker.sh create-item --title <t> [--body <b>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <o>/<r>]
+work-item-tracker.sh create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <o>/<r>]
 work-item-tracker.sh get-item <id>
 work-item-tracker.sh claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]
 work-item-tracker.sh renew-lease <id> --lease-comment-id <n>
@@ -203,6 +203,11 @@ work-item-tracker.sh label-provenance <id> --label <name> [--label <name> ...]
 work-item-tracker.sh change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <o>/<r>]
 work-item-tracker.sh capabilities
 ```
+
+`create-item --body-file <path>` is core-side: the dispatcher reads the file and hands the adapter
+`--body <content>`, so adapters implement only `--body`. It lets a caller pass a body with no
+command substitution, a shape a worktree-isolated session refuses (#6929). `--body` together with
+`--body-file`, or a path that is not a readable, non-empty file, exits `2`.
 
 `label-provenance` answers who applied each named label and whether that person may grant
 admission. For every `--label`, the adapter takes the most recent application of that label

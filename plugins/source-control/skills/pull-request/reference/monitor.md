@@ -189,7 +189,7 @@ the values you mean, never on the complement:
 
 **When NO other open PRs found:** report `No other open PRs need attention.` and let the session idle.
 
-**Monitor does the work; it does not report and wait.** Evaluate comments (explore, research, classify), react, reply, fix VALID findings, and push. Pause for user input only at explicit decision gates: a CI fix with multiple viable approaches, and merge confirmation. Do not ask whether to start evaluating; the invocation already answered that. Run the full 3.1-3.4 workflow on every iteration with state changes.
+**Monitor does the work; it does not report and wait.** Evaluate comments (explore, research, classify), react, reply, fix VALID findings, and push. Every push in this phase is `bash "<skill-dir>/scripts/push-branch.sh" --pr <pr_number>` (plus `--dir <checkout>` for a fork head in a lane), never a bare `git push`, so a lane's push goes through `lane-push.sh` ([ready-for-review.md](ready-for-review.md) 2.5.4). Pause for user input only at explicit decision gates: a CI fix with multiple viable approaches, and merge confirmation. Do not ask whether to start evaluating; the invocation already answered that. Run the full 3.1-3.4 workflow on every iteration with state changes.
 
 ## 3.1 Monitoring loop (per-push)
 
@@ -204,6 +204,8 @@ After each push, run this loop until convergence (**every** check in a terminal 
 5. **On CI failure:** route to 3.2 (research-driven fix)
 6. **On new comment:** route to 3.3 (evaluate + respond)
 7. **After any fix push:** restart the loop (new push = new monitoring cycle)
+
+**One fix round per head, including a delegated one.** Evaluating findings as they arrive (steps 4 and 6) is not dispatching a fix for each. When a worker does the fixing, hold the brief until every check and every reviewer on the current head is terminal (§3.3.2 step 0), then send one brief carrying all of the head's findings together: each failing check with its log excerpt, each unresolved review thread, and any independent verifier's failed criteria. A brief sent while a check or reviewer is still pending leaves the late finding for a second round and a second push, and each round pays for context and a full CI run again. Repeat only when the new head produces new findings.
 
 ### Polling CI from more than one worker
 

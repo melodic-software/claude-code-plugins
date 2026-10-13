@@ -110,11 +110,21 @@ fi
 # A test can force a failed \`claude stop\` via STUB_CLAUDE_STOP_RC to exercise
 # the stop-failure paths (no relaunch, non-zero exit).
 if [[ "\$1" == "stop" ]]; then exit "\${STUB_CLAUDE_STOP_RC:-0}"; fi
+# \`claude plugin test <dir>\` prints STUB_CLAUDE_PLUGIN_TEST_OUT (default: the
+# can-load message) and logs the directory it ran from and whether <dir> is empty.
+if [[ "\$1" == "plugin" && "\$2" == "test" ]]; then
+  printf 'plugin-test cwd=%s dir-empty=%s\n' "\$PWD" "\$([[ -d "\$3" && -z "\$(ls -A "\$3")" ]] && echo yes || echo no)" >>"$CLAUDE_LOG"
+  # STUB_CLAUDE_PLUGIN_TEST_HANG=1 never answers, to prove the probe is bounded.
+  [[ "\${STUB_CLAUDE_PLUGIN_TEST_HANG:-0}" == 1 ]] && exec sleep 60
+  printf 'claude plugin test: %s\n' "\${STUB_CLAUDE_PLUGIN_TEST_OUT:-\$3: no hooks module to load; there is no hooks/hooks.json naming one in \"modules\"}"
+  exit 1
+fi
 # A test can force a failed \`claude plugin marketplace update\` via
 # STUB_CLAUDE_UPDATE_RC to exercise the refresh-failure abort path.
 if [[ "\$1" == "plugin" ]]; then exit "\${STUB_CLAUDE_UPDATE_RC:-0}"; fi
 # STUB_CLAUDE_VERSION drives the ultracode version gate; the default clears it.
 if [[ "\$1" == "--version" ]]; then
+  [[ "\${STUB_CLAUDE_VERSION_HANG:-0}" == 1 ]] && exec sleep 60
   printf '%s (Claude Code)\n' "\${STUB_CLAUDE_VERSION:-2.1.220}"
   exit 0
 fi
@@ -1158,6 +1168,95 @@ assert_not_contains "an explicit pre-move --config does not warn" "$out" "readin
 assert_contains "an explicit pre-move --config keeps the pre-move prompt_dir" "$out" "$OLD_REPO/.work/work.md"
 
 # ============================================================================
+# Mods state (#6157): one `mods:` line per lane at start, restart and status
+# ============================================================================
+MODS_CONFIG="$TMP/mods.json"
+cat >"$MODS_CONFIG" <<'JSON'
+{ "prompt_dir": ".work/lanes",
+  "lanes": [ { "name": "plain",    "prompt": "work.md", "effort": "high" },
+             { "name": "hooksoff", "prompt": "work.md", "effort": "high", "settings": { "disableAllHooks": true } },
+             { "name": "hookson",  "prompt": "work.md", "effort": "high", "settings": { "disableAllHooks": false } } ] }
+JSON
+CAN_LOAD="mods: can load (nothing the launcher sees stops them; causes only the session sees are unchecked)"
+mods_run() { run_launcher "$1" --repo "$REPO" --config "$MODS_CONFIG" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1; }
+
+# Cause: a CLI below the mods floor. No `plugin test` call is made for it.
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_VERSION=2.1.286 mods_run start)"
+assert_contains "below 2.1.287 start reports mods off with the version" "$out" "mods: off (Claude Code 2.1.286 is older than 2.1.287, the mods floor)"
+assert_not_contains "below the floor no plugin test runs" "$(cat "$CLAUDE_LOG")" "plugin-test"
+
+# Cause: disableAllHooks in the lane's own --settings, whatever the machine says.
+out="$(STUB_CLAUDE_VERSION=2.1.287 mods_run start)"
+assert_contains "lane overlay disableAllHooks reports off for that lane" "$out" "mods: off (disableAllHooks in the lane's --settings)"
+assert_eq "at the floor with a can-load machine, the two other lanes can load" 2 "$(grep -cF -- "$CAN_LOAD" <<<"$out")"
+
+# The probe runs once per run, from the repo, against an empty directory.
+: >"$CLAUDE_LOG"
+STUB_CLAUDE_VERSION=2.1.296 mods_run status >/dev/null
+assert_eq "the machine probe runs once across three lanes" 1 "$(grep -c 'plugin-test' "$CLAUDE_LOG")"
+assert_contains "the probe runs from the lanes' launch directory against an empty dir" "$(cat "$CLAUDE_LOG")" "plugin-test cwd=$REPO dir-empty=yes"
+
+# Cause: a settings scope or policy, as claude plugin test reports it.
+out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='hooks modules are turned off here' mods_run restart)"
+assert_contains "restart reports a settings or policy cause" "$out" "mods: off (a setting or policy turns them off: disableAllHooks in a settings file, or the organization's policy"
+assert_not_contains "the settings cause names no setting upstream does not" "$out" "allowManaged"
+assert_contains "an overlay false under a settings cause reads unknown, never on" "$out" "mods: unknown (the lane's --settings sets disableAllHooks to false"
+
+# Cause: the rollout switch served off.
+out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='hooks modules are turned off in this process: the rollout switch served off' mods_run status)"
+assert_contains "status reports the rollout switch" "$out" "mods: off (Anthropic's rollout switch served off"
+assert_not_contains "a rollout-off machine reports no lane as can load" "$out" "mods: can load"
+
+# Unknown: a rollout value an earlier session saved, an unrecognized message, an
+# unreadable version, and no CLI at all. None of them reads as can load.
+out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='hooks modules are turned off in this process: the rollout switch was saved off by an earlier session' mods_run status)"
+assert_contains "a saved-off rollout value reads unknown" "$out" "mods: unknown (claude plugin test read a rollout switch an earlier session saved off"
+out="$(STUB_CLAUDE_VERSION=2.1.296 STUB_CLAUDE_PLUGIN_TEST_OUT='something new' mods_run status)"
+assert_contains "an unrecognized plugin test message reads unknown" "$out" "mods: unknown (claude plugin test gave no message the launcher knows)"
+assert_not_contains "an unrecognized message reports no lane as can load" "$out" "mods: can load"
+out="$(STUB_CLAUDE_VERSION=garbage mods_run status)"
+assert_contains "an unreadable version reads unknown" "$out" "mods: unknown (claude --version gave no version within 20 s)"
+out="$(PATH="$NOCLAUDE_PATH" mods_run status)"
+assert_contains "no CLI reads unknown" "$out" "mods: unknown (no claude CLI to probe)"
+
+# A hung probe is bounded: start and status --dry-run finish, and the lane reads
+# unknown with the bound. Run through GNU timeout when present and through the
+# pure-Bash watchdog (the macOS path) either way.
+hang_run() { # <action> <force-bash 0|1> <hang var>
+  local start_s end_s
+  start_s=$SECONDS
+  out="$(
+    export LANES_PROBE_TIMEOUT_S=1 LANES_FORCE_BASH_TIMEOUT="$2" "$3=1" STUB_CLAUDE_VERSION=2.1.296
+    mods_run "$1"
+  )"
+  end_s=$SECONDS
+  elapsed=$((end_s - start_s))
+}
+for force in 0 1; do
+  for action in start status; do
+    hang_run "$action" "$force" STUB_CLAUDE_PLUGIN_TEST_HANG
+    assert_contains "a hung plugin test reads unknown ($action, force-bash=$force)" "$out" "mods: unknown (claude plugin test did not finish in 1 s)"
+    assert_not_contains "a hung plugin test reads no lane as can load ($action, force-bash=$force)" "$out" "mods: can load"
+    assert_eq "a hung plugin test is bounded ($action, force-bash=$force)" 1 "$((elapsed < 15))"
+  done
+  hang_run status "$force" STUB_CLAUDE_VERSION_HANG
+  assert_contains "a hung claude --version reads unknown (force-bash=$force)" "$out" "mods: unknown (claude --version gave no version within 1 s)"
+  assert_eq "a hung claude --version is bounded (force-bash=$force)" 1 "$((elapsed < 15))"
+done
+
+# The probe runs before the first lane launches, not between launches.
+: >"$CLAUDE_LOG"
+STUB_CLAUDE_VERSION=2.1.296 run_launcher start --repo "$REPO" --config "$MODS_CONFIG" --agents-json "$AGENTS_EMPTY" --no-pull --no-update >/dev/null 2>&1
+probe_line="$(grep -n 'plugin-test' "$CLAUDE_LOG" | head -1 | cut -d: -f1)"
+launch_line="$(grep -n -- '--bg' "$CLAUDE_LOG" | head -1 | cut -d: -f1)"
+assert_eq "the mods probe precedes the first launch" 1 "$((${probe_line:-999} < ${launch_line:-0}))"
+
+# A launch the launcher refuses prints no mods line for that lane.
+out="$(STUB_CLAUDE_VERSION=2.1.202 run_launcher start --repo "$REPO" --config "$TMP/ultra.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1 | grep -c 'mods:' || true)"
+assert_eq "a refused ultracode lane below its floor prints no mods line" 0 "$out"
+
+# ============================================================================
 # Execution target: host per lane from docs/conventions/execution-target.yaml
 # ============================================================================
 # These cases need real git (a bare origin and a clone), so they run with the
@@ -1304,6 +1403,22 @@ out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "default supplies local-background" "$out" "execution target local-background (default)"
 assert_contains "local-background launches from the linked worktree" "$out" "DRY-RUN: cd $(printf '%q' "$ET_WT")"
 assert_contains "local-background is claude --bg -n <name> --permission-mode auto" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
+assert_contains "a local-background lane reads mods unknown, naming its host" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on local-background)"
+# status reads the policy the local origin/HEAD names, without fetching, and an
+# already-running lane skipped by start resolves its own target too.
+out="$(et_run status 2>&1)"
+assert_contains "status names a local-background lane's host in its mods line" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on local-background)"
+assert_not_contains "status does not fetch the policy" "$out" "git fetch origin"
+cat >"$TMP/et-agents-work-running.json" <<'JSON'
+[ { "pid": 1, "cwd": "/r", "kind": "background", "startedAt": 1, "sessionId": "sid-et", "name": "work", "status": "idle" } ]
+JSON
+out="$(et_run start --agents-json "$TMP/et-agents-work-running.json" --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "a running local-background lane skipped by start names its host" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on local-background)"
+# The lane's own disableAllHooks holds on any host.
+et_lanes work-items:work-loop '{"settings":{"disableAllHooks":true}}'
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "an overlay disableAllHooks reads off on a non-local host" "$out" "mods: off (disableAllHooks in the lane's --settings)"
+et_lanes work-items:work-loop
 
 # cloud-routine and cloud-project print setup steps and launch nothing, for a
 # stage whose input is never untrusted (the trusted-stage copy).
@@ -1316,6 +1431,7 @@ for v in cloud-routine cloud-project; do
   assert_contains "$v prints setup steps" "$out" "$v is set by default"
   assert_not_contains "$v launches no local session" "$out" "claude --bg"
   assert_not_contains "$v launches no cloud session" "$out" "claude --cloud"
+  assert_contains "$v prints a mods line naming its host" "$out" "mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on $v)"
 done
 # restart leaves a running lane up when its host is one the launcher does not start.
 cat >"$TMP/et-agents-running.json" <<'JSON'
@@ -1362,6 +1478,8 @@ et_publish 'default: "$(touch PWNED_VALUE)"'
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "an unknown value names the file and the SHA it was read at" "$out" "at default in docs/conventions/execution-target.yaml at origin/main $ET_SHA_NOW; local-worktree"
 assert_contains "an unknown value keeps today's launch" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
+out="$(et_run status 2>&1)"
+assert_contains "status reports an unknown value with the ref and SHA it read" "$out" "at default in docs/conventions/execution-target.yaml at origin/HEAD $ET_SHA_NOW; local-worktree"
 et_publish $'default: [unclosed'
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 assert_contains "a file the parser rejects is reported" "$out" "does not parse"

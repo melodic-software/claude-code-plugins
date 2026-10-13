@@ -3,6 +3,40 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0] - 2026-10-13
+
+### Added
+
+- A `LICENSE` carrying the MIT notice for content reauthored from emilkowalski/skills (pinned in `docs/upstream/emilkowalski-skills.md`) beside the Melodic Software derivative line.
+- `scripts/check-emilkowalski-drift.sh`, run weekly by the upstream drift workflow: it reads the emilkowalski/skills tree once, compares each pinned file with its pin and reports new upstream skill files.
+- `reference/animation/`: a shared animation catalog (whether to animate, purpose, cheapest tool, properties, easing and duration roles, reduced motion, feel check), stack-neutral component behaviors, gestures and springs, web animation performance, and a glossary of effect names.
+- An `animation:` settings block (easing curves as four control points, `press`/`small`/`medium`/`large` role durations, a swipe velocity threshold), settable in the user, team and personal config files.
+- `/user-interface:write-animation`: decides whether an element should animate and why, names the stack from the project's files, looks up its current animation guidance (a vendor skill, then docs lookup, research, official docs, repo patterns), and writes one animation from the project's motion tokens with reduced motion included; CSS is written through `/user-interface:write-css`.
+- `/user-interface:audit-animation [tree|opportunities|performance] [--fix] [<target>]`: a read-only animation review of the diff, the whole tree, the opportunities (and where not to animate) or the frame cost, each finding with severity and "verified from code" or "needs a device recording"; CSS goes through write-css review mode first, and `--fix` applies one finding at a time after a yes.
+- `scripts/detect.mjs --config` warns about a team routing row or `disable` entry that names a concern no bundled row has, so a renamed concern no longer goes quiet.
+- `reference/types/touch-web.md`: capability-based guidance for web interfaces used by touch (hover and press, target sizes, viewport and safe areas, on-screen keyboards, scroll and gestures, hardware verification), read from `web.md` when people use the interface on a phone.
+- `reference/component-libraries.md`: framework-neutral criteria for choosing a component library (headless or styled, accessibility, stack fit, maintenance, license, weight), preferring one the project already uses; `/user-interface:design` answers the `component-libraries` concern from it when no tool is routed.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- `/user-interface:write-css` takes its easing curves and its `duration` rule from the resolved `animation:` block instead of fixed values; at the defaults a dropdown or menu now stays within 250ms (was 300ms), and review mode judges the linter's `duration` findings against the configured role.
+- Routing: the `motion` concern is now `animation-authoring` (first routes `/pixel-art:animate`, `/user-interface:write-animation`), joined by `animation-audit` (`/user-interface:audit-animation`); the external emilkowalski/skills rows are removed now that their content ships here, and `expo@expo-plugins` is added. A team config whose `routing` rows or `disable` entries name `concern: motion` should rename it to `animation-authoring`; detect now warns until it does.
+- The accessibility floor's "Motion is optional" now says what a reduced-motion setting removes (movement) and what may stay (a short opacity or color change), with a pointer to WCAG 2.2 success criterion 2.3.3.
+
+### Fixed
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.5.0] - 2026-10-11
 
 ### Added

@@ -173,7 +173,10 @@ ip_discover_rules() {
   # One entry per REAL file. When a symlink loop or a duplicate link exposes the
   # same file under several paths, keep the shallowest, then the lexically first
   # — so a loop reports `.claude/rules/ok.md`, never `.claude/rules/loop/ok.md`.
-  LC_ALL=C sort "$seen_file" | awk -F'\t' '
+  # Fixture paths drop before that choice, so a shallower fixture alias of a real
+  # rule cannot win and then take the real rule out with it.
+  LC_ALL=C sort "$seen_file" | awk -F'\t' -v fixture="$IP_FIXTURE_ERE" '
+    $2 ~ fixture { next }
     {
       depth = gsub(/\//, "/", $2)
       if (!($1 in best) || depth < bestdepth[$1] ||
@@ -183,7 +186,7 @@ ip_discover_rules() {
       }
     }
     END { for (k in best) print best[k] }
-  ' | awk -v fixture="$IP_EVAL_FIXTURE_ERE" '$0 !~ fixture' | LC_ALL=C sort
+  ' | LC_ALL=C sort
 
   rm -f "$seen_file"
 }
@@ -216,12 +219,13 @@ ip_discover_rules() {
 IP_EXCLUDED_TREES=".claude node_modules vendor .git"
 IP_FOREIGN_AGENT_TREES=".codex .cursor .github"
 
-# An eval fixture tree imitates a consuming repository as test input. Its rules
-# and nested instruction files are not this repository's conventions, so both
-# discovery functions drop any path with an `evals/fixtures/` segment pair. One
-# awk ERE over a repository-relative path, shared so the index, the glob gate
-# and the wiring gate cannot disagree about a fixture.
-IP_EVAL_FIXTURE_ERE='(^|/)evals/fixtures/'
+# An eval or unit-test fixture tree imitates a consuming repository as test
+# input. Its rules and nested instruction files are not this repository's
+# conventions, so both discovery functions drop any path with an
+# `evals/fixtures/` or `tests/fixtures/` segment pair. One awk ERE over a
+# repository-relative path, shared so the index, the glob gate and the wiring
+# gate cannot disagree about a fixture.
+IP_FIXTURE_ERE='(^|/)(evals|tests)/fixtures/'
 
 # ---------------------------------------------------------------------------
 # Nested instruction-file discovery
@@ -247,7 +251,7 @@ ip_discover_nested_instructions() {
   fi
 
   printf '%s\n' "$listing" |
-    awk -v excluded="$IP_EXCLUDED_TREES" -v foreign="$IP_FOREIGN_AGENT_TREES" -v fixture="$IP_EVAL_FIXTURE_ERE" '
+    awk -v excluded="$IP_EXCLUDED_TREES" -v foreign="$IP_FOREIGN_AGENT_TREES" -v fixture="$IP_FIXTURE_ERE" '
     BEGIN {
       split(excluded, ex, " "); for (k in ex) skip[ex[k]] = 1
       split(foreign, others, " "); for (k in others) theirs[others[k]] = 1

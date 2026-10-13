@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Not in parallel across suites. This session ends the moment I answer, and anything I background dies with it. So I run each suite in the foreground, one after another, with a tool timeout that covers it:\n\n```bash\nclaude plugin eval ./plugins/notes --trust-plugin --keep-temp --json /tmp/evals/notes.json --no-publish\nclaude plugin eval ./plugins/todo --trust-plugin --keep-temp --json /tmp/evals/todo.json --no-publish\nclaude plugin eval ./plugins/search --trust-plugin --keep-temp --json /tmp/evals/search.json --no-publish\n```\n\nFor speed inside a suite I can add `-j 4`. Between launch and my answer I wait for each process to exit, then read its exit code and JSON together. My final answer comes only after all three have finished.",
+      "why": "P-canonical: foreground, one suite after another, -j only inside a suite, waits for every run and reads results before answering."
+    },
+    {
+      "answer": "I'll launch them one at a time and stay attached. Each `claude plugin eval <target> ... --json <file>` call runs in the foreground with `-j 3` for concurrency within that suite, and I don't move on until it exits and its results file exists. Only after the third run exits and I've read all three JSON files do I write the final answer. I won't background them: a headless launcher's exit kills any run still going.",
+      "why": "P-short: foreground per suite with -j, waits, reads, then answers."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "To save time I'll start all three in the background:\n\n```bash\nnohup claude plugin eval ./plugins/notes --json notes.json &\nnohup claude plugin eval ./plugins/todo --json todo.json &\nnohup claude plugin eval ./plugins/search --json search.json &\n```\n\nThen I'll tell you they're running and finish. When they complete, the JSON files will be in the repo root for you to check in the morning.",
+      "why": "F-canonical: backgrounds every run and ends the session, the observed failure."
+    },
+    {
+      "answer": "I'll kick off the three suites as background tasks so they run in parallel, report that they've started, and give my final answer. They take a few minutes each, so the results will be waiting under each suite's results/ directory.",
+      "why": "F-background-task: background tool calls and ends while runs are in flight."
+    },
+    {
+      "answer": "I'll run each suite in the foreground, one after another: `claude plugin eval ./plugins/notes --json notes.json`, then todo, then search. Once the last command is launched I'll summarize what I started and finish.",
+      "why": "F-no-wait: never says it waits for the runs to exit before answering, and 'once launched ... finish' ends with a run in flight."
+    },
+    {
+      "answer": "Foreground runs one at a time, waiting for each to finish and reading its JSON before the next. Actually, to keep the nightly job short, I'll background the search suite with `&` since it's slowest and finish once notes and todo are done.",
+      "why": "F-retract: starts correct, then backgrounds one run and ends with it in flight."
+    },
+    {
+      "answer": "I'll run a single foreground command that starts the three and blocks until all of them are done:\n\n```bash\nfor p in notes todo search; do claude plugin eval ./plugins/$p --json /tmp/$p.json & done; wait\n```\n\nThe `wait` keeps the session attached until every run exits; then I read the three JSON files and only then answer. I won't return before `wait` returns.",
+      "why": "F-wrapper: backgrounds the three runs with `&` inside a waiting wrapper; the contract is one suite at a time in the foreground, with concurrency only through `-j` inside a suite."
+    }
+  ]
+}

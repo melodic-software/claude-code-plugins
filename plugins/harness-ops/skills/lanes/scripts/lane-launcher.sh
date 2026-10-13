@@ -190,6 +190,17 @@
 #   --gate-arm-script override); an env-derived location would hand the same
 #   repo env block the redirect this design closes.
 #
+# Mods state (#6157):
+#   start, restart and status print a `mods:` line under each lane: `off
+#   (<cause>)`, `unknown (<why>)`, or `can load`. The causes the launcher sees are
+#   the CLI below the mods version floor, disableAllHooks in the lane's
+#   --settings, and what `claude plugin test` reports from the repo against an
+#   empty temp dir (settings scopes, policy, the rollout switch). One probe per
+#   run, before the first lane launches, each claude call bounded by a timeout
+#   (a hung one reads as unknown); it adds no claude call when the CLI is
+#   absent, which reads as unknown.
+#   The line is information only and never changes the exit code.
+#
 # Exit codes:
 #   0  ok
 #   1  a refresh step (pull / marketplace update) failed, or a lane could not be
@@ -235,16 +246,160 @@ version_at_least() { # <candidate> <minimum>
   }' 2>/dev/null
 }
 
+# --- Bounded probes -----------------------------------------------------------
+# A read-only probe (`claude --version`, `claude plugin test`) that hangs must not
+# hold up the lanes, so each runs under a timeout and a hung one reads as no
+# answer. GNU timeout (or gtimeout) is used only when it has --kill-after; macOS
+# ships neither, so a pure-Bash watchdog is the fallback: TERM after the bound,
+# KILL after a short grace. LANES_PROBE_TIMEOUT_S shortens the bound for tests;
+# LANES_FORCE_BASH_TIMEOUT=1 forces the fallback.
+PROBE_TIMEOUT_S="${LANES_PROBE_TIMEOUT_S:-20}"
+PROBE_KILL_AFTER_S=2
+[[ "$PROBE_TIMEOUT_S" =~ ^[1-9][0-9]*$ ]] || PROBE_TIMEOUT_S=20
+PROBE_TIMEOUT_CMD=""
+if [[ "${LANES_FORCE_BASH_TIMEOUT:-}" != "1" ]]; then
+  for candidate in timeout gtimeout; do
+    if command -v "$candidate" >/dev/null 2>&1 &&
+      "$candidate" --help 2>&1 | grep -Fq -- '--kill-after'; then
+      PROBE_TIMEOUT_CMD="$candidate"
+      break
+    fi
+  done
+fi
+
+# run_bounded <cmd...>: runs the command under PROBE_TIMEOUT_S; exits 124 on a
+# timeout, like GNU timeout. The watchdog's output goes to /dev/null so a $(...)
+# around run_bounded does not wait on the watchdog's sleep.
+run_bounded() {
+  if [[ -n "$PROBE_TIMEOUT_CMD" ]]; then
+    "$PROBE_TIMEOUT_CMD" --signal=TERM --kill-after="${PROBE_KILL_AFTER_S}s" "${PROBE_TIMEOUT_S}s" "$@"
+    return
+  fi
+  local child watchdog status flag
+  flag="$(mktemp 2>/dev/null)" || flag=""
+  "$@" &
+  child=$!
+  (
+    sleep "$PROBE_TIMEOUT_S"
+    kill -TERM "$child" 2>/dev/null || exit 0
+    [[ -n "$flag" ]] && printf 'timeout\n' >"$flag"
+    sleep "$PROBE_KILL_AFTER_S"
+    kill -KILL "$child" 2>/dev/null || true
+  ) >/dev/null 2>&1 &
+  watchdog=$!
+  wait "$child"
+  status=$?
+  kill -TERM "$watchdog" 2>/dev/null || true
+  wait "$watchdog" 2>/dev/null || true
+  if [[ -n "$flag" ]]; then
+    [[ -s "$flag" ]] && status=124
+    rm -f "$flag"
+  fi
+  return "$status"
+}
+
 # Memoized: every lane in a run shares one `claude --version` probe. Callers read
 # CLI_VERSION_CACHE directly — a `$(cli_version)` substitution would populate the
 # cache inside a subshell and throw it away, re-probing once per lane.
 CLI_VERSION_CACHE=""
 cli_version() {
   [[ -n "$CLI_VERSION_CACHE" ]] && return 0
-  CLI_VERSION_CACHE="$(claude --version 2>/dev/null | tr -d '\r' |
+  CLI_VERSION_CACHE="$(run_bounded claude --version 2>/dev/null | tr -d '\r' |
     grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
   [[ -n "$CLI_VERSION_CACHE" ]] || CLI_VERSION_CACHE="unknown"
   return 0
+}
+
+# --- Mods state (#6157) -------------------------------------------------------
+# context-guard and rate-limit-guard run as mods; with mods off a lane gets only
+# their reactive settings hooks. start/restart/status print one `mods:` line per
+# lane: `off (<cause>)` for a cause the launcher can see, `unknown (<why>)` when
+# it cannot tell, and `can load` only when nothing it can see stops them. Causes
+# only the session sees (see the lanes skill, "Mods state") never read as on.
+# Floor: https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off
+# Machine check and its messages:
+# https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load
+# As of 2026-10-11 (Claude Code 2.1.296). Recheck when either section changes its
+# version or the messages `claude plugin test` prints.
+MODS_MIN_VERSION="2.1.287"
+MODS_STATE=""
+MODS_CAUSE=""
+
+# Memoized like cli_version: the probe runs at most once per launcher run, and
+# callers read MODS_STATE / MODS_CAUSE directly (never from a subshell).
+# `claude plugin test <dir>` reads settings from its working directory and looks
+# for a mod in <dir>, so it runs from the lanes' launch directory against an
+# empty temp dir: the lane's own project settings count and no test runs.
+probe_machine_mods() {
+  [[ -n "$MODS_STATE" ]] && return 0
+  if ! command -v claude >/dev/null 2>&1; then
+    MODS_STATE="unknown" MODS_CAUSE="no claude CLI to probe"
+    return 0
+  fi
+  cli_version
+  if [[ "$CLI_VERSION_CACHE" == "unknown" ]]; then
+    MODS_STATE="unknown" MODS_CAUSE="claude --version gave no version within ${PROBE_TIMEOUT_S} s"
+    return 0
+  fi
+  if ! version_at_least "$CLI_VERSION_CACHE" "$MODS_MIN_VERSION"; then
+    MODS_STATE="off" MODS_CAUSE="Claude Code $CLI_VERSION_CACHE is older than $MODS_MIN_VERSION, the mods floor"
+    return 0
+  fi
+  local empty out
+  if ! empty="$(mktemp -d 2>/dev/null)"; then
+    MODS_STATE="unknown" MODS_CAUSE="no temp dir for claude plugin test"
+    return 0
+  fi
+  local rc=0
+  out="$(cd "${REPO:-.}" 2>/dev/null && run_bounded claude plugin test "$empty" 2>&1)" || rc=$?
+  out="${out//$'\r'/}"
+  rmdir "$empty" 2>/dev/null
+  if ((rc == 124)); then
+    MODS_STATE="unknown" MODS_CAUSE="claude plugin test did not finish in ${PROBE_TIMEOUT_S} s"
+    return 0
+  fi
+  case "$out" in
+  *"no hooks module to load"*)
+    MODS_STATE="can load" MODS_CAUSE="" ;;
+  *"hooks modules are turned off here"*)
+    MODS_STATE="off" MODS_CAUSE="a setting or policy turns them off: disableAllHooks in a settings file, or the organization's policy, per claude plugin test" ;;
+  *"rollout switch served off"*)
+    MODS_STATE="off" MODS_CAUSE="Anthropic's rollout switch served off, per claude plugin test" ;;
+  *"saved off by an earlier session"*)
+    MODS_STATE="unknown" MODS_CAUSE="claude plugin test read a rollout switch an earlier session saved off; start claude once to refresh it" ;;
+  *)
+    MODS_STATE="unknown" MODS_CAUSE="claude plugin test gave no message the launcher knows" ;;
+  esac
+  return 0
+}
+
+# Prints the lane's `mods:` line. The lane's --settings overlay is read first: it
+# can turn hooks off for that lane alone, and an explicit false in it may undo a
+# lower scope's true, which the machine check cannot see. The probe covers the
+# repo checkout on this machine, so a lane placed anywhere else reads unknown.
+print_lane_mods() { # <settings JSON or ""> [execution target]
+  local settings="${1:-}" target="${2:-}" overlay=""
+  [[ -n "$settings" ]] && overlay="$(jq -r 'if type == "object" and has("disableAllHooks") then (.disableAllHooks | tostring) else "" end' <<<"$settings" 2>/dev/null)"
+  if [[ "$overlay" == "true" ]]; then
+    info "    mods: off (disableAllHooks in the lane's --settings)"
+    return 0
+  fi
+  case "$target" in
+  "" | local-worktree) ;;
+  *)
+    info "    mods: unknown (the launcher probes the repo checkout on this machine; this lane runs on $target)"
+    return 0
+    ;;
+  esac
+  probe_machine_mods
+  if [[ -n "$overlay" && "$MODS_STATE" == "off" && "$MODS_CAUSE" == "a setting or policy"* ]]; then
+    info "    mods: unknown (the lane's --settings sets disableAllHooks to $overlay, and a settings file or policy turns mods off)"
+    return 0
+  fi
+  case "$MODS_STATE" in
+  "can load") info "    mods: can load (nothing the launcher sees stops them; causes only the session sees are unchecked)" ;;
+  *) info "    mods: $MODS_STATE ($MODS_CAUSE)" ;;
+  esac
 }
 
 ACTION="start"
@@ -380,8 +535,9 @@ require_jq() {
 # fixture-fed (--agents-json) reads must work with no CLI installed.
 require_claude() {
   ((DRY_RUN)) && return 0
-  # A fixture-fed status read (--agents-json) makes no claude call, so it works
-  # fully offline as documented; only the paths that actually shell out to
+  # A fixture-fed status read (--agents-json) needs no claude CLI, so it works
+  # fully offline as documented (its mods probe reads unknown when the CLI is
+  # absent, and runs `claude plugin test` when it is); only the paths that actually shell out to
   # claude (launch / stop / marketplace update, or a live agents list) need it.
   [[ "$ACTION" == "status" && -n "$AGENTS_JSON_FILE" ]] && return 0
   [[ "$ACTION" == "print-schedule" ]] && return 0
@@ -1038,6 +1194,18 @@ load_execution_target() {
   info "execution-target: read $ET_FILE at $ET_REF $ET_SHA"
 }
 
+# status reads the policy without fetching: from the commit the local
+# origin/HEAD already names, or not at all.
+peek_execution_target() {
+  ((ET_LOADED)) && return 0
+  ET_LOADED=1
+  local sha
+  sha="$(git -C "$REPO" rev-parse --verify --quiet --end-of-options "refs/remotes/origin/HEAD^{commit}" 2>/dev/null)" || return 0
+  ET_SHA="$sha" ET_REF="origin/HEAD"
+  ET_TEXT="$(git -C "$REPO" show --end-of-options "$sha:$ET_FILE" 2>/dev/null)" || ET_TEXT=""
+  bash "$ET_READER" --strict - default >/dev/null 2>&1 <<<"$ET_TEXT" || ET_TEXT=""
+}
+
 # Sets LANE_TARGET and LANE_TARGET_KEY for a lane's stage (may be empty).
 resolve_lane_target() {
   local stage="$1" key v
@@ -1619,18 +1787,23 @@ _start_one() {
   sid="$(running_session_id "$name")"
   if [[ -n "$sid" ]]; then
     info "  skip $name — already running ($sid)"
+    load_execution_target
+    resolve_lane_target "$stage"
+    print_lane_mods "$settings" "$LANE_TARGET"
     return 0
   fi
   plan_lane_target "$name" "$stage" || return 1
   case "$LANE_TARGET" in
   cloud-routine | cloud-project)
     print_setup_steps "$name" "$stage" "$LANE_TARGET" "$prompt_path"
+    print_lane_mods "$settings" "$LANE_TARGET"
     return 0
     ;;
   *) ;;
   esac
   info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}"
-  launch_on_target "$idx" "$name" "$model" "$effort" "$prompt_path" "$settings" "$stage" start
+  launch_on_target "$idx" "$name" "$model" "$effort" "$prompt_path" "$settings" "$stage" start || return 1
+  print_lane_mods "$settings" "$LANE_TARGET"
 }
 
 _restart_one() {
@@ -1643,6 +1816,7 @@ _restart_one() {
   case "$LANE_TARGET" in
   cloud-routine | cloud-project)
     print_setup_steps "$name" "$stage" "$LANE_TARGET" "$prompt_path"
+    print_lane_mods "$settings" "$LANE_TARGET"
     return 0
     ;;
   *) ;;
@@ -1657,7 +1831,8 @@ _restart_one() {
     return 1
   fi
   info "  start $name${model:+ --model $model}${effort:+ --effort $effort}${settings:+ --settings <lane config>}"
-  launch_on_target "$idx" "$name" "$model" "$effort" "$prompt_path" "$settings" "$stage" restart
+  launch_on_target "$idx" "$name" "$model" "$effort" "$prompt_path" "$settings" "$stage" restart || return 1
+  print_lane_mods "$settings" "$LANE_TARGET"
 }
 
 _stop_one() {
@@ -1674,13 +1849,16 @@ _stop_one() {
 }
 
 _status_one() {
-  local name="$1" model="$2" effort="$3" prompt_path="$4" sid state="stopped"
+  local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}" stage="${7:-}" sid state="stopped"
   sid="$(running_session_id "$name")"
   [[ -n "$sid" ]] && state="running"
   local pflag=""
   [[ -f "$prompt_path" ]] || pflag=" [prompt MISSING]"
   printf '  %-12s %-8s %-8s %-8s %s%s\n' \
     "$name" "${model:-–}" "${effort:-–}" "$state" "${sid:-–}" "$pflag"
+  peek_execution_target
+  resolve_lane_target "$stage"
+  print_lane_mods "$settings" "$LANE_TARGET"
 }
 
 # We treat a set variable as able to override every lane's --effort and every agent
@@ -1703,6 +1881,9 @@ action_start() {
   # repo/plugin state the user did not sign off on (--no-pull/--no-update is the
   # intentional-skip path, which leaves the refresh status 0).
   refresh_repo_and_plugins || return 1
+  # Probe mods once, after the refresh and before the first launch, so a slow
+  # probe never sits between two lane launches.
+  probe_machine_mods
   info "lanes:"
   for_each_lane _start_one || rc=1
   return "$rc"
@@ -1713,6 +1894,7 @@ action_restart() {
   info "== lanes: restart$(lane_scope) =="
   warn_effort_env_override
   refresh_repo_and_plugins || return 1
+  probe_machine_mods # once, before the first relaunch (see action_start)
   info "lanes:"
   for_each_lane _restart_one || rc=1
   return "$rc"
@@ -1725,6 +1907,7 @@ action_stop() {
 
 action_status() {
   info "== lanes: status =="
+  probe_machine_mods # once, before the table
   printf '  %-12s %-8s %-8s %-8s %s\n' "LANE" "MODEL" "EFFORT" "STATE" "SESSION"
   for_each_lane _status_one
 }

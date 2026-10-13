@@ -72,6 +72,12 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   - **Recheck trigger**: that section changes which stopped subagents a message resumes, a
     release note changes subagent lifetime across `/clear`, or the orchestrate record changes its
     `TaskStop` rule or probe.
+- **Writing the save-point while work it describes is still running.** A subagent whose result
+  the handoff depends on returns seconds after the file is written; its result lands in the old
+  session, and the brief, criteria, Environment and `Next:` now describe settled work as in
+  flight, a stale file only a hand edit can repair. Inventorying it is not settling it: wait for
+  dependent work before `new`, or record it as in flight on the user's choice ("Settle in-flight
+  work before writing" in `SKILL.md`).
 - **Saying nothing about the active `/loop`s on resume.** Never assume a `/loop` survived the
   clear or resume, and never assume it died: a resume prompt that reads only as a one-shot
   continuation silently drops a loop that did not come back, with no error to signal it, while
