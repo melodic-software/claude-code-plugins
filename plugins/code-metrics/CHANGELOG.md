@@ -3,6 +3,45 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0] - 2026-10-13
+
+### Added
+
+- **Clone trend in `audit-duplication`.** A run compares its clone-class count with the newest earlier kept report of the same project and scope mode that measured something. The document gains `trend` (`clone_groups`, `previous_clone_groups`, `delta`, `previous_generated_at`, `previous_document`, plus `new_classes` and `grown_classes`, each class named by its first instance with its copy count) and the markdown ends with a `Clone trend:` line; the first run in a project prints neither. Earlier reports are read as untrusted input: only a regular file of at most 5 MB with the same `schema`, a one-line timestamp and integer counts from 0 to 10^9 qualifies, and anything else is passed over for the next older report. A class's copy count stays its number of instances. New `--keep` flag: a `--json` run also keeps its document as the next run's baseline.
+- **`/code-metrics:audit-suppressions`.** Lists every lint and type-checker suppression in the lines the change's commits add (the default), the named paths, or the tree (`--all`), with its tool, rule ids and reason, and whether it is justified: a reason on the line, plus a rule id where the tool's syntax can name one (TypeScript directives cannot, so a reason alone justifies them). Covers ESLint, TypeScript, `noqa`, mypy, pylint, Pyright, Ruff, ShellCheck, C# `#pragma warning` and `SuppressMessage`, golangci-lint `nolint`, PowerShell `SuppressMessageAttribute`, markdownlint, RuboCop and Java `@SuppressWarnings`; a marker in a string, a Markdown code span or a fenced block is not counted. The new key `suppressions.correctness_rules` (default `[]`) lists rule ids whose suppressions are marked and counted; a list item that is not a string is dropped by name like any other wrong shape. The scanner is one shared file, `lib/suppression-scan.py`, copied into the skill; its `--count` prints `suppressions=<n>` and `unjustified=<n>`. Reports only, never gates. The plugin gains a plugin-level eval suite with four cases.
+- **`/code-metrics:audit-suppressions --findings`.** Writes the report plus one review-findings file into the branch's findings directory (`.work/reviews/<branch-slug>/`, or the memory root `--memory-dir` names) for `/review:fanout fix`, without asking anything. Each unjustified suppression is a row under `code-metrics/audit-suppressions/rule-no-reason` or `code-metrics/audit-suppressions/rule-no-rule-id` (IMPORTANT, `Confidence` high, not auto-applicable), with a repo-relative `Location`, an `Action` naming where that tool keeps its reason, and `## Surfaces` counting each rule's declined candidates. A justified suppression is no row. With no current branch it writes nothing and exits 2. Bare invocation and `--json` are unchanged.
+- **`schemas/code-metrics.schema.json`.** A JSON Schema for every configuration key, so a repository's CI can check its team file.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **The team layer is `docs/conventions/code-metrics.yaml`.** The resolver reads it first; `.claude/code-metrics.yaml` is read only while that file is absent, and with both present the docs file is the whole team layer and one warning says the older file is ignored and can be deleted once no older release reads it. `/code-metrics:setup apply` writes the docs file and, on its first write, carries every declared key of an existing `.claude/code-metrics.yaml`, so resolved values do not change, and drops and names any key the contract does not declare; `apply` with no key does that move alone. It refuses, with exit 1 and nothing written, a symlinked, hard-linked or non-regular target or older file, a symlinked `docs/`, `docs/conventions/` or `.claude/`, and any of them resolving outside the repository, and it writes through an exclusive no-follow temp file renamed over the target. `setup check` warns while only the older file exists.
+- **An invalid configuration value no longer stops an audit.** A layer outside the YAML subset is named with its line and read as absent. A value of the wrong shape (a quoted reference, a scalar where a list or mapping belongs, a control character, an exclude glob the matcher cannot compile) is named with its file, key and value and dropped; the key resolves from a valid higher layer, else the bundled default, never from a lower layer. These cases used to exit 2.
+
+- **Plugin-variable behavior is read from the plugins reference.** `principles` keeps its `<plugin-root>` placeholder rule and points at where each plugin variable resolves instead of restating it, and the report-directory comment in `persist-report.sh` points at that one record.
+
+### Fixed
+
+- **`audit-suppressions.sh` names a configuration it cannot read** in one line and exits 2, where a failed read surfaced as a traceback and a later, unrelated error about the merge-base or the dispatcher.
+- **`/code-metrics:audit-suppressions` says the frozen `--count` reads no configuration**: it counts files under `scope.exclude` and lane opt-outs that `--all` leaves out, so it can be higher.
+- **`audit-suppressions.sh --help` prints the whole header**, ending on the sentence that gives exit 0 and exit 2 and their meaning, which it used to cut off.
+- **Inline Python runs isolated.** Every `python -c` the entry points, the interpreter probe and `setup check` run now passes `-I`, so a `json.py` or other module a repository plants in the working directory is never imported in place of the standard library. Scripts run by path are unchanged: their sibling imports still resolve from their own directory.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- audit-duplication: the jscpd adapter no longer puts the lane's file list on jscpd's command line. It writes the files to the `path` array of a temporary config file and passes `--config`, so the command line stays the same length for any lane and a large Bash lane on Windows reports its clone classes instead of failing with exit 3 and empty stderr. The lane is still one jscpd run, so clones across distant files are still found. When jscpd writes no report, the exit-3 message now names jscpd's exit code. Passing `--config` stops jscpd's own `.jscpd.json` discovery, so a consumer `.jscpd.json` no longer reaches the scan. jscpd 5.x also ignores a `package.json` `jscpd` key; 4.x still applies the keys code-metrics does not set.
+
+- **Native Windows Python no longer makes audits measure nothing ([#6794](https://github.com/melodic-software/claude-code-plugins/issues/6794)).** Its CRLF stdout left a trailing carriage return on every path, glob, exclusion and registry value the dispatcher read back, so files fell into the `other` lane and the run exited 0 having measured nothing, or a configured registry was reported missing. The Python resolver now detects a CRLF interpreter and strips the carriage return before bash reads a line.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.5.10] - 2026-10-07
 
 ### Changed

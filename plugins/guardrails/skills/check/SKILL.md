@@ -2,6 +2,9 @@
 description: "Read-only check that node and jq resolve for the guardrails hooks. Use when a hook notice says node or jq is missing, or before assuming the guards ran. Does not install."
 user-invocable: true
 disable-model-invocation: false
+allowed-tools:
+  - "Bash(command -v jq*)"
+  - "Bash(command -v node*)"
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -12,8 +15,8 @@ metadata:
 
 The probes ran at load time, outside the Bash tool, so they still report when a missing `jq` makes the guards deny every Bash call. Each row shows the tool's path, or `absent` when missing:
 
-- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
-- `node`: !`{ command -v node 2>/dev/null || echo "absent"; }`
+- `jq`: !`command -v jq 2>/dev/null || echo absent`
+- `node`: !`command -v node 2>/dev/null || echo absent`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's `command -v` probe via Bash instead.
 

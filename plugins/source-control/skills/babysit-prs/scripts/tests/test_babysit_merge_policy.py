@@ -15,6 +15,7 @@ import base64
 import contextlib
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 import unittest
@@ -914,6 +915,44 @@ class Eligibility(unittest.TestCase):
         ]
         self.assertEqual(eligibility().reason, "opt-in-label:labeler-not-human")
 
+    def test_the_enqueue_recheck_reads_the_opt_in_again(self) -> None:
+        # #7339 comment 2: a removal, or a removal and a bot re-add, between
+        # the eligibility read and the enqueue must refuse the enqueue.
+        def recheck() -> str | None:
+            return policy.recheck_opt_in(
+                REPO, 7, agent_identity=IDENTITY, permission=HUMANS
+            )
+
+        eligibility_fake(self, pr={"author": user(OPERATOR)})
+        self.assertEqual(recheck(), "not-lane-authored-or-opted-in")
+
+        labeled = {"totalCount": 1, "nodes": [{"name": policy.OPT_IN_LABEL}]}
+        gh = eligibility_fake(self, pr={"author": user(OPERATOR), "labels": labeled})
+        gh.rest[f"repos/{REPO}/issues/7/timeline?per_page=100"] = [
+            {
+                "event": "labeled",
+                "label": {"name": policy.OPT_IN_LABEL},
+                "actor": {"login": "maintainer", "type": "User"},
+                "created_at": "2026-10-12T12:30:00Z",
+            },
+            {
+                "event": "unlabeled",
+                "label": {"name": policy.OPT_IN_LABEL},
+                "actor": {"login": "maintainer", "type": "User"},
+                "created_at": "2026-10-12T12:40:00Z",
+            },
+            {
+                "event": "labeled",
+                "label": {"name": policy.OPT_IN_LABEL},
+                "actor": {"login": "some-app[bot]", "type": "Bot"},
+                "created_at": "2026-10-12T12:45:00Z",
+            },
+        ]
+        self.assertEqual(recheck(), "opt-in-label:labeler-not-human")
+
+        eligibility_fake(self)
+        self.assertIsNone(recheck())
+
     def test_exactly_one_same_repository_linked_issue(self) -> None:
         second = {
             "number": 41,
@@ -1108,158 +1147,337 @@ class ChangedFiles(unittest.TestCase):
         self.assertEqual(policy.changed_files(REPO, pr), ((), False))
 
 
-class PromotionOptions(unittest.TestCase):
-    """The four bootstrap values come only from settings the lane user cannot
-    write (plan Phase 13; D10)."""
+class LaneWritable(unittest.TestCase):
+    def test_a_writable_ancestor_directory_is_lane_writable(self) -> None:
+        # #7339 item 1: renaming a writable grandparent replaces the file.
+        import tempfile
 
-    def settings(
-        self, directory: pathlib.Path, options: dict[str, str]
-    ) -> pathlib.Path:
-        path = directory / "settings.json"
-        path.write_text(
-            json.dumps(
-                {"pluginConfigs": {"source-control@market": {"options": options}}}
-            ),
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp).resolve()
+            target = root / "a" / "b" / "evidence.json"
+            target.parent.mkdir(parents=True)
+            target.write_text("[]", encoding="utf-8")
+            with (
+                mock.patch.object(
+                    policy.os, "access", side_effect=lambda p, _m: p == root / "a"
+                ),
+                mock.patch.object(policy.os, "getuid", return_value=-1, create=True),
+            ):
+                self.assertTrue(policy._lane_writable(target))
+            with (
+                mock.patch.object(policy.os, "access", return_value=False),
+                mock.patch.object(policy.os, "getuid", return_value=-1, create=True),
+            ):
+                self.assertFalse(policy._lane_writable(target))
+
+
+# The checker's evaluation block (check-security-binding.mjs evaluation mode).
+EVALUATION = (
+    "Effective promotion state (evaluation mode):\n"
+    "- C2-auto-merge: bound promoted -> effective promoted\n"
+    "- C3-auto-merge: bound unpromoted -> effective unpromoted\n"
+)
+
+
+def _host_configures_promotion() -> bool:
+    """Host managed settings that set these options would decide the result."""
+    managed = pathlib.Path("/etc/claude-code")
+    files = [managed / "managed-settings.json", *managed.glob("managed-settings.d/*")]
+    for path in files:
+        try:
+            if "promotion_evidence_" in path.read_text(encoding="utf-8"):
+                return True
+        except OSError:
+            continue
+    return False
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+@unittest.skipIf(_host_configures_promotion(), "host managed settings set the options")
+class RealResolver(unittest.TestCase):
+    """`read_promotion` runs the real `resolve-promotion-evidence.mjs`, copied
+    into a marketplace install layout so it finds its user settings there. The
+    checker is the operator's program, so a recording stub stands in for it.
+
+    Every file here is the test user's own, so the resolver's own writability
+    check would refuse first; the cases run its `main()` through a seam wrapper
+    that judges every path administrator-owned, leaving the gate's
+    `writable` as the layer under test."""
+
+    def setUp(self) -> None:
+        import tempfile
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        base = pathlib.Path(tmp.name).resolve()
+        config = base / "config"
+        scripts = config.joinpath(
+            "plugins", "cache", "mkt", "source-control", "9.9.9"
+        ).joinpath("skills", "babysit-loop", "scripts")
+        scripts.mkdir(parents=True)
+        for name in ("resolve-promotion-evidence.mjs", "operator-options.mjs"):
+            shutil.copy(policy.PROMOTION_RESOLVER.parent / name, scripts / name)
+        self.resolver = scripts / "resolve-promotion-evidence.mjs"
+        seam = scripts / "seam.mjs"
+        seam.write_text(
+            'import { main } from "./resolve-promotion-evidence.mjs";\n'
+            'main({ platform: "linux", uid: 1000, access: () => false, '
+            "stat: () => ({ uid: 0 }) });\n",
             encoding="utf-8",
         )
-        return path
+        patcher = mock.patch.object(policy, "PROMOTION_RESOLVER", seam)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.ops = base / "ops"
+        (self.ops / "probe").mkdir(parents=True)
+        self.prior = {
+            "cell": "C2-auto-merge",
+            "event": "reverted-merge",
+            "at": "2026-10-01T00:00:00Z",
+        }
+        self.source = self.ops / "evidence.json"
+        self.source.write_text(json.dumps([self.prior]), encoding="utf-8")
+        (self.ops / "binding.json").write_text("{}", encoding="utf-8")
+        self.record = self.ops / "record.json"
+        checker = self.ops / "checker.mjs"
+        checker.write_text(
+            'import { readFileSync, writeFileSync } from "node:fs";\n'
+            "const evidence = process.argv[process.argv.indexOf('--evidence') + 1];\n"
+            f"writeFileSync({json.dumps(str(self.record))}, JSON.stringify("
+            "{ evidence, argv: process.argv.slice(2), "
+            'events: JSON.parse(readFileSync(evidence, "utf8")) }));\n'
+            f"process.stdout.write({json.dumps(EVALUATION)});\n",
+            encoding="utf-8",
+        )
+        self.settings = config / "settings.json"
+        options = {
+            "promotion_evidence_binding": str(self.ops / "binding.json"),
+            "promotion_evidence_root": str(self.ops / "probe"),
+            "promotion_evidence_source": str(self.source),
+            "promotion_evidence_checker": str(checker),
+        }
+        self.settings.write_text(
+            json.dumps({"pluginConfigs": {"source-control@mkt": {"options": options}}}),
+            encoding="utf-8",
+        )
+        self.checkout = base / "checkout"
+        self.checkout.mkdir()
 
-    FOUR = {
-        "promotion_evidence_binding": "/opt/p/binding.json",
-        "promotion_evidence_root": "/opt/p/evidence",
-        "promotion_evidence_source": "/opt/p/events.json",
-        "promotion_evidence_checker": "/opt/p/check.mjs",
-    }
+    def read(self, **kwargs: Any) -> Any:
+        arguments: dict[str, Any] = {
+            "checkout": self.checkout,
+            "window_start": None,
+            "worktrees": lambda c: [str(self.checkout)],
+            "writable": lambda p: False,
+        }
+        return policy.read_promotion(**(arguments | kwargs))
 
-    def read(self, path: pathlib.Path, writable: bool = False) -> Any:
-        return policy.read_promotion_options(
-            path, managed=lambda: [], writable=lambda p: writable
+    def seen(self) -> dict[str, Any]:
+        return json.loads(self.record.read_text(encoding="utf-8"))
+
+    def test_the_resolver_promotes_from_the_operator_settings(self) -> None:
+        # Against the retired --binding/--evidence call shape the resolver
+        # refused every call as a usage error, so nothing was ever promoted.
+        result = self.read()
+        self.assertIsNone(result.reason)
+        self.assertTrue(result.promoted("C2"))
+        self.assertFalse(result.promoted("C3"))
+        self.assertEqual(self.seen()["evidence"], str(self.source))
+
+    def test_operator_credential_roots_reach_the_checker(self) -> None:
+        self.read()
+        self.assertNotIn("--credential-roots", self.seen()["argv"])
+        settings = json.loads(self.settings.read_text(encoding="utf-8"))
+        options = settings["pluginConfigs"]["source-control@mkt"]["options"]
+        options["promotion_evidence_credential_roots"] = "/srv/probe-creds"
+        self.settings.write_text(json.dumps(settings), encoding="utf-8")
+        result = self.read()
+        self.assertIsNone(result.reason)
+        self.assertEqual(
+            self.seen()["argv"][-2:], ["--credential-roots", "/srv/probe-creds"]
         )
 
-    def test_an_unwritable_settings_file_supplies_the_four_values(self) -> None:
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            values, reason = self.read(self.settings(pathlib.Path(tmp), self.FOUR))
-        self.assertIsNone(reason)
-        self.assertEqual(values, self.FOUR)
-
-    def test_a_lane_writable_settings_file_refuses(self) -> None:
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            path = self.settings(pathlib.Path(tmp), self.FOUR)
-            values, reason = self.read(path, writable=True)
-            real, real_reason = policy.read_promotion_options(path, managed=lambda: [])
-        self.assertIsNone(values)
-        self.assertTrue(reason.startswith("settings-lane-writable"))
-        # The real check: a file this test just created is the lane user's own.
-        self.assertIsNone(real)
-        self.assertTrue(real_reason.startswith("settings-lane-writable"))
-
-    def test_an_unset_option_refuses(self) -> None:
-        import tempfile
-
-        partial = dict(self.FOUR)
-        del partial["promotion_evidence_checker"]
-        with tempfile.TemporaryDirectory() as tmp:
-            values, reason = self.read(self.settings(pathlib.Path(tmp), partial))
-        self.assertIsNone(values)
-        self.assertEqual(reason, "options-unset:promotion_evidence_checker")
-
-    def test_no_settings_file_refuses(self) -> None:
-        values, reason = policy.read_promotion_options(None, managed=lambda: [])
-        self.assertIsNone(values)
-        self.assertTrue(reason.startswith("options-unset"))
-
-
-class ReadPromotion(unittest.TestCase):
-    """The resolver runs on a copy of the evidence written outside the checkout;
-    a demotion record adds a contrary event per cell at its creation."""
-
-    def run_resolver(self, events: Any, window_start: Any) -> tuple[Any, list[Any]]:
-        import tempfile
-
-        seen: list[Any] = []
-
-        def fake_run(argv: list[str], **_: Any) -> Any:
-            evidence = argv[argv.index("--evidence") + 1]
-            seen.append((argv, json.loads(pathlib.Path(evidence).read_text())))
-            cells = {c: {"effective": "promoted"} for c in policy.PROMOTABLE_CELLS}
-            return subprocess.CompletedProcess(
-                argv, 0, json.dumps({"failClosedReason": None, "cells": cells}), ""
-            )
-
-        with tempfile.TemporaryDirectory() as tmp:
-            source = pathlib.Path(tmp) / "events.json"
-            source.write_text(json.dumps(events), encoding="utf-8")
-            values = {
-                "promotion_evidence_binding": "/opt/p/b.json",
-                "promotion_evidence_root": "/opt/p/root",
-                "promotion_evidence_source": str(source),
-                "promotion_evidence_checker": "/opt/p/c.mjs",
-            }
-            with mock.patch.object(policy, "run_command", fake_run):
-                result = policy.read_promotion(
-                    settings_file=None,
-                    checkout=pathlib.Path(__file__).resolve().parents[5],
-                    window_start=window_start,
-                    options=(values, None),
-                )
-        return result, seen
-
-    def test_the_source_events_pass_unchanged_without_a_demotion(self) -> None:
-        events = [{"cell": "C2-auto-merge", "event": "gate-failure", "at": "x"}]
-        result, seen = self.run_resolver(events, None)
-        self.assertTrue(result.promoted("C2"))
-        self.assertEqual(seen[0][1], events)
-
-    def test_a_demotion_adds_a_contrary_event_per_cell_and_drops_none(self) -> None:
-        start = policy.datetime.fromisoformat("2026-10-11T07:00:00+00:00")
-        events = [{"cell": "C2-auto-merge", "event": "reverted-merge", "at": "y"}]
-        _, seen = self.run_resolver(events, start)
-        copied = seen[0][1]
-        self.assertEqual(copied[0], events[0])
+    def test_a_demotion_restarts_the_window_at_its_creation(self) -> None:
+        start = policy.datetime(2026, 10, 11, 7, 0, 0, 500000, tzinfo=policy.UTC)
+        result = self.read(window_start=start)
+        self.assertIsNone(result.reason)
+        seen = self.seen()
+        self.assertNotEqual(seen["evidence"], str(self.source))
+        # Rounded up to the next whole second, never before the demotion.
         self.assertEqual(
-            copied[1:],
+            seen["events"],
             [
-                {"cell": c, "event": "gate-failure", "at": "2026-10-11T07:00:00+00:00"}
-                for c in policy.PROMOTABLE_CELLS
+                self.prior,
+                *(
+                    {"cell": c, "event": "gate-failure", "at": "2026-10-11T07:00:01Z"}
+                    for c in policy.PROMOTABLE_CELLS
+                ),
             ],
         )
 
-    def test_the_evidence_copy_sits_outside_the_checkout(self) -> None:
-        _, seen = self.run_resolver([], None)
-        argv = seen[0][0]
-        checkout = pathlib.Path(argv[argv.index("--checkout") + 1])
-        copy = pathlib.Path(argv[argv.index("--evidence") + 1])
-        self.assertFalse(copy.is_relative_to(checkout))
+    def test_a_surface_in_a_sibling_worktree_refuses(self) -> None:
+        result = self.read(worktrees=lambda c: [str(self.checkout), str(self.ops)])
+        self.assertRegex(result.reason or "", "is inside")
+        self.assertFalse(result.promoted("C2"))
+
+    def test_a_lane_writable_value_or_settings_file_refuses(self) -> None:
+        # The real check: every file this test created is the lane user's own.
+        self.assertEqual(
+            self.read(writable=policy._lane_writable).reason,
+            "evidence-lane-writable:promotion_evidence_binding",
+        )
+        only_settings = self.read(writable=lambda p: p == self.settings)
+        self.assertEqual(
+            only_settings.reason, "settings-lane-writable:promotion_evidence_binding"
+        )
+        checker = self.ops / "checker.mjs"
+        self.assertEqual(
+            self.read(writable=lambda p: p == checker).reason,
+            "evidence-lane-writable:promotion_evidence_checker",
+        )
+
+    def test_the_resolver_itself_refuses_a_lane_writable_surface(self) -> None:
+        # The babysit-loop prose route has no gate `writable` behind it, so
+        # the resolver's own check is the one that refuses there.
+        with mock.patch.object(policy, "PROMOTION_RESOLVER", self.resolver):
+            result = self.read()
+        self.assertEqual(result.reason, "lane-writable:promotion_evidence_checker")
+        self.assertFalse(result.promoted("C2"))
+
+
+class ReadPromotion(unittest.TestCase):
+    """The resolver call shape, with the resolver itself stubbed."""
+
+    CELLS = {c: {"effective": "promoted"} for c in policy.PROMOTABLE_CELLS}
+
+    def run_resolver(
+        self, payload: dict[str, Any] | None = None, **kwargs: Any
+    ) -> tuple[Any, list[list[str]]]:
+        seen: list[list[str]] = []
+        options = {
+            o: {"value": f"/opt/p/{o}", "scope": "managed", "file": "/etc/m.json"}
+            for o in policy.PROMOTION_OPTIONS
+        }
+
+        def fake_run(argv: list[str], **_: Any) -> Any:
+            seen.append(argv)
+            answer = payload or {
+                "failClosedReason": None,
+                "options": options,
+                "cells": self.CELLS,
+            }
+            return subprocess.CompletedProcess(argv, 0, json.dumps(answer), "")
+
+        arguments: dict[str, Any] = {
+            "checkout": pathlib.Path("/w/main"),
+            "window_start": None,
+            "worktrees": lambda c: [],
+            "writable": lambda p: False,
+        }
+        with mock.patch.object(policy, "run_command", fake_run):
+            result = policy.read_promotion(**(arguments | kwargs))
+        return result, seen
+
+    def test_every_worktree_is_a_root_the_resolver_refuses(self) -> None:
+        # #7339 item 1: without the roots a surface in a sibling worktree passed.
+        roots = ["/w/main", "/w/sibling"]
+        _, seen = self.run_resolver(worktrees=lambda c: roots)
+        argv = seen[0]
+        passed = [argv[i + 1] for i, a in enumerate(argv) if a == "--worktree-root"]
+        self.assertEqual(passed, roots)
+
+    def test_unlisted_worktrees_promote_nothing(self) -> None:
+        result, seen = self.run_resolver(worktrees=lambda c: None)
+        self.assertEqual(result.reason, "worktrees-unreadable")
+        self.assertEqual(seen, [])
+
+    def test_worktree_roots_come_from_git(self) -> None:
+        proc = subprocess.CompletedProcess(
+            [],
+            0,
+            "worktree /w/main\nHEAD abc\nbranch refs/heads/main\n\n"
+            "worktree /w/side\nHEAD def\ndetached\n",
+            "",
+        )
+        with mock.patch.object(policy, "run_command", return_value=proc):
+            self.assertEqual(
+                policy.worktree_roots(pathlib.Path("/w/main")), ["/w/main", "/w/side"]
+            )
+        failed = subprocess.CompletedProcess([], 128, "", "not a git repository")
+        with mock.patch.object(policy, "run_command", return_value=failed):
+            self.assertIsNone(policy.worktree_roots(pathlib.Path("/w/main")))
+
+    def test_credential_roots_check_only_their_settings_file(self) -> None:
+        # The roots name the probe host, so the value is never judged as a
+        # local path: one absent here is not refused, as the real
+        # _lane_writable would refuse it (OSError).
+        absent = "/nonexistent-probe-host/creds"
+        creds_file = "/etc/claude-code/managed-settings.d/20-creds.json"
+        payload = {
+            "failClosedReason": None,
+            "options": {
+                o: {"value": f"/opt/p/{o}", "scope": "managed", "file": "/etc/m.json"}
+                for o in policy.PROMOTION_OPTIONS
+            }
+            | {
+                "promotion_evidence_credential_roots": {
+                    "value": absent,
+                    "scope": "managed",
+                    "file": creds_file,
+                }
+            },
+            "cells": self.CELLS,
+        }
+
+        def writable(path: pathlib.Path) -> bool:
+            if str(path) == absent:
+                return policy._lane_writable(path)
+            return str(path) == creds_file
+
+        result, _ = self.run_resolver(payload, writable=writable)
+        self.assertEqual(
+            result.reason, "settings-lane-writable:promotion_evidence_credential_roots"
+        )
+        result, _ = self.run_resolver(
+            payload,
+            writable=lambda p: policy._lane_writable(p) if str(p) == absent else False,
+        )
+        self.assertIsNone(result.reason)
+        self.assertTrue(result.promoted("C3"))
+
+    def test_unset_credential_roots_are_not_a_refusal(self) -> None:
+        result, _ = self.run_resolver()
+        self.assertIsNone(result.reason)
+        unfiled = {
+            "failClosedReason": None,
+            "cells": self.CELLS,
+            "options": {
+                o: {"value": "/opt/p", "scope": "managed", "file": "/etc/m.json"}
+                for o in policy.PROMOTION_OPTIONS
+            }
+            | {"promotion_evidence_credential_roots": {"value": "/srv/probe-creds"}},
+        }
+        result, _ = self.run_resolver(unfiled)
+        self.assertEqual(
+            result.reason, "option-unreported:promotion_evidence_credential_roots"
+        )
+
+    def test_an_unreported_option_refuses(self) -> None:
+        payload = {"failClosedReason": None, "options": {}, "cells": self.CELLS}
+        result, _ = self.run_resolver(payload)
+        self.assertEqual(result.reason, "option-unreported:promotion_evidence_binding")
+        self.assertFalse(result.promoted("C2"))
 
     def test_c4_and_c5_are_never_promoted(self) -> None:
-        result, _ = self.run_resolver([], None)
+        result, _ = self.run_resolver()
+        self.assertTrue(result.promoted("C2"))
         for work_class in ("C4", "C5", None):
             self.assertFalse(result.promoted(work_class))
 
     def test_a_fail_closed_resolver_promotes_nothing(self) -> None:
-        def fake_run(argv: list[str], **_: Any) -> Any:
-            payload = {"failClosedReason": "--checker not set", "cells": {}}
-            return subprocess.CompletedProcess(argv, 0, json.dumps(payload), "")
-
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as tmp:
-            source = pathlib.Path(tmp) / "events.json"
-            source.write_text("[]", encoding="utf-8")
-            values = dict.fromkeys(policy.PROMOTION_OPTIONS.values(), "/x")
-            values["promotion_evidence_source"] = str(source)
-            with mock.patch.object(policy, "run_command", fake_run):
-                result = policy.read_promotion(
-                    settings_file=None,
-                    checkout=pathlib.Path(tmp) / "checkout",
-                    window_start=None,
-                    options=(values, None),
-                )
-        self.assertEqual(result.reason, "--checker not set")
+        payload = {"failClosedReason": "checker exited 1", "cells": {}}
+        result, _ = self.run_resolver(payload)
+        self.assertEqual(result.reason, "checker exited 1")
         self.assertFalse(result.promoted("C2"))
 
 
@@ -1310,9 +1528,30 @@ class EntryHold(unittest.TestCase):
     def test_a_human_blocking_comment(self) -> None:
         gh = self.fake()
         gh.rest[f"repos/{REPO}/issues/5/comments?per_page=100"] = [
-            {"user": {"login": OPERATOR, "type": "User"}, "body": "don't merge this"}
+            {
+                "user": {"login": OPERATOR, "type": "User"},
+                "author_association": "MEMBER",
+                "body": "don't merge this",
+            }
         ]
         self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+
+    def test_a_strangers_blocking_text_is_no_hold(self) -> None:
+        # #7339 item 4: this repository is public, so anyone can comment.
+        gh = self.fake()
+        for kind, association in (
+            ("issues/5/comments", "NONE"),
+            ("pulls/5/reviews", "CONTRIBUTOR"),
+            ("pulls/5/comments", "FIRST_TIME_CONTRIBUTOR"),
+        ):
+            gh.rest[f"repos/{REPO}/{kind}?per_page=100"] = [
+                {
+                    "user": {"login": "passer-by", "type": "User"},
+                    "author_association": association,
+                    "body": "do not merge, this is blocking",
+                }
+            ]
+        self.assertIsNone(self.hold())
 
     def test_the_opt_in_label_removed_since_the_enqueue(self) -> None:
         gh = self.fake()

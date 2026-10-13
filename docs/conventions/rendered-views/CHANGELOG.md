@@ -3,6 +3,12 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## A failed hosted replace is retried as a create, 2026-10-11
+
+- **The hosted lane recovers from a page deleted elsewhere.** When `pages-publish --id` fails
+  with exit 6, the lane retries once without `--id`, records the new id in the sidecar, and lists
+  the old id under `stale` for deletion, as for any changed id. A refusal (exit 4) is not retried.
+
 ## The `hosted` medium and the `pages-publish` contract, 2026-10-04
 
 - **`medium` gains `hosted`.** A page goes to a shared page host through the operator's

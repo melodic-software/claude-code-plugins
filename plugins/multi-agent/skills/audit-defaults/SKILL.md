@@ -14,9 +14,13 @@ shell: bash
 
 Each default in
 [`${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`](${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml)
-records its basis as a pointer, an as-of date and a recheck trigger. This skill
-reads those records, goes to each source, and says whether the default still
-follows from it. The defaults change only through a reviewed edit to that file.
+records its basis as a pointer, an as-of date and a recheck trigger. A role's
+`model` and `effort` each carry a `basis_<field>`: `upstream`, naming the
+section (`pointer_<field>`) and the statement in it (`claim_<field>`) that set
+the value, or `judgment` with a `reason_<field>`. This skill reads those
+records, goes to each source, and says whether the cited section states the
+value, or the rule it follows from. A pointer that only relates to the value is
+not support. The defaults change only through a reviewed edit to that file.
 
 `repo` mode asks the same question of the repository's own prose: which
 statements about models, effort, subagents and workflows contradict their
@@ -89,19 +93,24 @@ return saved results is in
 `defaults` mode runs on the main thread:
 
 1. Run `${CLAUDE_SKILL_DIR}/scripts/list-pointers.sh $ARGUMENTS`. The first
-   block is `owner<TAB>key<TAB>value` for every `pointer*`, `as_of` and
-   `recheck`; the second is the current value of every default. Done when you
-   hold the list of distinct sources to read.
+   block is `owner<TAB>key<TAB>value` for every `pointer*`, `basis_*`,
+   `claim_*`, `reason_*`, `as_of` and `recheck`; the second is the current
+   value of every default. A value whose `basis_<field>` is `judgment` is
+   reported as judgment with its reason and needs no source. Done when you hold
+   the list of distinct sources to read.
 2. Read each URL pointer's anchored section by the
    [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs)
    (rung 1, fresh bytes; WebFetch is rung 2, degraded because it truncates
    long pages silently). Read the `/workflow-authoring`
    pointer as in step 5 above. Done when every source is marked read or unread.
-3. Judge each default `current`, `drifted` (name the value the source now
-   supports), `trigger fired` (say what happened) or `unread`. Done when every
-   owner has a verdict.
+3. Judge each default `current` (the cited section states the value or the
+   rule it follows from), `drifted` (name the value the source now supports),
+   `unsupported` (the section states neither), `trigger fired` (say what
+   happened) or `unread`. Done when every owner has a verdict.
 4. Write the diff to `defaults.yaml` you would make for every non-`current`
-   row, including the new `as_of`. Do not apply it. Done when the diff block,
+   row, including the new `as_of`. For `unsupported`, keep the value and
+   propose `basis_<field>: judgment` with a reason, or a `pointer_<field>` and
+   `claim_<field>` that state it. Do not apply it. Done when the diff block,
    or `No changes proposed.`, is written.
 
 `repo` mode needs the workflow. Without it, say that workflows are unavailable
@@ -112,10 +121,12 @@ and stop; do not sweep the repository on the main thread.
 Say first whether the workflow ran or the fallback did.
 
 `defaults` mode: a table of owner, key, current value, verdict (`current`,
-`drifted`, `trigger fired`, `refuted` or `unverified`), evidence (the pointer
-plus at most one short quoted sentence that decides it) and proposed value.
-Then the proposed diff in one fenced `diff` block, or `No changes proposed.`
-A row the skeptics refuted or left unverified gets no diff line.
+`drifted`, `unsupported`, `trigger fired`, `refuted` or `unverified`), evidence
+(the pointer plus at most one short quoted sentence that decides it) and
+proposed value. Then the result's `judgment` rows as owner, key, value and
+reason, labeled judgment, not sourced. Then the proposed diff in one fenced
+`diff` block, or `No changes proposed.` A row the skeptics refuted or left
+unverified gets no diff line.
 
 `repo` mode: confirmed findings as a table of file:line, kind, quote,
 proposed disposition and evidence URL, then refuted and unverified findings by

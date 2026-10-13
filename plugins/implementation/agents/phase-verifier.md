@@ -84,7 +84,9 @@ orchestrator ran a phase's implementer above this binding (the frontier tier for
 work, or a session model above it), it passes this verifier a per-invocation `model` at or above
 that tier (the marketplace's `docs/plugin-philosophy.md` "Model tiers"); that override routes
 upward only. The same holds for a Workflow script this repository ships: an `agent()` call naming
-this verifier never passes `effort` or `model` below this binding, and omits both to keep it. In a
+this verifier never passes `effort` or `model` below this binding, and omits both to keep it. An
+Agent tool spawn of this verifier likewise omits the per-call `effort` parameter to keep the `high`
+binding below, and never passes one under it. In a
 concurrent wave under a frontier session every implementer runs at `opus`, so
 this binding already meets the rule there (see `/implementation:implement-dispatch` Dispatch
 cadence step 2).
@@ -98,8 +100,9 @@ the model-config row the pointer below names, above the implementer's `medium`.
   the advisor capability rule in
   [advisor tool: model compatibility](https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility);
   what effort a subagent runs at without the pin, in the `effort` row of
-  [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
-  and in [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
+  [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields),
+  and that plus the Agent tool's per-call `effort` and its rank over this pin, in
+  [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level).
 - **As of:** 2026-10-11.
 - **Recheck trigger:** next model release, or the subagents `effort` row or effort section changes
-  what a subagent's effort follows.
+  what a subagent's effort follows, the precedence, or which spawns honor a per-call `effort`.

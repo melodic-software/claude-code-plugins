@@ -18,17 +18,48 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
 
 ## Stale-base guard
 
+Read the head once and use that value for both the compare and `HEAD_SHA`, so the pinned head is
+the one the compare checked:
+
 ```bash
-gh pr view <pr_number> --json mergeStateStatus,baseRefName,headRefOid
-gh api repos/{owner}/{repo}/compare/<baseRefName>...<headRefOid>
+read -r MSS BASE HEAD_SHA <<<"$(gh pr view <pr_number> --json mergeStateStatus,baseRefName,headRefOid \
+  --jq '"\(.mergeStateStatus) \(.baseRefName) \(.headRefOid)"')"
+echo "mergeStateStatus: $MSS"
+gh api "repos/{owner}/{repo}/compare/$BASE...$HEAD_SHA"
 ```
 
+When GraphQL is refused, read `.base.ref` and `.head.sha` from one
+`gh api "repos/{owner}/{repo}/pulls/<pr_number>"` call instead.
+
 Update a behind branch with a merge-forward or `gh pr update-branch`.
+
+## Wait for a known merge state
+
+GitHub reports `mergeStateStatus` as `UNKNOWN` while it recomputes it after a push or a ready flip,
+and `gh pr merge` on a merge-queue base run then arms auto-merge instead of enqueueing. Poll at the
+pinned head while it reads `UNKNOWN`; go on only on `CLEAN`:
+
+```bash
+: "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
+for _ in $(seq 20); do
+  S=$(gh pr view <pr_number> --json headRefOid,mergeStateStatus \
+    --jq "if .headRefOid == \"$HEAD_SHA\" then .mergeStateStatus else \"HEAD_MOVED\" end")
+  [ "$S" = UNKNOWN ] || break
+  sleep 15
+done
+[ "$S" = CLEAN ] || { echo "PR reads ${S:-nothing} at the pinned head, not CLEAN: hold" >&2; exit 1; }
+```
+
+When GraphQL is refused, poll `.mergeable_state` from `gh api "repos/{owner}/{repo}/pulls/<pr_number>"`
+(after checking `.head.sha` equals `HEAD_SHA`) while it reads `unknown`, and go on only on `clean`.
+`mergeStateStatus` values:
+[MergeStateStatus enum](https://docs.github.com/graphql/reference/enums#mergestatestatus), as of
+2026-10-13; recheck when that enum changes.
 
 ## Squash merge in a regular checkout
 
 ```bash
-gh pr merge <pr_number> --squash --delete-branch
+gh pr merge <pr_number> --squash --delete-branch --match-head-commit "$HEAD_SHA"
 ```
 
 ## Squash merge in a linked worktree
@@ -37,7 +68,7 @@ Omit `--delete-branch`: on older gh it tries to check out the default branch loc
 while another worktree holds it, and exits 1 even though the merge succeeded.
 
 ```bash
-gh pr merge <pr_number> --squash && {
+gh pr merge <pr_number> --squash --match-head-commit "$HEAD_SHA" && {
   if [ "$(gh pr view <pr_number> --json state -q .state)" = MERGED ]; then
     REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push '<branch>') && git push "$REMOTE" --delete --end-of-options '<branch>'
   else
@@ -58,7 +89,7 @@ for it yet, so call it with `gh api`, pinned to the head verified before merge a
 `bypass_rules` true:
 
 ```bash
-HEAD_SHA=$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" --jq .head.sha)
+: "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
 gh api -X PUT "repos/{owner}/{repo}/pulls/<pr_number>/merge-async" \
   -f sha="$HEAD_SHA" -f merge_action=direct_merge -f merge_method=squash -F bypass_rules=false
 ```
@@ -76,7 +107,7 @@ status.
 ```bash
 [ "$(gh repo view --json owner --jq .owner.login)" = melodic-software ] \
   || { echo 'not a melodic-software repository: wait for the user' >&2; exit 1; }
-HEAD_SHA=$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" --jq .head.sha)
+: "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
 RULES=$(gh api --paginate --slurp "repos/{owner}/{repo}/rules/branches/<baseRefName>" | jq 'add')
 jq -e 'any(.[]; .type == "required_status_checks"
   and any(.parameters.required_status_checks[]; .context == "ci-status"))' <<<"$RULES" >/dev/null \
@@ -90,9 +121,13 @@ jq -e '[.[].check_runs[]] as $r
   and lane(["pr-review-security / security-review", "security-review / security-review",
             "claude-security-review-status"])' <<<"$RUNS" >/dev/null \
   || { echo 'AI review not complete on the pinned head: hold' >&2; exit 1; }
-[ "$(gh pr view <pr_number> --json headRefOid,mergeStateStatus \
-  --jq "select(.headRefOid == \"$HEAD_SHA\") | .mergeStateStatus")" = CLEAN ] \
-  || { echo 'PR not CLEAN at the pinned head: hold' >&2; exit 1; }
+for _ in $(seq 20); do
+  S=$(gh pr view <pr_number> --json headRefOid,mergeStateStatus \
+    --jq "if .headRefOid == \"$HEAD_SHA\" then .mergeStateStatus else \"HEAD_MOVED\" end")
+  [ "$S" = UNKNOWN ] || break
+  sleep 15
+done
+[ "$S" = CLEAN ] || { echo "PR reads ${S:-nothing} at the pinned head, not CLEAN: hold" >&2; exit 1; }
 if jq -e 'any(.[]; .type == "merge_queue")' <<<"$RULES" >/dev/null; then
   gh pr merge <pr_number> --match-head-commit "$HEAD_SHA"
 else
@@ -100,8 +135,9 @@ else
 fi
 ```
 
-Behind a merge queue `gh pr merge` enqueues and returns; had required checks not passed it would arm
-auto-merge instead, which the `CLEAN` read rules out.
+Behind a merge queue `gh pr merge` should enqueue and return; had required checks not passed it
+would arm auto-merge instead. It has also been seen to return with a `CLEAN` PR left out of the
+queue, so [confirm queue entry](#confirm-queue-entry) before the poll.
 
 ### Poll the merge queue
 
@@ -125,6 +161,67 @@ done
 - **As of**: 2026-10-09
 - **Recheck trigger**: a gh release that changes `gh pr merge` flags or merge-queue handling, or a
   rename of the AI review lanes' check names.
+
+## Confirm queue entry
+
+Read the PR's queue state. The script prints `merged`, `queued` or `enqueue <node id>`, or exits 1
+with the hold:
+
+```bash
+: "${HEAD_SHA:?set HEAD_SHA in 4.1 step 2}"
+for _ in $(seq 20); do
+  PR=$(gh api graphql -F owner='{owner}' -F name='{repo}' -F number=<pr_number> -f query='
+    query($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) { pullRequest(number: $number) {
+        id state isInMergeQueue mergeStateStatus headRefOid autoMergeRequest { enabledAt } } } }' \
+    --jq '.data.repository.pullRequest') || exit 1
+  [ "$(jq -r .mergeStateStatus <<<"$PR")" = UNKNOWN ] || break
+  sleep 15
+done
+AUTO=$(jq -r '.autoMergeRequest != null' <<<"$PR")
+[ "$AUTO" = true ] && echo 'auto-merge is armed on this PR; tell the user (4.2.1 never arms it)' >&2
+hold() {
+  echo "$1" >&2
+  [ "$AUTO" = true ] && echo 'auto-merge is still armed: a later push could merge on ci-status alone.
+The user may disarm it with: gh pr merge <pr_number> --disable-auto' >&2
+  exit 1
+}
+case "$(jq -r '"\(.state) \(.isInMergeQueue) \(.mergeStateStatus)"' <<<"$PR")" in
+  MERGED*) echo 'merged' ;;
+  'OPEN true '*)
+    [ "$(jq -r .headRefOid <<<"$PR")" = "$HEAD_SHA" ] \
+      || hold 'queued at a head other than the one pinned in 4.1: hold and report it'
+    echo 'queued' ;;
+  'OPEN false CLEAN')
+    [ "$(jq -r .headRefOid <<<"$PR")" = "$HEAD_SHA" ] \
+      || hold 'head moved since 4.1: hold and re-run readiness'
+    echo "enqueue $(jq -r .id <<<"$PR")" ;;
+  *) hold "not queued and not CLEAN ($(jq -c '{state,isInMergeQueue,mergeStateStatus}' <<<"$PR")): report it" ;;
+esac
+```
+
+On `enqueue <node id>`, run the mutation as its own command, with the printed node id and the
+`HEAD_SHA` value written in as literals, never a variable or command substitution: the guardrails
+merge guard reads the PR from a literal `PR_...` id and blocks a merge-queue mutation whose PR it
+cannot resolve. Never pass `jump: true`.
+
+```bash
+gh api graphql --silent -F id='<pr_node_id>' -F head='<head_sha>' -f query='
+  mutation($id: ID!, $head: GitObjectID!) {
+    enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $head}) {
+      mergeQueueEntry { position } } }'
+```
+
+A non-zero exit is the refusal; its error text is the blocker. Then re-run the read: `queued` is
+the result, and `enqueue` again means the mutation returned but the PR is not in the queue, a hold.
+
+- **Pointer**: a PR joins a queue through the merge button or auto-merge:
+  [managing a merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue);
+  the mutation and its `expectedHeadOid` input:
+  [enqueuePullRequest](https://docs.github.com/graphql/reference/mutations#enqueuepullrequest).
+- **As of**: 2026-10-11
+- **Recheck trigger**: a gh release that changes how `gh pr merge` enqueues, or a change to
+  `enqueuePullRequest` or its input on that page.
 
 ## Latest run on the default branch
 

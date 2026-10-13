@@ -3,6 +3,16 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.7] - 2026-10-13
+
+### Changed
+
+- The pre-compute, effort-token and saved-workflow notes point at the exact upstream sections, each with an as-of date and recheck trigger.
+
+### Fixed
+
+- The audit no longer states that a command's whole output always returns inline, that rule files load only when a covered file is read, or that every dispatched agent carries CLAUDE.md; it points at the live doc sections instead and keeps its decisions (bound in the pipe, read every rule file in Phase 0).
+
 ## [0.10.6] - 2026-10-02
 
 ### Fixed

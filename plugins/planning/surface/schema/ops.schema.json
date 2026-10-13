@@ -17,6 +17,7 @@
           {"$ref": "#/$defs/add"},
           {"$ref": "#/$defs/add-round"},
           {"$ref": "#/$defs/group"},
+          {"$ref": "#/$defs/group-order"},
           {"$ref": "#/$defs/meta"},
           {"$ref": "#/$defs/note-reply"},
           {"$ref": "#/$defs/handle"},
@@ -53,6 +54,10 @@
         ]
       }
     },
+    "keepAlternatives": {
+      "description": "With `rec` and no `alternatives`: states that the current alternatives were checked against the new recommendation. A `rec` needs `alternatives` or this.",
+      "type": "boolean"
+    },
     "reply": {
       "type": "object",
       "required": ["op", "id"],
@@ -71,6 +76,8 @@
           "maxLength": 500
         },
         "affects": {"$ref": "#/$defs/affects"},
+        "alternatives": {"$ref": "#/$defs/alternatives"},
+        "keepAlternatives": {"$ref": "#/$defs/keepAlternatives"},
         "handled": {"type": "integer"},
         "force": {"type": "boolean"}
       }
@@ -100,8 +107,13 @@
           "type": "array",
           "items": {"type": "string"}
         },
+        "group": {
+          "description": "Moves the question to this existing group. The move is logged in the question's history.",
+          "type": "string"
+        },
         "seq": {"type": "integer"},
         "affects": {"$ref": "#/$defs/affects"},
+        "keepAlternatives": {"$ref": "#/$defs/keepAlternatives"},
         "force": {"type": "boolean"}
       }
     },
@@ -149,6 +161,16 @@
         "title": {"$ref": "#/$defs/line"},
         "summary": {"$ref": "#/$defs/markdown"},
         "dependsOn": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "group-order": {
+      "description": "Reorders the groups to this list, which must name every existing group id once; the page's Groups rail follows it. Group dependsOn locking is unchanged.",
+      "type": "object",
+      "required": ["op", "ids"],
+      "additionalProperties": false,
+      "properties": {
+        "op": {"enum": ["group-order"]},
+        "ids": {"type": "array", "items": {"type": "string"}}
       }
     },
     "metaSet": {

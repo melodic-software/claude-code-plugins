@@ -72,6 +72,10 @@ slice that fails one before moving to the next:
 
 When two cuts both pass, take the one with more, thinner vertical slices.
 
+A source that is one unit of work (a plan handed to a later session, an AFK lane or another person)
+publishes as one vertical slice. It still goes through Step 3's approval, and its body still carries
+the acceptance criteria and the quoted design part.
+
 **Classify each vertical slice:**
 
 | Type | Meaning | Role → label |
@@ -158,24 +162,32 @@ Iterate one question at a time until the user approves, never publish an unappro
 For each approved item, create a work item via the seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path). When a spec container was approved, create the **container first** ("Container lifecycle" below) and add `--parent "<container-id>"` to every item's `create-item` so each is a native sub-item. **Publish every blocker before the items that wait on it**, so real IDs exist to fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
 
 ```bash
-# AFK items get the autonomous-eligible role label; HITL + investigation items get the
-# human-gated one — the label list-frontier --autonomous actually honors to exclude an item.
-# Omitting the autonomous-eligible label alone does NOT keep an HITL item off the frontier.
-# Defaults shown; substitute the binding's config.role_labels values when the repo remaps.
-META_LABEL=$([ -n "$AFK" ] && echo "agent-ready" || echo "needs-human")
-BODY_FILE=$(mktemp)
-# Write the composed item body to "$BODY_FILE" with the Write tool NOW — before create-item —
-# not via shell interpolation. plan/PRD text can contain backticks or $() the shell would
-# interpret; "$(cat "$BODY_FILE")" passes it as one literal argument, never re-parsed.
+# Call 1: print a fresh temp path. Write the composed item body to that path with the Write
+# tool before call 2, never through the shell: plan/PRD text can hold backticks or $() the
+# shell would interpret. --body-file hands the file to the seam as one literal body.
+mktemp
+# Call 2: every value spelled out, the temp path from call 1 included.
+# AFK items get the autonomous-eligible role label (default agent-ready); HITL + investigation
+# items get the human-gated one (default needs-human), the label list-frontier --autonomous
+# actually honors to exclude an item. Omitting the autonomous-eligible label alone does NOT
+# keep an HITL item off the frontier. Substitute the binding's config.role_labels values when
+# the repo remaps them.
 # --type: org repos only (native Issue Type); on personal/non-org repos drop --type and prepend a coarse type: bug|feature|task label to --labels instead
-TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
-[[ -f "$TRACKER" ]] || TRACKER="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}/tools/work-item-tracker/work-item-tracker.sh"
-"$TRACKER" create-item --title "<item title>" --body "$(cat "$BODY_FILE")" \
+"${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh" create-item \
+  --title "<item title>" \
+  --body-file "<temp path from call 1>" \
   --type "<Bug|Feature|Task>" \
-  --labels "area: <a>,$META_LABEL" \
+  --labels "area: <a>,<agent-ready|needs-human>" \
   --blocked-by "<blocker-id>[,<blocker-id>]"
-rm -f "$BODY_FILE"
+# Call 3: run it whether call 2 succeeded or failed, so no temp file is left behind.
+rm -f "<temp path from call 1>"
 ```
+
+Run each call as its own plain Bash command: no `$(...)`, no `git`, and no `&&` chain around `create-item`, so a worktree-isolated session can run the publish as written. When call 2 fails, still run call 3, then report the failure; a retry starts again from call 1 with a fresh temp path. If the `${CLAUDE_PLUGIN_ROOT}` tracker path does not exist, run `git rev-parse --show-toplevel` as a separate call and spell out `<that path>/tools/work-item-tracker/work-item-tracker.sh` in call 2.
+
+- **Pointer**: [Worktrees, "How Claude Code enforces isolation"](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation); probe [#6929](https://github.com/melodic-software/claude-code-plugins/issues/6929).
+- **As of**: 2026-10-11
+- **Recheck trigger**: a Claude Code release in which the pre-#6929 snippet (tracker path fallback through `$(git rev-parse --show-toplevel)`, body through `"$(cat "$BODY_FILE")"`) runs from a worktree-isolated session.
 
 Every item body uses the one structure below. It is the agent-brief template ([`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) laid out as sections: `## Outcome` carries that template's Summary and Current/Desired behavior, `## Done when` carries its Acceptance criteria, and `## Key interfaces` and `## Out of scope` are its fields of the same names, so an AFK item needs no second `## Agent Brief` block. When the source is a PR (an item with attached code), use that reference's PR-variant (current-behavior-of-the-diff, finish-what-exists); do not replace the bug/feature template for ordinary items. Body structure:
 

@@ -3,6 +3,40 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0] - 2026-10-13
+
+### Added
+
+- **The enforcement ladder ships with `/architecture:improve`.** A generated copy of the enforcement-ladder convention sits at `skills/improve/research/enforcement-ladder.md`, carrying the rung list and the "Where boundary rules live" list that boundary reviews read.
+- **`/architecture:improve boundaries`.** A second lens reads the boundary rules a repository records, from the places the enforcement ladder's "Where boundary rules live" list names, and the project edges `/architecture:map-dependencies` cites, then reports each edge that crosses a rule. With no rule recorded it asks which directions are forbidden instead of inferring one. Each rule the user confirms goes to a review-findings file under `<memory_dir>/improve/<branch-slug>/` under the `architecture` dimension, and the report offers `/review:audit-enforceability` on it.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **The deepening lens's vocabulary, dependency categories, report format and phase text are in our own words.** `vocabulary.md`, `dependencies.md`, `html-report.md` and `actions/deepening.md` no longer share sentences with the upstream module-design text they were adapted from; examples use invoice, mail and shipping-rate domains, the diagram patterns are renamed (call flow, round-trip sequence, layer stack, size bars, collapsed call tree, boxes and arrows by hand), the `.deep` scaffold class takes the palette's slate, the Phase 2 closing question reads "Which candidate should we explore?", and the interview, the `agreed-shape` field and the Design-It-Twice brief all name "what the seam hides". Every term, rule, badge, category label and artifact field is unchanged.
+- **The Design-It-Twice procedure and the scan briefing are in our own words.** `interface-design.md` is ordered by who reads each output (the user's framing, the subagents' briefs, the parent's comparison), with the framing items, the four design constraints, the six return parts (keyed to the question the parent asks of each, and led by the usage example) and the three comparison axes as tables worked through the `TaxCalculator` example; `scan-briefing.md` gives the friction checklist as a table of signals with tax examples and points at `vocabulary.md` and `dependencies.md` for the terms and category labels instead of restating them. The four constraint names, the six parts' names, the axes, the briefing's five parts, the return schema and its field values are unchanged.
+- **The deepening scan looks for three more signals and asks two reader questions.** `scan-briefing.md` adds a special case held in a general module, a long call trace judged against the rest of the codebase (no fixed count), and state kept at a wider scope than its readers need; its badge section has scan agents ask what produces the candidate's central value and which code may change it, as evidence for the rating rather than a third heuristic. `vocabulary.md` adds a check against splitting modules by run order (temporal decomposition), and the Design-It-Twice procedure has the parent write down which comparison axis counts most, and what would settle the pick, before any design returns.
+- Reworded the passages of the deepening lens's `scan-briefing.md` and `vocabulary.md` adapted from an upstream skill in our own words; every term, signal and rule is unchanged.
+- Reworded the deepening vocabulary's examples and checks in `vocabulary.md` in our own words.
+- `/architecture:record-decision`'s admission test now names its three checks costly to undo, not obvious from the code, and chosen over a live alternative; what each check asks is unchanged.
+
+- The four `map-*` skills that run a collector script now share one `${CLAUDE_SKILL_DIR}` path record in `reference/config.md` § Script paths, with a pointer to the live skills docs, in place of four restated copies of the path-resolution behavior.
+
+### Fixed
+
+- `/architecture:record-decision` no longer gives two outdated harness behaviors as the reasons for its context-gathering rules (how much command output reaches context, and which git commands a worktree-isolated session refuses). It keeps both rules and points at the live docs sections instead.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.22.7] - 2026-10-10
 
 ### Fixed

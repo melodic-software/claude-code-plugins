@@ -1,5 +1,35 @@
 # Changelog: evals
 
+## [0.8.0] - 2026-10-13
+
+### Added
+
+- **`/evals:design` case authoring keeps cases looking like real work, and `/evals:plugin-eval` ends its delta reading with a verdict.** A case prompt states what the user wants done and never that it is a test or what it checks; prompts, fixture paths and slugs carry no evaluation words; and no expectation is graded from the model's own account of what it did. Reading the delta now spot-reads outputs from both arms against their verdicts before trusting the number, and ends with one `promote` or `do not promote` line naming the first condition that failed.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- Reworded the passages of `/evals:design`'s SKILL.md adapted from an upstream skill in our own words; every rule is unchanged.
+
+- `/evals:plugin-eval` and `/evals:methodology` references point at the exact upstream sections (prompt.md fields, grader targets, exit codes and options, JSON result, requirements, and the platform evaluation sections) with an as-of date and recheck trigger instead of restating their defaults, bounds and exit-code meanings.
+
+### Fixed
+
+- `/evals:plugin-eval` references no longer say a `Write` or `Edit` grant needs a sandbox backend; which grants run sandboxed is now read live from the plugin-evals Grant tools section.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- plugin-eval: the Run step now says to stay attached until every run exits. A `claude -p` or other non-interactive session runs each suite's CLI call in the foreground, one suite after another (`-j` adds concurrency inside a suite), and gives no final answer while a run is in flight; an interactive session backgrounds a run only as a harness-tracked task. The headless gotcha records the 2026-10-04 recurrence, where three backgrounded suites all ended `partial: true`, `interrupted` and INVALID. New eval case `headless-stay-attached` fails a plan that backgrounds the runs and ends.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.7.5] - 2026-10-11
 
 ### Fixed

@@ -3,6 +3,21 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-10-13
+
+### Added
+
+- `/bugs:scan` Lens 5, display formatting and fallbacks: dispatched when the scope renders user-facing data, it hunts values rendered wrongly for real input (hardcoded plurals, naive initials, images with no fallback, raw or unformatted numbers and nulls, truncation with no full value, leftover placeholders, fixed date formats). The shared excluded-classes rule now says a wrongly rendered value is not a formatting opinion, so the verification gate keeps such findings. The large-scope and top-effort lens counts go to 5.
+
+### Changed
+
+- **Copied upstream specifics become anchored pointer records.** The pre-compute note in `write` and `scan` points at the gather-block record and the skills page section on injected commands; `scan` points at the string-substitution section for `${CLAUDE_EFFORT}`; `setup` and the README read where plugin option values are stored from the live sections instead of restating it.
+
+### Fixed
+
+- **`/bugs:write` no longer says where `/bug` sends a report.** Where it goes now depends on how the person is connected, so the boundary and its record point at the live `/bug` row. The skill still offers `/bug` only for defects in Claude Code itself and never runs it.
+- **`/bugs:write` no longer says the Bash tool returns a command's complete output.** The decision, put the bound in the pipe, stays; how much output reaches the result is read at the tools reference's output limits section.
+
 ## [0.11.17] - 2026-10-11
 
 ### Changed

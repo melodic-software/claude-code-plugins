@@ -123,9 +123,9 @@ Parse `$ARGUMENTS` for the action (first token); remaining tokens are lane names
 
 | Action | Mutates | Description |
 |---|---|---|
-| `start` (default) | Yes | Pull + marketplace update, then launch every configured lane **not already running** on the host its execution target names |
-| `restart [lane...]` | Yes | Pull + marketplace update, then stop-and-relaunch each target lane (all, or named) on the host its execution target names |
-| `status` | No | Per-lane table: model, effort, running/stopped, and the live sessionId |
+| `start` (default) | Yes | Pull + marketplace update, then launch every configured lane **not already running** on the host its execution target names; a `mods:` line per lane ([Mods state](#mods-state)) |
+| `restart [lane...]` | Yes | Pull + marketplace update, then stop-and-relaunch each target lane (all, or named) on the host its execution target names; a `mods:` line per lane |
+| `status` | No | Per-lane table: model, effort, running/stopped, and the live sessionId; a `mods:` line per lane |
 | `stop [lane...]` | Yes | Stop each running target lane (all, or named) via `claude stop <sessionId>` |
 | `run-once <lane>` | Yes | One headless `claude -p` pass of the lane on the local host its execution target names, under a per-lane lock; the entry a scheduler calls |
 | `print-schedule [--write-script] [lane...]` | `--write-script` only | Print Task Scheduler and cron entries for lanes with a `schedule`; `--write-script` writes the per-lane script each entry calls |
@@ -146,6 +146,41 @@ without a `stage`, is skipped with an error naming `/work-items:attend-queue` in
 `stage` (`<plugin>:<skill>`) selects its `skill.<plugin>.<skill>` key. What the launcher does per
 value is in [context/config.md](context/config.md), "Execution target"; the contract is the
 execution-target convention, `docs/conventions/execution-target/` in the marketplace repository.
+
+## Mods state
+
+context-guard and rate-limit-guard run as mods. When mods cannot load, a lane gets only
+their reactive settings hooks, with no zone lines and no blocking gate, and nothing inside
+the lane says so. So `start`, `restart` and `status` print a `mods:` line under each lane:
+
+- `off (<cause>)`: a cause the launcher can see. It sees the CLI version against the mods
+  floor, `disableAllHooks` in the lane's own `settings`, and what `claude plugin test`
+  reports when run from the repo against an empty directory: the settings scopes the lane
+  reads, an organization's policy, and the rollout switch.
+- `unknown (<why>)`: the launcher cannot tell, for example with no CLI, an unrecognized
+  message, a rollout value an earlier session saved, or a probe that did not answer in
+  time. The probe runs once, before the first lane launches, under a timeout. It covers
+  the repo checkout on this machine, so a lane whose execution target is anything but
+  `local-worktree` reads unknown. `status` takes the target from the policy at the local
+  `origin/HEAD`, without fetching.
+- `can load`: nothing the launcher sees stops mods. Causes that only the lane's session
+  sees stay unchecked, so this never means the lane's mods are on.
+
+The line reports and never changes the exit code. In `status` it describes what a launch
+would get now, not what a running lane got when it launched. Check a running lane from
+inside it with `/context-guard:check` or `/rate-limit-guard:setup`.
+
+The causes, and which of them `claude plugin test` reports, belong to upstream; this skill
+keeps no list of them:
+
+- **Pointer**: [Turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off)
+  (version floor and settings),
+  [Check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
+  (the `claude plugin test` messages, and the policy it does not report), and
+  [Stop user-installed mods from loading](https://code.claude.com/docs/en/plugins/mods/admin#stop-user-installed-mods-from-loading).
+- **As of**: 2026-10-11, Claude Code 2.1.296.
+- **Recheck trigger**: either page changes the version floor or the messages `claude plugin
+  test` prints, or a release note names a new way for mods to be turned off.
 
 ## Consume restart-requests
 

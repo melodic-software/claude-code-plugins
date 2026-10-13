@@ -3,6 +3,162 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.0] - 2026-10-13
+
+### Added
+
+- **Prep lists the suppressions a change adds.** For a diff that is not docs-only,
+  `/source-control:pull-request` prep runs `/code-metrics:audit-suppressions` against the pull
+  request's base when that skill is among the available skills, and lists each added suppression
+  with its file, line, rule ids and reason in the prep report. The scan is advisory and blocks
+  nothing: when the skill is unavailable or the scan fails, the report says
+  `suppression check not run: <reason>` and prep continues. No dependency on the code-metrics
+  plugin is declared.
+- **Narrow pull requests, red-first review fixes, and disk freed by cleanup.**
+  `/source-control:pull-request` prep flags a diff that splits into independent changes and
+  proposes one pull request per part (advice the user may decline); a review finding about behavior
+  gets a failing test before its fix (D6 and `monitor`); the briefing body links a longer record
+  instead of reciting review or CI lanes; and `ready` gathers the evidence a plan phase's
+  `Review:` value asks for before the flip, leaving the draft in place when it is missing (a
+  review-concern tag such as `Review: security` asks for none and never holds the flip).
+  `/source-control:worktree cleanup` reports free space before and after, and on macOS with
+  `xcrun` (a new optional prerequisite) lists Xcode build output and unavailable simulators,
+  deleting each only on its own yes.
+- **`/source-control:worktree` runs the consumer's Workspace environment verbs.** `create` runs the
+  declared `setup` after the worktree exists and before entering it, on the helper path and the
+  plain `git worktree add` path; `cleanup` runs `down` after its guards clear and before removal.
+  The entry is read from the fetched default branch, the verbs run through the Bash tool with
+  `WORKSPACE_ID` and `WORKSPACE_ROOT`, and none runs for an untrusted-input worktree. The
+  `WorktreeCreate` and `WorktreeRemove` hooks are unchanged.
+- **`pr_open_state` chooses whether `/source-control:pull-request create` opens a draft.** `draft`
+  (the default, as before) or `ready`. The per-user value is the new `pr_open_state` `userConfig`
+  option; a repository sets it in `docs/conventions/source-control.yaml`, which wins and is
+  validated by the new `schemas/source-control.schema.json`. The repository file is read at the
+  pull request's base branch, never from the working tree or the branch being opened, so a branch
+  cannot open itself ready and skip the `ready` phase's base merge, security review and verify
+  gate. An unattended run (a lane, CI, a `dontAsk` session, a dispatched worker or orchestrator,
+  every `create --pushed`) always opens a draft. `create` reports which level supplied the value,
+  and a value other than `draft` or `ready` opens a draft. `.claude/source-control.md` does not
+  carry the key.
+- **A repository can keep a review-bot triage rubric.** A `## Review-bot triage rubric` table in
+  `docs/conventions/source-control.md` (pattern, optional reviewer, `dismiss`/`fix`/`ask`,
+  `high`/`medium`/`low` confidence) is read at the PR's base branch by
+  `/source-control:pull-request` `monitor` and `comments` and by `/source-control:babysit-prs`, so
+  both triage a recurring bot finding the same way. A row decides one finding: a bot comment holding
+  several findings is disposed of on the rubric's say only when every one of them matched a
+  `dismiss` row, so one dismissable phrase cannot clear the rest. It never dismisses a security or data finding,
+  and an `ask` row in a run with no one to answer leaves the thread open and reports it instead of
+  prompting. Without the section, triage is unchanged.
+- **`/source-control:babysit-prs` reruns a failing check at most once per PR head.** The new
+  `manage_feedback_ledger.py record-rerun` records each rerun in the durable mutation ledger, keyed
+  by PR, head SHA and check (identified the same way the snapshot identifies a check), before the rerun is triggered, and refuses a second one for the same
+  check at the same head (exit 4): that failure is treated as real and fixed or reported. A new
+  head starts the count again, and recording at it drops the older heads' records. The command names the check by its hex id, which the snapshot
+  text prints first on each `failing check: rerun_id=<id> name="<name>"` line (check names are now
+  JSON-escaped, one check per line), never by its name, because a fork PR controls its job
+  names. `reference/native-autofix-pr.md` now states that an `/autofix-pr` session never
+  merges, and how a repository puts the same triage rules in front of that cloud session.
+
+- `/source-control:resolve-conflicts ci` runs unattended for the pr-unblock lane: it resolves and stages each path with `git add`, never asks, commits, pushes or runs gates, never edits `.github/workflows/`, and escalates by leaving a path unstaged. The skill now grants read-only git commands and `git add` in `allowed-tools`.
+
+- `/source-control:worktree status` and `audit` work outside a repository: the new `scripts/worktree-discover.sh` resolves every worktree root with the chain `worktree-create.sh` uses, discovers repositories the way `/repo-fleet-hygiene:audit` does with no scope, maps each worktree under a root to its owning repository, and the skill runs the per-repository status and audit for each owner and the root scan with every repository. `cleanup` outside a repository reports candidates grouped by owning repository and removes nothing (#7308).
+
+- The babysit merge gate takes `--unattended`, the entry point of the unattended merge path. Its policy is inert: check-only reports the blocker `unattended merge inert: authority-unconfigured` and `unattended.enabled: false`, `--merge --unattended` refuses at exit 10 before any network call, and the flag refuses `--allow-dependency` and `--auto`. Without the flag the gate is unchanged.
+
+- `babysit_risk.py`, the diff risk scorer for the unattended merge path: a pure function that rates a pull request LOW, MED or HIGH from its work class, size (the changed-line limit from `merge.diff-check.max-changed-lines`, and 8 files), a case-insensitive HIGH path floor joined with `merge.diff-check.denied-paths`, and the review-lane evidence, with sorted reason codes. A path outside the tracked-path character set, a symlink, submodule or file-type change (from each file's git mode), or any malformed input, rates MED or HIGH. Nothing calls it yet.
+
+- babysit-prs: the unattended merge policy readers in `babysit_merge_policy.py`: pipeline config at the base SHA through the shared YAML reader (bash resolved by Git Bash rules on Windows), the effective rung, the kill switch, the human-set rung cap, the demotion record, the agent identity, pull-request eligibility and the in-flight rule. Each fails closed; `assess()` composes them and stays inert, and `resolve()` now returns it, so every `--merge` reads the policy and refuses at exit 10 when it cannot.
+
+- `babysit_review_evidence.bind()` turns a pull request's AI review lane runs, attempts, completion annotations, reviewed-head marker comments and review threads into per-lane evidence for the unattended merge scorer. A lane binds only when its newest run on the pinned head succeeded on an allowed attempt (a second attempt only after a usage-limit failure, else `rerun-not-allowed`), its job left one completion record for that head, an incremental review chains back to a whole review (`incremental-gap`), a `skip=no-change` names a reviewed head one hop away, and the newest marker names the head. Open findings count every summary finding reported over every completed, non-skipped run plus Claude App inline threads open or resolved by a non-human; findings below inline is `count-inconsistent`. Anything doubtful is unbound.
+- `fetch_review_threads` returns each thread's `resolvedBy` actor.
+
+- `babysit-postmerge.sh` checks every merge since a floor that a human did not enqueue (a null or non-human queue-event `actor` or `enqueuer`, Dependabot and sync-App merges included) against the scheduled and dispatched full `pr-require-checks` runs, the silent-revert canary, and a read-back of the pinned head, and prints a JSON verdict; a merge with no queue event is reported as `unqueued-merge`. A red full run counts only after one `rerun-failed-jobs` by the agent identity: red again is a failure, green a flake. Only a merge the agent identity enqueued needs the read-back; any other verifies on the dispatch and canary runs. It is read-only unless `--remediate`, which triggers that re-run, dispatches one full run on the branch tip when an unverified merge has no identity dispatch run covering it, dequeues the agent identity's merge-queue entries, and files a demotion issue carrying `git revert <merge-sha>` (or comments on the existing one). It refuses (exit 2) an agent identity that is not a dedicated App login, and `--remediate` when the acting login is not that identity; a permission read that fails makes the verdict unreadable. The CLI has no pinned-head source yet, so a merge the agent identity enqueued stays unverified. The babysit loop runs it at every cycle start and merges nothing that cycle unless it exits 0 with every auto-merge verified.
+
+- babysit-prs: the merge gate's `--unattended` path is connected. With `merge.authority: local-babysit` and a `merge.agent-identity` in the repository's `pr-pipeline.yaml` (read at the pull request's base SHA), it decides in the wiring order (identity, a `gh auth status` chokepoint that refuses any other listed account, the kill switch, the post-merge check, demotion and cap, one merge in flight, promotion evidence the babysit-loop resolver reads from the operator's managed or user settings, eligibility, review evidence bound to the head, the diff score) and, with `--merge`, enqueues a LOW pull request at its pinned head after a pin comment, writes one upserted reasons comment for MED or HIGH, disarms an armed auto-merge, dequeues on a stop or a hold, and dispatches the full run once the entry reads back merged, on a later run or when the enqueue itself returns merged. Only a pull request into the default branch qualifies. A queued entry whose opt-in label a non-human put back after a human removed it, or that this run finds ineligible, above the rung or unpromoted for its class, is dequeued. `--allow-unpinned-head`, `--stacked-prs`, `--allow-unprotected` and an unpinned merge are refused under `--unattended`. A review re-run, a dispatch and a self-dequeue are written only by a session that passed the credential chokepoint; an identity merge with no unedited pin comment fails the read-back after the dispatch deadline; the pin read pages through every comment; the merged-history read covers 30 pages. `scripts/check-convention-yaml.sh` also rejects, in `docs/conventions/pr-pipeline.yaml`, the control and line-separator characters the policy refuses.
+- babysit-prs: `babysit-postmerge.sh` exits 5 while an auto-merge is not yet verified, reads each identity merge's pinned head from its pin comment, and defaults `--since` to the merge gate's floor (the enabling config commit, or the newest human close of a demotion record).
+
+- babysit-prs: `babysit-postmerge.sh --preflight` runs the merge gate's identity and credential rules alone (the session acts as `merge.agent-identity` and holds no other account), and exits 0 or 2. Without `--agent-identity` it checks the identity the repository's `pr-pipeline.yaml` names on its default branch and prints it on a pass.
+- `scripts/lane-push.sh`, the only way a lane pushes: it builds `https://github.com/<owner>/<repo>.git` from its arguments or a pull request's head (forks included), drops every `GIT_*` variable, ignores global and system git config, forces gh as the only credential helper and https as the only transport, refuses on local `url.*`, `include*`, `credential.*`, `http.*` and unsafe `remote.*` keys and on any acting login but the one named, sets `NETRC=/dev/null` so no netrc entry authenticates the push before gh, takes git and gh only at absolute paths resolved before entering `--dir`, refuses a repository's default branch (by `--branch` or as a pull request's head) unless that repository is a fork of the base, comparing canonical names, and pushes `HEAD:refs/heads/<branch>` fast-forward only. `--check` runs every refusal but the push.
+- babysit-loop: where the target names a `merge.agent-identity`, the lane launches with that identity's token as its only GitHub credential, and an identity gate at the start of every cycle reads `pr-pipeline.yaml` from the target's default branch and stops the lane before any write when the preflight refuses or the config is unreadable. The durable state block carries a `demotion_events` total.
+
+- `babysit-loop`'s promotion-evidence helper passes the checker `--credential-roots` from a new optional option, `promotion_evidence_credential_roots` (#4588). The helper reads it from managed or user settings like the other four. Unset, the checker gets no flag, as before. Set, each comma-separated entry must be absolute, not a filesystem root, free of `..` segments, not under an ephemeral base (`tmp`, `temp`, `shm` segments) and outside the checkout and every worktree root, judged as text because the paths name the probe host; a bad entry fails closed under a reason naming it. The unattended merge gate checks only that the settings file holding the value is not lane-writable, never the value itself.
+
+- **Plugin eval cases for the babysit-loop promotion-evidence gate.** `babysit-loop-missing-bootstrap-names-option` checks that, with no bootstrap configured, the lane-start preflight names each unset `promotion_evidence_*` option and runs neither the resolution helper nor the checker. `babysit-loop-forged-checkout-settings-not-trusted` plants the four required options and the optional `promotion_evidence_credential_roots` in the checkout's `.claude/settings.json` and `.claude/source-control.md`, pointing at a checker that prints every cell promoted, and checks the cycle report fails closed and the planted surfaces are never run. `babysit-loop-demotion-reported-not-written` hands the lane a resolver result that demotes `C2-auto-merge` and checks the demotion is reported and the operator's binding file is left unchanged. Every case grades that `gh pr merge` never runs. The skill body is unchanged.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- **`/source-control:pull-request create` drafts a short-briefing PR body by default.** When no
+  layer sets `pr_body_required_sections`, the body now has `Why`, `What changed`, `Scope` and
+  `Verification` (all required), plus `Tradeoffs` and `Risk` when they have content, in place of
+  `Summary` and `Test plan`. The key accepts two new keywords beside `none`: `briefing` (this
+  default, stated explicitly) and `summary-test-plan` (the previous default). A repository that wants
+  the old body sets `summary-test-plan`; a repository that already sets a heading list sees no
+  change. `/source-control:setup` reports and recommends the new default.
+- **The briefing body's link-don't-recite line is reworded in our own words.** `/source-control:pull-request create` behaves as before.
+
+- The native-surface records for `commit`, `pull-request` and `worktree`, the `check` skill's invocation note, the gather-block record, the babysit-loop staleness window, the babysit-prs conflict-worker push rationale (which cited a sub-agents section that does not exist), the worktree audit checks, the worktree-root convention and the worktree-create scripts now point at the exact Claude Code docs sections, with an as-of date and a recheck trigger, instead of quoting them. The `commit` record cites the `pull-request` record for the facts the two shared, and the auto-fix hand-off reads its preconditions from that record.
+
+- babysit-prs: the merge gate and the post-merge check share one auto-merge derivation, and a merge that bypassed the queue counts as an auto-merge unless a human merged it. Eligibility refuses a work-class label applied through an App or removed by a non-human. Review evidence unbinds on a retargeted base or a reviewed head whose run is gone, instead of undercounting.
+
+- babysit-prs: `lane_push`, the fix worker and the conflict-resolution push all push through pull-request's `push-branch.sh --dir <checkout> --pr <N>`, never a bare `git push`: inside a lane it pushes through `lane-push.sh` as the configured identity, so a remote or `pushRemote` that `gh pr checkout` wrote is never pushed to, and an attended run takes the operator's own push path, hooks and credentials included. The watched-owners trust boundary for fork heads is unchanged.
+- pull-request: inside a lane (the acting gh login is a GitHub App `[bot]` login), `push-branch.sh` runs the babysit identity preflight for the base repository and hands the push to `lane-push.sh` as the `merge.agent-identity` that repository configures, so the autopilot ready flip and monitor's fix pushes go out as that identity; it refuses when the preflight refuses (no identity configured included), the branch is checked out nowhere, or `--pr` names a fork head without `--dir`. With `--pr`, `lane-push.sh` reads the destination from the pull request, never a remote. Interactive pushes keep the operator's remote and `git push`. Monitor's pushes, and the ready flip's base-refresh pushes, go through `push-branch.sh --pr`.
+- pull-request: `push-branch.sh --dir <checkout>` pushes that checkout's HEAD, detached included, to the branch; and `--pr` refuses unless every push URL of the push remote, not its fetch URL, is the PR's head repository on github.com: a push URL on another host, or a github.com path that only ends in the head repository, refuses; so does an SSH host alias such as `git@github-work:`, which the earlier suffix check accepted. `push-branch.sh` takes `--dir` and `--pr` in either order and refuses any argument it does not take, where a misordered `--pr <N> --dir <checkout>` used to drop `--dir` and push the wrong checkout.
+
+- babysit-loop: a merge-eligible pull request merges only through the gate's `--unattended --merge`, never `--auto`; the post-merge check always passes `--remediate`, since that cycle's identity gate established the identity.
+- babysit-prs: "Merge-lane auto-merge" becomes "Merge lane: no auto-merge". A lane-pinned invocation merges only through `--unattended --merge`; otherwise it reports the PR merge-ready for a human. No guidance arms or re-arms auto-merge, and the GitHub arm command is gone.
+
+- `/source-control:pull-request ready` leaves a held or superseded draft in draft and reports why: a `do-not-merge` label, a body that says "do not merge", a WIP title marker, or an already-closed linked issue. The check is `check-ready-holds.sh`, which fails closed when it cannot read the pull request.
+
+- The babysit-loop promotion-evidence bootstrap contract now states its threat model and the deployment requirements by host: the options only in managed settings (babysit-loop's unattended-merge section now says the same), every surface and the checker copy in an admin-owned directory the lane identity cannot write, a lane identity that is neither the surface owner nor an administrator, and a per-host table that allows Linux and macOS, refuses WSL when the lane runs as the Windows user owning the distribution (with a documented hardening exception), and refuses native Windows, where the helper fails closed as `writability-unverifiable-on-win32`. It also names the residuals no host closes.
+
+- `/source-control:pull-request` monitor states that a delegated fix waits until every check and reviewer on the current head is terminal, then goes out as one brief carrying the head's failing checks, unresolved review threads and verifier failures together, so a late finding does not cost a second round and push.
+
+### Fixed
+
+- **GitHub-sourced names stay out of typed shell commands and jq programs.** The readiness
+  duplicate-check verification lists every check run and matches the name in the output instead
+  of typing it into a `--jq` regex. The push-verify (`pull-request` D6 and review discipline),
+  remote-branch delete (`merge`) and read-only `git show` (`babysit-prs`) commands single-quote
+  the PR head branch, pass it after `--end-of-options`, and use it only when it matches
+  `^[A-Za-z0-9._/-]+$`, does not start with `-` and holds no `..`; any other name is reported,
+  never run. The pull-request checklist template's Phase 4 line shows the same quoted delete
+  command and points to that rule, and worktree cleanup's suggested remote delete applies it too.
+
+- The worktree-create gate and helper no longer name `worktree.bgIsolation: "none"` as a general stand-down: that key covers background sessions only, so the messages now say so and name disabling the plugin as the stand-down for `--worktree` and subagent worktrees. The header carries a pointer record to the settings reference.
+- The babysit-prs scripts no longer say sandboxed sessions serve a pinned set of GraphQL operations: the cloud GitHub proxy refuses GraphQL outright. The comments now point at the cloud-environments GitHub proxy section, and the refusal detector also matches the proxy's current documented message, so a refused read falls back to REST instead of failing.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- babysit-prs: the merge gate and the merge-entry hold also treat a PR body line starting `Hold:` (any case) as a human hold on the merge (the `pull-request ready` flip does not stop for it); before, only "do not merge" or "don't merge" in the body held the merge.
+
+- The worktree cleanup reap no longer leaves the worktree's tracked `.claude/settings.json` as the plugin uninstall CLI rewrote it: when the file was tracked and unmodified before the pass, the reap helper restores it from version control and names it, so plain worktree removal succeeds. A file flagged assume-unchanged or skip-worktree is never restored, since version control cannot see local edits behind either flag (#6007).
+
+- The unattended merge gate called `resolve-promotion-evidence.mjs` with the retired `--binding`, `--probe-evidence-root`, `--evidence` and `--checker` flags, so every promotion read failed closed as a usage error. It now passes only `--checkout`, one `--worktree-root` per worktree and, after a demotion record, the new `--window-start <ISO 8601>`: the resolver hands the checker a temporary copy of the evidence source with one `gate-failure` per promotable cell at that instant, and fails closed on an empty or malformed value or a source that is not a JSON array. The gate then refuses any option value, or settings file it came from, that the lane user can write.
+
+- `/source-control:pull-request view` reads the pull request, its files, and its diff through the REST API instead of `gh pr view` and `gh pr diff`, so `/review:explain-change` and the other callers get pull-request facts in sessions that refuse GraphQL, such as Claude Code cloud sessions. The facts keep the same fields and value shapes. `<pr>` may also be a head branch, and `--repo` takes `HOST/OWNER/REPO`.
+
+- **`/source-control:pull-request merge` now confirms a merge-queue PR actually entered the queue.** Before any merge call it polls the PR's merge state while it reads `UNKNOWN` and merges or enqueues only on `CLEAN`, since a merge call made while the state is `UNKNOWN` arms auto-merge instead of enqueueing. After `gh pr merge` on a merge-queue base it reads `isInMergeQueue`; a `CLEAN` PR left out of the queue is enqueued once at the pinned head, through a separate call with the node id and head written as literals, and a refusal is reported with GitHub's error text verbatim, so a run ends merged, queued, or held with a named blocker. The head is now captured once in the pre-merge stale-base check and every merge call pins to it, and a hold with auto-merge armed warns that a later push could merge on `ci-status` alone and offers `gh pr merge --disable-auto`.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+### Security
+
+- Plain `--merge` on the babysit merge gate refuses at exit 10 when the token's acting login is the configured `merge.agent-identity`, or cannot be read while one is configured, so the agent identity can merge only through `--unattended`.
+
+- `babysit-loop`'s promotion-evidence helper reads its four bootstrap values itself (#7008). `resolve-promotion-evidence.mjs` no longer takes `--binding`, `--probe-evidence-root`, `--evidence` or `--checker`; it reads `promotion_evidence_binding`, `promotion_evidence_root`, `promotion_evidence_source` and `promotion_evidence_checker` from the operator's managed settings files and the user `settings.json` located from its own install path (channel F of `docs/conventions/hook-config-delivery`), managed winning per option. A stub checker or forged binding the lane keeps outside the checkout no longer yields `promoted`: a path argument is a usage error, and the `CLAUDE_PLUGIN_OPTION_*` mirror, `CLAUDE_CONFIG_DIR`, `HOME`, a checkout `.claude/settings.json` and `.claude/source-control.md` are never read for these values. A value supplied only through `--settings`, a server-managed policy or an MDM policy is invisible to the helper and fails closed, so configure the options in managed or user settings. The output gains `options`, naming the settings file each value came from. Operators still keep `--merge human-only` on launch lines; lifting it stays the owner's call.
+
+- The unattended merge path (`babysit_merge.py --unattended`) closes residuals from #7339 before Phase 15 enables it. A binding, probe root, evidence source or checker the lane user can write, or replace through any directory above it, refuses promotion like a writable settings file, and every worktree of the checkout reaches the promotion resolver as a `--worktree-root`. A head commit whose author or committer is linked to no account, or a head with more commits than the commits list returns, refuses as `head-pusher-unproven`. Only an owner, member or collaborator's blocking comment dequeues a queued entry. The opt-in label is read again, presence and provenance, beside the second kill-switch read. A queued pull request this run scores MED or HIGH, or finds on a base that is not the default branch, leaves the queue. A failed dequeue no longer stops the others, and the queue read passes the branch as a raw string (`-f`).
+
+- `babysit-loop`'s promotion-evidence helper (`resolve-promotion-evidence.mjs`) now refuses a surface, checker or supplying settings file the lane user can write, or owns, at the path or any directory above it, as given or after symlinks resolve, failing closed as `lane-writable:<option or file>` (#4588). Before, only the unattended merge gate checked this, so the babysit-loop prose route resolved promotion from user-owned surfaces. On Windows, where the check cannot read an ACL, the helper fails closed on every call as `writability-unverifiable-on-win32`. The merge gate keeps its own check as a second layer. Credential roots name the probe host, so only the settings file that set them is checked.
+
 ## [1.0.3] - 2026-10-11
 
 ### Changed
