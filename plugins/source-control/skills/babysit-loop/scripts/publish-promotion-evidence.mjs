@@ -29,10 +29,15 @@
 // enqueuer as merged_by (probed 2026-10-12 on PR #7352: merged_by.login matched the
 // AddedToMergeQueueEvent enqueuer), so --lane-login names any lane identity that runs as a User
 // (a machine user); an App lane is a Bot and counts without it. Recheck if merged_by stops
-// matching the enqueuer.
+// matching the enqueuer. Autonomy and the dispatch check compare that stripped key; the pin
+// read-back compares exactly, so for an App lane pass --lane-login as GraphQL spells the App
+// plus `[bot]` (`name[bot]`), or its pins are not found.
 //
-// Deployment requirement: the lane identity must not hold actions:write on the repository. With it
-// the lane could delete a red workflow run, and a deleted run is evidence this script never sees.
+// Open deployment decision: an identity with actions:write can delete a red workflow run, which
+// this script then never sees, and GitHub has no permission that allows dispatching a workflow
+// without also allowing run deletion. babysit_postmerge.py dispatches the post-merge full run under
+// the lane identity, so either that dispatch moves to an identity the lane cannot use, or a
+// deleted red run remains a named residual. Not decided here.
 //
 // Anything a lane can write into a PR or commit degrades to a listing or to unclassed-autonomous,
 // never to a refused publish. What refuses is GitHub itself being unreadable: a failed read, an

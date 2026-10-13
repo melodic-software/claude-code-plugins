@@ -11,9 +11,11 @@ import * as publisher from "./publish-promotion-evidence.mjs";
 import { collect, PublishError, publish } from "./publish-promotion-evidence.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// Real `gh api` responses from this repository (PR #7352, its merge commit, a check run, an
-// issue event and a review), recorded 2026-10-12 and trimmed to the fields the publisher reads.
-// Each case copies a record and varies number, labels, merger and timestamps.
+// Real `gh api` responses, recorded 2026-10-12 and 2026-10-13 and trimmed to the fields the
+// publisher reads: from this repository (PRs #7352 and #7063, a merge commit, a check run, a
+// status, an issue event, a review, a comment page, workflow runs, a compare, NOT_FOUND and 422
+// answers) and one ConnectedEvent from cli/cli #14616. The comment page's body is trimmed to its
+// first line. Each case copies a record and varies number, labels, merger and timestamps.
 const REC = JSON.parse(readFileSync(join(HERE, "fixtures", "publish-promotion-evidence", "recorded.json"), "utf8"));
 const REPO = "melodic-software/claude-code-plugins";
 const LANE = "lane-bot[bot]";
@@ -286,6 +288,16 @@ test("a lane-enqueued merge passes only when its unedited lane pin names headRef
   // A merge another bot enqueued is autonomous but not the lane's: it has no pin to read back.
   const bot = [pr(1503, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], merger: "kyle-sexton", timeline: [queued("2026-08-31T23:00:00Z", null, "some-app[bot]")] })];
   assert.deepEqual(gateOf(run({ pulls: bot, workflowRuns: verifiedEach(bot), comments: { 1503: [] } })), PASSED);
+});
+
+test("a pin past the 30th comment page is no pin, as in read_pin", () => {
+  const pulls = () => [pr(1504, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const filler = (count) => Array.from({ length: count }, () => REC.commentsPage.data.repository.pullRequest.comments.nodes[0]);
+  const withComments = (list) => run({ pulls: pulls(), workflowRuns: verifiedEach(pulls()), comments: { 1504: list } });
+  const head = shaOf(1504 + 0x100000);
+  assert.deepEqual(gateOf(withComments([...filler(2999), pinComment(head)])), PASSED);
+  const beyond = withComments([...filler(3000), pinComment(head)]);
+  assert.deepEqual([gateOf(beyond), beyond.events], [FAILED, gateEvents("2026-09-01T06:00:00Z", "C2-auto-merge")]);
 });
 
 test("a revert number that is not a GraphQL Int is listed without a lookup", () => {
