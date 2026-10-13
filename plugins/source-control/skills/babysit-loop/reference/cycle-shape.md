@@ -148,8 +148,9 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    `--evidence` and `--checker` arguments as a usage error. It refuses a path inside the checkout
    or a worktree root, or containing one. It refuses a surface, checker or supplying settings file
    the lane user can write, or owns, at the path or any directory above it
-   (`lane-writable:<option or file>`), and every call on Windows, where that test cannot read an
-   ACL (`writability-unverifiable-on-win32`). It prints `{source, failClosedReason, options, cells}`,
+   (`lane-writable:<option or file>`), and every call on Windows
+   (`writability-unverifiable-on-win32`; the pointer record for that decision is under "Read-only
+   to the lane" in [the contract](promotion-evidence-bootstrap.md#value-shape)). It prints `{source, failClosedReason, options, cells}`,
    `options` naming the settings file each value came from, and exits 0. Decide each cell from
    `cells` with the resolution table: it is effective-promoted
    only when `failClosedReason` is null and its `effective` is `promoted`. A fail-closed reason, a

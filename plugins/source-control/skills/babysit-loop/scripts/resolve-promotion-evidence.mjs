@@ -27,8 +27,9 @@
 // sets, or a settings source that cannot be read; a relative or unresolvable path; a surface
 // or checker that is inside the checkout or a worktree root, or contains one, before or after
 // symlinks resolve; a surface, checker or supplying settings file the lane can write
-// (laneWritable, reason "lane-writable:<option or file>"); any run on win32, where that test
-// cannot judge an ACL ("writability-unverifiable-on-win32"); a checker that exits non-zero,
+// (laneWritable, reason "lane-writable:<option or file>"); any run on win32, where that test is
+// not trusted ("writability-unverifiable-on-win32"; pointer record under "Read-only to the lane"
+// in reference/promotion-evidence-bootstrap.md); a checker that exits non-zero,
 // times out, or prints no evaluation block; and any line in that block that does not parse. The
 // unattended merge gate (babysit_merge_policy.py) repeats the writability test as a second
 // layer. Tests run main() from a wrapper with an injected platform, access, stat and uid; the
@@ -251,7 +252,7 @@ export function main({ platform = process.platform, ...judge } = {}) {
     emit(null, error.message);
   }
   source = options.promotion_evidence_source?.value || null;
-  // Node, like CPython's os.access, cannot judge a Windows ACL, so writability is unknowable.
+  // The write test is not trusted on Windows (reference/promotion-evidence-bootstrap.md).
   if (platform === "win32") emit(source, "writability-unverifiable-on-win32");
 
   // The option's realpath, once its value and the settings file it came from are lane-unwritable.
