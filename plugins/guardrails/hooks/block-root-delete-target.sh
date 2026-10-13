@@ -2990,7 +2990,7 @@ rdt_scan_substitutions() {
   local -a st_start=() st_q=() st_kind=() hd_delim=() hd_strip=() hd_quoted=() hd_sfx=()
   local hd line lc body pre hfull nested="${2:-}"
   local hd_word_re="^('[A-Za-z0-9_]+'|\"[A-Za-z0-9_]+\"|\\\\[A-Za-z0-9_]+)$"
-  local -i hstart
+  local -i hstart hend hcmt=-1
   local -a hd_body=()
   while ((i < len)); do
     c="${s:i:1}"
@@ -2999,7 +2999,9 @@ rdt_scan_substitutions() {
     # leading tabs, for `<<-`), or to the end of the text.
     if [[ -z "$q" && "$c" == $'\n' ]] && ((${#hd_delim[@]})); then
       for ((k = 0; k < ${#hd_delim[@]}; k++)); do
-        rdt_hd_plain "${s:hd_sfx[k]:i - hd_sfx[k]}" || hd_quoted[k]=0
+        hend=$i
+        ((hcmt >= hd_sfx[k])) && hend=$hcmt
+        rdt_hd_plain "${s:hd_sfx[k]:hend - hd_sfx[k]}" || hd_quoted[k]=0
       done
       i=$((i + 1))
       hd_body=()
@@ -3028,6 +3030,7 @@ rdt_scan_substitutions() {
       hd_strip=()
       hd_quoted=()
       hd_sfx=()
+      hcmt=-1
       continue
     fi
     # A heredoc opener `<<` or `<<-`, never the here-string `<<<`. The delimiter
@@ -3082,7 +3085,7 @@ rdt_scan_substitutions() {
         # body to a reader of data under a plain quoted word, makes it inert;
         # see rdt_hd_plain. A word with `$` or `\` inside quotes is one this
         # parser could end in the wrong place, so its body is scanned.
-        if ! [[ -z "$nested" && "$pre" == "$hfull" && "${s:hstart:i-hstart}" =~ $hd_word_re ]] ||
+        if ! [[ -z "$nested" && hcmt -lt 0 && "$pre" == "$hfull" &&"${s:hstart:i-hstart}" =~ $hd_word_re ]] ||
           ! { ((pd == 0)) && rdt_hd_plain "$pre" && rdt_hd_reader "$pre"; }; then
           hq=0
         fi
@@ -3120,6 +3123,17 @@ rdt_scan_substitutions() {
         i=$((i + 2))
       fi
       continue
+    fi
+    # An unquoted `#` that starts a word starts a comment to the end of the
+    # line: no heredoc opener after it is real, and the text after it cannot
+    # pipe or redirect a body.
+    if [[ -z "$q" ]]; then
+      if [[ "$c" == '#' ]] && ((hcmt < 0)) &&
+        { ((i == 0)) || [[ "${s:i-1:1}" == [[:space:]\;\&\|\(\)] ]]; }; then
+        hcmt=$i
+      elif [[ "$c" == $'\n' ]]; then
+        hcmt=-1
+      fi
     fi
     case "$c" in
     '"')

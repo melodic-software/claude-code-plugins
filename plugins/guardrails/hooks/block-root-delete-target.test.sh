@@ -666,6 +666,8 @@ expect_both "quoted heredoc fed to a backslash-continued shell blocks" 2 --comma
 expect_both "quoted heredoc written by tee blocks" 2 --command $'tee /tmp/x.sh <<\'EOF\'\necho `rm -rf /`\nEOF'
 expect_both "escaped quote in a heredoc delimiter blocks" 2 --command $'cat <<"E\\"F"\nbody\nE"F\necho `rm -rf /`'
 expect_both "ansi-c heredoc delimiter blocks" 2 --command $'cat <<$\'EOF\'\nbody\nEOF\necho `rm -rf /`'
+expect_both "heredoc opener inside a comment blocks" 2 --command $'cat # <<\'EOF\'\necho "$(rm -rf /)"'
+expect_both "trailing comment on a quoted heredoc opener allowed" 0 --command $'gh pr create --body-file - <<\'EOF\' # see $1\nRun `rm -rf /` never.\nEOF'
 expect_both "quoted heredoc fed to gh issue comment allowed" 0 --command $'gh issue comment 1 --body-file - <<\'EOF\'\nRun `rm -rf /` never.\nEOF\n'
 # An unquoted delimiter's body IS expanded, so its substitutions still run.
 expect_both 'unquoted heredoc body with backticked rm blocks' 2 --command $'cat <<EOF\nnote: `rm -rf /`\nEOF'
