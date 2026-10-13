@@ -1259,7 +1259,7 @@ assert_eq "a tool call with a non-object input is still counted" "1" "$(q '.tool
 
 # --- 42. stop-hook-timing: per-hook Stop p50 and p95 from stop_hook_summary records only ---
 SH="$WORK/stop-hooks.jsonl"
-SECRET_HOOK="curl -H 'Authorization: Bearer s3cr3tvalue' https://hooks.example/stop"
+SECRET_HOOK="curl -H 'Authorization: Bearer s3cr3t""value' https://hooks.example/stop"
 {
   printf '{"type":"user","timestamp":"%s","message":{"content":"stop_hook_summary hookInfos durationMs"}}\n' "$(ts 0)"
   printf '{"type":"system","subtype":"other","hookInfos":[{"command":"not-a-stop-hook","durationMs":99999}]}\n'
