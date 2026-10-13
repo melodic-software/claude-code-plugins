@@ -18,13 +18,23 @@ invocation:
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+is not a bound.
+
+- **Pointer**: when deciding how much of a command's output reaches context, fetch
+  [tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes how much of a valid
+  result reaches context inline.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+separate body Bash calls, one plain command each, rather than pre-compute lines.
+
+- **Pointer**: when deciding whether a git command can run as a pre-compute line or in a
+  worktree-isolated session, fetch
+  [skills § How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run)
+  and
+  [worktrees § How Claude Code enforces isolation](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation)
+  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes how a skill's injected
+  commands run or which command shapes an isolated session refuses.
 
 ## Variables
 

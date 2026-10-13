@@ -4,8 +4,10 @@ Two reusable workflows run one activity of one lane each and end in one check ru
 `<lane> / <activity>`: `success`, `failure`, or `neutral` with a skip reason.
 
 - [`pr-run-activity-read.yml`](../../../.github/workflows/pr-run-activity-read.yml) runs an
-  activity whose effect is `read`. It declares no App key secret and no `id-token` permission, and
-  fails red with `effect-not-read` before the head checkout for any other effect.
+  activity whose effect is `read`. It declares no App key secret. Only its `broker-check` job,
+  which runs no head code, holds `id-token: write`, to ask the lanes token broker's check endpoint
+  whether the lane may run ([below](#the-broker-check-job)). It fails red with `effect-not-read`
+  before the head checkout for any other effect.
 - [`pr-run-activity-write.yml`](../../../.github/workflows/pr-run-activity-write.yml) runs every
   other effect. It declares no App key either: its run job holds `id-token: write` and gets the
   effect's token from the lanes token broker before any head checkout. It never runs for the lanes
@@ -31,6 +33,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      id-token: write
     concurrency:
       group: pr-review-${{ github.event.pull_request.number || inputs.pr-number }}
       queue: max
@@ -42,8 +45,8 @@ jobs:
       claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 ```
 
-A write activity calls `./.github/workflows/pr-run-activity-write.yml` the same way, passes no App
-key, and adds `id-token: write` to the calling job's permissions.
+A write activity calls `./.github/workflows/pr-run-activity-write.yml` the same way, with the same
+permissions, and passes no App key.
 
 | Input | Default | Meaning |
 |---|---|---|
@@ -64,9 +67,8 @@ The write file has one `workflow_call` output, `escalation-reason`: empty, or wh
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities, both
 files) is the only one. Variables: `CLAUDE_LANES_DISABLED` and `CLAUDE_LANES_REPO_DISABLED` (the org
 and repository kill switches),
-`AUTOMATION_LANES_APP_SENDER_ID`, the App bot's numeric user id, the one place it is written, and,
-for the write file, `LANES_BROKER_URL` and `LANES_BROKER_AUDIENCE`
-([below](#the-lane-token-broker)). The run job's first step fails red when
+`AUTOMATION_LANES_APP_SENDER_ID`, the App bot's numeric user id, the one place it is written, and
+`LANES_BROKER_URL` and `LANES_BROKER_AUDIENCE` ([below](#the-lane-token-broker)). The run job's first step fails red when
 `AUTOMATION_LANES_APP_SENDER_ID` is not a numeric id, since an unset value would let the App's own
 events through the self-trigger guard.
 
@@ -75,9 +77,10 @@ Node 24.
 
 The caller must:
 
-- Grant the calling job `contents: read`, `pull-requests: read` and `checks: write`, plus
-  `id-token: write` when it calls the write file. The `run` job narrows this to the two reads, and
-  `id-token: write` in the write file; only the `report` job uses `checks: write`.
+- Grant the calling job `contents: read`, `pull-requests: read`, `checks: write` and
+  `id-token: write`. The `run` job narrows this to the two reads, plus `id-token: write` in the
+  write file; in the read file only the `broker-check` job uses `id-token: write`, and only the
+  `report` job uses `checks: write`.
 - Put the calling job in a per-PR concurrency group with `queue: max`, or an equivalent that never
   cancels a pending run. A group that drops a pending run leaves that activity with no check, and
   silence is not a skip.
@@ -89,6 +92,39 @@ The caller must:
 - Expose `config-path` only from a test caller. A production lane never passes it and never offers
   it as a `workflow_dispatch` input, so no dispatch can point the reader at another YAML file in the
   base tree.
+
+## The broker-check job
+
+Read file only, before the run job, which `needs` it. It holds `contents: read` and
+`id-token: write`, runs only actions from the default branch tip, never checks out the PR head, and
+times out after 10 minutes. In order:
+
+1. Fails red when the event names no default branch.
+2. Checks out the default branch tip to `.base`, `persist-credentials: false`.
+3. `check-kill-switch`. A stop ends the job green with no broker call; the run job's own
+   `check-kill-switch` step then stops the lane, and the check is neutral `kill-switch`.
+4. [`request-lane-token`](../../../.github/actions/request-lane-token/README.md) in `check` mode
+   asks the broker's check endpoint whether the lane may run
+   ([below](#the-check-endpoint)). The check mints nothing.
+
+Any answer but an allow, or no answer, fails the job, which skips the run job. The report job
+passes the broker-check job's result as `run-result` whenever it is not `success`, so a failure
+posts a failure check and a cancel follows `report-check-run`'s cancel rule. A broker denial is
+red, not neutral, for the same reason as the write file's `kill-switch` denial: step 3 already
+stopped the common case. Off `pull_request`, a failed broker-check job posts no check, since no
+head SHA was gated ([Runs that post no check](#runs-that-post-no-check)).
+
+The job outputs `allowed` (`true` only when step 4 succeeded) and `attempt`
+(`github.run_attempt`). "Re-run failed jobs" reuses a successful broker-check job and its outputs,
+so in the read file, right after its own kill-switch step proceeds, the run job fails red with
+`kill-switch` unless `allowed` is `true` and `attempt` equals its own run attempt. That also fails
+a run whose broker-check job skipped the broker on a kill-switch stop its run job no longer sees.
+Re-running all jobs asks the broker again.
+
+Residual: `scripts/check-read-caller-keys.sh` checks the job's permissions, its shape and its
+`actions/checkout` steps, not what its `run:` steps do. A `run:` step that fetched
+`refs/pull/<n>/head` with git would put head content in the job; review catches that, the lint
+does not.
 
 ## The run job
 
@@ -114,8 +150,10 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `dispatcher-run-id` input with `dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml`
    and `dispatched-workflow: .github/workflows/pr-unblock.yml`, so a `workflow_dispatch` sent by
    `github-actions[bot]` proceeds only when it names a run of that dispatcher on the default branch
-   whose window holds this run's creation, and this run is `pr-unblock.yml`; every other
-   bot-sent dispatch stops with `untrusted-actor`. The checks are in the gate's README. Only
+   whose window holds this run's creation and whose `pr-unblock-dispatched-<id>[-<id>...]`
+   artifact lists this run's id, and this run is `pr-unblock.yml`; every other bot-sent dispatch
+   stops with `untrusted-actor`. The gate waits up to 2 minutes for that record while the
+   dispatcher run is still going. The checks are in the gate's README. Only
    with a `dispatcher-run-id` does the skill step pass claude-code-action
    `allowed_bots: github-actions`, which otherwise refuses a run a bot started.
 4. `check-trusted-base` asserts the PR targets the default branch and fails red otherwise. On `pull_request` the base
@@ -170,10 +208,12 @@ the broker request, and no other permission; it never holds `checks: write` or `
     `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
 14. Write file only, `if: always()` whenever step 6 output a token: `actions/github-script`,
     pinned by SHA, so no binary resolved through `PATH` or `BASH_ENV` runs with the token, sends
-    `DELETE /installation/token` with it, then `GET /installation/repositories`, and fails red
-    unless they return 204 and 401. It is a backstop for an honest activity that did not clean
-    up, not a control against a hostile one: the activity holds the token and can write the
-    runner's files.
+    `DELETE /installation/token` with it, then `GET /installation/repositories`. It never fails
+    the job (`continue-on-error: true`): a DELETE other than 204 is a `::warning::`, and a 204
+    whose GET is not yet refused with 401 is a `::notice::`; a confirmed revoke, 204 then 401,
+    raises no annotation and is recorded in the step log. It is a backstop for an honest
+    activity that did not clean up, not a control against a hostile one: the activity holds the
+    token and can write the runner's files.
 
 A stacked PR, one whose base is not the default branch, gets a failure check from step 4. Retarget
 it to the default branch to run its lanes.
@@ -472,7 +512,9 @@ trust-root paths is off by owner decision; the controls a lane relies on instead
 are in [Trust-root paths](README.md#trust-root-paths). With the broker,
 the write file references no key either, so one caller may call both files: the read file's run
 job sets its own permissions, without `id-token`, so its head code holds neither the key nor an
-OIDC token.
+OIDC token. `id-token: write` in the read file is allowed only in its `broker-check` job, which
+runs no head code, on its own runner. The run job lacks the permission, so its runner gets no OIDC
+request URL.
 [`scripts/check-read-caller-keys.sh`](../../../scripts/check-read-caller-keys.sh) enforces the
 key rule in `lint-repo`: it parses every workflow, walks up from `pr-run-activity-read.yml` to every workflow
 whose run can reach it (a job-level `uses:` in `./` or `melodic-software/claude-code-plugins/...@ref`
@@ -481,7 +523,12 @@ such a run names `AUTOMATION_LANES_APP_PRIVATE_KEY` or `app-private-key` in a ke
 `private-key` key, passes `secrets: inherit`, or has a `${{ }}` expression, in a key, a value or a `#` line of
 a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` on the allowlist
 `claude_code_oauth_token`, `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
-`secrets[...]` and bare `secrets` fail. It also fails when the read file names `id-token`.
+`secrets[...]` and bare `secrets` fail. It also fails when any file of such a run sets
+`permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
+job has no permissions map, `id-token` is named anywhere outside the `broker-check` job, that job
+is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`
+other than `${{ github.event.repository.default_branch }}` or a `with` key other than `ref`,
+`path` and `persist-credentials`.
 
 The read file stays alongside the broker: its guarantee, no key and no OIDC token in a job that
 runs head code, is structural, while the write file's comes from the broker.
@@ -521,7 +568,10 @@ run it names passes the checks the trusted-trigger gate applies. That run must b
 started by a push or a listed human, with a re-run attempt started by a listed human. Its head
 must be an ancestor of the tip and no tag may be named `main`. This run must be a `pr-unblock.yml`
 `workflow_dispatch` created between the dispatcher run's `run_started_at` and the earlier of its
-`updated_at` and `run_started_at` plus 10 minutes. The client sends it once and never retries: the broker
+`updated_at` and `run_started_at` plus 10 minutes. The dispatcher run must also hold an unexpired
+`pr-unblock-dispatched-<ids>` artifact whose ids include this run's; the broker reads it once,
+with no wait, since the trusted-trigger gate in step 3 has already waited for it. The client
+sends it once and never retries: the broker
 reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
 and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
 
@@ -553,12 +603,26 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 503 | `github-unavailable` | With `dispatcher_run_id`: a dispatcher, run, tag or compare read failed; nothing was minted |
 | 403 | `pr-not-eligible` | The PR is not open, not from a branch of this repository, or does not target `main` |
 | 403 | `default-branch-not-main` | The repository's default branch is not `main` |
-| 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, a repository variable of that name exists (it would shadow the org value), or the repository's `CLAUDE_LANES_REPO_DISABLED` is set and not exactly `false` |
+| 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, a repository variable of that name exists (it would shadow the org value), or the repository's `CLAUDE_LANES_REPO_DISABLED` is absent or not exactly `false` |
 | 403 | `already-minted` | This job already received its mint |
 | 503 | `key-unavailable`, `github-unavailable`, `store-unavailable` | The broker could not sign, read GitHub, or record the mint; nothing was minted |
 
 A `kill-switch` denial is red, not neutral: step 3 already stopped the common case, so the denial
 means the job's read and the broker's read of the switch disagreed.
+
+### The check endpoint
+
+The read file's `broker-check` job sends `POST` to `LANES_BROKER_URL` with its final `/token`
+replaced by `/check`, with `Authorization: Bearer <OIDC token>` and the body
+`{"lane": "<lane>", "activity": "<activity>"}`; any other body field is a 400. The broker runs the
+same token, claim, repository and kill-switch checks as a mint, with `pr-run-activity-read.yml` as
+the job's workflow, and mints and reserves nothing, so re-running all jobs asks again. It answers 200
+`{"decision": "allow", "lane", "activity"}`; the client fails red with `lane-check-denied` unless
+`decision` is `allow` and `lane` and `activity` are its own. Any other status fails red with
+`lane-check-denied`, the status and the broker's reason, from the table above minus the
+mint-only rows; no response is `broker-unreachable`. The lanes bot is refused only on a mint, so
+a `workflow_run` read lane still runs after a bot push. The endpoint is served from
+`melodic-software/azure-iac`; a read lane fails red until it is deployed.
 
 [`scripts/check-app-key-references.sh`](../../../scripts/check-app-key-references.sh) fails
 `lint-repo` when any file under `.github/workflows/` or `.github/actions/` names
@@ -577,8 +641,9 @@ Step 14 revokes the token as soon as the activity is done. Residuals:
 
 - A fork PR, whose read-only `GITHUB_TOKEN` cannot write checks: the report job's `if:` skips it.
 - A `pull_request` event sent by the lanes App (`AUTOMATION_LANES_APP_SENDER_ID`): both jobs skip.
-- Any event other than `pull_request` whose run job gated no head SHA: the fallback there would be
-  `github.sha`, the dispatch ref, not the PR's commit. The report job notes it in its step summary.
+- Any event other than `pull_request` whose run job gated no head SHA, including a read run whose
+  `broker-check` job failed: the fallback there would be `github.sha`, the dispatch ref, not the
+  PR's commit. The report job notes it in its step summary.
 
 ## Bounds
 

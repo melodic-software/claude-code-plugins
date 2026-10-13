@@ -93,9 +93,39 @@ jobs:
           exit 1
 
       - name: Dispatch pr-unblock for conflicting PRs
+        id: dispatch
         if: >-
           steps.kill.outputs.proceed == 'true'
           && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node .base/.github/scripts/pr-unblock/dispatch.mjs
+
+      # The record of which runs this run dispatched: an artifact only steps of
+      # this run can upload, named with every id so a reader needs one list
+      # call and no download. It outlives the 10-minute dispatch window and
+      # runs after a partial dispatch failure, which still sent the others.
+      - name: Name the dispatched-runs record
+        id: record
+        if: always() && steps.dispatch.outputs.run-ids != ''
+        env:
+          RUN_IDS: ${{ steps.dispatch.outputs.run-ids }}
+        run: |
+          if [[ ! "$RUN_IDS" =~ ^[1-9][0-9]{0,14}(\ [1-9][0-9]{0,14})*$ ]]; then
+            echo "::error::run-ids is not a list of run ids"
+            exit 1
+          fi
+          printf '{"dispatcher_run_id":%s,"run_ids":[%s]}\n' "$GITHUB_RUN_ID" "${RUN_IDS// /,}" \
+            >"$RUNNER_TEMP/pr-unblock-dispatched.json"
+          echo "name=pr-unblock-dispatched-${RUN_IDS// /-}" >>"$GITHUB_OUTPUT"
+
+      - name: Record the dispatched runs
+        if: >-
+          always() && steps.dispatch.outputs.run-ids != ''
+          && steps.record.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.record.outputs.name }}
+          path: ${{ runner.temp }}/pr-unblock-dispatched.json
+          retention-days: 1
+          if-no-files-found: error

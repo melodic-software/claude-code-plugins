@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "export interface RetryOptions {\n  maxAttempts: number;\n  backoffJitter: boolean;\n  delayMs: number;\n}\n\nexport const defaultRetryOptions: RetryOptions = {\n  maxAttempts: 3,\n  backoffJitter: false,\n  delayMs: 200,\n};\n"},
+    {"answer": "export interface RetryOptions {\n  backoffJitter: boolean;\n  maxAttempts: number;\n  delayMs: number;\n}\n\nexport const defaultRetryOptions: RetryOptions = {\n  backoffJitter: false,\n  maxAttempts: 3,\n  delayMs: 200,\n};\n", "why": "field order is not part of either intent"}
+  ],
+  "fail": [
+    {"answer": "export interface RetryOptions {\n  maxRetries: number;\n  backoffJitter: boolean;\n  delayMs: number;\n}\n\nexport const defaultRetryOptions: RetryOptions = {\n  maxRetries: 3,\n  backoffJitter: false,\n  delayMs: 200,\n};\n", "why": "ours only: main's rename dropped"},
+    {"answer": "export interface RetryOptions {\n  maxAttempts: number;\n  delayMs: number;\n}\n\nexport const defaultRetryOptions: RetryOptions = {\n  maxAttempts: 3,\n  delayMs: 200,\n};\n", "why": "theirs only: the jitter option dropped"},
+    {"answer": "export interface RetryOptions {\n  maxAttempts: number;\n  maxRetries: number;\n  backoffJitter: boolean;\n  delayMs: number;\n}\n\nexport const defaultRetryOptions: RetryOptions = {\n  maxAttempts: 3,\n  maxRetries: 3,\n  backoffJitter: false,\n  delayMs: 200,\n};\n", "why": "both names kept: the rename was not applied"}
+  ]
+}

@@ -1,5 +1,80 @@
 # Changelog for the PR pipeline convention
 
+## 1.10.4 - 2026-10-12
+
+README gains "Planning lane work": a one-page plan per sub-topic, design and stress tests only for
+trust-boundary changes, ADRs only for trust-boundary or irreversible choices, and stops limited to
+owner-reserved items when the owner pre-approved the recommendations. `version` stays 1.
+
+## 1.10.3 - 2026-10-12
+
+`pr-run-activity.md` run job step 14: the lane-token revoke step never fails the job. A DELETE
+other than 204 is a `::warning::`, and a 204 whose `GET /installation/repositories` is not yet
+refused with 401 is a `::notice::`. A confirmed revoke is recorded in the step log.
+`scripts/write-runner-revoke-step.test.sh` runs the step's script against each case. `version`
+stays 1.
+
+## 1.10.2 - 2026-10-12
+
+`pr-run-activity.md` "The lane token broker": the broker now also requires the dispatcher run's `pr-unblock-dispatched-<ids>` record to list the requesting run, read once with no wait. `version` stays 1.
+
+## 1.10.1 - 2026-10-12
+
+`check-trusted-trigger` refuses a `pr-unblock.yml` run sent by `github-actions[bot]` with `untrusted-actor` unless the dispatcher run it names uploaded an unexpired `pr-unblock-dispatched-<id>[-<id>...]` artifact listing this run's id, waiting up to 2 minutes for it. `version` stays 1.
+
+## 1.10.0 - 2026-10-12
+
+The config names its merge authority and the identity the local babysit lane acts as. Additive:
+`version` stays 1, and the live config gains no `merge:` block, so its rung stays `off`.
+
+- `merge.authority` (`local-babysit` or `pr-merge`) names the repository's one merge authority.
+  Absent means `pr-merge`, the meaning a rung had before this key existed, so an existing
+  `rung: C2` config still validates; the babysit wrapper merges only when it reads `local-babysit`.
+- `merge.agent-identity` (the `[bot]` login of a dedicated GitHub App; any other login, and the
+  shared `github-actions[bot]` and `dependabot[bot]` in any letter case, fail the schema) names the
+  login the local babysit lane acts as. The schema requires it when `merge.authority` is `local-babysit`.
+- `resolve-config` ignores both keys, so its resolved output is unchanged.
+- README "Merge authority" gains "The local babysit lane": the effective rung, same-repository
+  heads only, LOW risk only, review evidence bound to the pinned head SHA, the human-only cap
+  variable `CLAUDE_LANES_MERGE_RUNG_CAP` and its 404 rule, the kill-switch reads, the demotion
+  issue and how a human clears it, the opt-in label `merge: agent-allowed`, the HIGH path floor,
+  the merge queue with `--match-head-commit`, one merge in flight, and
+  `pr-automerge-dependabot.yml` as the one exception to a single merge authority. A verdict
+  carried over by content fingerprint now applies to `pr-merge` only. "Outside this repository"
+  gains the agent identity row.
+- The example config shows both keys, commented out.
+
+## 1.9.1 - 2026-10-12
+
+The lanes token broker denies a repository whose `CLAUDE_LANES_REPO_DISABLED` variable is absent,
+on both its token and check endpoints, with reason `kill-switch` (the detail reads
+`not-false: the repository switch CLAUDE_LANES_REPO_DISABLED is not set`; azure-iac#24). `version` stays 1. Every repository on the
+broker's allowlist must declare the variable as `false`.
+
+## 1.9.0 - 2026-10-11
+
+The read runner asks the lanes token broker before its model step. `version` stays 1; callers of
+the read file must grant `id-token: write`.
+
+- `pr-run-activity-read.yml` gains a `broker-check` job that the run job `needs`. It holds
+  `contents: read` and `id-token: write`, runs only default-branch-tip actions, and never checks
+  out the PR head. After a local kill-switch stop it ends green without a broker call, so the run
+  job stops the lane neutral as before. Otherwise it posts once to the broker's check endpoint
+  (`LANES_BROKER_URL` with `/token` replaced by `/check`), which mints nothing, and fails on any
+  answer but an allow (`lane-check-denied`) or on none (`broker-unreachable`). The report job
+  reads that failure as the run result, so the check is a failure, not neutral. The run job still
+  holds no OIDC token, and fails red with `kill-switch` unless the broker-check job allowed its own
+  run attempt, so "Re-run failed jobs" cannot reuse an earlier allow.
+- `request-lane-token` gains `mode: check`, which takes only the broker variables, lane and
+  activity and fails red on any write-path input.
+- `scripts/check-read-caller-keys.sh` allows `id-token` in the read file only inside its
+  `broker-check` job, and fails when that job is a reusable call or checks out anything but this
+  repository's default branch tip, when the read file's top level is not `permissions: {}` or a
+  job has no permissions map, and on `permissions: write-all` in any file of a read run.
+- Callers of either file grant `id-token: write` on the calling job.
+- The broker's check endpoint sees a repository variable named `CLAUDE_LANES_DISABLED` that
+  shadows the org value, so a shadow no longer lets a read lane run.
+
 ## 1.8.0 - 2026-10-11
 
 The `pr-unblock` dispatcher lands, and the write runner trusts its dispatches. `version` stays 1.

@@ -122,6 +122,8 @@ lib/yaml-subset.awk plugins/planning/skills/setup/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/discipline/skills/setup/scripts/yaml-subset.awk
 lib/parse-concern-value.sh plugins/verification/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/verification/lib/yaml-subset.awk
+lib/parse-concern-value.sh plugins/source-control/lib/parse-concern-value.sh
+lib/yaml-subset.awk plugins/source-control/lib/yaml-subset.awk
 lib/config-root.sh plugins/source-control/lib/config-root.sh
 lib/config-root.sh plugins/ai-slop/lib/config-root.sh
 lib/config-root.sh plugins/attribution/lib/config-root.sh
@@ -461,3 +463,5 @@ lib/yaml-subset.mjs plugins/user-experience/scripts/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/user-interface/scripts/lib/yaml-subset.mjs
 lib/config-cascade.mjs plugins/user-interface/scripts/lib/config-cascade.mjs
 lib/resolve-convention-home.sh plugins/user-interface/lib/resolve-convention-home.sh
+lib/lane-push.sh plugins/source-control/scripts/lane-push.sh
+lib/lane-push.sh plugins/work-items/scripts/lane-push.sh

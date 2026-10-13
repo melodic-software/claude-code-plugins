@@ -111,7 +111,7 @@ jobs:
         # now contains that commit, so the pin-comment takes the convention's
         # release-tag form rather than the short-SHA fallback
         # (components/managed-files-guard/README.md).
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@ab83b01273026ab5c23c6f3b40e946d97a863fa2 # v0.39.3
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@a621ef8112677a519b662ec5d2547475c0101f7e # v0.41.0
         with:
           # `main` for the soak, per the action's own input contract ("Pin to
           # a full SHA in callers once soak completes"): the guard must read

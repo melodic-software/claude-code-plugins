@@ -53,19 +53,37 @@ condition 1 and the actor and author parts of condition 2).
   - this run's own `created_at` falls between the dispatcher run's `run_started_at` and the
     earlier of its `updated_at` and ten minutes after `run_started_at`, inclusive. The window is
     checked, not whether that run is still going, so a dispatched run that waited in a queue still
-    passes; the ten-minute cap keeps a long dispatcher run from holding the window open.
+    passes; the ten-minute cap keeps a long dispatcher run from holding the window open;
+  - the dispatcher run recorded this run: after the checks above,
+    `GET /actions/runs/{dispatcher-run-id}/artifacts?per_page=100` lists an artifact with
+    `expired` `false`, `workflow_run.id` equal to `dispatcher-run-id`, and a name matching
+    `^pr-unblock-dispatched(-[1-9][0-9]{0,14})+$` whose ids include this run's id exactly.
+    `pr-unblock-dispatch.yml` uploads that artifact after its dispatch loop, named with every run
+    id the dispatch API returned to it, and keeps it for 1 day.
+
+  The record can land after this run's gate starts, so the gate waits for it. Each read takes the
+  dispatcher run's `status` first, then its artifacts, so an upload between the two reads is not
+  refused. While the dispatcher run is not `completed`, an absent record is read again every 5 s,
+  at most 24 times (2 min). At the first `completed` with the record absent, the gate waits 5 s
+  more, reads the artifacts once more, and then refuses; that extra wait counts toward the 24, so
+  a first `completed` seen after the 24th wait refuses at once. Each wait logs
+  `dispatcher record: absent, re-read N` with the two run ids.
 
   A failed read, a missing or unparseable field, or any failed condition stops with
   `untrusted-actor`. The re-runner of a dispatched run is read by id from this run's
   `triggering_actor`: `github-actions[bot]` on attempt 1, otherwise a listed id that is not
   denied, or the lane stops with `untrusted-rerunner`. The PR author check still applies.
 
-  The residual: the precondition for a forgery is a `GITHUB_TOKEN` with `actions: write` in this
-  repository, which any workflow on any branch can request. With one, a forger can dispatch
-  `dispatched-workflow` on the default branch naming a real dispatcher run, inside that run's
-  window, with any `pr-number`. This gate then checks only the PR author; what limits a forged
-  `pr-number` is the lane's own `applies-when` (for pr-unblock, a conflicting, non-draft PR
-  without a hold label), so a forger can start only a run the dispatcher could have started.
+  A `GITHUB_TOKEN` with `actions: write`, which any workflow on any branch can request, can
+  dispatch `dispatched-workflow` naming a real dispatcher run inside its window, but the
+  dispatcher run never recorded that run's id, so the gate refuses it. Residuals:
+  1. Whether one run can write into another run's artifacts is unverified (judgment). A cross-run
+     upload would need the dispatcher run's backend run and job ids, which no REST read exposes.
+  2. A re-run of a dispatched run, or a run queued for more than a day, is refused once the record
+     expires after 1 day. The fix is to re-dispatch.
+  3. The gate token has no `actions: read`. Its run and artifact reads work only because this
+     repository is public, so making it private refuses every dispatched run until the calling
+     job grants that permission.
 - **Actor-only mode (`require-pr: false`).** No PR is read and the PR outputs stay empty. Only
   `push` and `workflow_dispatch` are handled; any other event stops with `no-pr`. A
   `workflow_dispatch` checks `sender` (denied stops with `bot-actor`, unlisted with
@@ -102,9 +120,9 @@ Pass the job token (the default, `${{ github.token }}`) as `github-token`. The g
 any App token exists, so the job token is the only one available, and it needs
 `pull-requests: read` to fetch the PR on `workflow_dispatch` and `workflow_run`. That grant is
 read-only, so no write token reaches the model. A token that cannot read the PR stops the lane
-with `no-pr`. A dispatcher-sent run also reads two run records and a comparison; on this public
-repository the job token reads run records without `actions: read`, and a token that cannot
-stops the lane with `untrusted-actor`.
+with `no-pr`. A dispatcher-sent run also reads two run records, a comparison and the dispatcher
+run's artifact list; on this public repository the job token reads them without `actions: read`,
+and a token that cannot stops the lane with `untrusted-actor`.
 
 ## Outputs
 

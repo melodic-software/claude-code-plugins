@@ -1,0 +1,11 @@
+{"type": "ai-title", "aiTitle": "Widget panel rename", "sessionId": "s-1"}
+{"type": "atis-latch", "atis": "on", "sessionId": "s-1"}
+{"type": "mode", "mode": "default", "sessionId": "s-1"}
+{"type": "bridge-session", "sessionId": "s-1", "bridgeSessionId": "bridge-1", "lastSequenceNum": 3}
+{"type": "relocated", "relocatedCwd": "/work/elsewhere", "sessionId": "s-1"}
+{"type": "file-history-delta", "messageId": "msg_1", "snapshotMessageId": "msg_0", "trackingPath": "src/widget.py", "backup": {"version": 2}, "timestamp": "2026-10-01T10:00:00Z"}
+{"type": "cost-state", "sessionId": "s-1", "totalDuration": 1000, "totalLinesAdded": 4, "totalLinesRemoved": 1, "modelUsage": {}}
+{"type": "fork-context-ref", "sessionId": "s-1", "parentSessionId": "s-0"}
+{"type": "frame-link", "sessionId": "s-1", "artifactCount": 1, "timestamp": "2026-10-01T10:00:01Z"}
+{"type": "artifact-comment-monitor", "v": 1, "sessionId": "s-1", "artifacts": []}
+{"type": "artifact-autoreact-ledger", "v": 1, "sessionId": "s-1", "artifacts": {}}

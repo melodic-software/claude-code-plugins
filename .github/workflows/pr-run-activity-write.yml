@@ -7,7 +7,7 @@ name: pr-run-activity-write
 # before any head checkout, runs a skill or a script, and revokes the token;
 # the report job writes the check from the run job's runner-computed outputs.
 # Neither file references the App key. Read activities run in
-# pr-run-activity-read.yml, which also requests no OIDC token.
+# pr-run-activity-read.yml, whose head-code job holds no OIDC token.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
 #
 # Every action runs from the base-SHA checkout at ./.base. zizmor's
@@ -259,7 +259,7 @@ jobs:
       - name: Re-read the PR head before the mint
         id: head-recheck
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EFFECT: ${{ steps.config.outputs.effect }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
@@ -507,7 +507,7 @@ jobs:
           steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.kind == 'skill'
           && steps.config.outputs.can-commit == 'true'
           && steps.prepare.outputs.merge-state != 'escalate'
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           LANE_BRANCH: lane-commits/${{ inputs.lane }}/${{ inputs.activity }}/${{ github.run_id }}-${{ github.run_attempt }}
@@ -595,7 +595,7 @@ jobs:
       - name: Check the skill took a model turn
         id: act-turns
         if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EXECUTION_FILE: >-
             ${{ steps.act-skill.outputs.execution_file
@@ -755,7 +755,7 @@ jobs:
         if: >-
           steps.post.outcome == 'success' && steps.post.outputs.escalation-reason == ''
           && steps.post.outputs.tree != ''
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           BIN: ${{ runner.temp }}/merge-base-bin
           TREE_ENTRIES_SHA256: ${{ steps.merge-bin.outputs.tree-entries-sha256 }}
@@ -898,7 +898,7 @@ jobs:
       - name: Move the PR branch to the lane's commits
         id: promote
         if: always() && steps.lane-branch.outputs.branch != ''
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           HEAD_REF: ${{ steps.gate.outputs.head-ref }}
@@ -1062,11 +1062,13 @@ jobs:
       # The token would live an hour; revoking it ends it now (probe P5 found
       # revocation immediate). A pinned action rather than a shell step, so no
       # binary resolved through PATH or BASH_ENV, which the activity could have
-      # changed, runs with the token. The step fails red unless the revoke
-      # returns 204 and a later call with the token is refused with 401.
+      # changed, runs with the token. A backstop, not a control (ADR 0058), so
+      # it never fails the job: a DELETE other than 204 is a warning, and a 204
+      # whose read-back is not yet refused with 401 is a notice.
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        continue-on-error: true
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
@@ -1081,8 +1083,12 @@ jobs:
             const revoke = await status('DELETE /installation/token');
             const after = await status('GET /installation/repositories');
             core.info(`DELETE /installation/token: ${revoke}; then GET /installation/repositories: ${after}`);
-            if (revoke !== 204 || after !== 401) {
-              core.setFailed(`the lane token was not confirmed revoked (DELETE ${revoke}, GET ${after}); it expires within the hour`);
+            if (revoke !== 204) {
+              core.warning(`the lane token was not revoked (DELETE ${revoke}); it expires within the hour`);
+            } else if (after !== 401) {
+              core.notice(`DELETE returned 204 but the read-back was not yet refused (GET ${after}); the lane token expires within the hour`);
+            } else {
+              core.info('the lane token is confirmed revoked (DELETE 204, GET 401)');
             }
 
   report:

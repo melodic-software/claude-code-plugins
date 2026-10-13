@@ -79,6 +79,15 @@ class AsyncMergeHarness(unittest.TestCase):
 
     def setUp(self) -> None:
         RepoConfigFake().install(self)
+        self.enterContext(
+            mock.patch.object(
+                merge.merge_policy,
+                "resolve",
+                return_value=merge.merge_policy.UnattendedPolicy(
+                    reason="authority-unconfigured"
+                ),
+            )
+        )
         self.captures: list[list[str]] = []
         self.polls: list[list[str]] = []
         self.sleeps: list[float] = []
@@ -104,6 +113,7 @@ class AsyncMergeHarness(unittest.TestCase):
         blockers: list[str] | None = None,
         stack_member: bool = False,
         queue: list[dict[str, Any] | Exception] | None = None,
+        report: dict[str, Any] | None = None,
     ) -> int:
         if blockers is not None:
             ready = not blockers
@@ -131,6 +141,7 @@ class AsyncMergeHarness(unittest.TestCase):
                 ),
             },
             "autoMerge": {"ready": ready, "blockers": []},
+            **(report or {}),
         }
         puts = list(put) if isinstance(put, list) else [put]
         poll_answers = list(polls or [])
