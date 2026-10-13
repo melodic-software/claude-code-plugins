@@ -1019,6 +1019,7 @@ jobs:
       - name: Check the planning chain's Next graph against the workflow ladder
         id: next_graph
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh next-graph {0}
         run: python3 scripts/check-next-graph.py
 
       # A plugin's prose counts its own skills by hand ("bundling fourteen
