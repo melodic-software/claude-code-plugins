@@ -629,6 +629,7 @@ jobs:
       - name: Validate docs/conventions YAML against its schemas
         id: convention_yaml_schema
         continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh convention-yaml-schema {0}
         run: scripts/check-convention-yaml.sh --check
 
       # The config-cascade "Semantics at a glance" table is generated from the
@@ -1139,7 +1140,7 @@ jobs:
           # Gates that run as `uses:` actions, whose output
           # scripts/run-hygiene-gate.sh cannot capture: a failure here points
           # at the step log instead of quoting the gate's output.
-          STEP_LOG_CHECKS: markdown typos gitleaks editorconfig actionlint dependabot-schema workflow-schema exec-bit machine-specific-paths eol-renormalize comment-hygiene
+          STEP_LOG_CHECKS: markdown typos gitleaks lychee-offline editorconfig actionlint dependabot-schema workflow-schema exec-bit machine-specific-paths eol-renormalize comment-hygiene
           CHECK_RESULTS: |
             zizmor=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
             loop-lane-floor-drift=${{ steps.loop_lane_floor_drift.outcome }}
