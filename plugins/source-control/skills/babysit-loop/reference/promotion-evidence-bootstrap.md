@@ -168,7 +168,8 @@ each event, including the judgment mappings and how to set `--lane-login` for me
   `sha256`, or when the new events drop one the previous file held.
 
 Run it as the operator, never from the lane, and point `--out` at a directory the lane cannot
-write. Which host runs it, under which identity and on what schedule is not decided yet: it waits
+write. The lane identity must not hold `actions:write` on the repository: with it, the lane could
+delete a red workflow run before the publisher reads it. Which host runs it, under which identity and on what schedule is not decided yet: it waits
 on the open decision about the single merge authority
 ([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)). Until then the
 resolver does not read the sidecar.

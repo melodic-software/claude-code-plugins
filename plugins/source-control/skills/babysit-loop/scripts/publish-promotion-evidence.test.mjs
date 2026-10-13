@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
+import * as publisher from "./publish-promotion-evidence.mjs";
 import { collect, PublishError, publish } from "./publish-promotion-evidence.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -117,6 +118,11 @@ function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issue
       const runs = runsFor(parseInt(m[1], 16)).filter((r) => /[?&]filter=all\b/.test(rest) || !r.superseded);
       return { total_count: runs.length, check_runs: page(runs, rest) };
     }
+    if ((m = /^commits\/([0-9a-f]{40})\/pulls$/.exec(rest))) {
+      // A SHA no commit has: the recorded 422, as realGh hands it to ghFailure.
+      if (!branch.includes(m[1])) return publisher.ghFailure(path, undefined, REC.commitNotFound.stdout, REC.commitNotFound.stderr);
+      return pulls.filter((p) => p.graph.mergeCommit.oid === m[1]).map((p) => ({ number: p.graph.number, merged_at: p.graph.mergedAt }));
+    }
     if ((m = /^commits\/([0-9a-f]{40})\/statuses\?/.exec(rest))) return page(statuses[parseInt(m[1], 16)] ?? [], rest);
     if ((m = /^issues\/(\d+)\/events\?/.exec(rest))) return page(issueEvents[m[1]] ?? [], rest);
     if ((m = /^actions\/workflows\/([\w.-]+)\/runs\?event=(\w+)&branch=main&created=%3E%3D[^&]+&/.exec(rest))) {
@@ -162,9 +168,12 @@ const wfRun = (id, event, sha, created, { conclusion = "success", status = "comp
 const gateEvents = (at, ...cells) => cells.map((cell) => ({ cell, event: "gate-failure", at }));
 // A green lane dispatch run and a green canary run on `tip`: check() calls each merge they contain
 // verified.
-const TIP = shaOf(0xf1f1);
-const verifiedOn = (tip, at) => ({ [FULL]: [wfRun(9001, "workflow_dispatch", tip, at, { actor: LANE })], [CANARY]: [wfRun(9002, "push", tip, at)] });
-const mergeOrder = (pulls) => [...pulls].sort((a, b) => a.graph.mergedAt.localeCompare(b.graph.mergedAt)).map((p) => p.graph.mergeCommit.oid);
+// Each merge gets them on its own merge commit `minutes` after merging (within the 6-hour dispatch
+// deadline by default).
+const verifiedEach = (pulls, minutes = 60) => ({
+  [FULL]: pulls.map((p) => wfRun(900000 + p.graph.number, "workflow_dispatch", p.graph.mergeCommit.oid, later(p.graph.mergedAt, minutes), { actor: LANE })),
+  [CANARY]: pulls.map((p) => wfRun(800000 + p.graph.number, "push", p.graph.mergeCommit.oid, later(p.graph.mergedAt, minutes))),
+});
 
 test("a red full run on a later SHA containing two merges yields gate-failure for each", () => {
   const tip = shaOf(0xa001);
@@ -192,13 +201,13 @@ test("a run created before the merge is not its evidence", () => {
   assert.deepEqual(result.events, gateEvents("2026-09-01T12:08:00Z", "C2-auto-merge"));
 });
 
-test("a post-merge run whose SHA is behind or diverged from the merge refuses the publish", () => {
+test("a post-merge run behind the merge is not its evidence; a diverged one refuses the publish", () => {
   const other = shaOf(0xa002);
-  const behind = { pulls: [pr(1310, "2026-09-02T00:00:00Z", { labels: [MECHANICAL] })], history: [other, shaOf(1310)] };
   const red = { [FULL]: [wfRun(2, "schedule", other, "2026-09-03T00:00:00Z", { conclusion: "failure" })] };
-  assert.throws(() => run({ ...behind, workflowRuns: red }), (error) => error instanceof PublishError && /behind/.test(error.message));
+  const behind = run({ pulls: [pr(1310, "2026-09-02T00:00:00Z", { labels: [MECHANICAL] })], history: [other, shaOf(1310)], workflowRuns: red });
+  assert.deepEqual(behind.events, []);
   const diverged = { pulls: [pr(1310, "2026-09-02T00:00:00Z", { labels: [MECHANICAL] })], history: [shaOf(1310), other], diverged: [other] };
-  assert.throws(() => run({ ...diverged, workflowRuns: red }), /diverged/);
+  assert.throws(() => run({ ...diverged, workflowRuns: red }), (error) => error instanceof PublishError && /diverged/.test(error.message));
 });
 
 test("a merge that is an ancestor of a same-time merge listed before it is still covered by a later run", () => {
@@ -219,16 +228,59 @@ test("a post-merge run created after --through still counts", () => {
   assert.deepEqual(result.events, gateEvents("2026-10-06T00:08:00Z", "C2-auto-merge"));
 });
 
-test("a merge is gate-passed only when a green lane dispatch and a green canary both contain it", () => {
+test("a merge is gate-passed only when a green lane dispatch within 6 hours and a green canary both contain it", () => {
   const pulls = () => [pr(1404, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
-  const history = [shaOf(1404), TIP];
   const gateOf = (result) => termOf(result, "C2-auto-merge", "deterministic-gate pass").detail;
-  assert.deepEqual(gateOf(run({ pulls: pulls() })), { passed: 0, failed: 0, unsettled: 1, total: 1 });
-  const dispatchOnly = { [FULL]: verifiedOn(TIP, "2026-09-02T00:00:00Z")[FULL] };
-  assert.deepEqual(gateOf(run({ pulls: pulls(), history, workflowRuns: dispatchOnly })), { passed: 0, failed: 0, unsettled: 1, total: 1 });
-  const canaryOnly = { [CANARY]: verifiedOn(TIP, "2026-09-02T00:00:00Z")[CANARY] };
-  assert.deepEqual(gateOf(run({ pulls: pulls(), history, workflowRuns: canaryOnly })), { passed: 0, failed: 0, unsettled: 1, total: 1 });
-  assert.deepEqual(gateOf(run({ pulls: pulls(), history, workflowRuns: verifiedOn(TIP, "2026-09-02T00:00:00Z") })), { passed: 1, failed: 0, unsettled: 0, total: 1 });
+  const unsettled = { passed: 0, failed: 0, unsettled: 1, total: 1 };
+  assert.deepEqual(gateOf(run({ pulls: pulls() })), unsettled);
+  assert.deepEqual(gateOf(run({ pulls: pulls(), workflowRuns: { [FULL]: verifiedEach(pulls())[FULL] } })), unsettled);
+  assert.deepEqual(gateOf(run({ pulls: pulls(), workflowRuns: { [CANARY]: verifiedEach(pulls())[CANARY] } })), unsettled);
+  assert.deepEqual(gateOf(run({ pulls: pulls(), workflowRuns: verifiedEach(pulls()) })), { passed: 1, failed: 0, unsettled: 0, total: 1 });
+  assert.deepEqual(gateOf(run({ pulls: pulls(), workflowRuns: verifiedEach(pulls(), 7 * 60) })), unsettled);
+});
+
+test("a bogus `This reverts commit` SHA is listed, not fatal", () => {
+  const bogus = "0123456789abcdef0123456789abcdef01234567";
+  const result = run({
+    pulls: [pr(1408, "2026-09-01T00:00:00Z", { merger: "kyle-sexton" })],
+    commits: [{ ...REC.commit, sha: shaOf(1408), commit: { message: `Revert "x"\n\nThis reverts commit ${bogus}.`, committer: { date: "2026-09-01T00:00:00Z" } } }],
+  });
+  assert.deepEqual(result.unresolvedReverts, [{ target: bogus, reason: "no commit found for this SHA" }]);
+});
+
+test("gh failures: a missing PR is an answer, a missing commit is unresolvable, anything else fails", () => {
+  assert.equal(typeof publisher.ghFailure, "function");
+  assert.deepEqual(publisher.ghFailure("graphql", true, JSON.stringify(REC.pullNotFound), ""), REC.pullNotFound);
+  assert.throws(() => publisher.ghFailure("x/pulls", false, REC.commitNotFound.stdout, REC.commitNotFound.stderr), publisher.UnresolvableError);
+  const fails = (body) =>
+    assert.throws(
+      () => publisher.ghFailure("graphql", true, JSON.stringify(body), "gh: Could not resolve"),
+      (error) => error instanceof PublishError && !(error instanceof publisher.UnresolvableError),
+    );
+  fails(REC.repoNotFound);
+  // Each half of the PR-NOT_FOUND test alone: a null pullRequest with a repository-level error, and
+  // a pullRequest-path error with the repository gone.
+  fails({ ...REC.pullNotFound, errors: REC.repoNotFound.errors });
+  fails({ ...REC.repoNotFound, errors: REC.pullNotFound.errors });
+});
+
+test("an incomplete page on a lane PR leaves it unclassed, not a refused publish", () => {
+  const paged = (patch) => run({ pulls: [pr(1409, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], linked: ISSUE_6007, patch })] });
+  const reason = "a linked-issue, label or timeline page is unreadable or incomplete: class unknown";
+  for (const patch of [{ closingIssuesReferences: page1(ISSUE_6007, true) }, { timelineItems: page1([], true) }, { labels: page1([{ name: MECHANICAL }], true) }]) {
+    assert.deepEqual(paged(patch).unclassedAutonomous, [{ number: 1409, reason }]);
+  }
+  const issueLabelsPaged = [{ ...ISSUE_6007[0], labels: { ...ISSUE_6007[0].labels, pageInfo: { hasNextPage: true } } }];
+  const noLabels = [{ number: 6007 }];
+  for (const nodes of [issueLabelsPaged, noLabels]) {
+    assert.deepEqual(paged({ closingIssuesReferences: page1(nodes) }).unclassedAutonomous, [{ number: 1409, reason }]);
+  }
+});
+
+test("an unparsable date refuses the publish", () => {
+  const result = () =>
+    run({ pulls: [pr(1410, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })], workflowRuns: { [CANARY]: [wfRun(13, "push", shaOf(1410), "not-a-date", { updated: "not-a-date" })] } });
+  assert.throws(result, (error) => error instanceof PublishError && /date/.test(error.message));
 });
 
 test("a PR merged into a branch other than the default is not read", () => {
@@ -302,12 +354,12 @@ test("a red full run awaiting its re-run is unsettled for 6 hours, then a failur
 
 test("only the named gate checks and status contexts are gate evidence", () => {
   const other = (name, conclusion) => ({ ...REC.checkRun, name, conclusion, completed_at: "2026-09-01T00:10:00Z" });
+  const pulls = [pr(1201, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
   const result = run({
-    pulls: [pr(1201, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })],
+    pulls,
     checkRuns: { 1201: [REC.checkRun, other("dispatch", "failure"), other("resolve-conflicts / run", "cancelled")] },
     statuses: { 1201: [{ ...REC.status, context: "GitGuardian", state: "error" }] },
-    history: [shaOf(1201), TIP],
-    workflowRuns: verifiedOn(TIP, "2026-09-02T00:00:00Z"),
+    workflowRuns: verifiedEach(pulls),
   });
   assert.deepEqual(result.events, []);
   assert.deepEqual(termOf(result, "C2-auto-merge", "deterministic-gate pass").detail, { passed: 1, failed: 0, unsettled: 0, total: 1 });
@@ -389,7 +441,7 @@ test("a missed-blocking label a human applied to a C3 PR yields verification-div
 test("20 autonomous C2 merges over 14+ days pass the C2 term and 19 fail it", () => {
   const merges = (count) => Array.from({ length: count }, (_, i) => pr(600 + i, `2026-09-${String(i + 1).padStart(2, "0")}T00:00:00Z`, { labels: [MECHANICAL] }));
   const pulls = merges(20);
-  const twenty = run({ pulls, history: [...mergeOrder(pulls), TIP], workflowRuns: verifiedOn(TIP, "2026-09-21T00:00:00Z") });
+  const twenty = run({ pulls, workflowRuns: verifiedEach(pulls) });
   assert.equal(termOf(twenty, "C2-auto-merge", "autonomous C2 completions").pass, true);
   assert.equal(twenty.cells["C2-auto-merge"].pass, true);
   const nineteen = run({ pulls: merges(19) });
@@ -475,13 +527,6 @@ test("--through is clamped to now", () => {
   assert.ok(Date.parse(result.through) <= Date.now());
 });
 
-test("a linked-issue read with another page fails closed", () => {
-  const paged = (patch) => ({ pulls: [pr(908, "2026-09-01T00:00:00Z", { linked: ISSUE_6007, patch })] });
-  assert.throws(() => run(paged({ closingIssuesReferences: page1(ISSUE_6007, true) })), (error) => error instanceof PublishError && /hasNextPage/.test(error.message));
-  const labelsPaged = [{ ...ISSUE_6007[0], labels: { ...ISSUE_6007[0].labels, pageInfo: { hasNextPage: true } } }];
-  assert.throws(() => run(paged({ closingIssuesReferences: page1(labelsPaged) })), /hasNextPage/);
-});
-
 test("an issue unlinked after the merge still classes the merge; one linked after it does not", () => {
   const result = run({
     pulls: [
@@ -530,14 +575,14 @@ test("a merge a bot or nobody enqueued is autonomous even under a human merged_b
 
 test("a cancelled gate run counts as a failure unless a later run of the same check succeeded", () => {
   const cancelled = (name, at) => ({ ...REC.checkRun, name, conclusion: "cancelled", completed_at: at });
+  const pulls = [pr(1110, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1111, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
   const result = run({
-    pulls: [pr(1110, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1111, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })],
+    pulls,
     checkRuns: {
       1110: [cancelled("lint-repo", "2026-09-01T00:10:00Z")],
       1111: [cancelled("lint-repo", "2026-09-01T00:10:00Z"), { ...REC.checkRun, completed_at: "2026-09-01T00:20:00Z" }],
     },
-    history: [shaOf(1110), shaOf(1111), TIP],
-    workflowRuns: verifiedOn(TIP, "2026-09-02T00:00:00Z"),
+    workflowRuns: verifiedEach(pulls),
   });
   assert.deepEqual(result.events, [{ cell: "C2-auto-merge", event: "gate-failure", at: "2026-09-01T00:10:00Z" }]);
   assert.deepEqual(termOf(result, "C2-auto-merge", "deterministic-gate pass").detail, { passed: 1, failed: 1, unsettled: 0, total: 2 });

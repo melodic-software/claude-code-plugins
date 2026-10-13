@@ -31,6 +31,13 @@
 // (a machine user); an App lane is a Bot and counts without it. Recheck if merged_by stops
 // matching the enqueuer.
 //
+// Deployment requirement: the lane identity must not hold actions:write on the repository. With it
+// the lane could delete a red workflow run, and a deleted run is evidence this script never sees.
+//
+// Anything a lane can write into a PR or commit degrades to a listing or to unclassed-autonomous,
+// never to a refused publish. What refuses is GitHub itself being unreadable: a failed read, an
+// unparsable date, a compare that is neither ahead, identical nor behind.
+//
 // What counts (judgment where the contract names no GitHub source):
 // - A merged PR's work class is the highest `work-class:` label (the label set
 //   babysit-prs/scripts/babysit_merge_policy.py WORK_CLASS_LABELS maps) on the issues it linked
@@ -38,7 +45,8 @@
 //   labeled/unlabeled events, so relabeling after the merge changes nothing. The linked set is
 //   closingIssuesReferences with later ConnectedEvent/DisconnectedEvent undone; when the PR body
 //   was edited after the merge, its closing-keyword links at merge are unknown and the class is
-//   none. A list with another page fails closed.
+//   none. A label, linked-issue or timeline list that is unreadable or has another page leaves
+//   the merge unclassed and counts it as autonomous.
 // - A C2/C3 merge is counted. An autonomous merge with no class is listed in
 //   unclassedAutonomous, never counted toward a positive term, and each of its contrary events
 //   is emitted against every promotable cell.
@@ -46,7 +54,8 @@
 //   commit as `Reverts <owner/repo>#<n>` (GitHub's revert button) or `This reverts commit
 //   <sha>` (git revert); one event per reverted merge, at the earliest revert seen. A merged PR
 //   titled revert... with neither form is listed in unresolvedReverts for a human to read, as is
-//   a named target that is not a merged pull request, so a bad reference cannot stop a publish.
+//   a named target that is not a merged pull request or a SHA no commit has, so a bad reference
+//   cannot stop a publish.
 // - gate-failure: only the post-merge gate counts: check runs and commit-status contexts on an
 //   autonomous merge's merge commit whose name is a --gate-check (required; none named is a
 //   usage error, never an empty gate). In this repository babysit-prs/scripts/babysit_postmerge.py
@@ -107,19 +116,44 @@ function realGh(path, graphql) {
     ? ["api", "graphql", "-f", `query=${graphql.query}`, ...Object.entries(graphql.variables).flatMap(([key, value]) => ["-F", `${key}=${value}`])]
     : ["api", "--method", "GET", path];
   const run = spawnSync("gh", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-  if (run.status !== 0) {
-    // A GraphQL NOT_FOUND (a number that is no pull request) is an answer, not a read failure.
-    let body = null;
-    try {
-      body = JSON.parse(run.stdout);
-    } catch {}
-    if (graphql && Array.isArray(body?.errors) && body.errors.length > 0 && body.errors.every((e) => e?.type === "NOT_FOUND")) return body;
-    throw new PublishError(`gh api ${path} failed: ${(run.stderr || run.error?.message || "").trim()}`);
-  }
+  if (run.status !== 0) return ghFailure(path, graphql, run.stdout, run.stderr || run.error?.message || "");
   return JSON.parse(run.stdout);
 }
 
-export class NotMergedError extends PublishError {}
+// A reference a lane can write (a PR number, a commit SHA) that names nothing: listed, never fatal.
+export class UnresolvableError extends PublishError {}
+// A page that is unreadable or has another page: the merge's class is unknown.
+class IncompleteError extends PublishError {}
+
+// A failed `gh api` call. Only two answers are not read failures: GraphQL NOT_FOUND on the pull
+// request itself (data.repository.pullRequest null, every error path ending in pullRequest), which
+// is returned as the answer, and REST 422 "No commit found for SHA", which is unresolvable. Any
+// other failure, a repository NOT_FOUND included, fails the publish.
+export function ghFailure(path, graphql, stdout, stderr) {
+  let body = null;
+  try {
+    body = JSON.parse(stdout);
+  } catch {}
+  const errors = body?.errors;
+  if (
+    graphql &&
+    body?.data?.repository?.pullRequest === null &&
+    Array.isArray(errors) &&
+    errors.length > 0 &&
+    errors.every((e) => e?.type === "NOT_FOUND" && Array.isArray(e.path) && e.path.at(-1) === "pullRequest")
+  ) {
+    return body;
+  }
+  if (!graphql && String(body?.status) === "422" && /^No commit found for SHA/.test(body?.message ?? "")) throw new UnresolvableError(body.message);
+  throw new PublishError(`gh api ${path} failed: ${String(stderr).trim()}`);
+}
+
+// A date GitHub returned; one that does not parse refuses the publish.
+function ms(value, what) {
+  const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
+  if (Number.isNaN(parsed)) throw new PublishError(`refusing to publish: ${what} has an unreadable date ${JSON.stringify(value)}`);
+  return parsed;
+}
 
 const PULL_QUERY =
   "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){" +
@@ -141,7 +175,7 @@ function loginKey(login) {
 
 function onePage(connection, what) {
   if (!Array.isArray(connection?.nodes) || connection.pageInfo?.hasNextPage !== false) {
-    throw new PublishError(`gh api graphql: ${what} unreadable or hasNextPage`);
+    throw new IncompleteError(`gh api graphql: ${what} unreadable or hasNextPage`);
   }
   return connection.nodes;
 }
@@ -165,8 +199,8 @@ function workClass(names) {
 function labelsAsOf(current, events, atMs) {
   const set = new Set(current);
   const later = events
-    .filter((e) => (e.event === "labeled" || e.event === "unlabeled") && Date.parse(e.created_at) > atMs)
-    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+    .filter((e) => (e.event === "labeled" || e.event === "unlabeled") && ms(e.created_at, "a label event") > atMs)
+    .sort((a, b) => ms(b.created_at, "a label event") - ms(a.created_at, "a label event"));
   for (const e of later) e.event === "labeled" ? set.delete(e.label?.name) : set.add(e.label?.name);
   return [...set];
 }
@@ -182,10 +216,11 @@ function eventKey(event) {
 // contains it: compare <merge>...<run SHA>, as _Context.contains does. Attempt 1 decides; a red
 // full run is a flake only when a lane identity's attempt 2 passed. A merge is verified at the
 // later of its first green lane dispatch run and first green canary run, and runs created after
-// that are not its evidence; only a verified merge with nothing red or pending passes the gate,
-// so a merge with no lane dispatch run (check()'s 6-hour failure) stays unsettled. Departures,
-// all toward a failure: a compare that is neither ahead nor identical refuses the publish
-// (check() reads it as not containing); a red full run whose re-run has not come counts as red
+// that are not its evidence; a compare that is behind means not contained. Only a verified merge
+// with nothing red or pending passes the gate, and only a lane dispatch created within
+// DISPATCH_DEADLINE of the merge verifies it, so a merge with no timely lane dispatch run
+// (check()'s 6-hour failure) stays unsettled. Departures, all toward a failure: a compare that is
+// diverged or unknown refuses the publish (check() reads it as not containing); a red full run whose re-run has not come counts as red
 // once DISPATCH_DEADLINE has passed since it completed (check() waits on it); a red run covering
 // several merges is a failure of each.
 const FULL_RUN_WORKFLOW = "pr-require-checks.yml";
@@ -194,13 +229,13 @@ const DISPATCH_DEADLINE_MS = 6 * 3_600_000;
 
 function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
   if (merges.length === 0) return () => ({ failures: [], unsettled: false, verified: false });
-  const floor = Math.min(...merges.map((m) => Date.parse(m.mergedAt)));
+  const floor = Math.min(...merges.map((m) => ms(m.mergedAt, `#${m.number} mergedAt`)));
   const created = encodeURIComponent(`>=${new Date(floor).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
-  const byCreated = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at);
+  const byCreated = (a, b) => a.createdMs - b.createdMs;
   const list = (workflow, event) =>
     pages(gh, `repos/${repo}/actions/workflows/${workflow}/runs?event=${event}&branch=${encodeURIComponent(branch)}&created=${created}`, "workflow_runs")
-      .filter((run) => run.head_branch === branch && Date.parse(run.created_at) >= floor)
-      .map((run) => ({ ...run, check: `${workflow} ${event}` }));
+      .map((run) => ({ ...run, createdMs: ms(run.created_at, `run ${run.id}`), check: `${workflow} ${event}` }))
+      .filter((run) => run.head_branch === branch && run.createdMs >= floor);
   const fullRuns = [...list(FULL_RUN_WORKFLOW, "schedule"), ...list(FULL_RUN_WORKFLOW, "workflow_dispatch")].sort(byCreated);
   const canaryRuns = list(CANARY_WORKFLOW, "push").sort(byCreated);
 
@@ -209,10 +244,11 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
     const key = `${sha}...${runSha}`;
     if (!compares.has(key)) {
       const status = gh(`repos/${repo}/compare/${key}?per_page=1&page=1`)?.status;
-      if (status !== "ahead" && status !== "identical") {
+      // behind: the run's SHA is an ancestor of the merge, so it does not contain it (as check()).
+      if (status !== "ahead" && status !== "identical" && status !== "behind") {
         throw new PublishError(`refusing to publish: compare ${key} is ${JSON.stringify(status)}, so whether that post-merge run contains the merge is unknown`);
       }
-      compares.set(key, true);
+      compares.set(key, status !== "behind");
     }
     return compares.get(key);
   };
@@ -230,7 +266,7 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
       else if (!attributable) state = "red";
       else {
         const second = run.run_attempt >= 2 ? attempt(2) : null;
-        if (!second) state = throughMs - Date.parse(first.updated_at) > DISPATCH_DEADLINE_MS ? "red" : "pending";
+        if (!second) state = throughMs - ms(first.updated_at, `run ${run.id} attempt 1`) > DISPATCH_DEADLINE_MS ? "red" : "pending";
         else if (!lane.has(loginKey(second.triggering_actor?.login))) state = "red";
         else if (second.status !== "completed") state = "pending";
         else state = second.conclusion === "success" ? "flake" : "red";
@@ -243,22 +279,27 @@ function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
   // Compares run only where the answer can change the verdict: a red or pending run, a green lane
   // dispatch run, and a green canary run once a lane dispatch has verified half the merge.
   return (merge) => {
-    const mergedMs = Date.parse(merge.mergedAt);
-    const after = (runs) => runs.filter((run) => Date.parse(run.created_at) >= mergedMs);
+    const mergedMs = ms(merge.mergedAt, `#${merge.number} mergedAt`);
+    const after = (runs) => runs.filter((run) => run.createdMs >= mergedMs);
     const relevant = (run) => contains(merge.sha, run.head_sha);
     const fulls = after(fullRuns);
     const canaries = after(canaryRuns);
     const dispatch = fulls.find(
-      (run) => run.event === "workflow_dispatch" && lane.has(loginKey(run.actor?.login)) && ["green", "flake"].includes(outcome(run, true).state) && relevant(run),
+      (run) =>
+        run.event === "workflow_dispatch" &&
+        run.createdMs <= mergedMs + DISPATCH_DEADLINE_MS &&
+        lane.has(loginKey(run.actor?.login)) &&
+        ["green", "flake"].includes(outcome(run, true).state) &&
+        relevant(run),
     );
     const canary = dispatch && canaries.find((run) => outcome(run, false).state === "green" && relevant(run));
-    const verifiedAt = canary ? Math.max(Date.parse(dispatch.created_at), Date.parse(canary.created_at)) : Number.POSITIVE_INFINITY;
+    const verifiedAt = canary ? Math.max(dispatch.createdMs, canary.createdMs) : Number.POSITIVE_INFINITY;
     const result = { failures: [], unsettled: false, verified: Boolean(canary) };
     for (const [runs, attributable] of [
       [fulls, true],
       [canaries, false],
     ]) {
-      for (const run of runs.filter((r) => Date.parse(r.created_at) <= verifiedAt)) {
+      for (const run of runs.filter((r) => r.createdMs <= verifiedAt)) {
         const { state, conclusion } = outcome(run, attributable);
         if (state === "red" && relevant(run)) result.failures.push({ check: run.check, conclusion, at: run.updated_at });
         else if (state === "pending" && relevant(run)) result.unsettled = true;
@@ -281,6 +322,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const inWindow = (at) => typeof at === "string" && Date.parse(at) >= sinceMs && Date.parse(at) <= throughMs;
   const events = new Map();
   const addEvent = (cell, event, at) => {
+    ms(at, `a ${event} event`);
     const record = { cell, event, at };
     events.set(eventKey(record), record);
   };
@@ -305,8 +347,8 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   // mergedAt. Links: the current set with later Connected/Disconnected events undone; a body
   // edited after the merge leaves the closing-keyword links unknown, so the class is too.
   const classAtMerge = (g, timeline) => {
-    const atMs = Date.parse(g.mergedAt);
-    if (g.lastEditedAt && Date.parse(g.lastEditedAt) > atMs) return { cls: null, reason: "PR body edited after the merge: closing-keyword links unknown" };
+    const atMs = ms(g.mergedAt, `#${g.number} mergedAt`);
+    if (g.lastEditedAt && ms(g.lastEditedAt, `#${g.number} lastEditedAt`) > atMs) return { cls: null, reason: "PR body edited after the merge: closing-keyword links unknown" };
     const linked = new Map();
     for (const issue of onePage(g.closingIssuesReferences, `closingIssuesReferences of #${g.number}`)) {
       linked.set(issue.number, onePage(issue.labels, `labels of issue #${issue.number}`).map((label) => label?.name));
@@ -314,14 +356,18 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     // A ConnectedEvent on a PR timeline names the issue as `subject` (recorded from cli/cli #14616);
     // any other shape after the merge leaves the links unknown.
     const laterLinks = timeline
-      .filter((e) => ["ConnectedEvent", "DisconnectedEvent"].includes(e.__typename) && Date.parse(e.createdAt) > atMs)
-      .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+      .filter((e) => ["ConnectedEvent", "DisconnectedEvent"].includes(e.__typename) && ms(e.createdAt, "a link event") > atMs)
+      .sort((a, b) => ms(b.createdAt, "a link event") - ms(a.createdAt, "a link event"));
     if (laterLinks.some((e) => e.subject?.__typename !== "Issue" || !Number.isInteger(e.subject.number))) {
       return { cls: null, reason: "a link event after the merge has an unrecognized shape: links unknown" };
     }
     for (const e of laterLinks) {
       if (e.__typename === "ConnectedEvent") linked.delete(e.subject.number);
-      else if (!linked.has(e.subject.number)) linked.set(e.subject.number, (gh(`repos/${repo}/issues/${e.subject.number}`).labels ?? []).map((label) => label?.name));
+      else if (!linked.has(e.subject.number)) {
+        const labels = gh(`repos/${repo}/issues/${e.subject.number}`)?.labels;
+        if (!Array.isArray(labels)) throw new IncompleteError(`labels of issue #${e.subject.number} unreadable`);
+        linked.set(e.subject.number, labels.map((label) => label?.name));
+      }
     }
     const names = labelsAsOf(onePage(g.labels, `labels of #${g.number}`).map((label) => label?.name), eventsOf(g.number), atMs);
     for (const [issue, labels] of linked) names.push(...labelsAsOf(labels, eventsOf(issue), atMs));
@@ -333,7 +379,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   // AddedToMergeQueueEvent's actor and enqueuer, or merged_by when the merge bypassed the
   // queue; any of them null or not human makes the merge autonomous.
   const autonomousOf = (g, timeline) => {
-    const queued = timeline.filter((e) => e.__typename === "AddedToMergeQueueEvent").sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+    const queued = timeline.filter((e) => e.__typename === "AddedToMergeQueueEvent").sort((a, b) => ms(a.createdAt, "a merge-queue event") - ms(b.createdAt, "a merge-queue event"));
     const actors = queued.length > 0 ? [queued.at(-1).actor, queued.at(-1).enqueuer] : [g.mergedBy];
     return actors.some((actor) => !human(actor)) || lane.has(loginKey(g.mergedBy?.login));
   };
@@ -342,9 +388,17 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const record = (number) => {
     if (!details.has(number)) {
       const g = gh("graphql", { query: PULL_QUERY, variables: { owner, name, number } })?.data?.repository?.pullRequest;
-      if (!g?.mergedAt) throw new NotMergedError(`#${number} is not a merged pull request`);
-      const timeline = onePage(g.timelineItems, `timeline of #${number}`);
-      details.set(number, { number, ...classAtMerge(g, timeline), autonomous: autonomousOf(g, timeline), mergedAt: g.mergedAt, sha: g.mergeCommit?.oid, reverted: false });
+      if (!g?.mergedAt) throw new UnresolvableError(`#${number} is not a merged pull request`);
+      ms(g.mergedAt, `#${number} mergedAt`);
+      const base = { number, mergedAt: g.mergedAt, sha: g.mergeCommit?.oid, reverted: false };
+      // A page a lane can make incomplete or unreadable leaves the merge unclassed-autonomous.
+      try {
+        const timeline = onePage(g.timelineItems, `timeline of #${number}`);
+        details.set(number, { ...base, ...classAtMerge(g, timeline), autonomous: autonomousOf(g, timeline) });
+      } catch (error) {
+        if (!(error instanceof IncompleteError)) throw error;
+        details.set(number, { ...base, cls: null, reason: "a linked-issue, label or timeline page is unreadable or incomplete: class unknown", autonomous: true });
+      }
     }
     return details.get(number);
   };
@@ -382,7 +436,13 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     let number = revert.number;
     if (number === undefined) {
       const known = bySha.get(revert.sha);
-      number = known ? known.number : gh(`repos/${repo}/commits/${revert.sha}/pulls`).find((pr) => pr.merged_at)?.number;
+      try {
+        number = known ? known.number : gh(`repos/${repo}/commits/${revert.sha}/pulls`).find((pr) => pr.merged_at)?.number;
+      } catch (error) {
+        if (!(error instanceof UnresolvableError)) throw error;
+        unresolvedReverts.push({ target: revert.sha, reason: "no commit found for this SHA" });
+        continue;
+      }
       if (number === undefined) {
         unresolvedReverts.push({ target: revert.sha, reason: "no merged pull request for this commit" });
         continue;
@@ -395,7 +455,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     try {
       target = record(number);
     } catch (error) {
-      if (!(error instanceof NotMergedError)) throw error;
+      if (!(error instanceof UnresolvableError)) throw error;
       unresolvedReverts.push({ target: number, reason: "not a merged pull request" });
       continue;
     }

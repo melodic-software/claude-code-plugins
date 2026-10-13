@@ -157,6 +157,30 @@
       "number": 14614
     }
   },
+  "commitNotFound": {
+    "stdout": "{\"message\":\"No commit found for SHA: 0123456789abcdef0123456789abcdef01234567\",\"documentation_url\":\"https://docs.github.com/rest/commits/commits#list-pull-requests-associated-with-a-commit\",\"status\":\"422\"}",
+    "stderr": "gh: No commit found for SHA: 0123456789abcdef0123456789abcdef01234567 (HTTP 422)\n"
+  },
+  "repoNotFound": {
+    "data": {
+      "repository": null
+    },
+    "errors": [
+      {
+        "type": "NOT_FOUND",
+        "path": [
+          "repository"
+        ],
+        "locations": [
+          {
+            "line": 1,
+            "column": 2
+          }
+        ],
+        "message": "Could not resolve to a Repository with the name 'melodic-software/no-such-repo-xyz'."
+      }
+    ]
+  },
   "pullNotFound": {
     "data": {
       "repository": {
