@@ -1,0 +1,26 @@
+// expect: rule-zero-assertion
+// A Reqnroll step file that asserts with NUnit is claimed by cs-nunit, whose
+// test starts still include [Then]. This [Then] step only prints the cart,
+// so the scenario passes whatever Purchase did.
+using System;
+using NUnit.Framework;
+using Reqnroll;
+
+[Binding]
+public class CartStepDefinitions
+{
+    private Cart _cart;
+
+    [When(@"the cart is purchased")]
+    public void WhenTheCartIsPurchased()
+    {
+        _cart = Cart.Sample();
+        _cart.Purchase();
+    }
+
+    [Then(@"the cart is empty")]
+    public void ThenTheCartIsEmpty()
+    {
+        Console.WriteLine(_cart);
+    }
+}

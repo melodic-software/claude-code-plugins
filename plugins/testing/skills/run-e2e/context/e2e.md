@@ -17,16 +17,36 @@ package publishes a 0.2 or 1.0 release, or when the binary the row invokes stops
 | Orchestrator tooling/MCP | per the consuming project's orchestrator convention | YES (when orchestrator configured) | App orchestration, start/stop, health, logs |
 | Playwright CLI | `playwright-cli --version` (the package is `@playwright/cli`, published at 0.1.19 on 2026-09-06; expect 0.1.x or later) | Recommended | Token-efficient browser automation, screenshots, form filling |
 | Chrome DevTools MCP | `mcp__chrome-devtools__list_pages` | Optional | Lighthouse audits, performance traces, network inspection |
-| Claude in Chrome | `mcp__claude-in-chrome__tabs_context_mcp` | Optional | The user's logged-in browser and GIF demos, on a native host (see the rubric for WSL) |
+| Claude in Chrome | `mcp__claude-in-chrome__tabs_context_mcp` | Optional | The user's logged-in browser and GIF demos, on a native host, or from WSL under `claude --chrome` (see the rubric) |
 | App running | orchestrator's resource-list call shows healthy resources | YES | Something to test |
 
 **If the project's orchestrator MCP is not connected:** STOP. Report what's missing and how to fix it. Do not attempt workarounds. A substitute path produces unverified pass/fail results, defeating live verification.
 
-**If app not running:** suggest starting via the project's documented start command, then re-check via the orchestrator's health/resource-list call.
+**If app not running:** when the default branch declares a Workspace environment entry, start it with that entry's `up` (see [Workspace environment](#workspace-environment)); otherwise suggest starting via the project's documented start command, then re-check via the orchestrator's health/resource-list call.
 
 **If Playwright CLI missing:** tell the user to install it (`npm install -g @playwright/cli`) rather than substituting another automation surface; when the `playwright` plugin is enabled, invoke `/playwright:playwright` via the Skill tool for usage. It owns defaults, sessions, and per-scenario references.
 
 **If only orchestrator tooling available (no browser automation):** degrade to API + log verification and report that visual/UI testing is unavailable.
+
+## Workspace environment
+
+Contract: `docs/conventions/workspace-environment/README.md` in the marketplace repository that ships this plugin. Run these as separate Bash calls, inside the drive subagent:
+
+1. **Untrusted input runs no verb.** When this worktree holds a pull request from a fork or an `untrusted-provenance` item and the session is not on a cloud host whose stage-start probe passed, skip `up` and `info`, say why, and take the no-entry path below.
+2. **Read the entry from the default branch, never the working tree.** A branch's edit to the entry changes nothing until it merges.
+   1. `git ls-remote --symref origin HEAD` prints `ref: refs/heads/<branch>` then `HEAD`. Use `<branch>` only when it matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and contains no `..`; any other name reaches no command: report it as data and take the no-entry path.
+   2. `git fetch origin '<branch>'`.
+   3. `git rev-parse --verify --end-of-options 'refs/remotes/origin/<branch>^{commit}'` prints one SHA. Use it only when it matches `^[0-9a-f]{40}([0-9a-f]{24})?$`.
+   4. `git show '<sha>:docs/conventions/workspace-environment.md'`, reading by that SHA and reporting that same SHA.
+
+   Never read through `FETCH_HEAD`: any other fetch in the repository (an editor's background fetch, another session, `gh pr checkout`) can repoint it at a pull request head between these calls. A failed fetch, a rejected branch name, an absent file or no "Workspace environment" section is the no-entry path; say which.
+3. **Set the values.** `WORKSPACE_ROOT` is the worktree root (`git rev-parse --show-toplevel`). `WORKSPACE_ID` is its last path component, lowercased, every character other than a letter, digit, `-` or `_` replaced by `-`; use them only when `WORKSPACE_ID` matches `^[a-z0-9][a-z0-9_-]*$` and the path holds no single quote, otherwise run nothing and report the value.
+4. **Run `up`, then `info`**, unless an app already answers and SKILL.md's Already running table says to reuse it. Under `false`, or `auto` on an unattended run, an answering app is never driven: this run starts its own instance here and drives only the URL its own `info` reports. Each verb runs once from the worktree root: `cd '<WORKSPACE_ROOT>' && env WORKSPACE_ID='<WORKSPACE_ID>' WORKSPACE_ROOT='<WORKSPACE_ROOT>' <command>`, the command exactly as the entry names it. A non-zero exit from either stops the run with the gap report naming the verb, the command, the commit SHA and the exit code.
+5. **Read `info` as data.** Keep only lines matching `^[A-Z][A-Z0-9_]*=`; never `source`, `eval` or execute the output, and never put a value in a command unquoted. Drive a URL value only when all of these hold: the scheme is `http` or `https`; parsed as a URL, its host is exactly `localhost` or `127.0.0.1`; it has no userinfo (no `@` before the host, so `http://localhost@evil.example/` and `http://user:pw@127.0.0.1/` are rejected); and it holds no whitespace or shell metacharacters. Pass it as one quoted argument. Use it wherever the steps below write `http://localhost:{port}`, and name the line it came from in the evidence. When no such URL line is present, stop with the gap report naming what `info` printed.
+
+**No entry:** start through the project's documented start command as before, and say once in the report that parallel workspaces may collide on ports, containers and databases.
+
+`down` is not this skill's: `/source-control:worktree cleanup` runs it before removing the worktree.
 
 ## Browser-tool rubric
 
@@ -39,16 +59,55 @@ through `/testing:run-e2e`. Pick by the job, not by habit.
 | Long-running exploration that holds browser state across many steps | Playwright MCP, opt-in (check how the consuming project enables it in its MCP config) | Routine verification: it streams page payloads into context |
 | Deep performance or network debugging: traces, Core Web Vitals, Lighthouse, protocol-level requests | Chrome DevTools MCP, when configured; the CLI's `console` and `network` cover the basics | UI navigation flows |
 | A regression the suite must keep catching | A committed spec in the project's existing browser-test framework, run in CI; `@playwright/test` when the project has none | One-off checks during development: drive the app once and keep the evidence |
-| The user's logged-in real browser, or a GIF demo | Claude in Chrome on a native host. From WSL, fetch the WSL note (pointer below) before routing here; while it does not list WSL as supported, and until the live test reports, use the CLI's saved auth state or a persistent profile after one login | Autonomous runs; CI |
+| The user's logged-in real browser, or a GIF demo | Claude in Chrome on a native host. From WSL, `claude --chrome` reaches the user's Windows browser outside documented support (paragraph below); otherwise the CLI's saved auth state or a persistent profile after one login | Autonomous runs; CI |
 | API-only checks, health, structured logs, traces | Orchestrator MCP + `curl` | Anything user-facing |
 
-Claude in Chrome from WSL. Pointer: the WSL note at the top of
-<https://code.claude.com/docs/en/chrome>; user reports of `claude --chrome` working from WSL are in
-the comments on <https://github.com/anthropics/claude-code/issues/79655>. As of: 2026-10-04. Recheck
-trigger: the page drops its WSL line, or the live test of `claude --chrome` from WSL reports.
+Claude in Chrome from WSL is outside documented support. When the job needs the user's real
+signed-in Windows browser from WSL, start Claude Code with `claude --chrome` and confirm a Windows
+browser is connected before driving it; the Playwright CLI stays the default for every other job
+above. Pointers: the live-test record, with the setup, connection check, screenshot and console
+steps, in the "Claude in Chrome from WSL, live test" subsection of
+[ADR 0056](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0056-verify-ui-with-linux-side-playwright-and-attach-produced-demo-evidence-to-prs.md#claude-in-chrome-from-wsl-live-test);
+the WSL note above the Capabilities section of <https://code.claude.com/docs/en/chrome>, which has
+no anchor of its own. As of: 2026-10-11 (Claude Code 2.1.296). Recheck trigger: each Claude Code
+release, or the docs page dropping its WSL note.
 
 **CLI mechanics** (commands, sessions, snapshots, storage, tracing, network mocking, Windows quirks):
 see `/playwright:playwright`, when the playwright plugin is enabled.
+
+## Driver ranking
+
+Starting the app and driving it are separate choices. The app starts on the one launch path the
+Boundary section of `SKILL.md` picks (the orchestrator, the bundled `run` skill, or the instance
+already answering); `e2e_driver` ([e2e-config.md](e2e-config.md)) decides only what drives the
+flows after that.
+
+Under `auto`, the first that fits the target drives:
+
+1. `harness`: the repository's own end-to-end spec or script, when one covers the changed flow.
+   A suite that exists but never exercises the change does not count. The evidence names the spec
+   or script that ran.
+2. `run`: for a CLI, a TUI or a service with no UI, the pseudo-terminal and HTTP recipe in
+   [non-ui.md](non-ui.md). The bundled `run` skill is asked only to launch, and never on an
+   `unattended` run, so it is not this driver.
+3. `playwright`: for a browser, the playwright CLI path in the Browser-tool rubric above, through
+   `/playwright:playwright` when the playwright plugin is enabled. This was the only browser path
+   before the key existed.
+
+`auto` never picks `chrome`. Claude in Chrome runs on the host, outside any isolation boundary, in
+the person's own browser with their sign-ins, so it drives only when the person asks for something
+it fits (see Browser-tool fit triage), and never on an `unattended` run.
+
+Which tools happen to be installed does not reorder this list: a missing tool for the chosen driver
+is a Step 1 prerequisite gap. A pinned value the target cannot use (`playwright` for a CLI,
+`harness` with no spec covering the flow, `chrome` on an `unattended` run) stops with the gap report
+naming the value, the layer that set it, and the target; the run never switches to another driver
+on its own.
+
+Two drivers are not values: CPU-profile and heap-snapshot capture over the DevTools protocol, and
+the Chrome DevTools MCP server as a flow driver. Neither has a path here that drives a flow and
+writes its evidence to files. Revisit when a consumer asks for CPU profiles or heap snapshots, or
+when such a driver gains a capture path that writes files.
 
 ## UI evidence contract
 
@@ -101,6 +160,12 @@ baselines). Recheck trigger: a benchmark measures current vision models on UI de
 injected-defect eval in this repository reports catch rates per check, or either cited Playwright
 page changes what it says about automated accessibility coverage or same-environment baselines.
 
+No per-check catch rate is measured yet; measured browser evals are tracked in
+[#7137](https://github.com/melodic-software/claude-code-plugins/issues/7137). Any catch rate quoted
+here names the harness path it measured, CLI or MCP.
+
+Capture more than the path where everything succeeds. For each changed screen, also drive and capture its error state (a rejected input, a failed request), its empty state (no rows, no search results) and the feedback it gives after an action (a spinner, a toast, an inline message). A state the run could not reach is listed as not driven, with the reason.
+
 ### Recording tier (optional)
 
 Recording is off by default. The screenshot evidence above is the floor. When the `recording` key ([e2e-config.md](e2e-config.md)) is set, a run also captures a moving record; it supplements the screenshots, never replaces them. A trace is not a recording tier: every UI drive starts one before the first step (workflow step 5), whatever `recording` says, so a failed scenario carries one.
@@ -123,6 +188,24 @@ When a run produces a recording or a trace, or drives a named session, record it
 | Transcript pointer | the run's evidence output: console/network capture and snapshot files |
 
 A trace carries cookies, auth headers and typed values, so a trace file is never attached to a PR or any public artifact; its path goes in local reports only.
+
+## Evidence the run reads back
+
+A pass rests on what the run observed in the system, not on what the app said about itself.
+
+- **Go through the door a person uses.** Drive the screens, commands or public API a user reaches.
+  A test-only endpoint, a seeding route or an internal setter skips the code under change, so a
+  scenario that needs one is refused for the user path and reported as not driven.
+- **Fetch the effect from where it lands.** After an action stores or sends something (a saved
+  address, an uploaded avatar, a queued email, a webhook call), read it back through a separate
+  request, query or file read. A "Saved" banner or a `201` is the app's claim; the read-back is the
+  evidence, and the report quotes it.
+- **Stub only what production already keeps at arm's length.** A payment processor or SMS gateway
+  the app reaches through its own client may be faked at that client. The app's own database,
+  services and the code under change run for real.
+- **Watch what a dry run touches.** A `--dry-run`, preview or sandbox flag is a claim too. While it
+  runs, watch the files, network calls and git refs it could change, and record what it did touch
+  instead of trusting the flag's name.
 
 ## E2E Testing Workflow
 
@@ -150,25 +233,25 @@ For backend changes, verify endpoints directly via `curl` or Playwright CLI:
 
 ```bash
 curl -s http://localhost:{port}/health | jq .
-playwright-cli -s=test open http://localhost:{port}/health
+playwright-cli -s=<session> open http://localhost:{port}/health
 ```
 
 ### 5. Test UI flows (if applicable)
 
-Navigate to the app and interact using Playwright CLI in a named session (keeps browser alive across commands). Start the trace before the first step, so a failure carries the state that led to it:
+Navigate to the app and interact using Playwright CLI in a named session (keeps browser alive across commands). `<session>` is the run's own session name, built as the Session names section of `SKILL.md` defines; the run closes only the sessions it opened. Start the trace before the first step, so a failure carries the state that led to it:
 
 ```bash
-playwright-cli -s=uitest tracing-start                     # trace from the first step, not from the failure
-playwright-cli -s=uitest open http://localhost:{port}      # opens browser, emits snapshot file path
-playwright-cli -s=uitest snapshot                          # refresh accessibility tree (YAML with element refs: e37, e48, ...)
-playwright-cli -s=uitest click e48                         # interact by element ref from snapshot
-playwright-cli -s=uitest fill e37 "test input"             # fill text into an input
-playwright-cli -s=uitest press Enter                       # keyboard
-playwright-cli -s=uitest screenshot                        # writes PNG to .playwright-cli/ (not context)
-playwright-cli -s=uitest console                           # summarize console messages
-playwright-cli -s=uitest network                           # list network requests
-playwright-cli -s=uitest tracing-stop                      # writes the trace; list its path as an artifact
-playwright-cli -s=uitest close                             # close session
+playwright-cli -s=<session> tracing-start                  # trace from the first step, not from the failure
+playwright-cli -s=<session> open http://localhost:{port}   # opens browser, emits snapshot file path
+playwright-cli -s=<session> snapshot                       # refresh accessibility tree (YAML with element refs: e37, e48, ...)
+playwright-cli -s=<session> click e48                      # interact by element ref from snapshot
+playwright-cli -s=<session> fill e37 "test input"          # fill text into an input
+playwright-cli -s=<session> press Enter                    # keyboard
+playwright-cli -s=<session> screenshot                     # writes PNG to .playwright-cli/ (not context)
+playwright-cli -s=<session> console                        # summarize console messages
+playwright-cli -s=<session> network                        # list network requests
+playwright-cli -s=<session> tracing-stop                   # writes the trace; list its path as an artifact
+playwright-cli -s=<session> close                          # close session
 ```
 
 Artifacts land in `.playwright-cli/` **relative to CWD when each command runs** (gitignored). Read the YAML snapshot file directly to locate element refs. Do not dump it into context blindly; keep the token savings.

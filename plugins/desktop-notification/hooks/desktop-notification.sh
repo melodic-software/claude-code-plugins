@@ -2,8 +2,10 @@
 # Notification hook: cross-platform terminal/desktop alert when Claude Code needs input.
 # Triggered on the permission_prompt and idle_prompt notification types.
 #
-# ADVISORY: always exits 0 — Notification hooks cannot block (they return
-# terminalSequence output; exit 2 only shows stderr). Master kill switch
+# ADVISORY: always exits 0; a Notification hook is not a gate. Pointer: what a
+# Notification hook can return is in https://code.claude.com/docs/en/hooks#notification.
+# As of: 2026-10-11. Recheck trigger: that section lets a Notification hook
+# block, or is renamed. Master kill switch
 # CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_ENABLED gates the whole hook. When on, it emits up
 # to three INDEPENDENTLY-gated channels (each default ON):
 #   BELL            — audible terminal bell (bare BEL).

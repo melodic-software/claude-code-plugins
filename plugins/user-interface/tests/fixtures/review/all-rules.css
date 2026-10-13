@@ -1,0 +1,14 @@
+/* One violation of each rule the linter reads. */
+.card:hover {
+  margin-left: 1rem;
+}
+.button {
+  outline: none;
+  transition-timing-function: ease-in;
+  color: #ff0000;
+  transition: all 200ms;
+}
+.panel {
+  transform: scale(1);
+  transition: transform 400ms;
+}

@@ -1,22 +1,32 @@
 # Standing mode (default)
 
-The lane keeps watching the backlog indefinitely. Idle cycles back the wakeup delay toward the
-one-hour `ScheduleWakeup` ceiling. The `/loop` seven-day expiry bounds a standing lane per the
+The lane keeps watching the backlog indefinitely. Idle cycles back the wakeup delay off toward the
+longest delay `ScheduleWakeup` allows. The `/loop` expiry bounds a standing lane per the
 loop-lane convention: `loop_started_at` in durable state makes the approaching expiry visible, and
 an expiry hit is handled exactly like a budget hit (restart-request + clean stop).
+
+- **Pointer**: when sizing the idle backoff or the stale-heartbeat threshold, fetch
+  [scheduled tasks § Let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)
+  live; when timing the expiry, fetch
+  [§ Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes the longest wakeup delay or the expiry window, or a
+  release note names `/loop` or `ScheduleWakeup`.
 
 ## Exit condition
 
 A standing invocation **does not** stop when the drain snapshot is satisfied or when the
 drain-terminal state is reached. On the first cycle where the drain snapshot would be satisfied,
-set `first_drain_complete` in durable state (the earn-trust ratification gate), report the outcome,
+on a snapshot `SKILL.md` step 1 counts as complete and never on an errored, truncated, or
+unknown-completeness one, propose first-drain completion per
+[first-drain-ratification.md](first-drain-ratification.md) (a person ends the earn-trust period), report the outcome,
 and **continue** with `ScheduleWakeup`. New intake arriving on a later cycle is swept on that
 cycle, not left for a relaunch.
 
 Standing exits are limited to:
 
 - explicit user request (hard stop),
-- a cycle-budget or seven-day-expiry hit (restart-request + clean stop, per the convention),
+- a cycle-budget or `/loop` expiry hit (restart-request + clean stop, per the convention),
 - instance-collision detection (escalate + clean stop),
 - or an unrecoverable configuration error (missing binding, rejected argument).
 

@@ -100,6 +100,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line-strong);border-radius:6px;overflow:hidden;background:var(--panel)}
 .seg button{border:0;background:transparent;padding:6px 4px;font:500 12.5px var(--sans);cursor:pointer;color:var(--muted)}
 .seg button+button{border-left:1px solid var(--line-strong)}
+.seg button:focus-visible{outline-offset:-3px}
 .seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent)}
 .trow{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;font-size:12.5px;color:var(--muted)}
 .trow select{font:12.5px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--line-strong);border-radius:5px;padding:3px 4px}
@@ -125,6 +126,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .qbtn:hover{border-color:var(--line-strong)}
 .qbtn[aria-current="true"]{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
 .qbtn.dim{opacity:.55}
+.qbtn.waiting{opacity:.75}.qbtn.waiting:hover,.qbtn.waiting:focus-visible{opacity:1}
 .qbtn.archived{filter:grayscale(1)}
 .qid{font:600 13px var(--mono);grid-row:1;align-self:start;padding-top:1px;max-width:8ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qbody{min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -134,6 +136,8 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .needs{font:11.5px var(--mono);color:var(--faint);display:flex;gap:4px;align-items:center}
 .needs::before{content:"";width:9px;height:8px;border-left:1.5px solid currentColor;border-bottom:1.5px solid currentColor;margin-top:-5px}
 .needs.unmet{color:var(--chg)}
+.needsrow{display:flex;flex-wrap:wrap;gap:2px 10px;min-width:0}
+.needs .metmark{font-weight:600;margin-left:-2px}
 .newdot{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--chg)}
 .tree{list-style:none;margin:0;padding:0;display:grid;gap:5px}
 .tree .tree{margin:5px 0 0 12px;padding-left:10px;border-left:1.5px solid var(--line-strong)}
@@ -172,7 +176,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .chip.aside{color:var(--muted);background:none;border:0;padding-inline:0;font-style:italic;cursor:default}
 .chip.aside::before{display:none}
 
-main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8px;display:grid;grid-template-rows:minmax(0,1fr) auto;min-height:0;min-width:0;overflow:hidden}
+main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8px;display:grid;grid-template-rows:minmax(min(18rem,50%),1fr) minmax(0,auto);min-height:0;min-width:0;overflow:hidden}
 .dscroll{overflow-y:auto;overscroll-behavior:contain;padding:18px var(--pad) 22px;display:grid;align-content:start;gap:16px;overflow-wrap:anywhere}
 .dscroll.enter{animation:enter .22s ease-out}
 @keyframes enter{from{opacity:0;transform:translateY(8px)}}
@@ -191,6 +195,7 @@ main.detail{background:var(--panel);border:1px solid var(--line);border-radius:8
 .rrange .ref:hover{border:0;text-decoration:underline}
 .ref:hover{border-color:var(--accent)}
 .sup-banner,.banner,.lockban{border-left:3px solid var(--chg);background:var(--chg-soft);padding:9px 14px;border-radius:0 6px 6px 0;font-size:14px}
+.revchip{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
 .sup-banner,.lockban{border-color:var(--wait);background:var(--wait-soft)}
 .note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:9px 14px;border-radius:0 6px 6px 0;font-size:14px}
 section.blk{display:grid;gap:8px}
@@ -238,7 +243,7 @@ ol.hist li.undone .hb{text-decoration:line-through;color:var(--faint)}
 .rcpt span.no{color:var(--chg)}
 .empty{color:var(--faint);font-size:14px}
 
-section.answer{border-top:1px solid var(--line-strong);background:var(--panel);padding:10px var(--pad) 10px;display:grid;gap:8px;box-shadow:0 -6px 14px -12px rgba(0,0,0,.25)}
+section.answer{border-top:1px solid var(--line-strong);background:var(--panel);padding:10px var(--pad) 10px;display:flex;flex-direction:column;gap:8px;min-height:0;overflow-y:auto;overscroll-behavior:contain;box-shadow:0 -6px 14px -12px rgba(0,0,0,.25)}
 section.answer[hidden]{display:none}
 .cur{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:13.5px;min-height:22px}
 .cur q{color:var(--muted)}
@@ -246,16 +251,20 @@ section.answer[hidden]{display:none}
 .cur .earlier{flex:1 0 100%;display:grid;gap:2px;max-height:9em;overflow-y:auto;overflow-wrap:anywhere}
 .cur .earlier q{white-space:pre-wrap;color:var(--ink)}
 .cur .aside-why{flex:1 1 20em}
-.agrid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px;align-items:start}
+.agrid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:14px;flex:1 1 auto;min-height:0}
+.compose{align-content:start}
+fieldset.decide{display:flex;flex-direction:column;min-height:0}
 fieldset{border:1px solid var(--line);border-radius:6px;margin:0;padding:6px 10px 8px;min-width:0}
 legend{font:500 11.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:0 4px}
-.choices{display:grid;gap:4px;max-height:26vh;overflow-y:auto;padding:2px}
+.choices{display:grid;align-content:start;gap:4px;padding:2px;flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+#decideRow{flex:none}
 .choice{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;padding:4px 8px;border:1px solid var(--line);border-radius:6px;cursor:pointer;font-size:13.5px}
 .choice:hover{border-color:var(--line-strong)}
 .choice input{margin:0;accent-color:var(--accent)}
 .choice .t{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
 .choice.armed{border-color:var(--accent);background:var(--accent-soft)}
 .choice.rec .t b{color:var(--ok)}
+.choice.rec .t{display:block;-webkit-line-clamp:unset;line-clamp:none}
 .choice .yours{font-size:11px;font-weight:600;color:var(--accent);margin-right:6px}
 .choices.nudge{animation:flash 1.2s ease-out}
 .arow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
@@ -352,7 +361,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 .flash{animation:flash 1.8s ease-out}
 @keyframes flash{0%{box-shadow:0 0 0 3px var(--chg);background-color:var(--chg-soft)}100%{box-shadow:0 0 0 0 transparent}}
 
-@media (max-width:1200px){ .agrid{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:900px){ .agrid{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto} }
 @media (max-width:820px){
   body{overflow:auto}
   .app{height:auto;min-height:100vh}
@@ -360,13 +369,17 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   .strip{flex-direction:row;order:-1}
   nav.rail{max-height:none;padding-bottom:12px;border-bottom:1px solid var(--line-strong);box-shadow:0 12px 10px -10px var(--line)}
   .rail-list{overflow:visible}
+  nav.rail{order:1}
+  main.detail{grid-template-rows:auto auto}
+  section.answer{overflow:visible}
+  .agrid{grid-template-rows:none;flex:none}
+  .choices{overflow:visible}
   h1{font-size:20px;margin-top:2px}
   header.top{gap:4px;padding-bottom:4px}
   .cline{white-space:normal;overflow-wrap:anywhere;overflow:visible;text-overflow:clip}
   .notice{max-width:100%}
   aside.fly.open{position:fixed;inset:0;width:auto;border-radius:0}
 }
-@media (max-height:800px){ .choices{max-height:calc(40vh - 90px)} fieldset.decide{max-height:40vh;overflow-y:auto} }
 @media (prefers-reduced-motion: reduce){*,*::before{animation:none!important;transition:none!important}}
 </style>
 <style id="themeOverride"></style>
@@ -382,6 +395,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       <div class="hright">
         <div class="meter"><button class="mlink" id="meterText" title="Next item needing you (n)">0 of 0 answered</button><span class="bar"><i id="meterBar" style="width:0%"></i></span>
           <button class="mlink sep" id="pendBtn" title="Show the questions pending Claude's research" hidden></button>
+          <button class="mlink sep" id="revBtn" title="Show the answered questions to review" hidden></button>
           <button class="mlink sep assume" id="assumeCount" hidden></button>
           <button class="mlink sep assume" id="wrapChip" hidden title="Open the list of what is still undone"></button></div>
         <button class="tbtn" id="sumBtn" title="Summary and wrap-up (w)" aria-keyshortcuts="w">Summary</button>
@@ -483,11 +497,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const DEFAULTS = {shortcuts: true, undoSeconds: 5, checkpoint: 0, theme: "auto", density: "compact", minText: 14, displayName: "You", waitTimeout: 90, staleDepth: "direct", port: 0, openBrowser: true, leaseTimeout: 600};
   const RESTART = "Restart the server to enable this.";
   const NOT_LISTENING = "No session is listening; type next in the terminal";
+  const FIRST_WAKE = "Not listening: approve any prompt in the terminal, or type next";
   const DEAF_AFTER = 30; // seconds with no watcher poll before the rung 5 message
   const LINE_CAP = 500; // the server's one-line cap, which a hedged condition must fit
+  const PERSON = "someone else decides: "; // a defer whose text names the person who holds the decision
+  const named = t => String(t || "").replace(/^someone else decides:\s*/i, "").trim(); // the person a note names, without a repeated label
+  const personOf = d =>!!d && d.decision === "defer" && String(d.text || "").startsWith(PERSON);
   const FREEZE_MS = 10000; // longest wrap-up freeze on decision saves
   const KEYS = [["Ctrl/Cmd+Enter", "Save the armed choice with the note"], ["Ctrl/Cmd+Shift+Enter", "Ask Claude, no decision"], ["1 to 9", "Arm the Nth row of Decide, counted from the top"],
-    ["a", "Arm Rec; on a stale question with a decision, Reconfirm it (the first row)"], ["o", "Arm Own answer and focus the note"], ["d", "Arm Defer"], ["h", "Arm Hedged (accept with a condition) and focus the note"], ["r", "Reopen"], ["i", "Focus the note"],
+    ["a", "Arm Rec; on a stale question with a decision, Reconfirm it (the first row), except an accept whose recommendation changed since"], ["o", "Arm Own answer and focus the note"], ["d", "Arm Defer"], ["h", "Arm Hedged (accept with a condition) and focus the note"], ["r", "Reopen"], ["i", "Focus the note"],
     ["Esc", "Leave the note and keep the draft; again to close the panel"], ["n / Shift+N", "Next / previous item needing you"], ["j / k, Alt+Down / Alt+Up", "Next / previous question"],
     ["[", "Hide or show the question list"], ["v / m / l / ,", "Visuals / Notes to Claude / Activity / Settings"], ["f", "Full-screen visual"], ["Left / Right", "Previous / next image in a gallery, while the visuals panel or full screen has focus"], ["w", "Summary and wrap-up"],
     ["u", "Undo, during the undo window"], ["/", "Filter"], ["?", "This sheet"]];
@@ -608,6 +626,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const ps =(q.dependsOn || []).filter(p => Q[p]), mine = lastDecisionSeq(q.id), c = ps.filter(p => lastDecisionSeq(p) > mine);
     return c.length ? c : ps;
   }
+  function firstDecided(p, q){ // p's first decision came after q's latest one: nothing of p's was replaced
+    const mine = lastDecisionSeq(q.id), d = decisionOf(q);
+    if ((d && d.src === "terminal") || (Q[p] && Q[p].terminal)) return false; // a terminal decision has no page seq to order by, so it reads "changed"
+    return lastDecisionSeq(p) > mine &&!events().some(e => e.id === p && DEC.has(e.kind) && !e.withdrawn && e.seq < mine);
+  }
   function confirmed(q){ // ticked on the page, or confirmed by Claude after a terminal confirmation
     const s = new Set(events().filter(e => e.kind === "confirm" && e.id === q.id && !e.withdrawn && !(q.commitsSinceSeq != null && (e.seq || 0) <= q.commitsSinceSeq)).map(e => String(e.alt)));
     (q.commitsConfirmed || []).forEach(c => s.add(String(c.index)));
@@ -650,7 +673,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const groupDone = gid => S.doc.questions.filter(q => q.group === gid && live(q)).every(q => isAnswered(stateOf(q)));
   const lockedBy = gid => ((groupById(gid) || {}).dependsOn || []).filter(p => groupById(p) && !groupDone(p));
   const groupTitle = gid => (groupById(gid) || {}).title || gid;
-  const eligible = q => stateOf(q) === "open" && !!q.recommendation && !(q.group && lockedBy(q.group).length) && upOf(q).every(p => parentMet(p) && !isStale(Q[p]));
+  const withheld = q => /^\s*Withheld:/.test(q.recommendation || ""); // no recommendation to accept: the field names the evidence that would settle it
+  const eligible = q => stateOf(q) === "open" && !!q.recommendation && !withheld(q) && !(q.group && lockedBy(q.group).length) && upOf(q).every(p => parentMet(p) && !isStale(Q[p]));
   function carryOver(){
     const max = {}, out = {};
     S.doc.questions.forEach(q => { const s = q.stage || ""; max[s] = Math.max(max[s] || 0, q.round || 1); });
@@ -679,6 +703,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const arrivalKeys = () => new Set(acts().map(actKey).concat(noteThread().filter(n => n.by === "claude").map(n => "n" + n.at + "|" + n.text)));
   function latestClaude(q){ const h = historyOf(q)[0]; return h && talks(h) && String(h.text).trim() !== "Asked." ? h : null; } // hold, supersede and confirm lines are bookkeeping, never the rail preview
   const upOf = q => (q.dependsOn || []).filter(p => Q[p]);
+  const waitOn = q => { const s = (q.upstreamStale || []).filter(p => Q[p]); return s.length ? s : upOf(q); }; // the stale ancestors behind upstream-pending, nearest first
 
   // ---------- rail ----------
   function sections(){
@@ -734,7 +759,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     } else if (st === "open" && blocked(q)) chips.push('<span class="chip s-blocked" title="Waits on a question you have not answered">Blocked</span>');
     else chips.push('<span class="chip s-' + st + '">' + LABEL[st] + (st === "alt" && d ? " (" + esc(d.alt) + ")" : "") + "</span>");
     if (isStale(q)) chips.push('<span class="chip hot">' + ((q.upstreamChanged || []).length ? "Upstream changed" : "Stale") + "</span>");
-    if (up) chips.push('<span class="chip plain">Waiting on ' + esc(upOf(q).join(", ")) + "</span>");
+    if (up) chips.push('<span class="chip plain" title="' + esc("Reconfirm " + waitOn(q).join(", ") + " (under Review), or answer this one anyway") + '">Waiting on ' + esc(waitOn(q).join(", ")) + "</span>");
     if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled your answer to this question yet.">Answer not handled yet</span>');
     if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">carried ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + "</span>");
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
@@ -745,9 +770,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (sent && !answered(q, sent)) chips.push('<span class="chip plain">' + (unheard() && !delivered(events().find(e => e.seq === sent)) ? NOT_LISTENING : "Sent to Claude") + "</span>");
     if (sec && sec.pin && q.group) chips.push('<span class="chip plain">' + esc(groupTitle(q.group)) + "</span>");
     const gone = p => Q[p].supersededBy ? " (superseded by " + Q[p].supersededBy + ")" : stateOf(Q[p]) === "arch" ? " (archived)" : "";
-    const needs = upOf(q).map(p => '<span class="needs' + (parentMet(p) ? "" : " unmet") + '">needs ' + esc(p + gone(p)) + "</span>").join("");
+    const met = p => '<span class="metmark" role="img" aria-label="' + (gone(p) ? "left the path" : "answered") + '" title="' + (gone(p) ? "Left the path" : "Answered") + '">\u2713</span>';
+    const needs = upOf(q).length ? '<span class="needsrow">' + upOf(q).map(p => '<span class="needs' + (parentMet(p) ? " met" : " unmet") + '">needs ' + esc(p + gone(p)) + (parentMet(p) ? met(p) : "") + "</span>").join("") + "</span>" : "";
     const lc = latestClaude(q), dot = fresh && fresh.has(q.id) && S.sel !== q.id;
-    return '<button class="qbtn st-' + esc(st) + (st === "sup" || q.offPath || up ? " dim" : "") + (st === "arch" ? " archived" : "") + '" data-q="' + esc(q.id) + '" aria-current="' + (S.sel === q.id) + '">' +
+    return '<button class="qbtn st-' + esc(st) + (st === "sup" || q.offPath ? " dim" : up ? " waiting" : "") + (st === "arch" ? " archived" : "") + '" data-q="' + esc(q.id) + '" aria-current="' + (S.sel === q.id) + '">' +
       '<span class="qid" title="' + esc(q.id) + '">' + esc(q.id) + '</span><span class="qbody"><span class="qtitle">' + esc(String(q.short || q.title).replace(/\[([^\]]+)\]\(https?:\/\/[^\s)]+\)/g, "$1")) + "</span>" + needs +
       '<span class="qmeta">' + chips.join("") + "</span>" + (lc ? '<span class="qprev">Claude: ' + esc(trunc(firstLine(lc.text), 100)) + "</span>" : "") + "</span>" +
       (dot ? '<span class="newdot" title="Changed by Claude"></span><span class="vh">, updated</span>' : "") + "</button>";
@@ -820,11 +846,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return !!d && !!d.deliveredAt && Date.now() - Date.parse(d.deliveredAt) > 600000 && !((S.listener || {}).waiters > 0);
   }
   function unheard(){ return deaf() || stalled(); } // no session is listening for the user's events
+  const neverPolled = () => !!S.listener && S.listener.idleFor === null && !S.listener.lease; // no watcher has polled this server yet: the first wake may wait on a terminal prompt
+  const closed = () => !S.online || !!S.finished || S.restarted; // nothing the page sends would be saved: a restarted server rejects this page's token
+  const closedWhy = () => S.restarted ? "The server restarted. Reload this page to keep answering; your draft is kept." : S.finished ? "The interview is finished. Answers are no longer saved." : "Not connected. Your draft is kept; Save returns when the server is back.";
   function conn(){ // the connection dot's one word; offline says why
     if (S.restarted) return ["offline", "Server restarted: reload"];
     if (!S.online) return S.finished ? ["rest", "Interview finished: server stopped"] : ["offline", "Connection lost: check the terminal"];
     if (S.finished) return ["rest", "Finished"];
-    if (unheard()) return pending().length ? ["idle", "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
+    if (unheard()) return pending().length ? ["idle", neverPolled() ? FIRST_WAKE : "Not listening: type next"] : ["rest", "Idle"]; // only a waiting event needs Claude
     return ["listening", "Live"];
   }
   function working(){ // what Claude is doing with the user's events, else ""
@@ -853,10 +882,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     $("meterText").textContent = done + " of " + l.length + " answered";
     $("meterText").title = "Next item needing you (n). " + S.doc.questions.filter(q => stateOf(q) === "arch").length + " archived, not counted."; $("meterBar").style.width = l.length ? (100 * done / l.length) + "%" : "0%";
     const pb = $("pendBtn"); pb.hidden = !wn; pb.textContent = wn + " pending research";
+    const rn = l.filter(q => isAnswered(stateOf(q)) && needsYou(q)).length, rb = $("revBtn"); rb.hidden = !rn; rb.textContent = rn + " to review"; // the Review filter's predicate
     const [cls, word] = conn(), pill = $("pill");
     pill.className = "pill " + cls; pill.setAttribute("aria-live", cls === "listening" || cls === "rest" ? "off" : "polite");
     setHtml(pill, esc(word).replace(/next$/, "<code>next</code>"));
-    pill.title = S.restarted ? "The server restarted with a new key: reload this page to keep answering" : S.finished ? "The interview is finished: you can close this tab" : cls === "offline" ? "The page cannot reach the server: check the terminal" : cls === "idle" ? "Claude is not listening: type next in the terminal" : cls === "rest" ? "Nothing is waiting on Claude" : "";
+    pill.title = S.restarted ? "The server restarted with a new key: reload this page to keep answering" : S.finished ? "The interview is finished: you can close this tab" : cls === "offline" ? "The page cannot reach the server: check the terminal" : cls === "idle" ? (neverPolled() ? "No watcher has reached the server yet: the first wake may be waiting on a permission prompt in the terminal" : "Claude is not listening: type next in the terminal") : cls === "rest" ? "Nothing is waiting on Claude" : "";
     const [ct, age] = claudeLine(); // text and age update apart, so a new age is never announced
     $("claudeLine").hidden = !ct;
     if ($("clText").textContent !== ct) $("clText").textContent = ct;
@@ -952,10 +982,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return '<li class="' + cls + (h.withdrawn ? " undone" : "") + '"><div class="hl"><span class="who">' + esc(whoLabel(h)) + (h.withdrawn ? " (undone)" : "") + '</span><span class="dot">&middot;</span><time>' + esc(fmt(h.at)) + "</time>" +
       (mine && h.seq ? receipts(h.seq) : "") + "</div>" + (body ? '<div class="hb">' + body + "</div>" : "") + "</li>";
   }
+  function recRev(q){ // the latest recommendation revision: the rev its history line records, else the content rev
+    const r = Math.max(0, ...(q.history || []).filter(h => h.by === "claude" && h.pageSeq != null).map(h => h.rev || 0));
+    return r || q.contentRev || 0;
+  }
   function historyOf(q){
     const a = (q.history || []).map(h => Object.assign({}, h));
     const b = (S.resp.history[q.id] || []).map(h => Object.assign({by: "user"}, h));
-    return a.concat(b).sort((x, y) => String(y.at).localeCompare(String(x.at)) || ((y.seq || 0) - (x.seq || 0)));
+    const k = h => h.seq || (h.replyTo != null ? h.replyTo + 0.5 : 0); // in the same second a reply follows the event it answers
+    return a.concat(b).sort((x, y) => String(y.at).localeCompare(String(x.at)) || k(y) - k(x));
   }
 
   // ---------- detail ----------
@@ -1021,11 +1056,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function reconfirmOf(q){ // on a stale question, the kept decision re-armed exactly
     const d = isStale(q) && decisionOf(q), k = d && d.decision;
     if (!["accept", "alt", "own", "defer", "hedged"].includes(k)) return null;
+    if (k === "accept" && (q.history || []).some(h => h.pageSeq != null && (d.seq != null ? h.pageSeq >= d.seq : d.rev != null ? h.rev > d.rev : !!h.at && String(h.at) >= String(d.updatedAt)))) return null; // the recommendation changed since this accept (by seq, rev, or time for an older terminal record): pick Rec instead
     const a = (q.alternatives || []).find(x => x.key === d.alt);
     if (k === "alt" && a && !altsOf(q).includes(a)) return {re: true, kind: "accept", alt: null, keep: d.text || "", label: "Reconfirm", text: "the recommendation"};
     if (k === "alt" && !a) return null; // a revise removed the kept alternative: nothing to reconfirm
-    const text = k === "accept" ? "the recommendation" : k === "alt" ? "alternative (" + d.alt + "): " + a.text : k === "own" ? "your own answer" : k === "hedged" ? "hedged: " + (d.text || "") : "deferred";
-    return {re: true, kind: k, alt: k === "alt" ? d.alt : null, keep: d.text || "", label: "Reconfirm", text};
+    const text = k === "accept" ? "the recommendation" : k === "alt" ? "alternative (" + d.alt + "): " + a.text : k === "own" ? "your own answer" : k === "hedged" ? "hedged: " + (d.text || "") : personOf(d) ? d.text : "deferred";
+    return {re: true, kind: k, alt: k === "alt" ? d.alt : null, keep: d.text || "", label: "Reconfirm", text, who: personOf(d)}; // who: a new name typed over the kept one stays person-held
   }
   const normAlt = t => String(t).toLowerCase().replace(/\(recommended\)/g, " ").split(/\s+/).filter(Boolean).join(" ").replace(/[.,;:!?)]+$/, "").trim();
   function altsOf(q){ // alternatives minus any that restate the recommendation: those fold into Accept
@@ -1033,15 +1069,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return (q.alternatives || []).filter(a => !(/\(recommended\)/i.test(a.text) || (rec && normAlt(a.text) === rec)));
   }
   function choicesOf(q){
-    const r = reconfirmOf(q), c = r ? [r] : [];
-    c.push({kind: "accept", label: "Rec", text: firstLine(q.recommendation) || "the recommendation"}, {kind: "accept", wn: true, label: "Accept with note", text: "the recommendation, your note attached"});
+    const r = reconfirmOf(q), c = r ? [r] : [], w = withheld(q); // a withheld question has nothing to accept, with or without a note or condition
+    if (!w) c.push({kind: "accept", label: "Rec", text: String(q.recommendation || "").replace(/[*`#]/g, "").replace(/\s+/g, " ").trim() || "the recommendation"}, {kind: "accept", wn: true, label: "Accept with note", text: "the recommendation, your note attached"});
     altsOf(q).forEach(a => c.push({kind: "alt", alt: a.key, label: "(" + a.key + ")", text: a.text}));
-    c.push({kind: "own", label: "Own answer", text: "uses your note"}, {kind: "defer", label: "Defer", text: "decide later"}, {kind: "hedged", label: "Hedged", text: "accept, the note is the condition"});
+    c.push({kind: "own", label: "Own answer", text: "uses your note"}, {kind: "defer", label: "Defer", text: "decide later"}, {kind: "defer", who: true, label: "Someone else decides", text: "the note names who"});
+    if (!w) c.push({kind: "hedged", label: "Hedged", text: "accept, the note is the condition"});
     return c.map((x, i) => Object.assign(x, {n: i + 1}));
   }
   function armedOf(cs){ // the armed choice by identity, never by the number it had when armed
     const a = S.armed;
-    return a ? cs.find(c => c.kind === a.kind && (c.alt ?? null) === a.alt && !!c.re === a.re && !!c.wn === !!a.wn) : undefined;
+    return a ? cs.find(c => c.kind === a.kind && (c.alt ?? null) === a.alt && !!c.re === a.re && !!c.wn === !!a.wn && !!c.who === !!a.who) : undefined;
   }
   function renderDetail(opts){
     opts = opts || {};
@@ -1064,19 +1101,23 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       link("Unblocks", unblocks) + link("Supersedes", q.supersedes ? [q.supersedes] : []);
     if (links) h += '<div class="links">' + links + "</div>";
     if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + inline((q.archived || {}).why || "off the current path") + "</div>";
-    if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(refHtml).join(" ") + " changed. ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
-    else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + upOf(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. You can still answer.</div>";
+    if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
+    else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + waitOn(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. Reconfirm " + esc(waitOn(q).join(", ")) + " (under Review), or answer this one anyway.</div>";
     if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". Research in progress" + (fmtT(q.waitingSince) ? ", started " + esc(fmtT(q.waitingSince)) : "") + ". You can answer anyway; it counts once the research returns.</div>";
     if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + ".</div>";
     if (q.revising && st !== "arch") h += '<div class="banner"><b>Answer not handled yet.</b> Claude has not handled your answer to this question yet, so it may be revised. You can still answer.</div>';
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
     if (q.supersededBy) h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
-    if (q.revised) h += '<div class="banner"><b>Recommendation revised.</b> ' + inline(q.revised === true ? "" : q.revised) +
-      (q.previousRecommendation ? '<details class="why"><summary>Previous</summary>' + md(q.previousRecommendation) + "</details>" : "") + "</div>";
+    if (q.revised) { // the full banner until the user has opened the question since its latest revision, then a chip
+      const rr = recRev(q), prev = q.previousRecommendation ? '<details class="why"><summary>Previous</summary>' + md(q.previousRecommendation) + "</details>" : "";
+      h += S.revSeen === rr ? '<div class="revchip"><span class="chip plain" title="Recommendation revised">Revised</span>' + prev + "</div>"
+        : '<div class="banner"><b>Recommendation revised.</b> ' + inline(q.revised === true || q.revised === "Recommendation revised." ? "" : q.revised) + prev + "</div>";
+      const rs = lsGet("revSeen", {}); if (rs[q.id] !== rr) { rs[q.id] = rr; lsSet("revSeen", rs); }
+    }
     if (q.claudeNote) h += '<div class="note"><b>Claude:</b> ' + inline(q.claudeNote) + "</div>";
     const lc = latestClaude(q);
     if (lc) h += '<div class="latest" id="latest"><span class="who">' + esc(whoLabel(lc)) + " &middot; " + esc(fmt(lc.at)) + "</span>" + md(lc.text) + "</div>";
-    if (q.recommendation) h += '<section class="blk"><h4>' + (marks ? "➡️ " : "") + 'Recommendation (Rec)</h4><div class="recbox">' + md(q.recommendation) +
+    if (q.recommendation) h += '<section class="blk"><h4>' + (withheld(q) ? "Recommendation withheld" : (marks ? "➡️ " : "") + "Recommendation (Rec)") + '</h4><div class="recbox">' + md(q.recommendation) +
       (q.basis ? '<details class="why"><summary>Why</summary>' + md(q.basis) + "</details>" : "") + "</div></section>";
     if (q.commits && q.commits.length) {
       const cf = confirmed(q), acc = accepted(q);
@@ -1092,7 +1133,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (altsOf(q).length) more += '<section class="blk"><h4>Alternatives</h4><div class="alts">' + altsOf(q).map(a =>
       '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + inline(a.text) + "</span></div>").join("") + "</div></section>";
     if (more) h += '<details class="more" id="more"' + (lsGet("moreOpen", false) ? " open" : "") + "><summary>Details: what we know, alternatives</summary>" + more + "</details>";
-    const hist = historyOf(q).filter(x => x.by !== "claude" || !lc || x.at !== lc.at || x.text !== lc.text); // the latest Claude reply is shown above, not again here
+    const hist = historyOf(q); // every Claude reply stays in the Thread, the latest one too
     h += '<section class="blk" id="thread"><h4>Thread</h4>' + (hist.length ? '<ol class="hist">' + hist.map(x => histLine(x, q)).join("") + "</ol>" : '<p class="empty">No activity yet.</p>') + "</section>";
     el.innerHTML = h;
     el.scrollTop = opts.top ? 0 : top;
@@ -1112,7 +1153,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const q = Q[S.sel], note = $("note");
     if (!q) { $("cur").innerHTML = ""; $("choices").innerHTML = ""; $("decideRow").innerHTML = ""; $("talkRow").innerHTML = ""; note.disabled = true; renderToast(); return; }
     note.disabled = false;
-    const d = decisionOf(q), text = note.value.trim(), can = !S.busy;
+    const d = decisionOf(q), text = note.value.trim(), shut = closed(), can = !S.busy && !shut;
     const last = lastEventSeq(q.id);
     const st = stateOf(q);
     $("cur").innerHTML = d && d.decision && d.aside // one action: the earlier answer no longer counts
@@ -1124,15 +1165,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         (st === "wait" ? '<span class="kbd">Counts once Claude\'s research on ' + esc(q.id) + " returns.</span>" : "")
       : '<span class="kbd">No decision yet.' + (setting("shortcuts") ? " Number keys pick; Ctrl+Enter saves." : " Ctrl+Enter saves.") + "</span>" + (last ? receipts(last) : "");
     if (d && !d.aside && d.text) $("cur").innerHTML += '<div class="earlier" id="earlier"><span class="kbd">Your earlier answer</span><q>' + esc(d.text) + "</q></div>"; // read-only; the note box never takes it
-    const cs = choicesOf(q), cur = d && d.decision && !d.aside ? cs.find(c => !c.re && c.kind === d.decision && (c.kind !== "alt" || c.alt === d.alt)) : null;
-    const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re || c.wn ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" ? " d" : c.kind === "hedged" ? " h" : "";
+    const cs = choicesOf(q), cur = d && d.decision && !d.aside ? cs.find(c => !c.re && c.kind === d.decision && (c.kind !== "alt" || c.alt === d.alt) && !!c.who === personOf(d)) : null;
+    const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re || c.wn ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" && !c.who ? " d" : c.kind === "hedged" ? " h" : "";
     const armed = armedOf(cs);
     $("choices").innerHTML = cs.map(c => '<label class="choice' + (!c.re && !c.wn && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
       '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + esc(c.label) + "</b> " + esc(c.text) + "</span></label>").join("");
-    const needText = armed && needsNote(armed) && !text, frozen = wrapFreeze() > 0;
+    const needText = armed && needsNote(armed) && !(armed.who ? named(text) : text), frozen = wrapFreeze() > 0;
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + (armed.kind === "accept" && !armed.re && (armed.wn || withNote(q, armed)) ? "Accept with note" : armed.label) : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
-    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd">' + (frozen ? "Wrapping up" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : "Own answer needs a note") : "Ctrl+Enter") + "</span>" +
+    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (shut ? closedWhy() : frozen ? "Wrapping up" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : armed.who ? "Name who decides in the note" : "Own answer needs a note") : "Ctrl+Enter") + "</span>" +
       (asks ? '<span class="nudge-q" id="askNudge">This reads as a question. Ask Claude instead?<button class="act soft" data-act="ask" data-submit="1"' + (can ? "" : " disabled") + ">Ask Claude</button></span>" : "") +
       (cut ? '<span class="nudge-q" id="cutNudge">This note looks cut off. Finish it before saving?</span>' : "") +
       (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
@@ -1294,6 +1335,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     let h = "<div class=\"dhead\"><h3 class=\"done-h\" id=\"qhead\">" + (open.length ? open.length + " still open" : waits.length ? "Your part is done for now. Claude is researching " + waits.map(q => esc(q.id)).join(", ") + "." : "All answered") + "</h3><div class=\"kbd\">" + esc(st) + "</div></div>";
     if (open.length) h += '<section class="blk"><h4>Still open</h4><p>' + open.map(q => refHtml(q.id)).join(" ") + "</p></section>";
     if (waits.length) h += '<section class="blk"><h4>Pending research</h4><p>' + waits.map(q => refHtml(q.id)).join(" ") + "</p></section>";
+    const held = l.filter(q => stateOf(q) === "defer" && personOf(decisionOf(q)));
+    if (held.length) h += '<section class="blk" id="personHeld"><h4>Someone else decides</h4><p>' + held.map(q => refHtml(q.id) + " " + esc(trunc(decisionOf(q).text.slice(PERSON.length), 80))).join("; ") + '</p><p class="kbd">At wrap-up Claude may suggest a questionnaire for that person to fill in.</p></section>';
     setHtml($("sumTop"), h); setHtml($("uBox"), uBoxHtml()); setHtml($("cBox"), cBoxHtml());
     const ta = $("offText"); if (ta && document.activeElement !== ta && ta.value !== (S.offDraft || "")) ta.value = S.offDraft || "";
     h = '<section class="blk"><h4>Decisions</h4><div class="sumwrap"><table class="sum"><thead><tr><th>Question</th><th>Decision</th><th>Decided</th></tr></thead><tbody>' +
@@ -1440,7 +1483,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     body.innerHTML = '<div class="fscope">Free-text notes for Claude, not tied to a question. Each note wakes Claude. Notes never count as open items.</div>' +
       '<div class="nthread">' + (nt.length ? nt.map(n => '<div class="nmsg' + (n.by === "claude" ? " claude" : "") + '"><div class="hl"><span class="who">' + (n.by === "claude" ? (n.replyTo ? "Claude replied" : "Claude") : esc(who()) + " wrote") + '</span><span class="dot">&middot;</span><time>' + esc(fmt(n.at)) + "</time>" + (n.seq ? receipts(n.seq) : "") + "</div>" + md(n.text) + "</div>").join("") : '<p class="empty">No notes yet.</p>') + "</div>" +
       '<textarea id="noteText" rows="3" placeholder="A note for Claude. Enter adds a line; Ctrl+Enter sends."' + (S.api >= 2 ? "" : " disabled") + ">" + esc(draft) + "</textarea>" +
-      '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api >= 2 ? "Ctrl+Enter" : RESTART) + '</span></div><div class="toast" id="noteToast"></div>';
+      '<div class="arow"><button class="act primary" data-sendnote="1" data-submit="1"' + (S.api >= 2 && !closed() ? "" : " disabled") + '>Send note</button><span class="kbd">' + (S.api < 2 ? RESTART : closed() ? closedWhy() : "Ctrl+Enter") + '</span></div><div class="toast" id="noteToast"></div>';
     const ta = $("noteText"); grow(ta);
     const th = body.querySelector(".nthread"); if (th.lastElementChild) th.lastElementChild.scrollIntoView({block: "nearest"});
   }
@@ -1520,7 +1563,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   // ---------- navigation ----------
   function select(id, opts){
     if (id !== SUMMARY && !Q[id]) return;
-    if (S.sel !== id) { S.armed = null; S.vtab = null; if (!S.undo) { S.toast = ""; S.toastBad = false; renderToast(); } } // a toast speaks for the view it was raised on
+    if (S.sel !== id) { S.armed = null; S.vtab = null; S.revSeen = lsGet("revSeen", {})[id]; if (!S.undo) { S.toast = ""; S.toastBad = false; renderToast(); } } // a toast speaks for the view it was raised on
     S.sel = id; lsSet("sel", id);
     if (id !== SUMMARY) {
       markSeen(e => (e.ids || []).includes(id));
@@ -1552,7 +1595,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const order = railOrder(), need = order.filter(id => needsYou(Q[id]));
     return need.find(id => !blocked(Q[id])) || need[0] || order[0] || null;
   }
+  function staleNow(){ const qs = S.doc.questions; return {stale: qs.filter(isStale).map(q => q.id), up: qs.filter(q => q.state === "upstream-pending").map(q => q.id)}; }
+  function depthOf(id, memo, path = []){ // the longest prerequisite chain above id
+    if (!Q[id] || path.includes(id)) return 0;
+    if (memo[id] == null) memo[id] = 1 + Math.max(0, ...(Q[id].dependsOn || []).map(p => depthOf(p, memo, [...path, id])));
+    return memo[id];
+  }
   function nextNeeding(dir){ // next (1) or previous (-1) item needing you, in rail order
+    S.staleQ = (S.staleQ || []).filter(id => id !== S.sel && Q[id] && isStale(Q[id]) && passes(Q[id])); // a save's newly stale dependents come first
+    if (dir > 0 && S.staleQ.length) return S.staleQ[0];
     const order = railOrder(true), len = order.length, i = order.indexOf(S.sel);
     for (let k = 1; k <= len; k++) { const id = order[(((i < 0 && dir < 0 ? len : i) + dir * k) % len + len) % len]; if (id !== S.sel && needsYou(Q[id]) && passes(Q[id])) return id; }
     return null;
@@ -1562,14 +1613,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const cs = choicesOf(q), c = (kind === "accept" && cs.find(x => x.re)) || cs.find(x => x.kind === kind && !x.re);
     if (c) arm(c.n);
   }
-  function arm(n){
-    const q = Q[S.sel]; if (!q || S.busy) return;
+  function arm(n, onRadio){ // onRadio: picked by arrow keys or Space on the radios, so focus stays on the picked radio
+    const q = Q[S.sel]; if (!q || S.busy || closed()) return;
     const c = choicesOf(q).find(x => x.n === n); if (!c) return;
-    S.armed = {kind: c.kind, alt: c.alt ?? null, re: !!c.re, wn: !!c.wn}; renderAnswer();
-    if (needsNote(c)) $("note").focus();
+    S.armed = {kind: c.kind, alt: c.alt ?? null, re: !!c.re, wn: !!c.wn, who: !!c.who}; renderAnswer();
+    if (onRadio) { const r = document.querySelector('#choices input[value="' + n + '"]'); if (r) r.focus(); }
+    else if (needsNote(c)) $("note").focus();
   }
   const noteKind = k => k === "own" || k === "hedged"; // decisions whose note is the answer itself
-  const needsNote = c => (noteKind(c.kind) || !!c.wn) && keptText(c) === undefined; // Accept with note is empty without a note
+  const needsNote = c => (noteKind(c.kind) || !!c.wn || !!c.who) && keptText(c) === undefined; // Accept with note is empty without a note
   function keptText(c){ // Reconfirm sends a note typed over the kept one, else the kept note; never an empty own answer or condition
     if (!c.re || (!c.keep && noteKind(c.kind))) return undefined;
     const t = $("note").value.trim();
@@ -1647,13 +1699,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const keep = keptText(c);
     if (c.kind === "accept" && waitingReply(q) && !await confirmAccept()) return;
     const note = keep !== undefined ? keep : $("note").value.trim();
-    if ((noteKind(c.kind) || c.wn) && !note) { toast(c.kind === "hedged" ? "Hedged needs a condition in the note." : c.wn ? "Accept with note needs a note." : "Own answer needs a note.", true); $("note").focus(); return; }
+    if ((noteKind(c.kind) || c.wn || c.who) && !(c.who ? named(note) : note)) { toast(c.kind === "hedged" ? "Hedged needs a condition in the note." : c.wn ? "Accept with note needs a note." : c.who ? "Name who decides in the note." : "Own answer needs a note.", true); $("note").focus(); return; }
     if (c.kind === "hedged" && note.length > LINE_CAP) { toast("The condition is too long: at most " + LINE_CAP + " characters.", true); $("note").focus(); return; }
     if (c.kind === "own" && keep === undefined) { // own text that starts from a card label is most often an accept with a remark
       const r = await resolveRef(q, note, "Save as own answer"); if (r === false) return;
       if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; }
     }
-    await send(c.kind, c.alt, undefined, keep, withNote(q, c));
+    await send(c.kind, c.alt, undefined, c.who ? PERSON + named(note) : keep, withNote(q, c));
   }
   function confirmAccept(){ // Claude has not answered your ask yet, so the recommendation may still change
     const dlg = $("dlg");
@@ -1687,12 +1739,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   async function send(kind, alt, force, keep, noted){
     const q = Q[S.sel]; if (!q || S.busy) return;
+    if (closed()) { toast(closedWhy(), true); return; }
     const typing = document.activeElement === $("note"), held = stateOf(q) === "wait";
     const text = keep !== undefined ? keep : $("note").value.trim(), isDec = DEC.has(kind);
     if (kind === "ask") { const r = await resolveRef(q, text, "Send as a question"); if (r === false) return; if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; } }
     if (isDec && wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
-    const snap = S.snap[q.id] || snapOf(q), typed = $("note").value;
+    const snap = S.snap[q.id] || snapOf(q), typed = $("note").value, was = staleNow();
     S.busy = true; toast("Saving.");  renderAnswer();
+    let saved = false; // once the POST succeeds, a later failure is the refresh's and the answer is stored
     try {
       const body = {id: q.id, kind, alt: alt || null, text};
       if (isDec) body.contentRev = force != null ? force : snap.rev;
@@ -1702,7 +1756,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
         toast("Not saved: the question changed. Review below.", true); renderAnswer(); return;
       }
       if (!res.ok) throw new Error(data.error || res.status);
-      S.conflict = null;
+      saved = true; S.conflict = null;
       lsSet("draft:" + q.id, null);
       await refresh();
       S.busy = false; S.snap[q.id] = snapOf(Q[q.id]);
@@ -1715,18 +1769,26 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       S.armed = null;
       if (kind === "reopen") { toast("Reopened. Your note is kept under Your earlier answer."); fillNote(); renderAll(); return; }
       offerUndo(data.seq, q.id, typed);
+      const now = staleNow(), fresh = now.stale.filter(id => !was.stale.includes(id)), more = now.up.filter(id => !was.up.includes(id)).length;
+      const dm = {}; fresh.sort((a, b) => depthOf(a, dm) - depthOf(b, dm) || byIdCmp(Q[a], Q[b])); // dependency order
+      const sm = fresh.length ? " " + (fresh.length > 1 ? fresh.slice(0, -1).join(", ") + " and " + fresh[fresh.length - 1] + " need" : fresh[0] + " needs") + " review" + (more ? "; " + more + " more wait on " + (fresh.length > 1 ? "them" : "it") : "") + "." : "";
       if (held || noted) { // stays on the question: the answer waits on research, or Claude answers the note
-        toast(held ? "Saved. Counts once Claude's research on " + q.id + " returns." : "Saved " + q.id + " as Accept with note. Claude's reply lands in its thread." + queued(), false, true);
+        toast((held ? "Saved. Counts once Claude's research on " + q.id + " returns." : "Saved " + q.id + " as Accept with note. Claude's reply lands in its thread.") + sm + (held ? "" : queued()), false, true);
         fillNote(); renderAll(); return;
       }
+      if (fresh.length && !typing) { // go to the first dependent this save made stale, where the filter shows it
+        S.staleQ = fresh.slice(1);
+        if (!passes(Q[fresh[0]])) { S.filter = "review"; lsSet("filter", S.filter); }
+        select(fresh[0], {animate: true}); toast("Saved " + q.id + "." + sm + " Now " + fresh[0] + "." + queued(), false, true); return;
+      }
       const nxt = nextNeeding(1), done = allDone();
-      const msg = "Saved " + q.id + "." + queued();
+      const msg = "Saved " + q.id + "." + sm + queued();
       if (typing) { toast(msg + (nxt && nxt !== q.id ? " Next open: " + nxt + (setting("shortcuts") ? " (Esc, then n)." : ".") : done ? " All answered." : ""), false, true); fillNote(); renderAll(); return; }
       if (nxt && nxt !== q.id) { select(nxt, {animate: true}); toast(msg + " Now " + nxt + ".", false, true); }
       else if (done) { select(SUMMARY, {animate: true}); toast(msg + " All answered.", false, true); }
       else { toast(msg, false, true); fillNote(); renderAll(); }
     } catch (e) {
-      S.busy = false; if (!e.quiet) { toast("Not saved (" + e.message + "). Is the local server running?", true); renderAnswer(); }
+      S.busy = false; if (!e.quiet) { toast(saved ?"Saved, but the page could not refresh (" + e.message + "). Reload to see it." : e instanceof TypeError ? "Not saved: the page cannot reach the server. Your note is kept." : "Not saved (" + e.message + ").", true); renderAnswer(); } // a TypeError is the browser's network failure, whose text means nothing to the user
     }
   }
   async function doUndo(){
@@ -1744,6 +1806,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   async function sendFree(kind, text, extra){
     if (S.api < 2 || S.busy) return false;
+    if (closed()) { toast(closedWhy(), true); return false; }
     S.busy = true;
     try {
       const {res, data} = await post(Object.assign({kind, text: text || ""}, extra));
@@ -1920,7 +1983,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   // The server pings every 15 s; past two missed pings the stream counts as dead. A test may
   // shorten it with ?silentMs=<1000 to 35000>, never lengthen it.
   const SILENT_MS = (() => { const v = Number(new URLSearchParams(location.search).get("silentMs")); return Number.isInteger(v) && v >= 1000 && v <= 35000 ? v : 35000; })();
-  function setOnline(v){ if (S.online !== v) { S.online = v; renderHeader(); } }
+  function setOnline(v){
+    if (S.online === v) return;
+    S.online = v; renderHeader();
+    if (!S.loaded) return;
+    renderAnswer(); // answer controls follow the connection: off while nothing can be saved, back on reconnect
+    if (S.fly !== "notes") return;
+    if (document.activeElement !== $("noteText")) { renderFly(); return; }
+    const b = document.querySelector("[data-sendnote]"); if (!b || S.api < 2) return; // typing: update Send note in place so the draft keeps focus
+    b.disabled = closed(); b.nextElementSibling.textContent = closed() ? closedWhy() : "Ctrl+Enter";
+  }
   function connect(){ // every (re)opened stream re-fetches /api/state, so nothing that happened meanwhile is missed
     if (!window.EventSource) { startPoll(); return; }
     if (es) es.close();
@@ -1943,9 +2015,12 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   });
 
   // ---------- events ----------
+  let viaKeys = false; // the last input was a key, not a pointer: arrow keys on the radios fire click too
+  document.addEventListener("keydown", () => { viaKeys = true; }, true);
+  document.addEventListener("pointerdown", () => { viaKeys = false; }, true);
   document.addEventListener("click", e => {
     const t = e.target;
-    if (t.name === "choice") { arm(+t.value); return; } // click, not change: the pre-checked Your answer row fires no change
+    if (t.name === "choice") { arm(+t.value, viaKeys); return; } // click, not change: the pre-checked Your answer row fires no change
     const cb = t.closest("[data-confirm]"); if (cb) { e.preventDefault(); confirmCommit(cb.dataset.cq, cb.dataset.confirm); return; } // the next state render ticks it
     if (t.closest("[data-confirmall]")) { confirmAll(); return; }
     const un = t.closest("[data-understand]"); if (un) { confirmUnderstanding(un.dataset.understand); return; }
@@ -1954,7 +2029,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const go = t.closest("[data-go]"); if (go) { goTo(go.dataset.go); return; }
     if (t.closest("[data-allact], #claudeLine")) { showFly("activity"); return; }
     if (t.closest("#meterText")) { const n = nextNeeding(1); if (n) select(n, {animate: true}); else select(SUMMARY, {animate: true}); return; }
-    if (t.closest("#pendBtn")) { S.filter = "pending"; lsSet("filter", S.filter); S.railHidden = false; lsSet("railHidden", false); renderFly(); renderRail(); return; }
+    if (t.closest("#pendBtn, #revBtn")) { S.filter = t.closest("#revBtn") ? "review" : "pending"; lsSet("filter", S.filter); S.railHidden = false; lsSet("railHidden", false); renderFly(); renderRail(); return; }
     const tc = t.closest("#assumeCount, [data-toconfirm]"); // the list, or one question's entries in it
     if (tc) { select(SUMMARY, {animate: true}); const c = $("tc-" + (tc.dataset.toconfirm || "")) || $("toConfirm"); if (c) c.scrollIntoView({block: "start"}); return; }
     if (t.closest("[data-again]")) { const r = document.querySelector('#choices input[type="radio"]'); if (r) r.focus(); return; }
@@ -1964,7 +2039,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t.closest("#keysClose")) { $("keysDlg").close(); return; }
     if (t.closest("#finClose")) { $("finDlg").close(); return; }
     if (t.closest("[data-sum]")) { select(SUMMARY, {animate: true}); return; }
-    const ref = t.closest(".ref[data-q], .qbtn"); if (ref) { select(ref.dataset.q, {animate: true}); return; }
+    const ref = t.closest(".ref[data-q], .qbtn"); if (ref) { const inRail = !!ref.closest("nav.rail"); select(ref.dataset.q, {animate: true}); if (inRail && matchMedia("(max-width:820px)").matches) document.querySelector("main.detail").scrollIntoView({block: "start"}); return; } // a phone stacks the list below the question
     const au = t.closest("[data-auditround]"); if (au) { const s = sections().secs.find(x => x.round === au.dataset.auditround); if (s) acceptAllDialog(s.items, s.title, s.round); return; }
     const aa = t.closest("[data-acceptall]"); if (aa) { acceptAllDialog(S.doc.questions.filter(q => q.group === aa.dataset.acceptall), groupTitle(aa.dataset.acceptall)); return; }
     const sh = t.closest(".sec-h");
@@ -2019,6 +2094,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     else if (e.target.id === "offText") S.offDraft = e.target.value;
     else if (e.target.id === "looseReply") S.looseDraft = e.target.value;
   });
+  document.addEventListener("paste", e => { // dictation tools insert by paste: text pasted with no text box focused lands in the current question's note
+    if (textFocused() || $("dlg").open || $("keysDlg").open || $("finDlg").open || !Q[S.sel]) return;
+    const note = $("note"), add = (e.clipboardData && e.clipboardData.getData("text/plain")) || "";
+    if (!add || note.disabled) return;
+    e.preventDefault();
+    note.value += (note.value && !/\s$/.test(note.value) ? " " : "") + add;
+    lsSet("draft:" + S.sel, note.value); grow(note);
+    note.focus(); note.setSelectionRange(note.value.length, note.value.length);
+    renderAnswer();
+  });
   document.addEventListener("keydown", e => {
     if (e.isComposing || e.keyCode === 229) return; // IME composition, including Safari
     const inText = textFocused();
@@ -2068,7 +2153,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   });
   window.addEventListener("resize", () => grow($("note")));
   let wasUnheard = false;
-  setInterval(() => { if (!S.loaded) return; renderHeader(); if (unheard() !== wasUnheard) { wasUnheard = unheard(); renderRail(); } }, 2000);
+  setInterval(() => { if (!S.loaded) return; renderHeader(); const u = unheard(); if (u !== wasUnheard) { wasUnheard = u; renderRail(); renderHeader(); } }, 2000); // unheard() turns true as time passes, so the header is redrawn after the rail on the tick it flips
 
   applySettings();
   refresh().then(() => setOnline(true)).catch(() => { setOnline(false); restoreFinish(); }).finally(connect);

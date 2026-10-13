@@ -84,6 +84,16 @@ const DEFAULT_UPSTREAM = [
 const FETCH_HOSTS = ['code.claude.com', 'platform.claude.com', 'docs.claude.com', 'docs.anthropic.com', 'www.anthropic.com']
 const isFetchable = u => isPublicUrl(u) && /^https:\/\/[^?]*$/.test(u) && FETCH_HOSTS.includes(hostOf(u))
 
+// The provenance suffix of a value key and the prefix its provenance keys sit
+// under: roles.<r>.<field> -> <field>; roles.<r>.workloads.<w>.<field> ->
+// <w>_<field>, recorded on the role.
+function provenanceOf(key) {
+  const m = /^(roles\.[^.]+\.)workloads\.([^.]+)\.([^.]+)$/.exec(key)
+  if (m) return { at: m[1], field: m[2] + '_' + m[3] }
+  const field = key.split('.').pop()
+  return { at: key.slice(0, key.length - field.length), field }
+}
+
 const strings = v => (Array.isArray(v) ? v : []).filter(s => typeof s === 'string' && s.trim() !== '').map(s => s.trim())
 const askedUpstream = strings(input.upstream)
 const upstream = askedUpstream.filter(isFetchable)
@@ -95,7 +105,9 @@ let sources = []
 const unreadSources = []
 const ownerValues = new Map()
 const ownerAsOf = new Map()
+const ownerBasis = new Map()
 const skippedAreas = []
+const judgment = []
 
 if (MODE === 'repo') {
   const raw = Array.isArray(input.targets) ? input.targets : []
@@ -133,7 +145,7 @@ if (MODE === 'repo') {
   for (const r of rows) {
     if (!owners.has(r.owner)) owners.set(r.owner, { pointers: [], values: [] })
     const o = owners.get(r.owner)
-    if (/^(pointer[A-Za-z0-9_]*|as_of|recheck)$/.test(r.key)) {
+    if (/^(pointer[A-Za-z0-9_]*|basis_[A-Za-z0-9_]+|claim_[A-Za-z0-9_]+|reason_[A-Za-z0-9_]+|as_of|recheck)$/.test(r.key)) {
       o.pointers.push({ key: r.key, value: r.value })
       if (r.key === 'as_of') ownerAsOf.set(r.owner, r.value)
       if (/^pointer/.test(r.key)) {
@@ -143,6 +155,18 @@ if (MODE === 'repo') {
     } else {
       o.values.push({ key: r.key, value: r.value })
     }
+  }
+  // A value whose basis_<field> is judgment has no upstream statement to check:
+  // it is reported with its reason and sent to no finder.
+  for (const [owner, o] of owners) {
+    const prov = new Map(o.pointers.map(p => [p.key, p.value]))
+    ownerBasis.set(owner, prov)
+    o.values = o.values.filter(v => {
+      const { field } = provenanceOf(v.key)
+      if (prov.get('basis_' + field) !== 'judgment') return true
+      judgment.push({ owner, key: v.key, value: v.value, reason: String(prov.get('reason_' + field) || '') })
+      return false
+    })
   }
   for (const [owner, o] of owners) {
     if (o.values.length && o.pointers.length) {
@@ -155,6 +179,7 @@ if (MODE === 'repo') {
     return {
       error: 'missing-pointers',
       next: 'Defaults mode needs args.pointers: the rows list-pointers.sh --json prints (/multi-agent:audit-defaults).',
+      judgment,
     }
   }
   sources = [...new Set([...urls, ...upstream])]
@@ -432,7 +457,7 @@ const REPO_FINDINGS = {
   },
   required: ['findings'],
 }
-const VERDICTS = ['current', 'drifted', 'trigger-fired', 'unread']
+const VERDICTS = ['current', 'drifted', 'unsupported', 'trigger-fired', 'unread']
 const DEFAULTS_ROWS = {
   type: 'object',
   properties: {
@@ -445,7 +470,7 @@ const DEFAULTS_ROWS = {
           verdict: { type: 'string', enum: VERDICTS },
           evidenceUrl: { type: 'string' },
           evidence: { type: 'string', description: 'at most one short quoted sentence from the page that decides it' },
-          proposed: { type: 'string', description: 'the value the source now supports; the current value when only a trigger fired' },
+          proposed: { type: 'string', description: 'the value the source now supports; the current value when only a trigger fired or the pointer does not state the value' },
           reason: { type: 'string' },
         },
         required: ['key', 'verdict', 'evidenceUrl', 'evidence', 'reason'],
@@ -512,9 +537,14 @@ const unitUrls = u => u.pointers.filter(p => /^pointer/.test(p.key) && isFetchab
 function defaultsPrompt(u, extra) {
   return 'Stage: find. Read-only recheck of one owner of a bundled role-map default. The values are the ' +
     'defaults as shipped; the pointers record where each default\'s basis lives, its as-of date and its ' +
-    'recheck trigger. Read the page of each URL pointer and its anchored section. For each value key, return one ' +
-    'row: current (the source still supports the value), drifted (the source now supports a different value; ' +
-    'put it in proposed), trigger-fired (the recheck event happened even if the value still holds; say what ' +
+    'recheck trigger. A pointer_<field> and claim_<field> pair (basis_<field> upstream) names the section and the ' +
+    'statement in it that sets that field\'s value; a workloads.<w>.<field> value takes the <w>_<field> keys. ' +
+    'Other pointers record mechanism. Read the page of each URL ' +
+    'pointer and its anchored section. For each value key, return one ' +
+    'row: current (the cited section states the value, or the rule the value follows from), drifted (the ' +
+    'source now supports a different value; put it in proposed), unsupported (the cited section exists but ' +
+    'states neither the value nor a rule it follows from: a pointer that is only related is not support; ' +
+    'proposed is the current value), trigger-fired (the recheck event happened even if the value still holds; say what ' +
     'happened, proposed is the current value), or unread (no source could be fetched). A page that fails to ' +
     'load makes its rows unread, never current. Cite the URL that decides each row. Never propose turning ' +
     'fanout.frontier_guard off. Return rows only for the value keys listed.' + READ_ONLY + FETCH_RULE +
@@ -649,7 +679,8 @@ const votes = await inWaves(panel.map(({ b, n, k }) => () => judged(extra =>
     ? 're-read the cited page. The quote was read from the file by a separate reader; judge it as given. ' +
       'Is the quoted text actually correct now, already pointered, out of scope, or is the proposed fix wrong? '
     : 're-read the cited page and its anchored section. Does the source still support the shipped value, ' +
-      'did the recheck event not happen, or is the proposed value wrong? ') +
+      'did the recheck event not happen, is the proposed value wrong, or, for an unsupported finding, does the ' +
+      'cited section in fact state the value or the rule it follows from? ') +
   'Return "refuted" when the evidence contradicts the finding, "upheld" when you checked and it holds, and ' +
   '"unverifiable" when you could not check it (a fetch failed, a rate limit, no access). Never return ' +
   '"refuted" only because you could not check. When a finding is real but its fix or value is wrong, give ' +
@@ -691,7 +722,7 @@ log('Verify: ' + confirmed.length + ' confirmed, ' + refuted.length + ' refuted,
 // Built in code from confirmed rows only, so a diff never carries a value no
 // skeptic majority upheld. Nothing here writes a file.
 const proposedDiffs = MODE === 'defaults'
-  ? confirmed.map(f => ({ owner: f.owner, key: f.key, from: f.value, to: f.proposed, asOf: { from: ownerAsOf.get(f.owner) || null, to: AS_OF }, evidenceUrl: f.evidenceUrl }))
+  ? confirmed.map(f => ({ owner: f.owner, key: f.key, verdict: f.verdict, from: f.value, to: f.proposed, asOf: { from: ownerAsOf.get(f.owner) || null, to: AS_OF }, evidenceUrl: f.evidenceUrl }))
   : []
 let diff = null
 if (proposedDiffs.length) {
@@ -700,6 +731,15 @@ if (proposedDiffs.length) {
     lines.push('@@ ' + owner + ' @@')
     for (const d of proposedDiffs.filter(x => x.owner === owner)) {
       if (d.from !== d.to) lines.push('-' + d.key + ': ' + d.from, '+' + d.key + ': ' + d.to)
+      // An unsupported value keeps its value; its basis becomes judgment until a
+      // reviewer repoints it at a section that states it or writes the reason.
+      // An owner that records no upstream basis for the field (the fan-out
+      // guard) gets no basis lines: there is nothing to rewrite.
+      const { at, field } = provenanceOf(d.key)
+      if (d.verdict === 'unsupported' && ownerBasis.get(d.owner)?.get('basis_' + field) === 'upstream') {
+        lines.push('-' + at + 'basis_' + field + ': upstream', '+' + at + 'basis_' + field + ': judgment',
+          '+' + at + 'reason_' + field + ': (why this value, or repoint pointer_' + field + ' at a section that states it)')
+      }
     }
     const was = ownerAsOf.get(owner)
     if (was !== AS_OF) lines.push('-as_of: ' + (was || '(none)'), '+as_of: ' + AS_OF)
@@ -713,6 +753,7 @@ return {
   refuted,
   unverified,
   current,
+  judgment,
   proposedDiffs,
   diff,
   unreadSources,

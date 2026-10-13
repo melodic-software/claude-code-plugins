@@ -109,9 +109,12 @@ ghq list -p | bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.s
 ## Requirements
 
 - `git` on PATH.
-- Node.js on PATH. Every hook row runs `node hooks/exec-bash.mjs`, and Claude Code's native binary
-  neither ships nor uses Node, so without it the destructive guard does not launch and is not
-  enforced.
+- Node.js on PATH. Every hook row runs `node hooks/exec-bash.mjs`, and a Claude Code install does
+  not guarantee Node, so without it the destructive guard does not launch and is not enforced.
+  - **Pointer**: whether an install brings Node is in
+    [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm). **As of**:
+    2026-10-11. **Recheck trigger**: that section changes whether the native binary ships or uses
+    Node, or is renamed.
 - `bash`: found on PATH, then `/bin/bash` and `/usr/bin/bash`; on Windows, Git Bash.
 - `ghq` (optional) for the fleet batch actions' repository enumeration.
 

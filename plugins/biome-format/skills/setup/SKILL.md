@@ -3,6 +3,8 @@ description: "Verify the biome-format hook's runtime prerequisites and configura
 argument-hint: "[check|apply] [install-biome]"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(command -v jq*)"
 shell: bash
 ---
 
@@ -11,7 +13,7 @@ shell: bash
 `check`'s `jq` probe ran at load time. Read this row instead of re-issuing it; it shows
 the tool's path when present, or `absent` when missing:
 
-- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+- `jq`: !`command -v jq 2>/dev/null || echo absent`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.

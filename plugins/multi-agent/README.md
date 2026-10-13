@@ -10,8 +10,8 @@ answer.
 | Skill | What it does |
 |---|---|
 | `/multi-agent:assess <task>` | Returns `workflow`, `subagent` or `single` with a one-line reason. Checks whether workflows are available in this session first; when they are not, `workflow` becomes `subagent`. Writes nothing. |
-| `/multi-agent:route <role\|all> [code\|research\|mechanical] [session=<alias>]` | Resolves the role map through the config cascade and prints it as fenced JSON: per role a `single` and a `fanout` variant, each with model, effort and the layer that supplied them. `all` is the map a workflow reads from `args.roles`. |
-| `/multi-agent:audit-defaults [<role>\|fanout\|repo]` | Fetches each bundled default's pointer and reports which defaults have drifted or whose recheck trigger has fired, with evidence and a proposed diff. `repo` checks the repository's own model, effort, subagent and workflow statements against upstream instead. Runs the `multi-agent:drift-audit` workflow when workflows are available. Never edits a file. |
+| `/multi-agent:route <role\|all> [code\|research\|mechanical] [session=<alias>]` | Resolves the role map through the config cascade and prints it as fenced JSON: per role a `single` and a `fanout` variant, each with model, effort and the layer that supplied them, and each value's basis (upstream statement, judgment, or a config layer). `all` is the map a workflow reads from `args.roles`. |
+| `/multi-agent:audit-defaults [<role>\|fanout\|repo]` | Fetches each bundled default's pointer and reports which defaults have drifted, whose pointer does not state its value, or whose recheck trigger has fired, with evidence and a proposed diff. `repo` checks the repository's own model, effort, subagent and workflow statements against upstream instead. Runs the `multi-agent:drift-audit` workflow when workflows are available. Never edits a file. |
 | `/multi-agent:check` | Reports whether `node` resolves, whether `hooks/hooks.json` registers the fetch gate on `WebFetch`, and whether the gate denies a sample off-host drift-checker fetch. Read-only; installs nothing. |
 | `/multi-agent:setup [check\|apply]` | `check` prints the resolved map and whether the personal overlay is gitignored. `apply` previews a change to the user, team or local layer as a diff, writes it on your explicit yes, and shows the map before and after. Run by hand only. |
 
@@ -89,16 +89,20 @@ returns no decision, so the session's permission rules still apply, and it
 passes once per agent run. `docs-raw.sh` fetches with `--public-only`, so the
 host must resolve only to global addresses and curl connects to the checked
 one alone. The gate fails open when `node` is missing or the hook times out
-(see Node.js below); a stdin error or a crash inside it denies. Every other
+(see Node.js below, and the hook-failure record in
+[check: purpose](skills/check/SKILL.md#purpose)); a stdin error or a crash inside it denies. Every other
 agent and the main thread pass through. The row is always-on: it fires on every
 `Bash` call, at a budget of one process (`node`) per call, ratcheted in
 `.performance/ratchets.json` as `multi-agent-pretooluse-bash-docs-fetcher-gate-spawns`.
 
-An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
-mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
-([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
-A mod can also approve a call they blocked, because its `tool.check` hook runs after them
-([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
+An installed mod can stop this plugin's `PreToolUse` hooks from running, and can approve a call
+they blocked, so the gate holds only where no installed mod overrides it. Where settings hooks run
+relative to mod hooks is read live:
+
+- **Pointer:** [mods events: where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)
+  and [mods events: approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** either section changes where settings hooks run relative to mod hooks.
 
 ## The fan-out guard
 

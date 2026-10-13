@@ -27,10 +27,10 @@ async page => {
   for (const id of ["Q8", "Q9", "Q7", "Q11"]) if (!(await page.isVisible('.qbtn[data-q="' + id + '"]'))) await page.evaluate(i => document.querySelector('.qbtn[data-q="' + i + '"]').closest(".sec").querySelector(".sec-h").click(), id);
   const lay = await page.evaluate(() => ["Q8", "Q9", "Q7", "Q11"].map(id => {
     const b = document.querySelector('.qbtn[data-q="' + id + '"]'), t = b.querySelector(".qtitle").getBoundingClientRect(), qid = b.querySelector(".qid").getBoundingClientRect(), ns = [...b.querySelectorAll(".needs")];
-    return {id, n: ns.length, col2: t.left >= qid.right && t.top < qid.bottom, xs: ns.map(n => Math.round(n.getBoundingClientRect().left)), below: ns.every(n => n.getBoundingClientRect().top >= t.bottom - 1), over: [b, ...b.querySelectorAll("*")].filter(e => e.scrollWidth > e.clientWidth && getComputedStyle(e).textOverflow !== "ellipsis").map(e => e.className || e.tagName)};
+    return {id, n: ns.length, col2: t.left >= qid.right && t.top < qid.bottom, rows: b.querySelectorAll(".needsrow").length, tops: ns.map(n => Math.round(n.getBoundingClientRect().top)), below: ns.every(n => n.getBoundingClientRect().top >= t.bottom - 1), over: [b, ...b.querySelectorAll("*")].filter(e => e.scrollWidth > e.clientWidth && getComputedStyle(e).textOverflow !== "ellipsis").map(e => e.className || e.tagName)};
   }));
   ok("cards with 0, 1, 2 and 4 dependsOn put the title in column 2 on row 1", lay.map(l => l.n).join() === "0,1,2,4" && lay.every(l => l.col2), JSON.stringify(lay));
-  ok("every needs line sits at one x, below the title", lay.every(l => new Set(l.xs).size <= 1 && l.below), JSON.stringify(lay.map(l => l.xs)));
+  ok("#5917: the needs chips share one wrapped row below the title", lay.every(l => l.rows === (l.n ? 1 : 0) && new Set(l.tops).size < Math.max(l.n, 2) && l.below), JSON.stringify(lay.map(l => [l.rows, l.tops])));
   ok("no card element overflows its own width at 510px", lay.every(l => !l.over.length), JSON.stringify(lay.map(l => l.over)));
   await page.setViewportSize({width: 1400, height: 860});
 
@@ -140,18 +140,49 @@ async page => {
   ok("Esc closes full screen", await page.evaluate(() => document.getElementById("fs").hidden));
   await page.keyboard.press("Escape");
 
-  // medium widths: the agrid is one column, the rail cut is marked, nothing widens the page
+  // medium widths: the agrid stays two columns down to 900 px, the rail cut is marked, nothing widens the page
   await page.click('.qbtn[data-q="N2"]'); await page.waitForTimeout(200);
+  for (const [w, h] of [[1440, 900], [1000, 800], [1000, 640], [860, 640]]) { // the dock never starves the question, Save sits in a footer, and no choice renders behind or below it
+    await page.setViewportSize({width: w, height: h}); await page.waitForTimeout(250);
+    const m = await page.evaluate(() => { const c = document.getElementById("choices"), d = document.getElementById("dscroll"), main = document.querySelector("main.detail"), save = document.querySelector("[data-save]").getBoundingClientRect(), dock = document.getElementById("answer").getBoundingClientRect();
+      return {choicesScroll: c.scrollHeight > c.clientHeight + 1, detail: d.clientHeight, main: main.clientHeight, saveShown: save.top >= dock.top && save.bottom <= dock.bottom + 1}; });
+    ok("at " + w + "x" + h + " the question keeps at least 40% of the pane and Save is in view" + (w === 1440 ? ", with every choice shown unscrolled" : ""), (w !== 1440 || !m.choicesScroll) && m.detail >= 0.4 * m.main && m.saveShown, JSON.stringify(m));
+    const bad = await page.evaluate(() => { // each choice's rect clipped to every scroll container above it, at rest and scrolled to the end
+      const a = document.getElementById("answer"), c = document.getElementById("choices"), out = [];
+      const check = when => {
+        const s = document.getElementById("decideRow").getBoundingClientRect();
+        document.querySelectorAll("#choices .choice").forEach((el, i) => {
+          let r = el.getBoundingClientRect(), top = r.top, bot = r.bottom;
+          for (const p of [c, a]) { const b = p.getBoundingClientRect(); top = Math.max(top, b.top); bot = Math.min(bot, b.bottom); }
+          if (bot - top <= 0.5) return;
+          if (top < s.bottom - 0.5 && bot > s.top + 0.5) out.push(when + " #" + (i + 1) + " behind Save [" + Math.round(top) + "," + Math.round(bot) + "] vs [" + Math.round(s.top) + "," + Math.round(s.bottom) + "]");
+          else if (top >= s.bottom - 0.5) out.push(when + " #" + (i + 1) + " below Save at " + Math.round(top));
+        });
+      };
+      a.scrollTop = 0; c.scrollTop = 0; check("rest");
+      a.scrollTop = a.scrollHeight; c.scrollTop = c.scrollHeight; check("end");
+      a.scrollTop = 0; c.scrollTop = 0;
+      return out;
+    });
+    ok("at " + w + "x" + h + " no choice renders behind or below Save, at rest or scrolled to the end", bad.length === 0, bad.join("; "));
+  }
   for (const w of [1024, 820]) {
     await page.setViewportSize({width: w, height: 860}); await page.waitForTimeout(250);
-    const m = await page.evaluate(() => ({cols: getComputedStyle(document.querySelector(".agrid")).gridTemplateColumns.split(" ").length, wide: document.scrollingElement.scrollWidth - innerWidth, railB: getComputedStyle(document.querySelector("nav.rail")).borderBottomWidth, choice: getComputedStyle(document.querySelector(".choice .t")).webkitLineClamp}));
-    ok("at " + w + " px the answer grid is one column and the page does not widen", m.cols === 1 && m.wide <= 1, JSON.stringify(m));
+    const m = await page.evaluate(() => ({cols: getComputedStyle(document.querySelector(".agrid")).gridTemplateColumns.split(" ").length, wide: document.scrollingElement.scrollWidth - innerWidth, railB: getComputedStyle(document.querySelector("nav.rail")).borderBottomWidth, choice: getComputedStyle(document.querySelector(".choice:not(.rec) .t")).webkitLineClamp}));
+    ok("at " + w + " px the answer grid is " + (w > 900 ? "two columns" : "one column") + " and the page does not widen", m.cols === (w > 900 ? 2 : 1) && m.wide <= 1, JSON.stringify(m));
     if (w === 820) ok("at 820 px the rail ends in a border", m.railB === "1px", m.railB);
     ok("an option title may take two lines at " + w + " px", m.choice === "2", m.choice);
     await page.click(".sumbtn"); await page.waitForTimeout(250);
     ok("the summary does not widen the page at " + w + " px", await page.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1));
     await page.click('.qbtn[data-q="N2"]').catch(() => {}); await page.waitForTimeout(150);
   }
+  await page.setViewportSize({width: 390, height: 844}); await page.waitForTimeout(250);
+  const ph = await page.evaluate(() => ({main: Math.round(document.querySelector("main.detail").getBoundingClientRect().top + scrollY), rail: Math.round(document.querySelector("nav.rail").getBoundingClientRect().top + scrollY)}));
+  ok("at 390 px the current question comes before the question list", ph.main < ph.rail, JSON.stringify(ph));
+  await page.click('.rail-list .qbtn[data-q="N1"]'); await page.waitForTimeout(300);
+  const pt = await page.evaluate(() => ({sel: (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q, top: Math.round(document.querySelector("main.detail").getBoundingClientRect().top)}));
+  ok("at 390 px a pick from the list scrolls its question into view", pt.sel === "N1" && pt.top >= -1 && pt.top < 200, JSON.stringify(pt));
+  await page.evaluate(() => scrollTo(0, 0)); await page.click('.qbtn[data-q="N2"]').catch(() => {});
   await page.setViewportSize({width: 1400, height: 860}); await page.waitForTimeout(250);
   ok("the meter title states the archived count", /\d+ archived/.test(await page.getAttribute("#meterText", "title")), await page.getAttribute("#meterText", "title"));
   await page.selectOption("#filter", "pending"); await page.waitForTimeout(200);

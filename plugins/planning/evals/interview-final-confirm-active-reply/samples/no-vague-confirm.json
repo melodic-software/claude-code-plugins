@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Contract: export the filtered orders as CSV, columns as shown, UTC timestamps, 50,000-row cap, file orders-YYYY-MM-DD.csv.\n\nConfirm, or give me the numbers of the items to change.",
+      "why": "active request, no yes/no check"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply holds no vague check; the other graders fail it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Contract: export the filtered orders as CSV with UTC timestamps. Sound good?",
+      "why": "sound good"
+    },
+    {
+      "answer": "Here is the restated contract. Does this look right?",
+      "why": "does this look right"
+    },
+    {
+      "answer": "That's the contract. Any thoughts?",
+      "why": "any thoughts"
+    }
+  ]
+}

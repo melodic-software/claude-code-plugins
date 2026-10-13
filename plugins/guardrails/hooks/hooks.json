@@ -51,6 +51,22 @@
         ]
       },
       {
+        "matcher": "^mcp__.+__(merge_pull_request|enable_pr_auto_merge)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
+              "block-unresolved-pr-merge.sh"
+            ],
+            "timeout": 60,
+            "statusMessage": "Checking the pull request for unresolved review threads and failing checks..."
+          }
+        ]
+      },
+      {
         "matcher": "Bash|PowerShell",
         "hooks": [
           {
@@ -74,10 +90,11 @@
               "block-windows-drive-tmp.sh",
               "block-exported-msys-pathconv.sh",
               "block-root-delete-target.sh",
-              "block-credential-read.sh"
+              "block-credential-read.sh",
+              "block-unresolved-pr-merge.sh"
             ],
             "timeout": 60,
-            "statusMessage": "Checking the command against the git, hook-bypass, commit-convention, Windows path, root-delete, and credential-read guards..."
+            "statusMessage": "Checking the command against the git, hook-bypass, commit-convention, Windows path, root-delete, credential-read, and PR-merge guards..."
           },
           {
             "type": "command",

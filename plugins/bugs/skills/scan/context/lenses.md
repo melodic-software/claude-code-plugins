@@ -27,7 +27,9 @@ there.
   `Scope: in-lane`. Two hops is wandering, not hunting.
 - **Excluded classes.** Do not report these: denial of service, rate-limiting, resource exhaustion,
   generic input validation with no stated impact, open redirects, secrets-at-rest, and style or
-  formatting opinions. They are FP-prone or belong to another lane.
+  formatting opinions. They are FP-prone or belong to another lane. A value rendered wrongly to a
+  user (wrong text, a missing fallback, a number shown raw) is not a formatting opinion; it is
+  Lens 5's defect.
 - **Cap yourself.** Return at most 5 candidates, ranked by evidence strength. Quality of evidence beats
   quantity of claims.
 
@@ -107,6 +109,25 @@ If the lens found nothing, return exactly: `No candidates for <lens id>.`
   buffer reused across calls; a resource opened outside a `try` whose close sits inside it; state
   mutated inside a retry so the second attempt starts dirty; an `await` between reading and writing a
   shared value.
+
+## Lens 5: display formatting and fallbacks
+
+- **Objective**: find user-facing data that the code renders wrongly for some real value: text that
+  reads wrong, a missing fallback, or a value shown in a form the user cannot read.
+- **Boundaries**: dispatched only when the target renders user-facing data (a component, template,
+  view, message or report). The defect is wrong output for a value the code can receive (name the
+  source that supplies it), never a preference about wording, layout or style; those stay excluded.
+  How the output looks on screen at a given width is `/testing:run-e2e worst-case`'s surface, not
+  this lens's.
+- **Sources**: templates and components, string building for display, number, date and currency
+  formatting, initials and avatar code, image elements, truncation code, empty-state branches.
+- **Look for**: a plural built by appending a letter, or with no rule for one or zero ("1
+  members"); initials taken from the first character or code unit of a split name, which breaks on
+  one-word names, leading spaces and characters outside the basic plane; an image with no fallback
+  for a failed or missing source; a large or fractional number rendered without locale formatting,
+  or a null, undefined or not-a-number value rendered literally; text truncated with no way to read
+  the full value; a placeholder dash or empty line left where an optional field was missing; a date
+  shown in a fixed format or time zone the user did not choose.
 
 ## Hotspot reading order (computed in Step 1, not a lens)
 
