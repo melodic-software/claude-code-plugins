@@ -18,9 +18,15 @@ Two supported setups. Pick one:
 The skills find the tools by the `dometrain` server segment and tool name, so they work whether
 `dometrain-mcp` supplies the server or you configured your own.
 
-Claude Code matches plugin servers to already-configured servers by endpoint, so installing
-`dometrain-mcp` next to your own server at the same URL produces a duplicate-server warning in
-`/plugin`. Install only `dometrain` in that case.
+Installing `dometrain-mcp` next to your own server at the same URL produces a duplicate-server
+warning in `/plugin`. Install only `dometrain` in that case.
+
+- **Pointer**: when deciding whether a plugin server counts as a duplicate of one you configured,
+  fetch [Scope hierarchy and precedence](https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes how plugin servers are matched against configured
+  ones.
 
 ### Adding your own server
 
@@ -49,10 +55,18 @@ exposes the key and never calls a Dometrain tool during setup. See
 ## Upgrading from 0.4.x
 
 Before 0.5.0 this plugin bundled the server and the `dometrain_api_key` option. Both moved to
-`dometrain-mcp`. To keep the bundled server, install `dometrain-mcp` and enter the key again there:
-Claude Code does not carry `pluginConfigs` between plugins. A user-scope `dometrain` server needs
-no change. Permission rules written against `mcp__plugin_dometrain_dometrain__*` need the new
-prefix, `mcp__plugin_dometrain-mcp_dometrain__*`.
+`dometrain-mcp`. To keep the bundled server, install `dometrain-mcp` and enter the key again there;
+the key stored for the old plugin does not move to the new one. A user-scope `dometrain` server
+needs no change. Permission rules written against `mcp__plugin_dometrain_dometrain__*` need the
+new prefix, `mcp__plugin_dometrain-mcp_dometrain__*`.
+
+- **Pointer**: when rewriting those rules, fetch
+  [Match MCP tools](https://code.claude.com/docs/en/hooks#match-mcp-tools) for the tool-name format
+  and [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration)
+  for where option values are stored, live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes the MCP tool-name format or where plugin option
+  values are kept.
 
 ## Dometrain's own official plugin, and why this one exists too
 
@@ -87,7 +101,7 @@ shell environment variable to export.
 marketplace-scoped (`dometrain@<marketplace>` and `dometrain@dometrain` are distinct,
 coexistable install identities), but skill and MCP-tool namespacing is driven by `plugin.json`
 `name` alone, and Claude Code's behavior for two enabled plugins sharing an
-identical name is genuinely undocumented. Pick one.
+identical name is undocumented. Pick one.
 
 ## Grounding skill
 

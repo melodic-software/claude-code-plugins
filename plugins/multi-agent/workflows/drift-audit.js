@@ -84,6 +84,16 @@ const DEFAULT_UPSTREAM = [
 const FETCH_HOSTS = ['code.claude.com', 'platform.claude.com', 'docs.claude.com', 'docs.anthropic.com', 'www.anthropic.com']
 const isFetchable = u => isPublicUrl(u) && /^https:\/\/[^?]*$/.test(u) && FETCH_HOSTS.includes(hostOf(u))
 
+// The provenance suffix of a value key and the prefix its provenance keys sit
+// under: roles.<r>.<field> -> <field>; roles.<r>.workloads.<w>.<field> ->
+// <w>_<field>, recorded on the role.
+function provenanceOf(key) {
+  const m = /^(roles\.[^.]+\.)workloads\.([^.]+)\.([^.]+)$/.exec(key)
+  if (m) return { at: m[1], field: m[2] + '_' + m[3] }
+  const field = key.split('.').pop()
+  return { at: key.slice(0, key.length - field.length), field }
+}
+
 const strings = v => (Array.isArray(v) ? v : []).filter(s => typeof s === 'string' && s.trim() !== '').map(s => s.trim())
 const askedUpstream = strings(input.upstream)
 const upstream = askedUpstream.filter(isFetchable)
@@ -150,7 +160,7 @@ if (MODE === 'repo') {
   for (const [owner, o] of owners) {
     const prov = new Map(o.pointers.map(p => [p.key, p.value]))
     o.values = o.values.filter(v => {
-      const field = v.key.split('.').pop()
+      const { field } = provenanceOf(v.key)
       if (prov.get('basis_' + field) !== 'judgment') return true
       judgment.push({ owner, key: v.key, value: v.value, reason: String(prov.get('reason_' + field) || '') })
       return false
@@ -526,7 +536,8 @@ function defaultsPrompt(u, extra) {
   return 'Stage: find. Read-only recheck of one owner of a bundled role-map default. The values are the ' +
     'defaults as shipped; the pointers record where each default\'s basis lives, its as-of date and its ' +
     'recheck trigger. A pointer_<field> and claim_<field> pair (basis_<field> upstream) names the section and the ' +
-    'statement in it that sets that field\'s value; other pointers record mechanism. Read the page of each URL ' +
+    'statement in it that sets that field\'s value; a workloads.<w>.<field> value takes the <w>_<field> keys. ' +
+    'Other pointers record mechanism. Read the page of each URL ' +
     'pointer and its anchored section. For each value key, return one ' +
     'row: current (the cited section states the value, or the rule the value follows from), drifted (the ' +
     'source now supports a different value; put it in proposed), unsupported (the cited section exists but ' +
@@ -721,8 +732,7 @@ if (proposedDiffs.length) {
       // An unsupported value keeps its value; its basis becomes judgment until a
       // reviewer repoints it at a section that states it or writes the reason.
       if (d.verdict === 'unsupported') {
-        const field = d.key.split('.').pop()
-        const at = d.key.slice(0, d.key.length - field.length)
+        const { at, field } = provenanceOf(d.key)
         lines.push('-' + at + 'basis_' + field + ': upstream', '+' + at + 'basis_' + field + ': judgment',
           '+' + at + 'reason_' + field + ': (why this value, or repoint pointer_' + field + ' at a section that states it)')
       }

@@ -52,7 +52,7 @@ run() {
   fi
 }
 
-# src <role> <published> <applies_to> <standing>; "-" omits that key.
+# src <role> <published> <applies_to> <standing> [dated_by]; "-" or no argument omits that key.
 src() {
   printf '      - url: "https://example.test/doc"\n'
   printf '        tier: 1\n        pool: "docs"\n        measures: "m"\n'
@@ -60,6 +60,7 @@ src() {
   if [[ "$2" != - ]]; then printf '        published: %s\n' "$2"; fi
   if [[ "$3" != - ]]; then printf '        applies_to: %s\n' "$3"; fi
   if [[ "$4" != - ]]; then printf '        standing: %s\n' "$4"; fi
+  if [[ -n "${5+x}" && "${5:-}" != - ]]; then printf '        dated_by: %s\n' "$5"; fi
 }
 
 # claim <applies_to or -> <sources text>
@@ -397,6 +398,48 @@ if [[ "$out" == "status=ungradeable" ]]; then
 else
   fail "ungradeable summary line: got '$out'"
 fi
+
+# --- dated_by (R8) ----------------------------------------------------------
+
+dated_slice() {
+  mkslice "$1" - "$(claim "$V9" "$PRIMARY
+$(src corroborator 2024-06 "$V9" current "$2")")"
+}
+SERVE='source 2: dated_by'
+run 0 "dated_by sitemap-lastmod is accepted" "$(dated_slice dby-sitemap sitemap-lastmod)"
+run 0 "dated_by source-commit is accepted" "$(dated_slice dby-commit source-commit)"
+run 0 "an absent dated_by is accepted" "$(dated_slice dby-absent -)"
+run 1 "dated_by last-modified is a serve-time header" --err "$SERVE last-modified is a serve-time header" \
+  "$(dated_slice dby-lm last-modified)"
+run 1 "dated_by Last-Modified is rejected case-insensitively" --err "$SERVE Last-Modified is a serve-time header" \
+  "$(dated_slice dby-lm-case Last-Modified)"
+run 1 "dated_by http-date is a serve-time header" --err "$SERVE http-date is a serve-time header" \
+  "$(dated_slice dby-http-date http-date)"
+run 1 "dated_by etag is a serve-time header" --err "$SERVE etag is a serve-time header" \
+  "$(dated_slice dby-etag etag)"
+run 1 "a quoted dated_by header value is rejected" --err "$SERVE Last-Modified is a serve-time header" \
+  "$(dated_slice dby-quoted '"Last-Modified"')"
+run 1 "dated_by 'Last-Modified header' is rejected" --err "$SERVE Last-Modified header is a serve-time header" \
+  "$(dated_slice dby-lm-hdr 'Last-Modified header')"
+run 1 "dated_by 'Date header' is rejected" --err "$SERVE Date header is a serve-time header" \
+  "$(dated_slice dby-date-hdr 'Date header')"
+run 1 "dated_by last-modified-header is rejected" --err "$SERVE last-modified-header is a serve-time header" \
+  "$(dated_slice dby-lm-dash last-modified-header)"
+run 1 "an empty dated_by is rejected" --err 'source 2: dated_by is empty' \
+  "$(dated_slice dby-empty '')"
+run 1 "a quoted empty dated_by is rejected" --err 'source 2: dated_by is empty' \
+  "$(dated_slice dby-empty-quoted '""')"
+run 1 "a pasted Last-Modified header line is rejected" --err "$SERVE Last-Modified: Tue is a serve-time header" \
+  "$(dated_slice dby-lm-pasted 'Last-Modified: Tue')"
+run 1 "dated_by x-last-modified is rejected" --err "$SERVE x-last-modified is a serve-time header" \
+  "$(dated_slice dby-x-lm x-last-modified)"
+run 1 "a descriptive response Date header is rejected" --err "$SERVE response Date header is a serve-time header" \
+  "$(dated_slice dby-resp-date 'response Date header')"
+run 1 "a pasted Date header line is rejected" --err "$SERVE Date: Tue, 09 Oct 2026 is a serve-time header" \
+  "$(dated_slice dby-date-pasted "'Date: Tue, 09 Oct 2026'")"
+run 0 "a method that only mentions a date is accepted" "$(dated_slice dby-commit-date 'source-commit date')"
+run 1 "any http- prefixed dated_by is rejected" --err "$SERVE http-expires is a serve-time header" \
+  "$(dated_slice dby-http-expires http-expires)"
 
 total=$((passes + fails))
 if [[ "$fails" -eq 0 ]]; then

@@ -13,6 +13,9 @@
 #   which statement in it. `judgment` names reason_<field>: no upstream
 #   statement sets the value, and why it is what it is. The resolver emits the
 #   basis beside each value; the audit checks that an upstream pointer states it.
+#   A workloads.<w>.<field> value records its basis on the role as
+#   basis_<w>_<field>, with pointer_<w>_<field> and claim_<w>_<field> or
+#   reason_<w>_<field>.
 # Which roles may route to haiku, and at what effort: reference/routing-rubric.md.
 schema: 1
 
@@ -30,8 +33,8 @@ fanout:
   model: opus
   pointer: https://code.claude.com/docs/en/workflows#cost
   pointer_cost: https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work
-  as_of: 2026-10-02
-  recheck: a new model row on the cost page, or a workflows Cost section change to how a stage's model is chosen
+  as_of: 2026-10-10
+  recheck: a new model named on the cost page, or a workflows Cost section change to how a stage's model is chosen
 
 roles:
   orchestrator:
@@ -48,15 +51,21 @@ roles:
   worker:
     model: inherit
     effort: medium
+    workloads:
+      mechanical:
+        model: sonnet
     basis_model: judgment
     reason_model: the cost page's orchestrator strategy delegates to lower-cost workers, and the fan-out guard applies that under a frontier session; under any other session no cheaper alias is set, because the same page measured delegation paying only in named cases
     basis_effort: upstream
     pointer_effort: https://code.claude.com/docs/en/model-config#choose-an-effort-level
     claim_effort: the effort table's row for day-to-day engineering work with a clear scope
+    basis_mechanical_model: upstream
+    pointer_mechanical_model: https://code.claude.com/docs/en/costs#choose-the-right-model
+    claim_mechanical_model: the statement that Sonnet handles most coding tasks well, with Opus reserved for complex architectural decisions or multi-step reasoning
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
-    as_of: 2026-10-11
-    recheck: model-config's effort table changes the row for clear-scope engineering work, the cost page's orchestrator strategy changes its worker-model advice, a new model is named on the cost page, the Agent tool's per-spawn effort parameter changes, or a role is proposed for haiku (see routing-rubric.md)
+    as_of: 2026-10-13
+    recheck: model-config's effort table changes the row for clear-scope engineering work, the cost page's orchestrator strategy changes its worker-model advice, a new model is named on the cost page, the costs page changes its model split, the Agent tool's per-spawn effort parameter changes, or a role is proposed for haiku (see routing-rubric.md)
   verifier:
     model: inherit
     effort: high

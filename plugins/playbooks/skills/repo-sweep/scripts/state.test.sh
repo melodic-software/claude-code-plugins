@@ -27,6 +27,17 @@ case "$*" in
 esac
 EOF
 chmod +x "$TMP/bin/gh"
+# A native jq.exe without -b writes text-mode stdout: every LF leaves as CRLF. This fake does
+# that unless called with -b; text_jq runs state.sh with it on a Windows platform.
+mkdir -p "$TMP/textjq"
+# shellcheck disable=SC2016 # the fake's own source: its $-expansions run when it does
+{
+  printf '#!/usr/bin/env bash\nset -o pipefail\n'
+  printf 'if [[ ${1-} == -b ]]; then exec %q "$@"; fi\n' "$(command -v jq)"
+  printf '%q "$@" | awk -v BINMODE=3 '"'"'{ printf "%%s\\r\\n", $0 }'"'"'\n' "$(command -v jq)"
+} >"$TMP/textjq/jq"
+chmod +x "$TMP/textjq/jq"
+text_jq() { PATH="$TMP/textjq:$PATH" REPO_SWEEP_OSTYPE="$1" run; }
 
 gitf() { git -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null "$@"; }
 repo="$TMP/repo"
@@ -89,6 +100,12 @@ assert_eq "reconcile: committed lines, web-UI tick, exact skill sets, base exclu
 pr OPEN "$(body $'\r' "${lines[@]}")" | serve head
 RUN_DIR="$repo/.work" run
 assert_eq "CRLF body from a subdirectory: same report" "$expected" "$out"
+text_jq msys
+assert_eq "text-mode jq on msys: CRLF body, same report with no CR" "0 $expected" "$rc $out"
+text_jq linux-gnu
+if [[ $out == *$'\r'* ]]; then pass "text-mode jq control: without -b the report carries CRs"; else
+  fail "text-mode jq control: the fake adds CRs" "a CR in the report" "$out"
+fi
 
 mkdir -p "$repo/.work/scratch"
 printf 'y\n' >"$repo/.work/scratch/new"
@@ -175,6 +192,10 @@ run
 assert_eq "other branch, one open sweep: exit 14 names the branch" "14 pr 7
 branch $sweep
 pr-state OPEN" "$rc $out"
+text_jq msys
+assert_eq "text-mode jq on msys: exit 14 branch carries no CR" "14 pr 7
+branch $sweep
+pr-state OPEN" "$rc $out"
 case "$(cat "$TMP/gh.log")" in
 *"--search head:chore/repo-sweep- --limit 1000"*) pass "discovery searches head:chore/repo-sweep- with --limit 1000" ;;
 *) fail "discovery gh args" "--search head:chore/repo-sweep- --limit 1000" "$(cat "$TMP/gh.log")" ;;
@@ -186,6 +207,9 @@ esac
 } | serve open
 run
 assert_eq "other branch, two open sweeps: exit 15 lists them" "15 sweep 7 $sweep
+sweep 9 chore/repo-sweep-fixture-20260927" "$rc $out"
+text_jq msys
+assert_eq "text-mode jq on msys: exit 15 list carries no CR" "15 sweep 7 $sweep
 sweep 9 chore/repo-sweep-fixture-20260927" "$rc $out"
 
 pr OPEN x 8 fix/chore/repo-sweep-decoy | serve open

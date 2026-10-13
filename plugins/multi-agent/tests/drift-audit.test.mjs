@@ -399,6 +399,24 @@ test('a judgment value reaches no finder and comes back with its reason', async 
   assert.ok(!result.unverified.some(u => u.key === 'roles.worker.model'), 'a judgment value is not reported unread')
 })
 
+test('a workload value takes its own basis, not the role field it shares a name with', async () => {
+  const COSTS = 'https://code.claude.com/docs/en/costs#choose-the-right-model'
+  const pointers = BASIS_POINTERS.concat([
+    { owner: 'worker', key: 'basis_mechanical_model', value: 'upstream' },
+    { owner: 'worker', key: 'pointer_mechanical_model', value: COSTS },
+    { owner: 'worker', key: 'claim_mechanical_model', value: 'the Sonnet statement' },
+    { owner: 'worker', key: 'roles.worker.workloads.mechanical.model', value: 'sonnet' },
+  ])
+  const { result, calls } = await run({ pointers, asOf: '2026-11-01' }, {
+    reply: (p, o, d) => (o.label === 'find:worker'
+      ? { rows: [{ key: 'roles.worker.workloads.mechanical.model', verdict: 'unsupported', evidenceUrl: COSTS, evidence: 'q', reason: 'r' }] }
+      : d(p, o)),
+  })
+  assert.deepEqual(data(by(calls, 'find:worker')[0].prompt, 'values').map(v => v.key), ['roles.worker.effort', 'roles.worker.workloads.mechanical.model'])
+  assert.deepEqual(result.judgment.map(j => j.key), ['roles.worker.model'])
+  assert.match(result.diff, /-roles\.worker\.basis_mechanical_model: upstream\n\+roles\.worker\.basis_mechanical_model: judgment\n\+roles\.worker\.reason_mechanical_model: /)
+})
+
 test('a pointer that does not state its value is reported unsupported and the diff marks it judgment', async () => {
   const { result, calls } = await run({ pointers: BASIS_POINTERS, asOf: '2026-11-01' }, {
     reply: (p, o, d) => (o.label === 'find:worker'

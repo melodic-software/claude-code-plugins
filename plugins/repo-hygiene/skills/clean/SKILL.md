@@ -38,14 +38,14 @@ hooks:
     - matcher: "Bash|PowerShell"
       hooks:
         # Exec form. `command` is `node`. exec-bash.mjs finds Git Bash and
-        # never System32\bash.exe, then runs destructive-guard.sh.
-        # Claim: exec form spawns `command` with `args` and no shell, and a
-        # skill-frontmatter hook substitutes only ${CLAUDE_PLUGIN_ROOT}.
-        # Basis: https://code.claude.com/docs/en/hooks "Exec form and shell form"
-        # and "Command hook fields".
-        # As of: 2026-09-28.
-        # Recheck: that page stops ignoring `shell` when `args` is set, or a
-        # skill hook gains another placeholder.
+        # never System32\bash.exe, then runs destructive-guard.sh. `args`
+        # names only ${CLAUDE_PLUGIN_ROOT}, by design; whether a
+        # skill-frontmatter hook receives ${CLAUDE_PLUGIN_DATA} is untested.
+        # Pointer: https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
+        # and https://code.claude.com/docs/en/hooks#reference-scripts-by-path.
+        # As of: 2026-10-11.
+        # Recheck trigger: the first section changes how `args` is spawned,
+        # or the second documents which placeholders a skill hook receives.
         - type: command
           command: node
           args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh"]
@@ -147,7 +147,9 @@ Protected-path enforcement gates `scan`, `caches`, `build`, `git`, AND `tree` (`
 
 ## Confirmation gate
 
-**Question surface. Every question this skill asks.** Prefer `AskUserQuestion`: its answer is the user's own and cannot be fabricated. It is not always usable, in two distinct ways, a bare-name `permissions.deny` rule or a `disallowed-tools` entry removes it from context entirely, while permission mode `dontAsk` denies it even when an allow rule names it, leaving it visible and every call failing. Fall back to the same question asked inline as a numbered choice whenever the tool is absent, denied, **or otherwise unusable**, including a denial discovered only by calling it; a denied call is an unanswered question, never an answer. Then wait for the reply. The surface varies; nothing below it does.
+**Question surface. Every question this skill asks.** Prefer `AskUserQuestion`: its answer is the user's own and cannot be fabricated. It is not always usable: permission rules can remove it from context, and some permission modes deny it while it stays visible. Fall back to the same question asked inline as a numbered choice whenever the tool is absent, denied, **or otherwise unusable**, including a denial discovered only by calling it; a denied call is an unanswered question, never an answer. Then wait for the reply. The surface varies; nothing below it does.
+
+- **Pointer**: which modes deny the tool is in [Allow only pre-approved tools with dontAsk mode](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode); how a deny rule removes a tool is in [Manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions). **As of**: 2026-10-11. **Recheck trigger**: either section changes whether `AskUserQuestion` is denied or hidden, or is renamed.
 
 **Destructive confirmation. Every `--apply`, branch deletion, and stash drop.** Show the dry-run first, then take the user's own affirmative answer, given in this interactive session, naming exactly the set just shown. For a batch, that set is the listed paths per repo plus any capped tail; when a tail hides entries, say so and point at the plan file before asking. A prior general request, an alias, a flag, "clean everything", approval of a different set, or silence is not confirmation, never supply or infer the answer yourself. Autonomous sessions abort here rather than ask.
 
@@ -248,16 +250,25 @@ Repo sources: `--repo` (repeatable; a shell glob expands to these), `--repos-fro
 The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`,
 and the plugin data directory as `<plugin-data>`, which is `${CLAUDE_PLUGIN_DATA}`. Put those paths
 in place of the placeholders before running a command. Those files arrive through the Read tool as
-plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted, and the Bash tool's
-environment has no `CLAUDE_SKILL_DIR` to expand it from.
+plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted.
 
-`clean-batch.sh` takes the data directory from `--data-dir`. The Bash tool's environment does not
-carry this plugin's `CLAUDE_PLUGIN_DATA`, and another plugin's SessionStart hook can put its own data
-directory there under that name, so the script uses an inherited value only when it names this
-plugin. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves, or
-lists the Bash tool among the processes that receive the variables.
+`clean-batch.sh` takes the data directory from `--data-dir` rather than its environment, and uses an
+inherited `CLAUDE_PLUGIN_DATA` only when it names this plugin, because another plugin's SessionStart
+hook can put its own data directory there under that name.
+
+- **Pointer**: which plugin files substitute a `${…}` reference, and which processes receive the
+  plugin variables, is in
+  [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
+  **As of**: 2026-10-11. **Recheck trigger**: that table adds supporting files to where a `${…}`
+  reference resolves, or lists the Bash tool among the processes that receive the variables.
+  `/machine-health:audit` records an observation that disagrees with this table on the Bash tool; a
+  run that reconciles the two is also a trigger.
+
+## Next
+
+- Linked worktrees no longer needed, which no tier removes: /source-control:worktree cleanup --dry-run.
+- Branches or worktrees across many repositories: /repo-fleet-hygiene:audit.
+- Disk still short after `scan` or a batch: /disk-hygiene:clean.
 
 ## Integration
 

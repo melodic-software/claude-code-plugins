@@ -56,6 +56,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSER="$SCRIPT_DIR/yaml-subset.awk"
 DEFAULTS="$SCRIPT_DIR/../reference/defaults.yaml"
 
+# Validation constants: a chosen subset of the aliases at
+# https://code.claude.com/docs/en/model-config#model-aliases and the levels at
+# https://code.claude.com/docs/en/model-config#choose-an-effort-level (as of
+# 2026-10-11; recheck when either section adds, renames or drops an alias or a
+# level). `default`, `opusplan` and the `[1m]` variants are left out on purpose.
 ALIASES=" opus sonnet haiku fable best "
 EFFORTS=" low medium high xhigh max "
 WORKLOADS=" code research mechanical "
@@ -306,16 +311,17 @@ variant() { # variant <model> <effort> <guarded>
     "$(json_str "$1")" "$omit" "$(json_str "$2")" "$3"
 }
 
-# basis_of <role prefix> <field> <source layer>: the bundled basis_<field>
-# (upstream or judgment) when the bundled layer supplied the value, `config`
-# when a consumer layer did, `unrecorded` when the bundled entry names none.
+# basis_of <role prefix> <field> <source layer> [<workload>]: the bundled
+# basis_[<workload>_]<field> (upstream or judgment) when the bundled layer
+# supplied the value, `config` when a consumer layer did, `unrecorded` when the
+# bundled entry names none. Pass the workload only when its key set the value.
 basis_of() {
   local b
   if [[ "$3" != bundled ]]; then
     printf 'config'
     return
   fi
-  b="$(val "$1.basis_$2")"
+  b="$(val "$1.basis_${4:+$4_}$2")"
   case "$b" in
   upstream | judgment) printf '%s' "$b" ;;
   *) printf 'unrecorded' ;;
@@ -323,16 +329,16 @@ basis_of() {
 }
 
 role_json() {
-  local r="$1" p="roles.$1" model effort ms es fan guarded=false w guard
+  local r="$1" p="roles.$1" model effort ms es mw="" ew="" fan guarded=false w guard
   model="$(val "$p.model")" ms="$(src "$p.model")"
   effort="$(val "$p.effort")" es="$(src "$p.effort")"
   if [[ -n "$WORKLOAD" ]]; then
     w="$p.workloads.$WORKLOAD"
     if [[ -n "$(val "$w.model")" ]]; then
-      model="$(val "$w.model")" ms="$(src "$w.model")"
+      model="$(val "$w.model")" ms="$(src "$w.model")" mw="$WORKLOAD"
     fi
     if [[ -n "$(val "$w.effort")" ]]; then
-      effort="$(val "$w.effort")" es="$(src "$w.effort")"
+      effort="$(val "$w.effort")" es="$(src "$w.effort")" ew="$WORKLOAD"
     fi
   fi
   fan="$model"
@@ -346,7 +352,7 @@ role_json() {
   printf -v ROLE_JSON '%s:{"role":%s,"single":%s,"fanout":%s,"source":{"model":%s,"effort":%s},"basis":{"model":%s,"effort":%s}}' \
     "$(json_str "$r")" "$(json_str "$r")" "$(variant "$model" "$effort" false)" \
     "$(variant "$fan" "$effort" "$guarded")" "$(json_str "$ms")" "$(json_str "$es")" \
-    "$(json_str "$(basis_of "$p" model "$ms")")" "$(json_str "$(basis_of "$p" effort "$es")")"
+    "$(json_str "$(basis_of "$p" model "$ms" "$mw")")" "$(json_str "$(basis_of "$p" effort "$es" "$ew")")"
   [[ "$model" == inherit ]] && model="$SESSION_MODEL"
   [[ "$fan" == inherit ]] && fan="$SESSION_MODEL"
   if [[ "$model" == haiku || "$fan" == haiku ]]; then

@@ -7,18 +7,33 @@ everything is what left the skill inert on any repository without a test suite, 
 them, and it was never the strongest proof available for a deletion anyway: a test suite samples
 behavior, while a token comparison is exhaustive over the file.
 
+## Contents
+
+- [Mode ladder](#mode-ladder)
+- [The gates, by what each can prove](#the-gates-by-what-each-can-prove)
+- [The test net (tiers 2 and 3)](#the-test-net-tiers-2-and-3)
+- [Exempt surfaces (never touched, any mode)](#exempt-surfaces-never-touched-any-mode)
+- [Outside-constraint survivors (`aggressive` only)](#outside-constraint-survivors-aggressive-only)
+- [Not exempt, but the highest-cost misclassification: route to class C](#not-exempt-but-the-highest-cost-misclassification-route-to-class-c)
+- [Path exclusions](#path-exclusions)
+- [Narrative staging: text is never silently destroyed](#narrative-staging-text-is-never-silently-destroyed)
+- [Gotcha: rejected-alternative rationale reads exactly like residue](#gotcha-rejected-alternative-rationale-reads-exactly-like-residue)
+- [Gotcha: the earn-its-keep bar is not a license for a sweep](#gotcha-the-earn-its-keep-bar-is-not-a-license-for-a-sweep)
+
 ## Mode ladder
 
 | Mode | Class A | Class B | Class C |
 |---|---|---|---|
 | **Default** | Applied, each deletion certified by the tier-0 proof | Applied per the tier table below; otherwise proposed | Earn-its-keep triage; a criterion-2 failure is deleted behind the tier-0 proof, an over-budget comment rewritten; narrative staged before either |
 | **`safe`** | Applied, same certification | Always proposed: no code-structure change is applied | Same triage, but **nothing class-C is applied**: a criterion-2 deletion and an over-budget rewrite are both proposed, with the narrative staged. Only class A deletes here |
-| **`aggressive`** | Applied, same certification | Dissolved when the tier's gate passes; otherwise the comment stays with a proposal | Earn-its-keep is replaced by the survivor list: exempt surfaces, paired records, and warnings of consequence within `class_c_max_lines` stay, and every other class-C comment is staged and deleted behind the tier-0 proof |
-| **`strip`** | Applied, same certification | Deleted as a comment, no move attempted, narrative staged | Same survivor list minus the warnings: only exempt surfaces and paired records stay |
+| **`aggressive`** | Applied, same certification | Dissolved when the tier's gate passes; otherwise the comment stays with a proposal | Earn-its-keep is replaced by the survivor list: exempt surfaces, paired records, and, within `class_c_max_lines`, outside-constraint comments and warnings of consequence stay, and every other class-C comment is staged and deleted behind the tier-0 proof |
+| **`strip`** | Applied, same certification | Deleted as a comment, no move attempted, narrative staged | Same survivor list minus the outside-constraint comments and the warnings: only exempt surfaces and paired records stay |
+| **`report`** | Proposed | Proposed | Proposed. Nothing is applied in any class; the posture or dial token in effect decides which treatment each proposal names, and the run never asks a question |
 
 `conservative` is `safe` as a standing default, so it reads the `safe` row, and posture
 `aggressive` reads the `aggressive` row. A per-run token beats the standing posture; precedence is
-`safe`, then `strip`, then `aggressive`. The class-C column is
+`safe`, then `strip`, then `aggressive`. `report` overrides whether anything is applied and leaves
+the rest of the row in effect to decide what is proposed. The class-C column is
 the one to get right: the triage still runs in every mode and still returns a verdict, but a
 verdict is not an application. `safe` narrowing class C to proposals is what makes "only class-A
 deletions are applied" in the action router true rather than approximately true.
@@ -142,6 +157,27 @@ open the apply path, because they cannot attest behavior preservation.
   directive and the reason is what makes it reviewable. Removing either breaks the pair
 - `TODO(#issue)` / `FIXME(#issue)` markers tracking real work
 - Lines carrying `dissolve-comments-ignore` (on the line or the line immediately before)
+
+## Outside-constraint survivors (`aggressive` only)
+
+Two kinds of class-C comment stay under `aggressive` beside the warnings of consequence. They are
+not exempt surfaces: every other mode triages them like any class-C comment, `strip` deletes them,
+and they are held to `class_c_max_lines`.
+
+- **Behavior an outside party forces.** The adjacent code does something only because a
+  dependency, platform, vendor service, or protocol the repository cannot change requires it, and
+  the comment names that party and the limit or behavior: an idle timeout on a gateway, a field a
+  vendor API rejects, a platform's path-length limit. The test is who could remove the reason. If a
+  change inside this repository could (a constant chosen here, a helper's own quirk, an earlier
+  decision), the comment is ordinary rationale and is staged and deleted.
+- **An issue or RFC link that explains a constraint.** The comment cites an upstream issue, a
+  specification section, or an RFC, and the cited text is what explains a constraint the code
+  cannot state. A link to this repository's own tracker that narrates history is not this: that is
+  `ticket-pr-residue` in `/code-tidying:audit-comment-residue`, and it goes.
+
+Either kind that names a workaround also needs a link or a removal condition, the test
+`audit-comment-residue`'s `unjustified-workaround` shape applies. A workaround comment without one
+is staged and deleted, and step 7 lists it as open root-cause work.
 
 ## Not exempt, but the highest-cost misclassification: route to class C
 

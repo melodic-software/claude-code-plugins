@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # list-workspaces.sh — probe listing the calling project's teach workspaces across roots.
 #
-# Exists because the harness composes a skill's `## Pre-computed Context` commands into a
-# shell invocation, and the worktree-isolation Bash guard refuses any genuine `$`-expansion
-# (`$local`, command substitution, `${VAR:-default}`) — so a pre-compute line carrying the
-# derivation inline makes the whole skill fail to load from a worktree-isolated agent. The
-# invoking line in SKILL.md passes plugin variables only, which the harness substitutes
-# into literal paths before any shell sees them; the `$`-bearing logic lives here, where a
+# Exists because a worktree-isolated agent refused a pre-compute line carrying genuine
+# `$`-expansion (`$local`, command substitution, `${VAR:-default}`), so the derivation
+# inline made the whole skill fail to load there (the probe and its recheck trigger are
+# in SKILL.md's "Pre-computed Context" section; as of 2026-10-11; recheck trigger: that
+# section is renamed or drops the probe). The invoking
+# line in SKILL.md passes plugin variables only; the `$`-bearing logic lives here, where a
 # shell reads it as an ordinary script. `${user_config.*}` tokens must NEVER reach the
-# pre-compute line either — a surviving literal is a bash `bad substitution` that kills the
-# whole call — so the skill body resolves the workspace-root ladder and re-invokes this
-# script with the resolved roots as ordinary arguments.
+# pre-compute line either: we do not rely on one being substituted, and a surviving
+# literal is a bash `bad substitution` that kills the whole call. So the skill body
+# resolves the workspace-root ladder and re-invokes this script with the resolved roots
+# as ordinary arguments. Where each token is substituted: SKILL.md's "Pre-computed
+# Context" pointer record (as of 2026-10-11; recheck trigger: that section is renamed or
+# drops the record).
 #
 # The project-slug derivation below is an IMPLEMENTATION, not the specification: SKILL.md's
 # "Workspace layout" section is normative for it (canonicalize the project path first —

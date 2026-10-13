@@ -17,12 +17,16 @@ run has no way to invoke one and no channel to read its output. Requiring them m
 two-source rule ceremonial: every one of them resolves to unavailable, so every memory-layer claim
 was single-sourced anyway while the report presented a two-source design.
 
-> **Verified 2026-09-13**, Claude Code 2.1.268. **Claim:** those six are built-in commands with no
-> model-invocable form; model invocation of built-ins has been *removed* upstream rather than added
-> to, `/verify` and `/deep-research` being the worked cases. **Basis:**
-> [commands](https://code.claude.com/docs/en/commands#all-commands) plus the installed binary's own
-> command surface. **Recheck trigger:** a release note or the commands page granting any of
-> those six a model-invocable or non-interactive form, at which point it returns as a source.
+We treat those six as sources a model-driven run cannot use.
+
+- **Pointer**: when deciding whether one of them can be a source, fetch
+  [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) live; the
+  installed binary's own command surface, read by `/harness-ops:inventory`, is the probe beside it.
+- **Observation** (2026-09-13, Claude Code 2.1.268): model invocation of built-ins has been
+  *removed* upstream rather than added to, `/verify` and `/deep-research` being the worked cases.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a release note or the commands page grants any of those six a
+  model-invocable or non-interactive form, at which point it returns as a source.
 
 ## The sources Phase 1 takes
 
@@ -36,24 +40,28 @@ So Phase 1 takes the sources it can hold:
   `audit-permission-state` owns. It derives what is configured; it does not observe what loaded, and
   the inventory says which of the two a row is.
 - **MCP server status, non-interactively.** `/mcp` is **not** swept in with the interactive six. The
-  `claude mcp` subcommand group is non-interactive and prints configured servers with their
-  connection state, so the MCP half of the inventory keeps a real source.
+  `claude mcp` subcommand group is non-interactive and reports configured servers with their
+  state, so the MCP half of the inventory keeps a real source.
 
-  > **Verified 2026-09-13**, Claude Code 2.1.268. **Claim:** `claude mcp list` lists configured MCP
-  > servers, health-checking approved ones and marking unapproved `.mcp.json` servers as pending
-  > approval; `claude mcp get <name>` prints one server's detail. **Basis:** `claude mcp --help` on
-  > the installed 2.1.268 binary, plus
-  > [the MCP page](https://code.claude.com/docs/en/mcp). **Recheck trigger:** the `claude mcp`
-  > subcommand list changes, or `list` stops reporting connection state.
+  - **Pointer**: when reading server state, fetch
+    [MCP: managing your servers](https://code.claude.com/docs/en/mcp#managing-your-servers) and
+    [MCP: server status](https://code.claude.com/docs/en/mcp#server-status) live; `claude mcp --help`
+    on the installed binary is the probe beside them.
+  - **Probe** (`claude mcp --help`, Claude Code 2.1.268, 2026-09-13): `list` health-checks approved
+    servers and marks unapproved `.mcp.json` servers pending approval; `get <name>` prints one
+    server's detail.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: the `claude mcp` subcommand list changes, or `list` stops reporting
+    connection state.
 - **`InstructionsLoaded`, probed.** It is more available than an "events already fired" reading
   suggests, and the distinction is per `load_reason` rather than per event.
 
-  > **Verified 2026-09-13**, Claude Code 2.1.268. **Claim:** `InstructionsLoaded` fires on lazy
-  > loads as well as at startup, carrying `load_reason` values including `session_start`,
-  > `nested_traversal`, `path_glob_match`, `include`, and `compact`, with `file_path` alongside
-  > `parent_file_path`. **Basis:** [hooks reference](https://code.claude.com/docs/en/hooks), plus
-  > first-party measurement in this marketplace. **Recheck trigger:** the hooks reference changes
-  > the event's payload fields or its `load_reason` set.
+  - **Pointer**: when wiring or reading the probe, fetch
+    [hooks: InstructionsLoaded input](https://code.claude.com/docs/en/hooks#instructionsloaded-input)
+    live for the payload fields and the `load_reason` values. Basis beside it: first-party
+    measurement in this marketplace (2026-09-13, Claude Code 2.1.268).
+  - **As of**: 2026-10-11 (pointer); 2026-09-13 (measurement)
+  - **Recheck trigger**: that section changes the event's payload fields or its `load_reason` set.
 
   Only the `session_start` half is out of reach at dispatch time, because those events fired before
   this skill was invoked. A **wired** hook still observes every lazy load for the rest of the

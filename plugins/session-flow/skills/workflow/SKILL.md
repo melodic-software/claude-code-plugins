@@ -1,5 +1,5 @@
 ---
-description: "Navigate a staged workflow (explore, research, design, plan, implement, test, review, verify, retro): suggest the next stage and route the end-of-phase continuation (continue, clear, handoff, background, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:show-options."
+description: "Navigate a staged workflow (explore, research, design, plan, implement, test, review, verify, retro): suggest the next stage and route the end-of-phase continuation (continue, clear, handoff, background, cloud, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:show-options."
 argument-hint: "[steps|pre-pr|wrap-up|philosophy|spec-first|continue [auto]]"
 user-invocable: true
 disable-model-invocation: false
@@ -133,7 +133,7 @@ skill for that stage, name it; otherwise describe the inline work. Add that stag
 
 When the just-finished work closed out a stage (its artifact exists), or the user is asking how
 to carry on, the *mechanism* question is separate from the *next stage* question: continue here,
-`/clear`, handoff, background, clean-stop, or compact. Load `context/continuation.md` and walk
+`/clear`, handoff, background, clean-stop, or compact, with a cloud session offered as advice. Load `context/continuation.md` and walk
 its ordered router; recommend exactly one mechanism with its rationale, zone-informed when
 context-guard's zone report (its `mcp__context-guard__status` tool, or its snapshot) has data and
 conservative when it does not. Mid-stage with a healthy window,
@@ -144,6 +144,10 @@ The router **suggests; it does not act**. The recommendation goes to the human w
 that drove it, and executing the routed mechanism takes an explicit per-invocation license
 (`continue auto`, or the user's own words), which expires with the invocation. Its inputs beyond
 the gather above are presence-gated pointers to the siblings that own them; the rules live there.
+
+| Key | Value | Unset behavior |
+| --- | --- | --- |
+| `cloud_route` | `${user_config.cloud_route}` | A surviving literal placeholder, or any value other than `off`, means `offer`. `off`: the router never mentions the cloud option. |
 
 ### 5. Track progress (tasks ≥3 stages)
 
@@ -178,7 +182,7 @@ forcing every session through stage 1. Common classes:
   implement), then the diff is reviewed and aligned on there, with test and verify at full
   rigor. If the diff turns out not to be quick to review, stop and route to the contract
   interview. Basis for adopting this rule:
-  the "Session-start flow and main flow" section of `docs/upstream/mattpocock-skills-v12-map.md`
+  the "Session-start flow and main flow" section of `docs/upstream/mattpocock-skills.md` (under Map)
   in the marketplace repository.
 - **Incoming bug or issue intake**, a report or request that arrived raw from outside. An
   already-diagnosed, agent-ready item merges at implement; observed-but-undiagnosed breakage routes

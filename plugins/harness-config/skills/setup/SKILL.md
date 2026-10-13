@@ -3,6 +3,11 @@ description: "Verify harness-config's readiness for this repository: the externa
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(command -v jq*)"
+  - "Bash(command -v curl*)"
+  - "Bash(command -v awk*)"
+  - "Bash(command -v sort*)"
 shell: bash
 ---
 
@@ -11,10 +16,10 @@ shell: bash
 `check`'s tool probes ran at load time. Read these rows instead of re-issuing them; each shows the
 tool's path when present, or `absent` when missing:
 
-- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
-- `curl`: !`{ command -v curl 2>/dev/null || echo "absent"; }`
-- `awk`: !`{ command -v awk 2>/dev/null || echo "absent"; }`
-- `sort`: !`{ command -v sort 2>/dev/null || echo "absent"; }`
+- `jq`: !`command -v jq 2>/dev/null || echo absent`
+- `curl`: !`command -v curl 2>/dev/null || echo absent`
+- `awk`: !`command -v awk 2>/dev/null || echo absent`
+- `sort`: !`command -v sort 2>/dev/null || echo absent`
 
 A row reading `[shell command execution disabled by policy]` carries no result: run that tool's
 `command -v` probe via Bash instead.

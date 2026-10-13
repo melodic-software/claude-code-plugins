@@ -5,6 +5,38 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-10-11
+
+### Changed
+
+- README: states the boundary with context-budget, which answers what the context is made of.
+
+- **Shared `exec-bash.mjs` launcher synced; no change to this plugin's hooks.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once.
+
+## [1.0.0] - 2026-10-11
+
+### Added
+
+- The snapshot file now publishes `zone`, `evidence_degraded` and `bands` (the edges in force after `zones.json`), so a status line can show the zone without importing plugin code. The README's "Published zone for status lines" and the reader contract document the shape (#7135).
+
+### Changed
+
+- **Breaking:** `model_notices` replaces `zone_lines_enabled` and is off by default. Off, nothing from this plugin enters Claude's context; the toast, transcript line, band row, status tool, snapshot and PostCompact marker work as before. Set `model_notices` to `true` for the zone lines and options line; a stored `zone_lines_enabled: true` no longer applies (#7135).
+
+### Removed
+
+- **Breaking:** the blocking gate is gone. The `zone_hook_mode`, `zone_gate_grace_calls` and `zone_block_unattended` options are removed, a `block` action in `zones.json` reads as `none` (a `block` threshold keeps its boundary lines), and no zone denies a tool call. The status tool drops its `gate` field, `/context-guard` no longer prints a gate mode, and the `zone-gate` telemetry record is retired (#7135).
+
+## [0.18.0] - 2026-10-11
+
+### Changed
+
+- Past `smart`, the zone lines Claude reads are now followed by one options line: record decisions and pending items in a durable file, then continue, `/compact`, or hand off with `/session-flow:handoff`, as Claude and the user choose. The line also says a zone never calls for terser output, fewer agents, or lower quality (#7118).
+
+### Fixed
+
+- Repoint documentation links whose upstream anchor or target moved, so each one lands on the section it cites again.
+
 ## [0.17.0] - 2026-10-11
 
 ### Added

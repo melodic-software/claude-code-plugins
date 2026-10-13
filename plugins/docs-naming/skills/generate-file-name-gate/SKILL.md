@@ -20,10 +20,17 @@ every exemption are inlined at emission, so a checkout with the plugin
 uninstalled, or a CI runner that never had it, still enforces what the team
 agreed.
 
-**A path-scoped rule file is not a substitute.** Such a rule loads when a
-covered file is READ, never when one is created, so it cannot catch the new file
-that breaks the convention. That is why the gate is the deliverable and the rule
-is the option.
+**A path-scoped rule file is not a substitute.** A rule is guidance Claude
+reads during its own session: it blocks nothing, binds no human editor or other
+tool, and never runs in CI. The gate runs over the whole tracked set wherever it
+is invoked. That is why the gate is the deliverable and the rule is the option.
+
+- **Pointer**: when weighing whether a rule could stand in for the gate, fetch
+  [memory § Path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section gives a path-scoped rule a way to block a
+  tool call, or to apply outside a Claude session.
 
 ## Emit
 

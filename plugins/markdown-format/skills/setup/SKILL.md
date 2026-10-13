@@ -3,6 +3,8 @@ description: "Verify the markdown-format hook's runtime prerequisites and config
 argument-hint: "[check|apply] [install-lint]"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(command -v jq*)"
 shell: bash
 ---
 
@@ -11,7 +13,7 @@ shell: bash
 `check`'s `jq` probe ran at load time. Read this row instead of re-issuing it; it shows
 the tool's path when present, or `absent` when missing:
 
-- `jq`: !`{ command -v jq 2>/dev/null || echo "absent"; }`
+- `jq`: !`command -v jq 2>/dev/null || echo absent`
 
 A row missing, reading as literal command text (the skill was reached through
 `/markdown-format:check`, where this line never runs), or reading `[shell command execution

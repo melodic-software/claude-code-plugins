@@ -83,16 +83,17 @@ report it and stop. Phase 1 is done when the script has exited 0 and its
 full output is in hand.
 
 `provided_by` is `organization` for a `managedMcpServers` row, `managed-mcp.json` for a server from
-that file, and `-` for a server the user configured. Claim: an organization provides remote MCP
-servers through `managedMcpServers`, and `claude mcp remove` refuses those with a message that the
-server is provided by the organization. Basis:
-<https://code.claude.com/docs/en/managed-mcp#provide-servers-through-managed-settings>. As of:
-2026-09-28. Recheck: that section stops attributing the servers to managed settings, or the removal
-error stops naming the organization.
+that file, and `-` for a server the user configured.
 
 `provided_by` is informational: it is a reported column so the operator can tell
-organization-provided servers (which `claude mcp remove` refuses) from user-configured ones, and no
-P1-P5 criterion reads it.
+organization-provided servers from user-configured ones, and no P1-P5 criterion reads it.
+
+- **Pointer**: when explaining an organization-provided row or what happens on removal, fetch
+  [Provide servers through managed settings](https://code.claude.com/docs/en/managed-mcp#provide-servers-through-managed-settings)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes how organization-provided servers are attributed or
+  removed, or is renamed.
 
 ### Phase 2: Evaluate P1-P5
 
@@ -178,14 +179,20 @@ changed rows.
 
 ## Gotchas
 
-- The Claude Code sandbox does not contain stdio MCP servers, so every stdio row reads
-  `sandboxed = no`. This is expected; the checklist's
-  sandbox record gives the source.
+- Every stdio row reads `sandboxed = no`. This is expected; the checklist's
+  [sandbox record](reference/checklist.md#sandbox-coverage) gives the decision and its pointer.
+  As of 2026-10-11. Recheck trigger: that record moves, or its decision stops marking stdio rows
+  unsandboxed.
 - A container image tag is mutable. Only an `@sha256:` digest counts as pinned, so a fixed tag such
   as `:1.4` reads `mutable-tag`, not `exact`.
-- Local scope is keyed by the project path inside `~/.claude.json`. When the operator runs from a
-  different directory than the one Claude Code recorded, local rows come back empty; pass
-  `--project` with the recorded path.
-- Servers added with `--mcp-config`, claude.ai connectors, and MDM or server-managed policy are not
-  in any file the script reads. The coverage footer names them; say so in the report rather than
-  implying the inventory is complete.
+- Local-scope rows are found by project path. When the operator runs from a different directory
+  than the one Claude Code recorded, local rows come back empty; pass `--project` with the
+  recorded path.
+- Some server sources are in no file the script reads. The coverage footer names them; say so in
+  the report rather than implying the inventory is complete.
+  - **Pointer**: when checking how local scope is stored or which server sources exist beyond the
+    config files, fetch [MCP installation scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes)
+    live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes where local scope is stored, or names a server
+    source the coverage footer does not.

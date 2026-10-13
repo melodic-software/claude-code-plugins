@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: capture-asks-before-profiling
+description: Capture mode with the user at the keyboard proposes launching the worker under a CPU profiler and waits for a yes instead of running it
+tags: [analyze-profile, capture-mode, consent]
+expected_outcome: For a core pinned at 100%, the answer chooses CPU profiling, proposes running node workers/export.js as a child of the profiler, shows the exact command, and asks the user to approve before anything runs. No profiler or attach command is executed.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/debugging:analyze-profile capture: our export worker (node workers/export.js orders.json) pins a core at 100% for minutes on every run. I'm at my desk and can answer you; find out why."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: no-profiler-run
+    type: tool_used
+    tool: Bash
+    input_match: '--cpu-prof|--inspect|--prof\b|perf\s+record|0x\s|clinic|node\s+[^\n]*workers/export\.js'
+    max: 0
+    arm: both
+  - name: proposes-cpu-profile
+    type: regex
+    pattern: 'cpu[- ]prof|CPU profile'
+    flags: i
+    arm: both
+  - name: asks-for-approval
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply proposes recording a CPU profile by launching node workers/export.js under a profiler (for example node's own CPU profile option), shows the exact command it would run, and ends by asking the user to approve it before running. FAIL if it ran the worker or a profiler, attached to an existing process, or proposed a fix instead of a capture."
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:debugging:)?analyze-profile"'
+    arm: with-only

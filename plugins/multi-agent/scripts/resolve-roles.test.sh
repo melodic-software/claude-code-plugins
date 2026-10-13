@@ -72,6 +72,18 @@ out="$(run plain worker --session-model sonnet --workload research)"
 assert_contains "research workload keeps the worker's own effort" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium"'
 assert_lacks "one role asked, one role returned" "$out" '"verifier"'
 
+out="$(run plain worker --session-model opus --workload mechanical)"
+assert_contains "mechanical workload: worker runs sonnet at medium in both variants" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"medium","guarded":false},"fanout":{"model":"sonnet","omit_model":false,"effort":"medium","guarded":false}'
+
+out="$(run plain worker --session-model opus --workload code)"
+assert_contains "code workload: worker keeps inherit" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium"'
+
+fixture mechoptout
+mkdir -p "$T/mechoptout/repo/docs/conventions"
+printf '```yaml config\nschema: 1\nroles:\n  worker:\n    workloads:\n      mechanical:\n        model: inherit\n```\n' >"$T/mechoptout/repo/docs/conventions/multi-agent.md"
+out="$(run mechoptout worker --session-model opus --workload mechanical)"
+assert_contains "team block restores inherit for mechanical work" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"fanout":{"model":"inherit","omit_model":true'
+
 run plain nosuch >/dev/null
 assert_eq "unknown role exits 2" 2 "$?"
 assert_contains "unknown role lists the valid roles" "$(cat "$T/plain.err")" "valid roles: orchestrator worker verifier retrieval"
@@ -191,15 +203,19 @@ out="$(run plain all --session-model opus)"
 assert_lacks "no haiku anywhere: no haiku note" "$out" 'resolves to haiku'
 
 out="$("$SUT" pointers)"
-assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-10-11'
+assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-10-13'
 assert_contains "pointers lists the fan-out guard basis" "$out" $'fanout\tpointer\thttps://code.claude.com/docs/en/workflows#cost'
 assert_contains "pointers lists a role's per-value basis" "$out" $'verifier\tbasis_effort\tupstream'
 
 # Every shipped role records a basis per value: upstream with the pointer and
-# claim that state it, or judgment with a reason.
+# claim that state it, or judgment with a reason. A workloads.<w>.<field> value
+# records it as <w>_<field>.
 pointers="$out"
 for r in orchestrator worker verifier retrieval; do
-  for f in model effort; do
+  workload_fields="$(awk -f "$SCRIPT_DIR/yaml-subset.awk" "$SCRIPT_DIR/../reference/defaults.yaml" |
+    awk -F '\t' -v r="$r" 'split($1, k, ".") == 5 && k[1] == "roles" && k[2] == r && k[3] == "workloads" { print k[4] "_" k[5] }')"
+  # shellcheck disable=SC2086
+  for f in model effort $workload_fields; do
     basis="$(awk -F '\t' -v r="$r" -v k="basis_$f" '$1 == r && $2 == k { print $3 }' <<<"$pointers")"
     case "$basis" in
     upstream)
@@ -223,6 +239,11 @@ done
 # The resolved map carries each value's basis.
 out="$(run plain all --session-model opus)"
 assert_contains "worker basis: judgment model, upstream effort" "$out" '"worker":{"role":"worker","single":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"fanout":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"judgment","effort":"upstream"}}'
+
+# A bundled workload value carries its own basis, not the role's.
+out="$(run plain worker --session-model opus --workload mechanical)"
+assert_contains "mechanical workload: sonnet model has its own upstream basis" "$out" '"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"upstream","effort":"upstream"}'
+assert_contains "pointers lists the workload value's basis" "$pointers" $'worker\tbasis_mechanical_model\tupstream'
 
 # A consumer value has basis config; a consumer layer cannot set a basis.
 fixture basisconfig
