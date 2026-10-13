@@ -352,10 +352,10 @@ Complementary to `/planning:devils-advocate`. Review checks structure and conven
 
 ## Next
 
-- PRD locked and the engineering contract is next: /planning:interview.
-- PRD locked and the Brief already exists: /planning:design.
+- PRD locked: /planning:interview for the engineering contract, or /planning:design when the Brief already exists.
 - PRD locked and it is one unit of work for a later session, an AFK lane or another person: /work-items:track add --agent-ready.
 - An open question waits on a stakeholder: /planning:questionnaire.
+- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## Gotchas
 

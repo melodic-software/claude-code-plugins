@@ -230,8 +230,8 @@ the marketplace repository states it with rationale.
 
 - A brand-new effort with no interview behind it: /planning:interview.
 - The map is charted: /planning:wayfind work.
-- The map closed on a Brief or PRD destination: /planning:interview locks the Brief and /planning:prd the PRD, each routing on to design.
-- The map closed on a PLAN destination: /planning:design, ahead of the plan.
+- The map closed: /planning:interview for a Brief destination, /planning:prd for a PRD, /planning:design ahead of the plan for a PLAN.
+- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## Reference
 
