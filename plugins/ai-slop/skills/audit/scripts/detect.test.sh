@@ -46,7 +46,7 @@ SKIPPED=0
 # assertion it replaces, so a host that cannot build a fixture moves cases
 # between the two counters without changing their sum. Adding or removing a case
 # updates this number, and the Result block names both totals when they disagree.
-EXPECTED_CASES=242
+EXPECTED_CASES=244
 
 pass() {
   CASE_NUM=$((CASE_NUM + 1))
@@ -750,6 +750,19 @@ mkdir -p "$NONREPO/.claude"
 printf '%s\n' '{ "thresholds": { "ai_vocabulary": 555 } }' >"$NONREPO/.claude/ai-slop.json"
 out="$(CLAUDE_PROJECT_DIR="$NONREPO" bash "$DETECT" --show-config 2>&1)"
 assert_not_contains "a non-repo root: its .claude file is not a team layer" "$out" "$NONREPO/.claude/ai-slop.json"
+
+# A threshold is config text: a newline and tabs in it must not forge a density
+# row whose file field reaches an array subscript or a path.
+INJREPO="$TEST_TMPDIR/threshold-inject"
+mkdir -p "$INJREPO/.claude"
+make_repo "$INJREPO"
+cp "$SLOP" "$INJREPO/doc.md"
+cat >"$INJREPO/.claude/ai-slop.json" <<EOF
+{ "thresholds": { "ai_vocabulary": "99\\nSCANNED[\$(touch $INJREPO/PWNED)0]\\t5\\t5\\t0" } }
+EOF
+out="$(CLAUDE_PROJECT_DIR="$INJREPO" bash "$DETECT" "$INJREPO/doc.md" 2>&1)"
+assert_eq "threshold injection: a forged density row runs no command" "$([[ -e "$INJREPO/PWNED" ]] && echo ran || echo none)" "none"
+assert_not_contains "threshold injection: a forged row reaches no path" "$out" "SCANNED["
 
 # --- Config parsing against a CRLF-emitting jq (#3343) ---------------------------
 

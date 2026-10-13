@@ -3,6 +3,44 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0] - 2026-10-13
+
+### Added
+
+- **The `audit` and `realign` headers say when the loading-mechanics record is older than the installed CLI ([#6100](https://github.com/melodic-software/claude-code-plugins/issues/6100)).** `scripts/precompute.sh` compares `claude --version` with the newest version named in a `*(measured ...)*` marker of `context/verified-mechanics.md` and prints `Mechanics record: STALE` when the CLI is newer, `not stale` when it is the same or older, and `unchecked` when either version is unreadable. The `STALE` line says which measured cells are unverified on this CLI, so a proposal priced on mechanics measured on an older CLI arrives with that caveat in the skill's own context. Versions from changelog-only markers never count as measurements. The `delta` and `setup` headers share the audit mode, so the line appears there as well. On Claude Code 2.1.296 the shipped record (newest measurement 2.1.278) reads `STALE`, which is the trigger the record's re-verification section names.
+
+- migrate: `cutover-check.sh` runs a nested write probe after its four graded conditions. One metered `claude -p` turn offered only the Write tool writes into `sub/` of a scratch tree with a root and a `sub/` `AGENTS.md` and no `CLAUDE.md`, and prints `[LOADS]`, `[NO-LOAD]` or `[UNREACH]` for the nested file. The probe is reported, not graded, so the exit status is unchanged; `--skip-canary` skips it too, and the new `--skip-write-probe` skips only the probe.
+- migrate: `remove-shims.sh` adds the nested write-trigger loss to the price it prints when the repository has a nested `AGENTS.md`. After `cutover-check` runs, it repeats that loss with the probe's result unless the result is `[LOADS]`. For a repository with no nested `AGENTS.md` it passes `--skip-write-probe`, so through `remove-shims` the probe costs a metered turn only where its answer is priced; a direct `cutover-check` run spends it unless skipped. The nested count skips `node_modules`, and a failed count refuses.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- The realign recipes point at the live memory page sections for the sessions that lack direct `AGENTS.md` support, how nested instruction files combine, and which rule frontmatter fields Claude Code reads, instead of restating them.
+
+- **One version comparator.** `cutover-check.sh` and `remove-shims.sh` each carried their own copy of the dotted-version comparison; both now source `scripts/lib/version.sh`, which `precompute.sh` uses too. A copy missing the lib exits 2, and a version component that is not a number now fails the comparison instead of being evaluated as bash arithmetic. `remove-shims.sh` refuses when any installed copy's version is unreadable.
+
+### Fixed
+
+- **`scripts/fetch-docs.sh` runs its address check and interpreter probe with `python -I`**, so a module planted in the working directory (an `ipaddress.py`, say) is never imported by the `--public-only` check.
+
+- `/instruction-placement:migrate` no longer names only the built-in AGENTS.md plugin's earlier settings ID. The skill body and `reference/sources.md` point at the memory page section that names the current and earlier IDs, and condition B of `reference/shim-droppable.md` reads the **Project instructions** option under both IDs, so a value set under the current ID is no longer missed. The stale quotes about that ID, the `managed-only` loading rule and the unavailable-session list are gone from the record.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- migrate: `reference/shim-droppable.md` gains condition G, so a repository with nested `AGENTS.md` keeps its nested `@AGENTS.md` shims when the memory docs name a load trigger for a subdirectory's `CLAUDE.md` that they do not name for its `AGENTS.md`, or when the write probe did not print `[LOADS]`, unless the operator accepts the loss. Before, nothing in the droppability check covered a load only the shim carries, and `remove-shims` takes root and nested shims together.
+- migrate: the `CLAUDE.local.md` blocker in condition A and the skill's gotcha now offer a gitignored `.claude/rules/<name>.local.md` as a replacement that does not suppress `AGENTS.md`, marking an `@` import inside a rule as undocumented and measured per release. `reference/sources.md` records the five load probes, re-run on Claude Code 2.1.296, under "The nested write trigger".
+
+- The rules index, the glob gate and the wiring gate now skip any `tests/fixtures/` tree the way they already skipped `evals/fixtures/`, so a unit-test fixture's `AGENTS.md`, `CLAUDE.md` or rule file no longer shows up as one of this repository's on-demand conventions or makes `check` report drift.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.22.5] - 2026-10-11
 
 ### Changed

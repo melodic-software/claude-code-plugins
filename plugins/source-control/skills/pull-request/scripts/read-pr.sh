@@ -11,7 +11,9 @@
 #                   [--state open|closed|merged|all] [--repo <owner/repo>]   # JSON array, open by default
 #   Either action takes --out <file> to write its output there instead of stdout.
 #
-# With no <pr>, `view` reads the current branch's pull request. `view` adds
+# <pr> is a number, a pull request URL, or a head branch; with none, `view`
+# reads the current branch's pull request. --repo also takes HOST/OWNER/REPO.
+# `view` reads over REST only and adds
 # `visibility` (PUBLIC, PRIVATE, INTERNAL, or UNKNOWN when the lookup fails).
 # `list --head-match` keeps the pull requests whose head branch matches the ERE.
 # `list --search` keeps the pull requests the forge's text search matches.
@@ -35,7 +37,6 @@ die() {
   exit "$1"
 }
 
-VIEW_FIELDS=number,url,state,isDraft,title,baseRefName,headRefName,baseRefOid,headRefOid,mergeCommit,additions,deletions,files,labels
 LIST_FIELDS=number,url,state,isDraft,title,headRefName,baseRefName,mergeCommit
 
 ACTION="${1:-}"
@@ -102,18 +103,106 @@ if [[ "$ACTION" == list ]]; then
   exit 0
 fi
 
-pr_args=()
-[[ -n "$PR" ]] && pr_args=("$PR")
+# `view` reads over REST only, never `gh pr view` or `gh pr diff`. `{owner}/{repo}`
+# is gh's placeholder for the current repository, filled from its git remotes.
+api_repo='{owner}/{repo}' api_host=""
+if [[ -n "$REPO" ]]; then
+  if [[ "$REPO" =~ ^([^/]+)/([^/]+/[^/]+)$ ]]; then
+    api_host="${BASH_REMATCH[1]}" api_repo="${BASH_REMATCH[2]}"
+  elif [[ "$REPO" =~ ^[^/]+/[^/]+$ ]]; then
+    api_repo="$REPO"
+  else
+    die 1 "--repo must be OWNER/REPO or HOST/OWNER/REPO"
+  fi
+fi
+num="" branch=""
+if [[ "$PR" =~ ^[0-9]+$ ]]; then
+  num="$PR"
+elif [[ "$PR" =~ ^https?://([^/]+)/([^/]+/[^/]+)/pull/([0-9]+)(/.*)?$ ]]; then
+  api_host="${BASH_REMATCH[1]}" api_repo="${BASH_REMATCH[2]}" num="${BASH_REMATCH[3]}"
+elif [[ -n "$PR" ]]; then
+  branch="$PR"
+else
+  branch=$(git branch --show-current 2>/dev/null | tr -d '\r')
+  [[ -n "$branch" ]] || die 2 "no pull request number and no current branch"
+fi
+if [[ "$api_repo" == '{owner}/{repo}' ]]; then
+  # gh fills the placeholder from the remote but sends it to github.com, so a
+  # checkout on another host gh is logged in to must name that host.
+  remote_url=$(git remote get-url origin 2>/dev/null | tr -d '\r')
+  remote_host=""
+  if [[ "$remote_url" =~ ^[a-z+]+://([^@/]*@)?([^/:]+) ]]; then
+    remote_host="${BASH_REMATCH[2]}"
+  elif [[ "$remote_url" =~ ^([^@/]*@)?([^/:]+): ]]; then
+    remote_host="${BASH_REMATCH[2]}"
+  fi
+  if [[ "$remote_host" == github.com ]] || { [[ -n "$remote_host" ]] &&
+    gh auth status --hostname "$remote_host" >/dev/null 2>&1; }; then
+    api_host="$remote_host"
+  fi
+else
+  [[ "$api_repo" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ && ! "${api_repo#*/}" =~ ^\.\.?$ ]] ||
+    die 1 "not a valid OWNER/REPO: $(printf '%q' "$api_repo")"
+fi
+[[ -z "$api_host" || "$api_host" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?$ ]] ||
+  die 1 "not a valid host: $(printf '%q' "$api_host")"
+api_host_args=()
+# Always named, so GH_HOST cannot send a github.com read to another forge.
+[[ -n "$api_host" ]] && api_host_args=(--hostname "$api_host")
+
+api() {
+  gh api ${api_host_args[@]+"${api_host_args[@]}"} "$@"
+}
+
+if [[ -z "$num" ]]; then
+  # The branch's open pull request when it has one, else its most recent.
+  owner="${api_repo%%/*}"
+  # A native Windows jq ends its lines in CRLF; the carriage return is dropped.
+  head=$(jq -rn --arg b "$branch" '$b | @uri' | tr -d '\r')
+  num=$(api "repos/$api_repo/pulls?head=$owner:$head&state=all&per_page=100" |
+    jq -r '((map(select(.state == "open")) + .)[0].number) // empty' | tr -d '\r') ||
+    die 2 "pull request lookup failed"
+  [[ -n "$num" ]] || die 2 "no pull request found for branch $(printf '%q' "$branch")"
+fi
 
 if [[ "$DIFF" == 1 ]]; then
-  gh pr diff ${pr_args[@]+"${pr_args[@]}"} ${repo_args[@]+"${repo_args[@]}"} || die 2 "gh pr diff failed"
+  api -H 'Accept: application/vnd.github.diff' "repos/$api_repo/pulls/$num" || die 2 "pull request diff read failed"
   exit 0
 fi
 
-facts=$(gh pr view ${pr_args[@]+"${pr_args[@]}"} ${repo_args[@]+"${repo_args[@]}"} --json "$VIEW_FIELDS") || die 2 "gh pr view failed"
+work=$(mktemp -d) || die 2 "cannot make a temp directory"
+trap 'rm -rf "$work"' EXIT
+api "repos/$api_repo/pulls/$num" >"$work/pull.json" || die 2 "pull request read failed"
+# The files endpoint pages at 100 and stops at 3000 files.
+for page in $(seq 1 30); do
+  # Zero-padded so the glob below keeps page order.
+  page_file="$work/files-$(printf %02d "$page").json"
+  api "repos/$api_repo/pulls/$num/files?per_page=100&page=$page" >"$page_file" ||
+    die 2 "pull request files read failed"
+  (($(jq length "$page_file" | tr -d '\r') < 100)) && break
+done
 
-# Visibility over REST: GraphQL is refused in some sandboxed sessions. The host
-# and owner/repo come from the pull request's own URL.
+# The same field names and value shapes `gh pr view --json` prints.
+facts=$(cat "$work"/files-*.json | jq -n --slurpfile pull "$work/pull.json" '
+  $pull[0] as $p | [inputs | .[]] as $files | {
+    number: $p.number,
+    url: $p.html_url,
+    state: (if $p.merged_at then "MERGED" else ($p.state | ascii_upcase) end),
+    isDraft: ($p.draft // false),
+    title: $p.title,
+    baseRefName: $p.base.ref,
+    headRefName: $p.head.ref,
+    baseRefOid: $p.base.sha,
+    headRefOid: $p.head.sha,
+    mergeCommit: (if $p.merged_at then {oid: $p.merge_commit_sha} else null end),
+    additions: $p.additions,
+    deletions: $p.deletions,
+    files: [$files[] | {path: .filename, additions, deletions,
+      changeType: (if .status == "removed" then "DELETED" else (.status | ascii_upcase) end)}],
+    labels: [($p.labels // [])[] | {id: .node_id, name, description, color}]
+  }') || die 2 "pull request read returned unexpected JSON"
+
+# Visibility: the host and owner/repo come from the pull request's own URL.
 url=$(printf '%s' "$facts" | jq -r '.url // ""' | tr -d '\r')
 host="" repo_path=""
 if [[ "$url" =~ ^https?://([^/]+)/([^/]+/[^/]+)/pull/[0-9]+$ ]]; then
@@ -121,9 +210,7 @@ if [[ "$url" =~ ^https?://([^/]+)/([^/]+/[^/]+)/pull/[0-9]+$ ]]; then
 fi
 visibility=UNKNOWN
 if [[ -n "$repo_path" ]]; then
-  host_args=()
-  [[ "$host" != github.com ]] && host_args=(--hostname "$host")
-  v=$(gh api ${host_args[@]+"${host_args[@]}"} "repos/$repo_path" --jq '.visibility' 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')
+  v=$(gh api --hostname "$host" "repos/$repo_path" --jq '.visibility' 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')
   [[ "$v" =~ ^(PUBLIC|PRIVATE|INTERNAL)$ ]] && visibility="$v"
 fi
 

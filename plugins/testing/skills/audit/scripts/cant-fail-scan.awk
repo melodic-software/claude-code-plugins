@@ -393,14 +393,27 @@ function count_matches(s, re,    c) {
   return c
 }
 
-function first_quoted(s,    q, rest, j) {
-  # first '…' / "…" / `…` payload after the leading token, for a test name
+function first_quoted(s,    q, rest, n, i, c) {
+  # first '…' / "…" / `…` payload after the leading token, for a test name,
+  # as written (escapes kept). An escaped quote does not end it: PowerShell's
+  # doubled quote, and its backtick inside "…"; elsewhere a backslash, except
+  # in a bash '…' or a Go `…`, which have no escapes.
   if (match(s, /['"`]/) == 0) return "(unnamed)"
   q = substr(s, RSTART, 1)
   rest = substr(s, RSTART + 1)
-  j = index(rest, q)
-  if (j <= 1) return "(unnamed)"
-  return substr(rest, 1, j - 1)
+  n = length(rest)
+  for (i = 1; i <= n; i++) {
+    c = substr(rest, i, 1)
+    if (LEXER == "pwsh") {
+      if (c == "`" && q == "\"") { i++; continue }
+      if (c == q && substr(rest, i + 1, 1) == q) { i++; continue }
+    } else if (c == "\\" && !(LEXER == "bash" && q == "'") && !(LEXER == "go" && q == "`")) {
+      i++
+      continue
+    }
+    if (c == q) return i == 1 ? "(unnamed)" : substr(rest, 1, i - 1)
+  }
+  return "(unnamed)"
 }
 
 # Balanced-( extraction. s[from] must be "(". Sets EXTRACT (interior) and

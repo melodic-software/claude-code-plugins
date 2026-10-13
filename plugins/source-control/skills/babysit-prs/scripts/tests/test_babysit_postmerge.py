@@ -1634,6 +1634,19 @@ class DequeueIdentityEntries(CheckCase):
         self.assertEqual(len(mutations), 1)
         self.assertIn("id=PR_b", mutations[0])
 
+    def test_a_failed_dequeue_does_not_stop_the_rest(self) -> None:
+        # #7339: the first failed mutation used to leave every later entry queued.
+        self.gh.queue = [
+            {"enqueuer": APP_ACTOR, "pullRequest": {"id": "PR_a", "number": 1}},
+            {"enqueuer": APP_ACTOR, "pullRequest": {"id": "PR_b", "number": 2}},
+        ]
+        self.gh.fail_reads = {"id=PR_a"}
+        done: list[int] = []
+        with self.assertRaises(pm.PostMergeWriteError) as raised:
+            pm.dequeue_identity_entries(REPO, "main", IDENTITY, dequeued=done)
+        self.assertEqual(done, [2])
+        self.assertIn("dequeue #1", str(raised.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

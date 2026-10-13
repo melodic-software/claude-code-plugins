@@ -27,10 +27,10 @@ async page => {
   for (const id of ["Q8", "Q9", "Q7", "Q11"]) if (!(await page.isVisible('.qbtn[data-q="' + id + '"]'))) await page.evaluate(i => document.querySelector('.qbtn[data-q="' + i + '"]').closest(".sec").querySelector(".sec-h").click(), id);
   const lay = await page.evaluate(() => ["Q8", "Q9", "Q7", "Q11"].map(id => {
     const b = document.querySelector('.qbtn[data-q="' + id + '"]'), t = b.querySelector(".qtitle").getBoundingClientRect(), qid = b.querySelector(".qid").getBoundingClientRect(), ns = [...b.querySelectorAll(".needs")];
-    return {id, n: ns.length, col2: t.left >= qid.right && t.top < qid.bottom, xs: ns.map(n => Math.round(n.getBoundingClientRect().left)), below: ns.every(n => n.getBoundingClientRect().top >= t.bottom - 1), over: [b, ...b.querySelectorAll("*")].filter(e => e.scrollWidth > e.clientWidth && getComputedStyle(e).textOverflow !== "ellipsis").map(e => e.className || e.tagName)};
+    return {id, n: ns.length, col2: t.left >= qid.right && t.top < qid.bottom, rows: b.querySelectorAll(".needsrow").length, tops: ns.map(n => Math.round(n.getBoundingClientRect().top)), below: ns.every(n => n.getBoundingClientRect().top >= t.bottom - 1), over: [b, ...b.querySelectorAll("*")].filter(e => e.scrollWidth > e.clientWidth && getComputedStyle(e).textOverflow !== "ellipsis").map(e => e.className || e.tagName)};
   }));
   ok("cards with 0, 1, 2 and 4 dependsOn put the title in column 2 on row 1", lay.map(l => l.n).join() === "0,1,2,4" && lay.every(l => l.col2), JSON.stringify(lay));
-  ok("every needs line sits at one x, below the title", lay.every(l => new Set(l.xs).size <= 1 && l.below), JSON.stringify(lay.map(l => l.xs)));
+  ok("#5917: the needs chips share one wrapped row below the title", lay.every(l => l.rows === (l.n ? 1 : 0) && new Set(l.tops).size < Math.max(l.n, 2) && l.below), JSON.stringify(lay.map(l => [l.rows, l.tops])));
   ok("no card element overflows its own width at 510px", lay.every(l => !l.over.length), JSON.stringify(lay.map(l => l.over)));
   await page.setViewportSize({width: 1400, height: 860});
 
@@ -168,7 +168,7 @@ async page => {
   }
   for (const w of [1024, 820]) {
     await page.setViewportSize({width: w, height: 860}); await page.waitForTimeout(250);
-    const m = await page.evaluate(() => ({cols: getComputedStyle(document.querySelector(".agrid")).gridTemplateColumns.split(" ").length, wide: document.scrollingElement.scrollWidth - innerWidth, railB: getComputedStyle(document.querySelector("nav.rail")).borderBottomWidth, choice: getComputedStyle(document.querySelector(".choice .t")).webkitLineClamp}));
+    const m = await page.evaluate(() => ({cols: getComputedStyle(document.querySelector(".agrid")).gridTemplateColumns.split(" ").length, wide: document.scrollingElement.scrollWidth - innerWidth, railB: getComputedStyle(document.querySelector("nav.rail")).borderBottomWidth, choice: getComputedStyle(document.querySelector(".choice:not(.rec) .t")).webkitLineClamp}));
     ok("at " + w + " px the answer grid is " + (w > 900 ? "two columns" : "one column") + " and the page does not widen", m.cols === (w > 900 ? 2 : 1) && m.wide <= 1, JSON.stringify(m));
     if (w === 820) ok("at 820 px the rail ends in a border", m.railB === "1px", m.railB);
     ok("an option title may take two lines at " + w + " px", m.choice === "2", m.choice);

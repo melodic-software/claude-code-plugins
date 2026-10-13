@@ -642,6 +642,39 @@ expect_both "single-quoted substitution text allowed" 0 --command "echo '\$(rm -
 expect_both 'escaped dollar-paren allowed' 0 --command 'echo "\$(rm -rf /)"'
 expect_both "single-quoted backtick text allowed" 0 --command "echo '\`rm -rf /\`'"
 expect_both 'escaped backtick allowed' 0 --command 'echo "\`rm -rf /\`"'
+# A heredoc whose delimiter is quoted is inert text: bash expands nothing in its
+# body, so a backticked delete quoted there as an example runs nothing (#6625).
+expect_both "quoted heredoc body with backticked rm allowed" 0 --command $'cat <<\'EOF\'\nnote: `rm -rf /`\nEOF'
+expect_both 'double-quoted heredoc delimiter allowed' 0 --command $'cat <<"EOF"\nnote: `rm -rf /`\nEOF'
+expect_both 'backslashed heredoc delimiter allowed' 0 --command $'cat <<\\EOF\nnote: $(rm -rf /)\nEOF'
+expect_both "tab-stripped quoted heredoc allowed" 0 --command $'cat <<-\'EOF\'\n\tnote: `rm -rf /`\n\tEOF'
+expect_both "quoted heredoc fed to gh pr create allowed" 0 --command $'gh pr create --title "fix: x" --body-file - <<\'EOF\'\nRun `rm -rf /` never.\nEOF'
+# A quoted body is still stdin: a shell reading it, a pipe into one, or a
+# substitution whose output a shell runs executes the text, so a substitution
+# in such a body still blocks.
+expect_both "quoted heredoc fed to bash blocks" 2 --command $'bash <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc piped into sh blocks" 2 --command $'cat <<\'EOF\' | sh\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc run through bash -c blocks" 2 --command $'bash -c "$(cat <<\'EOF\'\necho `rm -rf /`\nEOF\n)"'
+expect_both "quoted heredoc fed to git blocks" 2 --command $'git x <<\'EOF\'\necho `rm -rf /`\nEOF'
+# The skip holds only for the whole command: a compound opened on an earlier
+# line, a pipe after the body, a reader redefined earlier, a file tee wrote and
+# then ran, or a delimiter word with quote-removal edge cases all still block.
+expect_both "quoted heredoc inside a brace group piped into sh blocks" 2 --command $'{\ncat <<\'EOF\'\necho `rm -rf /`\nEOF\n} | sh'
+expect_both "quoted heredoc inside a loop piped into bash blocks" 2 --command $'for i in 1; do\ncat <<\'EOF\'\necho `rm -rf /`\nEOF\ndone | bash'
+expect_both "quoted heredoc fed to a redefined cat blocks" 2 --command $'cat() { sh; }\ncat <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc fed to a backslash-continued shell blocks" 2 --command $'sh -s \\\ncat <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "quoted heredoc written by tee blocks" 2 --command $'tee /tmp/x.sh <<\'EOF\'\necho `rm -rf /`\nEOF'
+expect_both "escaped quote in a heredoc delimiter blocks" 2 --command $'cat <<"E\\"F"\nbody\nE"F\necho `rm -rf /`'
+expect_both "ansi-c heredoc delimiter blocks" 2 --command $'cat <<$\'EOF\'\nbody\nEOF\necho `rm -rf /`'
+expect_both "heredoc opener inside a comment blocks" 2 --command $'cat # <<\'EOF\'\necho "$(rm -rf /)"'
+expect_both "trailing comment on a quoted heredoc opener allowed" 0 --command $'gh pr create --body-file - <<\'EOF\' # see $1\nRun `rm -rf /` never.\nEOF'
+expect_both "quoted heredoc fed to gh issue comment allowed" 0 --command $'gh issue comment 1 --body-file - <<\'EOF\'\nRun `rm -rf /` never.\nEOF\n'
+# An unquoted delimiter's body IS expanded, so its substitutions still run.
+expect_both 'unquoted heredoc body with backticked rm blocks' 2 --command $'cat <<EOF\nnote: `rm -rf /`\nEOF'
+expect_both "unquoted heredoc ahead of a quoted one on the same line blocks" 2 --command $'cat <<A <<\'B\'\n`rm -rf /`\nA\ninert\nB'
+expect_both "backticked rm after a quoted heredoc ends blocks" 2 --command $'cat <<\'EOF\'\nnote\nEOF\necho `rm -rf /`'
+expect_both 'arithmetic shift is not a heredoc opener' 2 --command $'echo $((1<<2))\necho `rm -rf /`'
+expect_both 'here-string is not a heredoc opener' 2 --command $'cat <<<x\necho `rm -rf /`'
 # A live substitution nested three deep whose innermost command is harmless is
 # parsed all the way down and still allowed, so the depth cap is not a blanket.
 expect_both 'benign 3-deep substitution allowed' 0 --command 'echo "$(echo "$(echo rm)")"'
@@ -1940,6 +1973,73 @@ expect_both 'PS Remove-Item -Recurse ${env:ProgramFiles(x86)} blocks (bare varia
   --tool PowerShell --command 'Remove-Item -Recurse ${env:ProgramFiles(x86)}'
 expect_both 'PS Remove-Item -Recurse ${env:ProgramFiles(x86)}\cache allowed' 0 \
   --tool PowerShell --command 'Remove-Item -Recurse ${env:ProgramFiles(x86)}\cache'
+
+# --- 4a2. A literal `$` in a PowerShell target (#6626) ------------------------
+# PowerShell expands nothing inside single quotes, and a backtick-escaped `$` is
+# literal anywhere, so such a target is judged as the path it names instead of
+# being left alone as an expansion. On Win32 a `::$INDEX_ALLOCATION` (or other
+# `:<name>:$<TYPE>`) stream suffix names the file or directory before it, so the
+# target is judged as that path. A `$` PowerShell would expand is still left
+# alone, and a target made of a `$` name alone is still refused as a bare
+# variable.
+# portability-ok: Windows path strings in test fixtures, not regex/sed constructs
+expect_both 'PS single-quoted outside target holding a $ blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force 'D:\\rdt-x\\a\$b'"
+expect_both 'PS ::$INDEX_ALLOCATION suffix on an outside directory blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force 'D:\\rdt-x\\dir::\$INDEX_ALLOCATION'"
+expect_both 'PS :$I30:$INDEX_ALLOCATION suffix on an outside directory blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force 'D:\\rdt-x\\dir:\$I30:\$INDEX_ALLOCATION'"
+expect_both 'PS backtick-escaped ::`$INDEX_ALLOCATION in double quotes blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force \"D:\\rdt-x\\dir::\`\$INDEX_ALLOCATION\""
+expect_both 'PS -LiteralPath with a ::$INDEX_ALLOCATION suffix blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -LiteralPath 'D:\\rdt-x\\dir::\$INDEX_ALLOCATION' -Recurse"
+expect_both 'PS cmd /c rd /s on a single-quoted outside target holding a $ blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "cmd /c 'rd /s /q D:\\rdt-x\\a\$b'"
+expect_both 'PS ::$INDEX_ALLOCATION on a drive root blocks with no cwd' 2 \
+  --tool PowerShell --command "Remove-Item -Recurse -Force 'C:\\::\$INDEX_ALLOCATION'"
+expect_both 'PS a drive letter before ::$INDEX_ALLOCATION blocks as the drive' 2 \
+  --tool PowerShell --command "Remove-Item -Recurse -Force 'C::\$INDEX_ALLOCATION'"
+expect_both 'PS ::$INDEX_ALLOCATION on a UNC share root blocks with no cwd' 2 \
+  --tool PowerShell --command "Remove-Item -Recurse -Force '\\\\srv\\share::\$INDEX_ALLOCATION'" # portability-ok: Windows UNC path string in a test fixture
+expect_both 'PS ::$INDEX_ALLOCATION on ~ blocks with no cwd' 2 \
+  --tool PowerShell --command "Remove-Item -Recurse -Force '~::\$INDEX_ALLOCATION'"
+# The literal-`$` marker byte is one the command does not carry, so a control
+# byte in the command (here in a trailing comment) does not turn the reading off.
+expect_both 'PS a \002 byte in the command does not turn the literal reading off' 2 \
+  --tool PowerShell --command "Remove-Item -Recurse -Force 'C:\\::\$INDEX_ALLOCATION' # "$'\002'
+rdt_all_ctl=$'\002\003\004\005\006\007\010\013\014\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037'
+expect_both 'PS every marker byte in the command refuses a target holding a $' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force 'D:\\rdt-x\\a\$b' # $rdt_all_ctl"
+expect_both 'PS every marker byte in the command still allows a target with no $' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force './build' # $rdt_all_ctl"
+expect_both 'PS -Recurse:'"'"'$false'"'"' is read as not recursive' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse:'\$false' D:\\rdt-x\\y"
+expect_both 'PS single-quoted $ name alone still blocks (bare variable)' 2 \
+  --tool PowerShell --command "Remove-Item -Recurse '\$X'"
+# The literal reading only adds refusals: a target refused before #6626, when
+# every `$` was read as an expansion, is refused still.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "PS refused before the literal reading still blocks: $rdt_cmd" 2 \
+    --tool PowerShell "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+Remove-Item -Recurse '$env:TEMP'
+Remove-Item -Recurse '$env:SystemDrive\'
+Remove-Item -Recurse `$env:TEMP
+Remove-Item -Recurse '$HOME\x'
+Remove-Item -Recurse '$(x)'
+cmd /c rd /s /q '$env:TEMP'
+EOF
+# Stay quiet: a literal `$` or stream suffix on a target inside the tree.
+expect_both 'PS single-quoted in-tree target holding a $ allowed' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force './build\$old'"
+expect_both 'PS ::$INDEX_ALLOCATION suffix on an in-tree directory allowed' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse -Force './build::\$INDEX_ALLOCATION'"
+# Unchanged: a `$` PowerShell expands is an expansion-built target, left alone.
+expect_both 'PS double-quoted target with an expanding $ is left alone' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse \"D:\\rdt-x\\\$name\""
+expect_both 'PS a literal and an expanding $ in one word is left alone' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse \"D:\\rdt-x\\\$name\`\$x\""
 
 # --- 4b. Launchers read two ways, and four more launchers (#4685) -----------
 # sg re-parses its one command word; setpriv, prlimit and systemd-run step

@@ -7,6 +7,37 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.11.1] - 2026-10-13
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- Upstream Claude Code behavior the audit skill, its references, the check skill, the README and the settings-write hook relied on is now read live through anchored pointer records (as of 2026-10-11, each with a recheck trigger) instead of restated. `/doctor` coverage now points at the skills page section that owns it, and the interactive-only tool names live only in `interactive-only-tools.json`.
+- The audit's emitted `knownUncovered.notes` text for EndConversation changed: it now says the audit never prices a bare-name deny of that tool and points at the permissions page section that owns deny-rule behavior, instead of restating that behavior.
+
+### Fixed
+
+- The late-connector record cited the 2.1.260 changelog entry; that fix shipped in 2.1.261.
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The setup skill loads under `claude -p` again.** Each pre-computed tool probe was a brace group
+  holding a quoted fallback (`{ command -v jq 2>/dev/null || echo "absent"; }`), which Claude Code's
+  shell permission check refuses (`Contains brace with quote character (expansion obfuscation)`).
+  Outside auto mode that aborts the whole skill with no output and exit 0. The rows are now
+  `command -v <tool> 2>/dev/null || echo absent`, which render the same value, and each `command -v`
+  probe is pre-approved in the skill's `allowed-tools`, without which the render still aborts in
+  default permission mode. Probed headless on Claude Code 2.1.296.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.11.0] - 2026-10-11
 
 ### Added

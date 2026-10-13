@@ -129,7 +129,8 @@ brief's escalation clause names: STOP and report, so the orchestrator can re-dis
 `implementation:implementer`. Never stretch to finish it here.
 
 `effort` is pinned alongside `model` so the phase never runs at the session's level. A dispatcher
-passes no spawn `effort` here.
+passes no `effort` here: neither the Agent tool's per-call parameter nor a Workflow `agent()`
+call's.
 
 We bind `sonnet` at `effort: medium` for a well-scoped implementation phase, and keep Opus as the
 binding for complex work. Where an organization's `availableModels` allowlist blocks `sonnet`, we
@@ -143,7 +144,7 @@ the effort-pin owner's ruling of 2026-10-01.
   for the subagent model order and allowlist substitution, see
   <https://code.claude.com/docs/en/sub-agents#choose-a-model>; for the per-spawn `effort` and its
   rank over the pin, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
-- **As of**: 2026-10-10
+- **As of**: 2026-10-11
 - **Recheck trigger**: the subagents effort section changes precedence or which spawns honor
   `effort`, the costs section changes its model split, either effort-levels section changes its
   advice for `medium`, the allowlist substitution changes, or the `sonnet` alias moves to a new
