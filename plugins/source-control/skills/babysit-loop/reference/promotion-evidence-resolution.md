@@ -45,6 +45,17 @@ how a cell resolves effective-promoted or demoted. With no compliant bootstrap, 
 any fail-closed reason, or a helper failure, **every promotable cell resolves
 effective-unpromoted** and autonomous merge stays off for C2/C3 classes regardless of tracked rung.
 Operators keep `--merge human-only` on launch lines; lifting it is the owner's call after Phase 3.
+The resolver runs the checker with a fixed argv and passes no `--credential-roots`
+(`resolve-promotion-evidence.mjs`), so a binding whose L2 proof rests on a filesystem credential
+probe (for example a `$HOME/.netrc` path in the probe transcript) fails closed even with a
+compliant bootstrap; [`promotion-evidence-bootstrap.md`](promotion-evidence-bootstrap.md) lists a
+`--credential-roots` surface as out of scope
+([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)). The unattended
+merge path (`babysit_merge_policy.read_promotion`) additionally refuses any option value or
+settings file the lane can write (with
+[#7352](https://github.com/melodic-software/claude-code-plugins/pull/7352)), so on a single-user
+host user-scope settings never qualify there; only managed settings and surfaces owned by someone
+other than the lane identity can.
 What an operator supplies for the seam is in
 [`promotion-evidence-bootstrap.md`](promotion-evidence-bootstrap.md), and the lane-start preflight
 in [`cycle-shape.md`](cycle-shape.md) step 0 reports each missing or non-compliant surface by

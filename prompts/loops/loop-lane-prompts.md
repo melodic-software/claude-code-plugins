@@ -76,7 +76,7 @@ Leave `{{MERGE}}` at `--merge human-only` unless the target repository's rung
 question has been decided the other way. This repository's tracked rung is
 `c2-mechanical` (unattended auto-merge launches at C2 only, #6202). Keep the
 override
-until #1695 wires effective-promotion resolution into the merge partition
+until #4588 wires effective-promotion resolution into the merge partition
 and the evidence predicate is met (see "C2 auto-merge may lack its
 promotion evidence" under Known gaps).
 
