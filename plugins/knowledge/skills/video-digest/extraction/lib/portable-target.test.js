@@ -16,7 +16,7 @@ describe("portableTargetName", () => {
   it("names a checkout by its GitHub origin", () => {
     expect(
       portableTargetName(
-        "/home/someone/repos/widgets",
+        "/srv/repos/widgets",
         checkout("git@github.com:acme/widgets.git"),
       ),
     ).toBe("acme/widgets");
@@ -35,14 +35,14 @@ describe("portableTargetName", () => {
   });
 
   it("falls back to the directory name without a GitHub origin", () => {
-    expect(portableTargetName("/home/someone/repos/widgets", checkout(null))).toBe("widgets");
+    expect(portableTargetName("/srv/repos/widgets", checkout(null))).toBe("widgets");
     expect(
-      portableTargetName("/home/someone/repos/widgets", checkout("https://gitlab.com/acme/w.git")),
+      portableTargetName("/srv/repos/widgets", checkout("https://gitlab.com/acme/w.git")),
     ).toBe("widgets");
   });
 
   it("strips a machine path that is not a checkout here", () => {
-    expect(portableTargetName("/home/someone/repos/widgets", absent)).toBe("widgets");
+    expect(portableTargetName("/srv/repos/widgets", absent)).toBe("widgets");
     expect(portableTargetName("C:\\src\\widgets", absent)).toBe("widgets");
     expect(portableTargetName("../widgets", absent)).toBe("widgets");
     expect(portableTargetName("~/repos/widgets", absent)).toBe("widgets");
