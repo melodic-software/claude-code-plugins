@@ -34,10 +34,14 @@ readonly _HOOK_UTILS_LOADED=1
 # Deliberately NOT layered with a marketplace-specific fleet switch. Claude Code
 # already ships the coarse controls, and a parallel scheme here would become a
 # second source of truth for the same question:
-#   * `--safe-mode` / `CLAUDE_CODE_SAFE_MODE` — start with every customization
-#     (CLAUDE.md, plugins, skills, hooks, MCP servers) disabled
-#   * `disableAllHooks` — disable all hooks and any custom status line
-#   * `claude plugin disable|enable <name>` — per-plugin, dependency-aware
+#   * `--safe-mode` / `CLAUDE_CODE_SAFE_MODE`
+#     (https://code.claude.com/docs/en/cli-reference#cli-flags)
+#   * `disableAllHooks`
+#     (https://code.claude.com/docs/en/settings-reference#disableallhooks)
+#   * `claude plugin disable|enable <name>`
+#     (https://code.claude.com/docs/en/plugins/cli-reference#plugin-disable)
+# Each pointer says what the control covers (as of 2026-10-11; recheck when one
+# of those sections is removed or stops covering hooks).
 # This helper stays scoped to the one thing it owns: the plugin's own
 # `<name>_enabled` userConfig boolean, surfaced to hook processes as the native
 # `$CLAUDE_PLUGIN_OPTION_<KEY>` mirror.
@@ -100,9 +104,11 @@ hook::json_escape() {
 }
 
 # Emit hook JSON carrying an agent-channel context (additionalContext) and/or a
-# user-channel message (systemMessage) as ONE document — CC parses the hook's
-# whole stdout as a single JSON doc, so a run that has both lint findings and a
-# pending skip notice must compose them here rather than print twice. Either
+# user-channel message (systemMessage) as ONE document, so a run that has both
+# lint findings and a pending skip notice composes them here rather than
+# printing twice; how stdout is parsed as JSON is
+# https://code.claude.com/docs/en/hooks#exit-code-0 (as of 2026-10-11; recheck
+# when that section starts reading more than one JSON object from stdout). Either
 # channel may be empty; emits nothing when both are. One entry point for both
 # channels, so a hook with only one of them passes "" for the other rather
 # than picking between two spellings of the same emit.
@@ -181,8 +187,9 @@ hook::stdin_cut_short_notice() {
 }
 
 # systemMessage-only variant for a hook with nothing for the model. Notification
-# hooks get no channel at all: Claude Code discards their systemMessage
-# (https://code.claude.com/docs/en/hooks#notification).
+# hooks do not use it, per https://code.claude.com/docs/en/hooks#notification
+# (as of 2026-10-11; recheck when that section starts showing a Notification
+# hook's systemMessage).
 hook::emit_system_message() {
   hook::emit_channels "" "" "$1"
 }
@@ -410,7 +417,16 @@ hook::raw_file_path() {
 # <plugin> names the notice and its latch key; it never installs.
 #
 # No PATH line: a guard chain under one dispatcher (guardrails run-guards.sh)
-# can still exit 2 after this notice, and exit-2 stderr reaches the model.
+# can still exit 2 after this notice. Where exit-2 stderr goes: on PreToolUse,
+# https://code.claude.com/docs/en/hooks#exit-code-2 (Claude receives it as the
+# tool's error); on other events,
+# https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event. Where
+# exit-0 stderr goes: https://code.claude.com/docs/en/hooks#exit-code-0. As of
+# 2026-10-11; recheck when the exit-code-2 section stops saying Claude receives
+# a blocked PreToolUse hook's stderr, the exit-code-2-behavior-per-event table
+# changes which events show exit-2 stderr to Claude, or the exit-code-0 section
+# starts showing exit-0 stderr to Claude. The --no-path and stderr-deny notes
+# below rest on this record.
 hook::require() {
   command -v "$1" >/dev/null 2>&1 && return 0
   local model user
@@ -432,9 +448,9 @@ hook::require() {
 #   --where    where the tool was looked for (default: "not on the hook PATH",
 #              plus " or at <path>" per detect.local_bin entry)
 #   --install  replaces the install route on the user line
-#   --no-path  skips the `PATH probed:` line it otherwise writes to stderr,
-#              which an exit-0 hook sends to the debug log; pass it when the
-#              process can still exit 2, whose stderr reaches the model
+#   --no-path  skips the `PATH probed:` line it otherwise writes to stderr;
+#              pass it when the process can still exit 2 (the stderr routing
+#              is in the hook::require record above)
 # The user line renders the same fields prerequisites.mjs probe renders at
 # SessionStart, so the two cannot drift.
 hook::prereq_notice_to() {
@@ -548,8 +564,8 @@ hook::prerequisite_fields_to() {
 # No notice_once here, and that is deliberate: this message is not a once per
 # session and agent heads-up about a degraded hook, it is THIS tool call's denial
 # reason. Suppressing the repeat would leave a later denial unexplained. It also
-# goes to stderr rather than through hook::emit_channels, because stderr is the
-# channel a PreToolUse exit 2 feeds back to the agent.
+# goes to stderr rather than through hook::emit_channels, as the exit-2 channel
+# (see the hook::require record on exit-2 stderr).
 #
 # The kill switch stays the only supported deliberate bypass: a consumer who
 # genuinely wants the operation unguarded on a jq-less machine sets the guard's
@@ -2139,8 +2155,10 @@ hook::repo_relative_path_to() {
 # one until a window expires, so some wait there is the floor.
 #
 # The trade this makes: a producer trickling bytes indefinitely is never cut off
-# here. That is deliberate — the harness already caps a `command` hook at 600 s
-# by default (https://code.claude.com/docs/en/hooks), and blocking a live
+# here. That is deliberate: the harness already caps a `command` hook at its
+# timeout (https://code.claude.com/docs/en/hooks#common-fields, as of
+# 2026-10-11; recheck when that section drops the default timeout for command
+# hooks), and blocking a live
 # producer is exactly the failure this function had.
 #
 # `read` reports which stop condition it hit — EOF returns 1, an exceeded -t

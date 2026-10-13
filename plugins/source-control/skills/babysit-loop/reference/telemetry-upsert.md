@@ -31,6 +31,34 @@ operator-supplied text that ends up in a `jq` program and an API path, so it is 
 `^[a-z0-9][a-z0-9-]{0,31}$` and **rejected**, never trimmed into something that looks valid; the
 hostname fallback passes the same check.
 
+**Only this lane's own comments count.** The sentinel is public and the instance id predictable, so
+anyone who can comment on the tracking issue can post a lookalike. The lookup therefore matches a
+comment only when it opens with the sentinel **and** was written by the script's write identity; a
+foreign sentinel comment is never adopted, edited, or tombstoned, however low its id. The script
+resolves that identity before any lookup:
+
+1. `gh api user` reporting a `User`: that login (a personal or machine-user token).
+2. That call failing or reporting a `Bot`: the token is treated as a GitHub App's, and the
+   identity is `<slug>[bot]` from `--app-slug <slug>`. A lane running under an App installation
+   token passes `--app-slug` on every call; a workflow that mints the token takes the slug from
+   whatever minted it.
+3. A `Bot` report with no `--app-slug`: the reported login, with the `[bot]` suffix added when
+   missing.
+
+Anything else, or a login outside `[A-Za-z0-9-]` plus an optional `[bot]`, exits 5 with nothing
+read or written: an unresolved identity fails closed rather than falling back to matching any
+author. Changing the identity (a user token swapped for an App token, or another account) leaves
+the old comment and its durable state behind: the lane starts unclaimed under the new identity, and
+the operator retires the old comment.
+
+- **Pointer:** what an installation token can call and the login its writes carry,
+  [Authenticating as a GitHub App installation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation);
+  the slug output of the minting action,
+  [actions/create-github-app-token outputs](https://github.com/actions/create-github-app-token#outputs).
+- **As of:** 2026-10-11.
+- **Recheck:** an App token's writes landing under a login other than `<slug>[bot]`, or a lane run
+  under an App token exiting 5 with `--app-slug` passed.
+
 **What the script checks, in order.** The pre-write gate rejects a body that is empty, opens with a
 literal `@`, or carries under 16 bytes below the sentinel: the mechanical form of the `@path`-as-body
 rule owned by `/harness-ops:lanes` ("Never pass a body as an `@path` string"). The lookup reads every
@@ -47,7 +75,7 @@ accepted because it still looks like telemetry.
 | 0 | written, and the read-back matches the body sent | confirmed |
 | 3 | invalid `--repo`/`--issue`/instance, or the body failed the pre-write gate; nothing written | fix the body composition, do not re-run blind |
 | 4 | `gh` not found; nothing written | unreported |
-| 5 | the lookup, the POST, or the PATCH failed; the comment holds an earlier body or none | unreported |
+| 5 | the write identity, the lookup, the POST, or the PATCH failed, or the POST landed under a login other than the resolved identity (a wrong `--app-slug`: the script deletes that comment and names the login it landed under); the comment holds an earlier body or none | unreported |
 | 6 | the write was sent but is unconfirmed: the created comment was not re-found, the read-back failed, or the stored body differs | unreported |
 
 Any non-zero exit means the lane is **UNREPORTED** for this cycle: carry that forward to the next
@@ -65,16 +93,33 @@ sentinel comment is edited to a one-line tombstone, only once the canonical writ
 it never matches a lookup again. This covers a racer that died between its POST and its own
 re-list, because the NEXT session's ordinary upsert performs the same reconcile. A crashed
 racer's unmerged counters are an accepted loss (durable state re-derives over a cycle); nothing
-is deleted. The reconcile converges duplicates **within one instance's own sentinel set**; a
-sibling instance's comment carries a different marker and never matches the lookup, so it is
-neither made canonical nor tombstoned.
+is deleted. The reconcile converges duplicates **within one instance's own sentinel set**, written
+by its own identity; a sibling instance's comment carries a different marker, and a foreign
+author's carries a different login, so neither matches the lookup, is made canonical, or is
+tombstoned.
+
+## Reading the state block (re-anchor)
+
+Re-anchor and the collision check below read the block through the same filter, never by fetching
+comments directly:
+
+```bash
+bash <plugin-root>/skills/babysit-loop/scripts/telemetry-upsert.sh \
+  --repo <owner/repo> --issue <telemetry issue number> \
+  --instance '${user_config.lane_instance}' --read
+```
+
+Add `--app-slug <slug>` under an App token, as for the write. It prints the canonical comment's
+body, or nothing when this identity has no sentinel comment yet (the marker is unclaimed), and
+writes nothing. A non-zero exit means the state is unknown, not absent: do no work and do not claim
+the marker this cycle.
 
 ## Instance-collision check (cycle start, before any write)
 
 Partitioning is correct only while instance ids are distinct, so a collision is detected rather than
 assumed away. `SKILL.md`'s state block carries the four fields this reads: `writer_nonce` is
 generated once per session, `heartbeat_at` is rewritten every cycle, alongside `lane_instance` and
-`paused_until`. After re-reading the block:
+`paused_until`. After re-reading the block with `--read` (above):
 
 - No block at all → the marker is unclaimed. **Claim it before any work**: upsert a cycle-0 block
   carrying my nonce and heartbeat, immediately re-read, and run the creation-race reconcile above.
@@ -90,8 +135,11 @@ generated once per session, `heartbeat_at` is rewritten every cycle, alongside `
   immediately instead of waiting out the staleness window.
 - Nonce differs **and** the block is stale (`heartbeat_at` over **2 hours** old, and past
   `paused_until` when set) → an earlier session of this same instance restarted or died. Adopt the
-  block, write my nonce, continue. This is the ordinary restart path. Two hours is twice the one-hour
-  `ScheduleWakeup` ceiling, so a healthy lane at maximum idle backoff never reads as stale.
+  block, write my nonce, continue. This is the ordinary restart path. Two hours is twice the longest
+  self-paced wait, so a healthy lane at maximum idle backoff never reads as stale. Pointer:
+  [scheduled tasks: let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval).
+  As of: 2026-10-11. Recheck trigger: that section's longest delay grows past half the two-hour
+  window.
 - Nonce differs **and** the block is fresh with no pending `restart_request` → **another live lane
   holds my instance id.** Write nothing to the block, escalate per the convention's escalation
   contract, and stop the loop cleanly.

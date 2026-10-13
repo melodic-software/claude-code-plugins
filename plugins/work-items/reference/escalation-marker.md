@@ -14,7 +14,10 @@ match.
 | Token | Values |
 | --- | --- |
 | `<lane>` | Lane id (`work-loop`, `attend-queue`, …) |
-| `<kind>` | `escalated` \| `ratify-c3` \| `routed-advisory` |
+| `<kind>` | `escalated` \| `ratify-c3` \| `ratify-first-drain` \| `routed-advisory` |
+
+`ratify-first-drain` is posted on a work-loop's own telemetry issue, never on a work item: it asks
+the operator to end the first-drain earn-trust period of `/work-items:work-loop`'s admission gate.
 
 ## Writer / reader contract
 

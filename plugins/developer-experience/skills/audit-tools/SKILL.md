@@ -39,10 +39,10 @@ Inventory everything, then judge it; an item left out of the inventory gets no v
   `pyproject` entry point, a justfile or taskfile recipe) as its own item.
 - Command-line tools the repository builds or ships.
 - Git hooks and hook-manager config.
-- Agent tooling in the repository: skills, legacy `.claude/commands` files (still loaded as
-  skills), Claude Code hooks (in `.claude/settings.json`, `.claude/settings.local.json`, and
-  skill and subagent frontmatter), subagents, and the project `.mcp.json`.
-  Locations: pointers in Gotchas.
+- Agent tooling in the repository: skills, legacy `.claude/commands` files, Claude Code hooks
+  wherever the repository defines them, subagents, and the project `.mcp.json`. Every location
+  is read live from the agent tooling pointer in [Gotchas](#gotchas) (as of 2026-10-11; recheck
+  when that pointer moves out of Gotchas, is dropped, or its as-of date changes).
 
 Read the repository's developer tooling conventions file when `AGENTS.md` names one. When none
 exists, or it misstates what the repository has, say so and tell the user to run
@@ -102,12 +102,13 @@ is not, do the part this skill can, say the plugin is missing and print
   the open question.
 - Running without a yes never edits, even for a one-line fix.
 - A script's README describes it; it does not prove a caller. Find the caller.
-- Agent tooling locations are Claude Code's to define; read them live. Skills and legacy command
-  files: <https://code.claude.com/docs/en/skills> ("Choose where skills load"); project MCP
-  config: <https://code.claude.com/docs/en/mcp> ("MCP installation scopes"); hooks:
-  <https://code.claude.com/docs/en/hooks> ("Hook locations"); subagents:
-  <https://code.claude.com/docs/en/sub-agents> ("Choose the subagent scope"). As of 2026-10-09;
-  recheck when one of those sections moves a location or drops legacy command files.
-- The install line's form is from <https://code.claude.com/docs/en/plugins/cli-reference>
-  ("claude plugin commands", "plugin install"), as of 2026-10-09; recheck when that section changes the
-  plugin argument form.
+- Agent tooling locations are Claude Code's to define; read them live. **Pointer**: when
+  inventorying agent tooling, fetch skills and legacy command files at
+  <https://code.claude.com/docs/en/skills#where-skills-live>, project MCP config at
+  <https://code.claude.com/docs/en/mcp#mcp-installation-scopes>, hooks at
+  <https://code.claude.com/docs/en/hooks#hook-locations>, and subagents at
+  <https://code.claude.com/docs/en/sub-agents#choose-the-subagent-scope>. **As of**: 2026-10-11.
+  **Recheck trigger**: one of those sections moves a location or drops legacy command files.
+- **Pointer**: when writing an install line, fetch
+  <https://code.claude.com/docs/en/plugins/cli-reference#plugin-install> live for its form.
+  **As of**: 2026-10-11. **Recheck trigger**: that section changes the plugin argument form.

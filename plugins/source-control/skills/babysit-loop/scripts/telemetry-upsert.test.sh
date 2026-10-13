@@ -17,7 +17,9 @@ mkdir -p "$TMP/bin"
 cat >"$TMP/bin/gh" <<'STUB'
 #!/usr/bin/env bash
 # Knobs: STUB_FAIL=list|post|patch|get fails that call; STUB_READBACK replaces
-# the body a single-comment GET returns.
+# the body a single-comment GET returns; STUB_USER is the `GET user` response
+# (`fail` makes the call fail, as it does under an App installation token);
+# STUB_AUTHOR is the login the token's writes land under.
 db="$STUB_DIR/comments.json"
 method=GET url="" jqexpr="" body=""
 while (($#)); do
@@ -33,16 +35,25 @@ while (($#)); do
 done
 echo "$method $url" >>"$STUB_DIR/calls.log"
 case "$method $url" in
+"GET user")
+  [[ "${STUB_USER:-}" == fail ]] && exit 1
+  user='{"login":"lane-op","type":"User"}'
+  jq -r "$jqexpr" <<<"${STUB_USER:-$user}" ;;
 "GET repos/"*"/comments?per_page=100")
   [[ "${STUB_FAIL:-}" == list ]] && exit 1
   jq -r "$jqexpr" "$db" ;;
 "POST repos/"*"/comments")
   [[ "${STUB_FAIL:-}" == post ]] && exit 1
-  jq --arg b "$body" '. + [{id: ((map(.id) | max // 100) + 1), body: $b}]' "$db" >"$db.new" && mv "$db.new" "$db" ;;
+  jq --arg b "$body" --arg a "${STUB_AUTHOR:-lane-op}" \
+    '. + [{id: ((map(.id) | max // 100) + 1), body: $b, user: {login: $a}}]' "$db" >"$db.new" && mv "$db.new" "$db"
+  jq -r ".[-1] | $jqexpr" "$db" ;;
 "PATCH repos/"*"/issues/comments/"*)
   [[ "${STUB_FAIL:-}" == patch ]] && exit 1
   id="${url##*/}"
   jq --arg b "$body" --argjson id "$id" 'map(if .id == $id then .body = $b else . end)' "$db" >"$db.new" && mv "$db.new" "$db" ;;
+"DELETE repos/"*"/issues/comments/"*)
+  [[ "${STUB_FAIL:-}" == delete ]] && exit 1
+  jq --argjson id "${url##*/}" 'map(select(.id != $id))' "$db" >"$db.new" && mv "$db.new" "$db" ;;
 "GET repos/"*"/issues/comments/"*)
   [[ "${STUB_FAIL:-}" == get ]] && exit 1
   if [[ -n "${STUB_READBACK:-}" ]]; then printf '%s\n' "$STUB_READBACK"; exit 0; fi
@@ -71,10 +82,18 @@ setup() {
   : >"$STUB_DIR/calls.log"
   printf '%s\n' "${2-$PAYLOAD}" >"$STUB_DIR/body.txt"
 }
-run() {
+run() { # extra arguments pass through to the script
   PATH="$TMP/bin:$PATH" bash "$SCRIPT" --repo acme/widgets --issue 5 --instance "${INST-lap-1}" \
-    --body-file "$STUB_DIR/body.txt" >/dev/null 2>"$STUB_DIR/err"
+    --body-file "$STUB_DIR/body.txt" "$@" >"$STUB_DIR/out" 2>"$STUB_DIR/err"
 }
+read_state() {
+  PATH="$TMP/bin:$PATH" bash "$SCRIPT" --repo acme/widgets --issue 5 --instance lap-1 --read \
+    >"$STUB_DIR/out" 2>"$STUB_DIR/err"
+}
+# c <id> <body> [author]: one comment object, written by lane-op unless named
+c() { jq -n --argjson id "$1" --arg b "$2" --arg a "${3:-lane-op}" '{id: $id, body: $b, user: {login: $a}}'; }
+OLD="$SENT"$'\n''cycle: 6 old body here'
+FOREIGN="$SENT"$'\n''{"writer_nonce":"intruder","heartbeat_at":"2099-01-01T00:00:00Z"}'
 body_of() { jq -r --argjson id "$1" '.[] | select(.id == $id) | .body' "$STUB_DIR/comments.json"; }
 writes() { grep -cE '^(POST|PATCH) ' "$STUB_DIR/calls.log"; }
 
@@ -85,7 +104,7 @@ check "create: exit 0" 0 "$?"
 check "create: stored body is sentinel + payload" "$SENT"$'\n'"$PAYLOAD" "$(body_of 101)"
 
 # 2. Existing sentinel comment holding last cycle's body: updated in place.
-setup "$(jq -n --arg b "$SENT"$'\n''cycle: 6 old body here' '[{id: 40, body: "unrelated"}, {id: 41, body: $b}]')"
+setup "[$(c 40 unrelated), $(c 41 "$OLD")]"
 run
 check "update: exit 0" 0 "$?"
 check "update: comment 41 holds this cycle's body" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
@@ -93,7 +112,7 @@ check "update: no POST" 0 "$(grep -c '^POST' "$STUB_DIR/calls.log")"
 
 # 3. Read-back returns a well-formed telemetry body that is not this cycle's (a
 #    PATCH that stored the previous body): unconfirmed, exit 6.
-setup "$(jq -n --arg b "$SENT"$'\n''cycle: 6 old body here' '[{id: 41, body: $b}]')"
+setup "[$(c 41 "$OLD")]"
 STUB_READBACK="$SENT"$'\n''cycle: 6 old body here' run
 check "stale read-back: exit 6" 6 "$?"
 
@@ -114,7 +133,7 @@ STUB_FAIL='post' run
 check "create failure: exit 5" 5 "$?"
 
 # 7. PATCH fails: exit 5.
-setup "$(jq -n --arg b "$SENT"$'\n''cycle: 6 old body here' '[{id: 41, body: $b}]')"
+setup "[$(c 41 "$OLD")]"
 STUB_FAIL='patch' run
 check "patch failure: exit 5" 5 "$?"
 
@@ -136,7 +155,7 @@ check "@path body: exit 3" 3 "$?"
 check "@path body: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
 # 11. Two sentinel comments: the lower id is canonical, the other tombstoned.
-setup "$(jq -n --arg b "$SENT"$'\n''cycle: 6 old body here' '[{id: 9, body: $b}, {id: 5, body: $b}]')"
+setup "[$(c 9 "$OLD"), $(c 5 "$OLD")]"
 run
 check "duplicates: exit 0" 0 "$?"
 check "duplicates: comment 5 is canonical" "$SENT"$'\n'"$PAYLOAD" "$(body_of 5)"
@@ -173,6 +192,95 @@ setup '[]' "$SENT"$'\n''short'
 run
 check "short body: exit 3" 3 "$?"
 check "short body: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
+
+# 17. A foreign-author sentinel comment with a lower id is never adopted: this
+#     identity's own comment stays canonical and the foreign one is not touched.
+setup "[$(c 3 "$FOREIGN" outsider), $(c 41 "$OLD")]"
+run
+check "foreign lower id: exit 0" 0 "$?"
+check "foreign lower id: own comment 41 is canonical" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
+check "foreign lower id: foreign comment untouched" "$FOREIGN" "$(body_of 3)"
+check "foreign lower id: no write to it" 0 "$(grep -c 'comments/3$' "$STUB_DIR/calls.log")"
+
+# 18. Only a foreign sentinel comment exists: this identity creates its own.
+setup "[$(c 3 "$FOREIGN" outsider)]"
+run
+check "foreign only: exit 0" 0 "$?"
+check "foreign only: own comment 4 created" "$SENT"$'\n'"$PAYLOAD" "$(body_of 4)"
+check "foreign only: foreign comment untouched" "$FOREIGN" "$(body_of 3)"
+
+# 19. App installation token: GET user fails and --app-slug names the writer; a
+#     lower-id sentinel comment by a user account is foreign to it.
+setup "[$(c 3 "$FOREIGN" lane-op), $(c 41 "$OLD" 'lane-app[bot]')]"
+STUB_USER=fail STUB_AUTHOR='lane-app[bot]' run --app-slug lane-app
+check "app token: exit 0" 0 "$?"
+check "app token: own bot comment 41 is canonical" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
+check "app token: user-authored comment untouched" "$FOREIGN" "$(body_of 3)"
+
+# 20. GET user fails and no --app-slug: identity unresolved, exit 5, nothing written.
+setup "[$(c 41 "$OLD")]"
+STUB_USER=fail run
+check "no identity: exit 5" 5 "$?"
+check "no identity: no write" 0 "$(writes)"
+
+# 20b. A wrong --app-slug: the POST lands under another login, so the comment it
+#      created is deleted, nothing else is written, exit 5 naming the real author.
+setup "[$(c 3 "$FOREIGN" outsider)]"
+STUB_USER=fail STUB_AUTHOR='real-app[bot]' run --app-slug wrong-app
+check "wrong slug: exit 5" 5 "$?"
+check "wrong slug: the created comment 4 is deleted" "DELETE repos/acme/widgets/issues/comments/4" \
+  "$(grep '^DELETE' "$STUB_DIR/calls.log")"
+check "wrong slug: only the foreign comment remains" "3" "$(jq -r 'map(.id) | join(",")' "$STUB_DIR/comments.json")"
+check "wrong slug: no PATCH" 0 "$(grep -c '^PATCH' "$STUB_DIR/calls.log")"
+check "wrong slug: error names the real author" 1 "$(grep -c "posted as 'real-app\[bot\]'" "$STUB_DIR/err")"
+
+# 20c. The cleanup DELETE fails: still exit 5, and the error says to remove it by hand.
+setup '[]'
+STUB_USER=fail STUB_AUTHOR='real-app[bot]' STUB_FAIL=delete run --app-slug wrong-app
+check "wrong slug, delete fails: exit 5" 5 "$?"
+check "wrong slug, delete fails: says remove by hand" 1 "$(grep -c 'deleting comment 101 failed' "$STUB_DIR/err")"
+
+# 21. GET user reports a bot: its [bot] login is the identity.
+setup "[$(c 3 "$FOREIGN"), $(c 41 "$OLD" 'lane-app[bot]')]"
+STUB_USER='{"login":"lane-app","type":"Bot"}' run
+check "bot user: exit 0" 0 "$?"
+check "bot user: own bot comment 41 is canonical" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
+check "bot user: user-authored comment untouched" "$FOREIGN" "$(body_of 3)"
+
+# 22. --read prints this identity's canonical body, skipping a lower-id foreign
+#     comment, and writes nothing.
+setup "[$(c 3 "$FOREIGN" outsider), $(c 41 "$OLD")]"
+read_state
+check "read: exit 0" 0 "$?"
+check "read: prints own canonical body" "$OLD" "$(cat "$STUB_DIR/out")"
+check "read: no write" 0 "$(writes)"
+
+# 23. --read with only a foreign comment: unclaimed, empty output, exit 0.
+setup "[$(c 3 "$FOREIGN" outsider)]"
+read_state
+check "read unclaimed: exit 0" 0 "$?"
+check "read unclaimed: empty output" "" "$(cat "$STUB_DIR/out")"
+
+# 24. --read fails closed: a failed lookup, read, or identity is exit 5 with no
+#     output, never the empty "unclaimed" answer.
+for knob in list get user; do
+  setup "[$(c 41 "$OLD")]"
+  if [[ "$knob" == user ]]; then STUB_USER=fail read_state; else STUB_FAIL="$knob" read_state; fi
+  check "read, $knob fails: exit 5" 5 "$?"
+  check "read, $knob fails: no output" "" "$(cat "$STUB_DIR/out")"
+done
+
+# 25. An invalid --app-slug: exit 3 before any gh call.
+setup '[]'
+run --app-slug 'bad"slug'
+check "invalid slug: exit 3" 3 "$?"
+check "invalid slug: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
+
+# 26. An Enterprise Managed User login (underscore shortcode) is a valid identity.
+setup "[$(c 3 "$FOREIGN" outsider), $(c 41 "$OLD" 'jane_acme')]"
+STUB_USER='{"login":"jane_acme","type":"User"}' run
+check "EMU login: exit 0" 0 "$?"
+check "EMU login: own comment 41 is canonical" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
 
 # 16. gh not on PATH: exit 4.
 setup '[]'

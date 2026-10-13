@@ -61,10 +61,11 @@ Build a single merged view, oldest first, each row tagged by kind:
    from an operator-**parked** one; both wear the same role label, so the label alone never
    qualifies a row. Marker kinds `escalated` (a worker question) and `routed-advisory` (a
    workflow-bot advisory routed by the worker loop's intake sweep) both list here;
-   `kind=ratify-c3` rows list as `[ratify]` instead.
+   `kind=ratify-c3` and `kind=ratify-first-drain` rows list as `[ratify]` instead.
 2. **`[ratify]`**, the subset of escalated items whose marker carries `kind=ratify-c3`: C3
    bug-fix-shaped admissions the worker loop queued for first-drain ratification (earn-trust
-   posture; see `/work-items:work-loop`'s admission gate).
+   posture; see `/work-items:work-loop`'s admission gate), or `kind=ratify-first-drain`: a worker
+   loop's telemetry issue proposing that its first drain is complete and the period can end.
 3. **`[intake]`**. Untriaged raw intake: buckets 1-3 of `/work-items:triage`'s attention view
    (unlabeled, raw marker, needs-info with a reporter reply). Compose that view; do not re-derive
    its buckets here.
@@ -73,9 +74,12 @@ Build a single merged view, oldest first, each row tagged by kind:
    them, but take no claim and make no change from this lane; the operator decides (drop the
    edge, re-scope, or close) outside it.
 
-Lane-infrastructure items never enter the view, and this lane re-derives nothing to keep them out:
-the composed triage view already excludes the per-lane telemetry tracking issues (`/work-items:triage`,
-"Scope: raw intake only"), so `[intake]` inherits that exclusion the same way it inherits the buckets.
+Lane-infrastructure items never enter the view, with one exception. The composed triage view
+already excludes the per-lane telemetry tracking issues (`/work-items:triage`, "Scope: raw intake
+only"), so `[intake]` inherits that exclusion and this lane re-derives nothing for it. The
+exception: a telemetry issue carrying a `kind=ratify-first-drain` marker from the seam's write
+identity while it wears the human-gated role label is a `[ratify]` row, since that issue is where
+a worker loop asks to end its first-drain period. No other marker kind lists a telemetry issue.
 
 Present the merged table with one-line summaries, then work rows in the operator's chosen order
 (default: oldest first, `[ratify]` rows before `[escalated]` before `[intake]` at equal age,
@@ -163,10 +167,19 @@ answer without stopping the pass to ask which item is in front of them.
   same fallback shape triage's interview step uses). **Write the answer back as an issue comment** on
   the item, the decision lives on the tracker, never only in the session, replying in the thread of
   the escalation comment where the provider supports it.
-- **`[ratify]` rows**. Restate the brief above, then present the classification and the intended
+- **`[ratify]` rows for `kind=ratify-c3`**. Restate the brief above, then present the classification and the intended
   dispatch from the marker comment and the consequence of ratifying versus declining. On operator
   ratification, record it as a reply comment and flip the item per the rule below; on decline, leave
   it human-gated and record the rationale as a comment.
+- **`[ratify]` rows for `kind=ratify-first-drain`**. The row is a lane's telemetry issue, never a
+  work item, so the flip below never applies. Present the proposal and its consequence: ratifying
+  lets that lane dispatch unratified C3 bug-fix items without a `[ratify]` row each. On operator
+  ratification, **one edit** applies `loop-lane: first-drain-ratified` (create the label first when
+  the repository lacks it) and removes the human-gated role label; record the ratification as a
+  reply comment. On decline, remove the human-gated role label and record the rationale; the lane
+  does not propose again, and the operator can apply the label directly later. This lane applies
+  that label only on the operator's explicit ratification in this session; a worker lane never
+  applies it.
 - **Flip to agent-ready.** When an answer or ratification removes the human blocker, apply the
   autonomous-eligible role label and remove the human-gated role label **in the same edit** (both
   resolved from `config.role_labels`, never literals), an item wearing both roles is a
@@ -297,14 +310,21 @@ user request" the hard-stop rule anticipates). This lane keeps no durable state,
 account is held in the session only: apply the **Account switch** bullet on each Monitor tick and
 when the operator returns, and report a resume or a re-latch in the next reply.
 
+`.oauthAccount.emailAddress` is internal Claude Code state, not a documented surface. Its
+verification record is the recheck trigger in the `rate-limit-guard` reader contract
+(`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository, cited for
+provenance only).
+
 ## Spoke paths
 
 The `reference/` files write the plugin's root directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the
-placeholder before running a command or writing it into a brief. Those files arrive through the Read
-tool as plain bytes, so a `${…}` token in them would reach the Bash tool unsubstituted, and the Bash
-tool's environment has no `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+placeholder before running a command or writing it into a brief. Those files use the placeholder
+because we do not rely on a `${…}` token resolving in a supporting file or in the Bash tool.
+
+- **Pointer**: when deciding whether a `${…}` reference resolves in a file or tool, fetch
+  [plugins manifest reference § Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that table adds supporting files or the Bash
+  tool to where a `${…}` reference resolves.
 
 ## Next
 

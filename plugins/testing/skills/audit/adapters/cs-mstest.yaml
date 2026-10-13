@@ -7,9 +7,11 @@ detect:
   any_regex:
     - 'Microsoft\.VisualStudio\.TestTools\.UnitTesting'
     - '\[[[:space:]]*([A-Za-z]*Test(Class|Method)|DataRow)([^A-Za-z0-9_]|$)'
-# TestMethod and the attributes derived from it: DataTestMethod, STATestMethod, UITestMethod.
+# TestMethod and the attributes derived from it: DataTestMethod, STATestMethod,
+# UITestMethod. This list replaces cs-xunit's, so it repeats the Reqnroll [Then] step.
 test_start:
   - '^[[:space:]]*\[[[:space:]]*[A-Za-z]*TestMethod([^A-Za-z0-9_]|$)'
+  - '^[[:space:]]*\[[[:space:]]*(global::)?(Reqnroll\.)?Then(Attribute)?([^A-Za-z0-9_]|$)'
 # ExpectedException makes the attribute the assertion, which no body token shows.
 test_skip:
   - 'Ignore'

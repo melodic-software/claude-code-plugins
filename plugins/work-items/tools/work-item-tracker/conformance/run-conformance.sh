@@ -202,6 +202,7 @@ wit_case_if_unsupported release "$FAKE_ID" --lease-comment-id 1
 wit_case_if_unsupported reclaim "$FAKE_ID"
 wit_case_if_unsupported link-blocks "$FAKE_ID" --blocked-by "$FAKE_ID"
 wit_case_if_unsupported add-sub-item "$FAKE_ID" --parent "$FAKE_ID"
+wit_case_if_unsupported label-provenance "$FAKE_ID" --label agent-ready
 if ! verb_supported list-items; then
   wit_case "unsupported list-items gates list-frontier → exit 6" 6 list-frontier
 fi
@@ -316,6 +317,19 @@ if verb_supported list-items && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   frontier_ids="$(jq -c '[.items[].id]' <<<"$WIT_OUT")"
   assert_contains "frontier holds unblocked A" "$frontier_ids" "$ITEM_A_ID"
   assert_not_contains "frontier drops blocked B" "$frontier_ids" "$ITEM_B_ID"
+
+  wit_case "list-items" 0 list-items "${repo_args[@]+"${repo_args[@]}"}"
+  assert_schema_version "list-items"
+  assert_truncated_flag "list-items"
+  assert_contains "list-items holds open A" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_A_ID"
+  assert_eq "list-items rows carry created_at as a UTC timestamp or null" "true" \
+    "$(jq '[.items[] | has("created_at") and (.created_at == null
+      or (.created_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")))] | all' <<<"$WIT_OUT")"
+  wit_case "list-items --label nobody carries" 0 list-items --label "$RUN_TAG-absent" "${repo_args[@]+"${repo_args[@]}"}"
+  assert_truncated_flag "list-items --label"
+  assert_eq "list-items --label nobody carries holds no items" "0" "$(jq '.items | length' <<<"$WIT_OUT")"
+  wit_case "list-frontier --label nobody carries" 0 list-frontier --label "$RUN_TAG-absent" "${repo_args[@]+"${repo_args[@]}"}"
+  assert_eq "list-frontier --label nobody carries holds no items" "0" "$(jq '.items | length' <<<"$WIT_OUT")"
 fi
 
 # --- lease lifecycle + claim race ---

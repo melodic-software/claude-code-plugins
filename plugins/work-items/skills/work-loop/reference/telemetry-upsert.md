@@ -30,6 +30,7 @@ bash "<upsert-script>" \
 | `--repo` | The target repository as `owner/name`. |
 | `--issue` | The lane's tracking issue number. |
 | `--body-file` | The file holding this cycle's composed body. |
+| `--app-slug` | Optional; required under an App installation token, where the upsert otherwise exits 15 every cycle. No config key carries the slug yet, so the launch prompt supplies it. The GitHub App whose installation token `gh` runs under. The write identity is the `gh api user` login when that call reports a User; when it fails or reports a Bot, `<app-slug>[bot]`, else the reported Bot login plus `[bot]`. |
 
 ## What the upsert writes
 
@@ -37,7 +38,8 @@ The marker is `work-items:work-loop@<instance>` and the comment's first line is 
 `<!-- harness-ops:lane-telemetry marker=<marker> -->`, an HTML comment that is invisible when
 rendered and distinct per writer, so sibling instances each own one comment on the same issue.
 The lookup is a `startswith` match on that full sentinel, so a body that merely quotes a sibling's
-sentinel is never adopted. Where the lookup finds nothing the script creates the comment; where it
+sentinel is never adopted, and it counts only comments the write identity authored: the sentinel is
+public text, so a comment anyone else posts with it is never made canonical, written, or tombstoned. Where the lookup finds nothing the script creates the comment; where it
 finds one it edits that comment in place; where it finds several the LOWEST id is canonical
 (numeric sort, deterministic for every session), the canonical comment receives this cycle's full
 state, and every other sentinel comment is edited to a one-line tombstone, but only once the
@@ -84,6 +86,7 @@ to end the loop: the lane records the outcome and continues.
 | 12 | No comment available to write to; a create may have landed but was not re-found | Treat the lane as UNREPORTED. |
 | 13 | The PATCH of the canonical comment failed | Treat the lane as UNREPORTED; the comment holds an earlier body, not this cycle's write. |
 | 14 | The canonical comment does not hold this cycle's body after the write (another body, an earlier cycle's included, or none readable) | Treat the lane as UNREPORTED; do not trust the timestamp or the counters the comment shows. |
+| 15 | The write identity is unresolved or `--app-slug` is not a slug (nothing written), or a create landed under another login (a wrong `--app-slug`) | Treat the lane as UNREPORTED; under an App token, pass or fix `--app-slug`. |
 
 An unreadable comment list is fail-closed rather than read as empty, because treating it as empty
 posts a second comment, the exact failure the singleton exists to prevent.
@@ -98,13 +101,14 @@ records it there, a lane without one carries it in the cycle's own summary.
 
 The gate order lives inside the script, so the invocation is one simple command rather than the
 compound shape (variable assignment, a lookup function, an `if/elif/else`, a `for` loop, and
-several `gh api` calls in one Bash invocation) a permission rule may not cover. Verified 2026-09-06
-against Claude Code 2.1.263 and the permissions page at
-`https://code.claude.com/docs/en/permissions#compound-commands`, which states that an allow rule must
-match each subcommand independently, and that a deny or ask rule applies when any subcommand matches,
-including one nested in a subshell or a control-flow body. Recheck when that page stops carrying the
-per-subcommand matching rule, or when a release note names compound-command permission matching. When the
-invocation is blocked anyway, retry it rather than hand-transcribing the upsert: reproducing the
+several `gh api` calls in one Bash invocation) a permission rule may not cover.
+
+- **Pointer**: when an allow rule fails to cover the upsert invocation, fetch
+  [permissions § Compound commands](https://code.claude.com/docs/en/permissions#compound-commands)
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section changes how rules match
+  compound commands, or a release note names compound-command permission matching.
+
+When the invocation is blocked anyway, retry it rather than hand-transcribing the upsert: reproducing the
 gates in isolated calls loses the distinct exit codes the lane reads its own outcome from.
 
 ## Instance-collision check (cycle start, before any write)
@@ -124,8 +128,10 @@ re-reading the block:
   after a budget or expiry stop starts immediately instead of waiting out the staleness window.
 - Nonce differs **and** the block is stale (`heartbeat_at` over **2 hours** old, and past
   `paused_until` when set) → an earlier session of this same instance restarted or died. Adopt the
-  block, write my nonce, continue, the ordinary restart path; two hours is twice the one-hour
-  `ScheduleWakeup` ceiling, so a healthy lane at maximum idle backoff never reads as stale.
+  block, write my nonce, continue, the ordinary restart path; two hours is set at twice the
+  longest `ScheduleWakeup` delay, so a healthy lane at maximum idle backoff never reads as stale.
+  The pointer record in [`mode-standing.md`](mode-standing.md) says where to read that delay; when
+  it changes, recheck this threshold.
 - Nonce differs **and** the block is fresh with no pending `restart_request` → **another live lane
   holds my instance id.** Write nothing, escalate per the convention's escalation contract, and
   stop the loop cleanly.

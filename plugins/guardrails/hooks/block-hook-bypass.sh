@@ -1310,9 +1310,11 @@ py_inline_invocation() {
 #
 # The operator's levers and the guard's scope are not the agent's to act on.
 # The levers go on systemMessage once per session, latched by hook::notice_once,
-# so a long session of blocks is one notice. Claude Code reads a hook's JSON on
-# every exit code, so the systemMessage renders beside an exit-2 block
-# (https://code.claude.com/docs/en/hooks#exit-code-output). The enforced scope,
+# so a long session of blocks is one notice. We emit the systemMessage beside
+# the exit-2 block, which rests on how Claude Code treats a hook's JSON next to
+# exit 2. Pointer: https://code.claude.com/docs/en/hooks#exit-code-output. As
+# of: 2026-10-11. Recheck trigger: that section stops listing JSON fields as
+# read on exit 2, or is renamed. The enforced scope,
 # the list of write forms this guard does not inspect, lives in the guardrails
 # README ("block-hook-bypass inspects one command string"), not on every block.
 

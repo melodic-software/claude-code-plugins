@@ -29,8 +29,10 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
 
 You name the target skill when you invoke `/knowledge:book-distill`, so output
 lands somewhere you chose (`${CLAUDE_PROJECT_DIR}/.claude/skills/<target>/`): either an existing skill it extends or a new one it creates. Cross-session state
-(the file plan, page map, and a checklist) persists under `${CLAUDE_PLUGIN_DATA}`,
-which survives plugin updates.
+(the file plan, page map, and a checklist) persists under `${CLAUDE_PLUGIN_DATA}`; for how long
+that directory is kept, see
+[Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
+(as of 2026-10-11; recheck when that section changes when the directory is kept or deleted).
 
 ## Usage caution. Copyright
 
@@ -92,8 +94,8 @@ defaults keep every pipeline working):
 | `max_concurrent_acquires` | number | `1` | `video-digest`: cap on concurrent yt-dlp acquisitions during a batch (1–3). Higher increases HTTP 429 risk. |
 
 `book-distill` itself writes to a **target skill** you name at invocation, so it
-needs no configuration to run; `library_dir` is the shared artifact-landing seam
-the plugin's ingestion pipelines resolve through. The `video-digest` acquisition
+needs no configuration to run; `library_dir` is the shared setting the
+plugin's ingestion pipelines read to find where artifacts land. The `video-digest` acquisition
 options above tune yt-dlp authentication and throttling; **course-platform
 credentials are intentionally not** `userConfig`. They stay in shell env vars
 because a `sensitive` option persists as plaintext on Windows today.

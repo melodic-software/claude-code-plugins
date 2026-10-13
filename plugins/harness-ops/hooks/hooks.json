@@ -1,5 +1,8 @@
 {
-  "description": "Records session observability telemetry: nine audit rows (API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures, unsurfaced hook failures) that emit the hook-telemetry envelope, seven of them dispatched by event from one emitter and two in their own scripts, plus the default-off per-session hook event log on every documented event that neither changes behavior nor fires per tool call, and its SessionEnd retention.",
+  "description": "Records session observability telemetry: nine audit rows (API errors, config changes, instruction loads, permission denials, compactions, skill usage, tool failures, unsurfaced hook failures) that emit the hook-telemetry envelope, seven of them dispatched by event from one emitter and two in their own scripts. The module records the default-off per-session hook event log and its SessionEnd retention; while the log is off it hooks nothing.",
+  "modules": [
+    "./register.ts"
+  ],
   "hooks": {
     "StopFailure": [
       {
@@ -13,23 +16,6 @@
             ],
             "timeout": 5,
             "statusMessage": "Recording API-error telemetry..."
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the StopFailure event...",
-            "async": true
           }
         ]
       }
@@ -49,23 +35,6 @@
             "statusMessage": "Recording config-change telemetry..."
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the ConfigChange event...",
-            "async": true
-          }
-        ]
       }
     ],
     "InstructionsLoaded": [
@@ -80,23 +49,6 @@
             ],
             "timeout": 5,
             "statusMessage": "Recording instructions-loaded telemetry..."
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the InstructionsLoaded event...",
-            "async": true
           }
         ]
       }
@@ -115,23 +67,6 @@
             "statusMessage": "Recording permission-denied telemetry..."
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the PermissionDenied event...",
-            "async": true
-          }
-        ]
       }
     ],
     "PreCompact": [
@@ -146,23 +81,6 @@
             ],
             "timeout": 5,
             "statusMessage": "Recording pre-compact telemetry..."
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the PreCompact event...",
-            "async": true
           }
         ]
       }
@@ -198,23 +116,6 @@
             "statusMessage": "Recording skill-usage-expansion telemetry..."
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the UserPromptExpansion event...",
-            "async": true
-          }
-        ]
       }
     ],
     "PostToolUseFailure": [
@@ -232,23 +133,6 @@
             "statusMessage": "Recording tool-failure telemetry..."
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the PostToolUseFailure event...",
-            "async": true
-          }
-        ]
       }
     ],
     "Stop": [
@@ -262,266 +146,9 @@
             "statusMessage": "Checking for unsurfaced hook failures..."
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the Stop event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "CwdChanged": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the CwdChanged event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "DirectoryAdded": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the DirectoryAdded event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "Elicitation": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the Elicitation event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "ElicitationResult": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the ElicitationResult event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the Notification event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "PermissionRequest": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the PermissionRequest event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "PostCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the PostCompact event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "PostModelSwitch": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the PostModelSwitch event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "PostToolBatch": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the PostToolBatch event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "PreModelSwitch": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the PreModelSwitch event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the SessionEnd event..."
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-retention.sh"
-            ],
-            "statusMessage": "Pruning the session event log..."
-          }
-        ]
       }
     ],
     "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the SessionStart event...",
-            "async": true
-          }
-        ]
-      },
       {
         "matcher": "startup|resume|clear|fork",
         "hooks": [
@@ -530,158 +157,6 @@
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /harness-ops:check; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /harness-ops:check",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
-          }
-        ]
-      }
-    ],
-    "Setup": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the Setup event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the SubagentStart event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the SubagentStop event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "TaskCompleted": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the TaskCompleted event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "TaskCreated": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the TaskCreated event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "TeammateIdle": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the TeammateIdle event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the UserPromptSubmit event...",
-            "async": true
-          }
-        ]
-      }
-    ],
-    "WorktreeRemove": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "--require-true",
-              "SESSION_EVENT_LOG_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh"
-            ],
-            "timeout": 5,
-            "statusMessage": "Logging the WorktreeRemove event...",
-            "async": true
           }
         ]
       }

@@ -41,6 +41,7 @@ assert_eq "assignee becomes a one-element array" "kyle" "$(jq -r '.assignees[0]'
 assert_eq "exactly one assignee (linear's field is singular)" "1" "$(jq -r '.assignees | length' <<<"$(lin_out)")"
 assert_eq "labels are names" "type: fix" "$(jq -r '.labels[0]' <<<"$(lin_out)")"
 assert_eq "url" "https://linear.app/acme/issue/ENG-12" "$(jq -r '.url' <<<"$(lin_out)")"
+assert_eq "createdAt becomes UTC created_at to the second" "2026-08-20T12:00:00Z" "$(jq -r '.created_at' <<<"$(lin_out)")"
 assert_eq "type is null (linear has no issue-type axis)" "null" "$(jq -r '.type' <<<"$(lin_out)")"
 assert_eq "no parent → parent_id null" "null" "$(jq -r '.parent_id' <<<"$(lin_out)")"
 assert_eq "body is not carried through the seam" "null" "$(jq -r '.description' <<<"$(lin_out)")"

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "That is an eval-score climb. Type /claude-api hillclimb to start it; it iterates on the prompt against your 120 cases.",
+      "why": "names the command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I will set up /performance:climb with the pass rate as the counter.",
+      "why": "climbs the eval score itself"
+    },
+    {
+      "answer": "Use the hillclimb workflow for this.",
+      "why": "does not give the command the person types"
+    }
+  ]
+}

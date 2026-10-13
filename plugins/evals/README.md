@@ -31,8 +31,10 @@ cookbook (`anthropics/claude-cookbooks` `misc/building_evals.ipynb`), fetched 20
 
 `claude plugin eval` is what runs and scores a plugin's eval cases: it loads the plugin, replays
 each case with the plugin and again with nothing loaded, grades both arms, and reports `WITH`,
-`W/OUT`, and the delta between them. It needs Claude Code v2.1.269 or later, and every run and every
-judge grader is a metered model call on your own account.
+`W/OUT`, and the delta between them. It needs a recent Claude Code; for the minimum version, see
+[Requirements](https://code.claude.com/docs/en/plugin-evals#requirements) (as of 2026-10-11;
+recheck when that section's version floor changes). Every run and every judge grader is a metered
+model call on your own account.
 
 This plugin is the practice around that command rather than a second runner. `/evals:plugin-eval`
 preflights the machine and the target, validates the case files, prices the suite before it spends,

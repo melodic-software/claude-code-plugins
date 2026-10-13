@@ -80,8 +80,7 @@ def disarm_auto_merge(repo: str, number: int) -> None:
     """Disable an armed auto-merge before the branch moves; a failure raises.
 
     A push by a writer keeps GitHub auto-merge armed, so the new head could merge
-    on `ci-status` before the AI review lanes re-review it. The merge lane
-    re-arms once both lanes finish on the new head.
+    on `ci-status` before the AI review lanes re-review it. Nothing re-arms it.
     """
     if json_object(gh_json(["api", f"repos/{repo}/pulls/{number}"])).get("auto_merge"):
         run_gh(["pr", "merge", str(number), "-R", repo, "--disable-auto"])

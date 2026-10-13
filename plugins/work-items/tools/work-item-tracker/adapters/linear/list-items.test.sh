@@ -44,13 +44,36 @@ assert_eq "listing → exit 0" "0" "$rc"
 assert_eq "envelope schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(lin_out)")"
 assert_eq "one item" "1" "$(jq -r '.items | length' <<<"$(lin_out)")"
 assert_eq "item id is fully qualified" "linear:acme/ENG#12" "$(jq -r '.items[0].id' <<<"$(lin_out)")"
-# The team filter travels as a VARIABLE, never interpolated into the query text.
-assert_contains "teams travel as a variable" "$(lin_bodies)" '"teams":["ENG"]'
+# The filter travels as a VARIABLE, never interpolated into the query text.
+assert_contains "teams travel in the filter variable" "$(lin_bodies)" '"team":{"key":{"in":["ENG"]}}'
 assert_contains "an explicit page size is sent" "$(lin_bodies)" '"first":50'
+assert_not_contains "no label filter unless asked" "$(lin_bodies)" '"labels"'
 
-# --- state filtering is core-side, on the SAME classification the normalizer uses ---
-# Pushing it into the GraphQL filter would encode done_state_types a second time in a
-# different language, and the two would drift.
+# --- the state and label filters travel in the query ---
+# Built from done_state_types, the set the normalizer classifies with.
+lin_reset
+seed_page '[]'
+lin_run "$S" --state open >/dev/null
+assert_contains "--state open excludes the done types in the query" "$(lin_bodies)" \
+  '"state":{"type":{"nin":["completed","canceled","duplicate"]}}' # spellchecker:disable-line
+lin_reset
+seed_page '[]'
+lin_run "$S" --state closed >/dev/null
+assert_contains "--state closed asks for the done types" "$(lin_bodies)" \
+  '"state":{"type":{"in":["completed","canceled","duplicate"]}}'
+lin_reset
+seed_page '[]'
+lin_run "$S" --state all >/dev/null
+assert_not_contains "--state all sends no state filter" "$(lin_bodies)" '"state"'
+lin_reset
+seed_page '[]'
+lin_run "$S" --label "area: ci" >/dev/null
+assert_contains "--label asks for issues carrying that label" "$(lin_bodies)" \
+  '"labels":{"some":{"name":{"eq":"area: ci"}}}'
+assert_usage_error "$S" --label
+assert_usage_error "$S" --label ""
+
+# --- the normalized state is still checked after the query ---
 lin_reset
 seed_page "$(jq -cn --argjson o "$(lin_issue_json 12 started)" --argjson c "$(lin_issue_json 13 completed)" '[$o, $c]')"
 rc="$(lin_run "$S" --state open)"
@@ -74,6 +97,7 @@ lin_reset
 seed_page "[$(lin_issue_json 13 completed)]"
 lin_run "$S" --state open >/dev/null
 assert_eq "done_state_types override reclassifies for listing" "1" "$(jq -r '.items | length' <<<"$(lin_out)")"
+assert_contains "and reaches the query filter" "$(lin_bodies)" '"state":{"type":{"nin":["canceled"]}}' # spellchecker:disable-line
 lin_write_binding
 
 # --- pagination follows the cursor ---
@@ -123,6 +147,52 @@ rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" lin_run "$FIX_ADAPTER/list-items.sh")"
 assert_eq "exactly the ceiling: 25 items" "25" "$(jq -r '.items | length' <<<"$(lin_out)")"
 assert_eq "exactly the ceiling: truncated:false" "false" "$(jq -c '.truncated' <<<"$(lin_out)")"
 
+# --- the ceiling counts only issues the filter matches (#7173) ---
+# A server that applies whatever filter it is sent, over a team holding three closed
+# issues (more than a ceiling of 2) and one open one. Fetching the whole team and
+# dropping closed issues afterward hits the ceiling and reports truncated:true; sending
+# the filter lists the one open issue, complete.
+SERVER="$LIN_FIX/server"
+mkdir -p "$SERVER"
+jq -cn --argjson a "$(lin_issue_json 1 completed)" --argjson b "$(lin_issue_json 2 canceled)" \
+  --argjson c "$(lin_issue_json 3 completed)" --argjson d "$(lin_issue_json 4 started)" \
+  '[$a, $b, $c, $d] | .[3].labels.nodes = [{name: "area: ci"}]' >"$SERVER/team.json"
+cat >"$SERVER/curl" <<'SERVER_CURL'
+#!/usr/bin/env bash
+cat >/dev/null
+body=""
+prev=""
+for a in "$@"; do
+  [[ "$prev" == "--data" ]] && body="$a"
+  prev="$a"
+done
+d="$(cd "$(dirname "$0")" && pwd)"
+jq -c --argjson v "$(jq -c '.variables' <<<"$body")" '
+  ($v.filter // {}) as $f
+  | [.[] | .state.type as $t | [.labels.nodes[].name] as $names
+         | select(($f.state.type.nin // null) as $nin | $nin == null or ($nin | index($t)) == null) # spellchecker:disable-line
+         | select(($f.state.type.in // null) as $in | $in == null or ($in | index($t)) != null)
+         | select(($f.labels.some.name.eq // null) as $l | $l == null or ($names | index($l)) != null)]
+  | (($v.after // "0") | tonumber) as $from
+  | {data: {issues: {nodes: .[$from:$from + $v.first],
+      pageInfo: {hasNextPage: (length > $from + $v.first), endCursor: (($from + $v.first) | tostring)}}}}
+' "$d/team.json"
+printf '200'
+SERVER_CURL
+chmod +x "$SERVER/curl"
+jq '.limits.list_items_max = 2' "$D/capabilities.json" >"$FIX_ADAPTER/capabilities.json"
+rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" WIT_LINEAR_CURL="$SERVER/curl" \
+  WORK_ITEM_TRACKER_BINDING="$LIN_FIX/binding.json" WIT_LINEAR_TEST_KEY="mock-key" \
+  bash "$FIX_ADAPTER/list-items.sh" --state open >"$LIN_FIX/stdout" 2>"$LIN_FIX/stderr"; echo $?)"
+assert_eq "closed issues past the ceiling, one open → exit 0" "0" "$rc"
+assert_eq "the open issue is listed" "linear:acme/ENG#4" "$(jq -r '[.items[].id] | join(",")' <<<"$(lin_out)")"
+assert_eq "and the listing is complete" "false" "$(jq -c '.truncated' <<<"$(lin_out)")"
+rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" WIT_LINEAR_CURL="$SERVER/curl" \
+  WORK_ITEM_TRACKER_BINDING="$LIN_FIX/binding.json" WIT_LINEAR_TEST_KEY="mock-key" \
+  bash "$FIX_ADAPTER/list-items.sh" --state all --label "area: ci" >"$LIN_FIX/stdout" 2>"$LIN_FIX/stderr"; echo $?)"
+assert_eq "a label carried by one of four issues, ceiling 2 → complete" "linear:acme/ENG#4 false" \
+  "$(jq -r '([.items[].id] | join(",")) + " " + (.truncated | tostring)' <<<"$(lin_out)")"
+
 # An empty result is an empty envelope, never an error.
 lin_reset
 seed_page '[]'
@@ -135,11 +205,11 @@ lin_write_binding '{"scopes":["acme/ENG","acme/OPS"]}'
 lin_reset
 seed_page '[]'
 lin_run "$S" >/dev/null
-assert_contains "both declared teams are queried" "$(lin_bodies)" '"teams":["ENG","OPS"]'
+assert_contains "both declared teams are queried" "$(lin_bodies)" '"in":["ENG","OPS"]'
 lin_reset
 seed_page '[]'
 lin_run "$S" --repo "acme/OPS" >/dev/null
-assert_contains "--repo narrows to one team" "$(lin_bodies)" '"teams":["OPS"]'
+assert_contains "--repo narrows to one team" "$(lin_bodies)" '"team":{"key":{"in":["OPS"]}}'
 lin_write_binding
 
 # --- a scopes list spanning two workspaces is a config error ---
