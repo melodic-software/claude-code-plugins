@@ -16,7 +16,9 @@
 // promotion_evidence_source, promotion_evidence_checker) are not arguments: the helper reads
 // them from the operator's own managed and user settings (operator-options.mjs, channel F
 // of docs/conventions/hook-config-delivery), so a path the caller chose cannot stand in for
-// one, and the CLAUDE_PLUGIN_OPTION_* mirror and repository files are never read for them.
+// one, and the CLAUDE_PLUGIN_OPTION_* mirror and repository files are never read for them. The
+// optional fifth, promotion_evidence_credential_roots, read the same way, becomes the checker's
+// --credential-roots when set; a malformed entry fails closed (credentialRootsArgs).
 // Prints {source, failClosedReason, options: {<option>: {value, scope, file}}, cells:
 // {<cell>: {bound, effective, line}}} and exits 0, fail-closed results included.
 // Fail-closed means failClosedReason is set and every promotable cell is effective
@@ -24,15 +26,21 @@
 // --probe-evidence-root, --evidence and --checker included); an option no readable source
 // sets, or a settings source that cannot be read; a relative or unresolvable path; a surface
 // or checker that is inside the checkout or a worktree root, or contains one, before or after
-// symlinks resolve; a checker that exits non-zero, times out, or prints no evaluation block;
-// and any line in that block that does not parse. The checker runs with an allowlisted
+// symlinks resolve; a surface, checker or supplying settings file the lane can write
+// (laneWritable, reason "lane-writable:<option or file>"); any run on win32, where that test is
+// not trusted ("writability-unverifiable-on-win32"; pointer record under "Read-only to the lane"
+// in reference/promotion-evidence-bootstrap.md); a checker that exits non-zero,
+// times out, or prints no evaluation block; and any line in that block that does not parse. The
+// unattended merge gate (babysit_merge_policy.py) repeats the writability test as a second
+// layer. Tests run main() from a wrapper with an injected platform, access, stat and uid; the
+// helper takes none of them from its arguments or the environment. The checker runs with an allowlisted
 // environment (PATH and SystemRoot only), so NODE_OPTIONS, NODE_PATH, LD_PRELOAD and GIT_*
 // values from a repository's settings env block never reach it. It reports only what the
 // checker printed and never re-derives the resolution algorithm. It writes no file but the
 // --window-start copy and reads nothing in the checkout.
 
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { accessSync, constants, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import process from "node:process";
@@ -47,6 +55,7 @@ const TIMEOUT_MS = 60_000;
 const CHECKER_ENV_KEYS = ["PATH", "SystemRoot"];
 
 let options = {};
+let source = null;
 
 function emit(source, failClosedReason, printed = {}) {
   const cells = failClosedReason === null ? { ...printed } : {};
@@ -60,31 +69,31 @@ function isInside(child, root) {
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 }
 
-let values;
-try {
-  ({ values } = parseArgs({
-    options: {
-      checkout: { type: "string" },
-      "worktree-root": { type: "string", multiple: true, default: [] },
-      "window-start": { type: "string" },
-    },
-    strict: true,
-    allowPositionals: false,
-  }));
-} catch (error) {
-  emit(null, `usage: ${error.message}`);
+function canWrite(path) {
+  try {
+    accessSync(path, constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-// This install's root, from the helper's own real path (skills/babysit-loop/scripts/ below it),
-// never from the environment.
-const pluginRoot = resolve(dirname(realpathSync.native(fileURLToPath(import.meta.url))), "..", "..", "..");
-try {
-  options = readOperatorOptions(resolveInstall(pluginRoot), managedSettingsFiles());
-} catch (error) {
-  if (!(error instanceof OptionsError)) throw error;
-  emit(null, error.message);
+// The lane user can write the path, or replace it through any directory above it (written, or
+// owned and so re-permissioned), as given (".." segments kept, like Python's Path.absolute()),
+// normalized, or after symlinks resolve: the rule of _lane_writable in babysit_merge_policy.py.
+// Throws when the path does not exist. access, stat and uid are the test seam; uid undefined (no
+// process.getuid) skips the owner test.
+export function laneWritable(path, { access = canWrite, stat = statSync, uid = process.getuid?.() } = {}) {
+  const given = isAbsolute(path) ? path : `${process.cwd()}${sep}${path}`;
+  for (const candidate of new Set([given, resolve(path), realpathSync.native(path)])) {
+    for (let node = candidate; ; node = dirname(node)) {
+      if (access(node)) return true;
+      if (uid !== undefined && stat(node).uid === uid) return true;
+      if (dirname(node) === node) break;
+    }
+  }
+  return false;
 }
-const source = options.promotion_evidence_source?.value || null;
 
 // Returns the realpath, or fails closed with a reason naming the option or argument.
 function resolveInput(label, value, roots) {
@@ -104,7 +113,17 @@ function resolveInput(label, value, roots) {
   }
   return real;
 }
-const option = (key, roots) => resolveInput(key, options[key]?.value, roots);
+
+// Fails closed when the lane can write `path`, or when that cannot be judged.
+function refuseLaneWritable(label, path, judge) {
+  let writable;
+  try {
+    writable = laneWritable(path, judge);
+  } catch (error) {
+    emit(source, `writability-unverifiable:${label} (${error.code ?? error.message})`);
+  }
+  if (writable) emit(source, `lane-writable:${label}`);
+}
 
 // A root that does not exist yet is canonicalized through its longest existing prefix, so a
 // symlinked parent cannot hide where the root will land.
@@ -162,45 +181,141 @@ function restartedCopy(path, at, roots) {
   return copy;
 }
 
-const checkout = resolveInput("--checkout", values.checkout, []);
-const roots = [resolve(values.checkout), checkout];
-for (const root of values["worktree-root"]) {
-  if (!isAbsolute(root)) emit(source, `--worktree-root ${root} is not an absolute path`);
-  roots.push(resolve(root), canonical(resolve(root)));
+// A probe-host path's lexical form: an anchor ("" for POSIX "/", a folded "c:" for a drive) and
+// its segments, "." and empty ones dropped; null when it is not absolute ("//" UNC included).
+function hostPath(value) {
+  const slashed = value.replaceAll("\\", "/");
+  const drive = /^[A-Za-z]:\//.test(slashed);
+  if (slashed.startsWith("//") || (!drive && !slashed.startsWith("/"))) return null;
+  const segments = slashed.slice(drive ? 3 : 1).split("/").filter((s) => s !== "" && s !== ".");
+  return drive ? { anchor: slashed.slice(0, 2).toLowerCase(), segments: segments.map((s) => s.toLowerCase()) } : { anchor: "", segments };
 }
 
-const checker = option("promotion_evidence_checker", roots);
-const binding = option("promotion_evidence_binding", roots);
-const probeRoot = option("promotion_evidence_root", roots);
-const sourcePath = option("promotion_evidence_source", roots);
-const evidence =
-  values["window-start"] === undefined ? sourcePath : restartedCopy(sourcePath, values["window-start"], roots);
+// Path segments naming an ephemeral base (/tmp, /var/tmp, /dev/shm, C:\Temp, ...\AppData\Local\
+// Temp), compared case-insensitively. Restates EPHEMERAL_SEGMENTS in the autonomy plugin's
+// check-security-binding.mjs, which refuses a credential probe expanded under one; recheck when
+// that set changes.
+const EPHEMERAL_SEGMENTS = new Set(["tmp", "temp", "shm"]);
 
-const checkerEnv = Object.fromEntries(
-  CHECKER_ENV_KEYS.filter((key) => key in process.env).map((key) => [key, process.env[key]]),
-);
-const run = spawnSync(
-  process.execPath,
-  [checker, binding, "--evidence", evidence, "--probe-evidence-root", probeRoot],
-  { cwd: dirname(checker), env: checkerEnv, encoding: "utf8", shell: false, timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
-);
-if (run.error) emit(source, `checker did not complete (${run.error.code ?? run.error.message})`);
-if (run.status !== 0) {
-  const detail = (run.stderr ?? "").trim().split(/\r?\n/)[0].slice(0, 500);
-  emit(source, `checker exited ${run.status ?? `on signal ${run.signal}`}${detail ? `: ${detail}` : ""}`);
+// The checker's --credential-roots argument, or none when the option is unset or empty. The roots
+// name locations on the probe host, which need not exist here, so each entry is judged lexically
+// and never resolved: absolute, not a filesystem root, no ".." segment, no ephemeral-base
+// segment, and not inside the checkout or a worktree root. A root containing the checkout is allowed (/home/runner holds a
+// hosted runner's checkout).
+function credentialRootsArgs(value, roots) {
+  if (value === undefined || value.trim() === "") return [];
+  const label = "promotion_evidence_credential_roots";
+  for (const entry of value.split(",").map((e) => e.trim())) {
+    if (entry === "") emit(source, `${label} has an empty entry`);
+    const named = `${label} entry ${JSON.stringify(entry)}`;
+    const path = hostPath(entry);
+    if (path === null) emit(source, `${named} is not an absolute path`);
+    if (path.segments.includes("..")) emit(source, `${named} has a '..' segment`);
+    if (path.segments.length === 0) emit(source, `${named} names a filesystem root`);
+    for (const root of roots) {
+      const lane = hostPath(root);
+      if (lane?.anchor === path.anchor && lane.segments.every((s, n) => path.segments[n] === s)) {
+        emit(source, `${named} is inside ${root}`);
+      }
+    }
+    if (path.segments.some((s) => EPHEMERAL_SEGMENTS.has(s.toLowerCase()))) {
+      emit(source, `${named} sits under an ephemeral base (tmp, temp, shm)`);
+    }
+  }
+  return ["--credential-roots", value];
 }
 
-const lines = run.stdout.split(/\r?\n/);
-const start = lines.indexOf(BLOCK_HEADER);
-if (start === -1) emit(source, "checker printed no 'Effective promotion state' block");
+// platform, access, stat and uid are the test seam; the CLI entry below passes none.
+export function main({ platform = process.platform, ...judge } = {}) {
+  let values;
+  try {
+    ({ values } = parseArgs({
+      options: {
+        checkout: { type: "string" },
+        "worktree-root": { type: "string", multiple: true, default: [] },
+        "window-start": { type: "string" },
+      },
+      strict: true,
+      allowPositionals: false,
+    }));
+  } catch (error) {
+    emit(null, `usage: ${error.message}`);
+  }
 
-const printed = {};
-for (const line of lines.slice(start + 1)) {
-  if (line === "") continue;
-  const match = CELL_LINE.exec(line);
-  if (!match) emit(source, `checker line did not parse: ${line.slice(0, 500)}`);
-  const [, cell, bound, effective] = match;
-  if (Object.hasOwn(printed, cell)) emit(source, `checker printed ${cell} twice`);
-  printed[cell] = { bound, effective, line: line.slice(2) };
+  // This install's root, from the helper's own real path (skills/babysit-loop/scripts/ below it),
+  // never from the environment.
+  const pluginRoot = resolve(dirname(realpathSync.native(fileURLToPath(import.meta.url))), "..", "..", "..");
+  try {
+    options = readOperatorOptions(resolveInstall(pluginRoot), managedSettingsFiles());
+  } catch (error) {
+    if (!(error instanceof OptionsError)) throw error;
+    emit(null, error.message);
+  }
+  source = options.promotion_evidence_source?.value || null;
+  // The write test is not trusted on Windows (reference/promotion-evidence-bootstrap.md).
+  if (platform === "win32") emit(source, "writability-unverifiable-on-win32");
+
+  // The option's realpath, once its value and the settings file it came from are lane-unwritable.
+  const option = (key, roots) => {
+    const real = resolveInput(key, options[key]?.value, roots);
+    refuseLaneWritable(key, options[key].value, judge);
+    refuseLaneWritable(options[key].file, options[key].file, judge);
+    return real;
+  };
+
+  const checkout = resolveInput("--checkout", values.checkout, []);
+  const roots = [resolve(values.checkout), checkout];
+  for (const root of values["worktree-root"]) {
+    if (!isAbsolute(root)) emit(source, `--worktree-root ${root} is not an absolute path`);
+    roots.push(resolve(root), canonical(resolve(root)));
+  }
+
+  const checker = option("promotion_evidence_checker", roots);
+  const binding = option("promotion_evidence_binding", roots);
+  const probeRoot = option("promotion_evidence_root", roots);
+  const sourcePath = option("promotion_evidence_source", roots);
+  const evidence =
+    values["window-start"] === undefined ? sourcePath : restartedCopy(sourcePath, values["window-start"], roots);
+  // The roots name the probe host, so only the settings file that set them is judged.
+  const credentialSetting = options.promotion_evidence_credential_roots;
+  if (credentialSetting) refuseLaneWritable(credentialSetting.file, credentialSetting.file, judge);
+  const credentialRoots = credentialRootsArgs(credentialSetting?.value, roots);
+
+  const checkerEnv = Object.fromEntries(
+    CHECKER_ENV_KEYS.filter((key) => key in process.env).map((key) => [key, process.env[key]]),
+  );
+  const run = spawnSync(
+    process.execPath,
+    [checker, binding, "--evidence", evidence, "--probe-evidence-root", probeRoot, ...credentialRoots],
+    { cwd: dirname(checker), env: checkerEnv, encoding: "utf8", shell: false, timeout: TIMEOUT_MS, maxBuffer: 16 * 1024 * 1024 },
+  );
+  if (run.error) emit(source, `checker did not complete (${run.error.code ?? run.error.message})`);
+  if (run.status !== 0) {
+    const detail = (run.stderr ?? "").trim().split(/\r?\n/)[0].slice(0, 500);
+    emit(source, `checker exited ${run.status ?? `on signal ${run.signal}`}${detail ? `: ${detail}` : ""}`);
+  }
+
+  const lines = run.stdout.split(/\r?\n/);
+  const start = lines.indexOf(BLOCK_HEADER);
+  if (start === -1) emit(source, "checker printed no 'Effective promotion state' block");
+
+  const printed = {};
+  for (const line of lines.slice(start + 1)) {
+    if (line === "") continue;
+    const match = CELL_LINE.exec(line);
+    if (!match) emit(source, `checker line did not parse: ${line.slice(0, 500)}`);
+    const [, cell, bound, effective] = match;
+    if (Object.hasOwn(printed, cell)) emit(source, `checker printed ${cell} twice`);
+    printed[cell] = { bound, effective, line: line.slice(2) };
+  }
+  emit(source, null, printed);
 }
-emit(source, null, printed);
+
+function isEntry() {
+  try {
+    return realpathSync.native(process.argv[1]) === realpathSync.native(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+if (isEntry()) main();

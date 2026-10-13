@@ -303,6 +303,7 @@ class TestApi(ServerCase):
             "New rec",
             "--affects",
             "none",
+            "--keep-alternatives",
             "--seq",
             str(self.accept["seq"]),
         )
@@ -317,6 +318,7 @@ class TestApi(ServerCase):
             "New rec",
             "--affects",
             "none",
+            "--keep-alternatives",
             "--seq",
             str(self.accept["seq"]),
             "--force",
@@ -2028,6 +2030,47 @@ class OpsCase(WaitCase):
         return {q["id"]: q.get("state") for q in self.state()["questions"]["questions"]}
 
 
+class TestUpstreamStaleNamesTheCause(OpsCase):
+    """#5922: an upstream-pending question carries upstreamStale, every stale ancestor nearest
+    first and ties by id, so the page names the question to act on, not the direct parents."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("P"),
+            question("M", dependsOn=["P"]),
+            question("S"),
+            question("T", dependsOn=["M", "S"]),
+            question("N"),
+            question("Y", dependsOn=["N"]),
+            question("U", dependsOn=["T", "Y"]),
+        )
+
+    def waits(self):
+        return {
+            q["id"]: q.get("upstreamStale")
+            for q in self.state()["questions"]["questions"]
+            if q.get("state") == "upstream-pending" or q.get("upstreamStale")
+        }
+
+    def test_1_the_stale_ancestors_are_named_nearest_first(self):
+        for qid in ("M", "S", "T", "Y", "U", "P", "N"):
+            self.decide(qid)
+        self.assertEqual(self.states()["M"], "stale")
+        self.assertEqual(self.states()["Y"], "stale")
+        self.assertEqual(self.waits(), {"T": ["M"], "U": ["Y", "M"]})
+
+    def test_2_reconfirming_the_cause_clears_it(self):
+        self.decide("M")
+        self.assertEqual(self.waits(), {"U": ["Y"]})
+        self.assertEqual(self.states()["T"], "open")
+
+    def test_3_the_field_is_derived_never_written(self):
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertFalse(any("upstreamStale" in q for q in doc["questions"]))
+
+
 class TestRecChangeMarksUpstream(OpsCase):
     """A recommendation change marks each question named in affects, and each direct dependent,
     that holds a decision: stale, with the revised id as the cause, until it is answered again."""
@@ -2052,7 +2095,15 @@ class TestRecChangeMarksUpstream(OpsCase):
     def test_1_the_named_question_and_the_direct_dependent_go_stale(self):
         for qid in ("B", "C", "D"):
             self.decide(qid)
-        rc, out = self.rp("revise", "A", "--rec", "Different.", "--affects", "C")
+        rc, out = self.rp(
+            "revise",
+            "A",
+            "--rec",
+            "Different.",
+            "--affects",
+            "C",
+            "--keep-alternatives",
+        )
         self.assertEqual(rc, 0, out)
         self.assertEqual(
             self.marks(),
@@ -2073,7 +2124,15 @@ class TestRecChangeMarksUpstream(OpsCase):
     def test_3_none_still_marks_the_direct_dependents(self):
         self.decide("E")
         self.assertEqual(self.states()["E"], "open")
-        rc, out = self.rp("revise", "A", "--rec", "Once more.", "--affects", "none")
+        rc, out = self.rp(
+            "revise",
+            "A",
+            "--rec",
+            "Once more.",
+            "--affects",
+            "none",
+            "--keep-alternatives",
+        )
         self.assertEqual(rc, 0, out)
         marks = self.marks()
         self.assertEqual(marks["E"], ("stale", ["A"]))
@@ -2110,7 +2169,15 @@ class TestTerminalAnswerRightAfterARecChange(OpsCase):
         )
 
     def test_1_the_later_write_wins_the_tie(self):
-        rc, out = self.rp("revise", "A", "--rec", "Different.", "--affects", "none")
+        rc, out = self.rp(
+            "revise",
+            "A",
+            "--rec",
+            "Different.",
+            "--affects",
+            "none",
+            "--keep-alternatives",
+        )
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["B"], "stale")
         rc, out = self.rp("record-terminal", "B", "--decision", "accept")

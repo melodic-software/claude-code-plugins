@@ -51,6 +51,18 @@ MSYS_NO_PATHCONV=1 ctx7 docs "<libraryId>" "<query>"
 mcp__context7__query-docs(libraryId: "/org/project", query: "<query>")
 ```
 
+When you know the language the user writes in, run `ctx7 docs --help` once per session; pass `--language <name>` only if that output lists it, and omit it otherwise, so an older install still answers:
+
+```bash
+MSYS_NO_PATHCONV=1 ctx7 docs /websites/twilio "How to send an SMS" --language Ruby
+```
+
+- **Pointer**: when deciding whether `--language` exists and what it changes, read the installed
+  CLI's `ctx7 docs --help` output live (the probe above).
+- **As of**: 2026-10-13
+- **Recheck trigger**: that help output renames or drops `--language`, or this plugin starts
+  requiring a minimum `ctx7` version, which would let the probe go.
+
 ### Version-specific IDs
 
 If the user mentions a specific version, use the version-specific ID:
@@ -76,7 +88,7 @@ Query quality directly affects results. Be specific and include relevant details
 | Bad | `"hooks"` |
 | Bad | `"tracking"` |
 
-Distill the user's question into a focused query: keep the details that describe the library problem, drop everything else. A `NullReferenceException` trace from change-tracking code becomes `"EF Core DbContext change tracking null reference"`. Vague one-word queries return generic results.
+Describe what to look up in the library's documentation, not the task to complete. Distill the user's question into a focused query: keep the details that describe the library problem, drop everything else. A `NullReferenceException` trace from change-tracking code becomes `"EF Core DbContext change tracking null reference"`. Vague one-word queries return generic results.
 
 Keep each query to a **single concept**. When a prompt asks about several independent topics, split them and run a separate `docs` / `query-docs` lookup per topic. A combined query dilutes ranking and returns shallow results for every topic. Combine concepts in one query only when the question is about how they interact (e.g. `"Next.js middleware with NextAuth session validation"`).
 

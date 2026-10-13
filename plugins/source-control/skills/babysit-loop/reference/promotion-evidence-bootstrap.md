@@ -13,7 +13,7 @@ on launch lines; lifting it is the owner's call after Phase 3 of the plan.
 ## Contents
 
 - [Allowed source class](#allowed-source-class)
-- [The four surfaces](#the-four-surfaces)
+- [The options](#the-options)
 - [Value shape](#value-shape)
 - [Out of scope](#out-of-scope)
 - [Verification record](#verification-record)
@@ -25,7 +25,7 @@ org-level platform configuration outside repo blast radius, or the executor's tr
 config
 ([`setup/SKILL.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/SKILL.md)
 "Agent-unwritable bootstrap for security resolution", not restated here). The lane receives their
-locations through the four plugin options below. Claude Code reads plugin options from user
+locations through the plugin options below. Claude Code reads plugin options from user
 settings, the `--settings` flag, and managed settings only, and ignores a project's
 `.claude/settings.json` for them
 ([hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-config-delivery/README.md)
@@ -52,7 +52,7 @@ So a stub checker or forged surface the lane keeps outside the checkout cannot s
 operator's value: the helper rejects path arguments, and the environment mirror and repository
 files never reach it. What the helper cannot see reads as unset and fails closed: a value supplied
 only through a session's `--settings` file, a server-managed (remote) policy, or an MDM policy.
-Configure the four options in managed settings or user settings.
+Configure the options in managed settings or user settings.
 
 The helper can also read a managed file Claude Code itself skips. When a higher-ranked managed
 source (a remote policy, or an MDM or HKLM policy) delivers policy keys, Claude Code by default
@@ -61,7 +61,7 @@ uses that source and ignores the managed settings files
 "How Claude Code combines managed sources", as of 2026-10-11; recheck when that section or the
 `managedSourcesBehavior` default changes). The helper sees only the files, so on such a host a
 stale `managed-settings.json` the harness no longer applies can still supply these options. Keep the
-four options out of managed files on a host whose policy comes from a remote or MDM source, or
+options out of managed files on a host whose policy comes from a remote or MDM source, or
 remove the stale file.
 
 The helper trusts its own location and the Node process it runs in. A lane that runs a copy of the
@@ -89,7 +89,7 @@ directory itself is not writable by the lane's identity (the managed settings pa
 WSL `/etc/claude-code` is user-writable). Whether a deployment meets the requirement is the operator's to establish. This
 file states the requirement and does not certify a deployment.
 
-## The four surfaces
+## The options
 
 | Option | The helper passes it to the checker as | What it names |
 |---|---|---|
@@ -97,8 +97,9 @@ file states the requirement and does not certify a deployment.
 | `promotion_evidence_root` | `--probe-evidence-root <dir>` | directory: the protected evidence surface |
 | `promotion_evidence_source` | `--evidence <evidence.json>` | file: epoch-scoped promotion-evidence events |
 | `promotion_evidence_checker` | (the program it runs) | file: the `check-security-binding.mjs` that decides promoted |
+| `promotion_evidence_credential_roots` (optional) | `--credential-roots <path,path,...>`, only when set | the probe host's trusted credential locations |
 
-The checker's `Usage:` comment, and its `usage:` error message, list its three arguments
+The checker's `Usage:` comment, and its `usage:` error message, list its arguments
 ([`check-security-binding.mjs`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/scripts/check-security-binding.mjs)).
 
 ### `promotion_evidence_binding`
@@ -155,6 +156,21 @@ Agent-unwritable, because the helper runs it and reads its verdict as the resolu
 the lane or an agent can write, or can point at, prints `bound promoted -> effective promoted` for
 any cell. Outside the target repository's blast radius, for the same reason as the binding.
 
+### `promotion_evidence_credential_roots`
+
+The credential locations the checker trusts on the host the isolation probe ran on. The checker
+counts a filesystem credential probe as proof of credential absence only when the probed path sits
+under one of these roots; with none, it treats every such probe as unproven (its
+`--credential-roots` header comment owns the rule). Unset, the helper passes no
+`--credential-roots`, so a binding whose L2/L3 isolation entries rest on filesystem credential
+probes resolves every cell effective-unpromoted. Bounded probes (a cloud metadata route, a
+well-known credential variable) need no roots.
+
+The value is a comma-separated list. The paths name the probe host, not the lane's, and need not
+exist where the lane runs, so the helper judges each entry as text and never resolves it. What
+must be unwritable is the settings file that holds the value: an agent that can edit it can add a
+root the probe never covered.
+
 ## Value shape
 
 Each option holds one local filesystem path and has no default. Unset means the bootstrap is
@@ -169,7 +185,26 @@ absent. A set value is compliant only when it is:
   anywhere beneath it would resolve as evidence.
 - **Read-only to the lane.** The lane's identity can read the surface and cannot write it. That is
   a property of the host (ownership, an ACL, a read-only mount, an executor-owned volume). A path
-  string cannot show it, so the operator establishes it in how the surface is provisioned.
+  string cannot show it, so the operator establishes it in how the surface is provisioned. The
+  helper refuses what it can see of the opposite: a value, or a settings file that supplied one,
+  that the lane user can write or owns, at the path or any directory above it, as given or after
+  symlinks resolve (`lane-writable:<option or file>`), so a user settings file in the lane user's
+  own config directory never qualifies. On Windows the helper does not trust that test and
+  refuses every call (`writability-unverifiable-on-win32`): Windows hosts run the lane attended.
+  A usage error or a settings file that cannot be read reports its own reason first. Pointer for
+  the Windows decision: the Windows ACL note under
+  [Node.js `fs.access(path[, mode], callback)`](https://nodejs.org/api/fs.html#fsaccesspath-mode-callback),
+  which the helper's write test calls. As of 2026-10-13 (Node.js v26 docs). Recheck trigger: that
+  note changes what the access test reports for a path an ACL restricts.
+
+`promotion_evidence_credential_roots` differs: it is optional, empty reads as unset, and it holds a
+comma-separated list of probe-host paths. Each entry must be absolute (`/...` or a drive path such
+as `C:\...`, never a `//` share), must not be a filesystem root, must have no `..` segment, must
+not sit under an ephemeral base (any `tmp`, `temp` or `shm` segment, in any case: `/tmp`,
+`/var/tmp`, `/dev/shm`, `C:\Temp`, a Windows `%TEMP%`; the checker refuses a probe expanded there
+for the same reason), and must not be inside the checkout or a worktree root. The checks are lexical, with no symlink
+resolution. A root that contains the checkout is allowed: a hosted runner's home holds its
+checkout. A bad entry fails closed under a reason naming it.
 
 ## Out of scope
 
@@ -179,10 +214,6 @@ absent. A set value is compliant only when it is:
   agent-writable surface.
 - Lifting `--merge human-only`. Operators keep it on launch lines whether or not the bootstrap is
   present; lifting it is the owner's call after Phase 3 of the plan.
-- A `--credential-roots` surface. The lane passes the checker none, so a binding whose L2/L3
-  isolation entries rest on filesystem credential probes is rejected by the checker and every cell
-  resolves effective-unpromoted. The phased plan is in
-  [`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md).
 
 ## Verification record
 
@@ -206,12 +237,14 @@ absent. A set value is compliant only when it is:
 - **Claim:** the checker leaves an L2/L3 entry unproven, with a reason beginning
   `no --credential-roots configured`, when a filesystem credential probe is evaluated and the
   `--credential-roots` argument is absent. The lane's helper passes the checker the binding,
-  `--evidence`, and `--probe-evidence-root` only, and a checker exit of 1 fails the helper closed.
+  `--evidence`, and `--probe-evidence-root`, plus `--credential-roots` when
+  `promotion_evidence_credential_roots` is set and every entry passes its lexical checks; a bad
+  entry, or a checker exit of 1, fails the helper closed.
 - **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (`Usage:` comment,
   the `credentialRoots === null` branch of the credential-probe check, `verifyProbeTranscript`);
-  `plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs` (the
-  `spawnSync` argv and the non-zero-exit branch), checked 2026-10-01.
-- **As of:** 2026-10-01.
+  `plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs`
+  (`credentialRootsArgs`, the `spawnSync` argv and the non-zero-exit branch), checked 2026-10-13.
+- **As of:** 2026-10-13.
 - **Recheck:** the checker gaining a default for credential roots, or the helper passing more
   arguments.
 
@@ -231,8 +264,8 @@ absent. A set value is compliant only when it is:
 - **Recheck:** the checker's print format changing, or the decoupling rule changing.
 
 - **Claim:** the helper takes no bootstrap value as an argument or from the environment. It reads
-  the four options from the managed settings files and the install-anchored user `settings.json`,
-  managed winning per option, and fails closed when an option is unset there, a source exists but
+  the options from the managed settings files and the install-anchored user `settings.json`,
+  managed winning per option, and fails closed when a required option is unset there, a source exists but
   cannot be read or parsed, its `pluginConfigs`, this plugin's entry or its `options` is not an
   object, or a value is
   not a string (`null` included). A lane-chosen checker or binding passed as

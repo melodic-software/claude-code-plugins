@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "./operator-options.mjs";
+import { laneWritable } from "./resolve-promotion-evidence.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CELLS = ["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"];
@@ -30,6 +31,32 @@ for (const name of ["resolve-promotion-evidence.mjs", "operator-options.mjs"]) c
 const HELPER = join(installScripts, "resolve-promotion-evidence.mjs");
 const userSettings = join(config, "settings.json");
 
+// The test seam: a wrapper beside the installed helper that runs its main() with an injected
+// platform and owner test, so a case does not depend on who owns the temp files. A path listed in
+// `owned` is the lane user's (uid 1000), everything else an administrator's (uid 0), and access()
+// grants nothing.
+let seamCount = 0;
+// A path listed in `denied` throws EACCES from stat().
+function seam({ platform = "linux", owned = [], denied = [] } = {}) {
+  seamCount += 1;
+  const path = join(installScripts, `seam-${seamCount}.mjs`);
+  writeFileSync(
+    path,
+    `import { main } from "./resolve-promotion-evidence.mjs";
+const owned = ${JSON.stringify(owned)};
+const denied = ${JSON.stringify(denied)};
+function stat(p) {
+  if (denied.includes(p)) throw Object.assign(new Error("denied"), { code: "EACCES" });
+  return { uid: owned.includes(p) ? 1000 : 0 };
+}
+main({ platform: ${JSON.stringify(platform)}, uid: 1000, access: () => false, stat });
+`,
+  );
+  return path;
+}
+// Every surface and settings file administrator-owned, so the writability check passes.
+const ADMIN = seam();
+
 // The CLI cases read the host's real managed settings; one that configures these options would
 // decide the result, so they skip on such a host.
 const managedConfigures = managedSettingsFiles().some((file) => {
@@ -42,11 +69,11 @@ const managedConfigures = managedSettingsFiles().some((file) => {
 const cli = { skip: managedConfigures && "host managed settings configure promotion_evidence_* options" };
 
 let stubCount = 0;
-// A stub checker that exits 9 unless it got exactly the bootstrap argv.
-function stub(stdout, exitCode = 0, dir = ops) {
+// A stub checker that exits 9 unless it got exactly the bootstrap argv, plus `extra`.
+function stub(stdout, exitCode = 0, dir = ops, extra = []) {
   stubCount += 1;
   const path = join(dir, `checker-${stubCount}.mjs`);
-  const expected = [surfaces.binding, "--evidence", surfaces.evidence, "--probe-evidence-root", surfaces.root];
+  const expected = [surfaces.binding, "--evidence", surfaces.evidence, "--probe-evidence-root", surfaces.root, ...extra];
   writeFileSync(
     path,
     `if (JSON.stringify(process.argv.slice(2)) !== ${JSON.stringify(JSON.stringify(expected))}) process.exit(9);
@@ -72,10 +99,10 @@ function operatorOptions(checker, overrides = {}) {
   };
 }
 
-function runHelper({ args = {}, env = {} } = {}) {
+function runHelper({ args = {}, env = {}, helper = ADMIN } = {}) {
   const argv = Object.entries({ checkout, ...args }).flatMap(([key, value]) => [`--${key}`, value]);
   const injected = { NODE_PATH: checkout, LD_PRELOAD: checkout, GIT_DIR: checkout, CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_BINDING: checkout };
-  const run = spawnSync(process.execPath, [HELPER, ...argv], {
+  const run = spawnSync(process.execPath, [helper, ...argv], {
     encoding: "utf8",
     cwd: checkout,
     env: { ...process.env, ...injected, ...env },
@@ -116,6 +143,41 @@ test("operator settings bootstrap reports the printed cells and leaves an unprin
   });
   assert.equal(result.cells["C3-auto-merge"].effective, "unpromoted");
   assert.deepEqual(result.cells["C3-ai-review-blocking"], { bound: null, effective: "unpromoted", line: null });
+  // Unset credential roots are not a fail-closed reason: the exact-argv stub saw no flag.
+  assert.equal(result.options.promotion_evidence_credential_roots, undefined);
+});
+
+const ROOTS = "/home/runner, C:\\Users\\runner\\.aws,/nonexistent-probe-host/creds";
+const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+test("set credential roots reach the checker as --credential-roots and are reported in options", cli, () => {
+  // The roots name the probe host, so a path absent on this host is still accepted.
+  const checker = stub(GOOD_OUTPUT, 0, ops, ["--credential-roots", ROOTS]);
+  const result = runWith(checker, { promotion_evidence_credential_roots: ROOTS });
+  assert.equal(result.failClosedReason, null);
+  assert.equal(result.cells["C2-auto-merge"].effective, "promoted");
+  assert.deepEqual(result.options.promotion_evidence_credential_roots, { value: ROOTS, scope: "user", file: userSettings });
+});
+
+test("a relative, root, dot-dot, empty or checkout-inside credential root fails closed", cli, () => {
+  const checker = stub(GOOD_OUTPUT, 0, ops, ["--credential-roots", "unused"]);
+  const worktrees = join(ops, "worktrees");
+  const reason = (value, problem) => new RegExp(`promotion_evidence_credential_roots entry ${escapeRe(JSON.stringify(value))} ${problem}`);
+  const cases = [
+    ["home/runner", reason("home/runner", "is not an absolute path")],
+    ["//server/share", reason("//server/share", "is not an absolute path")],
+    ["/", reason("/", "names a filesystem root")],
+    ["/home/runner,C:\\", reason("C:\\", "names a filesystem root")],
+    ["/home/runner/../../etc", reason("/home/runner/../../etc", "has a '\\.\\.' segment")],
+    ["/home/runner,,/run/secrets", /promotion_evidence_credential_roots has an empty entry/],
+    [`/home/runner,${join(checkout, "creds")}`, reason(join(checkout, "creds"), "is inside .*checkout")],
+    [checkout, reason(checkout, "is inside .*checkout")],
+    [join(worktrees, "w1", ".aws"), reason(join(worktrees, "w1", ".aws"), "is inside .*worktrees")],
+  ];
+  for (const [value, pattern] of cases) {
+    const result = runWith(checker, { promotion_evidence_credential_roots: value }, { args: { "worktree-root": worktrees } });
+    assertFailClosed(result, pattern);
+  }
 });
 
 test("a lane-chosen stub checker or forged binding outside the checkout no longer yields promoted", cli, () => {
@@ -192,7 +254,7 @@ test("a missing, empty or malformed --window-start fails closed", cli, () => {
     assertFailClosed(runWith(checker, {}, { args: { "window-start": bad } }), /--window-start .* is not an ISO 8601/);
   }
   writeSettings(operatorOptions(checker));
-  const run = spawnSync(process.execPath, [HELPER, "--checkout", checkout, "--window-start"], { encoding: "utf8", cwd: checkout });
+  const run = spawnSync(process.execPath, [ADMIN, "--checkout", checkout, "--window-start"], { encoding: "utf8", cwd: checkout });
   assertFailClosed(JSON.parse(run.stdout), /usage: /);
 });
 
@@ -263,6 +325,106 @@ test("garbled checker output fails closed", cli, () => {
   const garbled = GOOD_OUTPUT.replace("effective promoted", "effective maybe");
   assertFailClosed(runWith(stub(garbled)), /did not parse/);
   assertFailClosed(runWith(stub("Security binding OK: binding.json\n")), /no 'Effective promotion state' block/);
+});
+
+// A failing read under an ephemeral base proves nothing about the host's credential store.
+for (const base of [
+  "/tmp",
+  "/tmp/creds",
+  "/var/tmp/creds",
+  "/dev/shm",
+  "/dev/shm/creds",
+  "C:\\Temp",
+  "C:\\TEMP\\creds",
+  "C:\\Users\\runner\\AppData\\Local\\Temp\\creds",
+]) {
+  test(`credential root ${base} under an ephemeral base fails closed`, cli, () => {
+    const checker = stub(GOOD_OUTPUT, 0, ops, ["--credential-roots", "unused"]);
+    const result = runWith(checker, { promotion_evidence_credential_roots: `/home/runner,${base}` });
+    const named = escapeRe(JSON.stringify(base));
+    assertFailClosed(result, new RegExp(`promotion_evidence_credential_roots entry ${named} sits under an ephemeral base`));
+  });
+}
+
+test("the real helper refuses a user-scope surface the test user owns", cli, () => {
+  // No seam: every file this suite created is the test user's own, so the first surface the
+  // helper judges, the checker, is lane-writable.
+  assertFailClosed(runWith(stub(GOOD_OUTPUT), {}, { helper: HELPER }), /^lane-writable:promotion_evidence_checker$/);
+});
+
+test("a surface the lane user owns, or a directory above it, fails closed naming the option", cli, () => {
+  const checker = stub(GOOD_OUTPUT);
+  for (const [option, owned] of [
+    ["promotion_evidence_checker", checker],
+    ["promotion_evidence_checker", ops],
+    ["promotion_evidence_binding", surfaces.binding],
+    ["promotion_evidence_root", surfaces.root],
+    ["promotion_evidence_source", surfaces.evidence],
+  ]) {
+    assertFailClosed(runWith(checker, {}, { helper: seam({ owned: [owned] }) }), new RegExp(`^lane-writable:${option}$`));
+  }
+});
+
+test("a settings file the lane user owns, or a directory above it, fails closed naming the file", cli, () => {
+  for (const owned of [userSettings, config]) {
+    const result = runWith(stub(GOOD_OUTPUT), {}, { helper: seam({ owned: [owned] }) });
+    assertFailClosed(result, new RegExp(`^lane-writable:${escapeRe(userSettings)}$`));
+  }
+});
+
+test("on win32 the helper fails closed without judging any surface", cli, () => {
+  // The checker is lane-owned, so a surface judged first would report lane-writable instead.
+  const checker = stub(GOOD_OUTPUT);
+  assertFailClosed(runWith(checker, {}, { helper: seam({ platform: "win32", owned: [checker] }) }), /^writability-unverifiable-on-win32$/);
+});
+
+test("a directory whose owner cannot be read fails closed as unverifiable", cli, () => {
+  assertFailClosed(
+    runWith(stub(GOOD_OUTPUT), {}, { helper: seam({ denied: [ops] }) }),
+    /^writability-unverifiable:promotion_evidence_checker \(EACCES\)$/,
+  );
+});
+
+test("administrator-owned surfaces and settings pass the writability check", cli, () => {
+  const result = runWith(stub(GOOD_OUTPUT), {}, { helper: ADMIN });
+  assert.equal(result.failClosedReason, null);
+  assert.equal(result.cells["C2-auto-merge"].effective, "promoted");
+});
+
+// The rule babysit_merge_policy.py _lane_writable states: lane-writable when the lane can write,
+// or owns, the path or any directory above it, as given or after symlinks resolve.
+const ownedBy = (...dirs) => ({ uid: 1000, access: () => false, stat: (p) => ({ uid: dirs.includes(p) ? 1000 : 0 }) });
+
+test("laneWritable: the path or any directory above it owned by the lane user", () => {
+  assert.equal(laneWritable(surfaces.binding, ownedBy(base)), true);
+  assert.equal(laneWritable(surfaces.binding, ownedBy(surfaces.binding)), true);
+  assert.equal(laneWritable(surfaces.binding, ownedBy()), false);
+});
+
+test("laneWritable: a directory above the path the lane can write", () => {
+  assert.equal(laneWritable(surfaces.binding, { ...ownedBy(), access: (p) => p === ops }), true);
+});
+
+test("laneWritable: a symlink resolving into a lane-owned directory", () => {
+  const owned = mkdtempSync(join(base, "owned-"));
+  writeFileSync(join(owned, "binding.json"), "{}");
+  const link = join(ops, "binding-link.json");
+  symlinkSync(join(owned, "binding.json"), link);
+  assert.equal(laneWritable(link, ownedBy(owned)), true);
+  assert.equal(laneWritable(link, ownedBy()), false);
+});
+
+test("laneWritable: a '..' path judges the directories it names as given", () => {
+  // Python's Path.absolute() keeps "..", so _lane_writable walks <owned>/.. and <owned>; a
+  // normalized or resolved walk never visits <owned>.
+  const owned = mkdtempSync(join(base, "dotdot-"));
+  const path = `${owned}/../ops/binding.json`;
+  assert.equal(laneWritable(path, ownedBy(owned)), true);
+  assert.equal(laneWritable(path, ownedBy()), false);
+});
+
+test("laneWritable: a missing path throws", () => {
+  assert.throws(() => laneWritable(join(ops, "absent.json"), ownedBy()), { code: "ENOENT" });
 });
 
 test("resolveInstall anchors only the plugins/cache/<marketplace>/<name>/<version> layout", () => {
