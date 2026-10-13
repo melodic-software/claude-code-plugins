@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "./operator-options.mjs";
+import { laneWritable } from "./resolve-promotion-evidence.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CELLS = ["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"];
@@ -29,6 +30,26 @@ mkdirSync(installScripts, { recursive: true });
 for (const name of ["resolve-promotion-evidence.mjs", "operator-options.mjs"]) copyFileSync(join(HERE, name), join(installScripts, name));
 const HELPER = join(installScripts, "resolve-promotion-evidence.mjs");
 const userSettings = join(config, "settings.json");
+
+// The test seam: a wrapper beside the installed helper that runs its main() with an injected
+// platform and owner test, so a case does not depend on who owns the temp files. A path listed in
+// `owned` is the lane user's (uid 1000), everything else an administrator's (uid 0), and access()
+// grants nothing.
+let seamCount = 0;
+function seam({ platform = "linux", owned = [] } = {}) {
+  seamCount += 1;
+  const path = join(installScripts, `seam-${seamCount}.mjs`);
+  writeFileSync(
+    path,
+    `import { main } from "./resolve-promotion-evidence.mjs";
+const owned = ${JSON.stringify(owned)};
+main({ platform: ${JSON.stringify(platform)}, uid: 1000, access: () => false, stat: (p) => ({ uid: owned.includes(p) ? 1000 : 0 }) });
+`,
+  );
+  return path;
+}
+// Every surface and settings file administrator-owned, so the writability check passes.
+const ADMIN = seam();
 
 // The CLI cases read the host's real managed settings; one that configures these options would
 // decide the result, so they skip on such a host.
@@ -72,10 +93,10 @@ function operatorOptions(checker, overrides = {}) {
   };
 }
 
-function runHelper({ args = {}, env = {} } = {}) {
+function runHelper({ args = {}, env = {}, helper = ADMIN } = {}) {
   const argv = Object.entries({ checkout, ...args }).flatMap(([key, value]) => [`--${key}`, value]);
   const injected = { NODE_PATH: checkout, LD_PRELOAD: checkout, GIT_DIR: checkout, CLAUDE_PLUGIN_OPTION_PROMOTION_EVIDENCE_BINDING: checkout };
-  const run = spawnSync(process.execPath, [HELPER, ...argv], {
+  const run = spawnSync(process.execPath, [helper, ...argv], {
     encoding: "utf8",
     cwd: checkout,
     env: { ...process.env, ...injected, ...env },
@@ -226,7 +247,7 @@ test("a missing, empty or malformed --window-start fails closed", cli, () => {
     assertFailClosed(runWith(checker, {}, { args: { "window-start": bad } }), /--window-start .* is not an ISO 8601/);
   }
   writeSettings(operatorOptions(checker));
-  const run = spawnSync(process.execPath, [HELPER, "--checkout", checkout, "--window-start"], { encoding: "utf8", cwd: checkout });
+  const run = spawnSync(process.execPath, [ADMIN, "--checkout", checkout, "--window-start"], { encoding: "utf8", cwd: checkout });
   assertFailClosed(JSON.parse(run.stdout), /usage: /);
 });
 
@@ -317,6 +338,69 @@ for (const base of [
     assertFailClosed(result, new RegExp(`promotion_evidence_credential_roots entry ${named} sits under an ephemeral base`));
   });
 }
+
+test("the real helper refuses a user-scope surface the test user owns", cli, () => {
+  // No seam: every file this suite created is the test user's own, so the first surface the
+  // helper judges, the checker, is lane-writable.
+  assertFailClosed(runWith(stub(GOOD_OUTPUT), {}, { helper: HELPER }), /^lane-writable:promotion_evidence_checker$/);
+});
+
+test("a surface the lane user owns, or a directory above it, fails closed naming the option", cli, () => {
+  const checker = stub(GOOD_OUTPUT);
+  for (const [option, owned] of [
+    ["promotion_evidence_checker", checker],
+    ["promotion_evidence_checker", ops],
+    ["promotion_evidence_binding", surfaces.binding],
+    ["promotion_evidence_root", surfaces.root],
+    ["promotion_evidence_source", surfaces.evidence],
+  ]) {
+    assertFailClosed(runWith(checker, {}, { helper: seam({ owned: [owned] }) }), new RegExp(`^lane-writable:${option}$`));
+  }
+});
+
+test("a settings file the lane user owns, or a directory above it, fails closed naming the file", cli, () => {
+  for (const owned of [userSettings, config]) {
+    const result = runWith(stub(GOOD_OUTPUT), {}, { helper: seam({ owned: [owned] }) });
+    assertFailClosed(result, new RegExp(`^lane-writable:${RegExp.escape(userSettings)}$`));
+  }
+});
+
+test("on win32 the helper fails closed without judging any surface", cli, () => {
+  assertFailClosed(runWith(stub(GOOD_OUTPUT), {}, { helper: seam({ platform: "win32" }) }), /^writability-unverifiable-on-win32$/);
+});
+
+test("administrator-owned surfaces and settings pass the writability check", cli, () => {
+  const result = runWith(stub(GOOD_OUTPUT), {}, { helper: ADMIN });
+  assert.equal(result.failClosedReason, null);
+  assert.equal(result.cells["C2-auto-merge"].effective, "promoted");
+});
+
+// The rule babysit_merge_policy.py _lane_writable states: lane-writable when the lane can write,
+// or owns, the path or any directory above it, as given or after symlinks resolve.
+const ownedBy = (...dirs) => ({ uid: 1000, access: () => false, stat: (p) => ({ uid: dirs.includes(p) ? 1000 : 0 }) });
+
+test("laneWritable: the path or any directory above it owned by the lane user", () => {
+  assert.equal(laneWritable(surfaces.binding, ownedBy(base)), true);
+  assert.equal(laneWritable(surfaces.binding, ownedBy(surfaces.binding)), true);
+  assert.equal(laneWritable(surfaces.binding, ownedBy()), false);
+});
+
+test("laneWritable: a directory above the path the lane can write", () => {
+  assert.equal(laneWritable(surfaces.binding, { ...ownedBy(), access: (p) => p === ops }), true);
+});
+
+test("laneWritable: a symlink resolving into a lane-owned directory", () => {
+  const owned = mkdtempSync(join(base, "owned-"));
+  writeFileSync(join(owned, "binding.json"), "{}");
+  const link = join(ops, "binding-link.json");
+  symlinkSync(join(owned, "binding.json"), link);
+  assert.equal(laneWritable(link, ownedBy(owned)), true);
+  assert.equal(laneWritable(link, ownedBy()), false);
+});
+
+test("laneWritable: a missing path throws", () => {
+  assert.throws(() => laneWritable(join(ops, "absent.json"), ownedBy()), { code: "ENOENT" });
+});
 
 test("resolveInstall anchors only the plugins/cache/<marketplace>/<name>/<version> layout", () => {
   assert.deepEqual(resolveInstall("/home/u/.claude/plugins/cache/mkt/source-control/1.2.3"), {

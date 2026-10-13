@@ -185,7 +185,13 @@ absent. A set value is compliant only when it is:
   anywhere beneath it would resolve as evidence.
 - **Read-only to the lane.** The lane's identity can read the surface and cannot write it. That is
   a property of the host (ownership, an ACL, a read-only mount, an executor-owned volume). A path
-  string cannot show it, so the operator establishes it in how the surface is provisioned.
+  string cannot show it, so the operator establishes it in how the surface is provisioned. The
+  helper refuses what it can see of the opposite: a value, or a settings file that supplied one,
+  that the lane user can write or owns, at the path or any directory above it, as given or after
+  symlinks resolve (`lane-writable:<option or file>`), so a user settings file in the lane user's
+  own config directory never qualifies. On Windows
+  it cannot read an ACL, so the helper refuses every call there
+  (`writability-unverifiable-on-win32`): Windows hosts run the lane attended.
 
 `promotion_evidence_credential_roots` differs: it is optional, empty reads as unset, and it holds a
 comma-separated list of probe-host paths. Each entry must be absolute (`/...` or a drive path such

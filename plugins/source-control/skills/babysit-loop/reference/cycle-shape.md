@@ -54,7 +54,9 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    `worktrees/`), or contains the checkout or a worktree root, whether or not a worktree exists
    there yet, with the compliant fix [the contract](promotion-evidence-bootstrap.md)
    gives. Whether the lane can write a surface is a
-   host property this check cannot see, so it never reports one compliant on that ground. The
+   host property this check does not test, so it never reports one compliant on that ground; step
+   3's helper tests it and fails closed on a lane-writable surface or settings file, and on any
+   Windows host. The
    check changes no rung, gate, or withholding, reads no repo-local file, and does not invoke the
    checker; step 3 does, and only when this check found no problem. A problem it finds leaves every
    promotable cell effective-unpromoted, because step 3 then skips the invocation, and step 3
@@ -144,7 +146,10 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    [the contract](promotion-evidence-bootstrap.md#allowed-source-class)), so the lane passes no
    surface or checker path; it rejects the retired `--binding`, `--probe-evidence-root`,
    `--evidence` and `--checker` arguments as a usage error. It refuses a path inside the checkout
-   or a worktree root, or containing one. It prints `{source, failClosedReason, options, cells}`,
+   or a worktree root, or containing one. It refuses a surface, checker or supplying settings file
+   the lane user can write, or owns, at the path or any directory above it
+   (`lane-writable:<option or file>`), and every call on Windows, where that test cannot read an
+   ACL (`writability-unverifiable-on-win32`). It prints `{source, failClosedReason, options, cells}`,
    `options` naming the settings file each value came from, and exits 0. Decide each cell from
    `cells` with the resolution table: it is effective-promoted
    only when `failClosedReason` is null and its `effective` is `promoted`. A fail-closed reason, a
