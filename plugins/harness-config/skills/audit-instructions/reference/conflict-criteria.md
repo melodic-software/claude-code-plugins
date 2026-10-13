@@ -16,8 +16,8 @@
 - [Worked examples](#worked-examples)
 - [Output format](#output-format)
 
-Version: 1.6.2
-Last updated: 2026-09-29
+Version: 1.7.0
+Last updated: 2026-10-11
 
 **The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
 definition: what a cross-surface conflict *is*, its comparison set, its import and symlink
@@ -39,7 +39,7 @@ that ledger's recheck fires.
 The three shared axes (evidence tier, authority, severity) are defined once in
 [criteria.md](criteria.md) and are not restated here.
 
-**Recheck triggers.** Re-verify against live docs when any fires: a change to the memory page's
+**Recheck triggers** (as of 2026-10-11). Re-verify against live docs when any fires: a change to the memory page's
 precedence or load-order text; a change to the skills page's statements about instruction authority;
 any new instruction surface added to the product; a change to how permission rules or permission
 modes remove a tool from Claude's pool; a change to **which hook events inject handler output into
@@ -52,20 +52,23 @@ does not cite, needs no recheck, because the partition itself is never restated 
 
 ## Sources
 
-Every precedence claim below is quoted from a page fetched when this file was written. A claim these
-pages do not make is recorded as unresolved and given no winner.
+Every residency and precedence decision below points at the section it rests on, and the pass reads
+that section live when it runs. A claim these pages do not make is recorded as unresolved and given
+no winner. The pages, each entered through the section most of this file cites:
 
 - Memory, covering CLAUDE.md, a natively read `AGENTS.md`, `.claude/rules/`, and auto memory:
-  <https://code.claude.com/docs/en/memory>
-- Skills: <https://code.claude.com/docs/en/skills>
-- Subagents, covering what loads into a subagent at startup: <https://code.claude.com/docs/en/sub-agents>
-- Output styles, covering how a style reaches the system prompt: <https://code.claude.com/docs/en/output-styles>
+  [how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load)
+- Skills: [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)
+- Subagents, covering what loads into a subagent at startup:
+  [what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
+- Output styles, covering how a style reaches the system prompt:
+  [how output styles work](https://code.claude.com/docs/en/output-styles#how-output-styles-work)
 - Permissions, covering how deny rules and permission modes remove a tool:
-  <https://code.claude.com/docs/en/permissions>
+  [manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions)
 - Hooks, covering handler types, which events inject handler output into context, `additionalContext`,
-  and exit-code semantics: <https://code.claude.com/docs/en/hooks>
-- Context window, covering what survives compaction and which hook output reaches Claude:
-  <https://code.claude.com/docs/en/context-window>
+  and exit-code semantics: [hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields)
+- Context window, covering what survives compaction:
+  [what survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction)
 
 ## Boundary: what C6's population actually is
 
@@ -133,31 +136,40 @@ enumerable request corpus is filed as its own artifact.
 A conflict requires both directives to be in the same context window at the same time. Matching text
 shapes without this gate produces noise, because most surface pairs never co-load.
 
-| Surface | When resident | Source |
+| Surface | When resident | Where to read the residency live |
 |---|---|---|
-| User `CLAUDE.md` | Every session, in full | memory: "CLAUDE.md files are loaded in full regardless of length" |
-| Project `CLAUDE.md` / `CLAUDE.local.md` | Every session in that tree, concatenated after user scope | memory: "All discovered files are concatenated into context rather than overriding each other" |
-| Project `AGENTS.md` / `.claude/AGENTS.md`, where no `CLAUDE.md` name displaces it, **and, under `claude-md-and-agents-md`, even where one does**, in both cases only where the session reads `AGENTS.md` natively at all | Every session in that tree | memory: "At session start: every `AGENTS.md` and `.claude/AGENTS.md` in your working directory and the directories above it"; for the both-files mode, "each directory's `CLAUDE.md` files first and its `AGENTS.md` after them" |
-| Nested `CLAUDE.md` in a subdirectory | On demand, when Claude reads a file there | memory: "they are included when Claude reads files in those subdirectories" |
-| `.claude/rules/*` without `paths` | Every session | memory: "loaded at launch with the same priority as `.claude/CLAUDE.md`" |
-| `.claude/rules/*` with `paths` | Only when a matching file is read | memory: "only apply when Claude is working with files matching the specified patterns" |
-| Skill body | Only once invoked, then for the rest of the session | skills: "a skill's body loads only when it's used" |
-| Auto memory `MEMORY.md` | Every **main** session, first 200 lines or 25KB, and **not** in a subagent, except a fork | memory: "The main conversation's auto memory isn't loaded into subagents; the exception is a fork" |
-| A subagent's **own** auto memory `MEMORY.md` (its `memory` field) | Every dispatch of **that** subagent, first 200 lines or 25KB, never the main session, and never another agent's | subagents: the field "gives the subagent a persistent directory"; its system prompt "includes the first 200 lines or 25KB of `MEMORY.md` in the memory directory"; memory: "A subagent's own auto memory, enabled with the subagent `memory` field, is a separate directory" |
-| Skill bundled `reference/`, `context/` file | Only when Claude reads it | skills: "letting Claude access detailed reference material only when needed" |
-| Agent definition (its own subagent) | Always, as that subagent's system prompt, **alongside the full CLAUDE.md hierarchy** | subagents, "What loads at startup" |
-| Skill named in an agent's `skills:` field | Always, in that subagent | subagents: "The full content of each listed skill is injected into the subagent's context at startup" |
-| Prompt-type hook text | **Never**. See "A prompt hook's text is not an instruction" below | hooks: a `prompt` hook "send[s] a prompt to a Claude model for single-turn evaluation" |
-| Handler **stdout** on `SessionStart`, `UserPromptSubmit`, `UserPromptExpansion` | From injection onward, as ordinary message history | hooks: "The exceptions are `UserPromptSubmit`, `UserPromptExpansion`, and `SessionStart`, where stdout is added as context that Claude can see and act on" |
-| Handler `hookSpecificOutput.additionalContext` on a **main-session** event | From injection onward, at the position the event dictates | hooks: "Where the reminder appears depends on the event", meaning session start, alongside the prompt, next to the tool result, or at the end of the turn |
-| Handler `hookSpecificOutput.additionalContext` on `SubagentStart` / `SubagentStop` | In **that subagent's** context, never the main session's | hooks, `SubagentStart`: "Context added to **the subagent's** context for the duration of the subagent session"; `SubagentStop`: "Context added to **the subagent's** context" |
-| Handler **stdout** on any other event | **Never** | hooks: "For most events, stdout is written to the debug log but not shown in the transcript" |
-| Output style (the **active** one) | Every session in the main conversation, appended to the system prompt | output-styles: "Output styles directly modify Claude Code's system prompt"; "read once at session start" |
+| User `CLAUDE.md` | Every session, unless the file is over the size limit the second pointer names, which skips it | [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load); [memory: how it works](https://code.claude.com/docs/en/memory#how-it-works) |
+| Project `CLAUDE.md` / `CLAUDE.local.md` | Every session in that tree, after user scope, under the same size limit | [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) |
+| Project `AGENTS.md` / `.claude/AGENTS.md`, where no `CLAUDE.md` name displaces it, **and, under `claude-md-and-agents-md`, even where one does**, in both cases only where the session reads `AGENTS.md` natively at all | Every session in that tree | [memory: AGENTS.md](https://code.claude.com/docs/en/memory#agents-md); [memory: choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load) |
+| Nested `CLAUDE.md` in a subdirectory | On demand, when Claude works with a file there | [memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) |
+| `.claude/rules/*` without `paths` | Every session | [memory: set up rules](https://code.claude.com/docs/en/memory#set-up-rules) |
+| `.claude/rules/*` with `paths` | Only when a matching file is read | [memory: path-specific rules](https://code.claude.com/docs/en/memory#path-specific-rules) |
+| Skill body | Only once invoked, then for the rest of the session | [skills: skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle) |
+| Auto memory `MEMORY.md` | Every **main** session, only its loaded portion, and **not** in a subagent, except a fork | [memory: how it works](https://code.claude.com/docs/en/memory#how-it-works) |
+| A subagent's **own** auto memory `MEMORY.md` (its `memory` field) | Every dispatch of **that** subagent, only its loaded portion, never the main session, and never another agent's | [subagents: enable persistent memory](https://code.claude.com/docs/en/sub-agents#enable-persistent-memory) |
+| Skill bundled `reference/`, `context/` file | Only when Claude reads it | [skills: add supporting files](https://code.claude.com/docs/en/skills#add-supporting-files) |
+| Agent definition (its own subagent) | Always, as that subagent's system prompt, alongside whichever CLAUDE.md files its definition does not opt out of | [subagents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup) |
+| Skill named in an agent's `skills:` field | In that subagent, when the preload accepts the name; a name the preload skips or does not reach is not resident | [subagents: preload skills into subagents](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents) |
+| Prompt-type hook text | **Never**. See "A prompt hook's text is not an instruction" below | [hooks: prompt and agent hook fields](https://code.claude.com/docs/en/hooks#prompt-and-agent-hook-fields) |
+| Handler **stdout** on an event the section names as adding stdout to context | From injection onward, as ordinary message history | [hooks: exit code 0](https://code.claude.com/docs/en/hooks#exit-code-0) |
+| Handler `hookSpecificOutput.additionalContext` on a **main-session** event | From injection onward, at the position the event dictates | [hooks: add context for Claude](https://code.claude.com/docs/en/hooks#add-context-for-claude) |
+| Handler `hookSpecificOutput.additionalContext` on `SubagentStart` / `SubagentStop` | In **that subagent's** context, never the main session's | [hooks: SubagentStart](https://code.claude.com/docs/en/hooks#subagentstart); [hooks: SubagentStop](https://code.claude.com/docs/en/hooks#subagentstop) |
+| Handler **stdout** on any other event | **Never** | [hooks: exit code 0](https://code.claude.com/docs/en/hooks#exit-code-0) |
+| Output style (the **active** one) | Every session in the main conversation, from the point it became active | [output styles: how output styles work](https://code.claude.com/docs/en/output-styles#how-output-styles-work) |
+
+The pass reads the stdout event set, the size limit, the loaded portion of a `MEMORY.md` and the
+preload limit from those sections when it runs. This table copies none of them, because each one has
+moved without an edit here.
+
+- **Pointer**: when deciding whether a surface is resident, fetch the section its row names live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: a row's section is renamed or removed, or it adds or drops a condition on
+  when that surface loads.
 
 **The `AGENTS.md` row's residency is conditional on availability and the mode, not on displacement
-alone.** Availability comes first: a session that reads no `AGENTS.md` at all, for any of the four
+alone.** Availability comes first: a session that reads no `AGENTS.md` at all, for any of the
 documented reasons, does not load the file, so the row asserts no residency for it and gate 1 does
-not pair it. The mode then decides whether a `CLAUDE.md` beside it displaces it, and two of its four
+not pair it. The mode then decides whether a `CLAUDE.md` beside it displaces it, and some of its
 values rule the file out whatever the displacement answer is. Treating displacement as the whole
 question would report a conflict against a surface nothing loads. Resolve both, and where a
 condition stays unresolved, **do not assert residency for it**: I15 is a finding lane, so an
@@ -166,40 +178,57 @@ finding-lane rule says and as gate 1 already treats every other surface whose re
 established. Both carry their dated records, with the settings scopes and the key the
 mode lives under, in [agents-md-liveness.md](../../../reference/agents-md-liveness.md).
 
-**An agent definition co-resides with the whole CLAUDE.md hierarchy, and that is a guaranteed pair.**
-A non-fork subagent's initial context contains "every level of the CLAUDE.md hierarchy the main
-conversation loads, including `~/.claude/CLAUDE.md`, project rules, `CLAUDE.local.md`, and managed
-policy files". So an agent definition contradicting a `CLAUDE.md` clears gate 1 outright. It does not
-need the conditional treatment a skill body gets.
+**An agent definition co-resides with the CLAUDE.md files its subagent loads, and by default that
+is a guaranteed pair.** A non-fork subagent loads the main conversation's CLAUDE.md hierarchy unless
+it is a built-in agent that skips it or its own definition opts out of it. So an agent definition
+that opts out of nothing, contradicting a `CLAUDE.md`, clears gate 1 outright, without the
+conditional treatment a skill body gets. Resolve the opt-out per definition before pairing: read the
+definition's frontmatter for the opt-out field the section names, and pair the definition only with
+the files that section says still load under it. A pair whose memory-layer half the subagent does not
+load fails gate 1.
 
-**Auto memory is the exception inside that hierarchy.** "The main conversation's auto memory isn't
-loaded into subagents; the exception is a fork, which inherits the parent conversation and system
-prompt. A subagent's own auto memory, enabled with the subagent `memory` field, is a separate
-directory" (memory). So an agent definition against the **main** `MEMORY.md` fails gate 1, because
-the two never occupy one context, and pairing them reports a conflict between contexts that do not
-coexist.
+**Auto memory is the exception inside that hierarchy.** The main conversation's auto memory does not
+reach a non-fork subagent, while a subagent that enables its own `memory` field reads its own
+directory. So an agent definition against the **main** `MEMORY.md` fails gate 1, because the two
+never occupy one context, and pairing them reports a conflict between contexts that do not coexist.
 Two pairs remain real and should not be swept away with it: a **fork** does inherit the parent, and a
 subagent that enables its own `memory` can contradict the definition it runs under, but that is the
 subagent's own memory directory, not the main conversation's.
 
-**The two exceptions are `Explore` and `Plan`**, which "skip your CLAUDE.md files and the parent
-session's git status", and "there is no frontmatter field or per-agent setting to change which agents
-skip them." A pair whose only memory-layer half reaches an `Explore` or `Plan` delegation therefore
-fails gate 1, and the docs name the correct remediation, which is to restate the rule in the
-delegation prompt rather than to reconcile the two surfaces.
+**Built-in agents that skip CLAUDE.md, such as `Explore` and `Plan`, never pair with it.** A pair
+whose only memory-layer half reaches such a delegation fails gate 1, and the remediation is to
+restate the rule in the delegation prompt rather than to reconcile the two surfaces.
+
+- **Pointer**: when deciding which CLAUDE.md files and which auto memory reach a subagent, fetch
+  [subagents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
+  and [memory: how it works](https://code.claude.com/docs/en/memory#how-it-works) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the startup section adds or drops an agent that skips CLAUDE.md, changes what
+  the opt-out field leaves loaded, or adds another per-agent control over it.
 
 **Only the active output style is resident, and only in the main conversation.** A style becomes
 active through the `outputStyle` setting or a plugin's `force-for-plugin`; every other style on disk
 is inventoried but never loaded, so a pair reaching an inactive style fails gate 1 outright. Two
-further bounds from the same page: a style applies "to the main conversation only: a subagent runs its
-own system prompt", with a fork the exception, so an output style never pairs with an agent
-definition except via a fork. And it is read "once at session start", so a mid-session edit is not
-resident until the next session.
+further bounds: a style shapes the main conversation and not a non-fork subagent, so an output style
+never pairs with an agent definition except via a fork; and a style switched mid-session is resident
+only from the point the change-style section says it takes effect, so pair against the style active
+for the turn in question.
 
-**A prompt hook's text is not an instruction to the main session.** Per
-[hooks](https://code.claude.com/docs/en/hooks), a `type: "prompt"` handler "send[s] a prompt to a
-Claude model for single-turn evaluation. The model returns a yes/no decision as JSON". That is a
-separate model call, evaluated in isolation, never injected into the main conversation. Comparing that raw
+- **Pointer**: when deciding where a style applies and when a switch takes effect, fetch
+  [output styles: how output styles work](https://code.claude.com/docs/en/output-styles#how-output-styles-work),
+  [output styles: change your output style](https://code.claude.com/docs/en/output-styles#change-your-output-style)
+  and [subagents: what loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: one of those sections changes whether a style reaches a subagent or when a
+  switch takes effect.
+
+**A prompt hook's text is not an instruction to the main session.** A `type: "prompt"` handler's
+text goes to a separate evaluator model call that returns a decision, and is never injected into the
+main conversation
+([hooks: prompt and agent hook fields](https://code.claude.com/docs/en/hooks#prompt-and-agent-hook-fields),
+as of 2026-10-11; recheck when that section lets a prompt handler's text reach the session's
+context). Comparing that raw
 prompt against a `CLAUDE.md`, a skill, or an output style manufactures conflicts between two models
 that satisfy their own instructions independently: an evaluator told to *return JSON only* does not
 contradict a main-session rule requiring Markdown output.
@@ -215,25 +244,31 @@ A pair is then real when a resident instruction tells the main session to do som
 gate would block under a matching input, such as "always run `git push --force` after a rebase"
 against a `PreToolUse` hook that denies force-pushes. That is a genuine unsatisfiable pair; a formatting
 directive addressed to the evaluator is not. An `agent` handler is treated the same way: it too
-"spawn[s] a subagent … before returning a decision", so it enters as the act it gates.
+runs its own evaluation before returning a decision, so it enters as the act it gates.
 
 **But the discriminator is whether the handler's output reaches this session's context, not whether
-the handler is `type: "command"`.** [hooks](https://code.claude.com/docs/en/hooks) lists five
-handler types: `command`, `http`, `mcp_tool`, `prompt`, `agent`. It settles *which channel
-reaches context* per **event**, not per type: for most events "stdout is written to the debug log
-but not shown in the transcript. The exceptions are `UserPromptSubmit`, `UserPromptExpansion`, and
-`SessionStart`, where stdout is added as context that Claude can see and act on", and
-`hookSpecificOutput.additionalContext` is accepted on a wider event set still. Nor is the JSON
-channel type-scoped: an `http` handler's "response body uses the same JSON output format as command
-hooks", and an `mcp_tool` handler's "tool's text content is treated like command-hook stdout".
+the handler is `type: "command"`.** The hooks page settles *which channel reaches context* per
+**event**, not per handler type: plain stdout reaches context only on the events its exit-code-0
+section names, and `hookSpecificOutput.additionalContext` on the events its add-context section
+names. Neither list is copied here, because events join them. Nor is the JSON channel type-scoped:
+read each handler type's own fields section for how its output is parsed, and treat any type whose
+output the page parses like command-hook output as able to inject context.
 
-**Type still decides one thing, and it is not the channel: registrability.** "Not all events support
-every hook type". `SessionStart`, for one, states "Only `type: "command"` and `type: "mcp_tool"`
-hooks are supported". So resolve the event×type pair against the docs before admitting a surface:
-an `http` handler on `SessionStart` is not a surface with unreadable text, it is a hook that cannot
-be registered there at all. An `http` handler also has no stdout, since it returns a response body,
-so the stdout channel above is `command` and `mcp_tool` only, while the `additionalContext` channel
-is open to `http` on the events that accept both.
+**Type still decides one thing, and it is not the channel: registrability.** Not every event accepts
+every handler type, so resolve the event×type pair against the event's own section before admitting a
+surface: a handler of a type the event does not accept is not a surface with unreadable text, it is a
+hook that cannot be registered there at all. Likewise, a handler type with no stdout cannot use the
+stdout channel, while it may still use the `additionalContext` channel on an event that accepts it.
+
+- **Pointer**: when resolving a hook surface's channel and registrability, fetch
+  [hooks: hook handler fields](https://code.claude.com/docs/en/hooks#hook-handler-fields),
+  [hooks: exit code 0](https://code.claude.com/docs/en/hooks#exit-code-0),
+  [hooks: add context for Claude](https://code.claude.com/docs/en/hooks#add-context-for-claude) and
+  the event's own section (for example
+  [hooks: SessionStart](https://code.claude.com/docs/en/hooks#sessionstart)) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the handler types change, an event is added to or dropped from either
+  channel's event set, or an event changes which handler types it accepts.
 
 So **a handler whose output is injected as context enters the comparison set as that text**, on the
 same terms as any other instruction surface. A `SessionStart` command hook printing a standing
@@ -243,37 +278,43 @@ rule is exactly what gate 1 is for. Excluding it because the handler is `type: "
 half of a pair that provably co-resides, and does so silently, since a per-surface lane never sees
 the surface at all.
 
-**A subagent-scoped injection is not resident here.** `SubagentStart` and `SubagentStop` add
-"Context added to **the subagent's** context", so their `additionalContext` fails gate 1 against any
-main-session surface exactly as the active output style does ("to the main conversation only: a
-subagent runs its own system prompt"). It is a real surface in the subagent's own context, where it
+**A subagent-scoped injection is not resident here.** `SubagentStart` and `SubagentStop` add their
+`additionalContext` to the subagent's context (the table's pointers above), so it fails gate 1
+against any main-session surface exactly as the active output style does. It is a real surface in the subagent's own context, where it
 can contradict the agent definition it runs under or a skill named in that agent's `skills:` field.
 Pair it there, and never against the main conversation's `MEMORY.md` or active output style.
 
-**What the compaction table does and does not say.** The context-window page's "What survives
-compaction" table gives hooks one row, whose cell reads "Not applicable; hooks run as code, not
-context". That is a statement about the hook *mechanism*: a hook definition is not a context block
-to be re-injected, the way root `CLAUDE.md` is. It says nothing about the handler's output, and the
-same page says the opposite about that output. In the `desc` text of its embedded context-window
-simulation, a `PostToolUse` hook "reports back via `hookSpecificOutput.additionalContext`. That
-field enters Claude's context." Reading the compaction row as an exclusion rule drops every
-context-injecting hook from the comparison set.
+**What the compaction table decides, and what it does not.** The context-window page's compaction
+table says what becomes of hook-added context and of compaction-matched hooks after a compaction. It
+bounds *how long* injected text stays resident; it never removes a context-injecting hook from the
+comparison set, so read its hook rows for the residency consequences below and nothing else.
+
+- **Pointer**: when deciding what hook-injected text survives a compaction, fetch
+  [context window: what survives compaction](https://code.claude.com/docs/en/context-window#what-survives-compaction)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the table adds, drops or changes a row about hooks or hook-added context.
 
 Three consequences for residency, and each one bounds a pair rather than admitting it wholesale:
 
 - **Injected text is ordinary message history, not a re-injected surface.** It is resident from the
   moment it lands and, unlike root `CLAUDE.md`, nothing re-injects it from disk after compaction.
-  Composing two doc facts: a `SessionStart` hook does re-fire on the `compact` matcher ("Auto or
-  manual compaction"), so a hook registered for it re-injects and a hook registered only for
-  `startup` does not. Treat a pair whose hook half is `startup`-only as conditional after a
-  compaction, and say so rather than asserting permanent residency.
+  A `SessionStart` hook registered for the `compact` matcher fires again after a compaction and
+  re-injects; a hook registered only for `startup` does not. Treat a pair whose hook half is
+  `startup`-only as conditional after a compaction, and say so rather than asserting permanent
+  residency. Read the matcher values from
+  [hooks: SessionStart](https://code.claude.com/docs/en/hooks#sessionstart) live (as of 2026-10-11;
+  recheck when its matcher values change).
 - **Exit-2 stderr is turn-scoped error feedback, not a standing directive, and only some events
-  have an act to block.** "Exit 2 means a blocking error … stderr text is fed back to Claude as an
-  error message." It reaches Claude, so it is not nothing; but it is a one-turn message, never a
-  standing rule. Whether it also carries a *gate* is event-specific, and the sole authority on that
-  is the hooks page's
+  have an act to block.** Exit-2 stderr reaches Claude as an error message
+  ([hooks: exit code 2](https://code.claude.com/docs/en/hooks#exit-code-2), as of 2026-10-11;
+  recheck when that section stops feeding exit-2 stderr back to Claude), so it is not nothing;
+  but it is a one-turn message, never a standing rule. Whether it also carries a *gate* is
+  event-specific, and the sole authority on that is the hooks page's
   [Exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event)
-  table. Its rows are not reproduced here in either direction: the event set grows, so any list
+  table (as of 2026-10-11; recheck when the table is renamed, removed or restructured, or its
+  `SubagentStop`, `PostToolUse` or `PreToolUse` row changes, the three cited below). Its rows are not
+  reproduced here in either direction: the event set grows, so any list
   copied into this file becomes a closed partition that silently misgrades the next event added.
   Resolve the handler's event, read that event's row, and pair on the row's own `Can block?` cell:
   - **The cell says yes.** The conflict-bearing content is whatever that row states is prevented,
@@ -283,7 +324,7 @@ Three consequences for residency, and each one bounds a pair rather than admitti
     rule above, and never against a main-session surface.
   - **The cell says no.** Nothing is prevented, so there is no act and no gate to pair; treat the
     message as transient feedback and pair it as nothing. `PostToolUse` is the worked example: its
-    row says so outright ("the tool already ran"), and this repository's own `PostToolUse` linter
+    row says it cannot block, because the tool has run, and this repository's own `PostToolUse` linter
     is built on that row. `plugins/actionlint/hooks/actionlint-check.sh` deliberately always
     exits 0 and surfaces findings as advisory context, because an exit 2 there could block
     nothing. Reading any `PostToolUse` handler's exit-2 stderr as a prohibition on the tool it ran
@@ -308,8 +349,9 @@ Three consequences for residency, and each one bounds a pair rather than admitti
   quotation.
 
 **Guaranteed pairs** are any two of {user `CLAUDE.md`, project `CLAUDE.md`, a natively read project
-`AGENTS.md`, unscoped rules, `MEMORY.md`}, and any agent definition against any of them **except `MEMORY.md`**, and except via
-`Explore` / `Plan`.
+`AGENTS.md`, unscoped rules, `MEMORY.md`}, and any agent definition against any of them **except `MEMORY.md`**, except via
+a built-in agent that skips CLAUDE.md (`Explore` / `Plan`), and except a file the definition's own
+opt-out leaves unloaded (see "An agent definition co-resides" above).
 **Conditional pairs** involve a skill body, a path-scoped rule, a nested `CLAUDE.md`, or
 context-injected hook output. They are real, but they only bite once that surface loads. Hook output is
 conditional on its own event and `matcher` firing, which for a `SessionStart` `startup` hook means
@@ -320,36 +362,41 @@ conditional pairs, because the worked example below is one.
 
 Co-residency asks *when* a surface loads. This gate asks a prior question, **whether it loads at
 all in this session**, and the answer is not a function of the file tree. Six session-level inputs
-change it. The first five come from [memory](https://code.claude.com/docs/en/memory), the last from
-[hooks](https://code.claude.com/docs/en/hooks), because a hook's instruction text is only as live as
-the handler that carries it:
+change it. The first five are memory controls, the last a hooks control, because a hook's
+instruction text is only as live as the handler that carries it. Each names the section to read for
+its current behavior:
 
-- **Launch directory.** "if you run Claude Code in `foo/bar/`, it loads instructions from
-  `foo/bar/CLAUDE.md`, `foo/CLAUDE.md`, and any `CLAUDE.local.md` files alongside them". Which
-  ancestors are candidates at all follows from where the session started, not from the repo root.
-- **`claudeMdExcludes`.** "Patterns are matched against absolute file paths using glob syntax. You
-  can configure `claudeMdExcludes` at any settings layer: user, project, local, or managed policy.
-  Arrays merge across layers." A file the tree contains may therefore be dead. (Managed policy
-  CLAUDE.md is the one thing exclusion cannot reach.)
-- **`--setting-sources`.** "Project rules are skipped if you exclude `project` from
-  `--setting-sources`", so a `.claude/rules/` file on disk then contributes nothing.
-- **`--add-dir` with `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD`.** Setting it "loads
-  `CLAUDE.md`, `.claude/CLAUDE.md`, `.claude/rules/*.md`, and `CLAUDE.local.md` from the additional
-  directory". Those are live surfaces a walk of the project tree never sees. An `AGENTS.md` there
-  is not one: it does not load, per the dated record in
+- **Launch directory.** Which ancestor `CLAUDE.md` files are candidates at all follows from where the
+  session started, not from the repo root
+  ([memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load)).
+- **`claudeMdExcludes`.** A file the tree contains may be excluded and therefore dead; resolve the
+  patterns across every settings layer that sets them, and note which files exclusion cannot reach
+  ([memory: exclude specific CLAUDE.md files](https://code.claude.com/docs/en/memory#exclude-specific-claude-md-files)).
+- **`--setting-sources`.** Excluding a source can skip the rules files that source would contribute,
+  so a `.claude/rules/` file on disk may contribute nothing
+  ([memory: set up rules](https://code.claude.com/docs/en/memory#set-up-rules)).
+- **`--add-dir` with its CLAUDE.md-loading variable.** An additional directory can contribute memory
+  files a walk of the project tree never sees; read which ones from
+  [memory: load from additional directories](https://code.claude.com/docs/en/memory#load-from-additional-directories).
+  An `AGENTS.md` there is not one: it does not load, per the dated record in
   [agents-md-liveness.md](../../../reference/agents-md-liveness.md).
-- **A declined external-import approval.** "If you decline, the imports stay disabled and the dialog
-  doesn't appear again". That state is persistent, machine-local, and invisible in the tree.
-- **Effective hook enablement, which resolves per scope and not per file.** "To temporarily disable
-  all hooks without removing them, set `"disableAllHooks": true` in your settings file". The
-  configured entry survives, so the tree still shows a hook that cannot fire. It "respects the
-  managed settings hierarchy": `disableAllHooks` "set in user, project, or local settings can't
-  disable those managed hooks. Only `disableAllHooks` set at the managed settings level can disable
-  managed hooks", so a lower-scope disable leaves managed hook text **live** and it must not be
-  dropped with the rest. The mirror control cuts the other way: "Enterprise administrators can use
-  `allowManagedHooksOnly` to block user, project, and plugin hooks. Hooks from plugins force-enabled
-  in managed settings `enabledPlugins` are exempt." Either one silences instruction text this
-  session while leaving it on disk, and neither is readable from the tree.
+- **A declined external-import approval.** That state is persistent, machine-local, and invisible
+  in the tree
+  ([memory: import additional files](https://code.claude.com/docs/en/memory#import-additional-files)).
+- **Effective hook enablement, which resolves per scope and not per file.** `disableAllHooks` turns
+  hooks off while the configured entry survives, so the tree still shows a hook that cannot fire.
+  It respects the managed hierarchy: a lower-scope disable leaves managed hook text **live**, and it
+  must not be dropped with the rest. The mirror control, `allowManagedHooksOnly`, blocks non-managed
+  hooks, with exemptions the settings reference names. Either one silences instruction text this
+  session while leaving it on disk, and neither is readable from the tree
+  ([hooks: disable or remove hooks](https://code.claude.com/docs/en/hooks#disable-or-remove-hooks);
+  [settings reference: what runs under allowManagedHooksOnly](https://code.claude.com/docs/en/settings-reference#what-runs-under-allowmanagedhooksonly)).
+
+- **Pointer**: when resolving a session's liveness controls, fetch the section each bullet names
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: one of those sections adds, removes or changes a control over which
+  instruction files load or which hooks run.
 
 A pass that skips this gate reports conflicts between instructions one side of which is dead, and
 misses live counterparts that were never inventoried. Both failures are silent, and both are
@@ -442,31 +489,37 @@ it and name the winner. Where they do not, report the conflict as unresolved and
 
 ### Settled: cite and name the winner
 
-| Claim | Verbatim source |
+| Claim | Where the docs settle it |
 |---|---|
-| Project rules beat user rules | memory: "User-level rules are loaded before project rules, **giving project rules higher priority**." |
-| An unscoped rule ranks equal to `.claude/CLAUDE.md` | memory: "Rules without `paths` frontmatter are loaded at launch with the **same priority** as `.claude/CLAUDE.md`." |
-| A mechanism beats instruction text | memory: "Settings rules are enforced by the client regardless of what Claude decides to do. CLAUDE.md instructions shape Claude's behavior but are **not a hard enforcement layer**." |
-| Managed policy cannot be excluded | memory: "Managed policy CLAUDE.md files cannot be excluded." |
+| An unscoped rule ranks equal to `.claude/CLAUDE.md` | [memory: set up rules](https://code.claude.com/docs/en/memory#set-up-rules) |
+| A mechanism beats instruction text | [memory: deploy organization-wide CLAUDE.md](https://code.claude.com/docs/en/memory#deploy-organization-wide-claude-md) |
+| Managed policy cannot be excluded | [memory: exclude specific CLAUDE.md files](https://code.claude.com/docs/en/memory#exclude-specific-claude-md-files) |
 
 ### Unresolved: report, and name no winner
 
 | Pair | Why |
 |---|---|
-| User `CLAUDE.md` vs project `CLAUDE.md` | memory: "All discovered files are **concatenated into context rather than overriding each other**", and "Claude may pick one arbitrarily." |
+| User `CLAUDE.md` vs project `CLAUDE.md` | The memory page concatenates them and states no override between them ([memory: how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load)). |
+| User rule vs project rule | The memory page orders them but says neither overrides the other ([memory: user-level rules](https://code.claude.com/docs/en/memory#user-level-rules)). |
 | Skill body vs any `CLAUDE.md` | The skills page states no authority relation between a skill body and a memory surface. Silence is not a winner. |
-| Managed policy vs lower scopes | "Loads before" and "cannot be excluded" are load ordering and non-excludability. The docs never say it overrides. |
+| Managed policy vs lower scopes | Loading first and being non-excludable are load ordering and non-excludability. The docs never say it overrides. |
 
-**Do not infer a winner from load order.** The memory page's "instructions closer to where you
-launched Claude are read last" is ordering prose that sits beside an explicit denial of override
-semantics. Reading it as "later wins" invents precedence the docs decline to state.
+**Do not infer a winner from load order.** The memory page orders files by directory and by scope,
+beside an explicit denial of override semantics. Reading the order as "later wins" invents
+precedence the docs decline to state.
+
+- **Pointer**: when grading a pair's precedence, fetch the section its row names live; a row whose
+  section now states a winner, or no longer states one, moves between the two tables.
+- **As of**: 2026-10-11
+- **Recheck trigger**: one of those sections adds, removes or changes a statement of which
+  instruction surface wins.
 
 **The escape hatch worth naming.** Because a mechanism outranks instruction text, an instruction-level
 conflict that keeps recurring is often best resolved by moving one side to a mechanism rather than by
 rewriting prose: a `PreToolUse` hook, a `permissions.deny` rule, or, for a tool a specific skill must
-never call, the skill's own `disallowed-tools` frontmatter (skills: "Tools removed from Claude's
-available pool while this skill is active. Use for autonomous skills that should never call certain
-tools, such as `AskUserQuestion` for a background loop"). Offer this as an option; the choice is the
+never call, the skill's own `disallowed-tools` frontmatter (what it removes and for how long:
+[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), as of
+2026-10-11; recheck when that field's row changes). Offer this as an option; the choice is the
 operator's.
 
 **Check first that the mechanism resolves the pair rather than breaking one side.** Both tool-removal
@@ -627,10 +680,13 @@ reported and the choice left to the operator.
 Both skills state the gate as invariant-plus-surface: the confirmation bar is unconditional, while the
 surface prefers `AskUserQuestion` and falls back to an inline question when it is absent. That wording
 exists on its own grounds, because a mandate naming a tool that can be absent (permission mode
-`dontAsk` denies it *"even if you've allowed"* it, a **bare-name** `permissions.deny` rule *"removes
-the tool from Claude's context entirely"*, and a `disallowed-tools` entry removes it *"from Claude's
-available pool while this skill is active"*) is unsatisfiable in exactly the sessions that most need a
-gate. It is not a verdict on the pair. Run the gates against the current text as you would for any
+`dontAsk`, a **bare-name** `permissions.deny` rule, and a `disallowed-tools` entry can each take it
+away; see
+[permission modes: dontAsk](https://code.claude.com/docs/en/permission-modes#allow-only-pre-approved-tools-with-dontask-mode),
+[permissions: manage permissions](https://code.claude.com/docs/en/permissions#manage-permissions) and
+[skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), as of
+2026-10-11; recheck when one of them stops removing or denying the tool) is unsatisfiable in exactly
+the sessions that most need a gate. It is not a verdict on the pair. Run the gates against the current text as you would for any
 pair, and do not assume that the pair dissolved because one side acquired a condition (gate 5 is
 unaffected; see above) or that a softened verb settles gate 3, whose deciding branch is the one where
 the tool *is* present. No winner is available to name: the authority relation the Unresolved table

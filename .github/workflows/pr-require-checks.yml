@@ -5,8 +5,9 @@ on:
   workflow_dispatch:
   # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
   # repository's merge-queue ruleset, with the org `pull_request` rule and no
-  # bypass actor), and the queue merges a commit only after this workflow
-  # passed on that same SHA in its merge-group run. A push run re-tested the
+  # bypass actor; github-iac GovernedRepositories.cs), and the queue merges a
+  # commit only after this workflow passed on that same SHA in its
+  # merge-group run. A push run re-tested the
   # SHA the queue had just passed: all 55 main pushes from 2026-10-03T22:40Z
   # to 10-04T17:41Z did, for 591 job minutes. The check runs that merge-group
   # run left stay on the commit.
@@ -498,19 +499,21 @@ jobs:
   # read fixed, path-scoped inputs that a diff confined to the docs-only
   # allowlist (scripts/docs-only-paths.txt) cannot touch, so on such a diff they
   # report an honest evaluated-and-not-applicable success. Exec-bit,
-  # hook-wiring-liveness, and purged-em-dashes are NOT gated: they scan the
-  # whole repository, and a shebang/hook file added under an otherwise
-  # docs-only prefix is real input they must still catch, as
-  # is a docs-only diff that reintroduces an em dash on a purged surface.
+  # hook-wiring-liveness, purged-em-dashes, and next-graph are NOT gated: they
+  # scan the whole repository, and a shebang/hook file added under an otherwise
+  # docs-only prefix is real input they must still catch, as is a docs-only
+  # diff that reintroduces an em dash on a purged surface or strands a
+  # planning-chain `## Next` target.
   # ShellCheck, ungated for the same reason, runs in `lint-shell`.
   #
   # The job skips only on a contract-only event or a draft; otherwise only
   # steps are gated. A skipped required lane's result is not `success`, which
-  # the ci-status aggregate rejects, a draft's included, and a workflow
+  # the ci-status aggregate rejects outside a draft, and a workflow
   # skipped by a path filter leaves its required check Pending forever. A
-  # draft lints nothing and its ci-status is red: the `ready_for_review` run
-  # lints the same SHA before the pull request can merge, and a draft run that
-  # lints is a runner the 60-job cap pays for and nothing gates on.
+  # draft lints nothing and its ci-status passes: the `ready_for_review` run
+  # lints the same SHA, the merge queue re-runs every lane before a merge, and
+  # a draft run that lints is a runner the 60-job cap pays for and nothing
+  # gates on.
   #
   # PR-ONLY STEPS BRANCH IN THE SHELL, NOT IN `if:`. A step cannot carry both a
   # resolver gate and an event gate: the docs-only gate reads a step condition
@@ -610,6 +613,15 @@ jobs:
         id: adr_numbers
         continue-on-error: true
         run: scripts/check-adr-numbers.sh --check
+
+      # Each tracked docs/conventions/<concern>.yaml against its JSON Schema
+      # (ADR 0064 Decisions 6 and 7). Ungated: a change that edits only a
+      # convention YAML is docs-only, and that is the edit this gate reads.
+      # check-jsonschema comes from the hash-locked requirements install above.
+      - name: Validate docs/conventions YAML against its schemas
+        id: convention_yaml_schema
+        continue-on-error: true
+        run: scripts/check-convention-yaml.sh --check
 
       # The config-cascade "Semantics at a glance" table is generated from the
       # Implementers rows, so the failure this catches is a row edited without
@@ -847,6 +859,22 @@ jobs:
           config: .gitleaks.toml
           scan-mode: git
 
+      # Offline links and anchors: local files and #fragments only, no
+      # network. Ungated like the other whole-repo scanners, because a
+      # docs-only diff is exactly what can break a link. The excludes are test
+      # data whose links are meant not to resolve here: the attribution audit's
+      # golden fixtures, and a verbatim copy of an upstream table with a
+      # site-root-relative link.
+      - name: Check local links and anchors
+        id: lychee
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@594987abe8657a40bccc13d301f1f0d5cccb5348 # v0.39.8
+        with:
+          config: lychee.toml
+          exclude: >-
+            (^|/)plugins/attribution/skills/audit/evals/fixtures/golden/
+            (^|/)scripts/fixtures/hooks-lifecycle-table\.md$
+
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
@@ -941,9 +969,13 @@ jobs:
           # bans (TODO/FIXME, PR/issue refs) as test corpus and as the documented
           # TODO(#issue) sanctioned-exemption. Exempt that skill's scripts + evals
           # (its SKILL.md is markdown, already outside the scan's extension set).
+          # The implementation eval scaffolds write a PLAN.md whose `### Phase N:
+          # ... [TODO]` heading is the phase status tag the skill under test reads,
+          # not a comment; the scan sees the heredoc line as a shell comment.
           exclude: >-
             :(exclude)plugins/code-tidying/skills/audit-comment-residue/scripts/**
             :(exclude)plugins/code-tidying/skills/audit-comment-residue/evals/**
+            :(exclude)plugins/implementation/evals/*/scaffold.sh
 
       - name: Check repo-local hooks are wired in settings.json
         id: hook_wiring
@@ -959,6 +991,13 @@ jobs:
         id: purged_em_dashes
         continue-on-error: true
         run: scripts/check-purged-em-dashes.sh
+
+      # Ungated for the same reason: the planning chain's `## Next` sections
+      # are markdown, and a rename elsewhere can strand one of their targets.
+      - name: Check the planning chain's Next graph against the workflow ladder
+        id: next_graph
+        continue-on-error: true
+        run: python3 scripts/check-next-graph.py
 
       # A plugin's prose counts its own skills by hand ("bundling fourteen
       # skills", "the other thirteen skills are zero-config") and nothing
@@ -991,7 +1030,7 @@ jobs:
 
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
         if: needs.select-tests.outputs.run_full == 'false'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, the dependabot and workflow schemas, zizmor, the runner policy) cannot be affected — reporting success for them. Exec-bit, hook-wiring-liveness, and purged-em-dashes scan the whole repo and stay unconditional."
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, the dependabot and workflow schemas, zizmor, the runner policy) cannot be affected — reporting success for them. Exec-bit, hook-wiring-liveness, purged-em-dashes, and next-graph scan the whole repo and stay unconditional."
 
       # ONE DETERMINISTIC PROSE DETECTOR, AS WARNINGS. The ai-slop audit's own
       # detector reads the markdown this pull request changed and annotates
@@ -1017,7 +1056,7 @@ jobs:
       # not enforce the policy does not pay for its toolchain either.
       - name: Set up Node
         if: needs.select-tests.outputs.run_workflows == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -1086,6 +1125,7 @@ jobs:
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
+            convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
@@ -1101,6 +1141,7 @@ jobs:
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
+            lychee-offline=${{ steps.lychee.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
             actionlint=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.actionlint.outcome }}
             dependabot-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.dependabot_schema.outcome }}
@@ -1111,6 +1152,7 @@ jobs:
             comment-hygiene=${{ steps.comment_hygiene.outcome }}
             hook-wiring-liveness=${{ steps.hook_wiring.outcome }}
             purged-em-dashes=${{ steps.purged_em_dashes.outcome }}
+            next-graph=${{ steps.next_graph.outcome }}
             skill-count-claims=${{ steps.skill_count_claims.outcome }}
             runner-policy=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
         run: scripts/aggregate-hygiene-results.sh
@@ -1750,7 +1792,7 @@ jobs:
       # so a docs-only diff does not pay for it.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2311,7 +2353,7 @@ jobs:
       # hosted and local runs exercise the same contract suites instead of
       # inheriting different image tool inventories.
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2319,7 +2361,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json') }}
+          key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json', '.github/standards/runner-policy/package-lock.json', 'plugins/harness-ops/skills/inventory/scripts/js/package-lock.json', 'plugins/testing/skills/check-visual-parity/scripts/package-lock.json') }}
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -2400,6 +2442,11 @@ jobs:
           if [[ "$leg_needs" == *inventory* ]]; then
             python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
           fi
+          # check-visual-parity's pixelmatch and pngjs, installed the way its
+          # first compare installs them, into .work/visual-compare/<lock hash>/.
+          if [[ "$leg_needs" == *visualcheck* ]]; then
+            bash plugins/testing/skills/check-visual-parity/scripts/visual-compare.sh install --deps-dir .work
+          fi
       - name: Save the npm cache
         if: github.ref == 'refs/heads/main' && steps.npm_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -2451,6 +2498,9 @@ jobs:
           INVENTORY_REQUIRE_ACORN: '1'
           # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
           CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
+          # The check-visual-parity pixel cases fail on a missing pixelmatch or pngjs here instead of skipping green.
+          VISUAL_COMPARE_REQUIRE: '1'
+          VISUAL_COMPARE_DEPS_DIR: .work
         run: |
           jq -r --arg leg "$LEG" '.[$leg] // [] | .[]' <<<"$PLAN" >"$RUNNER_TEMP/leg-suites.txt"
           if [ ! -s "$RUNNER_TEMP/leg-suites.txt" ]; then
@@ -2491,7 +2541,7 @@ jobs:
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2584,7 +2634,7 @@ jobs:
       # from, so a change to any one of them invalidates the cache the others
       # share.
       - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2798,36 +2848,17 @@ jobs:
           # linkage check and its pull requests stay mergeable. An exact-login
           # match, never a `*[bot]` pattern.
           exempt-authors: 'dependabot[bot]'
-      # A DRAFT IS RED. Every lane skips on a draft, so its ci-status has linted
-      # and tested nothing. Between the flip to ready and the `ready_for_review`
-      # run's own ci-status check run (minutes later), the draft's ci-status is
-      # the newest one on the SHA, so a green draft would let a merge through on
-      # nothing. The aggregate below fails on the skipped lanes and records
-      # `ci-lanes=failure`; this step says why.
-      #
-      # A re-run keeps the payload of the event that started the run, so a
-      # contract-only run from the draft era that a full run re-runs after
-      # ready_for_review still carries draft: true; the live state decides.
-      # A contract-only run tests nothing either way; the `ci-lanes` status
-      # decides it. An unreadable state fails closed.
-      # Pinned by scripts/ci-fail-a-draft.test.sh, which runs this body.
-      - name: Fail a draft
+      # A DRAFT PASSES. Every lane skips on a draft, so its ci-status has linted
+      # and tested nothing, and the aggregate below passes those skips. A green
+      # draft cannot admit a merge: a draft cannot merge, and the merge-queue
+      # ruleset has no bypass actor, so every merge waits for this workflow's
+      # merge-group run, which runs every lane. This step says why it is green.
+      - name: Note a draft
         if: github.event.pull_request.draft == true
-        env:
-          # Only a contract-only run reads its verdict from ci-lanes, so only it
-          # may pass on the live state. A re-run of a draft-era full run still
-          # skipped its lanes and is refused.
-          CONTRACT_ONLY: ${{ github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base)) }}
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
         run: |
-          if [ "$CONTRACT_ONLY" = true ] &&
-            [ "$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .draft)" = false ]; then
-            echo "Marked ready since this run's event; the ci-lanes status decides."
-            exit 0
-          fi
-          echo "::error::draft: lanes not run. Mark the pull request ready to lint and test this SHA."
-          exit 1
+          msg="draft: lanes not run; the ready_for_review run lints and tests this SHA"
+          echo "::notice::$msg"
+          echo "$msg" >>"$GITHUB_STEP_SUMMARY"
       # A QUEUED PULL REQUEST IS HELD BY ITS LABEL TOO. A merge-group payload
       # carries no pull request, so `check-contract` above reports `skipped`,
       # and a `do-not-merge` label applied after enqueue would merge (#5952).
@@ -2906,8 +2937,9 @@ jobs:
           # for the lane list — through the ordered-skip check. Adding a lane
           # to needs automatically extends this check.
           results: ${{ steps.lanes.outputs.results }}
-          # A `skipped` lane is red, a draft's included (see `Fail a draft`).
-          treat-skipped-as: fail
+          # A `skipped` lane is red, except on a draft, where every lane skips
+          # (see `Note a draft`).
+          treat-skipped-as: ${{ github.event.pull_request.draft && 'pass' || 'fail' }}
           # `carry-forward-wait-seconds: '0'` means no carry-forward wait. Under
           # `yield-to-full-run` the composite may re-read for up to 30 s, only
           # when the in-flight full run has already written `success` and its

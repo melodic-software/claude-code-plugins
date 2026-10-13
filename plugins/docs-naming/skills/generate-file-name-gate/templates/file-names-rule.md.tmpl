@@ -20,8 +20,8 @@ case-insensitive checkout writes the second over the first, so such a pair is a
 corrupted tree rather than a style question.
 
 `@@SCRIPT_PATH@@` is the gate. It runs over the tracked set and is what actually
-enforces this; a path-scoped rule loads when a covered file is READ, never when
-one is created, so this file cannot catch a new name on its own.
+enforces this; this rule file only guides Claude while it works, blocks
+nothing, and never runs in CI, so it cannot stop a new name on its own.
 
 Renaming an existing file is `/docs-naming:audit-file-names` to plan it and
 `/docs-naming:realign-file-names` to apply it, one acceptance per file: the

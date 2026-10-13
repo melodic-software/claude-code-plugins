@@ -111,6 +111,7 @@ type_json="$(jq -cn --arg s "$type" 'if $s == "" then null else $s end')"
   printf 'type: %s\n' "$type_json"
   printf 'parent: %s\n' "$parent_id"
   printf 'url: %s\n' "$(jq -cn --arg s "file://$file" '$s')"
+  printf 'created_at: %s\n' "$(jq -cn --arg s "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '$s')"
   printf -- '---\n\n'
   [[ -n "$body" ]] && printf '%s\n\n' "$body"
   for blocker in "${blocker_ids[@]+"${blocker_ids[@]}"}"; do

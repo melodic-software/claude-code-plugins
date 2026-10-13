@@ -3,7 +3,7 @@ name: drift-checker
 description: "Runs the judging stages of the multi-agent:drift-audit workflow (a finder or a skeptic): checks claims and default values against the upstream pages the prompt lists, with WebFetch only. No search, no file access, no shell, no edits. Dispatched by the drift-audit workflow, whose prompt names the stage; not intended for direct ad-hoc use."
 tools: "WebFetch"
 model: inherit # reason: the drift-audit workflow passes model and effort per stage from the role map
-maxTurns: 30
+maxTurns: 30 # what a capped run returns: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields, maxTurns row (as of 2026-10-11; recheck when that row changes what a capped subagent returns)
 omitClaudeMd: true # reason: a WebFetch-only judge over untrusted pages follows only its prompt; record in README "The drift-audit workflow"
 ---
 You run one judging stage of the `multi-agent:drift-audit` workflow. The workflow prompt names the

@@ -49,11 +49,11 @@ as `success` only when `select-tests` succeeded and its row for that lane
 (`run_bash`, `run_python`, `run_node`) is `false`; any other skip stays red.
 On a draft pull request every lane but
 `select-tests` carries a draft gate, so a draft run lints and tests nothing, and its
-`ci-status` fails (`draft: lanes not run`) and records `ci-lanes=failure`
-(`scripts/check-docs-only-gate.sh` pins both). A green draft would be the
-newest `ci-status` on the SHA from the flip to ready until the
-`ready_for_review` run's lanes finish, so a merge could land on nothing tested.
-The `ready_for_review` run lints and tests the same SHA. `test-windows` is deliberately outside that
+`ci-status` passes those skips with the notice `draft: lanes not run; the
+ready_for_review run lints and tests this SHA` (`scripts/check-docs-only-gate.sh`
+pins both forms). The `ready_for_review` run lints and tests the same SHA, and a
+green draft cannot admit a merge: the merge-queue ruleset has no bypass actor, so
+every merge waits for the merge-group run, which runs every lane. `test-windows` is deliberately outside that
 aggregate, as an informational platform lane; `pr-test-windows.yml` says so at the
 top of the file and warns against wiring it into any required check. It runs in
 its own workflow because nothing gates on it and, inside `pr-require-checks.yml`, it was the
@@ -177,10 +177,7 @@ No run waits on another run:
    (`rerun-contract-only-siblings`, `actions: write`); a draft full run skips
    its lanes and re-runs nothing. The re-run keeps its event, so it is
    contract-only again, reads `success` and replaces the red check run within
-   seconds. That includes a run drawn while the pull request was a draft: its
-   payload still says draft, so `Fail a draft` reads the live draft state on a
-   contract-only run and passes once the pull request is ready
-   (`scripts/ci-fail-a-draft.test.sh`).
+   seconds.
 
 A red contract-only run also stays red when its contract fails (an invalid
 title or a `do-not-merge` label). That is the intended answer.

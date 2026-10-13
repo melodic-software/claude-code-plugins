@@ -82,6 +82,12 @@ against a run that produced none):
    applicability rather than quote presence, and checks that the answer quotes only `current`
    sources as support. A quote found at its link answers neither question.
 
+   **Brief it on the dating method.** Where a source's `published:` was derived rather than printed
+   on the page, the header's `dated_by:` names the method, and the verifier grades that recorded
+   method: it re-derives `published:` with that method, never another one. The per-family methods
+   and a serve-time header's exclusion are in
+   [`artifact-shape.md`](artifact-shape.md), "Dating an undated living doc".
+
    **Hand it full copies of the pages its fetch cut short.** The verifier has no `Bash`, by design,
    so it cannot run the docs lookup itself. When its `problems:` names a `truncated primary: <url>`,
    save that page into a `scratch-snapshots` directory inside the slice. An upstream docs page goes

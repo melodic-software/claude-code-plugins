@@ -58,20 +58,17 @@ verified. A macOS user gets the platform-neutral material and no fabricated spec
 
 ## Surfaces differ. Know which one you are on
 
-Computer use is not one thing, and guidance written for one surface is wrong on the other. The rows
-below restate the "Differences from the Desktop app" table on [computer use from the
-CLI](https://code.claude.com/docs/en/computer-use), verified 2026-09-06 against Claude Code 2.1.263
-and that page as fetched that day. Recheck when that page drops the differences table, when a row in
-it changes, or when a release note names computer use on either surface.
+Computer use is not one thing, and guidance written for one surface is wrong on the other. Name
+the surface (Claude Code CLI or Claude Desktop) before applying any surface-specific advice. Which
+platforms each surface runs on, how each one enables computer use, and which settings each one
+offers are the upstream page's to state; read them there rather than from this skill.
 
-| | Claude Code CLI | Claude Desktop |
-|---|---|---|
-| Platforms | macOS only | macOS **and** Windows |
-| Enabling | `/mcp` → enable `computer-use` | Settings → General |
-| Denied-apps list | not available | configurable |
-
-So a Windows session using computer use is on the **Desktop** surface by construction. Check
-before applying any surface-specific advice.
+- **Pointer**: when the surface, its platforms or its enabling path matters to a diagnosis, fetch
+  [Computer use: Differences from the Desktop app](https://code.claude.com/docs/en/computer-use#differences-from-the-desktop-app)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section's table adds, drops or changes a row, or a release note names
+  computer use on either surface.
 
 ## Gotchas
 

@@ -7,6 +7,6 @@ activities:
     reads-untrusted: false
 lanes:
   pr-run-checks:
-    stage: respond
+    stage: refine
     slots:
       - activity: run-tests

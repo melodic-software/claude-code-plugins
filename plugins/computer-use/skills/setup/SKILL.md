@@ -27,11 +27,15 @@ run them and report. Emit a PASS / FAIL / INFO table with one remediation line p
 
 Determine which surface is in play, because the answer changes what is even possible:
 
-- **Windows** → necessarily the Claude Desktop surface; the CLI's computer use is macOS-only
-  (CLI computer-use page, <https://code.claude.com/docs/en/computer-use>, verified 2026-09-02;
-  recheck when that page's "Differences from the Desktop app" table changes).
-- **macOS** → either surface; check whether `computer-use` is enabled in `/mcp` (CLI) or in
-  Settings → General (Desktop).
+- Read which platforms each surface runs on and where each one enables computer use from the
+  pointer below, then match the session's operating system and enabling path against it. When the
+  operating system leaves one surface possible, that is the surface; otherwise check the enabling
+  path the pointer names for each surface.
+  - **Pointer**: when deciding the surface, fetch
+    [Computer use: Differences from the Desktop app](https://code.claude.com/docs/en/computer-use#differences-from-the-desktop-app)
+    live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section's Platforms or Enable row changes.
 
 Report the surface as INFO. It is context for everything below, not a pass/fail.
 
@@ -43,10 +47,15 @@ allowlist and the active grant flags.
 
 - Tools reachable → PASS, and report the current allowlist and grant flags as INFO.
 - Tools absent → FAIL. Remediation: enable the `computer-use` MCP server for this project, and
-  confirm the session is eligible: research preview on a Pro or Max plan (not Team or Enterprise),
-  authenticated through claude.ai rather than a third-party provider, and an interactive session
-  (not `-p`). Eligibility per the CLI and Desktop pages, verified 2026-09-02; recheck when either
-  page's eligibility note changes.
+  confirm the session meets each eligibility condition the pointer lists, naming each unmet one
+  in the report.
+  - **Pointer**: when the tools are absent, fetch
+    [Computer use: Troubleshooting](https://code.claude.com/docs/en/computer-use#troubleshooting)
+    live for the CLI's eligibility checks, and
+    [Desktop: Let Claude use your computer](https://code.claude.com/docs/en/desktop#let-claude-use-your-computer)
+    for the Desktop surface.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: either section changes which plans, providers or session modes it names.
 
 Do **not** call `request_access` during a check. That raises a consent dialog, which is not
 read-only behavior.

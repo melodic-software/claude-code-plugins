@@ -70,11 +70,16 @@ be wrong. A cut to an existing skill ships only when its evals show no loss
   choreography for a judgment task, history narratives (see
   [History and provenance](#history-and-provenance)), and restated volatile specifics, which
   become a pointer record instead.
-- **Degrees of freedom.** A judgment task gets the goal, the constraints and the reason beside
-  each, not a step script. A fragile or mandatory sequence gets the exact command (a bundled
+- **Degrees of freedom.** A judgment task gets the goal and the constraints, each written as what
+  to do, not a step script. A fragile or mandatory sequence gets the exact command (a bundled
   script) and an instruction not to alter it; only such a sequence earns a copyable checklist.
   Decide per section. When a skipped gate is costly, a hook is the escalation, charged to the
   hook budget (`docs/conventions/hook-budget/README.md`).
+- **State the action.** At every level, write the instruction as the action. A reason earns a
+  place beside it in two cases: a required step that reads as optional without one, and a narrow
+  rule that would otherwise be applied everywhere. Background that changes no action (how the rule
+  came about, who was bothered) is left out. When a rule stated this way is still missed, test a
+  reasoned wording against it ([Measurement](#measurement)).
 - **Contract sections stay explicit.** A section that defines a contract (an argument grammar,
   mode selection, when to ask instead of proceed, a stop or destructive-action gate) keeps each
   rule and its reason. Tighten its prose only with an eval case behind every edge the cut

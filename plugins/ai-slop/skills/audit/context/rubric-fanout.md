@@ -61,15 +61,11 @@ Run `rubric-fanout.sh extract --out <rubric file>` once. It writes the catalog's
 entries plus the "Signs of human writing" section to that file.
 
 One fresh-context subagent per batch, all dispatched in one message so they run concurrently.
-Dispatch each with `model: sonnet`. When the main conversation already runs a Sonnet-family
-model, the alias resolves to that exact model, including any `[1m]` suffix; otherwise it
-resolves to the version the `sonnet` alias points to. Verified 2026-09-25 against
-[the subagents doc](https://code.claude.com/docs/en/sub-agents), "Choose a model": the Agent
-tool's per-invocation `model` parameter accepts the `sonnet` alias, takes precedence over the
-agent definition and the session model, and a family alias resolves to the main
-conversation's exact model when that model belongs to the family. Recheck when that section
-changes the accepted aliases, the resolution order, or the family-alias rule. Each subagent
-receives:
+Dispatch each with `model: sonnet` on the Agent call itself. Which model that alias resolves to,
+and how the per-call value ranks against the agent definition and the session model, is in
+[Choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model). As of: 2026-10-11.
+Recheck trigger: that section changes the accepted aliases, the resolution order, or how a
+family alias resolves. Each subagent receives:
 
 - the path of the extracted rubric file, and nothing else from the catalog;
 - the path of its batch list and the digest the batch's `status` row printed (`status` runs
