@@ -53,6 +53,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARSER="$SCRIPT_DIR/yaml-subset.awk"
 DEFAULTS="$SCRIPT_DIR/../reference/defaults.yaml"
 
+# Validation constants: a chosen subset of the aliases at
+# https://code.claude.com/docs/en/model-config#model-aliases and the levels at
+# https://code.claude.com/docs/en/model-config#choose-an-effort-level (as of
+# 2026-10-11; recheck when either section adds, renames or drops an alias or a
+# level). `default`, `opusplan` and the `[1m]` variants are left out on purpose.
 ALIASES=" opus sonnet haiku fable best "
 EFFORTS=" low medium high xhigh max "
 WORKLOADS=" code research mechanical "

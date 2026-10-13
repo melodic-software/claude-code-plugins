@@ -178,8 +178,12 @@ The skill should NEVER offer to delete the user's Calibre Library. Those are the
 
 The `reference/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+writing it into a brief; never hand a `${…}` token from those files to the Bash tool.
+
+- **Pointer**: when deciding where a `${…}` reference resolves and what the Bash tool's environment
+  carries, fetch
+  [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves, or the
+  Bash tool's environment starts carrying the plugin variables.

@@ -247,22 +247,22 @@
     "promotion_evidence_binding": {
       "type": "file",
       "title": "Promotion-evidence security binding",
-      "description": "Absolute path to the security binding document the babysit-loop promotion-evidence seam reads. It must sit outside the target repository and every lane worktree, readable but not writable by the lane. Absent: no bootstrap is configured and every promotable cell stays effective-unpromoted."
+      "description": "Absolute path to the security binding document the babysit-loop promotion-evidence seam reads, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted."
     },
     "promotion_evidence_root": {
       "type": "directory",
       "title": "Promotion-evidence probe root",
-      "description": "Absolute path to the directory passed as --probe-evidence-root, the protected surface isolation probe transcripts resolve against. Outside the target repository and every lane worktree, read-only to the lane. Absent: every promotable cell stays effective-unpromoted."
+      "description": "Absolute path to the protected --probe-evidence-root directory isolation probe transcripts resolve against, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted."
     },
     "promotion_evidence_source": {
       "type": "file",
       "title": "Promotion-evidence events file",
-      "description": "Absolute path to the epoch-scoped promotion-evidence events file passed as --evidence, published by an operator-side process. Outside the target repository and every lane worktree, read-only to the lane. Absent: every promotable cell stays effective-unpromoted."
+      "description": "Absolute path to the operator-published, epoch-scoped promotion-evidence events file (--evidence), outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted."
     },
     "promotion_evidence_checker": {
       "type": "file",
       "title": "Promotion-evidence checker",
-      "description": "Absolute path to the check-security-binding.mjs the promotion-evidence seam runs, from an autonomy plugin install the operator trusts. Outside the target repository and every lane worktree, read-only to the lane. Absent: every promotable cell stays effective-unpromoted."
+      "description": "Absolute path to the check-security-binding.mjs the seam runs, from an autonomy install the operator trusts, outside the target repository and lane worktrees, read-only to the lane. User or managed settings only; --settings does not count. Absent: every promotable cell stays effective-unpromoted."
     },
     "setup_inference_window": {
       "type": "string",

@@ -7,8 +7,8 @@ The facts each route rests on (who can start it, what it needs, what it cannot s
 
 ## Check usage first
 
-Every route spends the person's plan limits, and a cloud session shares them with all other usage
-on the account (its native-surfaces row). Before recommending or starting a route, read the snapshot file
+Every route spends the person's plan limits, and a cloud session draws on the same limits (its
+native-surfaces row). Before recommending or starting a route, read the snapshot file
 under the rate-limit floor below and act on what it says:
 
 - **A window at or past 95:** report the window, its percentage and its reset in local time beside
@@ -115,10 +115,10 @@ The model never runs it; it prints it filled in. Give the person:
    `<project rule>` is the one convention from the repository's `AGENTS.md` or `CLAUDE.md` a fix is
    most likely to break (for example, commit subjects and the PR title stay Conventional Commits); drop
    the slot when there is none.
-3. Its preconditions and limits, each from its native-surfaces row: the Claude GitHub App on the
-   repository, cloud-session access, replies posted under the person's own account, no reaction to
-   a merge conflict (when the base moves, run `/source-control:pull-request ready` again, which
-   merges it), and comment-triggered automation its replies can set off.
+3. Its preconditions and limits: read the auto-fix rows of [native-surfaces.md](native-surfaces.md)
+   and the live sections they point at, and list each one for the person. Because auto-fix cannot
+   react to a merge conflict, add: when the base moves, run `/source-control:pull-request ready`
+   again, which merges it.
 
 When the person also keeps `monitor` running here, both push to one branch; the Mutation gate in
 [SKILL.md](../SKILL.md) covers that.

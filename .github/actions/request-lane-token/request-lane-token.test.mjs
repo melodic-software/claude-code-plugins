@@ -74,6 +74,8 @@ function request(inputs) {
   writeFileSync(files.output, "");
   writeFileSync(files.summary, "");
   const env = {
+    // The action's `mode` input defaults to token.
+    MODE: "token",
     BROKER_URL: "https://broker.example.net/api/token",
     AUDIENCE: "melodic-lanes-token-broker",
     LANE: "pr-unblock",

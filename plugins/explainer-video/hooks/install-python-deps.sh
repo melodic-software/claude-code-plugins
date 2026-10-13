@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# SessionStart hook: install the hash-locked Python packages (requirements.txt) into
-# ${CLAUDE_PLUGIN_DATA} on demand, so the produce skill runs against them and nothing fetches a
-# package while a skill runs (docs/conventions/on-demand-dependencies, Python). A no-op once the
-# set loads. A failed install is a user notice with the repair line, never a silent skip; the
-# model hears nothing here, since pydeps.py run prints the same repair line when the skill runs.
-# Always exits 0: a failed install must not block the session.
+# GENERATED from lib/install-python-deps.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
+# SessionStart hook: install the plugin's hash-locked Python packages (requirements.txt) into
+# ${CLAUDE_PLUGIN_DATA} on demand, so its skills run against them and nothing fetches a package
+# while a skill runs (docs/conventions/on-demand-dependencies, Python). A no-op once the set
+# loads. A failed install is a user notice with the repair line, never a silent skip; the model
+# hears nothing here, since pydeps.py run prints the same repair line when a skill runs.
+# Always exits 0: a failed install must not block the session. The plugin's wording (its name,
+# the Pythons it supports, the skills that need the packages) is in install-python-deps.conf.
 set -uo pipefail
 
 data="${CLAUDE_PLUGIN_DATA:-}"
@@ -12,6 +15,11 @@ data="${CLAUDE_PLUGIN_DATA:-}"
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="${SCRIPT_DIR%/*}"
+
+# The plugin's wording; the defaults stand only if its conf leaves one out.
+PYDEPS_PLUGIN="install-python-deps" PYDEPS_PYTHONS="3.12 or later" PYDEPS_USERS="its skills" PYDEPS_PACKAGES="Python packages"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/install-python-deps.conf"
 
 # Loaded only when there is something to report: the common run installs nothing and says nothing.
 notice() {
@@ -37,9 +45,10 @@ launcher_listed() {
   [[ -n "$first" ]] && printf '%s' "$first"
 }
 
-# Any Python starts pydeps.py, which hands over to the first Python 3.12 or 3.13 on PATH or, on
+# Any Python starts pydeps.py, which hands over to the first supported Python on PATH or, on
 # Windows, listed by the py launcher, and says so when there is none. A zero-length WindowsApps
-# python alias opens the Store instead of running: skip it. The Python install manager's py is
+# python alias opens the Store instead of running: skip it, and skip a name that resolves but does
+# not run, such as a pyenv shim for a version not enabled. The Python install manager's py is
 # such an alias too, and it runs, so it is only asked to list.
 candidates=(python3.13 python3.12 python3 python)
 case "${OSTYPE:-}" in
@@ -54,12 +63,13 @@ for candidate in "${candidates[@]}"; do
     break
   fi
   [[ "$resolved" == *[Ww]indows[Aa]pps* && ! -s "$resolved" ]] && continue
+  "$candidate" -c 'import sys' >/dev/null 2>&1 </dev/null || continue
   py="$candidate"
   break
 done
 
 if [[ -z "$py" ]]; then
-  notice "explainer-video: Python 3.12 or 3.13 was not found on the hook PATH${candidates[4]:+ or listed by py -0p}; /explainer-video:produce will fail. Install Python 3.13 (https://www.python.org/downloads/) and start a new session."
+  notice "$PYDEPS_PLUGIN: Python $PYDEPS_PYTHONS was not found on the hook PATH${candidates[4]:+ or listed by py -0p}; $PYDEPS_USERS will fail. Install one (https://www.python.org/downloads/) and start a new session."
   exit 0
 fi
 
@@ -103,7 +113,7 @@ to_native() {
 }
 
 if ! script="$(to_native "$ROOT/scripts/pydeps.py")" || ! data_dir="$(to_native "$data")"; then
-  notice "explainer-video: cygpath could not convert its pydeps.py or data directory path to Windows form, so ManimCE is not installed and /explainer-video:produce will stop. Check that cygpath runs in Git Bash and start a new session."
+  notice "$PYDEPS_PLUGIN: cygpath could not convert its pydeps.py or data directory path to Windows form, so its $PYDEPS_PACKAGES are not installed and $PYDEPS_USERS will stop. Check that cygpath runs in Git Bash and start a new session."
   exit 0
 fi
 
@@ -111,9 +121,9 @@ if ! out="$("$py" "$script" install --data-dir "$data_dir" </dev/null 2>&1)"; th
   if [[ "$out" == *Traceback* ]]; then
     last="${out//$'\r'/}"
     last="${last##*$'\n'}"
-    notice "explainer-video: the Python handover failed: $last; repair with: $(repair_line)"
+    notice "$PYDEPS_PLUGIN: the Python handover failed: $last; repair with: $(repair_line)"
   else
-    notice "explainer-video: Python packages (ManimCE) not installed; /explainer-video:produce will fail. ${out#explainer-video: }"
+    notice "$PYDEPS_PLUGIN: $PYDEPS_PACKAGES not installed; $PYDEPS_USERS will fail. ${out#"$PYDEPS_PLUGIN: "}"
   fi
 fi
 exit 0

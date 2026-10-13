@@ -1305,6 +1305,7 @@ corpus_files=(
   cs-mstest/bad/OrderPlacementTests.cs.fixture
   cs-mstest/bad/OrderReceiptVerifyTests.cs.fixture
   cs-mstest/bad/OrderSourceTextTests.cs.fixture
+  cs-mstest/bad/OrderStepDefinitions.cs.fixture
   cs-mstest/bad/OrderTotalFormatTests.cs.fixture
   cs-mstest/good/OrderArchiveIgnoredClassTests.cs.fixture
   cs-mstest/good/OrderConstructedIdTests.cs.fixture
@@ -1323,6 +1324,7 @@ corpus_files=(
   cs-nunit/bad/CartReceiptVerifyTests.cs.fixture
   cs-nunit/bad/CartRefundTests.cs.fixture
   cs-nunit/bad/CartSourceTextTests.cs.fixture
+  cs-nunit/bad/CartStepDefinitions.cs.fixture
   cs-nunit/bad/CartTotalSumTests.cs.fixture
   cs-nunit/good/CartBenchmarkExplicitTests.cs.fixture
   cs-nunit/good/CartConstructedCurrencyTests.cs.fixture
@@ -1349,10 +1351,13 @@ corpus_files=(
   cs-xunit/bad/InvoiceTaskNamedHelperTests.cs.fixture
   cs-xunit/bad/InvoiceTotalSumTests.cs.fixture
   cs-xunit/bad/InvoiceTotalTests.cs.fixture
+  cs-xunit/bad/LoginStepDefinitions.cs.fixture
   cs-xunit/bad/PageSourceTextTests.cs.fixture
   cs-xunit/bad/ParserAsyncExpressionThrowsTests.cs.fixture
   cs-xunit/bad/ParserAsyncWrappedExpressionThrowsTests.cs.fixture
+  cs-xunit/bad/ProfileStepDefinitions.cs.fixture
   cs-xunit/bad/QuoteExpectedParameterTests.cs.fixture
+  cs-xunit/bad/SearchStepDefinitions.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
   cs-xunit/bad/UnitTest1.cs.fixture
   cs-xunit/bad/WidgetAlwaysTrueTests.cs.fixture

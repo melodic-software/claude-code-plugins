@@ -6,12 +6,11 @@ worth checking again.
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
-| `commit` is a bundled skill described as "Create a git commit", to be used "whenever you are about to create a commit, whether the user asked for one or it is a step in your current task"; it "gathers git context and applies the required commit workflow (message style, staging rules, attribution)". Argument hint `[guidance]` | The `/harness-ops:inventory` extraction of the installed 2.1.284 binary, 2026-09-29 | 2026-09-29 | A release renames or removes the skill, or changes its description |
+| `commit` is a bundled skill that creates a git commit through Claude Code's own generic commit workflow, taking optional guidance as its argument | The `/harness-ops:inventory` extraction of the installed 2.1.284 binary, 2026-09-29 | 2026-09-29 | A release renames or removes the skill, or changes its description |
 | It is model-invocable and user-invocable, and its registration is gated | Same extraction (`model_invocable`, `user_invocable`, `gated` all true) | 2026-09-29 | A release changes its invocability or gate |
-| It is undocumented on the commands reference: <https://code.claude.com/docs/en/commands> has no `/commit` row | That page, read 2026-09-29 | 2026-09-29 | The commands page gains a `/commit` row |
-| Bundled skills turn off with `disableBundledSkills`, and one bundled skill hides with a `skillOverrides` entry of `"off"` | <https://code.claude.com/docs/en/skills>, bundled skills and skill visibility sections | 2026-09-29 | The skills page changes either setting |
-| `commit-push-pr` is a built-in command of type `prompt`, described as "Commit, push, and open a PR". Model-invocable, user-invocable, not gated | The same extraction | 2026-09-29 | A release renames or removes it, or changes its invocability or gate |
-| `/commit-push-pr` is undocumented on the commands reference (no row) | <https://code.claude.com/docs/en/commands>, as parsed by `/harness-ops:inventory --docs` on 2026-09-29 | 2026-09-29 | The commands page gains a `/commit-push-pr` row |
+| It has no row in [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) | That section, read 2026-10-11 | 2026-10-11 | The section gains a `/commit` row |
+| Bundled skills have a global off switch and a per-skill hide setting | The pull-request skill's [native surfaces record](../../pull-request/reference/native-surfaces.md), last row, owns the pointer | 2026-10-11 | That row changes |
+| `commit-push-pr` is a built-in command that also pushes and opens a PR, and has no commands-page row | The pull-request skill's [native surfaces record](../../pull-request/reference/native-surfaces.md), its `commit-push-pr` rows, owns both | 2026-10-11 | Those rows change |
 
 ## Why the verdict is complementary
 

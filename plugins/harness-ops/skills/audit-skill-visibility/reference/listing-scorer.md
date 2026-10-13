@@ -61,9 +61,12 @@ budget_chars = max(1, floor((window ?? 200000) * bytesPerToken * fraction))
 is an unconditional override. Otherwise three inputs decide the number, and only
 one of them is a setting:
 
-- `fraction` is `skillListingBudgetFraction` from the merged settings, default
-  0.01. `skillListingMaxDescChars` (default 1536) caps each entry's description
-  before it is summed.
+- `fraction` is `skillListingBudgetFraction` from the merged settings, or its
+  documented default. `skillListingMaxDescChars`, likewise, caps each entry's
+  description before it is summed. Read both defaults live from
+  [skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction)
+  and [skillListingMaxDescChars](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars)
+  (as of 2026-10-11; recheck when either entry changes its default).
 - `window` is the ACTIVE model's context window. The 200,000 in the formula is
   only the fallback when no window is passed to the arithmetic; the live caller
   passes the model's window, which is 1M for current models on the Anthropic API

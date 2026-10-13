@@ -336,6 +336,38 @@ class FetchReviewThreadsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             gh.fetch_review_threads("owner/repo", 1, comments_first=101)
 
+    def test_query_asks_who_resolved_each_thread(self) -> None:
+        response = _graphql([_thread([_comment()], total=1)])
+        with mock.patch.object(gh, "gh_json", return_value=response) as seam:
+            gh.fetch_review_threads("owner/repo", 1)
+        query = next(arg for arg in seam.call_args.args[0] if arg.startswith("query="))
+        self.assertIn("resolvedBy{__typename login}", query)
+
+    def test_record_carries_the_resolver(self) -> None:
+        resolver = {"__typename": "Bot", "login": "some-app"}
+        response = _graphql(
+            [_thread([_comment()], total=1, isResolved=True, resolvedBy=resolver)]
+        )
+        with mock.patch.object(gh, "gh_json", return_value=response):
+            threads = gh.fetch_review_threads("owner/repo", 1, include_resolved=True)
+        self.assertEqual(threads[0]["resolvedBy"], resolver)
+
+    def test_open_thread_has_no_resolver(self) -> None:
+        response = _graphql([_thread([_comment()], total=1, resolvedBy=None)])
+        with mock.patch.object(gh, "gh_json", return_value=response):
+            threads = gh.fetch_review_threads("owner/repo", 1)
+        self.assertIsNone(threads[0]["resolvedBy"])
+
+    def test_malformed_resolver_fails_closed(self) -> None:
+        response = _graphql(
+            [_thread([_comment()], total=1, isResolved=True, resolvedBy="someone")]
+        )
+        with (
+            mock.patch.object(gh, "gh_json", return_value=response),
+            self.assertRaises(RuntimeError),
+        ):
+            gh.fetch_review_threads("owner/repo", 1, include_resolved=True)
+
 
 class FetchPullRequestCommitsTests(unittest.TestCase):
     """`fetch_pull_request_commits` (#2265): the signature-verification read
@@ -470,9 +502,22 @@ class GraphQLAvailabilityClassificationTests(unittest.TestCase):
     def test_the_proxy_refusal_is_recognized(self) -> None:
         self.assertTrue(gh.is_graphql_unavailable(GRAPHQL_403))
 
+    def test_the_graphql_refusal_prefix_is_recognized_without_a_status(self) -> None:
+        # Prefix from cloud-environments#github-proxy, "GraphQL restrictions".
+        message = (
+            "gh api graphql failed: GitHub GraphQL is not available from "
+            "Claude Code sessions; use gh api repos/{owner}/{repo}/... instead"
+        )
+        self.assertIsNone(gh.gh_http_status(message))
+        self.assertTrue(gh.is_graphql_unavailable(RuntimeError(message)))
+
     def test_the_refusal_text_alone_is_recognized(self) -> None:
         # A body read off `gh api graphql` stdout carries no `(HTTP nnn)`.
         self.assertTrue(gh.is_graphql_unavailable(RuntimeError(GRAPHQL_REFUSAL)))
+
+    def test_the_refusal_without_its_github_prefix_is_recognized(self) -> None:
+        message = "GraphQL is not available from Claude Code sessions"
+        self.assertTrue(gh.is_graphql_unavailable(RuntimeError(message)))
 
     def test_a_bare_403_is_recognized(self) -> None:
         self.assertTrue(
@@ -1065,6 +1110,71 @@ class ThreadResolutionFailsClosedTests(unittest.TestCase):
         self.assertTrue(comments[0]["threadResolutionUnproven"])
         self.assertFalse(comments[0]["threadIsOutdated"])
         self.assertEqual(comments[0]["author"]["login"], "reviewer")
+
+
+class CollectLaneRunsTests(unittest.TestCase):
+    """The bind() input collector (the Phase 9 caller contract): runs listed
+    by branch with no head_sha filter, kept by PR number, attempts counted
+    from a fresh run read, annotations on the lane job only."""
+
+    REPO = "owner/repo"
+    LANES = [(".github/workflows/pr-review-hosted.yml", "claude-review-status")]
+
+    def answers(self, *, fresh_attempts: int = 2) -> dict[str, Any]:
+        base = f"repos/{self.REPO}/actions/runs/7"
+        listing = f"repos/{self.REPO}/actions/workflows/pr-review-hosted.yml/runs"
+        mine = {"id": 7, "run_attempt": 1, "pull_requests": [{"number": 5}]}
+        other = {"id": 8, "run_attempt": 1, "pull_requests": [{"number": 6}]}
+        answers: dict[str, Any] = {
+            f"{listing}?branch=feat%2Fx&event=pull_request&per_page=100": [
+                {"workflow_runs": [mine, other]}
+            ],
+            base: {"id": 7, "run_attempt": fresh_attempts},
+        }
+        for n in range(1, fresh_attempts + 1):
+            answers[f"{base}/attempts/{n}"] = {"id": 7, "run_attempt": n}
+            answers[f"{base}/attempts/{n}/jobs?per_page=100"] = [
+                {
+                    "jobs": [
+                        {"id": 100 + n, "name": "pr-review / claude-review-status"},
+                        {"id": 200 + n, "name": "pr-review / other"},
+                    ]
+                }
+            ]
+            answers[
+                f"repos/{self.REPO}/check-runs/{100 + n}/annotations?per_page=100"
+            ] = [[{"title": "claude-lane-review-complete"}]]
+        return answers
+
+    def collect(self, answers: dict[str, Any]) -> list[dict[str, Any]]:
+        def fake(args: list[str]) -> Any:
+            if args[1] not in answers:
+                raise RuntimeError(f"gh: Not Found (HTTP 404) {args[1]}")
+            return answers[args[1]]
+
+        with mock.patch.object(gh, "gh_json", side_effect=fake):
+            return gh.collect_lane_runs(self.REPO, 5, "feat/x", self.LANES)
+
+    def test_keeps_the_pull_requests_runs_with_fresh_attempts(self) -> None:
+        runs = self.collect(self.answers())
+        self.assertEqual([r["id"] for r in runs], [7])
+        # The listing said attempt 1; the fresh read found 2, and both are kept
+        # so bind() sees the re-run that started after the listing.
+        self.assertEqual(runs[0]["run_attempt"], 1)
+        self.assertEqual([a["run_attempt"] for a in runs[0]["attempts"]], [1, 2])
+
+    def test_annotations_are_read_for_the_lane_job_only(self) -> None:
+        jobs = self.collect(self.answers(fresh_attempts=1))[0]["attempts"][0]["jobs"]
+        self.assertEqual(
+            jobs[0]["annotations"], [{"title": "claude-lane-review-complete"}]
+        )
+        self.assertNotIn("annotations", jobs[1])
+
+    def test_a_deleted_or_expired_attempt_raises(self) -> None:
+        answers = self.answers()
+        del answers[f"repos/{self.REPO}/actions/runs/7/attempts/1"]
+        with self.assertRaises(RuntimeError):
+            self.collect(answers)
 
 
 if __name__ == "__main__":

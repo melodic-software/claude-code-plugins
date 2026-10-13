@@ -249,6 +249,17 @@ ERR=$(bash "$SCRIPT" --repo "$CLEAN" --sources "$TMP/broken-sources.md" 2>&1 >/d
 assert_eq "an unparsable record exits 2 rather than skipping the check" 2 "$rc"
 assert_contains "and says which record it could not parse" "$ERR" "cannot parse"
 
+# A copy without the plugin's scripts/lib has no comparator: exit 2, never a
+# condition graded without one.
+NOLIB="$TMP/nolib/skills/migrate/scripts"
+mkdir -p "$NOLIB"
+cp "$SCRIPT" "$NOLIB/cutover-check.sh"
+rc=0
+OUT=$(bash "$NOLIB/cutover-check.sh" --repo "$CLEAN" --sources "$REAL_SOURCES" \
+  --bundle "$TMP/bundle-true" --env-vars-file "$ENVVARS_LISTED" --skip-canary 2>&1) || rc=$?
+assert_eq "a missing scripts/lib/version.sh exits 2" 2 "$rc"
+assert_not_contains "and grades nothing without a comparator" "$OUT" "[MET]"
+
 # --- Case 2: every graded condition met -----------------------------------
 
 rc=0
@@ -438,8 +449,11 @@ printf '#!/usr/bin/env bash\nprintf "ACTION\\tERROR\\tgrep exited 2\\nPATHDET\\t
 chmod +x "$STUB_DIR/plan-migration.sh" "$STUB_DIR/plan-migration-error.sh"
 
 silent_plan_check() { # <stub name>
-  local stub="$TMP/silent-$1"
-  mkdir -p "$stub/scripts" "$stub/reference"
+  # The stub keeps the plugin's layout, because the script sources the shared
+  # version comparator from <root>/scripts/lib, three levels above its own.
+  local root="$TMP/silent-$1" stub="$TMP/silent-$1/skills/migrate"
+  mkdir -p "$stub/scripts" "$stub/reference" "$root/scripts/lib"
+  cp "$SCRIPT_DIR/../../../scripts/lib/version.sh" "$root/scripts/lib/version.sh"
   cp "$SCRIPT" "$stub/scripts/cutover-check.sh"
   cp "$STUB_DIR/$2" "$stub/scripts/plan-migration.sh"
   cp "$REAL_SOURCES" "$stub/reference/sources.md"

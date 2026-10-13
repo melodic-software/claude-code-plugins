@@ -139,7 +139,7 @@ If after the survey (Step 2) a required section has NO answerable content in the
 
 **Skipped when `synthesize` action was invoked**. Go directly to Step 5.
 
-Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is ≤4 independent questions. Inline prose otherwise.
+Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is independent questions that fit one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>, as of 2026-10-11; recheck when that section changes the per-call question limit). Inline prose otherwise.
 
 Each recommendation carries a `Basis:` line: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented, in the affected code plus its consumers and in external research that reads official docs first; route that work to the exploration or research capability rather than doing it here. One research cannot settle is withheld: ask the question open and name the evidence that would settle it, or record it under **Open questions**. A changed recommendation is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md).
 
@@ -209,7 +209,9 @@ After writing the PRD, recommend the next step. The recommendation depends on re
 - **Engineering scope still fuzzy** (constraints, untouchable areas, perf budget unclear) → clear context, then `/planning:interview` (it will read the topic's `PRD.md` as scope)
 - **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` if enabled, otherwise whatever codebase-exploration capability the environment provides
 - **Need external research (libs, APIs, comparables)** → `/discovery:research` if enabled, otherwise the strongest research capability available
-- **Engineering scope clear and externals understood** → `/planning:plan`
+- **Engineering scope clear and externals understood** → `/planning:design`, which records a one-line early exit when no design question is open and hands off to `/planning:plan`
+- **The locked PRD is one unit of work that a later session, an AFK lane or another person picks up** → `/work-items:track add --agent-ready`, one tracker item carrying the PRD's acceptance criteria
+- **An open question waits on a stakeholder** → `/planning:questionnaire`, which sends it to the person who holds the answer
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
@@ -350,8 +352,9 @@ Complementary to `/planning:devils-advocate`. Review checks structure and conven
 
 ## Next
 
-- PRD locked and the engineering contract is next: /planning:interview.
-- PRD locked and the Brief already exists: /planning:plan.
+- PRD locked: /planning:interview for the engineering contract, or /planning:design when the Brief already exists.
+- PRD locked and it is one unit of work for a later session, an AFK lane or another person: /work-items:track add --agent-ready.
+- An open question waits on a stakeholder: /planning:questionnaire.
 - Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## Gotchas

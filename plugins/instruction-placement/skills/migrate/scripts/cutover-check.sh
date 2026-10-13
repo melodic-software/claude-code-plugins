@@ -39,8 +39,8 @@
 #   cutover-check.sh --repo <dir> [--repo <dir> ...] [options]
 #   cutover-check.sh --help
 #
-# Exit: 0 every graded condition [MET]; 1 any other verdict; 2 usage or an
-# unparsable record.
+# Exit: 0 every graded condition [MET]; 1 any other verdict; 2 usage, an
+# unparsable record, or a missing scripts/lib/version.sh.
 
 set -uo pipefail
 
@@ -274,20 +274,10 @@ clean_canary_dirs() {
 }
 trap 'rm -f "$ACTION_MAP"; rm -rf "$PLAN_OUT"; clean_canary_dirs' EXIT INT TERM
 
-# `a >= b` over dotted numeric versions. `sort -V` would do it and is GNU-only.
-ver_ge() {
-  local -a a b
-  local i x y
-  IFS=. read -r -a a <<<"$1"
-  IFS=. read -r -a b <<<"$2"
-  for i in 0 1 2; do
-    x="${a[i]:-0}"
-    y="${b[i]:-0}"
-    ((10#$x > 10#$y)) && return 0
-    ((10#$x < 10#$y)) && return 1
-  done
-  return 0
-}
+# `a >= b` over dotted numeric versions: the plugin's one comparator, shared
+# with precompute.sh's mechanics-record check.
+# shellcheck source=../../../scripts/lib/version.sh
+. "$SCRIPT_DIR/../../../scripts/lib/version.sh" || exit 2
 
 # --- one plan per repository, reused by conditions 2 and 4 ----------------
 # Keyed by POSITION, not by the path. A name normalized for the filesystem
@@ -482,7 +472,7 @@ condition_2() {
         continue
       fi
       if ver="$(action_cli_version "$ref")"; then
-        if ver_ge "$ver" "$CLI_FLOOR"; then
+        if ip_ver_ge "$ver" "$CLI_FLOOR"; then
           note "$repo: pin $ref installs CLI $ver, at or above $CLI_FLOOR"
         else
           below=$((below + 1))

@@ -2,10 +2,12 @@
 # StopFailure hook (matcher: rate_limit): append a machine-readable detection
 # record when a turn ends on a rate-limit API error.
 #
-# SIDE-EFFECT-ONLY: the harness ignores StopFailure output and exit codes
-# entirely (hooks reference, verified 2026-08-10; recheck when the StopFailure
-# entry documents a decision field), so this hook's one job is
-# the record it appends — the reactive-fallback signal consumers read when the
+# SIDE-EFFECT-ONLY by design: this hook's one job is the record it appends,
+# and it returns no decision. Pointer: when deciding whether StopFailure
+# output can do anything, fetch https://code.claude.com/docs/en/hooks#stopfailure
+# live. As of: 2026-10-11. Recheck trigger: the StopFailure section gives the
+# event decision control.
+# The record is the reactive-fallback signal consumers read when the
 # module's snapshot carries no usable window data (see
 # ../reference/reader-contract.md). The payload carries no reset or quota
 # data; resume timing comes from the contract file rate-limits.json or from
@@ -59,13 +61,13 @@ if [[ "$INPUT" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]
 fi
 
 # silent-skip-ok: no HOME means no resolvable contract path anywhere on this
-# host — nothing this hook could usefully write, and StopFailure has no
-# visible output channel to report through (output is ignored by contract).
+# host: nothing this hook could usefully write, and by design this hook
+# reports no failure through any StopFailure output field.
 [[ -n "${HOME:-}" ]] || exit 0
 GUARD_DIR="$HOME/.claude/rate-limit-guard"
 EVENTS="$GUARD_DIR/stop-events.jsonl"
 # silent-skip-ok: an uncreatable contract dir cannot be surfaced from a
-# StopFailure hook (output and exit code are ignored); the setup skill's
+# StopFailure hook (by design it reports no failure); the setup skill's
 # check probe is the visibility surface for a broken contract path.
 mkdir -p "$GUARD_DIR" 2>/dev/null || exit 0
 # Owner-only contract dir + owner-only files from here on (records, lock,

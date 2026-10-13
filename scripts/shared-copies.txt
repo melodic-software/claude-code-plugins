@@ -19,6 +19,12 @@ lib/index-regen.sh plugins/discovery/scripts/index-regen.sh
 lib/resolve-convention-pattern.sh plugins/guardrails/hooks/resolve-convention-pattern.sh
 lib/spawn_noise.py plugins/harness-ops/lib/spawn_noise.py
 lib/spawn_noise.py plugins/performance/lib/spawn_noise.py
+lib/pydeps.py plugins/animation/scripts/pydeps.py
+lib/pydeps.py plugins/explainer-video/scripts/pydeps.py
+lib/pydeps.py plugins/speech/scripts/pydeps.py
+lib/install-python-deps.sh plugins/animation/hooks/install-python-deps.sh
+lib/install-python-deps.sh plugins/explainer-video/hooks/install-python-deps.sh
+lib/install-python-deps.sh plugins/speech/hooks/install-python-deps.sh
 lib/fetch-docs.sh plugins/harness-config/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/harness-ops/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/discovery/scripts/fetch-docs.sh
@@ -122,6 +128,8 @@ lib/yaml-subset.awk plugins/planning/skills/setup/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/discipline/skills/setup/scripts/yaml-subset.awk
 lib/parse-concern-value.sh plugins/verification/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/verification/lib/yaml-subset.awk
+lib/parse-concern-value.sh plugins/source-control/lib/parse-concern-value.sh
+lib/yaml-subset.awk plugins/source-control/lib/yaml-subset.awk
 lib/config-root.sh plugins/source-control/lib/config-root.sh
 lib/config-root.sh plugins/ai-slop/lib/config-root.sh
 lib/config-root.sh plugins/attribution/lib/config-root.sh
@@ -461,3 +469,5 @@ lib/yaml-subset.mjs plugins/user-experience/scripts/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/user-interface/scripts/lib/yaml-subset.mjs
 lib/config-cascade.mjs plugins/user-interface/scripts/lib/config-cascade.mjs
 lib/resolve-convention-home.sh plugins/user-interface/lib/resolve-convention-home.sh
+lib/lane-push.sh plugins/source-control/scripts/lane-push.sh
+lib/lane-push.sh plugins/work-items/scripts/lane-push.sh

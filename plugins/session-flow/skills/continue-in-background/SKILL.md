@@ -95,11 +95,13 @@ fallback), then:
 
    - Prints `true` → there is a work tree; inspect it with the gate below.
    - Fails *specifically* because this is not a git repository, AND no `WorktreeCreate` hook is
-     configured (<https://code.claude.com/docs/en/hooks>) → there is no uncommitted work to
-     protect and no worktree isolation to lose, since background sessions then write to the
-     working directory directly rather than moving into one
-     (<https://code.claude.com/docs/en/agent-view>) → launch, and state both in the launch
-     report. That hook is the isolation path for non-Git source control, so a configured one,
+     configured (<https://code.claude.com/docs/en/hooks#worktreecreate>; as of 2026-10-11;
+     recheck trigger: that section changes what the hook replaces or when it fires) → there is
+     no uncommitted work to protect and no worktree isolation to lose, since we treat
+     background sessions there as editing the working directory in place
+     (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of
+     2026-10-11; recheck trigger: that section changes when a session edits in place) →
+     launch, and state both in the launch report. That hook is the isolation path for non-Git source control, so a configured one,
      or an absence you cannot establish, puts the launched session in a workspace this
      checkout's local changes never reach: that is the default branch below, not this one.
    - **Anything else** → the tree's state is UNKNOWN, which is not the same as clean → do NOT
@@ -121,9 +123,11 @@ fallback), then:
    just-written one AND any prior sessions' (this skill never commits them; they are
    session-chain artifacts, part of the launch rather than disqualifying dirty state; the
    background session starts in this working directory, so it reads the handoff file before any
-   edit moves it into a worktree). Background sessions move into an isolated git worktree (a
-   fresh checkout) before editing files (<https://code.claude.com/docs/en/agent-view>), so OTHER
-   uncommitted changes in this checkout would NOT carry into the launched agent's edits. Any
+   edit moves it into a worktree). We treat a background session as editing in an isolated
+   worktree, a fresh checkout, so OTHER uncommitted changes in this checkout would NOT carry
+   into the launched agent's edits (pointer, for when isolation applies and when it is skipped:
+   <https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>; as of 2026-10-11;
+   recheck trigger: that section changes when a session is isolated). Any
    such changes → do NOT launch: report why and fall back to the standard `/clear`-then-paste
    instruction (same checkout, dirty state intact), noting the user can commit or stash and
    re-run `/session-flow:continue-in-background`. Exception: launch anyway when the current session already
@@ -146,9 +150,11 @@ fallback), then:
 
    `claude --bg` starts the session as a background agent and returns immediately; the user
    manages it with `claude agents`. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
-   because this launch runs from a Bash-tool subprocess, which carries
-   `CLAUDE_CODE_CHILD_SESSION=1`, and nested sessions are otherwise excluded from the
-   `claude agents` list (<https://code.claude.com/docs/en/env-vars>). Awareness note: the prompt
+   because this launch runs from a Bash-tool subprocess, a nested session the `claude agents`
+   list would otherwise leave out (pointer: the `CLAUDE_CODE_CHILD_SESSION` and
+   `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE` rows of
+   <https://code.claude.com/docs/en/env-vars#variables>; as of 2026-10-11; recheck trigger:
+   either row changes how nested sessions are listed). Awareness note: the prompt
    travels in the process argument list, so it is briefly visible to other local processes
    (`ps`), inherent to `claude --bg "<prompt>"`. The mandatory redaction pass has already
    scrubbed the prompt by this point; this exposure is one more reason secrets never belong in
@@ -211,8 +217,15 @@ matches its remote:
 
 ## What the launched session inherits (and what it does not)
 
-The launched agent is a NEW session, not a fork of this one
-(<https://code.claude.com/docs/en/agent-view>):
+The launched agent is a NEW session, not a fork of this one. What it inherits is upstream
+behavior; the rules below are ours, built on it.
+
+- **Pointer**: [Manage multiple agents with agent view § Settings and provider](https://code.claude.com/docs/en/agent-view#settings-and-provider)
+  and [§ Permission mode, model, and effort](https://code.claude.com/docs/en/agent-view#permission-mode-model-and-effort)
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section changes what a new background session inherits.
+
+Our rules:
 
 - **CLI configuration is NOT inherited.** It carries none of the current session's CLI flags
   (e.g. `--mcp-config`, `--settings`, `--add-dir`, `--plugin-dir`). Mirror onto the launch
@@ -284,11 +297,13 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 Three built-in commands also keep work moving off this terminal, so "continue in the background"
 can mean any of them.
 
-- **`/subtask`, `/fork`, `/background` (built-in commands, alias `/bg`)**: `/subtask <task>` sends a
-  subagent off with the full conversation and returns its result here. `/fork` copies the
-  conversation into a new background session while this one keeps working. `/background [prompt]`
-  detaches this session itself and frees the terminal. None writes a save-point. All three are
-  reserved for the person to run; the model does not invoke them.
+- **`/subtask`, `/fork`, `/background` (built-in commands)**: `/subtask` hands a side task to a
+  subagent that reports back here, `/fork` copies the conversation into a background session,
+  and `/background` moves this session itself off the terminal. None writes a save-point. All
+  three are reserved for the person to run; the model does not invoke them. What each launches,
+  its alias and its gate: the records table in
+  [native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)
+  (as of 2026-10-11; recheck trigger: that table's rows or their recheck events change).
 - **This skill (marketplace plugin).** Writes a durable, redacted save-point, gates on a dirty
   tree, and launches a fresh `claude --bg` session seeded only with the rails resume prompt, so
   the continuation carries no conversation history and survives on disk.
@@ -302,10 +317,11 @@ records the offer in its output instead of asking.
 **Mutation gate.** This skill writes the save-point and launches one session, only on explicit
 request. It never runs a native command on the person's behalf.
 
-**Availability is never assumed.** All three are gated; `/subtask` is absent when agent view is
-turned off, and `/fork` then behaves differently. This section states what to do when they
-resolve, never that they are present. The four-part records live in
-[reference/native-surfaces.md](reference/native-surfaces.md).
+**Availability is never assumed.** All three are gated, and their behavior depends on the
+session's setup; read the gates live from the records table in
+[native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)
+(as of 2026-10-11; recheck trigger: that table's rows or their recheck events change). This
+section states what to do when they resolve, never that they are present.
 
 ## Gotchas
 

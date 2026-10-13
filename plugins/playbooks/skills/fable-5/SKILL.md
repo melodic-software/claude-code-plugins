@@ -143,11 +143,13 @@ When you follow a chapter's Pointer to a vendor docs section, read that section 
 | Start work on any request that names a mechanism, changes behavior, touches 2+ files, or whose because-clause you cannot fill from the request alone | `problem-framing.md` |
 | Choose an approach, sequence multi-step work, or touch a shared surface | `planning.md` |
 | Weigh whether to verify a fact, how much to deliberate, or whether to trust a count | `calibration.md` |
+| Recommend an optional security hardening | `calibration.md` |
 | Weigh competing explanations, commit to a design choice, or descend into a subtask | `reasoning-moves.md` |
 | Investigate an observed failure or hunt a bug | `debugging.md` |
 | Make your first code edit of the task | `execution.md` |
 | Consider spawning workers, write a worker spec, or receive a worker return | `orchestration.md` |
 | Prepare to claim any work is done, fixed, or working | `verification.md` |
+| Raise a probe or sandbox result as a finding | `verification.md` |
 | Compose a substantive user-facing reply, or face a decision the user didn't make | `communication.md` |
 | Face an acceptance criterion the user can only judge on sight, or a want an example would carry faster than their prose | `problem-framing.md` |
 | Get a multi-step deliverable back as not what was meant | `problem-framing.md` |

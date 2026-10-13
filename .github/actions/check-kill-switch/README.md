@@ -8,8 +8,8 @@ condition 4).
 
 The repository switch has its own name because a repository variable named
 `CLAUDE_LANES_DISABLED` replaces the org value in `vars`, so it could re-enable lanes under an
-org-wide stop. This gate cannot see such a shadow. The token broker denies a write lane's mint
-while one exists; the read lane makes no broker call, so a shadow still lets it run.
+org-wide stop. This gate cannot see such a shadow. The token broker denies a write lane's mint,
+and a read lane's broker check, while one exists.
 
 ## Inputs
 
