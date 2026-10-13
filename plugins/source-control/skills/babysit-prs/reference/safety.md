@@ -981,12 +981,14 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    config commit, or the newest human close of a demotion record when later). A refusal here or
    above leaves `unattended.enabled: false` and stops every later read.
 3. The rung (demotion record and `CLAUDE_LANES_MERGE_RUNG_CAP`), one merge in flight, the
-   promotion evidence (`unattended.promoted`, read from managed settings or the executor-owned
-   `--promotion-settings` file, never from arguments or the environment), and eligibility. A
-   settings file, or a binding, probe root, evidence source or checker it names, that the lane
-   user can write, or replace through any directory above it, refuses; every worktree of the
-   checkout is passed to the resolver as a `--worktree-root`, so a surface in a sibling worktree
-   refuses too.
+   promotion evidence (`unattended.promoted`, from the babysit-loop resolver, which reads its four
+   options from the operator's managed and user settings, never from arguments or the
+   environment), and eligibility. A settings file, or a binding, probe root, evidence source or
+   checker it names, that the lane user can write, or replace through any directory above it,
+   refuses; every worktree of the checkout is passed to the resolver as a `--worktree-root`, so a
+   surface in a sibling worktree refuses too. After a demotion record the resolver's
+   `--window-start` adds a `gate-failure` per promotable cell at the record's creation, so no cell
+   stays promoted until it is re-ratified.
 4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.
    A head commit whose author or committer is linked to no account refuses
    (`head-pusher-unproven:<sha>`): its pusher cannot be shown not to be a human.

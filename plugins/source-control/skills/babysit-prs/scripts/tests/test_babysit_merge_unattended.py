@@ -1215,10 +1215,6 @@ class UnattendedRefusesWideningFlags(MainHarness):
         self.assertIn("--expected-head", out["error"])
         self.assess.assert_not_called()
 
-    def test_promotion_settings_need_the_unattended_flag(self) -> None:
-        code, _ = self._main("--promotion-settings", "/etc/x.json")
-        self.assertEqual(code, 2)
-
 
 class AgentIdentityCannotUsePlainMerge(MainHarness):
     CONFIGURED = policy.UnattendedPolicy(

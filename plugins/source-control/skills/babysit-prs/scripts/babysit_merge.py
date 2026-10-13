@@ -2745,7 +2745,6 @@ def assess_unattended(
     number: int,
     *,
     self_logins: frozenset[str],
-    promotion_settings: Path | None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -2772,7 +2771,6 @@ def assess_unattended(
 
     def promotion(window_start: datetime | None) -> merge_policy.Promotion:
         return merge_policy.read_promotion(
-            settings_file=promotion_settings,
             checkout=_checkout(),
             window_start=window_start,
         )
@@ -3296,15 +3294,6 @@ def main() -> int:
             "--auto, --allow-unpinned-head, --stacked-prs and --allow-unprotected"
         ),
     )
-    parser.add_argument(
-        "--promotion-settings",
-        default=None,
-        help=(
-            "with --unattended: an executor-owned settings file, which the lane "
-            "user must not be able to write, carrying the four promotion-evidence "
-            "options beside managed settings"
-        ),
-    )
     args = parser.parse_args()
 
     def _refuse(message: str, code: int, **envelope: object) -> int:
@@ -3461,8 +3450,6 @@ def main() -> int:
             )
         if args.merge and not args.expected_head:
             return _refuse("--unattended --merge requires --expected-head", 2)
-    elif args.promotion_settings is not None:
-        return _refuse("--promotion-settings is only meaningful with --unattended", 2)
 
     # Any policy failure refuses: this decides who may merge, and an
     # unreadable answer is not a permissive one.
@@ -3480,9 +3467,6 @@ def main() -> int:
                 repo,
                 number,
                 self_logins=bot_selves,
-                promotion_settings=(
-                    Path(args.promotion_settings) if args.promotion_settings else None
-                ),
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)

@@ -33,7 +33,7 @@ import sys
 import tempfile
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -1721,14 +1721,14 @@ def changed_files(
 
 # --- Promotion evidence -----------------------------------------------------------------------
 
-PLUGIN_NAME = "source-control"
-# Resolver flag -> the babysit-loop plugin option that names its surface.
-PROMOTION_OPTIONS = {
-    "--binding": "promotion_evidence_binding",
-    "--probe-evidence-root": "promotion_evidence_root",
-    "--evidence": "promotion_evidence_source",
-    "--checker": "promotion_evidence_checker",
-}
+# The four babysit-loop options the resolver reads from the operator's managed
+# and user settings (operator-options.mjs), each naming a surface or the checker.
+PROMOTION_OPTIONS = (
+    "promotion_evidence_binding",
+    "promotion_evidence_root",
+    "promotion_evidence_source",
+    "promotion_evidence_checker",
+)
 PROMOTION_RESOLVER = (
     Path(__file__).resolve().parents[2]
     / "babysit-loop"
@@ -1745,30 +1745,6 @@ CLASS_CELLS = {
 }
 
 
-def managed_settings_files() -> list[Path]:
-    """The platform's managed settings file and its `managed-settings.d/`
-    drop-ins, at fixed paths no repository or environment can redirect.
-
-    - Pointer: when checking the managed-settings paths, fetch
-      https://code.claude.com/docs/en/managed-settings#deploy-a-managed-settings-file
-      live.
-    - As of: 2026-10-12.
-    - Recheck trigger: that section moves a platform's managed-settings path or
-      the drop-in directory.
-    """
-    if sys.platform == "darwin":
-        base = Path("/Library/Application Support/ClaudeCode/managed-settings.json")
-    elif sys.platform == "win32":
-        base = Path(r"C:\Program Files\ClaudeCode\managed-settings.json")
-    elif sys.platform.startswith("linux"):
-        base = Path("/etc/claude-code/managed-settings.json")
-    else:
-        return []
-    drop_ins = base.parent / "managed-settings.d"
-    extra = sorted(drop_ins.glob("*.json")) if drop_ins.is_dir() else []
-    return [path for path in (base, *extra) if path.is_file()]
-
-
 def _lane_writable(path: Path) -> bool:
     """The lane user can write the path, or replace it through any directory
     above it (written, or owned and so re-permissioned), as given or after
@@ -1783,51 +1759,34 @@ def _lane_writable(path: Path) -> bool:
     return False
 
 
-def read_promotion_options(
-    settings_file: Path | None,
-    *,
-    managed: Callable[[], list[Path]] = managed_settings_files,
-    writable: Callable[[Path], bool] = _lane_writable,
-) -> tuple[dict[str, str] | None, str | None]:
-    """The four bootstrap option values from `pluginConfigs` in managed
-    settings, plus the executor-owned `--settings` file the operator names,
-    never from argv or the environment. A source, or a path a value names,
-    that the lane user can write refuses, as do conflicting values and an
-    unset option."""
-    sources = managed() + ([settings_file] if settings_file is not None else [])
-    found: dict[str, str] = {}
-    for path in sources:
-        try:
-            if writable(path):
-                return None, f"settings-lane-writable:{path}"
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None, f"settings-unreadable:{path}"
-        for key, entry in json_object(json_object(data).get("pluginConfigs")).items():
-            if key != PLUGIN_NAME and not key.startswith(f"{PLUGIN_NAME}@"):
-                continue
-            options = json_object(json_object(entry).get("options"))
-            for option in PROMOTION_OPTIONS.values():
-                value = options.get(option)
-                if value in (None, ""):
-                    continue
-                if (
-                    not isinstance(value, str)
-                    or found.setdefault(option, value) != value
-                ):
-                    return None, f"option-conflict:{option}"
-    missing = [o for o in PROMOTION_OPTIONS.values() if o not in found]
-    if missing:
-        return None, "options-unset:" + ",".join(missing)
-    # The surfaces and checker the values name get the settings files' test:
-    # a lane that can rewrite the evidence or the checker decides `promoted`.
-    for option, value in found.items():
-        try:
-            if writable(Path(value)):
-                return None, f"evidence-lane-writable:{option}"
-        except OSError:
-            return None, f"evidence-unreadable:{option}"
-    return found, None
+def _options_refusal(
+    options: dict[str, Any], writable: Callable[[Path], bool]
+) -> str | None:
+    """Why the option values the resolver reports, or the settings files they
+    came from, are not trusted: one is unreported, or the lane user can write
+    it or replace it through a directory above it. A lane that can rewrite the
+    evidence, the checker or the setting naming them decides `promoted`."""
+    for option in PROMOTION_OPTIONS:
+        entry = json_object(options.get(option))
+        value, source = entry.get("value"), entry.get("file")
+        if not isinstance(value, str) or not isinstance(source, str):
+            return f"option-unreported:{option}"
+        for label, path in (("evidence", value), ("settings", source)):
+            try:
+                if writable(Path(path)):
+                    return f"{label}-lane-writable:{option}"
+            except OSError:
+                return f"{label}-unreadable:{option}"
+    return None
+
+
+def _window_start(at: datetime) -> str:
+    """`at` in the checker's strict form, whole seconds in UTC, rounded up so
+    the restart never lands before the demotion it stands for."""
+    at = at.astimezone(UTC)
+    if at.microsecond:
+        at = at.replace(microsecond=0) + timedelta(seconds=1)
+    return at.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 @dataclass(frozen=True)
@@ -1868,61 +1827,39 @@ def worktree_roots(checkout: Path) -> list[str] | None:
 
 def read_promotion(
     *,
-    settings_file: Path | None,
     checkout: Path,
     window_start: datetime | None,
-    options: tuple[dict[str, str] | None, str | None] | None = None,
     worktrees: Callable[[Path], list[str] | None] = worktree_roots,
+    writable: Callable[[Path], bool] = _lane_writable,
 ) -> Promotion:
-    """Run the babysit-loop promotion resolver on the bootstrap surfaces.
+    """Run the babysit-loop promotion resolver, which reads the four option
+    values from the operator's managed and user settings itself.
 
-    The evidence the resolver reads is a copy written outside `checkout`: the
-    source's events plus, when a demotion record exists, one `gate-failure`
-    per promotable cell at the newest record's creation. That restarts the
-    evidence window: a cell stays unpromoted until it is re-ratified after the
-    demotion. No source event is dropped. Every worktree of the checkout is a
-    `--worktree-root`, so a surface in a sibling worktree refuses. Anything
-    doubtful is unpromoted."""
-    values, reason = options or read_promotion_options(settings_file)
-    if values is None:
-        return Promotion(None, reason)
+    Every worktree of the checkout is a `--worktree-root`, so a surface in a
+    sibling worktree refuses. With a demotion record, `--window-start` is its
+    creation: the checker reads the source's events plus one `gate-failure`
+    per promotable cell then, so a cell stays unpromoted until it is
+    re-ratified after the demotion. A value the resolver reports, or the
+    settings file it came from, that the lane user can write refuses.
+    Anything doubtful is unpromoted."""
     roots = worktrees(checkout)
     if roots is None:
         return Promotion(None, "worktrees-unreadable")
-    try:
-        events = json.loads(
-            Path(values["promotion_evidence_source"]).read_text(encoding="utf-8")
-        )
-    except (OSError, ValueError):
-        return Promotion(None, "evidence-unreadable")
-    if not isinstance(events, list):
-        return Promotion(None, "evidence-not-an-array")
+    argv = ["node", str(PROMOTION_RESOLVER), "--checkout", str(checkout)]
+    for root in roots:
+        argv += ["--worktree-root", root]
     if window_start is not None:
-        at = window_start.isoformat()
-        events = [
-            *events,
-            *(
-                {"cell": cell, "event": "gate-failure", "at": at}
-                for cell in PROMOTABLE_CELLS
-            ),
-        ]
-    with tempfile.TemporaryDirectory() as tmp:
-        copy = Path(tmp).resolve() / "promotion-evidence.json"
-        if copy.is_relative_to(checkout.resolve()):
-            return Promotion(None, "evidence-copy-inside-checkout")
-        copy.write_text(json.dumps(events), encoding="utf-8")
-        argv = ["node", str(PROMOTION_RESOLVER), "--checkout", str(checkout)]
-        for flag, option in PROMOTION_OPTIONS.items():
-            argv += [flag, str(copy) if flag == "--evidence" else values[option]]
-        for root in roots:
-            argv += ["--worktree-root", root]
-        try:
-            proc = run_command(argv, allowed_executables=("node",), check=False)
-            result = json_object(json.loads(proc.stdout))
-        except (RuntimeError, ValueError, OSError) as exc:
-            return Promotion(None, f"resolver-failed: {exc}")
+        argv += ["--window-start", _window_start(window_start)]
+    try:
+        proc = run_command(argv, allowed_executables=("node",), check=False)
+        result = json_object(json.loads(proc.stdout))
+    except (RuntimeError, ValueError, OSError) as exc:
+        return Promotion(None, f"resolver-failed: {exc}")
     if proc.returncode != 0 or result.get("failClosedReason") is not None:
         return Promotion(None, str(result.get("failClosedReason") or "resolver-failed"))
+    refusal = _options_refusal(json_object(result.get("options")), writable)
+    if refusal:
+        return Promotion(None, refusal)
     cells = {
         cell: json_object(state).get("effective")
         for cell, state in json_object(result.get("cells")).items()
