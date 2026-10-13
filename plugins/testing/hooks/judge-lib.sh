@@ -216,7 +216,7 @@ judge::drop() {
   for s in "${SESSIONS[@]}"; do
     for r in "$DATA/sessions/$PKEY/$s"/*.json; do
       [[ -f "$r" ]] || continue
-      jq -e --arg f "$1" 'objects | .file | strings | gsub("[\r\n]"; "") == $f' "$r" >/dev/null 2>&1 || continue
+      jq -e --arg f "$1" 'objects | .file | strings | gsub("[\r\n]"; "") == ($f | gsub("[\r\n]"; ""))' "$r" >/dev/null 2>&1 || continue
       [[ -f "$1" ]] && return 0
       rm -f -- "$r"
     done
@@ -691,7 +691,8 @@ judge::keep_unusable() {
     out=""
   [[ -n "$out" ]] || out="$(head -c 2000 -- "$raw" 2>/dev/null)"
   err="$(head -c 2000 -- "$raw.err" 2>/dev/null)"
-  out="$(printf '%s' "$out" | tr -s '\r\n\t ' ' ')" err="$(printf '%s' "$err" | tr -s '\r\n\t ' ' ')"
+  out="$(printf '%s' "$out" | tr -s '\r\n\t ' ' ' | tr -d '\000-\037\177')"
+  err="$(printf '%s' "$err" | tr -s '\r\n\t ' ' ' | tr -d '\000-\037\177')"
   out="${out:0:400}" err="${err:0:200}"
   judge::log "unusable judge output on $2${kept:+, kept in $kept}: result: ${out:-(none)}${err:+; stderr: $err}"
 }

@@ -420,6 +420,14 @@ record s9r w1 "$N" null
 STUB_MODE=renamed stop s9r
 assert_contains "verdicts under a name no block has: the log shows the name the judge used" \
   "$(grep -F "unusable judge output on $N" "$DATA/test-judge.log")" '"name":"named, renamed"'
+transcript s9e claude-sonnet-5
+X="$REPO/src/escaped.test.ts"
+js_file "$X" escaped
+record s9e w1 "$X" null
+STUB_MODE=escape stop s9e
+line="$(grep -F "unusable judge output on $X" "$DATA/test-judge.log")"
+assert_contains "control characters in the result: the rest is still quoted" "$line" "result: bad[2K text"
+check "and none of them reaches the log" '! LC_ALL=C grep -q "[[:cntrl:]]" <<<"$line"'
 
 # A file the session wrote that is gone (its worktree removed): skipped and
 # logged once, its records dropped, so a later Stop does not log it again.
@@ -440,6 +448,12 @@ check "and its records are dropped, the other file's kept" \
 check "and the other file is still judged" '[[ "$(stub_calls)" == 1 ]]'
 stop s9d
 check "a later Stop does not log it again" '[[ "$(grep -cF "skipped: $D no longer exists" "$DATA/test-judge.log")" == 1 ]]'
+# A recorded path holding a line break, gone: also logged only once.
+transcript s9c claude-sonnet-5
+record s9c w1 "$REPO/src/cr"$'\r'"break.test.ts" null
+stop s9c
+stop s9c
+check "a deleted path with a line break: logged once" '[[ "$(grep -c "break.test.ts no longer exists" "$DATA/test-judge.log")" == 1 ]]'
 
 # Relay validation: a quote not in the file, and a diff touching another
 # file, are relayed as UNKNOWN.

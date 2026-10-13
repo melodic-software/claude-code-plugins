@@ -121,6 +121,7 @@ hang)
   ;;
 budget) echo '{"type":"result","subtype":"error_max_budget_usd","is_error":true}'; exit 1 ;;
 garbage) echo 'not json'; exit 0 ;;
+escape) echo '{"type":"result","result":"bad\u001b[2K\u0007 text"}'; exit 0 ;;
 esac
 verdicts=()
 while read -r _ ord range name; do
