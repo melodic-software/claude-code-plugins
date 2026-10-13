@@ -3,6 +3,14 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.0] - 2026-10-13
+
+### Changed
+
+- `/work-items:work` dispatches `/source-control:pull-request ready` into the worker's worktree right after `create --pushed`, so its pull requests leave draft once that action's checks pass. A refusal (a hold, a superseded item, a failed gate) leaves the draft and is reported.
+
+- `/work-items:ship run` under `per-item PRs` dispatches `/source-control:pull-request ready` into the item's worktree right after `create --pushed`, so its pull requests leave draft once that action's checks pass. A refusal (a hold, a superseded item, a failed gate) leaves the draft and is reported.
+
 ## [2.1.0] - 2026-10-13
 
 ### Added
