@@ -108,6 +108,10 @@ Flat numbered list. Each finding has 5 required fields:
 | **P4** | Best-practice deviation, low exploitability. CVSS 0.1–3.9 | Address opportunistically |
 | **P5** | Informational, no current exploitability. CVSS 0.0 | FYI |
 
+Before recommending optional hardening (a P3 to P5 fix), state in **Risk** what the attacker must
+already hold and what that already grants; if it already grants equal power, recommend against
+building it.
+
 When a caller needs the plugin's general tiers, fold per `${CLAUDE_PLUGIN_ROOT}/context/severity.md`: P1/P2 → CRITICAL, P3 → IMPORTANT, P4/P5 → SUGGESTION.
 
 If no findings: write `No findings.` Do not invent findings to fill the report. A real

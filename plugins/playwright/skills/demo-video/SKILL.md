@@ -44,8 +44,8 @@ option: use its Default.
 | `demo_captions` | `${user_config.demo_captions}` | `true` | step and outcome captions |
 | `demo_narration` | `${user_config.demo_narration}` | `false` | voice-over |
 
-Pointer: [Reference a saved value](https://code.claude.com/docs/en/plugins-reference#reference-a-saved-value);
-as of 2026-10-10; recheck when that section changes what an unset option renders as.
+Pointer: [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value);
+as of 2026-10-11; recheck when that section changes what an unset option renders as.
 
 `plain` removes the title, camera and captions whatever their toggles say; a toggle set to `false`
 removes its layer in either style. Pass them to `build_edl.py` as

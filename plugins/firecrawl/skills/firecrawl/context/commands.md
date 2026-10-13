@@ -12,6 +12,9 @@ Per-command flag detail for the `/firecrawl:firecrawl` skill. SKILL.md carries t
 - [interact](#interact-run-promptscode-against-a-prior-scrape)
 - [agent](#agent-natural-language-web-research-task)
 - [monitor](#monitor-scheduled-scrapes--change-tracking)
+- [developer](#developer-search-an-index-built-for-coding-agents)
+- [research](#research-paper-index)
+- [doctor](#doctor-diagnose-a-failed-job)
 - [search-feedback](#search-feedback-refund-credits-on-bad-search-results)
 - [credit-usage](#credit-usage-check-remaining-quota)
 
@@ -118,6 +121,34 @@ firecrawl monitor delete <monitorId>
 ```
 
 Out-of-band scheduled scraping with email alerts on content changes. Lives server-side at Firecrawl, not in this repo. Use sparingly. This repo's recurring-work pattern is `/schedule` (CC routines); Firecrawl monitors carry their own credit cost and a notification side channel that bypasses CC observability. Reach for it only when the alert recipient should be a human inbox rather than a CC routine.
+
+## developer: search an index built for coding agents
+
+```bash
+firecrawl developer "<question or search phrase>" --limit <N> --json -o <path>
+```
+
+Searches public repositories, GitHub issues, merged pull requests, READMEs, and curated documentation sites. Put every scoping intent (repository, language, topic) in the query text; the command takes no filter flags beyond `--limit`.
+
+## research: paper index
+
+```bash
+firecrawl research search-papers "<natural-language topic>" --limit <N> -o <path>
+firecrawl research inspect-paper <paperId>
+firecrawl research related-papers <seedId>... --intent "<what you want>" -o <path>
+firecrawl research read-paper <paperId> --question "<question>" -o <path>
+```
+
+A scientific paper index (mostly biomedical, plus arXiv) with citation expansion. For GitHub issue, PR, and README history use `developer`: the research GitHub endpoint behind `research search-github` is deprecated with a shutdown date ([Firecrawl SDK README](https://github.com/firecrawl/firecrawl/blob/main/apps/python-sdk/README.md), as of 2026-10-12; recheck when `/firecrawl:update` reports a CLI release). Use `research` instead of scraping PubMed, bioRxiv, or Google Scholar. Paper ids take `pmid:`, `pmcid:`, `doi:`, or `arxiv:` forms. `firecrawl research <sub> --help` lists each subcommand's filters.
+
+## doctor: diagnose a failed job
+
+```bash
+firecrawl doctor                 # environment health check
+firecrawl doctor <job-id> --json # why a specific run failed
+```
+
+When a Firecrawl job fails or returns unexpected output, run `doctor` with its job id before changing flags by guesswork. `--query "<text>"` replaces the default question. It exits 1 when any environment check fails.
 
 ## search-feedback: refund credits on bad search results
 

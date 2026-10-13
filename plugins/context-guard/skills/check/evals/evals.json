@@ -9,7 +9,7 @@
       "files": [],
       "expectations": [
         "Runs `command -v node`, `node --version`, `command -v jq` and `jq --version` through Bash and reports the result",
-        "Says a missing node stops the PostCompact marker hook and the mod's snapshot writes, not the zone lines, gate, band row or status tool",
+        "Says a missing node stops the PostCompact marker hook and the mod's snapshot writes, not the zone lines, band row or status tool",
         "Does not run setup's other probes or `apply`",
         "Does not install node or jq, and stops after the row"
       ]

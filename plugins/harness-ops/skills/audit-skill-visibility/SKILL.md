@@ -24,44 +24,37 @@ That is the question behind the one operators usually ask, which is *why does mo
 my skill fleet never get used?* A skill the model cannot see cannot be chosen, so
 "unused" is very often a visibility failure wearing a preference costume.
 
-**Visibility is Claude Code's own term** for this; the settings page documents
-`skillOverrides` under "Override skill visibility". This skill audits every way a
-plugin skill loses it, and `skillOverrides` is not one of those ways: plugin skills
-are governed by `enabledPlugins`, and a plugin it does not set to `true` loads none
-of the skills it ships. `skillOverrides` governs non-plugin skills (user, project and
-claude.ai-synced), which `--installed` enumerates and applies it to; it is never cited
-as a cause for a plugin skill. Verified 2026-09-27 against
-<https://code.claude.com/docs/en/skills> ("Plugin skills are not affected by
-`skillOverrides`. Manage those through `/plugin` instead.") and Claude Code 2.1.283,
-whose listing resolver returns `on` for every plugin-sourced skill before it reads the
-override map; recheck when that section changes or a release note says plugin skills
-honor `skillOverrides`. A `skillOverrides` entry already in an operator's settings
-that names a plugin skill therefore never takes effect; `harness-config:audit`,
-when installed, reports those entries.
+**Visibility is Claude Code's own term** for this; the settings page documents `skillOverrides`
+under "Override skill visibility". This skill audits every way a plugin skill loses it, and
+`skillOverrides` is not one of those ways: plugin skills are governed by `enabledPlugins`, and a
+plugin it does not set to `true` loads none of the skills it ships. `skillOverrides` governs
+non-plugin skills (user, project and claude.ai-synced), which `--installed` enumerates and applies
+it to; it is never cited as a cause for a plugin skill. Our binary reading on Claude Code 2.1.283
+agrees: its listing resolver returns `on` for every plugin-sourced skill before it reads the
+override map. A `skillOverrides` entry already in an operator's settings that names a plugin skill
+therefore never takes effect; `harness-config:audit`, when installed, reports those entries.
+
+- **Pointer**: when deciding whether `skillOverrides` can affect a plugin skill, fetch [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings) live. **As of**: 2026-10-11. **Recheck trigger**: that section changes how plugin skills relate to `skillOverrides`, or a release note says plugin skills honor it.
 
 Claude Code budgets the model-visible skill listing in characters, at
-`window x bytes-per-token x skillListingBudgetFraction` (default 0.01), and,
-when it overflows, **sheds descriptions from the lowest-scoring skills first**.
-Names always survive, descriptions do not. A skill at zero usage scores zero, so
-it loses its description, loses the keywords a request would match against, and
-stays at zero. Unused is partly self-causing.
+`window x bytes-per-token x skillListingBudgetFraction` (our binary reading), and, when it
+overflows, **sheds descriptions from the lowest-scoring skills first**. Names always survive,
+descriptions do not. A skill at zero usage scores zero, so it loses its description, loses the
+keywords a request would match against, and stays at zero. Unused is partly self-causing.
 
-The window and the bytes-per-token are both per model, so the budget is not one
-number for a machine: the same 1% fraction is 8,000 characters at a 200k window
-and 40,000 at 1M. This skill never resolves the session's model from disk. It
-reads the fraction and the per-entry cap from the settings scopes the product
-merges and, unless you pin the model-side inputs, reports the budget as a band
-over both windows and both byte estimates, naming no row as this session's.
+The window and the bytes-per-token are both per model, so the budget is not one number for a
+machine: the same fraction yields a budget five times larger at a 1M window than at 200k. This
+skill never resolves the session's model from disk. It reads the fraction and the per-entry cap
+from the settings scopes the product merges and, unless you pin the model-side inputs, reports the
+budget as a band over both windows and both byte estimates, naming no row as this session's.
 
-The budget fraction and per-entry cap are owned by
-<https://code.claude.com/docs/en/settings> (`skillListingBudgetFraction`,
-`skillListingMaxDescChars`); that page is authoritative and matches. **The drop
-ORDER is not.** <https://code.claude.com/docs/en/skills> ("Skill descriptions are
-cut short") says "starting with the skills you invoke least", still as of
-2026-09-11; the binary ranks by a decay-weighted score and then walks the list
-first-fit, so neither the ordering nor the guarantee holds. Take the ordering
-from the binary: [reference/listing-scorer.md](reference/listing-scorer.md)
-carries the counterexamples, the greps, the budget arithmetic, and the stamp.
+- **Pointer**: when stating the fraction's or the per-entry cap's default, fetch [settings reference: skillListingBudgetFraction](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction) and [skillListingMaxDescChars](https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars) live. **As of**: 2026-10-11. **Recheck trigger**: either entry changes its default.
+
+**The drop ORDER is a source conflict.** The skills page's [skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)
+and the binary disagree on which descriptions overflow drops first. Take the ordering from the
+binary: [reference/listing-scorer.md](reference/listing-scorer.md) carries the counterexamples, the
+greps, the budget arithmetic, and the stamp. As of 2026-10-11; recheck when that section changes
+its drop order or the binary's scorer changes.
 
 So the useful question is not *which skills are unused*. Claude Code already
 reports that, through the built-in `/skill-doctor` command and the bundled

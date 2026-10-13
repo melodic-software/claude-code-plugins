@@ -100,12 +100,16 @@ quantized tone ramp.
 
 ## Reviewing images
 
-- Long-edge limit for any image read in review (crops, tiled frames). Claim: 2576 px on the long
-  edge is the largest image Claude sees without downscaling (Claude 4.7 and later; earlier models
-  1568 px), so a wider tile loses the 1:1 detail review needs. Basis: the Claude vision guide,
-  "Resolution and token cost" table (<https://platform.claude.com/docs/en/build-with-claude/vision>).
-  As of: 2026-09-26. Recheck trigger: that table changes, or review runs on a model outside it.
-  `review.py` sizes `CROP` from it (`LONG_EDGE`).
+- Long-edge limit for any image read in review (crops, tiled frames): tile and crop so no image
+  is larger than the reviewing model sees without downscaling, because a wider tile loses the 1:1
+  detail review needs. `review.py` holds the value in force as `LONG_EDGE` and sizes `CROP` from
+  it; when the pointer's table gives a different figure for the reviewing model, update that
+  constant.
+  - **Pointer**: when sizing a tile or crop, or when review runs on a new model, fetch
+    [Vision: Resolution and token cost](https://platform.claude.com/docs/en/build-with-claude/vision#evaluate-image-size)
+    live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that table changes, or review runs on a model outside it.
 
 ## Known limits
 

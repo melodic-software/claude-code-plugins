@@ -24,7 +24,7 @@ Source: https://x.com/trq212/status/2032632596572811575
 
 ## 35. Remote Control: Spawn New Sessions
 
-Run `claude remote-control` and spawn a new local session from the mobile app. Available on Max, Team, and Enterprise (v2.1.74+).
+Run `claude remote-control` and spawn a new local session from the mobile app. Which plans and versions it needs is in the amendment below.
 
 ```bash
 $ claude remote-control
@@ -33,15 +33,14 @@ $ claude remote-control
 
 Walk away from desk, think of something, kick off task from mobile. Claude runs on your machine.
 
-> **Amended (verified 2026-08-04 against
-> [Remote Control](https://code.claude.com/docs/en/remote-control)):** the plan list has widened and
-> the feature is still a research preview. Upstream, verbatim: "Remote Control is in research
-> preview and available on all plans"; Requirements reads "available on Pro, Max, Team, and
-> Enterprise plans. API keys are not supported. On Team and Enterprise, an Owner must first enable
-> the Remote Control toggle". That section also carries conditions this tip predates:
-> authentication, API endpoint, feature-flag evaluation, and workspace trust. It owns the current
-> list; read it rather than this snapshot. **Recheck trigger:** a read-time re-fetch finds it no
-> longer matching this record.
+> **Amended:** the plan list in this tip is out of date, and the feature now has conditions the tip
+> predates. Read the current requirements rather than this tip.
+>
+> - **Pointer**: before relying on Remote Control for a plan or account type, fetch
+>   [Remote Control requirements](https://code.claude.com/docs/en/remote-control#requirements) live.
+> - **As of**: 2026-10-11
+> - **Recheck trigger**: that section changes which plans, versions or account settings it
+>   requires.
 
 Source: https://x.com/trq212/status/2032632597843779861
 
@@ -117,12 +116,19 @@ Source: https://x.com/trq212/status/2032632602629386348
 Instead of approving every file write and bash command, or skipping permissions entirely, auto mode lets Claude decide on your behalf. Classifiers evaluate each action before it runs. Safe operations are auto-approved, risky ones still flagged.
 
 ```bash
-# Enable auto mode
-claude --enable-auto-mode
+# Start in auto mode: see the amendment below for the current flag.
 
 # Or cycle with shift+tab during a session:
 # plan mode → auto mode → normal mode
 ```
+
+> **Amended:** the launch flag in this tip no longer starts auto mode. Start a session in auto mode
+> the way the CLI reference currently documents.
+>
+> - **Pointer**: when starting a session in auto mode from the command line, fetch
+>   [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) live.
+> - **As of**: 2026-10-11
+> - **Recheck trigger**: that table changes the flag that starts a session in auto mode.
 
 Boris's take: "no 👏 more 👏 permission prompts 👏"
 

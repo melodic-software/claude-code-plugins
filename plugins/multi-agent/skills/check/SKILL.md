@@ -13,9 +13,9 @@ metadata:
 
 Run the read-only check. Do not install Node.js, do not download anything, and do not edit `hooks/hooks.json`.
 
-This plugin treats a failed row as the fetch gate not enforcing: the drift checker's fetches are then held to first-party docs hosts only by the workflow's source filter and the agent's prompt. How Claude Code handles a hook that cannot start: [hooks](https://code.claude.com/docs/en/hooks), the exit-code section. **As of:** 2026-10-02. **Recheck:** that section changes how a `PreToolUse` hook that cannot start is treated.
+This plugin treats a failed row as the fetch gate not enforcing: the drift checker's fetches are then held to first-party docs hosts only by the workflow's source filter and the agent's prompt. How Claude Code handles a hook that cannot start or times out: [hooks: other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes) and [hooks: timeouts](https://code.claude.com/docs/en/hooks#timeouts). **As of:** 2026-10-11. **Recheck:** either section changes how a `PreToolUse` hook that cannot start or times out is treated.
 
-This skill is model-invocable while `setup` stays manual. Field semantics: [skills](https://code.claude.com/docs/en/skills), field `disable-model-invocation`. **As of:** 2026-10-02. **Recheck:** a Claude Code release adds a per-action invocation flag.
+This skill is model-invocable while `setup` stays manual. Field semantics: the `disable-model-invocation` row of [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). **As of:** 2026-10-11. **Recheck:** a Claude Code release adds a per-action invocation flag.
 
 ## Check
 
