@@ -12,7 +12,7 @@ that match. This harness does, in two layers:
 | Method | What it is | When to run |
 |---|---|---|
 | `listing-overlap` | Deterministic floor: quoted-trigger hits plus content-token overlap against the target listing and named competitors | By hand, before and after a rewrite (`score` then `compare`). CI validates the probe schema and runs the harness tests only. The committed baseline uses this method. |
-| `emit-plugin-eval` | Writes `claude plugin eval` cases (`tool_used: Skill`) per probe | On demand, within one plugin. The CLI loads a single plugin, so cross-plugin competitors are out of scope for this method. |
+| `emit-plugin-eval` | Writes `claude plugin eval` cases (`tool_used: Skill`) per probe | On demand, within one plugin. Cross-plugin competitors are out of scope for this method (why: the pointer under [Report fields](#report-fields); as of 2026-10-11; recheck trigger: that pointer moving or that heading being renamed). |
 | Headless `claude -p` | Live cross-plugin selection | On demand, documented, not wrapped here. Replay its fire/quiet bits through `compare`. |
 
 `listing-overlap` is **not** a model-graded auto-invocation rate. A high floor
@@ -125,8 +125,13 @@ as one INFO line per split. With about 4 to 6 positives per split, only a consis
 shift clears noise. When no probe changes, or every probe changes the same way, the
 interval has zero width, so read the probe count before trusting it.
 
-`emit-plugin-eval` writes `runs: 3` per case, the CLI's default; `--runs N`
-changes it.
+`emit-plugin-eval` writes `runs: 3` per case; `--runs N` changes it.
+
+- **Pointer**: for what one `claude plugin eval` run loads and how many times a case runs by
+  default, fetch <https://code.claude.com/docs/en/plugin-evals#choose-what-to-evaluate> and
+  <https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored> live. **As of**:
+  2026-10-11. **Recheck trigger**: either section changing what one run loads or the default run
+  count.
 
 ## Trigger-phrase preservation
 

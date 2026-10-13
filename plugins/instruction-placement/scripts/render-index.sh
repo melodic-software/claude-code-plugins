@@ -37,13 +37,13 @@
 # nothing ever reads, while every other gate reports green — the entire
 # subagent-gap mitigation silently doing nothing.
 #
-#   Claim: Claude Code reads AGENTS.md as the project instructions only when
-#     there is no CLAUDE.md, .claude/CLAUDE.md or CLAUDE.local.md in the working
-#     directory or above it; with one there, it reads the CLAUDE.md files, and
-#     an `@AGENTS.md` import or symlink is what carries the AGENTS.md in.
-#   Basis: code.claude.com/docs/en/memory, "AGENTS.md" and "When Claude Code
-#     reads AGENTS.md"; confirmed by canary runs on Claude Code 2.1.278.
-#   As of: 2026-09-29.
+#   Decision: the reachability and wiring gates treat the three CLAUDE.md names
+#     that ip_entry_points_on_path walks as shadowing an AGENTS.md, and an
+#     `@AGENTS.md` import or symlink as what carries it in. Canary runs on
+#     Claude Code 2.1.278 observed the shadowing.
+#   Pointer: when deciding which files shadow AGENTS.md, fetch
+#     https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md live.
+#   As of: 2026-10-11.
 #   Recheck trigger: that section changes which file names count for the check,
 #     or a release note names AGENTS.md or instruction-file loading.
 #

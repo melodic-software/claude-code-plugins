@@ -7,14 +7,19 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: list-items [--state open|closed|all] [--repo <owner>/<repo>]" "$@"
+wit_help_if_requested "usage: list-items [--state open|closed|all] [--repo <owner>/<repo>] [--label <name>]" "$@"
 
-state="open"
+state="open" label=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --state)
     [[ $# -ge 2 ]] || wit_usage_error "--state needs a value"
     state="$2"
+    shift 2
+    ;;
+  --label)
+    [[ $# -ge 2 && -n "$2" ]] || wit_usage_error "--label needs a value"
+    label="$2"
     shift 2
     ;;
   # Parsed and discarded: the value has nothing to re-target (see the header).
@@ -33,13 +38,25 @@ esac
 wit_need_storage
 limit="$(jq -r '.limits.list_items_max' "$WIT_LOCAL_ADAPTER_DIR/capabilities.json")"
 
-emitted=0
-{
-  for n in $(wit_item_numbers); do
-    ((emitted < limit)) || break
-    item_state="$(wit_fm_field "$(wit_item_file "$n")" state)"
-    wit_state_matches "$state" "$item_state" || continue
-    wit_emit_local_item "$n" true
-    emitted=$((emitted + 1))
-  done
-} | jq -c -s --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}'
+# `truncated` is true only when a matching item past the ceiling exists, so a store
+# holding exactly `limit` matches still reads as complete.
+emitted=0 truncated=false rows=""
+for n in $(wit_item_numbers); do
+  item_state="$(wit_fm_field "$(wit_item_file "$n")" state)"
+  wit_state_matches "$state" "$item_state" || continue
+  # Filtered before the ceiling check, so the ceiling counts only labeled matches.
+  if [[ -n "$label" ]] &&
+    ! jq -e --arg l "$label" 'index($l) != null' <<<"$(wit_fm_field "$(wit_item_file "$n")" labels)" >/dev/null; then
+    continue
+  fi
+  if ((emitted >= limit)); then
+    truncated=true
+    break
+  fi
+  row="$(wit_emit_local_item "$n" true)" || continue
+  rows+="$row"$'\n'
+  emitted=$((emitted + 1))
+done
+printf '%s' "$rows" |
+  jq -c -s --arg sv "$WIT_SCHEMA_VERSION" --argjson truncated "$truncated" \
+    '{schema_version: $sv, items: ., truncated: $truncated}'

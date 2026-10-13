@@ -69,6 +69,7 @@ docs/conventions/config-cascade/*.md
 docs/conventions/consumer-config-layering/*.md
 docs/conventions/detector-findings/*.md
 docs/conventions/ecosystem-commands/*.md
+docs/conventions/enforcement-ladder/*.md
 docs/conventions/finding-suppression/*.md
 docs/conventions/hook-budget/*.md
 docs/conventions/hook-config-delivery/*.md
@@ -104,6 +105,10 @@ docs/out-of-scope/*.md
 # docs/upstream/, so the rule above puts it on this list rather than off it.
 docs/upstream/claude-code-mods/*.md
 docs/upstream/claude-code-mods/research-2026-09-19/*.md
+docs/upstream/tlaplus-agentskills.md
+docs/upstream/cursor-pstack.md
+docs/upstream/mattpocock-skills.md
+docs/upstream/trailofbits-skills.md
 
 # Plugin instruction surfaces, purged in the campaign's per-plugin shards. The
 # skills glob is intentionally open: a NEW skill added to one of these plugins
@@ -211,10 +216,13 @@ plugins/coupling/skills/reduce/reference/*.md
 plugins/debugging/README.md
 plugins/debugging/CHANGELOG.md
 plugins/debugging/skills/*/SKILL.md
+plugins/debugging/skills/analyze-profile/reference/*.md
+plugins/debugging/skills/analyze-profile/reference/formats/*.md
 plugins/desktop-notification/README.md
 plugins/desktop-notification/CHANGELOG.md
 plugins/desktop-notification/skills/*/SKILL.md
 plugins/discipline/README.md
+plugins/discipline/reference/config.md
 # The discovery plugin was purged whole.
 # The disk-hygiene plugin was purged whole. Its README's generated options block keeps its own
 # pre-existing ignore marker, since that prose belongs to the generator rather than the output.
@@ -301,6 +309,7 @@ plugins/guardrails/*.md
 plugins/guardrails/skills/*/SKILL.md
 plugins/guardrails/skills/*/context/*.md
 plugins/implementation/README.md
+plugins/implementation/reference/config.md
 plugins/implementation/skills/*/SKILL.md
 plugins/improvement/README.md
 plugins/improvement/CHANGELOG.md
@@ -373,6 +382,7 @@ plugins/planning/skills/interview/evals/fixtures/*/*.md
 # The playbooks plugin was purged whole; the Boris and model-adaptation chapters
 # keep their quoted upstream text inside the quotation exemption or a marker.
 plugins/playbooks/*.md
+plugins/playbooks/reference/config.md
 plugins/playbooks/reference/model-adaptation/*.md
 plugins/playbooks/skills/*/SKILL.md
 plugins/playbooks/skills/boris/reference/*.md

@@ -50,9 +50,9 @@ import {
  * @property {Record<string, unknown>} [sourceMetadata] - the envelope metadata's
  *   `source:`-prefixed subset (e.g. `source:snowflakeAliasing`), persisted so
  *   source-specific provenance survives the run; absent when the source set none
- * @property {string} [target] - the `--target <repo>` value resolved at watch start (SKILL.md
- *   "Synthesis target resolution"), a portable repo name/slug never an absolute local-checkout
- *   path. Persisted so an interrupted watch's `resume` recovers it instead of re-asking.
+ * @property {string} [target] - the `--target <repo>` value resolved at watch start
+ *   (context/watch-pipeline.md "Synthesis target resolution"), a portable repo name/slug never an
+ *   absolute local-checkout path. Persisted so an interrupted watch's `resume` recovers it instead of re-asking.
  * @property {boolean} [skipResearch] - user passed --skip-research; research phase is recorded as skipped
  * @property {number} [maxFrameGapSec] - the coverage plan's maximum gap between timed frames for
  *   this run (`--max-frame-gap-sec` or the default), recorded at watch start so recovery reuses it
@@ -87,7 +87,8 @@ export const CONTINUATION_PROMPT_FILENAME = "continuation-prompt.md";
  * @param {string} meta.title
  * @param {string} [meta.target] - explicit `--target <repo>` value, when the caller resolved
  *   one at watch start; omitted leaves `state.target` unset for the CLAUDE_PROJECT_DIR/ask rungs
- *   to resolve later (out of scope here — see "Synthesis target resolution" in SKILL.md).
+ *   to resolve later (out of scope here — see context/watch-pipeline.md "Synthesis target
+ *   resolution").
  * @param {Record<string, unknown>} [meta.sourceMetadata] - `source:`-prefixed
  *   envelope metadata subset; persisted only when non-empty
  * @param {number} [meta.maxFrameGapSec] - the run's effective maximum frame gap
@@ -339,7 +340,7 @@ ${nextLine}
 
 ## Synthesis target
 
-${state.target ? `Resolved: \`${state.target}\` — re-run SKILL.md "Synthesis target resolution" against this recorded name; do not re-ask.` : 'Not yet resolved — follow SKILL.md "Synthesis target resolution" when reaching synthesis.'}
+${state.target ? `Resolved: \`${state.target}\` — re-run context/watch-pipeline.md "Synthesis target resolution" against this recorded name; do not re-ask.` : 'Not yet resolved — follow context/watch-pipeline.md "Synthesis target resolution" when reaching synthesis.'}
 
 ## Frame selection
 
