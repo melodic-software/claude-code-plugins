@@ -498,13 +498,14 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   for (const commit of commits) {
     const targets = revertsOf(commit.commit?.message);
     if (targets.length === 0) continue;
-    let viaPr;
+    // A PR the REST lookup names but GraphQL cannot resolve is treated as no PR.
+    let human = true;
     try {
-      viaPr = gh(`repos/${repo}/commits/${commit.sha}/pulls`).find((p) => p.merged_at && p.merge_commit_sha === commit.sha);
+      const viaPr = gh(`repos/${repo}/commits/${commit.sha}/pulls`).find((p) => p.merged_at && p.merge_commit_sha === commit.sha);
+      if (viaPr) human = humanRevert(viaPr.number);
     } catch (error) {
       if (!(error instanceof UnresolvableError)) throw error;
     }
-    const human = viaPr ? humanRevert(viaPr.number) : true;
     for (const target of targets) reverts.push({ ...target, at: commit.commit?.committer?.date, human });
   }
   const notHuman = new Map();

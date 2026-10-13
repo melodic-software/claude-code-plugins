@@ -481,6 +481,19 @@ test("a git-revert commit pushed straight to the default branch yields reverted-
   assert.deepEqual(result.events, [{ cell: "C3-auto-merge", event: "reverted-merge", at: "2026-09-03T00:00:00Z" }]);
 });
 
+test("a revert commit whose REST-named PR GraphQL cannot resolve counts as a direct push, not a crash", () => {
+  const fixture = {
+    pulls: [pr(201, "2026-09-01T00:00:00Z", { labels: [SCOPED] })],
+    history: [shaOf(201), shaOf(999)],
+    commits: [{ ...REC.commit, sha: shaOf(999), commit: { message: `Revert "x"\n\nThis reverts commit ${shaOf(201)}.`, committer: { date: "2026-09-03T00:00:00Z" } } }],
+  };
+  const base = github(fixture);
+  const gh = (path, graphql) =>
+    path === `repos/${REPO}/commits/${shaOf(999)}/pulls` ? [{ number: 998, merged_at: "2026-09-03T00:00:00Z", merge_commit_sha: shaOf(999) }] : base(path, graphql);
+  const result = run(fixture, { gh });
+  assert.deepEqual(result.events, [{ cell: "C3-auto-merge", event: "reverted-merge", at: "2026-09-03T00:00:00Z" }]);
+});
+
 const NOT_HUMAN = "the revert was merged or enqueued by a bot or lane identity, not a human";
 
 test("a revert PR a bot or lane identity merged or enqueued is listed, not counted", () => {
