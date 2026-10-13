@@ -516,7 +516,7 @@ already states of itself: one remedy, pinned in the scopes it is offered in, by 
 the producer runs, a test case, an eval case, or a golden file. What must be checkable is the claim;
 the shape of the check is the producer's. **That freedom is over the FORM of the check, and is not a
 claim that a form is already in place.** Two of the six tabled adopters run no assertion reaching a
-remedy at all, a third pins seven of its thirteen (its older five only through an `Action` cell's shape), and a fourth pins two of its fifteen, so
+remedy at all, a third pins eight of its thirteen (its older five only through an `Action` cell's shape), and a fourth pins two of its fifteen, so
 for three of six this is an assertion to write rather than a harness to reuse, and the Adopters
 table below says which is which and by how much.
 **It is per rule and per scope, never per finding**, which is "Auto-applicability is settled per
@@ -727,7 +727,7 @@ grandfather clause in
 above. Four of the six rows below do not meet that bar today and each says so in its own cell, with
 the count it falls short by wherever its remedies can be counted, so "Conforming" in this table never
 quietly means "conforming except the newest obligation". The annotation is per row because the
-shortfall is: it runs from none of a producer's remedies pinned to seven of thirteen, and one row meets
+shortfall is: it runs from none of a producer's remedies pinned to eight of thirteen, and one row meets
 the bar in full.
 
 | Producer | Status | Notes |

@@ -6,7 +6,8 @@ adopter row is a minor bump; docs-only clarification is a patch.
 
 ## [3.8.1] - 2026-10-11
 
-**Patch, docs-only.** The `testing:audit` adopter row counts remedies pinned 8 of 13:
+**Patch, docs-only.** The `testing:audit` adopter row, and the two counts that cite it, count
+remedies pinned 8 of 13:
 `rule-throw-only-oracle`'s remedy now carries its negative assertion, that it is not the
 `rule-weak-oracle` remedy, so all eight report-only rules are pinned positive and negative in each
 scope they fire in. No producer-owned field's rule, coexistence obligation, or enforceability
