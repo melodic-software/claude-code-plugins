@@ -1249,9 +1249,8 @@ cannot afford the addition have the per-hook kill switch below.
 Each guard is toggled by its own `userConfig` boolean, default **on**, except the two
 behavioral-class advisories `workflow-resilience-check` and `flag-commit-pr-skill-bypass`, which
 have been default **off** since 0.20.0 per #2021. Set a switch to `true` to opt in, or to `false`
-for a clean no-op. This per-hook
-control is the bundle's core contract: disable one guard without touching the
-others.
+for a clean no-op. Each per-hook switch
+disables one guard without touching the others.
 
 | Guard | Option |
 | ----- | ------ |
@@ -1388,8 +1387,8 @@ Every guard emits one structured [hook-telemetry](../../docs/conventions/hook-te
 envelope per run to whatever `HOOK_TELEMETRY_SINK` names, carrying `status`
 (`blocked` on a guard block, `ok` otherwise), `duration_ms`, and a privacy-safe
 `data` payload (category **labels** only, never a secret value, matched path,
-or full command). Unset `HOOK_TELEMETRY_SINK` → no-op; the guards behave exactly
-as before.
+or full command). With `HOOK_TELEMETRY_SINK` unset, emission is a no-op and the
+guards behave exactly as before.
 
 ## Requirements
 
