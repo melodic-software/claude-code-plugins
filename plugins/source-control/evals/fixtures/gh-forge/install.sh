@@ -7,26 +7,24 @@
 # The bare repository's path ends in eval-fixture/app.git so push-branch.sh, which compares the
 # push remote's URL with the PR's head repository, accepts it as eval-fixture/app.
 #
-# A case cannot set PATH, so the stand-in is put on it through the run's temporary home, which is
-# the scaffold's HOME (https://code.claude.com/docs/en/plugin-evals#add-setup-or-history-with-case-yaml,
-# as of 2026-10-11). Under Claude Code 2.1.296 an eval run does not source ~/.zshrc, ~/.bashrc or
-# ~/.profile, but zsh reads ~/.zshenv for every `zsh -c`, so the stand-in is reached only when the
-# operator's SHELL is zsh; under bash the run reaches the real gh, which has no login there.
-# Recheck trigger: a Claude Code release that changes how an eval run's shell starts.
+# The stand-in lands in <git common dir>/eval-forge/bin. A case puts it first on the run's Bash PATH by
+# listing its own `gh-forge-path` plugin subdirectory in prompt.md `plugins:`: that plugin's
+# SessionStart hook appends an export of the directory to $CLAUDE_ENV_FILE, which the run's shell
+# applies whether it is bash or zsh. A case cannot set PATH (env keys are EVAL_* only), a plugin's
+# bin/ is not put on an eval run's PATH, and a plugin a case ships must sit in a subdirectory of
+# the case directory, so each case carries its own copy of that one-file plugin.
+# Pointers: https://code.claude.com/docs/en/plugin-evals#case-yaml-fields and
+# https://code.claude.com/docs/en/hooks#persist-environment-variables, as of 2026-10-13 (Claude
+# Code 2.1.296, confirmed by a probe run). Recheck trigger: a Claude Code release that changes
+# CLAUDE_ENV_FILE, plugin hooks or bin/ in eval runs, or adds a case-level PATH setting.
 set -euo pipefail
 
 number="$1" head="$2" base="$3" title="$4"
 
-# Refuse outside an eval run, so a scaffold run by hand never edits the operator's own ~/.zshenv.
-# ~user expands from the account database, not from HOME; an unresolved lookup refuses too.
-user="$(id -un 2>/dev/null || true)"
-[[ "$user" =~ ^[A-Za-z0-9._-]+$ ]] && eval "real_home=~$user" || real_home=""
-if [[ "$real_home" != /* || "$HOME" -ef "$real_home" ]]; then
-  echo "gh-forge/install.sh: HOME is the account's real home, or it could not be checked; run this only from an eval scaffold" >&2
-  exit 1
-fi
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-forge="$(git rev-parse --absolute-git-dir)/eval-forge"
+forge="$(git rev-parse --path-format=absolute --git-common-dir)/eval-forge"
+# Added first, so a repository that already has an origin stops here before anything is written.
+git remote add origin "$forge/eval-fixture/app.git"
 
 mkdir -p "$forge/bin"
 cp "$here/gh" "$forge/bin/gh"
@@ -35,9 +33,5 @@ printf 'PR_NUMBER=%q\nPR_HEAD=%q\nPR_BASE=%q\nPR_TITLE=%q\n' "$number" "$head" "
 echo true >"$forge/draft"
 
 git init -q --bare "$forge/eval-fixture/app.git"
-git remote add origin "$forge/eval-fixture/app.git"
 git push -q origin "$base" "$head"
 git branch -q --set-upstream-to="origin/$head" "$head"
-
-# shellcheck disable=SC2016 # $PATH expands when zsh reads the file, not here
-printf 'export PATH=%q:"$PATH"\n' "$forge/bin" >>"$HOME/.zshenv"
