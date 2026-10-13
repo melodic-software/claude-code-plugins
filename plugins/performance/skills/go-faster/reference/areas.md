@@ -206,14 +206,14 @@ them live when a command's output, or the files you find, do not match the entry
 ## hooks
 
 - **Source**: hook execution latency from locally captured telemetry, through its owner. When that
-  gives no finding, the per-hook Stop durations the harness writes into this session's transcript
-  as `stop_hook_summary` records, read by findings.py (the record shape is observed, not
-  documented: see the hook-timing pointer above).
+  gives no finding, the per-hook Stop durations the harness writes into this session's transcript,
+  read by findings.py (the record shape is observed, not documented: read it live at the
+  hook-timing pointer above).
 - **Run**: `/harness-ops:observability latency`. When it records no measured finding (no rows, it
   cannot evaluate, it is not in the listing, or the call fails) and `TRANSCRIPT` is not `none`:
   `"$PY" "$ROOT/scripts/findings.py" stop-hook-timing "$TRANSCRIPT"`. It reads only the
-  `stop_hook_summary` records and, from each, only its `hookInfos`; never read the transcript for
-  this area any other way.
+  Stop hook summary records and, from each, only its per-hook entries; never read the transcript
+  for this area any other way.
 - **Owner**: harness-ops for the telemetry; none for the transcript fallback.
 - **Record**: one measured finding per hook event it flags: unit `elapsed-ms`, value the p95, tier
   E2 (a per-event total spans every matching hook), workload `hook latency, last 7 days`,

@@ -1058,7 +1058,12 @@ HOOK_INPUT_MAX = 4096
 
 
 def hook_label(command: str) -> str:
-    return shown_command(URL_PATH.sub(r"\1/***", command[:HOOK_INPUT_MAX]))
+    """shown_command's contract with URL paths also redacted: tagged whenever it differs."""
+    clean = redacted(URL_PATH.sub(r"\1/***", command[:HOOK_INPUT_MAX]))
+    shown = cut(clean)
+    if shown == command:
+        return command
+    return f"{shown} #{hashlib.sha256(clean.encode('utf-8')).hexdigest()[:8]}"
 
 
 def percentile(ordered: list[float], p: float) -> float:
@@ -1077,7 +1082,7 @@ def stop_hook_timing(path: Path) -> dict:
     records = 0
     timed: dict[str, list[float]] = {}
     untimed: dict[str, int] = {}
-    labels: dict[str, str] = {}
+    # Keyed by the raw command, so two hooks that redact alike stay apart; labeled on output.
     for record in tr.iter_records(path):
         if record.get("subtype") != STOP_SUMMARY:
             continue
@@ -1086,10 +1091,7 @@ def stop_hook_timing(path: Path) -> dict:
         for info in infos if isinstance(infos, list) else []:
             if not isinstance(info, dict):
                 continue
-            raw = str(info.get("command", ""))
-            if raw not in labels:
-                labels[raw] = hook_label(raw)
-            hook = labels[raw]
+            hook = str(info.get("command", ""))
             ms = info.get("durationMs")
             if isinstance(ms, (int, float)) and not isinstance(ms, bool) and ms >= 0:
                 timed.setdefault(hook, []).append(float(ms))
@@ -1101,7 +1103,7 @@ def stop_hook_timing(path: Path) -> dict:
         n = len(ordered)
         hooks.append(
             {
-                "hook": hook,
+                "hook": hook_label(hook),
                 "samples": n,
                 "p50_ms": round(percentile(ordered, 50)) if n >= P50_FLOOR else None,
                 "p95_ms": round(percentile(ordered, 95)) if n >= P95_FLOOR else None,
@@ -1116,8 +1118,12 @@ def stop_hook_timing(path: Path) -> dict:
         reverse=True,
     )
     # A hook with any recorded duration is ranked, never also reported as background.
-    untimed = {hook: n for hook, n in untimed.items() if hook not in timed}
-    return {"records": records, "hooks": hooks, "untimed": untimed}
+    shown_untimed: dict[str, int] = {}
+    for hook, n in untimed.items():
+        if hook not in timed:
+            label = hook_label(hook)
+            shown_untimed[label] = shown_untimed.get(label, 0) + n
+    return {"records": records, "hooks": hooks, "untimed": shown_untimed}
 
 
 def cmd_stop_hook_timing(args: argparse.Namespace) -> int:
