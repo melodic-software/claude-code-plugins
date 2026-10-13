@@ -199,6 +199,16 @@ run "no threads, --admin, green" 'gh pr merge 42 --admin --squash' 0
 scenario none requested-then-approved green green
 run "changes requested then approved" 'gh pr merge 42' 0
 
+# The Gated PR Merge shape: a gh pr view gate piped to grep, then a literal merge.
+GATED='gh pr view 42 -R acme/widgets --json state,isDraft --jq '"'"'.state == "OPEN" and (.isDraft | not)'"'"' | grep -qx true && gh pr merge 42 -R acme/widgets --squash --match-head-commit abc123'
+scenario resolved none green green
+run "gated merge on a clean PR" "$GATED" 0
+assert_eq "gated merge clean -> no output" "" "$OUT"
+assert_contains "gated merge reads the -R PR" "$(calls)" "repos/acme/widgets/pulls/42"
+scenario unresolved none green green
+run "gated merge with an open thread" "$GATED" 2
+assert_contains "gated merge blocked -> lists the thread" "$ERR" "src/app.py:12"
+
 # --- 3. change requests and checks ---------------------------------------------
 scenario none requested green green
 run "changes requested" 'gh pr merge 42' 2
