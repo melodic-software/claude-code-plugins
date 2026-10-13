@@ -205,7 +205,7 @@ Common rules, on every host:
 |---|---|---|
 | Linux | Allowed | The managed settings directory and every surface are root-owned, and so is every directory above them. The lane runs as a dedicated non-root user. |
 | macOS | Allowed | The managed settings directory and every surface are owned by root or an administrator, and so is every directory above them. The lane runs as a standard (non-admin) account. |
-| WSL | Refused when the lane runs as the same Windows user that owns the distribution | That Windows user can enter the distribution as root, which puts the distribution's managed directory in the lane's reach (pointer records below). The documented exception, every item required: a separate Linux user for the lane with no sudo rule; the managed directory and every surface root-owned; `/etc/wsl.conf` sets `[interop] enabled=false`, so the lane cannot start `wsl.exe` or any other Windows program; `[automount] enabled=false`, so the lane cannot write the Windows user profile; and `wslInheritsWindowsSettings` off, because the helper reads only the distribution's managed directory. The operator records how each item was checked. |
+| WSL | Refused when the lane runs as the same Windows user that owns the distribution | That Windows user can enter the distribution as root, which puts the distribution's managed directory in the lane's reach (pointer records below). The documented exception, every item required: a separate Linux user for the lane with no sudo rule; the managed directory and every surface root-owned; `/etc/wsl.conf` sets `[interop] enabled=false`, so the lane cannot start `wsl.exe` or any other Windows program; and `wslInheritsWindowsSettings` off, because the helper reads only the distribution's managed directory. The operator records how each item was checked. |
 | Windows | Refused | The unattended gate's writability test is not ACL-aware (pointer records below), so it cannot establish the common rules. Refused until an ACL-aware check exists. |
 
 Residuals no row closes, named so an operator does not read the table as covering them:
@@ -228,11 +228,10 @@ Pointer records for the upstream behavior these rows rely on:
   where WSL reads managed settings.
 - Entering a WSL distribution as root from the owning Windows user, and what `wsl.conf` controls:
   [Set up your Linux username and password](https://learn.microsoft.com/en-us/windows/wsl/setup/environment#set-up-your-linux-username-and-password),
-  [Run as a specific user](https://learn.microsoft.com/en-us/windows/wsl/basic-commands#run-as-a-specific-user),
-  [Interop settings](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#interop-settings)
-  and [Automount settings](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#automount-settings).
+  [Run as a specific user](https://learn.microsoft.com/en-us/windows/wsl/basic-commands#run-as-a-specific-user)
+  and [Interop settings](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#interop-settings).
   As of 2026-10-12. Recheck trigger: any of those sections changes how root is entered or what the
-  interop or automount keys control.
+  interop key controls.
 - Windows write-access test: the `MS_WINDOWS` branch of `os_access_impl` in
   [CPython `Modules/posixmodule.c`](https://github.com/python/cpython/blob/64018ac45cbc3f408412ab2c37f47f46bc8f84a1/Modules/posixmodule.c).
   As of 2026-10-12. Recheck trigger: that branch starts reading ACLs, or the gate stops using
