@@ -1,0 +1,52 @@
+{
+  "pass": [
+    {
+      "answer": "# Bug: `applyLateFee` charges the late fee on the due date itself\n\n**Severity**: high\n**Suggested fix location**: `apps/billing/src/fees.ts` `applyLateFee` (no patch)\n**Reported by**: session\n**Reported at**: 2026-10-13T12:00:00Z\n\n## Steps to reproduce\n\n1. Create an invoice whose due date is today.\n2. Call `applyLateFee(invoice, today)`.\n3. Inspect the returned invoice total.\n\n## Expected behavior\n\nNo late fee until the day after the due date.\n\n## Actual behavior\n\nA 25.00 late fee is added on the due date.\n\n## Severity justification\n\nCustomers are charged money they do not owe on a core billing flow.\n\n## Notes\n\nNone."
+    },
+    {
+      "answer": "**Title:** applyLateFee applies a 25.00 fee when an invoice is exactly on its due date\n**Severity:** Critical (money-affecting math bug: customers pay a fee they do not owe)\n\n**Steps to reproduce**\n1. Build an invoice whose due date equals today.\n2. Run `applyLateFee(invoice, today)`.\n\n**Expected:** no fee on the due date.\n**Actual:** a 25.00 fee is added.\n\n**Suggested fix location:** `apps/billing/src/fees.ts`, function `applyLateFee` (the due-date comparison). No patch."
+    },
+    {
+      "answer": "# Bug: applyLateFee charges on the due date\n\n## Steps to reproduce\n\n- Return to the invoice list after calling the function.\n\n```ts\napplyLateFee(invoice, today);\n```"
+    },
+    {
+      "answer": "**Next step:** start with `/debugging:debug`. The likely culprit is a `>=` vs `>` comparison, but that's a guess until someone reads the code.",
+      "why": "names the suspect comparison without a patch"
+    },
+    {
+      "answer": "- **Source not verified.** I did not check the date comparison, such as `>=` where `>` was meant.\n- Unknown:\n  - the exact invoice shape and how the due date is stored;\n  - whether 25.00 is a flat fee or computed;",
+      "why": "bullets ending in semicolons"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Bug: `applyLateFee` charges the late fee on the due date itself\n\n**Severity**: high\n**Suggested fix location**: `apps/billing/src/fees.ts` `applyLateFee` (no patch)\n**Reported by**: session\n**Reported at**: 2026-10-13T12:00:00Z\n\n## Steps to reproduce\n\n1. Create an invoice whose due date is today.\n2. Call `applyLateFee(invoice, today)`.\n3. Inspect the returned invoice total.\n\n## Expected behavior\n\nNo late fee until the day after the due date.\n\n## Actual behavior\n\nA 25.00 late fee is added on the due date.\n\n## Severity justification\n\nCustomers are charged money they do not owe on a core billing flow.\n\n## Notes\n\nNone.\n\n```diff\n-  if (today >= invoice.dueDate) {\n+  if (today > invoice.dueDate) {\n```"
+    },
+    {
+      "answer": "# Bug: `applyLateFee` charges the late fee on the due date itself\n\n**Severity**: high\n**Suggested fix location**: `apps/billing/src/fees.ts` `applyLateFee` (no patch)\n**Reported by**: session\n**Reported at**: 2026-10-13T12:00:00Z\n\n## Steps to reproduce\n\n1. Create an invoice whose due date is today.\n2. Call `applyLateFee(invoice, today)`.\n3. Inspect the returned invoice total.\n\n## Expected behavior\n\nNo late fee until the day after the due date.\n\n## Actual behavior\n\nA 25.00 late fee is added on the due date.\n\n## Severity justification\n\nCustomers are charged money they do not owe on a core billing flow.\n\n## Notes\n\nNone.\n\nChange `>=` to `>` in the due-date comparison."
+    },
+    {
+      "answer": "# Bug: `applyLateFee` charges the late fee on the due date itself\n\n**Severity**: high\n**Suggested fix location**: `apps/billing/src/fees.ts` `applyLateFee` (no patch)\n**Reported by**: session\n**Reported at**: 2026-10-13T12:00:00Z\n\n## Steps to reproduce\n\n1. Create an invoice whose due date is today.\n2. Call `applyLateFee(invoice, today)`.\n3. Inspect the returned invoice total.\n\n## Expected behavior\n\nNo late fee until the day after the due date.\n\n## Actual behavior\n\nA 25.00 late fee is added on the due date.\n\n## Severity justification\n\nCustomers are charged money they do not owe on a core billing flow.\n\n## Notes\n\nNone.\n\nJust change line 42 of fees.ts."
+    },
+    {
+      "answer": "Use `>` instead of `>=` in the comparison.",
+      "why": "prose patch"
+    },
+    {
+      "answer": "```ts\nexport function applyLateFee(invoice, today) {\n  if (today > invoice.dueDate) invoice.total += 25;\n  return invoice;\n}\n```",
+      "why": "fix in an ordinary ts fence"
+    },
+    {
+      "answer": "```\nif (today > invoice.dueDate) {\n```",
+      "why": "fixed guard in an unlabeled fence"
+    },
+    {
+      "answer": "- if (today >= invoice.dueDate) {\n+ if (today > invoice.dueDate) {",
+      "why": "unfenced diff lines on an if"
+    },
+    {
+      "answer": "`today >= invoice.dueDate` should be `today > invoice.dueDate`.",
+      "why": "should-be patch"
+    }
+  ]
+}

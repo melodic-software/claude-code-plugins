@@ -1,0 +1,128 @@
+{
+  "skill": "bugs:scan",
+  "plugin": "bugs",
+  "skill_dir": "plugins/bugs/skills/scan",
+  "ranking_note": "Authored from the before descriptions at commit 1e8ff6f8bbc232b84b12f6888a85dafc502d5f8b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitor is the sibling bugs skill that writes up an observed defect.",
+  "competitors": [
+    "bugs:write"
+  ],
+  "competitor_dirs": {
+    "bugs:write": "plugins/bugs/skills/write"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Look through the scheduler code and tell me what's likely broken that nobody has hit yet."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you do a bug sweep of the billing service?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want you to dig for hidden defects in the parser module, not fix them, just verify and list them."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run a bug hunt on whatever changed in my last three commits."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Rotate through the next lane and find anything wrong in resting code."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Proactively check the cache layer for correctness problems and only show me ones you can confirm."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Audit utils/date.ts for mistakes that would bite us later; I haven't seen any failure yet."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Search the notification feature for real bugs and file the confirmed ones as intake."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Hunt around the importer for errors lurking in the code, I want only verified results."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Take a look at the whole api/ folder and surface anything that is actually defective."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The login form throws a 500 when the password has an emoji. Write that up as a bug report."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I saw an error in the logs, 'expected 3 got 2'. Draft a ticket with steps to reproduce."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review this PR diff for correctness before merge."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find the root cause of this flaky integration test and fix it."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Audit the repo for security vulnerabilities and unsafe dependencies."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Please add retry support to the HTTP client."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Claude Code froze on startup, how do I send feedback about it?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write this failure up as a defect: the nightly job exits 1 and I know exactly how to trigger it."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Scan the repo for TODO and FIXME comments."
+    }
+  ]
+}

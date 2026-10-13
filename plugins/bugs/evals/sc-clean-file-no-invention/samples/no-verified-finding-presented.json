@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "Targeted run, effort high, small scope (1 file), 1 lens (lens-2 boundary/edge-case); hunter and gate on the session model. Candidates: 1 raw, 1 gated. Evidence labels (reproduced or verified-by-reading) apply only to survivors.\n\n*No verified findings.*\n\n**Lane**: src/calendar.js (1 file read, 1 candidate, all refuted)\n\n## Refuted candidates\n\n| # | Candidate | Lens | Location | Refuting argument |\n|---|---|---|---|---|\n| 1 | isLeapYear on negative years | lens-2 | `src/calendar.js:5` | -4 % 4 is -0, and -0 === 0 is true. |\n\n## Candidates not gated\n\nNone.\n\n## Side observations\n\nNone.\n\n*No scan cursor: targeted run, rotation not advanced.*"
+    },
+    {
+      "answer": "Zero verified findings in src/calendar.js. The hunter returned no candidates, which is a valid outcome; nothing reached the gate.\n\n## Refuted candidates\n\nNone — every candidate this run survived the gate."
+    },
+    {
+      "answer": "*No verified findings.*\n\nNo evidence reproduced a fault.",
+      "why": "prose, no label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "*No verified findings.*\n\n## Finding 1: daysInFebruary ignores year 0"
+    },
+    {
+      "answer": "Possible issue in isLeapYear.\n\n**Evidence**: verified-by-reading"
+    },
+    {
+      "answer": "**Evidence:** `reproduced`"
+    },
+    {
+      "answer": "*No verified findings.*\n\n| Evidence | reproduced |",
+      "why": "table label"
+    },
+    {
+      "answer": "Evidence - reproduced",
+      "why": "dash label"
+    },
+    {
+      "answer": "*No verified findings.*\n\n### 1. Off-by-one in isLeapYear",
+      "why": "numbered finding heading"
+    }
+  ]
+}

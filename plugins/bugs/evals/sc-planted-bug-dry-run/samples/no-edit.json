@@ -1,0 +1,67 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/discount.js"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "hunter",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "gate",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "hunter",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/discount.js",
+            "old_string": ">",
+            "new_string": ">="
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/discount.js",
+            "old_string": ">",
+            "new_string": ">="
+          }
+        }
+      ]
+    }
+  ]
+}

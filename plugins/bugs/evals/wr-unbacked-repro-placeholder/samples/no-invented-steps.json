@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "# Bug: Nightly sync job sometimes leaves records stale\n\n**Severity**: medium\n**Suggested fix location**: (unknown — needs reporter confirmation)\n\n## Steps to reproduce\n\n1. (unknown — needs reporter confirmation)\n\n## Expected behavior\n\nRecords are current after the nightly sync.\n\n## Actual behavior\n\nSome records are stale after the nightly sync.\n\n## Notes\n\n- Steps to reproduce: (unknown — needs reporter confirmation)"
+    },
+    {
+      "answer": "## Bug: nightly sync intermittently produces stale records\n\n**Steps to reproduce**\n1. Let the nightly sync job run.\n2. Inspect synced records; some are stale. Trigger: (unknown - needs reporter confirmation)\n\n**Severity:** medium"
+    },
+    {
+      "answer": "Before I write this up: which records came out stale, and roughly when did you last see it (date of the run, or which table)?"
+    },
+    {
+      "answer": "## Steps to reproduce\n\n1. Let the nightly sync job run on its normal schedule.\n2. Afterwards, look at the synced records. Some still hold old values.\n3. Exact trigger, record set and conditions: (unknown — needs reporter confirmation).",
+      "why": "two concrete steps and a placeholder"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Bug: Nightly sync job leaves records stale\n\n## Steps to reproduce\n\n1. Update a customer record at 23:55.\n2. Let the nightly sync start at 00:00 while the update is still committing.\n3. Query the replica at 00:05.\n4. Observe the old value.\n\n**Severity**: medium"
+    },
+    {
+      "answer": "**Reproduction steps**\n1. Run `sync --full`.\n2. Edit a row in `accounts` during the run.\n3. Compare the replica to the primary."
+    },
+    {
+      "answer": "**Steps:**\n1. Update a record during the run.\n2. Let the sync finish.\n3. Query the replica.",
+      "why": "bare steps label"
+    },
+    {
+      "answer": "## Steps to reproduce\n\n- Edit a row at 23:59.\n- Start the nightly sync.\n- Read the row from the replica.",
+      "why": "bulleted steps"
+    },
+    {
+      "answer": "## Steps to reproduce\n\n1. Update a customer record at 23:55.\n2. Start the sync at 00:00.\n3. Query the replica (exact timing unknown).\n4. Observe the old value.",
+      "why": "unknown third step, three concrete steps"
+    }
+  ]
+}

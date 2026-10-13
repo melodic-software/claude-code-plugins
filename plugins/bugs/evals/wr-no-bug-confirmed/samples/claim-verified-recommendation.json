@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "*No bug confirmed.*\n\n**Description claimed**: page 2 skips the last row that belongs on page 1 (off by one).\n**Verified state**: `paginate` is 1-based. `(page - 1) * pageSize` gives page 1 indexes 0..3 and page 2 indexes 4..7 for pageSize 4, so no row is skipped or repeated.\n**Recommendation**: close the loop; check whether the caller passes a 0-based page number."
+    },
+    {
+      "answer": "## No bug confirmed\n\n**Claim:** off-by-one between page 1 and page 2.\n**Verified state:** with 10 items and pageSize 4, page 1 is `slice(0, 4)` and page 2 is `slice(4, 8)`; nothing is dropped.\n**Recommendation:** no report filed. If a page looks wrong, check the page number the caller sends."
+    },
+    {
+      "answer": "No bug confirmed.\n\nClaimed: page 2 skips a row.\nWhat the code does: start = (page - 1) * pageSize, a correct one-based conversion.\nNext step: confirm whether the UI sends a zero-based page."
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**What was reported**: `paginate` is off by one, so page 2 skips a row.\n\n**What the code actually does**: `start = (page - 1) * pageSize` is right for a 1-based page; pages do not overlap and no row is missing.\n\n**Recommendation**: Don't file this against `paginate`; check the caller's page number."
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**What you reported**: page 2 skips the last row of page 1.\n\n**What I found**: with `pageSize = 3`, pages 1-3 are `[0,1,2]`, `[3,4,5]`, `[6]`.\n\n**Recommendation**: Don't file this against `paginate`.",
+      "why": "what you reported / what I found labels"
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**What was reported:** page 2 skips a row.\n\n**What the code shows:** page 2 is `slice(pageSize, 2*pageSize)`; nothing is skipped.\n\n**Caveat:** the file isn't here.\n\n**Recommendation:** Don't file a bug against `paginate`.",
+      "why": "what the code shows label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "*No bug confirmed.*\n\n**Verified state**: the math is correct."
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**Description claimed**: off by one.\n**Recommendation**: close it."
+    },
+    {
+      "answer": "No bug confirmed. The code looks fine to me."
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**What was reported**: `paginate` is off by one.\n\n**What the code actually does**: `start = (page - 1) * pageSize` is right for a 1-based page; no row is missing."
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**What you reported**: page 2 skips a row.\n\n**What I couldn't check**: the file is not in this checkout.\n\n**Recommendation**: rerun from the repo.",
+      "why": "no verified-state part"
+    }
+  ]
+}

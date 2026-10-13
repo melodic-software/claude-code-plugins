@@ -1,0 +1,51 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "hunter",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "hunter",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/report.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/report.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

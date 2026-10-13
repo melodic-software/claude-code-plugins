@@ -1,0 +1,96 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/discount.js"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-2 hunter",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "gate: candidate 1",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-1 hunter",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-2 hunter",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "gate 1",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "gate 2",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/discount.js"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "hunter and verifier in one",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/discount.js"
+          }
+        }
+      ]
+    }
+  ]
+}

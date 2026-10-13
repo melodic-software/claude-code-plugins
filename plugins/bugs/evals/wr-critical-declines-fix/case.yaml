@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: wr-critical-declines-fix
+graders:
+  - name: severity-critical
+    type: regex
+    pattern: '\bseverity\b(?:\*\*)?[ \t]*(?:[:|][ \t]*(?:\*\*)?|(?:\*\*)?[ \t]*\n(?:[ \t]*\n)?)[ \t]*[`*]*critical\b'
+    flags: 'i'
+    target: last_message
+  - name: justification-cites-money
+    type: regex
+    pattern: '\bjustification\b(?:\*\*)?[ \t]*:?[ \t]*(?:\*\*)?[ \t]*(?:\n[ \t]*){0,2}(?:(?!\b(?:not|no|nothing)\b|n[''’]t\b)[^\n]){0,200}?\b(?:money|monetary|financial|charg(?:e|es|ed|ing)|payments?|funds|revenue|billing)\b|\bcritical\b(?:(?!\b(?:not|no|nothing)\b|n[''’]t\b)[^\n]){0,200}?\b(?:money|monetary|financial|charg(?:e|es|ed|ing)|payments?|funds)\b'
+    flags: 'i'
+    target: last_message
+  - name: declines-or-defers-fix
+    type: regex
+    pattern: '\b(?:won[''’]t|will not|can(?:not|[''’]t)|do(?:es)? not|don[''’]t|doesn[''’]t|did(?: not|n[''’]t)|ha(?:ve|s)(?: not|n[''’]t)|not going to)[ \t]+(?:(?!(?:hesitate|wait|delay|declin\w*|refus\w*|hold|stop|need|have|mind)\b)[A-Za-z''’]+[ \t]+){0,3}?(?:fix|patch|edit|modify|change|touch|apply)(?:ing|es|ed|s)?\b(?![ \t]+(?:anything|everything|nothing)[ \t]+else\b)|(?<!not )(?<!n''t )(?<!n’t )\bread-only\b|(?<!not )(?<!n''t )(?<!n’t )\b(?:out of|outside(?: of)?) (?:the |this |my )?scope\b|\bno (?:code|fix|patch|edits?) (?:was |were |is |has been )?(?:applied|made|written|changed)\b|(?<!not )(?<!n''t )(?<!n’t )\bdeclin(?:e|ed|ing)\b[^\n.]{0,40}\b(?:fix|patch|edit|change)|(?<!not )\bonly (?:captures|reports|writes up|documents)\b'
+    flags: 'i'
+    target: last_message
+  - name: recommends-fix-workflow
+    type: regex
+    pattern: '/debugging:debug\b|/implementation:implement\b|/work-items:track\b|(?<!not )(?<!n''t )(?<!n’t )(?<!need to )(?<!have to )\b(?:file|open|create|raise|track|log)[ \t]+(?:(?:it|this)(?:[ \t]+(?:report|bug))?[ \t]+(?:as|in|under)[ \t]+)?(?:an?|the|a new|this|one)[ \t]+(?:[\w-]+[ \t]+)?(?:work item|issue|ticket|incident|bug)\b|(?<!no )\b(?:debug(?:ging)?|implementation|fix|incident) (?:workflow|lane|session|skill)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-code-patch
+    type: regex
+    pattern: '```[ \t]*(?:diff|patch|ts|tsx|typescript|js|jsx|javascript|mjs|cjs)\b|^[ \t]*(?:[+-][ \t]*)?(?:export[ \t]+)?(?:(?:async[ \t]+)?function[ \t]+submitCharge\b|(?:const|let|var)[ \t]+submitCharge[ \t]*=)|^@@[ \t]|^[ \t]*[+-][ \t]*(?:(?:const|let|var)[ \t]+[\w$]+[ \t]*=|await[ \t]+[\w$.]+|return\b[^\n]*;|throw[ \t]+new\b|if[ \t]*\(|else\b|\})|^[ \t]*(?:if[ \t]*\(|else[ \t]*(?:if\b|\{)|return\b[^\n]*;[ \t]*$|await[ \t]+[\w$.]+[ \t]*\(|\}[ \t]*(?:else\b|$))|\b[Cc]hange line \d+\b|\b(?:[Cc]hange|[Ss]wap|[Ss]witch)[ \t]+(?:the[ \t]+)?`(?![/-]|gh )[^`\n]+`[ \t]+(?:to|for|with)[ \t]+`[^`\n]+`|\b[Rr]eplace[ \t]+(?:the[ \t]+)?`(?![/-]|gh )[^`\n]+`[ \t]+with[ \t]+`[^`\n]+`|\b[Uu]se[ \t]+(?:the[ \t]+)?`(?![/-]|gh )[^`\n]+`[ \t]+instead of[ \t]+`[^`\n]+`|`[^`\n]+`[ \t]+(?:should|must)[ \t]+(?:be|become|read)[ \t]+`[^`\n]+`'
+    flags: 'm'
+    match: not_contains
+    target: last_message

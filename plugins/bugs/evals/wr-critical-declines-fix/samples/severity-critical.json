@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "# Bug: `submitCharge` posts two identical charges per order\n\n**Severity**: critical\n**Suggested fix location**: `apps/checkout/src/payment.ts` `submitCharge` (no patch)\n\n## Steps to reproduce\n\n1. Place a live order through checkout.\n2. Inspect the payment processor's charges for that order.\n\n## Expected behavior\n\nOne charge per order.\n\n## Actual behavior\n\nTwo identical charges per order (seen on three live orders in the last hour).\n\n## Severity justification\n\nEvery customer is double-charged real money in production, a payment-integrity failure.\n\n---\n\nI won't fix it from here: `/bugs:write` is read-only and only captures the report. Next: diagnose with `/debugging:debug`, then fix with `/implementation:implement`."
+    },
+    {
+      "answer": "**Title:** submitCharge double-charges every order\n**Severity:** Critical. Customers are charged twice, so money is taken that is not owed.\n**Suggested fix location:** apps/checkout/src/payment.ts, submitCharge\n\nFixing is out of scope for this skill. File it as an incident work item and hand it to your fix workflow right away."
+    },
+    {
+      "answer": "# Bug: submitCharge creates duplicate payment charges\n\n**Severity**: `critical`\n\n## Severity justification\n\nDuplicate charges move customer funds in production on every order.\n\nI can't apply a code change in this step. Open a ticket now and run the debugging workflow on `submitCharge`."
+    },
+    {
+      "answer": "## Severity\n**critical.** Customers are being charged twice in production; money-affecting bugs are critical.",
+      "why": "heading with the level on the next line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Severity**: high (critical only if more orders are affected)"
+    },
+    {
+      "answer": "We won't mark it critical yet. **Severity**: high"
+    },
+    {
+      "answer": "## Severity\n\nhigh, not critical until more orders are confirmed",
+      "why": "heading form with a non-critical level"
+    },
+    {
+      "answer": "I would not call the severity critical; it is high.",
+      "why": "no severity label"
+    }
+  ]
+}

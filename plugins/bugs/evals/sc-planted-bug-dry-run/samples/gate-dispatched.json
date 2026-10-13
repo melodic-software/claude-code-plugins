@@ -1,0 +1,60 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-1 hunter",
+            "prompt": "You are a read-only bug hunter, lens-1. Report candidates generously.",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-2 hunter",
+            "prompt": "You are a read-only bug hunter, lens-2. Report candidates generously.",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "gate for candidate 1",
+            "prompt": "You are a verification gate for one bug candidate. Your default verdict is REFUTE.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "two hunters and a refute gate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-1 hunter",
+            "prompt": "You are a read-only bug hunter, lens-1. Report candidates generously.",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-2 hunter",
+            "prompt": "You are a read-only bug hunter, lens-2. Report candidates generously.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ],
+      "why": "two hunters, no gate"
+    },
+    {
+      "answer": [],
+      "why": "no dispatch"
+    }
+  ]
+}

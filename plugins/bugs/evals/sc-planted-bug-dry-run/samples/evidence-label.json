@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": "Targeted run, effort high, small scope (1 file), 2 lenses; hunters and gates on the session model. Candidates: 2 raw, 1 after triage, 1 gated.\n\n## Finding 1: `discountRate` gives no 10% discount at exactly 10000 cents\n\n**Severity**: medium\n**Suggested fix location**: `src/discount.js` `discountRate` (no patch)\n**Evidence**: verified-by-reading\n**Lens**: lens-2 boundary/edge-case\n**Scope**: in-lane\n\n### Steps to reproduce\n\n1. Call `discountRate(10000)`.\n\n### Expected behavior\n\n0.1, per the comment: 10000 cents or more get 10% off.\n\n### Actual behavior\n\n0.05.\n\n### Severity justification\n\nCustomers at exactly $100.00 are overcharged by 5%.\n\n### Evidence\n\n`src/discount.js:4`\n\n```js\n  if (totalCents > 10000) return 0.1;\n```\n\n## Refuted candidates\n\nNone — every candidate this run survived the gate.\n\n## Candidates not gated\n\nNone.\n\n## Side observations\n\nNone.\n\n*No scan cursor: targeted run, rotation not advanced.*"
+    },
+    {
+      "answer": "**Needs you**: none.\n\n## 1. discountRate excludes the $100 boundary\n\n**Suggested fix location:** src/discount.js, discountRate\n**Evidence:** `reproduced` (ran the boundary input through the function by reading; 10000 → 0.05)\nLocation: discount.js line 4"
+    },
+    {
+      "answer": "**Evidence:** verified by reading"
+    },
+    {
+      "answer": "| Evidence | reproduced |",
+      "why": "table label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "*No verified findings.*\n\n**Lane**: src/discount.js (1 file read, 1 candidate, all refuted)\n\n## Refuted candidates\n\n| # | Candidate | Lens | Location | Refuting argument |\n|---|---|---|---|---|\n| 1 | discountRate boundary at 10000 | lens-2 | `src/discount.js:4` | Could not construct a failing input. |\n\n## Candidates not gated\n\nNone.\n\n## Side observations\n\nNone."
+    },
+    {
+      "answer": "Evidence labels apply only to survivors; the gate could not reproduce anything."
+    },
+    {
+      "answer": "The hunter flagged it, but no evidence reproduced it, so the gate dropped it.",
+      "why": "prose, no label"
+    }
+  ]
+}
