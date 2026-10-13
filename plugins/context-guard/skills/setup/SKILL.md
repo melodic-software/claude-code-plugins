@@ -3,6 +3,9 @@ description: "Verify the context-guard plugin on this machine: jq, node, whether
 argument-hint: "[check|apply] [defaults|cache-line]"
 user-invocable: true
 disable-model-invocation: true
+allowed-tools:
+  - "Bash(command -v jq*)"
+  - "Bash(command -v node*)"
 shell: bash
 ---
 
@@ -12,12 +15,12 @@ Three of `check`'s read-only probes run at load time. Read the values below; do 
 
 `jq` (a path = present, `absent` = missing): !`command -v jq 2>/dev/null || echo "absent"`
 `node` (a path = present, `absent` = missing): !`command -v node 2>/dev/null || echo "absent"`
-`zones.json` contents, capped at 40 lines, or one token distinguishing an absent file from an unreadable one: !`{ if [ -e "$HOME/.claude/context-guard/zones.json" ]; then cat "$HOME/.claude/context-guard/zones.json" 2>&1 || echo "(present but unreadable)"; else echo "(absent)"; fi; } | head -40`
+`zones.json` contents, capped at 40 lines, or one token distinguishing an absent file from an unreadable one: !`if [ -e "$HOME/.claude/context-guard/zones.json" ]; then head -40 "$HOME/.claude/context-guard/zones.json" 2>&1 || echo "(present but unreadable)"; else echo "(absent)"; fi`
 
 ## Purpose
 
 Narrow-write setup. The plugin's module (`hooks/register.tsx`, a Claude Code mod) writes each
-session's snapshot, sends Claude the zone lines, runs the blocking gate, draws the optional band row and
+session's snapshot, sends Claude the zone lines, draws the optional band row and
 serves the `mcp__context-guard__status` tool. Nothing about it needs wiring, so `check` inspects
 and reports PASS/FAIL/INFO with one remediation line per FAIL. The plugin also owns the machine file
 `~/.claude/context-guard/zones.json`, whose schema it defines and whose values the operator may
@@ -45,7 +48,7 @@ default zone bands, zones.json shape) are owned by
    neither ships nor uses Node (<https://code.claude.com/docs/en/setup>). Without `node` on `PATH`
    the marker does not launch and no snapshot is written, so file readers read `unknown`; report
    that a hook that fails to launch is non-blocking, so nothing else says so. The module's zone
-   lines, gate, band row and status tool do not need `node`. Remediation: install Node.js
+   lines, band row and status tool do not need `node`. Remediation: install Node.js
    (<https://nodejs.org/en/download>) and restart Claude Code. The Node claim was verified
    2026-09-29 against the setup page above; recheck when a Claude Code release note says the
    native binary bundles Node or runs hooks without it, or when that page stops saying the native
@@ -62,13 +65,13 @@ default zone bands, zones.json shape) are owned by
      `disableAllHooks` in this session's settings, `--bare`, worker crashes), so it may only say
      whether mods can load on this build, read against the troubleshoot table at the pointer
      below; never report it as this session's state.
-   - Where mods are off, the plugin runs reactive-only there: no zone lines, no gate (blocking mode
-     does nothing), no band row, no status tool and no snapshot writes; the PostCompact marker, a
+   - Where mods are off, the plugin runs reactive-only there: no zone lines,
+     no band row, no status tool and no snapshot writes; the PostCompact marker, a
      settings hook, still runs wherever settings hooks do.
 
    - **Pointer**: [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
-     and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesnt-load).
-   - **As of**: 2026-10-03, Claude Code 2.1.288.
+     and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesn%E2%80%99t-load).
+   - **As of**: 2026-10-03, Claude Code 2.1.288; the doesn't-load anchor 2026-10-11.
    - **Recheck trigger**: that table changes a message, or the minimum version changes.
 4. **Live-session snapshot freshness**. This session's id is `${CLAUDE_SESSION_ID}`. The module
    writes after every tool call, so this check's own Bash calls have each given it a chance to
@@ -111,17 +114,14 @@ default zone bands, zones.json shape) are owned by
 7. **Option posture**. Report every option, each as its own row with the value substituted below
    and what that value does. Never collapse them into one "active" status: a plugin that is
    enabled while its kill switch is off, or whose lines are off, is the exact state an operator is
-   diagnosing when lines or gating are missing.
+   diagnosing when lines are missing.
 
    | Option | Value | What it does |
    |---|---|---|
-   | `context_guard_hooks_enabled` | `${user_config.context_guard_hooks_enabled}` | `false` → **INERT**: the module sends no lines and gates nothing, and the PostCompact marker hook exits at once. Snapshot writes, the band row and the status tool continue. |
-   | `zone_lines_enabled` | `${user_config.zone_lines_enabled}` | `false` → no lines to Claude and no operator-mode suggestions; the gate, band and writes continue. |
+   | `context_guard_hooks_enabled` | `${user_config.context_guard_hooks_enabled}` | `false` → **INERT**: the module sends no lines, and the PostCompact marker hook exits at once. Snapshot writes, the band row and the status tool continue. |
+   | `model_notices` | `${user_config.model_notices}` | `false` (the default) → no lines to Claude and no operator-mode suggestions; the toast, band and writes continue. `true` sends the zone lines. |
    | `zone_report_mode` | `${user_config.zone_report_mode}` | `automatic` sends the lines to Claude; `operator` holds them in a turn a person typed and offers them as a prompt suggestion plus a notice row. |
    | `zone_line_data` | `${user_config.zone_line_data}` | The figures a line carries beside its zone (`percent`, `tokens`, `window`); `zone` alone means none. |
-   | `zone_hook_mode` | `${user_config.zone_hook_mode}` | `advisory` leaves the gate inert while the lines run; `blocking` (or a `block` action in `zones.json`) arms it. |
-   | `zone_gate_grace_calls` | `${user_config.zone_gate_grace_calls}` | Matched calls allowed in a blocked zone before the gate denies. |
-   | `zone_block_unattended` | `${user_config.zone_block_unattended}` | `post-compaction`: headless, loop, schedule and notification turns get only the post-compaction block; `same-as-typed`: they are blocked as typed turns are. |
    | `context_guard_band` | `${user_config.context_guard_band}` | `false` (the default) leaves the band row off; `true` draws it. `/context-guard band on` or `band off` sets it for one session. |
    | `context_guard_toast` | `${user_config.context_guard_toast}` | `true` shows a toast at each zone crossing; `false` leaves only the transcript line. |
 
@@ -133,12 +133,13 @@ default zone bands, zones.json shape) are owned by
      user `settings.json` (the hook-config-delivery convention,
      <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/hook-config-delivery/README.md>,
      owns why the declared `default` field is not delivered to hook processes).
-   - A `zone_gate_grace_calls` that is not a whole number from 0 to 999999999, or a
-     `zone_line_data` item outside the four words, reads as that option's default, and the module
+   - A `zone_line_data` item outside the four words reads as that option's default, and the module
      logs one transcript line naming it at session start. Report the value as invalid and the
      default as what runs.
-   - An armed set with an advisory gate is a different runtime state from an inert set, and only
-     one of the two is a defect. Every option acts only where step 3 found the mod running, except
+   - A `pluginConfigs` key the plugin no longer declares (`zone_lines_enabled`, which
+     `model_notices` replaced; `zone_hook_mode`, `zone_gate_grace_calls`, `zone_block_unattended`),
+     or a `block` action in `zones.json` (which reads as `none`), gates nothing. Report it as INFO, safe to remove.
+   - Every option acts only where step 3 found the mod running, except
      that the kill switch also turns off the PostCompact marker hook, a settings hook that can run
      where mods are off.
    - The module reads its options when it loads, and Claude Code reloads a module when its options

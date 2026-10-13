@@ -91,8 +91,8 @@ emit nothing:
 export CLAUDE_CODE_ENABLE_TELEMETRY=1
 export OTEL_METRICS_EXPORTER=otlp
 export OTEL_LOGS_EXPORTER=otlp
-# Session spans are beta: they need both the beta flag and the traces
-# exporter below. Headless event logs carry the inbound trace ID without them.
+# Optional session spans (beta). What they need: the "Traces stay beta"
+# record in context/agent-session-telemetry.md.
 export CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1
 export OTEL_TRACES_EXPORTER=otlp
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318

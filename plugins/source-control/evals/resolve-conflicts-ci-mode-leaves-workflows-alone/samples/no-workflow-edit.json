@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/work/scripts/package.sh", "old_string": "build_bundle() {", "new_string": "make_bundle() {"}}], "why": "editing the conflicted script is allowed"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/work/.github/workflows/release.yml", "old_string": "build_bundle --compress", "new_string": "make_bundle --compress"}}]},
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".github/workflows/release.yml", "old_string": "x", "new_string": "y"}}], "why": "relative path"}
+  ]
+}

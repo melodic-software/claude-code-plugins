@@ -151,8 +151,8 @@ details[open]::details-content { height: auto; }
 @media (prefers-reduced-motion: no-preference) {
   details::details-content {
     transition:
-      height 0.3s var(--ease-out, ease-out),
-      content-visibility 0.3s allow-discrete;
+      height 0.25s var(--ease-out, ease-out),
+      content-visibility 0.25s allow-discrete;
   }
 }
 ```

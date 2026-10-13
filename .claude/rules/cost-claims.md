@@ -21,8 +21,10 @@ Never write a price, a cache or batch rate, a per-task or per-session cost, or a
 into a skill, agent, reference, doc or prompt. A mechanism, such as each turn resending the
 conversation, is fine; the number is the docs' to state.
 
-On a subscription the `/usage` session cost is a list-price estimate of the work, not a bill, as
-the costs page says. Do not present it as spend.
+On a subscription the `/usage` session cost is a locally computed estimate of the work, not a bill;
+which rates it uses is
+[Using the `/usage` command](https://code.claude.com/docs/en/costs#using-the-%2Fusage-command)'s
+to state. Do not present it as spend.
 
 Two exceptions:
 
@@ -33,5 +35,5 @@ Two exceptions:
   suite, each with the measurement date, the Claude Code version, the setup measured, and a
   recheck trigger, labeled a list-price estimate. It states no rate.
 
-Basis: the two pages above, checked 2026-10-01. Recheck when either page moves the section linked
+Basis: the two pages above, checked 2026-10-11. Recheck when either page moves a section linked
 here.

@@ -85,9 +85,11 @@
 #     in pairs. The cost of reading a command is spread across the guards and
 #     grows with this count while every per-command cap still holds: 2,339
 #     sibling `$(: rm)` in 16,378 characters measured 65 s through the chain
-#     on Windows, and a row that runs past its hooks.json `timeout` is
-#     cancelled without blocking (https://code.claude.com/docs/en/hooks,
-#     "Timeouts"). No guard sees the whole chain's time, which is why the cap
+#     on Windows, and a row that runs past its hooks.json `timeout` cannot
+#     be counted on to block. Relay: the pointer record is under Over-length
+#     below. As of: 2026-10-11. Recheck trigger: that record leaves the
+#     Over-length entry, or its own recheck trigger fires. No
+#     guard sees the whole chain's time, which is why the cap
 #     lives here. An unprimed payload is counted whole, which no command
 #     inside it can exceed.
 #     For the Bash tool, a spelling inside a single-quoted span does not
@@ -125,18 +127,26 @@
 #     guards share (run-guards.test.sh holds the two equal), above which they
 #     refuse a command unread. A guard with no ceiling that tokenizes would
 #     parse the whole command only to add a reason to a block already
-#     decided, and a row that runs past its hooks.json `timeout` is cancelled
-#     with its block discarded: Claude Code lets a timed-out PreToolUse command
-#     hook's tool call proceed (https://code.claude.com/docs/en/hooks,
-#     "Timeouts"). #4528 measured a ~70 KB command still running at 120 s.
+#     decided, and a row that runs past its hooks.json `timeout` loses its
+#     block, so a stalled guard is no gate. What Claude Code does with a
+#     timed-out PreToolUse command hook is the hooks page's to state; our
+#     hooks.json rows set no failure-handling field, so they take the page's
+#     default. Pointer: https://code.claude.com/docs/en/hooks#timeouts. As of:
+#     2026-10-11. Recheck trigger: that section changes what a timed-out
+#     PreToolUse command hook does to its tool call or its default failure
+#     handling, or is renamed.
+#     #4528 measured a ~70 KB command still running at 120 s.
 #     Each guard keeps its own kill switch: a disabled guard exits before its
 #     ceiling, so the next enabled ceiling guard is the one that blocks. An
 #     unprimed payload is measured by its own length, which no command inside
 #     it can exceed.
 #   * stdout: one emitter passes through verbatim. Several are merged into one
-#     document (contexts joined by a blank line) because Claude Code reads
-#     exactly one JSON document per hook process; as separate hooks each
-#     document was delivered on its own. When jq is absent, or the merge fails,
+#     document (contexts joined by a blank line) because a hook process gets
+#     one JSON document on stdout; as separate hooks each document was
+#     delivered on its own. Pointer:
+#     https://code.claude.com/docs/en/hooks#json-output. As of: 2026-10-11.
+#     Recheck trigger: that section starts accepting more than one JSON object
+#     on a hook's stdout, or is renamed. When jq is absent, or the merge fails,
 #     the documents are never concatenated (two documents on stdout is invalid
 #     hook output): the one carrying a blocking decision (`"decision":"block"`,
 #     `"permissionDecision":"deny"`, then `"ask"`) is emitted, else the first,

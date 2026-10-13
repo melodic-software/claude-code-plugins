@@ -9,6 +9,16 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/remove-shims.sh"
 REAL_SOURCES="$SCRIPT_DIR/../reference/sources.md"
+VERSION_LIB="$SCRIPT_DIR/../../../scripts/lib/version.sh"
+
+# A stub copy of the script sources the plugin's shared version comparator
+# from three levels up, so a stub keeps the plugin's layout:
+# <root>/skills/migrate/{scripts,reference} beside <root>/scripts/lib.
+make_stub() { # <root> -> prints the stub's skills/migrate directory
+  mkdir -p "$1/skills/migrate/scripts" "$1/skills/migrate/reference" "$1/scripts/lib"
+  cp "$VERSION_LIB" "$1/scripts/lib/version.sh"
+  printf '%s' "$1/skills/migrate"
+}
 
 CASE_NUM=0
 FAILED=0
@@ -90,10 +100,28 @@ cat >"$TMP/env-vars.md" <<'EOF'
 EOF
 
 mkdir -p "$TMP/bin"
-# A load looks like the directory's own AGENTS.md coming back.
-printf '#!/usr/bin/env bash\ncat AGENTS.md\n' >"$TMP/bin/claude-met"
+# A load looks like the directory's own AGENTS.md coming back. Given the
+# nested write probe's `--tools Write`, `met` writes the file it was asked for
+# and answers with the root AGENTS.md only: the probe reads that as NO-LOAD.
+# Every call is logged, so a case can tell whether the probe ran.
+cat >"$TMP/bin/claude-met" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"$TMP/claude-args.log"
+case " \$* " in
+*" --tools Write "*) echo hello >sub/canary.txt; cat AGENTS.md ;;
+*) cat AGENTS.md ;;
+esac
+EOF
 printf '#!/usr/bin/env bash\necho NONE\n' >"$TMP/bin/claude-unmet"
-chmod +x "$TMP/bin/claude-met" "$TMP/bin/claude-unmet"
+# `loads` is `met` with the nested AGENTS.md also answering the write probe.
+cat >"$TMP/bin/claude-loads" <<EOF
+#!/usr/bin/env bash
+case " \$* " in
+*" --tools Write "*) echo hello >sub/canary.txt; cat AGENTS.md sub/AGENTS.md ;;
+*) cat AGENTS.md ;;
+esac
+EOF
+chmod +x "$TMP/bin/claude-met" "$TMP/bin/claude-unmet" "$TMP/bin/claude-loads"
 
 cat >"$TMP/installed-current.json" <<'EOF'
 {
@@ -124,6 +152,21 @@ cat >"$TMP/installed-mixed.json" <<'EOF'
     "instruction-placement@melodic-software": [
       { "scope": "user", "version": "0.15.0" },
       { "scope": "project", "version": "0.13.11" }
+    ],
+    "harness-memory@melodic-software": [{ "scope": "user", "version": "0.12.9" }]
+  }
+}
+EOF
+
+# A valid copy first and an unreadable one after it. The unreadable copy could
+# be the stale one, so it must not be skipped in favor of the valid one.
+cat >"$TMP/installed-malformed.json" <<'EOF'
+{
+  "version": 2,
+  "plugins": {
+    "instruction-placement@melodic-software": [
+      { "scope": "user", "version": "0.15.0" },
+      { "scope": "project", "version": "bad.0.0" }
     ],
     "harness-memory@melodic-software": [{ "scope": "user", "version": "0.12.9" }]
   }
@@ -189,6 +232,17 @@ rc=0
 bash "$SCRIPT" --root "$TMP" --bogus >/dev/null 2>&1 || rc=$?
 assert_eq "an unknown argument exits 2" 2 "$rc"
 
+# A copy without the plugin's scripts/lib has no comparator: exit 2 before it
+# prints a price or reads an installed version.
+NOLIB="$TMP/nolib/skills/migrate/scripts"
+mkdir -p "$NOLIB" "$TMP/nolib-repo"
+git -C "$TMP/nolib-repo" init -q
+cp "$SCRIPT" "$NOLIB/remove-shims.sh"
+rc=0
+OUT=$(bash "$NOLIB/remove-shims.sh" --root "$TMP/nolib-repo" --confirm 2>&1) || rc=$?
+assert_eq "a missing scripts/lib/version.sh exits 2" 2 "$rc"
+assert_not_contains "and prints no price" "$OUT" "=== remove-shims"
+
 # --- Case 2: without --confirm it prints the price and removes nothing ----
 
 READY="$TMP/ready"
@@ -207,8 +261,7 @@ assert_eq "and the repository is untouched" "" "$(cd "$READY" && git status --po
 # The price is the record's decision, the paragraph directly above its
 # pointer, and the pointer itself: not the section's lead-in, not the as-of
 # date or the trigger, and nothing from the next section.
-PRICE_STUB="$TMP/price-stub"
-mkdir -p "$PRICE_STUB/scripts" "$PRICE_STUB/reference"
+PRICE_STUB="$(make_stub "$TMP/price-stub")"
 cp "$SCRIPT" "$PRICE_STUB/scripts/remove-shims.sh"
 cat >"$PRICE_STUB/reference/sources.md" <<'EOF'
 # Sources
@@ -240,8 +293,14 @@ OUT=$(bash "$PRICE_STUB/scripts/remove-shims.sh" --root "$READY" --installed-plu
   "$TMP/installed-current.json" --claude-bin "$TMP/bin/claude-met")
 # The command substitution drops the blank line the script prints after it.
 GOT_PRICE="$(printf '%s\n' "$OUT" |
-  awk '/^What removing the shims costs/ { f = 1 } /^Not confirmed/ { exit } f')"
+  awk '/^What removing the shims costs/ { f = 1 } /^  Nested AGENTS.md files/ || /^Not confirmed/ { exit } f')"
 assert_eq "the price is exactly the decision and its pointer" "$EXPECTED_PRICE" "$GOT_PRICE"
+
+# A nested AGENTS.md adds the write-trigger loss to the price, before any
+# confirmation and before the probe that measures it has run.
+assert_contains "a nested AGENTS.md prices the write-trigger loss" "$OUT" \
+  "Nested AGENTS.md files: 1. The nested write probe says: not yet run"
+assert_contains "and names the record behind it" "$OUT" "'The nested write trigger'"
 
 # --- Case 3: a stale installed plugin refuses before anything is removed --
 
@@ -271,6 +330,13 @@ OUT=$(bash "$SCRIPT" --root "$READY" --confirm --installed-plugins "$TMP/install
   --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
 assert_eq "instruction-placement 0.14.0 is below the floor" 1 "$rc"
 assert_contains "and the floor is named" "$OUT" "below the corrected-doctrine release 0.15.0"
+
+rc=0
+OUT=$(bash "$SCRIPT" --root "$READY" --confirm --installed-plugins "$TMP/installed-malformed.json" \
+  --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
+assert_eq "an unreadable copy beside a valid one refuses" 1 "$rc"
+assert_contains "and says an unread version is not a version" "$OUT" "An unread version is not"
+assert_eq "and removes nothing" "" "$(cd "$READY" && git status --porcelain)"
 
 # --- Case 4: an unmet cutover condition removes nothing -------------------
 
@@ -370,9 +436,14 @@ assert_eq "and removes nothing, including the root shim" "" "$(cd "$NOLINE" && g
 # --- Case 7: the happy path, root and nested together ---------------------
 
 rc=0
+: >"$TMP/claude-args.log"
 OUT=$(bash "$SCRIPT" --root "$READY" --confirm --installed-plugins "$TMP/installed-current.json" \
   --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
 assert_eq "a ready repository exits 0" 0 "$rc"
+assert_contains "with a nested AGENTS.md the write probe runs" "$(cat "$TMP/claude-args.log")" "--tools Write"
+assert_contains "and its NO-LOAD is priced before removal" "$OUT" \
+  "The nested write probe says: NO-LOAD"
+assert_contains "under the post-probe heading" "$OUT" "The price, now that the probe has run:"
 assert_contains "the root shim is removed" "$OUT" "removed CLAUDE.md"
 assert_contains "the nested shim is removed in the same run" "$OUT" "removed svc/CLAUDE.md"
 assert_contains "the root canary returns the AGENTS.md line" "$OUT" ".: the AGENTS.md line came back"
@@ -387,6 +458,56 @@ assert_eq "the root AGENTS.md is byte-identical" "$(printf '# Conventions\n\n%s\
   "$(cat "$READY/AGENTS.md")"
 assert_eq "the nested AGENTS.md is byte-identical" "$(printf '# Service\n\n%s\n' "$NESTED_LINE")" \
   "$(cat "$READY/svc/AGENTS.md")"
+
+# With no nested AGENTS.md there is no write-trigger loss to price, so the
+# probe is skipped instead of spending a metered turn nobody reads.
+FLAT="$TMP/flat"
+make_repo "$FLAT"
+printf '# Conventions\n\n%s\n' "$AGENTS_LINE" >"$FLAT/AGENTS.md"
+printf '@AGENTS.md\n' >"$FLAT/CLAUDE.md"
+printf 'A repository fixture.\n' >"$FLAT/README.md"
+commit_all "$FLAT"
+rc=0
+: >"$TMP/claude-args.log"
+OUT=$(bash "$SCRIPT" --root "$FLAT" --confirm --installed-plugins "$TMP/installed-current.json" \
+  --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
+assert_eq "a flat ready repository exits 0" 0 "$rc"
+assert_not_contains "and spends no write-probe turn" "$(cat "$TMP/claude-args.log")" "--tools Write"
+assert_contains "because the probe was skipped" "$OUT" "--skip-write-probe: the probe did not run"
+assert_not_contains "and no nested loss is priced" "$OUT" "Nested AGENTS.md files"
+
+# A LOADS result means no load rides on the nested shim: the post-probe price
+# is not repeated.
+LOADS_REPO="$TMP/loads"
+build_ready_repo "$LOADS_REPO"
+LOADS_ARGS=("${CHECK_ARGS[@]:0:${#CHECK_ARGS[@]}-1}" "$TMP/bin/claude-loads")
+rc=0
+OUT=$(bash "$SCRIPT" --root "$LOADS_REPO" --confirm --installed-plugins "$TMP/installed-current.json" \
+  --claude-bin "$TMP/bin/claude-loads" "${LOADS_ARGS[@]}") || rc=$?
+assert_eq "a LOADS repository exits 0" 0 "$rc"
+assert_contains "the probe reports LOADS" "$OUT" "(not graded): LOADS."
+assert_not_contains "and the price is not repeated after it" "$OUT" "The price, now that the probe has run:"
+
+# An AGENTS.md under node_modules is a tree nobody edits: it is not counted,
+# so it neither prices a loss nor spends a probe turn.
+VENDORED="$TMP/vendored"
+make_repo "$VENDORED"
+printf '# Conventions\n\n%s\n' "$AGENTS_LINE" >"$VENDORED/AGENTS.md"
+printf '@AGENTS.md\n' >"$VENDORED/CLAUDE.md"
+printf 'node_modules/\n' >"$VENDORED/.gitignore"
+commit_all "$VENDORED"
+mkdir -p "$VENDORED/node_modules/pkg"
+printf 'Vendored instructions.\n' >"$VENDORED/node_modules/pkg/AGENTS.md"
+OUT=$(bash "$SCRIPT" --root "$VENDORED" --installed-plugins "$TMP/installed-current.json" 2>&1)
+assert_not_contains "a vendored AGENTS.md prices no nested loss" "$OUT" "Nested AGENTS.md files"
+
+# A nested AGENTS.md with no shim beside it has no shim to lose: only the root
+# shim goes, so no nested loss is priced.
+NOSHIM="$TMP/nested-noshim"
+build_ready_repo "$NOSHIM"
+(cd "$NOSHIM" && git rm -q svc/CLAUDE.md && git commit -q -m "the nested directory is already agents-only")
+OUT=$(bash "$SCRIPT" --root "$NOSHIM" --installed-plugins "$TMP/installed-current.json" 2>&1)
+assert_not_contains "a nested AGENTS.md without a shim prices no nested loss" "$OUT" "Nested AGENTS.md files"
 
 # --- Case 8: a canary miss restores every shim this run removed -----------
 
@@ -536,8 +657,7 @@ rm -rf "$FAKEBIN"
 # with nothing in it.
 NODIR="$TMP/nodir"
 build_ready_repo "$NODIR"
-NODIR_STUB="$TMP/nodir-stub"
-mkdir -p "$NODIR_STUB/scripts" "$NODIR_STUB/reference"
+NODIR_STUB="$(make_stub "$TMP/nodir-stub")"
 cp "$SCRIPT" "$NODIR_STUB/scripts/remove-shims.sh"
 cp "$SCRIPT_DIR/cutover-check.sh" "$NODIR_STUB/scripts/cutover-check.sh"
 cp "$REAL_SOURCES" "$NODIR_STUB/reference/sources.md"

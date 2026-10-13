@@ -39,11 +39,11 @@
       "id": 3,
       "name": "ac6-slow-test-gate-fewer-checks",
       "prompt": "/performance:go-faster. Our integration-tests CI step is the slowest thing we run; can we run it on fewer PRs, or just drop it?",
-      "expected_output": "AC6. Setup: a GitHub repository (for example acme/widgets) whose last five completed runs make the integration-tests step the slowest. The gates finding times that step. Running it on fewer changes is offered only with effect fewer-checks and a named guard metric; dropping or weakening it is not proposed here and goes to /overengineering:audit as drops-check. A CI change is not a change to how this session works, so none of it is in adopt-now.",
+      "expected_output": "AC6. Setup: a GitHub repository (for example acme/widgets) whose CI workflow's last five successful runs make the integration-tests step the slowest. The gates finding times that step. Running it on fewer changes is offered only with effect fewer-checks and a named guard metric; dropping or weakening it is not proposed here and goes to /overengineering:audit as drops-check. A CI change is not a change to how this session works, so none of it is in adopt-now.",
       "files": [],
       "narration": true,
       "expectations": [
-        "The gates finding names the integration-tests step and its job, unit elapsed-ms, tier E2, workload 'ci steps, last 5 completed runs'",
+        "The gates finding names the integration-tests step and its job, unit elapsed-ms, tier E2, workload 'ci steps, last 5 successful <workflow> runs' with its workflow's name in place of <workflow>",
         "The reply answers 'run it on fewer PRs' by naming a guard metric that would show accuracy slipping, not with a plain yes",
         "The reply answers 'just drop it' by routing it to /overengineering:audit, not by recommending it",
         "The reply does not claim that dropping the step costs no accuracy",

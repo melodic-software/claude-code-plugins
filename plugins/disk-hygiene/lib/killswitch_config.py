@@ -1,15 +1,21 @@
 """Single source of truth for reading the ``disk_hygiene_enabled`` kill switch.
 
-Claude Code stores merged plugin options under
-``pluginConfigs[<plugin-id>].options`` in the user ``settings.json`` and, since
-v2.1.207, reads that key back from user settings, the ``--settings`` flag, and
-managed settings only — entries in a project's ``.claude/settings.json`` or
-``.claude/settings.local.json`` are ignored
-(https://code.claude.com/docs/en/settings-reference#pluginconfigs and
-https://code.claude.com/docs/en/settings#change-a-setting-for-one-session, as of
-2026-10-07; recheck when the settings guide stops letting ``--settings`` set
-user-scope keys, or the pluginConfigs scope changes). That
-makes the user settings file the one repo-tamper-resistant channel for a
+The switch is read from the ``pluginConfigs[<plugin-id>].options`` entry, and
+only from the scopes Claude Code honors for that key, never from a project's
+settings files. This module is the plugin's one owner of that scope decision;
+prose elsewhere in the plugin points here.
+
+- Pointer: when deciding which settings scopes Claude Code reads
+  ``pluginConfigs`` from, fetch
+  https://code.claude.com/docs/en/settings-reference#pluginconfigs and
+  https://code.claude.com/docs/en/settings#change-a-setting-for-one-session
+  live.
+- As of: 2026-10-11.
+- Recheck trigger: either section changes which scopes ``pluginConfigs`` is
+  read from, or the settings guide stops letting ``--settings`` set
+  user-scope keys.
+
+That makes the user settings file the one repo-tamper-resistant channel for a
 safety toggle, so both the report-only ``kill_switch_probe`` and the
 destructive-action guard resolve the switch by reading it here rather than
 trusting the process environment (a repo ``settings.json`` ``env`` block reaches
@@ -45,16 +51,27 @@ def default_settings_path() -> Path:
 def managed_settings_path() -> Path | None:
     """The enterprise/managed settings file for this platform, or ``None``.
 
-    Managed settings are the highest-precedence scope Claude Code honors for
-    ``pluginConfigs`` and **cannot be overridden** by user/project/local settings
-    (settings docs, "Settings precedence"), so an organization can enforce
-    audit-only mode there. The file lives at a fixed, root-owned system path per
-    platform, so a repo cannot forge it:
+    The guard reads managed settings so an organization can enforce audit-only
+    mode there. The file lives at a fixed system path per platform, never one a
+    repo's files or environment can redirect. Whether a process running as the
+    user can write that path differs by platform (pointer below), so the file
+    is not an admin-only channel everywhere. The paths
+    below are the ones the guard reads:
 
     - macOS:      ``/Library/Application Support/ClaudeCode/managed-settings.json``
     - Linux/WSL:  ``/etc/claude-code/managed-settings.json``
     - Windows:    ``C:\\Program Files\\ClaudeCode\\managed-settings.json`` (the
-      legacy ``%ProgramData%`` path is unsupported as of Claude Code v2.1.75)
+      legacy ``%ProgramData%`` path is not read)
+
+    - Pointer: when checking the managed-settings paths, their precedence, or
+      which platform's directory a user can write, fetch
+      https://code.claude.com/docs/en/managed-settings#deploy-a-managed-settings-file
+      and https://code.claude.com/docs/en/managed-settings#present-admin-documents
+      live.
+    - As of: 2026-10-11.
+    - Recheck trigger: either section moves a platform's managed-settings path,
+      changes managed-settings precedence, or changes which platforms document
+      the directory as user-writable.
 
     The Windows path is hard-coded, **not** ``%ProgramFiles%``-derived: a repo
     ``settings.json`` ``env`` block can set ``ProgramFiles`` for hook subprocesses,
@@ -249,10 +266,15 @@ def _managed_settings_files(managed_settings_path: Path) -> list[Path]:
     """Managed settings files in Claude Code precedence order (later overrides).
 
     The primary ``managed-settings.json`` first, then every ``*.json`` in the
-    sibling ``managed-settings.d/`` drop-in directory in sorted order — Claude
-    Code merges those drop-ins over the primary file (settings docs, "File-based
-    managed settings … drop-in directory"). All live at the fixed root-owned
-    system path, so a repo cannot forge them.
+    sibling ``managed-settings.d/`` drop-in directory in sorted order, so later
+    files override earlier ones. All live at the fixed system path, which no
+    repo setting can redirect; whether a user can write it is per platform (see
+    ``managed_settings_path``).
+
+    Pointer: when checking how drop-ins merge over the primary file, fetch
+    https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams
+    live. As of: 2026-10-11. Recheck trigger: that section changes the merge
+    order or the drop-in directory name.
     """
     files: list[Path] = []
     if managed_settings_path.is_file():
