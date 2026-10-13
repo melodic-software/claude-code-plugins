@@ -1,10 +1,6 @@
 # Promotion-evidence trusted seam. Implementation plan (#4588)
 
-Status: Phases 1 and 2 are implemented. Phase 3 shipped in parts: the argv and e2e tests, the eval
-cases, `--credential-roots` support, the resolver's writability check and win32 refusal, and the
-evidence publisher in report mode. Remaining: an operator-owned bootstrap on a host, the
-publisher's deployment, and the resolver's freshness check on its sidecar (the last two wait on the
-merge-authority decision).
+Which phases have shipped and what remains: [#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588).
 
 Each phase needs the owner's approval before its code changes. This document sets scope and phases;
 Phase 1 does not wire the seam, and Phase 2 does.
