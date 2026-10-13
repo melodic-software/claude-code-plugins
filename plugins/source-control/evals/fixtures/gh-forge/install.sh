@@ -7,7 +7,7 @@
 # The bare repository's path ends in eval-fixture/app.git so push-branch.sh, which compares the
 # push remote's URL with the PR's head repository, accepts it as eval-fixture/app.
 #
-# The stand-in lands in <git dir>/eval-forge/bin. A case puts it first on the run's Bash PATH by
+# The stand-in lands in <git common dir>/eval-forge/bin. A case puts it first on the run's Bash PATH by
 # listing its own `gh-forge-path` plugin subdirectory in prompt.md `plugins:`: that plugin's
 # SessionStart hook appends an export of the directory to $CLAUDE_ENV_FILE, which the run's shell
 # applies whether it is bash or zsh. A case cannot set PATH (env keys are EVAL_* only), a plugin's
@@ -22,7 +22,9 @@ set -euo pipefail
 number="$1" head="$2" base="$3" title="$4"
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-forge="$(git rev-parse --absolute-git-dir)/eval-forge"
+forge="$(git rev-parse --path-format=absolute --git-common-dir)/eval-forge"
+# Added first, so a repository that already has an origin stops here before anything is written.
+git remote add origin "$forge/eval-fixture/app.git"
 
 mkdir -p "$forge/bin"
 cp "$here/gh" "$forge/bin/gh"
@@ -31,6 +33,5 @@ printf 'PR_NUMBER=%q\nPR_HEAD=%q\nPR_BASE=%q\nPR_TITLE=%q\n' "$number" "$head" "
 echo true >"$forge/draft"
 
 git init -q --bare "$forge/eval-fixture/app.git"
-git remote add origin "$forge/eval-fixture/app.git"
 git push -q origin "$base" "$head"
 git branch -q --set-upstream-to="origin/$head" "$head"
