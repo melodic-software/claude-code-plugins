@@ -15,7 +15,10 @@ subsystem, framework, or repo doc-by-doc, which one context cannot cover from wi
    CURRENT official upstream docs for its surface and classifies the divergence per SKILL.md's
    three categories. Each reads every docs page through the shared docs lookup, following the
    docs-lookup procedure with the `<scripts>` directory SKILL.md resolved; put both as absolute
-   paths in the brief, since a subagent's shell does not expand the plugin variable. The subagent
+   paths in the brief, so the subagent never depends on a plugin variable resolving in its shell
+   (where plugin variables resolve: fetch
+   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+   live; as of 2026-10-11; recheck when that table changes what reaches the Bash tool). The subagent
    runs `bash "<scripts>/fetch-docs.sh" --cache --profile <profile> --out "$out" <slug-or-url>` as
    the procedure's step 1 gives it. The read that settles a verdict follows the procedure's step 6:
    re-fetch with `--max-age 0`, so a cached copy never stands in for the current docs, and read

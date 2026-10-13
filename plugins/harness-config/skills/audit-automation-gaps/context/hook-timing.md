@@ -59,17 +59,16 @@ order of how much they save:
 - **Add an `if` rule** so a non-matching call returns before the process spawn.
 - **Set `async: true`** where the hook does not need to block, accepting that it can no longer
   return a decision and that its output arrives on the next turn.
-- **Set an explicit `timeout`**, since the default for a `command` hook is 600 seconds on most
-  events, which is far longer than any interactive budget.
+- **Set an explicit `timeout`**, since the default is far longer than any interactive budget on most
+  events.
 
 ## Upstream-fact records
 
-Both facts below are restated from an upstream page, so each carries its basis, as-of date, and
-recheck trigger per the upstream-drift convention. Re-fetch the basis before acting on either; a
-date is not authority.
+Each record below states our decision and points at the section that holds the specific, per the
+upstream-drift convention. Re-fetch the pointer before acting on either; a date is not authority.
 
-| Claim | Basis | As of | Recheck trigger |
+| Decision | Pointer | As of | Recheck trigger |
 |---|---|---|---|
-| `timeout` defaults to 600 seconds for `command`, `http` and `mcp_tool` hooks, lowered to 30 on `UserPromptSubmit` and the model-switch events and 10 on `MessageDisplay`, with `SessionEnd` hooks sharing a 1.5-second budget | [Claude Code hooks reference](https://code.claude.com/docs/en/hooks), common fields | 2026-09-12 | A re-fetch finds the defaults no longer matching this row |
-| `PostToolUse` cannot block: exit code 2 shows stderr to Claude and the tool has already run | [Claude Code hooks reference](https://code.claude.com/docs/en/hooks), exit-code-2 behavior per event | 2026-09-12 | A re-fetch finds the per-event table no longer matching this row |
+| A hook with no explicit `timeout` is judged against the per-type and per-event defaults read live, never a number kept here | When judging a hook's timeout, fetch [hooks: common fields](https://code.claude.com/docs/en/hooks#common-fields) live | 2026-10-11 | That section changes a default, or adds a per-event or per-type exception |
+| A `PostToolUse` hook is never treated as a gate | When judging whether a hook can block, fetch the event's row of [hooks: exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event) live | 2026-10-11 | That event's row changes its `Can block?` cell |
 | No official page states a hook latency budget or compares a check in CI against the same check in a hook | Absence checked by reading each page end to end for a performance, latency or placement section: [hooks](https://code.claude.com/docs/en/hooks), [hooks guide](https://code.claude.com/docs/en/hooks-guide), [best practices](https://code.claude.com/docs/en/best-practices), [features overview](https://code.claude.com/docs/en/features-overview). The nearest statements are event-scoped ("SessionStart runs on every session, so keep these hooks fast") and the `SessionEnd` 1.5-second budget, neither of which is a fleet-wide ceiling | 2026-09-12 | A re-fetch of any of the four finds a performance or placement section added |

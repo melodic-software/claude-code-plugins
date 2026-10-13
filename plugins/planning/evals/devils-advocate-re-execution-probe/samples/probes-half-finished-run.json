@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "If the script is killed after appending the row but before moving the PDF into done/, the next run sees the PDF in inbox/ again and adds a second row.",
+      "why": "names a stop between two writes"
+    },
+    {
+      "answer": "An upload that fails partway leaves the receipt in the CSV with no copy on the drive.",
+      "why": "names a half-finished state"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Two runs can overlap every 15 minutes and both append rows for the same receipts.",
+      "why": "covers overlap only, never a stop between writes"
+    }
+  ]
+}

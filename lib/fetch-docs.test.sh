@@ -687,13 +687,13 @@ cat >"$CONV" <<'EOF'
 printf 'PYTHONUTF8=%s\n' "${PYTHONUTF8:-}" >>"$PY_LOG"
 sed -e 's|<h1>\(.*\)</h1>|# \1|' -e 's/<[^>]*>//g' "$1" | grep -v '^[[:space:]]*$'
 EOF
-# mk_py <dir> <name> <probe output>: a python stand-in whose probe prints the
+# mk_py <dir> <name> <probe output>: a python stand-in whose probe (run as -I -c) prints the
 # given output and which runs the converter with bash otherwise.
 mk_py() {
   mkdir -p "$1"
   cat >"$1/$2" <<EOF
 #!/usr/bin/env bash
-if [[ "\$1" == -c ]]; then printf '$2 probed\n' >>"\$PY_LOG"; printf '%s' '$3'; exit 0; fi
+if [[ "\$1 \$2" == "-I -c" ]]; then printf '$2 probed\n' >>"\$PY_LOG"; printf '%s' '$3'; exit 0; fi
 printf '$2 ran\n' >>"\$PY_LOG"
 exec bash "\$@"
 EOF
@@ -899,6 +899,13 @@ assert_eq "public-only: a host that does not resolve is unread fetch-failed" "un
 pub_run "$src" pub5 'docs.test=93.184.216.34' "$PYNONE"
 assert_eq "public-only: no Python 3 to check with is unread address-unchecked" "unread address-unchecked 0" \
   "$(gpage pub5 '"\(.state) \(.reason)"') $(wc -l <"$src.log" | tr -d ' ')"
+# A module planted in the working directory is never imported by the address check.
+plant="$TEST_TMPDIR/planted-cwd"
+mkdir -p "$plant"
+printf 'open(%s, "w").write("ran")\n' "'$TEST_TMPDIR/planted-ran'" >"$plant/ipaddress.py"
+(cd "$plant" && pub_run "$src" pub7 'docs.test=93.184.216.34' >/dev/null 2>&1)
+assert_no_file "public-only: an ipaddress.py in the cwd is not imported" "$TEST_TMPDIR/planted-ran"
+assert_eq "public-only: the address check still passes beside a planted module" "read" "$(gpage pub7 .state)"
 # A redirect toward an internal host: curl follows it under the pin, so the hop
 # reaches the checked address, and the landing off origin is unread.
 printf '%s' 'https://intranet.corp/guide/page' >"$src/page.effective"

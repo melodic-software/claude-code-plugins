@@ -25,7 +25,9 @@ A key is `kind[/cause][/hook][/reason][/reply]`:
 
 - `denied/classifier/<category>`: the auto-mode classifier's bracketed category, or `unexplained`.
 - `denied/hook/<plugin or label>/<first line>`: a PreToolUse hook block.
-- `denied/rule/<reason type>`: a permission rule denial; with no prompt host it is often an ask rule.
+- `denied/rule/<reason type>`: a permission rule denial; for one with no prompt host, see the
+  ask-rule entry in [the skill's Gotchas](../SKILL.md#gotchas) (as of 2026-10-11; recheck
+  trigger: that entry or its probe record changes).
 - `denied/user-rejected`: the person declined at a prompt.
 - `prompt-approved`: the person approved a permission prompt.
 - `agent-ask/<reply>`, `handoff/<reply>`: what the person replied: `approve`, `correction`,

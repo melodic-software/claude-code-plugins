@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "# Retry\n\nRequests retry on transient failures: 5xx responses and timeouts.\n"},
+    {"answer": "## Jitter\n\nA wait of a <= delayMs and b >= 0 ======= is prose, not a marker line.\n", "why": "marker characters mid-line"}
+  ],
+  "fail": [
+    {"answer": "# Retry\n\n<<<<<<< HEAD\nRequests retry on failure.\n=======\nRequests retry on transient failures: 5xx responses and timeouts.\n>>>>>>> main\n"},
+    {"answer": "- `delayMs`: the wait between tries.\n>>>>>>> main\n", "why": "a leftover closing marker"}
+  ]
+}

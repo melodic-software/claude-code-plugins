@@ -40,9 +40,9 @@ For facilitation knowledge, format guidance, notation, and the no-args interacti
 
 This skill drives an EventStorming model onto a **Miro board** via the first-party **`miro` plugin**,
 a bundled local-stdio MCP server, enabled separately (`event-storming` does not bundle it). Its
-tools resolve under the plugin-provided **`mcp__plugin_miro_<server>__`** prefix (normally
-`mcp__plugin_miro_miro__`), or under **`mcp__<server>__`** when the same server is configured
-directly at user or project scope (normally `mcp__miro__`, the miro README's opt-in override). So
+tools resolve under the plugin-provided prefix (normally **`mcp__plugin_miro_miro__`**), or under
+the directly configured one when the same server is set up at user or project scope (normally
+**`mcp__miro__`**, the miro README's opt-in override). So
 before any mode runs, check for callable tools whose names end in `__miro_list_boards` and
 `__miro_create_board` under either prefix. Match those Miro-specific tool names, not a server that
 merely happens to be called `miro`; a bare `miro_*` name does not resolve. Every `miro_*` tool named
@@ -60,8 +60,7 @@ Naming basis: `reference/miro-integration.md` "Tool namespace".
      rendering surface changes. Persist the artifact under `${CLAUDE_PLUGIN_DATA}/sessions/`.
   2. **Install + enable the `miro` plugin, then retry:** a fresh user has only `event-storming`. The
      `miro` plugin must be installed from an available marketplace first, then enabled through
-     the `/plugin` interface with a Miro API token (stored by Claude Code's secure credential
-     mechanism). Do not assume a marketplace name. Stop until its tools are available. Full setup:
+     the `/plugin` interface with a Miro API token. Do not assume a marketplace name. Stop until its tools are available. Full setup:
      `reference/miro-integration.md`.
 
 Modes that read an *existing* board (`--process-model`, `--design-level`, `--evaluate`, `--value`, `--crc`,

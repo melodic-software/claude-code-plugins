@@ -13,9 +13,10 @@ skill, how to attach a check to a skill you do not own, what to do when an embed
 silently does not run, and which kind of validator the check should use.
 
 It does not restate skill syntax, frontmatter, or invocation rules. The authoritative references
-are [Skills](https://code.claude.com/docs/en/skills) (harness) and
-[Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
-(platform). Read those for the schema.
+are [Skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)
+(harness) and
+[Skill authoring best practices: Skill structure](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#skill-structure)
+(platform). Read those for the schema. As of 2026-10-11; recheck when either section moves.
 
 Each section is our decision, followed by a pointer to the page section behind it. Where no docs
 page covers a point and only Anthropic's verification-loops blog post does, the section says so
@@ -56,7 +57,11 @@ the nested variant.
 Editing the producing skill's body is the simplest way to make a check fire automatically, but only
 where you own the file. Two cases where you do not, and they have different answers:
 
-- **Plugin-managed skills.** Do not edit: the plugin root is replaced on update.
+- **Plugin-managed skills.** Do not edit: an update does not keep local edits to a plugin's
+  installed files. Pointer: for how an installed plugin's files change on update, fetch
+  [Versions and updates](https://code.claude.com/docs/en/plugins/loading#versions-and-updates)
+  live. As of: 2026-10-11. Recheck trigger: that section changes where an updated version's
+  files live.
 - **Bundled skills.** Two options, not one: chain a wrapper after the bundled skill, or shadow it
   with a same-name skill at project or personal level. Read the pointer for what shadowing does
   and does not replace.
@@ -68,9 +73,10 @@ bundled behavior *changed*; pick chaining when you want it *followed by* somethi
 
 When you write "chaining", say which of three things you mean: one skill's body invoking another at
 its end, several skills invoked in one user message
-([Commands](https://code.claude.com/docs/en/commands)), or several Skills combined for one
-multi-step task
-([Agent Skills overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview)).
+([Pass arguments to skills](https://code.claude.com/docs/en/skills#pass-arguments-to-skills)), or
+several Skills combined for one multi-step task
+([Why use Skills](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview#why-use-skills)).
+As of 2026-10-11; recheck when either section moves.
 
 - **Pointer**: for same-name skills and bundled skills, see
   [Resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)
@@ -122,8 +128,7 @@ plugin is present.
 A loop of run validator, fix errors, repeat needs a validator, and two kinds exist. Prefer them in
 this order:
 
-1. **A script with pass/fail output.** Claude Code runs it through bash and only its output enters
-   context, so the loop closes on a signal the model can read ("OK" or a list of errors) and the
+1. **A script with pass/fail output.** The loop closes on a signal the model can read ("OK" or a list of errors) and the
    same script can gate CI. Make each error name what failed and list the valid choices ("Unknown
    label 'prio-high'. Known labels: priority:high, priority:low"), because the message is what the
    model fixes from.

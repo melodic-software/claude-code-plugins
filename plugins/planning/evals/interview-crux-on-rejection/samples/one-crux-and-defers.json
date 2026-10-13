@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: accepted, the build runs in the existing CI workflow.\nQ2: One question before I record Kafka: what would have to be true for Kafka to be right here, such as other services consuming these publish events or a need to replay them? If there is one, Kafka it is.\nQ3: `ship-docs` it is.",
+      "why": "one crux question on Q2, defers on Q3"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q2: Kafka is overkill for a few jobs a day; Postgres is already deployed and simpler to run. I strongly recommend keeping Postgres. Kafka also adds an operational burden you do not need.\nQ3: I'd still go with docs-publish for consistency.",
+      "why": "re-argues Q2 and challenges Q3"
+    },
+    {
+      "answer": "Recorded: Q1 CI, Q2 Kafka, Q3 ship-docs. Round 2 next.",
+      "why": "no crux question on the technical rejection"
+    }
+  ]
+}
