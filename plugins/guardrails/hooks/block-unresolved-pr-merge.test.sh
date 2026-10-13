@@ -251,7 +251,11 @@ scenario unresolved none green green
 run "curl graphql enqueuePullRequest" 'curl -s https://api.github.com/graphql -d '"'"'{"query":"mutation{enqueuePullRequest(input:{pullRequestId:\"PR_kwDOabc\"}){clientMutationId}}"}'"'"'' 2
 scenario unresolved none green green
 run "curl graphql, id in JSON variables" 'curl -s https://api.github.com/graphql -d '"'"'{"query":"mutation($id:ID!){mergePullRequest(input:{pullRequestId:$id}){clientMutationId}}","variables":{"id":"PR_kwDOabc"}}'"'"'' 2
-assert_contains "JSON variable -> that node is resolved" "$(calls)" "graphql"
+assert_contains "JSON variable -> that node is resolved" "$(calls)" "node PR_kwDOabc"
+assert_contains "JSON variable -> the thread is listed" "$ERR" "src/app.py:12"
+scenario unresolved none green green
+run "curl graphql, JSON-escaped variables" 'curl -s https://api.github.com/graphql -d "{\"query\":\"mutation(\$id:ID!){mergePullRequest(input:{pullRequestId:\$id}){clientMutationId}}\",\"variables\":{\"id\":\"PR_kwDOesc\"}}"' 2
+assert_contains "escaped JSON variable -> that node is resolved" "$(calls)" "node PR_kwDOesc"
 
 # Only the id bound to pullRequestId is checked; a PR_ in another field is not.
 scenario unresolved none green green
