@@ -169,16 +169,15 @@ judgment mappings and how to set `--lane-login` for merge-queue merges.
   `sha256`, or when the new events drop one the previous file held.
 
 Run it as the operator, never from the lane, and point `--out` at a directory the lane cannot
-write. Which host runs it, under which identity and on what schedule is not decided yet: it waits
-on the open decision about the single merge authority
-([#4588](https://github.com/melodic-software/claude-code-plugins/issues/4588)). Until then the
-resolver does not read the sidecar.
+write. Which host runs it, under which identity and on what schedule is the operator's
+deployment choice. The resolver does not read the sidecar.
 
-One more deployment decision is open. An identity with `actions:write` can delete a red workflow
-run before the publisher reads it, and GitHub offers no permission that allows dispatching a
-workflow without also allowing run deletion. The post-merge check dispatches its full run under
-the lane identity, so either that dispatch moves to an identity the lane cannot use, or a deleted
-red run stays a named residual risk.
+The post-merge check dispatches its full run under the lane identity. Where the permission that
+dispatch needs also lets that identity delete a red run before the publisher reads it, either the
+dispatch moves to an identity the lane cannot use, or a deleted red run stays a named residual
+risk. Which permission covers dispatch and which covers run deletion: GitHub's
+[Actions repository permissions table](https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps#repository-permissions-for-actions)
+(as of 2026-10-13; recheck when GitHub adds or splits an Actions permission).
 
 ### `promotion_evidence_checker`
 
