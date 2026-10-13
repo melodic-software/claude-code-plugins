@@ -34,7 +34,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("the Accept all list still shows the recommendation's first sentence only", /Ship it on Monday\./.test(listed) && !/Watch the error logs/.test(listed), listed);
     await page.click("#dlgCancel"); await page.waitForTimeout(150);
 
-    // #5917: five prerequisites share one wrapped row, and a met one is marked by more than colour
+    // #5917: five prerequisites share one wrapped row, and a met one is marked by more than color
     await post({id: "Q2", kind: "accept", alt: null, text: ""}); await page.waitForTimeout(900); await pick("Q7");
     for (const w of [1440, 390]) {
       await page.setViewportSize({width: w, height: w > 400 ? 900 : 844}); await page.waitForTimeout(250);
@@ -72,7 +72,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     ok("#5908: prerequisites first decided after this answer read 'was decided after you answered this'", /Stale: Q3Image was decided after you answered this; Q4Cache was decided after you answered this/.test(b7) && !/changed/.test(b7), b7);
     ok("#5908: the meter shows 1 to review and leaves the stale question out of answered", (await text("#revBtn")) === "1 to review" && (await text("#meterText")) === "5 of 8 answered", await text("#meterText") + " / " + await text("#revBtn"));
     await pick("Q2"); await page.selectOption("#filter", "open"); await page.waitForTimeout(150);
-    await page.click('#choices .choice:has-text("A self-hosted runner")'); await page.click("[data-save]"); await page.waitForTimeout(1200);
+    await page.click('#choices .choice:has-text("A self-hosted machine")'); await page.click("[data-save]"); await page.waitForTimeout(1200);
     const toastT = await text("#toast");
     ok("#5909: the save lands on the first newly stale dependent and switches Show: Open to Review", await sel() === "Q3" && await page.$eval("#filter", el => el.value) === "review", await sel() + " / " + await page.$eval("#filter", el => el.value));
     ok("#5909: the toast names the newly stale questions and counts what waits on them", /^Saved Q2\. Q3 and Q5 need review; 2 more wait on them\. Now Q3\./.test(toastT), toastT);
