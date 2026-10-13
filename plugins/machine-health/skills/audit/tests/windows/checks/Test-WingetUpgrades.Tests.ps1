@@ -26,6 +26,11 @@ Pins the Batch 1 hotfix landing:
 5. A KEV match is name-only (the feed carries no affected-version range), so it
    reports WARN with the CVE list, never CRIT, and the summary counts distinct
    upgrades separately from matched CVE rows.
+
+6. A KEV gap with upgrades pending (fetch failed with no cache, empty feed,
+   lookup threw) reports UNKNOWN with ran_successfully false, never a
+   count-only severity; a stale fallback list keeps its severity but is named
+   in the summary, notes and detail.kev_cache_state.
 #>
 
 BeforeAll {
@@ -74,8 +79,20 @@ BeforeAll {
     }
 
     function New-KevCache {
-        param([object[]] $Vulnerabilities = @())
-        [pscustomobject]@{ vulnerabilities = $Vulnerabilities }
+        # Mirrors Get-CisaKevCache's return: the list plus its _cache_* annotations. The
+        # default is a usable list that matches nothing, so count-based tests stay count-based.
+        param(
+            [object[]] $Vulnerabilities = @(New-KevRecord -CveId 'CVE-2000-0000' -VendorProject 'Unrelated' -Product 'Thing'),
+            [string] $State = 'fresh',
+            $AgeDays = 1,
+            [string] $FetchError = $null
+        )
+        [pscustomobject]@{
+            vulnerabilities = $Vulnerabilities
+            _cache_state    = $State
+            _cache_age_days = $AgeDays
+            _fetch_error    = $FetchError
+        }
     }
 }
 
@@ -278,15 +295,97 @@ Describe 'Test-WingetUpgrades -- CISA KEV correlation (ID-based match)' -Tag 'ch
         $result.notes | Should -Match 'non-conforming Id'
     }
 
-    It 'falls back to count-based severity when KEV cache is empty/unusable' {
+}
+
+Describe 'Test-WingetUpgrades -- KEV data gaps never read as a clean KEV check (#6505)' -Tag 'check' {
+    It 'emits UNKNOWN, not the count-based WARN, when the KEV fetch failed with no cached list' {
+        # The reported case: >10 upgrades would WARN on count alone and hide the KEV gap.
         Mock Get-WingetPackageUpdate {
-            New-WingetResult -Upgrades @(New-UpgradeRecord)
+            $upgrades = 1..15 | ForEach-Object { New-UpgradeRecord -Name "App$_" -Id "Pub.App$_" }
+            New-WingetResult -Upgrades @($upgrades)
         }
+        Mock Get-CisaKevCache {
+            New-KevCache -Vulnerabilities @() -State 'unavailable' -AgeDays $null `
+                -FetchError 'No such host is known.'
+        }
+
+        $result = Invoke-WingetUpgradesAsObject
+        { Assert-CheckResult $result } | Should -Not -Throw
+        $result.severity | Should -Be 'UNKNOWN'
+        $result.ran_successfully | Should -BeFalse
+        $result.error | Should -Match 'No such host is known'
+        $result.summary | Should -Match 'KEV exposure is unknown'
+        $result.detail.upgrades_count | Should -Be 15
+        $result.detail.kev_cache_state | Should -Be 'unavailable'
+    }
+
+    It 'emits UNKNOWN when the KEV feed came back empty' {
+        Mock Get-WingetPackageUpdate { New-WingetResult -Upgrades @(New-UpgradeRecord) }
+        Mock Get-CisaKevCache { New-KevCache -Vulnerabilities @() -State 'empty' -AgeDays $null }
+
+        $result = Invoke-WingetUpgradesAsObject
+        $result.severity | Should -Be 'UNKNOWN'
+        $result.ran_successfully | Should -BeFalse
+        $result.error | Should -Match 'no entries'
+    }
+
+    It 'emits UNKNOWN when the KEV lookup returns nothing at all' {
+        Mock Get-WingetPackageUpdate { New-WingetResult -Upgrades @(New-UpgradeRecord) }
         Mock Get-CisaKevCache { $null }
 
         $result = Invoke-WingetUpgradesAsObject
+        { Assert-CheckResult $result } | Should -Not -Throw
+        $result.severity | Should -Be 'UNKNOWN'
+        $result.ran_successfully | Should -BeFalse
+        $result.error | Should -Match 'empty or unparsable'
+        $result.detail.kev_cache_state | Should -Be 'unknown'
+    }
+
+    It 'emits UNKNOWN when the KEV lookup throws' {
+        Mock Get-WingetPackageUpdate { New-WingetResult -Upgrades @(New-UpgradeRecord) }
+        Mock Get-CisaKevCache { throw 'cache dir access denied' }
+
+        $result = Invoke-WingetUpgradesAsObject
+        $result.severity | Should -Be 'UNKNOWN'
+        $result.ran_successfully | Should -BeFalse
+        $result.error | Should -Match 'cache dir access denied'
+    }
+
+    It 'stays OK with no upgrades even when KEV is unavailable, and notes the skip' {
+        Mock Get-WingetPackageUpdate { New-WingetResult -Upgrades @() }
+        Mock Get-CisaKevCache {
+            New-KevCache -Vulnerabilities @() -State 'unavailable' -AgeDays $null -FetchError 'timeout'
+        }
+
+        $result = Invoke-WingetUpgradesAsObject
+        $result.severity | Should -Be 'OK'
+        $result.ran_successfully | Should -BeTrue
+        $result.notes | Should -Match 'KEV correlation skipped'
+    }
+
+    It 'keeps the severity on a stale fallback list but marks the summary, notes and detail' {
+        Mock Get-WingetPackageUpdate { New-WingetResult -Upgrades @(New-UpgradeRecord) }
+        Mock Get-CisaKevCache { New-KevCache -State 'stale' -AgeDays 12.5 -FetchError 'TLS handshake failed' }
+
+        $result = Invoke-WingetUpgradesAsObject
+        { Assert-CheckResult $result } | Should -Not -Throw
         $result.severity | Should -Be 'INFO'
-        $result.notes | Should -Match 'KEV'
+        $result.ran_successfully | Should -BeTrue
+        $result.summary | Should -Match 'KEV list stale'
+        $result.notes | Should -Match 'TLS handshake failed'
+        $result.notes | Should -Match '12\.5-day-old'
+        $result.detail.kev_cache_state | Should -Be 'stale'
+        $result.detail.kev_cache_age_days | Should -Be 12.5
+    }
+
+    It 'reports a fresh list without a stale caveat' {
+        Mock Get-WingetPackageUpdate { New-WingetResult -Upgrades @(New-UpgradeRecord) }
+        Mock Get-CisaKevCache { New-KevCache }
+
+        $result = Invoke-WingetUpgradesAsObject
+        $result.detail.kev_cache_state | Should -Be 'fresh'
+        $result.summary | Should -Not -Match 'stale'
+        $result.notes | Should -BeNullOrEmpty
     }
 }
 
