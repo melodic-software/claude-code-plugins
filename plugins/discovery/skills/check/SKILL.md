@@ -13,7 +13,9 @@ metadata:
 
 Run the read-only check. Do not install Node.js, do not download anything, and do not edit `hooks/hooks.json`.
 
-This plugin treats a failed row as the truncation hook not running: a truncated WebFetch result then reaches Claude with no added note. How Claude Code handles a hook that cannot start: [hooks](https://code.claude.com/docs/en/hooks), the exit-code section. **As of:** 2026-10-04. **Recheck:** that section changes how a `PostToolUse` hook that cannot start is treated.
+This plugin treats a failed row as the truncation hook not running: a truncated WebFetch result then reaches Claude with no added note.
+
+- **Pointer**: when deciding what a hook that cannot start does to the tool call, fetch [hooks: other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes) live. **As of**: 2026-10-11. **Recheck trigger**: that section changes how a hook that cannot start is treated.
 
 ## Check
 

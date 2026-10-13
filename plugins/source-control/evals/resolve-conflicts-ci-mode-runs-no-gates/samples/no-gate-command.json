@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {"answer": []},
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git diff --name-only --diff-filter=U"}},
+        {"tool": "Bash", "input": {"command": "git log --oneline HEAD..MERGE_HEAD -- src/http/retry.ts"}},
+        {"tool": "Read", "input": {"file_path": "package.json"}},
+        {"tool": "Bash", "input": {"command": "git show :3:src/http/retry.ts"}},
+        {"tool": "Bash", "input": {"command": "git add src/http/retry.ts"}}
+      ],
+      "why": "reading package.json is not running a gate"
+    },
+    {"answer": [{"tool": "Bash", "input": {"command": "git log -p -- node_modules/.package-lock.json Makefile"}}], "why": "node_modules and Makefile in a path are not commands"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "npm test"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx tsc --noEmit"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "make test"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "git add src/http/retry.ts && npm run build"}}], "why": "a gate chained after staging"}
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/implementation/schemas/implementation.schema.json",
+  "title": "Implementation team config",
+  "description": "Schema for a repository's docs/conventions/implementation.yaml: the team layer of the implementation plugin's settings. Resolution, layer order and the per-key exceptions: plugins/implementation/reference/config.md. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "verify_mechanical_phases": {
+      "description": "When true, /implementation:implement and /implementation:implement-dispatch send every phase, mechanical ones included, to a fresh-context verifier. A floor: true in this file or in the user's verify_mechanical_phases option wins, so neither layer can switch off the other's true.",
+      "type": "boolean",
+      "default": false
+    },
+    "drain_cadence": {
+      "description": "When /implementation:implement-dispatch reads worker returns. on-arrival: verify each return as it comes in. batched: hold returns until the orchestrator step in progress (composing a wave's fences, a build gate, a phase-boundary commit) finishes, and at phase end. Overrides the user's drain_cadence option.",
+      "enum": ["on-arrival", "batched"],
+      "default": "on-arrival"
+    },
+    "code_writing": {
+      "description": "Who writes the code when /implementation:implement runs an approved plan. inline: the session edits, unless the run is autonomous or the plan routes phases to workers. dispatch: every phase goes to /implementation:implement-dispatch, which writes worker rows for phases the plan leaves to the main session. Overrides the user's code_writing option.",
+      "enum": ["inline", "dispatch"],
+      "default": "inline"
+    },
+    "per_unit_check": {
+      "description": "How /implementation:implement checks a change applied at three or more sites, once the lever or the hand edit is ready. pilot: apply it to a few units, check them, then apply the rest with one check at the end. every: run the check after each unit. Overrides the user's per_unit_check option.",
+      "enum": ["pilot", "every"],
+      "default": "pilot"
+    },
+    "integration_posture": {
+      "description": "How far a change reshapes the code around it. by-kind: a feature is a day-one redesign (the surrounding code is reshaped as if the feature had been there from the start), a fix or a config change is minimal, a refactor keeps the plan's scope with behavior unchanged. day-one: features, fixes and config changes all take the redesign. minimal: they all take the smallest change. A refactor keeps the plan's scope under every value. /planning:plan reads this key to write a day-one redesign as plan work items; /implementation:implement applies it only when no approved plan exists. Overrides the user's integration_posture option.",
+      "enum": ["by-kind", "day-one", "minimal"],
+      "default": "by-kind"
+    },
+    "refactor_compat": {
+      "description": "What /implementation:implement does in refactor mode with the shape it replaces. same-wave: update all call sites and remove the replaced shape in that same change, unless code outside the repository (a public API, a published package) relies on it. deprecate: keep an adapter, with a removal condition, for every consumer. Overrides the user's refactor_compat option.",
+      "enum": ["same-wave", "deprecate"],
+      "default": "same-wave"
+    },
+    "competing_attempts": {
+      "description": "What /implementation:implement-dispatch does with a phase the plan marks multi-shape. off: one attempt, the mark is ignored. suggest: offer competing_attempt_count attempts with a cost line; an unattended run makes one attempt and logs a discovery entry. auto: run the attempts without asking, on marked phases only. Overrides the user's competing_attempts option.",
+      "enum": ["off", "suggest", "auto"],
+      "default": "suggest"
+    },
+    "competing_attempt_count": {
+      "description": "How many attempts /implementation:implement-dispatch runs for a marked phase when competing attempts run. Attempts count against the dispatch wave cap; a count above the cap runs in sequential waves. Overrides the user's competing_attempt_count option.",
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 5,
+      "default": 3
+    }
+  }
+}

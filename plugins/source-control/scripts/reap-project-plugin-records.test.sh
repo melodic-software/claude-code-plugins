@@ -85,6 +85,12 @@ if [[ "${1:-}" == "plugin" && "${2:-}" == "uninstall" ]]; then
       map(select((.id == $id and .scope == "project"
         and ((.projectPath // "") | gsub("\\\\"; "/") | ascii_downcase | sub("/$"; "")) == $here) | not))
     ' "$STUB_STATE" >"$tmp" && mv "$tmp" "$STUB_STATE"
+    # The reported side effect: a project-scope uninstall also rewrites the
+    # cwd's .claude/settings.json, dropping entries and unrelated settings.
+    if [[ "${STUB_REWRITE_SETTINGS:-0}" == 1 ]]; then
+      mkdir -p .claude
+      printf '{\n  "enabledPlugins": {}\n}\n' >.claude/settings.json
+    fi
     printf 'Successfully uninstalled plugin: %s (scope: project)\n' "$id"
     exit 0
   fi
@@ -105,8 +111,9 @@ OUT=""
 run() {
   local cwd="$1"
   shift
-  OUT="$(cd "$cwd" && PATH="$STUB_DIR:$PATH" STUB_STATE="$STATE" STUB_CALL_LOG="$LOG" \
-    STUB_LIST_COUNT="$TEST_TMPDIR/listcount" \
+  OUT="$(cd "$cwd" && PATH="${EXTRA_PATH:+$EXTRA_PATH:}$STUB_DIR:$PATH" STUB_STATE="$STATE" \
+    STUB_CALL_LOG="$LOG" STUB_LIST_COUNT="$TEST_TMPDIR/listcount" \
+    STUB_REWRITE_SETTINGS="${STUB_REWRITE_SETTINGS:-0}" GIT_CALL_LOG="$TEST_TMPDIR/git-calls.log" \
     bash "$REAP" "$@" 2>&1)"
   RC=$?
 }
@@ -183,6 +190,151 @@ assert_eq "only this directory's project records are removed" "c@m,d@m" "$left"
 assert_not_contains "never escalates to user scope" "$(cat "$LOG")" "-s user"
 assert_not_contains "never passes --prune" "$(cat "$LOG")" "--prune"
 assert_contains "always passes --keep-data" "$(cat "$LOG")" "--keep-data"
+
+# --- the tracked settings file is left as it was found ------------------------
+# The uninstall CLI also rewrites the cwd's .claude/settings.json. Left dirty, a
+# tracked file makes the plain `git worktree remove` that follows the reap
+# refuse, and silently drops tracked settings. The stub above reproduces the
+# rewrite when STUB_REWRITE_SETTINGS=1. A logging git shim records every git
+# call the helper makes.
+
+if command -v git >/dev/null 2>&1; then
+  REAL_GIT="$(command -v git)"
+  GIT_SHIM="$TEST_TMPDIR/gitshim"
+  mkdir -p "$GIT_SHIM"
+  cat >"$GIT_SHIM/git" <<SHIM
+#!/usr/bin/env bash
+printf '%s\n' "\$*" >>"\$GIT_CALL_LOG"
+exec "$REAL_GIT" "\$@"
+SHIM
+  chmod +x "$GIT_SHIM/git"
+  GIT_LOG="$TEST_TMPDIR/git-calls.log"
+
+  ORIGINAL_SETTINGS='{
+  "autoMemoryEnabled": false,
+  "enabledPlugins": {
+    "a@m": true
+  }
+}'
+  # new_repo <dir> — a git work tree with .claude/settings.json committed.
+  new_repo() {
+    mkdir -p "$1/.claude"
+    git -C "$1" init -q
+    printf '%s\n' "$ORIGINAL_SETTINGS" >"$1/.claude/settings.json"
+    git -C "$1" add .claude/settings.json
+    git -C "$1" -c user.name=t -c user.email=t@example.invalid commit -q -m init
+  }
+
+  # Tracked and clean before the pass: restored byte-for-byte, tree clean.
+  GWT="$TEST_TMPDIR/gwt-clean"
+  new_repo "$GWT"
+  cp "$GWT/.claude/settings.json" "$TEST_TMPDIR/settings.orig"
+  seed_state "$(jq -n --arg wt "$(native_of "$GWT")" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
+  reset_log
+  : >"$GIT_LOG"
+  STUB_REWRITE_SETTINGS=1 EXTRA_PATH="$GIT_SHIM" run "$GWT" --worktree-path "$GWT"
+  assert_exit "a reap that rewrote a clean tracked settings file still exits 0" 0 "$RC"
+  if cmp -s "$TEST_TMPDIR/settings.orig" "$GWT/.claude/settings.json"; then same=yes; else same=no; fi
+  assert_eq "the tracked settings file is restored byte-for-byte" "yes" "$same"
+  assert_eq "the worktree is clean after the pass" "" "$(git -C "$GWT" status --porcelain)"
+  assert_contains "the restore is named in an info: line" "$OUT" "info: restored .claude/settings.json"
+  assert_contains "the restore does not change the survivor result" "$OUT" "surviving 0"
+  assert_eq "the restore brings no install record back" "0" "$(jq 'length' "$STATE")"
+
+  # Tracked but already modified before the pass: left alone, warned about.
+  GWT="$TEST_TMPDIR/gwt-modified"
+  new_repo "$GWT"
+  printf '{"edited": true}\n' >"$GWT/.claude/settings.json"
+  seed_state "$(jq -n --arg wt "$(native_of "$GWT")" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
+  reset_log
+  : >"$GIT_LOG"
+  STUB_REWRITE_SETTINGS=1 EXTRA_PATH="$GIT_SHIM" run "$GWT" --worktree-path "$GWT"
+  assert_exit "a pre-modified settings file does not change the exit code" 0 "$RC"
+  assert_contains "a pre-modified settings file is named in a warn: line" "$OUT" "warn: the uninstall CLI changed .claude/settings.json"
+  assert_not_contains "a pre-modified settings file is not restored" "$OUT" "info: restored"
+  assert_not_contains "no git restore runs over a pre-existing edit" "$(cat "$GIT_LOG")" "restore"
+  assert_contains "the file is left exactly as the CLI wrote it" "$(cat "$GWT/.claude/settings.json")" '"enabledPlugins": {}'
+
+  # A staged-only change (index differs from HEAD, worktree matches HEAD) is a
+  # pre-existing edit too: classifying it clean would let the restore's
+  # --staged drop it.
+  GWT="$TEST_TMPDIR/gwt-staged"
+  new_repo "$GWT"
+  printf '{"staged": true}\n' >"$GWT/.claude/settings.json"
+  git -C "$GWT" add .claude/settings.json
+  printf '%s\n' "$ORIGINAL_SETTINGS" >"$GWT/.claude/settings.json"
+  seed_state "$(jq -n --arg wt "$(native_of "$GWT")" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
+  reset_log
+  : >"$GIT_LOG"
+  STUB_REWRITE_SETTINGS=1 EXTRA_PATH="$GIT_SHIM" run "$GWT" --worktree-path "$GWT"
+  assert_exit "a staged-only change does not change the exit code" 0 "$RC"
+  assert_contains "the staged change survives the pass" \
+    "$(git -C "$GWT" show :.claude/settings.json 2>/dev/null)" '"staged": true'
+  assert_not_contains "a staged-only change is not restored over" "$OUT" "info: restored"
+  assert_contains "a staged-only change is warned about" "$OUT" "uncommitted changes before the pass"
+
+  # assume-unchanged or skip-worktree hides a local edit from both diffs, so the
+  # file would read clean and the restore would discard the hidden edit.
+  for flag in assume-unchanged skip-worktree; do
+    GWT="$TEST_TMPDIR/gwt-$flag"
+    new_repo "$GWT"
+    git -C "$GWT" update-index "--$flag" .claude/settings.json
+    printf '{"hidden": true}\n' >"$GWT/.claude/settings.json"
+    seed_state "$(jq -n --arg wt "$(native_of "$GWT")" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
+    reset_log
+    : >"$GIT_LOG"
+    STUB_REWRITE_SETTINGS=1 EXTRA_PATH="$GIT_SHIM" run "$GWT" --worktree-path "$GWT"
+    assert_exit "a $flag settings file does not change the exit code" 0 "$RC"
+    assert_not_contains "a $flag settings file is not restored" "$OUT" "info: restored"
+    assert_not_contains "no git restore runs over a $flag file" "$(cat "$GIT_LOG")" "restore"
+    assert_contains "a $flag settings file is warned about" "$OUT" "assume-unchanged or skip-worktree is set"
+  done
+
+  # Untracked: left alone, warned about.
+  GWT="$TEST_TMPDIR/gwt-untracked"
+  mkdir -p "$GWT/.claude"
+  git -C "$GWT" init -q
+  printf '%s\n' "$ORIGINAL_SETTINGS" >"$GWT/.claude/settings.json"
+  seed_state "$(jq -n --arg wt "$(native_of "$GWT")" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
+  reset_log
+  : >"$GIT_LOG"
+  STUB_REWRITE_SETTINGS=1 EXTRA_PATH="$GIT_SHIM" run "$GWT" --worktree-path "$GWT"
+  assert_exit "an untracked settings file does not change the exit code" 0 "$RC"
+  assert_contains "an untracked settings file is warned about" "$OUT" "git does not track it here"
+  assert_not_contains "no git restore runs on an untracked file" "$(cat "$GIT_LOG")" "restore"
+
+  # Outside any git work tree (the orphaned-directory case): nothing restored,
+  # no error. The only git call allowed is the work-tree probe itself.
+  NOGIT="$TEST_TMPDIR/nogit"
+  mkdir -p "$NOGIT/.claude"
+  printf '%s\n' "$ORIGINAL_SETTINGS" >"$NOGIT/.claude/settings.json"
+  if (cd "$NOGIT" && git rev-parse --is-inside-work-tree >/dev/null 2>&1); then
+    skip_case "the test temp dir sits inside a git work tree — the no-git case is unpinned here"
+  else
+    seed_state "$(jq -n --arg wt "$(native_of "$NOGIT")" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
+    reset_log
+    : >"$GIT_LOG"
+    STUB_REWRITE_SETTINGS=1 EXTRA_PATH="$GIT_SHIM" run "$NOGIT" --worktree-path "$NOGIT"
+    assert_exit "outside a git work tree the reap still exits 0" 0 "$RC"
+    assert_not_contains "outside a git work tree no error is printed" "$OUT" "error:"
+    assert_contains "outside a git work tree a changed file is warned about" "$OUT" "not inside a git work tree"
+    assert_eq "outside a git work tree only the work-tree probe calls git" \
+      "rev-parse --is-inside-work-tree" "$(cat "$GIT_LOG")"
+  fi
+
+  # --dry-run: no uninstall, so no git call and no restore at all.
+  GWT="$TEST_TMPDIR/gwt-dry"
+  new_repo "$GWT"
+  seed_state "$(jq -n --arg wt "$(native_of "$GWT")" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
+  reset_log
+  : >"$GIT_LOG"
+  STUB_REWRITE_SETTINGS=1 EXTRA_PATH="$GIT_SHIM" run "$GWT" --worktree-path "$GWT" --dry-run
+  assert_exit "--dry-run with a tracked settings file exits 0" 0 "$RC"
+  assert_not_contains "--dry-run restores nothing" "$OUT" "restored"
+  assert_eq "--dry-run makes no git call" "" "$(cat "$GIT_LOG")"
+else
+  skip_case "git not available — the settings-restore cases are unpinned here"
+fi
 
 # --- path normalization ---------------------------------------------------------
 # The record is written by Claude Code in native form; a case- or

@@ -53,6 +53,28 @@ three headings: Blocked on me, Changed, Found, unless a skill defines its own re
 
 Org architecture (cross-repo decisions, glossary, why each trust link exists): private repo `melodic-software/architecture`; repo map: `gh api orgs/melodic-software/properties/values` (system and role per repo). Read it before cross-repo or infrastructure changes: `gh api -H 'Accept: application/vnd.github.raw' repos/melodic-software/architecture/contents/<path>`; on Claude Code on the web, attach it at session start; in CI, check it out with a read-only App token. If you need it and cannot read it, say so instead of guessing its contents; tasks that don't need it continue.
 
+## Team standards
+
+Team engineering standards sync from `melodic-software/standards` into `docs/standards/`;
+[`docs/standards/README.md`](docs/standards/README.md) lists when each file applies, and skills
+read the matching file on demand. These apply in every session:
+
+- Label the basis of each recommendation, number or default you present: a `file:line`, tool
+  output, a URL read this session, or `judgment`.
+- Before a run that changes many objects, runs unattended or spans several targets, count what it
+  will touch and state the number.
+- Use fewer words and fewer lines whenever the meaning holds; no origin or history notes in code
+  or docs.
+- Keep agent-run shell commands plain: absolute paths, and no `cd`, `VAR=value` prefix, `export`
+  or redirect.
+
+A rule that changes what a stage produces or permits belongs in this repository or a plugin, not
+in user scope. User scope keeps only personal style, meaning the voice, length and format of
+replies to the user, set in the user CLAUDE.md, user rules or an output style.
+Convention folders under `docs/conventions/` hold marketplace plugin contracts; the
+`<concern>.yaml` and `.md` files there hold this repository's plugin settings (ADR 0064). Team
+standards live in `docs/standards/`.
+
 ## Code Review Rules
 
 Each line names a rule CI does not enforce; the linked file states it in full.
@@ -81,6 +103,9 @@ Each line names a rule CI does not enforce; the linked file states it in full.
   [instruction economy](docs/plugin-philosophy.md#instruction-economy).
 - A hook false-positive fix lands with a stay-quiet test that fails before the fix:
   [hook-precision](docs/conventions/hook-precision/README.md#the-discipline).
+- Work on an open PR (CI results, review comments, `/autofix-pr` sessions, which never merge)
+  follows the post-PR triage rules:
+  [source-control](docs/conventions/source-control.md#post-pr-triage).
 
 <!-- BEGIN GENERATED: instruction-placement rules index -->
 

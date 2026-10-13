@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "python3 \"/plugins/code-metrics/skills/audit-suppressions/scripts/suppression-scan.py\" --count"}}],
+      "why": "the scanner with --count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "\"/plugins/code-metrics/skills/audit-suppressions/scripts/audit-suppressions.sh\" --all"}}],
+      "why": "the report, not the counter"
+    }
+  ]
+}

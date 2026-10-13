@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1] - 2026-10-11
+
+### Changed
+
+- confirm: the verifier model and effort record is rechecked against its upstream pages after the latest model release and re-dated; the rule is unchanged.
+
 ## [0.8.0] - 2026-10-06
 
 ### Changed

@@ -31,11 +31,10 @@ also scored, marked "if the project entry is not approved". Rows reading `shadow
 inventory table and get no findings, because Claude Code does not launch them from that entry.
 `skipped-by-client` is a `"type": "sdk"` entry in a config file; see the SDK entries record.
 `rejected-by-client` is a
-`managedMcpServers` entry that fails the entry checks the script applies (`type` of `http`, `sse`,
-or `streamable-http`, an `https://` URL, no `command`, `args`, `env`, or `headersHelper`, no
-`${VAR}`, a name of letters, numbers, hyphens, and underscores, and no control or invisible
-formatting character in any key or value), so the audit treats it as not loaded; see the managed
-precedence record.
+`managedMcpServers` entry that fails the entry checks the script applies, so the audit treats it as
+not loaded; the [managed precedence record](#managed-precedence) points at where those checks are
+defined, and `inventory.sh` encodes them. As of 2026-10-11. Recheck trigger: that record moves or
+stops pointing at the entry checks.
 
 P2, P3, and P4 depend on facts outside the config. A result reached without a lookup the operator
 asked for carries the label `unverified`.
@@ -186,28 +185,28 @@ Postmark did not publish.
 
 ### Configuration sources
 
-The inventory script reads user scope (top-level `mcpServers` in `~/.claude.json`), local scope
-(under the project's path in `~/.claude.json`), project scope (`.mcp.json`), and managed
-configuration (`managed-mcp.json`, and `managedMcpServers` in `managed-settings.json` plus
-`managed-settings.d/*.json` in the same system directory), and ranks local over project over user
-for the same server name.
+The inventory script reads every MCP configuration scope, managed configuration included, from the
+files the pointers below name, and ranks a server name defined in more than one scope by the
+precedence they name. `inventory.sh` encodes both; this record says where to re-derive them.
 
 - **Pointer**: for the scopes and their precedence, see
   <https://code.claude.com/docs/en/mcp#mcp-installation-scopes> and
   <https://code.claude.com/docs/en/mcp#scope-hierarchy-and-precedence>; for managed configuration,
-  <https://code.claude.com/docs/en/managed-mcp> and
+  <https://code.claude.com/docs/en/managed-mcp#deploy-managed-mcp-json>,
+  <https://code.claude.com/docs/en/managed-mcp#provide-servers-through-managed-settings>, and
   <https://code.claude.com/docs/en/managed-settings#split-a-file-based-policy-across-teams>.
-- **As of**: 2026-09-26
+- **As of**: 2026-10-11
 - **Recheck trigger**: a Claude Code release note naming an MCP scope, `managed-mcp.json`, or
-  `managedMcpServers`, or a re-fetch of any of those pages diverging from this record.
+  `managedMcpServers`, or a re-fetch of any of those sections diverging from what `inventory.sh`
+  reads.
 
 ### Managed precedence
 
 The inventory reads a local, project, or user row whose name a `managedMcpServers` entry also
 defines as `shadowed-by:managed-settings`; a managed-settings row whose name `managed-mcp.json` also
 defines as `shadowed-by:managed`; and, when `managed-mcp.json` is present, every local, project,
-and user row as `suppressed-by-managed`. A `managedMcpServers` entry failing the entry checks
-listed under [Severity and scoring](#severity-and-scoring) reads `rejected-by-client`. The script
+and user row as `suppressed-by-managed`. A `managedMcpServers` entry failing the entry checks the
+pointer below defines, as `inventory.sh` encodes them, reads `rejected-by-client`. The script
 matches `type` case-sensitively, so `"HTTP"` reads `rejected-by-client`; the page does not settle
 case handling.
 

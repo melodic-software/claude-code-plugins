@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: css-project-convention-wins
+description: "Hard (the always-on logical-property rule pulls the other way): a stated project convention beats the good-css rule"
+tags: [write-css, hard]
+runs: 3
+expected_outcome: "The answer follows docs/css-conventions.md: it writes physical margin and padding properties, names the convention as the reason, and does not switch to logical properties"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Add CSS for a .breadcrumb: items in a row with 8px of space after each item and a 16px indent on the left of the list. This run cannot write files, so put the CSS in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 25
+  timeout_seconds: 600

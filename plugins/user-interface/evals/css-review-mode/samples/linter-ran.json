@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/user-interface/skills/write-css/scripts/review.mjs src/app.css"
+          }
+        }
+      ],
+      "why": "review script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no linter run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx stylelint src/app.css"
+          }
+        }
+      ],
+      "why": "only the project linter"
+    }
+  ]
+}

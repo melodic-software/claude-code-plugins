@@ -38,8 +38,13 @@ The discriminating question is *what survives the failure it remediates*:
   if Stop-hook input gains a session discriminator or lane bodies mandate
   `ScheduleWakeup(stop: true)`, and then only as a latency layer on top of the OS
   schedule, never a replacement.
-- Cloud `/schedule` routines are rejected for lane work: they cannot reach a local
-  checkout.
+- Cloud `/schedule` routines are rejected as the restart consumer: it relaunches lanes
+  from the local checkout, which a routine cannot reach. Where a lane's own stage runs
+  is a separate choice, the execution-target convention
+  (`docs/conventions/execution-target/` in the marketplace repository), applied by
+  `start` and `restart` (see `context/config.md`, "Execution target"). No lane stage
+  runs as a cloud routine until a stage is marked trusted (`ET_TRUSTED_STAGES` in
+  `lane-launcher.sh` is empty, so every stage is refused every cloud host).
 
 **The polling tick is not lane pacing.** Lanes remain self-paced via
 `ScheduleWakeup`; the consumer never sets, nudges, or replaces a lane's cadence.
@@ -61,6 +66,23 @@ The comment is a **signal, never a target**: lane identity, prompt, model,
 effort, and settings all come from the operator's local lane config, and nothing
 read from a comment is interpolated into a command or path. A telemetry comment
 can never name a lane the operator has not configured.
+
+**Only the lanes' own comments count.** The sentinel is public, so anyone who can
+comment on a telemetry issue can post a lookalike carrying `restart_request`. The
+consumer reads only comments written by the lanes' write identity, resolved once
+per run: the authenticated account's own login first, and the App named by
+`--app-slug` when the token is an App's; the exact order is the script's WRITE
+IDENTITY header. With no identity resolved the run acts on nothing and exits
+non-zero. Run the consumer under the account its lanes write as, and pass
+`--app-slug` when that is an App installation token; `print-schedule` carries a
+passed `--app-slug` into every command it emits.
+
+- **Pointer:** how an installation token's writes are attributed,
+  [Authenticating as a GitHub App installation, About authentication as a GitHub App installation](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation#about-authentication-as-a-github-app-installation).
+- **As of:** 2026-10-11.
+- **Recheck:** that section changes how an installation's requests are
+  attributed, or a consumer run under an App token with `--app-slug` passed
+  reads no lane state.
 
 ## Operator setup: registering the schedule
 
@@ -222,7 +244,8 @@ parity claim.
 Optional `lanes[].telemetry` config keys (`issue`, `marker`, `instance`, `repo`)
 bind a lane to its telemetry comment; every one has a working default (issue
 resolved by the exact `Lane telemetry: <lane>` title, marker matched by the shared
-sentinel plus a `restart_request`-bearing state block, instance unpinned, repo
+sentinel plus a `restart_request`-bearing state block in a comment by the write
+identity, instance unpinned, repo
 defaulting to the consumer's `--target-repo`). A bound `marker` names a lane
 **type** and matches every writer instance of it, since a live comment's marker
 carries the loop-lane convention's `@<instance>` writer suffix; pin one instance

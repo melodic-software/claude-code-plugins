@@ -42,7 +42,7 @@ These are the invariants an integration run must keep in the `/firecrawl:firecra
 in this exact form:
 
 - Single-line YAML `description` with `Use when:` and skip guidance phrase lists
-- Frontmatter fields: `description`, `argument-hint`, `user-invocable: true`, `disable-model-invocation: false` (no `name`. It defaults to the directory)
+- Frontmatter fields: `description`, `argument-hint`, `user-invocable: true`, `disable-model-invocation: false` (no `name`; the skill takes its name from the directory, per the `name` row of [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference), as of 2026-10-11; recheck when that row's default changes)
 - Pre-computed context block at top, using `firecrawl --status` for the health line
 - "Core pattern. Write to disk, Read selectively" rule: every non-trivial example writes to a `mktemp`-created spill file with `-o`, `Read`s selectively, and the spill file is removed after the Read (kept only when the user asked for the file itself)
 - "When NOT to use this skill" section with the doc-site-reader-first and synthesis-tool escalation ordering

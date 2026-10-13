@@ -1,0 +1,25 @@
+{
+  "total_count": 1,
+  "artifacts": [
+    {
+      "id": 11751846072,
+      "node_id": "MDg6QXJ0aWZhY3QxMTc1MTg0NjA3Mg==",
+      "name": "pr-unblock-dispatched-38155580529",
+      "size_in_bytes": 217,
+      "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/artifacts/11751846072",
+      "archive_download_url": "https://api.github.com/repos/melodic-software/claude-code-plugins/actions/artifacts/11751846072/zip",
+      "expired": false,
+      "digest": "sha256:0903d50e6b0e0ca88aaf3aadbff782b41495885924f9258c2acd290818387e34",
+      "created_at": "2026-10-11T12:01:55Z",
+      "updated_at": "2026-10-11T12:01:55Z",
+      "expires_at": "2026-10-12T12:01:54Z",
+      "workflow_run": {
+        "id": 38155572048,
+        "repository_id": 1,
+        "head_repository_id": 1,
+        "head_branch": "main",
+        "head_sha": "4444444444444444444444444444444444444444"
+      }
+    }
+  ]
+}

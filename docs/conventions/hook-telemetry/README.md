@@ -3,8 +3,13 @@
 A versioned, marketplace-wide contract for plugin hooks to emit structured execution telemetry. A hook
 (the **producer**) emits one JSON envelope per run to a **sink** the consuming repo sets via
 `HOOK_TELEMETRY_SINK`. The signal it carries, **this hook's own `duration_ms`, outcome, and findings**,
-is what Claude Code's native OTEL cannot provide (CC reports an aggregate `total_duration_ms` across all
-hooks and excludes third-party plugin content).
+is what Claude Code's native OTEL cannot provide: its hook event reports all matching hooks together
+([monitoring § Hook execution complete event](https://code.claude.com/docs/en/monitoring-usage#hook-execution-complete-event)),
+and its per-invocation plugin hook event excludes third-party plugin content, which covers this
+marketplace's hooks
+([§ Hook plugin metrics event](https://code.claude.com/docs/en/monitoring-usage#hook-plugin-metrics-event)).
+As of 2026-10-11; recheck when the first event reports one hook's duration and outcome, or the
+second opens to third-party marketplace plugins.
 
 This directory is the source of truth: `envelope.schema.json` (common fields), `data/<hook>.schema.json`
 (per-hook payload), `CHANGELOG.md` (version history), `examples/` (worked fixtures).
@@ -247,5 +252,4 @@ where the formatter every writer calls lives:
 | `disk-hygiene` plugin | `destructive-guard` | `data/destructive-guard.schema.json` |
 | `disk-hygiene` plugin | `guard-launch-monitor` | `data/guard-launch-monitor.schema.json` |
 | `context-guard` plugin (mod) | `zone-crossing-inject` (events `tool.call`, `prompt.submit` and `turn.complete`, per the schema) | `data/zone-crossing-inject.schema.json` |
-| `context-guard` plugin (mod) | `zone-gate` (event `tool.call`) | `data/zone-gate.schema.json` |
 | `context-guard` plugin | `post-compact-mark` | `data/post-compact-mark.schema.json` |

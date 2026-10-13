@@ -18,13 +18,20 @@ invocation:
 - Working tree (empty = clean), `git status --porcelain | head -5`
 
 The pipe is the bound and belongs in the command. A read-time cap ("read only the first 5 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+bounds nothing: the command has already run and its result is already formed before there is
+anything to decide about. Pointer: how
+much of a command's output reaches the result, and in what form, is read at
+[tools reference: output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
+As of: 2026-10-11. Recheck trigger: that section changes the inline ceiling or what arrives past it.
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git.
+separate body Bash calls rather than pre-compute lines: a worktree-isolated session refuses a
+compound command that contains git. The dated record for how the pre-compute block is composed is
+owned by `/source-control:worktree` (its gather-block record, "The pre-compute block runs as one
+shell invocation"); how injected commands run is read at
+[skills: how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
+As of: 2026-10-11. Recheck triggers: the gather-block section moves, is renamed, or changes how the
+block is composed; the skills section changes how a block's commands are run.
 
 ## Pre-computed context
 
@@ -144,8 +151,12 @@ If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`),
 
 "Report a bug" can mean a defect in the person's own code or one in Claude Code itself.
 
-- **`/bug` (built-in command, alias `/share`)**: sends a report about Claude Code, with the
-  conversation, to Anthropic. It is reserved for the person to run; the model does not invoke it.
+- **`/bug` (built-in command)**: reports a problem with Claude Code itself. It is reserved for the
+  person to run; the model does not invoke it. What it includes and where the report goes are read
+  live from its row. Pointer: the second row of
+  [context/native-bug.md](context/native-bug.md#the-built-in-bug-command-verification-record)
+  carries that record. As of: 2026-10-11. Recheck trigger: that row moves or stops carrying its own
+  pointer and trigger.
 - **This skill (marketplace plugin).** A five-field report for a defect in the person's code,
   grounded in their repository, filed nowhere unless they ask.
 
@@ -154,8 +165,8 @@ skill), offer it to the person: you can run `/bug` instead of or alongside this 
 skill for defects in the person's code. An unattended run records the offer in its output instead
 of asking.
 
-**Mutation gate.** `/bug` sends the conversation off the machine; only the person decides that.
-This skill never runs `/bug` on the person's behalf.
+**Mutation gate.** `/bug` packages session history for someone outside this repository; only the
+person decides what goes and where. This skill never runs `/bug` on the person's behalf.
 
 **Availability is never assumed.** This section states what to do when the person can run
 `/bug`, never that it is present in their host. The four-part records live in

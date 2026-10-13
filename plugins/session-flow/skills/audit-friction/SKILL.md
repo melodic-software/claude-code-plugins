@@ -122,9 +122,12 @@ wave counts and its estimated token and wall-clock ranges:
 - `full`: every claim. `probes`: behavior probes only.
 
 When `--verify` was not given and the person is present, show that table (tokens and time are
-ranges from one measured run, not quotes), point
-at [Manage costs](https://code.claude.com/docs/en/costs#track-your-costs) for what agents use, and
+ranges from one measured run, not quotes), point at Manage costs for what agents use, and
 ask once, defaulting to `consequential`. An unattended run uses `consequential` and says so.
+
+- **Pointer**: [Manage costs effectively § Track your costs](https://code.claude.com/docs/en/costs#track-your-costs)
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section moves or stops describing how to see what a session used.
 
 Probe platform-behavior claims with `/harness-ops:behavior-probes`: choosing a mode that includes
 probes is the person asking for a live run; an unattended run probes live only when its launch
@@ -141,14 +144,14 @@ every approval verbatim, with its date, in `R/DECISIONS.md`.
 
 ### 7. Hand off
 
-- Auto mode blocks some edits by category, self-modification and security weakening among them, so
-  write those as reviewed scripts up front, one per repository, for the person to run with
-  `! bash <path>`; never try the edit first. Template and rules: [reference/outputs.md](reference/outputs.md).
+- Write every edit auto mode would block as a reviewed script up front, one per repository, for the
+  person to run with `! bash <path>`; never try the edit first. Template and rules: [reference/outputs.md](reference/outputs.md).
   - **Pointer**: when deciding which edits to script, fetch
-    <https://code.claude.com/docs/en/permission-modes#what-the-classifier-blocks-by-default> live.
-  - **As of**: 2026-10-09
-  - **Recheck trigger**: that section adds or drops a category, or a run's classifier reasons name a
-    category the section does not list.
+    <https://code.claude.com/docs/en/permission-modes#what-the-classifier-blocks-by-default> and
+    <https://code.claude.com/docs/en/permission-modes#protected-paths> live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: either section adds or drops a category or path, or a run's classifier
+    reasons name a category neither section lists.
 - Route allowlist fixes to the built-in `/fewer-permission-prompts`, classifier entries to
   `/harness-config:draft-auto-mode-rules` (bring it the `classifier` groups from `R/cause.json` as
   evidence), and plugin defects to an issue in the plugin's repository.

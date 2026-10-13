@@ -13,7 +13,7 @@
 // home the caller resolved, relative to projectRoot unless absolute (default docs/conventions).
 // `userHome` defaults to os.homedir(). `schema` is a JSON Schema object; the subset honored is type
 // (object, string, array, null, integer, number, boolean), enum, properties, additionalProperties
-// (false or a schema) and items.
+// (false or a schema), items, minimum, minItems and maxItems.
 //
 // A key is a schema leaf: any node that is not an object with `properties`, or a path named in
 // `teamOnly`. Each layer's leaves are checked one by one; a leaf that fails is dropped from that layer
@@ -109,6 +109,9 @@ function check(value, node, at = "") {
   const types = typesOf(node);
   if (types && !types.some((t) => fits[t]?.(value))) return [`${prefix}expected ${types.join(" or ")}, got ${show(value)}`];
   if (Array.isArray(node.enum) && !node.enum.includes(value)) return [`${prefix}${show(value)} is not one of ${node.enum.map(show).join(", ")}`];
+  if (typeof value === "number" && typeof node.minimum === "number" && value < node.minimum) return [`${prefix}${show(value)} must be at least ${node.minimum}`];
+  if (Array.isArray(value) && typeof node.minItems === "number" && value.length < node.minItems) return [`${prefix}needs at least ${node.minItems} items, got ${value.length}`];
+  if (Array.isArray(value) && typeof node.maxItems === "number" && value.length > node.maxItems) return [`${prefix}allows at most ${node.maxItems} items, got ${value.length}`];
   // An open node ({}) checks nothing but reserved names, which are refused at every depth.
   if (Array.isArray(value)) return value.flatMap((item, i) => check(item, isMapping(node.items) ? node.items : {}, `${at}[${i}]`));
   if (!isMapping(value)) return [];
