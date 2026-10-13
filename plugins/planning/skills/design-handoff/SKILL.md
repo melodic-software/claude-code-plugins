@@ -88,8 +88,11 @@ memory:
   topology, boundary, or component artifact the scope produced)
 - **Contracts**: interfaces, type shapes, and signatures, quoted from the type inventory or
   contracts artifact; a typed artifact's first fenced block is copied verbatim with its info string
-- **Variation verdicts**: for each configurability or extension thread, whether the axis is
-  designed to vary (and through which seam) or held fixed, with the recorded reason
+- **Variation verdicts**: for each variation point, configurability, or extension thread, its
+  verdict (abstract now, contain now, or leave inline, per
+  [`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md)),
+  the seam or containing module, and the recorded reason; an abstraction question left to a human
+  is listed with its arbiter
 - **Conventions followed**: repository paths of the existing patterns, rules, and ADRs the design
   follows. Never a memory-slice path: PLAN.md is published, and that path would dangle
 
@@ -105,7 +108,7 @@ complete. Write no other section.
 Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artifacts, not recalled from memory:
 
 - Resolved decisions with their recorded rationale (from `design-threads.md`)
-- **ADR candidates.** Each resolved decision that is hard to reverse, surprising without context, and the result of a real trade-off. When the `architecture` plugin is enabled, offer to invoke `/architecture:record-decision` via the Skill tool for each one, passing the decision and its recorded rationale from `design-threads.md`; that skill owns convention discovery, the no-convention offer-and-defer, and the write. Otherwise list them under an "ADR candidates" heading in the summary for the human to record by hand. The offer never blocks the handoff
+- **ADR candidates.** Each resolved decision that is costly to undo, not obvious from the code, and chosen over a live alternative. When the `architecture` plugin is enabled, offer to invoke `/architecture:record-decision` via the Skill tool for each one, passing the decision and its recorded rationale from `design-threads.md`; that skill owns convention discovery, the no-convention offer-and-defer, and the write. Otherwise list them under an "ADR candidates" heading in the summary for the human to record by hand. The offer never blocks the handoff
 - Deferred research items with tags
 - Design artifacts produced, and that PLAN.md's `## Design` section now holds them
 - Dependency order for implementation (which decisions block others)

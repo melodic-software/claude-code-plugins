@@ -44,6 +44,30 @@ assert_classify "terse-agent classifies SKIP" '| SKIP |' "$FIX/terse-agent.md"
 assert_classify "verbose fixture classifies COMPRESS" '| COMPRESS |' "$FIX/audit-fixture-dir/verbose.md"
 assert_classify "lean fixture classifies SKIP" '| SKIP |' "$FIX/audit-fixture-dir/lean.md"
 
+# The COMPRESS reason follows compress_articles (SKILL.md "Articles"): the
+# default, keep, promises no article cuts; cut names them.
+out_keep="$(bash "$SCAN" "$FIX/audit-fixture-dir/verbose.md" 2>/dev/null)" || true
+case "$out_keep" in
+*'| COMPRESS |'*articles\ kept*) ok "the default reason keeps articles" ;;
+*) fail "the default reason should say articles are kept (got: $out_keep)" ;;
+esac
+case "$out_keep" in
+*hedging/articles*) fail "the default reason must not promise article cuts (got: $out_keep)" ;;
+*) ok "the default reason promises no article cuts" ;;
+esac
+assert_classify_args() { # <label> <expected substring> <args...>
+  local label="$1" want="$2" out
+  shift 2
+  out="$(bash "$SCAN" "$@" 2>/dev/null)" || true
+  case "$out" in
+  *"$want"*) ok "$label" ;;
+  *) fail "$label (got: $out)" ;;
+  esac
+}
+assert_classify_args "--articles cut names article cuts" 'filler/hedging/articles' --articles cut "$FIX/audit-fixture-dir/verbose.md"
+bash "$SCAN" --articles drop "$FIX/audit-fixture-dir/verbose.md" >/dev/null 2>&1
+if [[ $? -eq 2 ]]; then ok "--articles with another value exits 2"; else fail "--articles drop should exit 2"; fi
+
 # Repo-relative .claude/rules path is signal 1 (no leading slash). mktemp -d
 # is already absolute, so invoking the scanner with that path would match the
 # old `*/.claude/rules/` glob and never exercise the repo-relative arm. Run

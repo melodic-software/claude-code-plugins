@@ -19,7 +19,7 @@
     },
     "activities": {
       "type": "object",
-      "description": "Each activity, defined once and referenced by key from lane slots.",
+      "description": "Each activity, defined once and referenced by key from lane slots and composite children.",
       "propertyNames": { "$ref": "#/$defs/name" },
       "additionalProperties": { "$ref": "#/$defs/activity" }
     },
@@ -62,7 +62,7 @@
         "pre-ready",
         "refine",
         "verify",
-        "respond",
+        "unblock",
         "merge",
         "post-merge",
         "maintenance",
@@ -89,6 +89,24 @@
           "type": "array",
           "minItems": 1,
           "items": { "type": "string", "minLength": 1 }
+        },
+        "labels-absent": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Matches only when none of these labels is on the PR. A miss skips with awaiting-human."
+        },
+        "mergeable": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "enum": ["conflicting", "clean"] },
+          "description": "The PR's mergeability at the gated head. Unknown mergeability never matches and skips with prerequisite-missing."
+        },
+        "draft": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "boolean" },
+          "description": "Whether the PR is a draft."
         },
         "work-classes": {
           "type": "array",
@@ -129,13 +147,43 @@
       "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
     },
     "activity": {
+      "oneOf": [{ "$ref": "#/$defs/leaf" }, { "$ref": "#/$defs/composite" }],
+      "description": "A leaf runs one skill or script; a composite groups other activities."
+    },
+    "composite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["children"],
+      "description": "Activities run as one group. It declares no effect: the config reader applies lane rules to each of its leaves, and each leaf runs, is granted and reports on its own.",
+      "properties": {
+        "children": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/slot" },
+          "description": "Leaf activities, in the order and under the rules of a lane's slots."
+        },
+        "applies-when": {
+          "$ref": "#/$defs/predicate",
+          "description": "Gates every child; each leaf's own predicate must also match."
+        }
+      }
+    },
+    "leaf": {
       "type": "object",
       "additionalProperties": false,
       "required": ["effect", "gating", "reads-untrusted"],
       "oneOf": [{ "required": ["skill"] }, { "required": ["script"] }],
-      "dependentRequired": { "model": ["skill"], "max-turns": ["skill"] },
+      "dependentRequired": {
+        "model": ["skill"],
+        "max-turns": ["skill"],
+        "prepare": ["skill"]
+      },
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
+        "prepare": {
+          "enum": ["merge-base"],
+          "description": "What the write runner does around a skill with an effect other than read. merge-base: merge the base tip without committing before the skill, then commit with the gated head and the base tip as parents."
+        },
         "args": {
           "type": "string",
           "minLength": 1,
@@ -206,7 +254,7 @@
           "type": "array",
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/name" },
-          "description": "Activities in this lane that must finish first."
+          "description": "Activities in the same slots or children list that must finish first."
         },
         "applies-when": {
           "$ref": "#/$defs/predicate",
@@ -228,25 +276,49 @@
     "merge": {
       "type": "object",
       "additionalProperties": false,
-      "description": "How far pr-merge may merge without a human. A lane-power setting: raised only by a merged change to this file. Any rung above off requires a diff-check with denied paths.",
-      "if": {
-        "required": ["rung"],
-        "properties": { "rung": { "enum": ["C2", "C3"] } }
-      },
-      "then": {
-        "required": ["diff-check"],
-        "properties": {
-          "diff-check": {
-            "required": ["denied-paths", "max-changed-lines"],
-            "properties": { "denied-paths": { "minItems": 1 } }
+      "description": "How far the repository's merge authority may merge without a human. A lane-power setting: raised only by a merged change to this file. Any rung above off requires a diff-check with denied paths; authority local-babysit requires an agent-identity.",
+      "allOf": [
+        {
+          "if": {
+            "required": ["rung"],
+            "properties": { "rung": { "enum": ["C2", "C3"] } }
+          },
+          "then": {
+            "required": ["diff-check"],
+            "properties": {
+              "diff-check": {
+                "required": ["denied-paths", "max-changed-lines"],
+                "properties": { "denied-paths": { "minItems": 1 } }
+              }
+            }
           }
+        },
+        {
+          "if": {
+            "required": ["authority"],
+            "properties": { "authority": { "const": "local-babysit" } }
+          },
+          "then": { "required": ["agent-identity"] }
         }
-      },
+      ],
       "properties": {
         "rung": {
           "enum": ["off", "C2", "C3"],
           "default": "off",
-          "description": "Highest work class pr-merge merges. C1 produces no PR; C4 and C5 need a human (README.md, Merge authority)."
+          "description": "Highest work class the merge authority merges. C1 produces no PR; C4 and C5 need a human (README.md, Merge authority)."
+        },
+        "authority": {
+          "enum": ["local-babysit", "pr-merge"],
+          "default": "pr-merge",
+          "description": "The one lane that merges for this repository: the local babysit wrapper or the pr-merge lane. Absent means pr-merge, the meaning a rung had before this key existed; the babysit wrapper merges only when this reads local-babysit (README.md, Merge authority)."
+        },
+        "agent-identity": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$",
+          "not": {
+            "pattern": "^([Gg][Ii][Tt][Hh][Uu][Bb]-[Aa][Cc][Tt][Ii][Oo][Nn][Ss]|[Dd][Ee][Pp][Ee][Nn][Dd][Aa][Bb][Oo][Tt])\\[[Bb][Oo][Tt]\\]$"
+          },
+          "description": "GitHub login the unattended merge lane acts as. It must be the [bot] login of a GitHub App dedicated to this lane: a machine user is a User and would pass every human test, and GitHub's shared built-in bots (github-actions[bot], dependabot[bot]) are rejected in any letter case. Absent: the unattended path stays inert. Required when authority is local-babysit."
         },
         "diff-check": {
           "type": "object",

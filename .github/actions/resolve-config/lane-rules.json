@@ -40,20 +40,10 @@
     ],
     "never": "Runs work; it only produces `ci-status`"
   },
-  "pr-address-feedback": {
-    "stage": "respond",
+  "pr-unblock": {
+    "stage": "unblock",
     "forbidden-effects": ["merge"],
-    "never": "Resolves human threads"
-  },
-  "pr-fix-ci": {
-    "stage": "respond",
-    "forbidden-effects": ["merge"],
-    "never": "Edits anything unrelated to the failure"
-  },
-  "pr-update": {
-    "stage": "respond",
-    "forbidden-effects": ["merge"],
-    "never": "Force-pushes"
+    "never": "Merges"
   },
   "pr-merge": {
     "stage": "merge",

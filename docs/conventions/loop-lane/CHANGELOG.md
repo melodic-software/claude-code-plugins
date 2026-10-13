@@ -5,6 +5,74 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [12.0.0] - 2026-10-12
+
+Major. A topology change (§1): where a repository names `merge.agent-identity`, a lane not acting
+as it stops and writes nothing. With none configured, no lane behaves differently.
+
+- **Lane write identity (§1).** Unattended lanes write only under `merge.agent-identity`, a GitHub
+  App installed on that repository alone, launched with its token as the only GitHub credential.
+  At the start of every cycle the babysit and worker lanes read `pr-pipeline.yaml` from the
+  target's default branch and run the merge gate's identity and credential rules and
+  `lane-push.sh --check` (skipped by a babysit lane launched outside a checkout); a refusal, or an
+  unreadable or unparsable config, means the lane writes nothing that cycle, telemetry and
+  escalations included, and stops. A not-found config counts as
+  absent only when the repository's contents root reads.
+- **Lanes push only through `lane-push.sh` (§1).** No lane instruction runs a bare `git push`. The
+  script builds the https URL from the repository and branch (or a pull request's head), scrubs
+  every `GIT_*` variable, ignores global and system config, forces gh as the only credential
+  helper and https as the only transport, refuses on local `url.*`, `include*`, `credential.*`,
+  `http.*` and unsafe `remote.*` keys, sets `NETRC=/dev/null`, takes git and gh only at absolute
+  paths, refuses a default branch other than a fork's own, and pushes only when gh's acting login is
+  the identity. §1 lists every refusal. Named
+  residuals: interactive sessions stay under the operator, and their label writes count as human
+  provenance; a lane holds the operator's token for the rest of the cycle in which the config
+  lands; whoever controls the lane host's gh or git binary, the script or the checkout's `.git`
+  directory already runs code as the lane; a lane whose identity lacks workflow-file permission
+  cannot push changes to workflow files (accepted).
+- **Two push paths (§1).** The pull-request skill's `push-branch.sh`, which every babysit-prs push
+  also goes through, keeps the operator's remote for interactive and attended pushes and, inside a
+  lane (a GitHub App `[bot]` acting login), runs the identity preflight for the base repository
+  and hands the push to `lane-push.sh` as the `merge.agent-identity` it configures, refusing when
+  none is configured and refusing `--pr` for a fork head without `--dir`. Residuals R1-R6: two paths to maintain; the interactive path trusts the
+  operator's git setup; a lane on an operator host with SSH keys reachable can push as the operator
+  until lane hosts hold only the identity's credentials, and whether today's launcher strips
+  `SSH_AUTH_SOCK` is an open question; the lane check is advisory; `NETRC` needs a libcurl that
+  reads it; proxy and CA variables are not scrubbed (not verified).
+
+## [11.0.1] - 2026-10-11
+
+Patch. Wording only; no value, topology or invariant changed.
+
+- **§4 lane-instance identity no longer names `first_drain_complete`.** The work-loop's first-drain
+  period now ends on a person-applied label rather than a durable-state flag, so the examples of
+  what a clobbered or reset block loses name the adaptive cap and streaks instead. Evidence: #7161.
+
+## [11.0.0] - 2026-10-11
+
+Major. The rate-limit guard binding (§6) changes what every lane does at the pause threshold.
+
+- **Pausing is opt-in (§6).** The inlined floor's **Pause threshold** and **Drain-then-pause**
+  bullets now pause only a lane whose session environment sets `LOOP_LANE_RATE_LIMIT_PAUSE=1`.
+  Without it a lane at or above 95% keeps working at the same model, effort and review depth, and
+  reports the window, its reset time and the options: continue, switch accounts, or opt in.
+  Every inlined copy moved with the reader contract. Evidence: #7118.
+
+## [10.3.0] - 2026-10-11
+
+Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
+This is the §Versioning new-model trigger firing for Claude Haiku 5.5.
+
+- **`haiku` stays admissible nowhere, on new grounds (§3 Alias binding).** This supersedes the
+  reason recorded in the 8.1.0 entry: on the Anthropic API `haiku` now resolves to a model with a 1M
+  context window and a current knowledge cutoff, so those grounds no longer hold <!-- ai-slop-ignore: factual model spec, not assistant-frame disclaimer -->. The exclusion now
+  rests on four grounds, each with a pointer and one shared recheck trigger: the reviewer floor,
+  early stop and unverified completion, over-refusal, and the provider alias. The release figures
+  are in `docs/upstream/haiku-5-5-launch.md`.
+- **Re-dated records (§3).** The fixed-rules, alias-binding and known-gaps records were re-read
+  against their pointers on 2026-10-10 with no drift; the alias-binding pointer moves to the models
+  overview's renamed `compare-models` section.
+
 ## [10.2.0] - 2026-10-04
 
 Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
@@ -163,8 +231,8 @@ rule itself is unchanged: what changes is that the rule is now enforced.
   block. The floor's values, paths and thresholds never moved in any of these passes; what moved
   was punctuation nobody was watching, three times, which is what the check now prevents.
 
-  Two of the six consumers are the blockquoted launch-prompt templates, so the honest statement is
-  that all six agree under this check's comparison, byte for byte for the four prose copies and
+  Two of the six consumers are the blockquoted launch-prompt templates, so
+  all six agree under this check's comparison, byte for byte for the four prose copies and
   after normalization for the two templates.
 
 ## [9.0.2] - 2026-08-28
@@ -346,7 +414,7 @@ body implements, and adds two more (instance identity, collision detection).
   ratification queue comments on the next drain. The legacy comment is never adopted, edited, or
   tombstoned by a lane: its marker names no writer, so no instance can prove it owns it, and a lane
   that adopted it would reintroduce the shared-comment clobber this change removes. Retiring it is
-  an operator action; until then it reads as stale, which is honest, because nothing is writing it.
+  an operator action; until then it reads as stale, and it is stale, because nothing is writing it.
 
 ## [6.0.1] - 2026-07-29
 

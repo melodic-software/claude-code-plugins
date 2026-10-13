@@ -23,9 +23,15 @@ to user scope.
 
 `CLAUDE_CODE_ENABLE_TELEMETRY`, `OTEL_LOGS_EXPORTER`, `OTEL_METRICS_EXPORTER`,
 `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_PROTOCOL` in user settings or the shell.
-Captures span/event names, durations, counts, and identity attrs (`session.id`,
-`user.account_uuid`, and under OAuth `user.email`), with **no** prompt / tool / API-body content.
-`session.id` and `user.account_uuid` metric attrs are on by CC default.
+Captures span/event names, durations, counts, and identity attributes, with **no** prompt / tool
+/ API-body content. Which identity attributes ride on metrics by default, and which appear only
+under OAuth, are read live.
+
+- **Pointer**: when stating which identity attributes are emitted or on by default, fetch
+  [monitoring: standard attributes](https://code.claude.com/docs/en/monitoring-usage#standard-attributes)
+  and [metrics cardinality control](https://code.claude.com/docs/en/monitoring-usage#metrics-cardinality-control)
+  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes an attribute's default
+  or adds an identity attribute.
 
 ### Traces (user scope)
 
@@ -58,10 +64,11 @@ committed file. To capture one project only, export them in the shell that launc
 | `OTEL_LOG_USER_PROMPTS=1` | prompt text in events/spans (else `<REDACTED>`) |
 | `OTEL_LOG_TOOL_DETAILS=1` | see the pointer below; needed in user scope for the `vcs_ref_head_*` columns |
 | `OTEL_LOG_TOOL_CONTENT=1` | tool content in spans |
-| `OTEL_LOG_RAW_API_BODIES=1` | raw API request/response bodies (inline, truncated at 60 KB) |
+| `OTEL_LOG_RAW_API_BODIES=1` | raw API request/response bodies |
 
-Exact flag names and accepted values: [Claude Code monitoring
-docs](https://code.claude.com/docs/en/monitoring-usage).
+Exact flag names, accepted values, redaction and truncation limits: [monitoring: common
+configuration variables](https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables)
+(as of 2026-10-11; recheck when that table renames a content flag or changes a truncation limit).
 
 - **Pointer**: when checking what `OTEL_LOG_TOOL_DETAILS` adds, fetch
   [monitoring: cost counter](https://code.claude.com/docs/en/monitoring-usage#cost-counter) and
@@ -70,8 +77,8 @@ docs](https://code.claude.com/docs/en/monitoring-usage).
 - **As of**: 2026-10-10
 - **Recheck trigger**: either section changes what the flag adds.
 
-- `OTEL_LOG_RAW_API_BODIES=1` is inline mode, with bodies truncated at 60 KB. For untruncated
-  bodies use `file:<dir>`, which writes a **separate** directory that must ALSO be gitignored.
+- `OTEL_LOG_RAW_API_BODIES` inline versus on-disk modes are in the common configuration variables
+  page linked above. The on-disk mode writes a **separate** directory that must ALSO be gitignored.
 - **Traces** persist to `cc-traces.json` (query via `cc_spans` / `cc_traces`) and optionally
   fan out to the Aspire dashboard for live UI. Historical queries:
   [`otel-queries.md`](otel-queries.md).

@@ -582,6 +582,48 @@ nopy_guard '{"tool_name":"PowerShell","tool_input":{"command":"Get-ChildItem"}}'
 assert_contains "a payload with no session id re-notices rather than going silent" \
   "systemMessage" "$NOPY_OUT"
 
+# The tmp fallback marker directory sits where every local user can write (#6350).
+# One planted by someone else, as a symlink or a directory this user does not own,
+# is not trusted: the notice still shows, and nothing is written through it.
+planted_notice() { # <tmpdir> <payload>: run the guard row with no --marker-root
+  NOPY_RC=0
+  TMPDIR="$1" PATH="$FAKE_BIN:$PATH" bash "$LAUNCHER" "$GUARD" --mode engine-gate \
+    <<<"$2" >"$NOPY_DIR/out" 2>"$NOPY_DIR/err" || NOPY_RC=$?
+  NOPY_OUT="$(<"$NOPY_DIR/out")"
+}
+planted_payload='{"session_id":"s-planted","tool_name":"PowerShell","tool_input":{"command":"Get-ChildItem"}}'
+mkdir -p "$NOPY_DIR/link-tmp" "$NOPY_DIR/elsewhere"
+: >"$NOPY_DIR/elsewhere/s-planted.noticed"
+ln -s "$NOPY_DIR/elsewhere" "$NOPY_DIR/link-tmp/disk-hygiene-guard-no-interpreter"
+planted_notice "$NOPY_DIR/link-tmp" "$planted_payload"
+assert_contains "a symlinked marker directory holding this session's marker is not trusted" \
+  "systemMessage" "$NOPY_OUT"
+planted_notice "$NOPY_DIR/link-tmp" "${planted_payload/s-planted/s-through-link}"
+assert_eq "no marker is written through a symlinked marker directory" "false" \
+  "$([[ -e "$NOPY_DIR/elsewhere/s-through-link.noticed" ]] && echo true || echo false)"
+planted_notice "$NOPY_DIR/link-tmp" "$planted_payload"
+assert_contains "a symlinked marker directory never latches the notice" "systemMessage" "$NOPY_OUT"
+
+# A directory another user owns: only root can make one, so this case runs as root.
+if [[ "$(id -u)" == 0 ]] && id nobody >/dev/null 2>&1; then
+  mkdir -p "$NOPY_DIR/foreign-tmp/disk-hygiene-guard-no-interpreter"
+  : >"$NOPY_DIR/foreign-tmp/disk-hygiene-guard-no-interpreter/s-planted.noticed"
+  chown -R nobody "$NOPY_DIR/foreign-tmp/disk-hygiene-guard-no-interpreter"
+  planted_notice "$NOPY_DIR/foreign-tmp" "$planted_payload"
+  assert_contains "a marker directory another user owns is not trusted" "systemMessage" "$NOPY_OUT"
+else
+  printf 'SKIP: %s\n' "a marker directory another user owns (needs root to create one)"
+fi
+
+# Stays quiet where it should: this user's own tmp fallback directory still
+# latches the notice once per session.
+mkdir -p "$NOPY_DIR/own-tmp"
+planted_notice "$NOPY_DIR/own-tmp" "$planted_payload"
+assert_contains "the first call in a session with an own tmp marker directory notices" \
+  "systemMessage" "$NOPY_OUT"
+planted_notice "$NOPY_DIR/own-tmp" "$planted_payload"
+assert_eq "an own tmp marker directory latches the notice once per session" "" "$NOPY_OUT"
+
 nopy_guard "$plain_payload" "$GUARD" --plugin-root /p
 assert_eq "belt mode without python denies even a marker-free command" "2" "$NOPY_RC"
 assert_contains "the belt deny names the missing interpreter" "no usable Python 3" "$NOPY_ERR"
@@ -880,6 +922,13 @@ assert_eq "the Stop row skips a session that launched no guard" "1" \
   "$(jq '[.hooks.Stop[].hooks[] |
     select(([.command] + ((.args // []) | map(tostring)) | join(" ")) | contains("--skip-unless-marker guard-launch-monitor"))] | length' \
     "$HOOKS_JSON")"
+# The launcher makes the same skip before bash starts, with the same explicit
+# root and subdirectory the script gets; lib/exec-bash.gates.test.mjs proves
+# the launcher side.
+assert_eq "the launcher skips the Stop row before bash with the script's own marker flags" "true" \
+  "$(jq '[.hooks.Stop[].hooks[].args | select(map(tostring) | join(" ") | contains("guard_launch_monitor.py")) |
+    .[1:6] == ["--marker-root", "${CLAUDE_PLUGIN_DATA}", "--skip-unless-marker", "guard-launch-monitor",
+      "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh"] and .[6:10] == .[1:5]] == [true]' "$HOOKS_JSON" | tr -d '\r')"
 
 # --- the SessionStart node notice is shell form and needs no node ---
 # Its behavior, with and without node and under PowerShell, is run by

@@ -135,41 +135,69 @@ never/core/unknown promote warning in that report, never silently drop them.
 
 ## Gotchas
 
-- **Fork, not fresh/typed, and not skill-level `context: fork`.** Only the
-  Agent-tool `subagent_type: "fork"` inherits the conversation the audit
-  reads; the other two start blank.
+- **Fork, not fresh/typed, and not skill-level `context: fork`.** The audit
+  needs this conversation, so it dispatches the Agent tool's
+  `subagent_type: "fork"` and never a fresh or typed subagent or a skill run
+  with `context: fork`.
+  - **Pointer**: when choosing which subagent kind carries the audit, fetch
+    <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
+    live, and for skills run with `context: fork`, the Note under
+    <https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents>.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes which subagent kinds receive the
+    main conversation's history, or the Note changes whether a skill run with
+    `context: fork` starts without conversation history.
 - **Audit in the forks, correct on the main thread.** Parallel forks that
   wrote would race and re-dilute salience; the value is one ordered
   correction pass.
-- **The forks' no-writes rule is trusted, not enforced. Say so.** A named
-  subagent's tool access can be narrowed with `tools` / `disallowedTools`; a
-  fork's cannot. Forks "skip both filters and receive the main conversation's
-  exact tool pool", and a fork's system prompt and tools are "Same as main
-  session" (<https://code.claude.com/docs/en/sub-agents>; the dated record for
-  every fork claim in this skill is
-  [`reference/inheritance-preflight.md`](reference/inheritance-preflight.md),
-  whose stamp opens that file). So every audit fork
-  holds Write, Edit, and Bash and is only *asked* not to use them. Never
-  present the audit fan-out's read-only posture as harness-enforced. If you
+- **The forks' no-writes rule is trusted, not enforced. Say so.** This skill
+  does not narrow a fork's tools; it treats every audit fork as holding every
+  write-capable tool the main session holds, and only *asked* not to use them.
+  - **Pointer**: when deciding whether a fork's tools can be restricted, fetch
+    <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
+    and <https://code.claude.com/docs/en/sub-agents#available-tools> live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: either section starts letting a fork's tool set differ
+    from the main session's, or adds a filter that applies to forks.
+
+  Never present the audit fan-out's read-only posture as harness-enforced. If you
   want assurance that the fan-out honored it, capture the working tree's state
   before the FIRST dispatch (the canary included) and compare afterwards, and
   treat any difference as a fork that wrote. Untrusted output, stop rather
   than correct on top of it. That is detection after the fact, not prevention,
   and a robust comparison is more than a `git status` diff; this skill does not
   specify one.
-- **Do not pass `isolation: "worktree"` on the audit forks.** The Agent tool
-  accepts it on a fork, but a git worktree is created from a commit, so the
-  fork would not see the uncommitted work in flight, which is usually the very
-  thing the audit exists to inspect. It also would not bound a write addressed
-  by an absolute path, and inherited history is full of absolute paths. It
-  trades a real loss of audit fidelity for partial containment.
+- **Do not pass `isolation: "worktree"` on the audit forks.** The audit must
+  read the working tree as it is now, uncommitted work included, so the forks
+  run in this checkout. Inherited history is full of absolute paths into this
+  checkout; how much of that a worktree would contain is the second pointer's to
+  say, while the loss of audit fidelity is certain, so the forks stay here.
+  - **Pointer**: when deciding whether a subagent worktree would show the
+    uncommitted work, fetch
+    <https://code.claude.com/docs/en/worktrees#choose-the-base-branch> live;
+    for which writes into this checkout a worktree refuses, fetch
+    <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation>
+    live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section starts carrying uncommitted changes into
+    a subagent worktree, or the enforcement section starts refusing shell
+    commands that write into the main checkout.
 - **The preflight is the guard, not an optimization.** Skipping it does not
   make the sweep cheaper. It makes every ledger unfalsifiable, and the
   batched pass's step 4 writes those ledgers' remedies to the working tree.
-- **Forks run at the parent model's cost.** An Agent-tool fork ignores a model
-  override and inherits the whole conversation, so each in-scope corrector's
-  audit runs at the parent model over the full transcript; the wave cap bounds
-  burst, not per-fork cost. Keeping the `never` tier and every member's
+- **Budget each fork as a main-session run over the whole transcript.** Plan
+  each in-scope corrector's audit that way; the wave cap bounds burst, not
+  per-fork cost. For how usage is measured, see
+  <https://code.claude.com/docs/en/costs#track-your-costs>.
+  - **Pointer**: when estimating a fork's model, context and cache reuse, fetch
+    <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>
+    live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes which model a fork runs on, how
+    much of the main session's context it receives, or whether a fork shares
+    the main session's prompt cache.
+
+  Keeping the `never` tier and every member's
   fan-out tier out, and relevance-gating the situational tier, are what hold
   the fan-out small. Order of magnitude from
   a real full-batch run on a mid-length session: each fork consumed

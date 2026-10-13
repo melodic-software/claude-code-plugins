@@ -12,15 +12,12 @@ and repeatable" in the marketplace repository): this plugin's configuration surf
 writable artifact, so `check` resolves and verifies the skills root and prints the reconfiguration
 guidance below, and no `apply` is offered because there is nothing it could conformingly write.
 `skills_root` is a personal `userConfig` scalar owned by Claude Code's native configuration
-surface. Claude Code prompts for it when the plugin is enabled, stores non-sensitive options in
-user settings, and ignores `pluginConfigs` entries in a project's `.claude/settings.json` or
-`.claude/settings.local.json`. Releases before 2.1.207 read those entries.
-This skill never writes it.
+surface: Claude Code prompts for it and stores it. This skill never writes it.
 
-Official contract, verified 2026-09-06 against Claude Code 2.1.263:
-<https://code.claude.com/docs/en/settings-reference#pluginconfigs>. Recheck when that page
-stops naming the three settings sources it reads `pluginConfigs` from, or when a release note
-names `pluginConfigs` scope.
+- **Pointer**: when deciding which settings file holds the stored value, or which scopes Claude
+  Code reads it from, fetch <https://code.claude.com/docs/en/settings-reference#pluginconfigs>
+  live. **As of**: 2026-10-11. **Recheck trigger**: that section or its table row changing the
+  scopes it lists for `pluginConfigs`, or a release note naming `pluginConfigs` scope.
 
 Action routing: no argument or `check` runs the check. Non-interactive, never prompts.
 
@@ -47,17 +44,25 @@ surface, which setup must not hand-edit (Check-only carve-out, native `userConfi
   the personal `skills_root` should point there. Reconfigure through the path below, then rerun `check`.
 - **Reconfiguring the personal option:** through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md#verified-version-record>,
   which owns the verified-version record): interactive `/plugin configure skill-quality@<marketplace>`
   any time, or headless `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`
-  (repeatable per key). Against an already-installed plugin it prints `already installed` and
-  still writes the value. Do **not** uninstall to reconfigure: that drops this plugin's entire
-  stored `pluginConfigs` entry, resetting every option in the README's Options reference to its
-  manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
-  from that project's directory for a `project`/`local` scope, or the rerun adds a second
-  install record at the scope passed and enables the plugin there; the value itself always
-  lands in user settings. A rejected value prints a warning yet exits 0, so read the output.
+  (repeatable per key), rerun against the already-installed plugin. Pass the scope
+  `claude plugin list` reports, and run from that project's directory for a `project`/`local`
+  scope, and read the convention's verified-version record (anchored above) for what a rerun at
+  another scope does before presenting it. Do **not** uninstall to reconfigure. Read the command's output
+  rather than trusting its exit code. The convention's
+  [caveats section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries)
+  records why for each of these rules; this skill does not restate it.
   This skill never writes user settings or `pluginConfigs`.
+  - **Record**: both convention sections above. **As of**: 2026-10-11. **Recheck trigger**:
+    either heading being renamed, or a newer Claude Code release being verified in the record.
+  - **Pointer**: when the install, uninstall, or configure command's behavior is in doubt, fetch
+    <https://code.claude.com/docs/en/plugins/cli-reference#plugin-install>,
+    <https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall> and
+    <https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure> live. **As of**:
+    2026-10-11. **Recheck trigger**: any of those sections changing what a rerun, an uninstall,
+    or `--config` does to stored options.
 - **One-run override (no persistence):** for a single run against a different root, the checker also
   honors the `CHECK_SKILL_SKILLS_ROOT` environment variable; do not persist that variable on the user's
   behalf.

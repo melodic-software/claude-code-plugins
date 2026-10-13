@@ -6,10 +6,9 @@ acceptance gate stay in SKILL.md; this file adds only what the deep tier orchest
 them. Every `<plugin-root>` below is the plugin root SKILL.md resolves under "Spoke paths".
 
 **Main context only.** Both deep-tier paths need tools a dispatched context cannot count on: the
-workflow engine needs `Workflow`, which the tool filter removes from every non-fork subagent and
-which this skill does not count on inside a fork either, and
-the multi-topic split needs a dependable `Agent` spawn, which a subagent holds only within the
-session's nesting allowance. A dispatched or forked run of this skill therefore never selects the
+workflow engine needs `Workflow`, which this skill counts on in neither a subagent nor a fork, and
+the multi-topic split needs a dependable `Agent` spawn, which nesting limits make uncertain in a
+subagent. A dispatched or forked run of this skill therefore never selects the
 deep tier and never promises the workflow engine; it runs the standard discipline inline. Pointer:
 [Available tools](https://code.claude.com/docs/en/sub-agents#available-tools) and
 [Let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).

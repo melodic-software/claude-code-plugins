@@ -51,7 +51,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Tip | Key Action |
 |-----|------------|
 | Parallel work | Use git worktrees, 3-5 sessions |
-| Model | Boris: Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical). As of the 2026-07-24 sync. Fable 5 is now superseded by Fable 5.1; for current model choice see the [models overview](https://platform.claude.com/docs/en/about-claude/models/overview) and [cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) (as of 2026-10-02; recheck on a new model release). Re-sync through `/playbooks:update` once upstream publishes Fable 5.1 tips |
+| Model | Boris: Fable 5 for the hardest and longest tasks (Sections 94–95); Opus otherwise (Section 2, historical). As of the 2026-07-24 sync. Fable 5 is now superseded by Fable 5.1; for current model choice see the [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison) and [cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) (as of 2026-10-11; recheck on a new model release). Re-sync through `/playbooks:update` once upstream publishes Fable 5.1 tips |
 | Planning | Auto mode plans implicitly on 4.6+; reach for plan mode when you want the written artifact of intent (Section 87) |
 | CLAUDE.md | Add what corrections teach, and prune as you add (Section 4) |
 | Skills | Create for repeated workflows |
@@ -71,11 +71,11 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Keybindings | /keybindings to re-map any key |
 | Spinners | Customize spinner verbs in settings |
 | Output styles | Explanatory, learning, or custom |
-| Customize | Settings and env vars; see the [settings reference](https://code.claude.com/docs/en/settings-reference) and [env vars](https://code.claude.com/docs/en/env-vars) for the current lists (as of 2026-10-02; recheck when either page changes) |
+| Customize | Settings and env vars; see the [settings reference](https://code.claude.com/docs/en/settings-reference#all-settings) and [env vars](https://code.claude.com/docs/en/env-vars#variables) for the current lists (as of 2026-10-11; recheck when either page changes) |
 | Worktrees | `claude --worktree`, subagent isolation |
 | /simplify | Parallel agents for code quality review |
 | /batch | Parallel code migrations with worktree isolation |
-| /loop | Schedule recurring session tasks; recurring jobs expire after 7 days |
+| /loop | Schedule recurring session tasks; recurring jobs expire, see [Seven-day expiry](https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry) (as of 2026-10-11; recheck when that section changes the expiry) |
 | Code Review | Agent-powered PR reviews that catch real bugs |
 | /btw | Ask questions mid-task without breaking flow |
 | /effort | Sets the effort level and the Ultracode toggle; see [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) (as of 2026-10-02; recheck when that section changes) |
@@ -125,8 +125,8 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Context Minimalism | Minimal prompt + a way to fetch context; over-specifying = micromanaging |
 | Write It Down | On every mistake: rule into CLAUDE.md / skill, not a chat correction |
 | Nested Subagents | Agents spawn agents. Context management primitive; never author a tree needing a specific depth. For the depth ceiling and how to change it, see [nested subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents) (as of 2026-10-02; recheck when the default or the variable name changes) |
-| fork: true | Experimental, run a skill in its own context window |
-| Fable 5 | Historical (Fable 5 launch, Jun 2026): best coding model by a wide margin; trigger-happy safety classifiers. For current standing and price, see the [models overview](https://platform.claude.com/docs/en/about-claude/models/overview) and [pricing](https://platform.claude.com/docs/en/about-claude/pricing) (as of 2026-10-02; recheck on a new model release) |
+| fork: true | Run a skill in its own context window; the tip's key is not the documented field, see [Section 92's amendment](reference/orchestration.md#92-fork-true-runs-a-skill-in-its-own-context-window-experimental) (as of 2026-10-11; recheck when that amendment's pointed skills sections change the field that forks a skill) |
+| Fable 5 | Historical (Fable 5 launch, Jun 2026): best coding model by a wide margin; trigger-happy safety classifiers. For current standing and price, see the [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison) and [pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing) (as of 2026-10-11; recheck on a new model release) |
 | Four Unknowns | Known/unknown × known/unknown, the gap between your prompt and the codebase |
 | Blindspot Pass | Ask Claude to surface your unknown unknowns before you write code |
 | Interviews & Prototypes | One question at a time, architecture-changing first; HTML artifacts for taste calls |
@@ -146,7 +146,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Progressive Disclosure | Skills, deferred tool loading, a tree of files, load context when relevant |
 | Auto-Memory & References | Memories save themselves; HTML artifacts, code, test suites, rubrics as specs |
 | /doctor | Rightsizes skills and CLAUDE.md automatically, context-engineering twin of /checkup |
-| Opus 5 | Historical (Opus 5 launch tip): SOTA coding + knowledge work; least prompt-injectable model, auto mode drives attacks to ~0. For the current Opus, see the [models overview](https://platform.claude.com/docs/en/about-claude/models/overview) (as of 2026-10-02; recheck on a new model release) |
+| Opus 5 | Historical (Opus 5 launch tip): SOTA coding + knowledge work; least prompt-injectable model, auto mode drives attacks to ~0. For the current Opus, see the [models overview](https://platform.claude.com/docs/en/models/overview#latest-models-comparison) (as of 2026-10-11; recheck on a new model release) |
 | What to Automate | Mechanical, verifiable, endless maintenance as daily routines (crash fuzzer, dead code, flaky tests, duplicates), never feature work |
 | Probe, Then Delete | Delete provably dead code; log the suspected rest, wait a day, remove what never fired |
 | Prove It in the PR | Every routine PR runs /verify and posts a repro and a truth table; fuzz the real app, no mocks |
