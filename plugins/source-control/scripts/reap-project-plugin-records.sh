@@ -260,8 +260,9 @@ file_fingerprint() {
 }
 
 # settings_git_state — `clean` (tracked; worktree and index match HEAD),
-# `modified`, `untracked`, or `nogit` (no git, or not inside a work tree: the
-# orphaned-directory and recreated-directory cases).
+# `modified`, `flagged` (assume-unchanged or skip-worktree), `untracked`, or
+# `nogit` (no git, or not inside a work tree: the orphaned-directory and
+# recreated-directory cases).
 settings_git_state() {
   have git || {
     printf 'nogit'
@@ -275,6 +276,15 @@ settings_git_state() {
     printf 'untracked'
     return
   }
+  # assume-unchanged (lowercase tag) or skip-worktree (S) hides local edits from
+  # both diffs below, so the file would read clean and the restore would drop them.
+  case "$(git ls-files -v -- "$SETTINGS_REL" 2>/dev/null)" in
+    [a-z]\ * | S\ *)
+      printf 'flagged'
+      return
+      ;;
+    *) ;;
+  esac
   # Both halves: `git diff HEAD` alone compares only the worktree to HEAD, so a
   # staged-only change would read clean and the restore's --staged would drop it.
   if git diff --quiet -- "$SETTINGS_REL" 2>/dev/null &&
@@ -310,6 +320,7 @@ settle_settings() {
   fi
   case "$settings_before_state" in
     modified) reason="it already had uncommitted changes before the pass" ;;
+    flagged) reason="assume-unchanged or skip-worktree is set, so git cannot see local edits" ;;
     untracked) reason="git does not track it here" ;;
     *) reason="this directory is not inside a git work tree" ;;
   esac

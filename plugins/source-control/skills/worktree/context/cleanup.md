@@ -149,14 +149,18 @@ resolves strictly against the current directory (measured in [fixtures/README.md
 enforces the same thing from the other side: it refuses unless `--worktree-path` names the directory
 it is already standing in, so it structurally cannot act on any path but its own.
 
-The uninstall call was observed to also rewrite the worktree's `.claude/settings.json` (reported in
-issue #6007, observed 2026-10-03; recheck when a Claude Code release changes `claude plugin
-uninstall`, or when the helper's restore stops firing on real teardowns). The helper leaves that
-file as it found it either way: when git tracks it there and it was unmodified before the pass, the helper restores
-it from git and prints an `info:` line naming it, so the plain `git worktree remove` follows
-directly. When the file was untracked or already modified, the helper leaves it alone and prints a
-`warn:` line if the CLI changed it; plain removal then refuses, and the escalation guard below
-applies as for any other dirty tree.
+The helper leaves the worktree's `.claude/settings.json` as it found it: when git tracks it there
+and it was unmodified before the pass, the helper restores it from git and prints an `info:` line
+naming it, so the plain `git worktree remove` follows directly. When the file was untracked, already
+modified, or flagged assume-unchanged or skip-worktree (git cannot see local edits behind either
+flag), the helper leaves it alone and prints a `warn:` line if the pass changed it; plain removal
+then refuses, and the escalation guard below applies as for any other dirty tree.
+
+- **Pointer**: when deciding whether the reap step writes project settings, fetch
+  [Uninstall a plugin the project enables](https://code.claude.com/docs/en/discover-plugins#uninstall-a-plugin-the-project-enables)
+  live; correlate with issue #6007 for the side effects that section does not cover.
+  **As of**: 2026-10-13. **Recheck trigger**: a Claude Code release changes plugin uninstall, or the
+  helper's restore stops firing on real teardowns.
 
 Five rules govern this step, and each closes a way it could do real harm:
 

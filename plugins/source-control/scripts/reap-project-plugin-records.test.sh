@@ -273,6 +273,23 @@ SHIM
   assert_not_contains "a staged-only change is not restored over" "$OUT" "info: restored"
   assert_contains "a staged-only change is warned about" "$OUT" "uncommitted changes before the pass"
 
+  # assume-unchanged or skip-worktree hides a local edit from both diffs, so the
+  # file would read clean and the restore would discard the hidden edit.
+  for flag in assume-unchanged skip-worktree; do
+    GWT="$TEST_TMPDIR/gwt-$flag"
+    new_repo "$GWT"
+    git -C "$GWT" update-index "--$flag" .claude/settings.json
+    printf '{"hidden": true}\n' >"$GWT/.claude/settings.json"
+    seed_state "$(jq -n --arg wt "$(native_of "$GWT")" '[{id:"a@m",scope:"project",projectPath:$wt}]')"
+    reset_log
+    : >"$GIT_LOG"
+    STUB_REWRITE_SETTINGS=1 EXTRA_PATH="$GIT_SHIM" run "$GWT" --worktree-path "$GWT"
+    assert_exit "a $flag settings file does not change the exit code" 0 "$RC"
+    assert_not_contains "a $flag settings file is not restored" "$OUT" "info: restored"
+    assert_not_contains "no git restore runs over a $flag file" "$(cat "$GIT_LOG")" "restore"
+    assert_contains "a $flag settings file is warned about" "$OUT" "assume-unchanged or skip-worktree is set"
+  done
+
   # Untracked: left alone, warned about.
   GWT="$TEST_TMPDIR/gwt-untracked"
   mkdir -p "$GWT/.claude"
