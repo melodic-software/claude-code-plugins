@@ -61,7 +61,7 @@ where each bundled default's basis lives. A role's `basis_model` and
 with `pointer_<field>` and `claim_<field>`) or it is a judgment (`judgment`,
 with `reason_<field>`); a `workloads.<w>.<field>` value records the same keys
 on its role as `basis_<w>_<field>` and so on. The resolver prints the basis
-beside each value. They
+beside each value, and a guarded fan-out model takes `fanout.model`'s basis. They
 are read from the bundled layer only, and `/multi-agent:audit-defaults` checks
 each upstream pointer against its value.
 

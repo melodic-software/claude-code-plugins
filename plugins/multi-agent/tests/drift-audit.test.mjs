@@ -399,6 +399,16 @@ test('a judgment value reaches no finder and comes back with its reason', async 
   assert.ok(!result.unverified.some(u => u.key === 'roles.worker.model'), 'a judgment value is not reported unread')
 })
 
+test('an unsupported value whose owner records no basis gets no basis lines in the diff', async () => {
+  const { result } = await run({ pointers: POINTERS, asOf: '2026-11-01' }, {
+    reply: (p, o, d) => (o.label === 'find:fanout'
+      ? { rows: [{ key: 'fanout.model', verdict: 'unsupported', evidenceUrl: WF, evidence: 'q', reason: 'r' }] }
+      : d(p, o)),
+  })
+  assert.ok(result.confirmed.some(f => f.key === 'fanout.model' && f.verdict === 'unsupported'))
+  assert.doesNotMatch(result.diff || '', /basis_|reason_/)
+})
+
 test('a workload value takes its own basis, not the role field it shares a name with', async () => {
   const COSTS = 'https://code.claude.com/docs/en/costs#choose-the-right-model'
   const pointers = BASIS_POINTERS.concat([

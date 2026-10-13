@@ -40,9 +40,8 @@ roles:
   orchestrator:
     model: inherit
     effort: high
-    basis_model: upstream
-    pointer_model: https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work
-    claim_model: the section's opening paragraph, on which model holds the loop and produces the plan and synthesis
+    basis_model: judgment
+    reason_model: the orchestrator is the session itself, so it runs on the model the user chose; the cost page's orchestrator strategy puts a frontier model in the loop, which inherit follows only when the session is frontier, and no upstream statement sets the orchestrator's model for other sessions
     basis_effort: judgment
     reason_effort: no upstream statement sets an orchestrator effort; it plans the run and merges every worker's result, so it stays a level above the worker's
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
@@ -81,9 +80,8 @@ roles:
   retrieval:
     model: sonnet
     effort: medium
-    basis_model: upstream
-    pointer_model: https://code.claude.com/docs/en/workflows#cost
-    claim_model: the advice to use a smaller model for stages that do not need the strongest one
+    basis_model: judgment
+    reason_model: the workflows Cost section advises a smaller model for stages that do not need the strongest one but names none; sonnet is the smaller alias chosen because no role routes to haiku until it passes the routing eval (see routing-rubric.md)
     basis_effort: judgment
     reason_effort: no upstream statement sets an effort for read-only lookup; it stays at the sonnet alias's default level rather than dropping to the quick-exchange level, because a lookup's result feeds other agents without a person reviewing it
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)

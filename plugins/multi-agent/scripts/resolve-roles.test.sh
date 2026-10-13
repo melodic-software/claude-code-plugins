@@ -238,25 +238,33 @@ done
 
 # The resolved map carries each value's basis.
 out="$(run plain all --session-model opus)"
-assert_contains "worker basis: judgment model, upstream effort" "$out" '"worker":{"role":"worker","single":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"fanout":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"judgment","effort":"upstream"}}'
+assert_contains "worker basis: judgment model, upstream effort" "$out" '"worker":{"role":"worker","single":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"fanout":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"judgment","fanout_model":"judgment","effort":"upstream"}}'
+
+# A guarded fan-out model takes fanout.model's basis, not the role's.
+out="$(run plain worker --session-model fable)"
+assert_contains "guarded fan-out: the guard's model is not labelled with the role's basis" "$out" '"basis":{"model":"judgment","fanout_model":"unrecorded","effort":"upstream"}'
+fixture guardconfig
+printf 'schema: 1\nroles:\n  worker:\n    model: fable\n' >"$T/guardconfig/repo/.claude/multi-agent.yaml"
+out="$(run guardconfig worker --session-model opus)"
+assert_contains "guarded consumer model: single config, fan-out the bundled guard" "$out" '"basis":{"model":"config","fanout_model":"unrecorded","effort":"upstream"}'
 
 # A bundled workload value carries its own basis, not the role's.
 out="$(run plain worker --session-model opus --workload mechanical)"
-assert_contains "mechanical workload: sonnet model has its own upstream basis" "$out" '"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"upstream","effort":"upstream"}'
+assert_contains "mechanical workload: sonnet model has its own upstream basis" "$out" '"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"upstream","fanout_model":"upstream","effort":"upstream"}'
 assert_contains "pointers lists the workload value's basis" "$pointers" $'worker\tbasis_mechanical_model\tupstream'
 
 # A consumer value has basis config; a consumer layer cannot set a basis.
 fixture basisconfig
 printf 'schema: 1\nroles:\n  worker:\n    effort: high\n    basis_effort: upstream\n    basis_model: upstream\n' >"$T/basisconfig/repo/.claude/multi-agent.yaml"
 out="$(run basisconfig worker --session-model opus)"
-assert_contains "consumer effort: basis config" "$out" '"source":{"model":"bundled","effort":"team"},"basis":{"model":"judgment","effort":"config"}'
+assert_contains "consumer effort: basis config" "$out" '"source":{"model":"bundled","effort":"team"},"basis":{"model":"judgment","fanout_model":"judgment","effort":"config"}'
 assert_contains "consumer basis key ignored" "$out" 'roles.worker.basis_model ignored: provenance keys are read from the bundled layer only'
 
 # A bundled entry with no basis resolves as unrecorded.
 fixture nobasis
 printf 'schema: 1\nfrontier: fable,best\nfanout:\n  model: opus\nroles:\n  worker:\n    model: inherit\n    effort: medium\n' >"$T/nobasis/defaults.yaml"
 out="$(run nobasis worker --session-model opus --defaults "$T/nobasis/defaults.yaml")"
-assert_contains "no bundled basis: unrecorded" "$out" '"basis":{"model":"unrecorded","effort":"unrecorded"}'
+assert_contains "no bundled basis: unrecorded" "$out" '"basis":{"model":"unrecorded","fanout_model":"unrecorded","effort":"unrecorded"}'
 
 printf '\n%d cases, %d failed\n' "$CASES" "$FAILED"
 ((FAILED == 0))

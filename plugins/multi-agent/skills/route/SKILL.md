@@ -46,7 +46,7 @@ The JSON exactly as printed, in one fenced `json` block. Below it, one line per
 role in this form:
 
 ```text
-<role>: single <model|inherit: omit the model option> @ <effort>; fanout <model|inherit: omit the model option> @ <effort> (basis: model <basis>, effort <basis>)
+<role>: single <model|inherit: omit the model option> @ <effort>; fanout <model|inherit: omit the model option> @ <effort> (basis: model <basis>, fanout model <basis>, effort <basis>)
 ```
 
 Write `inherit: omit the model option` wherever a variant's `omit_model` is
@@ -54,7 +54,8 @@ true, so a caller copying the line passes no model and the agent runs on the
 session model. Each `<basis>` is the role's `basis` entry as printed:
 `upstream` (an upstream statement sets it), `judgment` (no upstream statement
 does; the reason is in `defaults.yaml`), `config` (a consumer layer set it) or
-`unrecorded`. After the per-role lines, write this line as is:
+`unrecorded`; the fanout model's basis is the guard's when `guarded` is true.
+After the per-role lines, write this line as is:
 
 ```text
 Effort above maxEffortLevel runs at the cap; see reference/config.md "Hard cap".

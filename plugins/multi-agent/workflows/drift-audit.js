@@ -105,6 +105,7 @@ let sources = []
 const unreadSources = []
 const ownerValues = new Map()
 const ownerAsOf = new Map()
+const ownerBasis = new Map()
 const skippedAreas = []
 const judgment = []
 
@@ -159,6 +160,7 @@ if (MODE === 'repo') {
   // it is reported with its reason and sent to no finder.
   for (const [owner, o] of owners) {
     const prov = new Map(o.pointers.map(p => [p.key, p.value]))
+    ownerBasis.set(owner, prov)
     o.values = o.values.filter(v => {
       const { field } = provenanceOf(v.key)
       if (prov.get('basis_' + field) !== 'judgment') return true
@@ -731,8 +733,10 @@ if (proposedDiffs.length) {
       if (d.from !== d.to) lines.push('-' + d.key + ': ' + d.from, '+' + d.key + ': ' + d.to)
       // An unsupported value keeps its value; its basis becomes judgment until a
       // reviewer repoints it at a section that states it or writes the reason.
-      if (d.verdict === 'unsupported') {
-        const { at, field } = provenanceOf(d.key)
+      // An owner that records no upstream basis for the field (the fan-out
+      // guard) gets no basis lines: there is nothing to rewrite.
+      const { at, field } = provenanceOf(d.key)
+      if (d.verdict === 'unsupported' && ownerBasis.get(d.owner)?.get('basis_' + field) === 'upstream') {
         lines.push('-' + at + 'basis_' + field + ': upstream', '+' + at + 'basis_' + field + ': judgment',
           '+' + at + 'reason_' + field + ': (why this value, or repoint pointer_' + field + ' at a section that states it)')
       }
