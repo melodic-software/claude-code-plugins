@@ -427,6 +427,14 @@ run 1 "dated_by last-modified-header is rejected" --err "$SERVE last-modified-he
   "$(dated_slice dby-lm-dash last-modified-header)"
 run 1 "an empty dated_by is rejected" --err 'source 2: dated_by is empty' \
   "$(dated_slice dby-empty '')"
+run 1 "a quoted empty dated_by is rejected" --err 'source 2: dated_by is empty' \
+  "$(dated_slice dby-empty-quoted '""')"
+run 1 "a pasted Last-Modified header line is rejected" --err "$SERVE Last-Modified: Tue is a serve-time header" \
+  "$(dated_slice dby-lm-pasted 'Last-Modified: Tue')"
+run 1 "dated_by x-last-modified is rejected" --err "$SERVE x-last-modified is a serve-time header" \
+  "$(dated_slice dby-x-lm x-last-modified)"
+run 1 "any http- prefixed dated_by is rejected" --err "$SERVE http-expires is a serve-time header" \
+  "$(dated_slice dby-http-expires http-expires)"
 
 total=$((passes + fails))
 if [[ "$fails" -eq 0 ]]; then

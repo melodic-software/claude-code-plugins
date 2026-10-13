@@ -77,6 +77,7 @@ SERVE_TIME = re.compile(
     r"^(?:http[ _-]*)?(?:last[ _-]*modified|date|headers?|etag)(?:[ _-]*headers?)?$",
     re.IGNORECASE,
 )
+SERVE_TIME_PART = re.compile(r"last[ _-]*modified|\betag\b|^http[ _-]", re.IGNORECASE)
 DASH = re.compile(r"^-(?:\s+(.*))?$")
 INF = float("inf")
 
@@ -358,9 +359,11 @@ def grade(slice_dir: Path, expected: str | None) -> tuple[int, str]:
                     )
                 if "dated_by" in src:
                     method = src["dated_by"]
-                    if method is None:
+                    if method is None or not method.strip():
                         violations.append(f"{at}: dated_by is empty")
-                    elif SERVE_TIME.match(method.strip()):
+                    elif SERVE_TIME.match(method.strip()) or SERVE_TIME_PART.search(
+                        method
+                    ):
                         violations.append(
                             f"{at}: dated_by {method} is a serve-time header, "
                             "not a publication date"

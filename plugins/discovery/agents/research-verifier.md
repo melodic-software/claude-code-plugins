@@ -49,7 +49,7 @@ carries `dated_by:` in the sidecar header beside `published:`, naming how the re
 date. Re-derive the date by that method where you can fetch what it points at, and confirm it
 matches `published:`. A serve-time HTTP header (`Last-Modified`, `Date`, `ETag`) is never a
 publication date, whatever `published:` says. A derived date with no `dated_by:`, or a method you
-cannot re-derive, goes in `problems:` and fails the claim's row 13 for that source. Do not
+cannot re-derive, goes in `problems:` and fails the era check of the claim's row 12. Do not
 substitute a date you found another way.
 
 ## How you grade

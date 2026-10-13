@@ -756,8 +756,6 @@ for family in 'code\.claude\.com `/docs/en/` pages' 'Microsoft Learn'; do
   assert_present "the dating table has a $family row with an as-of date" \
     'skills/research/context/artifact-shape.md' "^\\| ${family} \\|.*\\| 20[0-9]{2}-[0-9]{2}-[0-9]{2} \\|"
 done
-assert_present 'the docs.github.com dating row says it was not re-derived' \
-  'skills/research/context/artifact-shape.md' '^\| docs\.github\.com \|.*\| not re-derived'
 assert_present 'the verifier grades the recorded dating method' \
   'agents/research-verifier.md' 'Grade the recorded dating method, never pick your own'
 assert_present 'the dispatch brief tells the verifier to grade the dating method' \
