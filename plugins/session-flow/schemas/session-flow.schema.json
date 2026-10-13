@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/session-flow/schemas/session-flow.schema.json",
+  "title": "session-flow team config",
+  "description": "Schema for a repository's docs/conventions/session-flow.yaml: the team layer of the session-flow plugin's settings. Each key here wins over the plugin's userConfig option of the same name. Resolution and the root rule: plugins/session-flow/reference/config.md. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "worker_continuation": {
+      "enum": ["resume", "respawn"],
+      "default": "resume",
+      "description": "How /session-flow:orchestrate runs a worker's next unit (fix round, follow-up, retry, next queue item). resume continues the same worker; respawn starts a fresh worker whose brief consolidates the original brief, later directives, the prior report and its branch, and resumes only when that worker holds state costly to move (its checkout, uncommitted changes, a running process)."
+    },
+    "encode_policy": {
+      "enum": ["promote-when-must-hold", "strongest-first"],
+      "default": "promote-when-must-hold",
+      "description": "Where /session-flow:retro codify starts a lesson on the enforcement ladder. promote-when-must-hold writes it as a CLAUDE.md, rules-file or REVIEW.md line and moves it to a checking rung only when the rule must hold every time; strongest-first proposes the strongest rung that can assert it for every lesson."
+    },
+    "review_mining_prs": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 200,
+      "default": 20,
+      "description": "How many of the repository's most recent merged pull requests /session-flow:retro codify reviews reads for review comments. A lesson is routed only when it recurs in two or more of them."
+    },
+    "wip_commit": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether /session-flow:handoff makes one local chore(wip): commit of tracked changes when the user asks in this session to pause. Never pushed, never on the default branch, detached HEAD, during a merge, rebase, cherry-pick or revert, or over a partially staged path, and never with commit hooks skipped. A quoted \"true\" is a string, not a boolean, so it is invalid."
+    },
+    "transcript_scope": {
+      "enum": ["worktree", "repo", "all"],
+      "default": "worktree",
+      "description": "How far /session-flow:find-handoff and /session-flow:recall read transcripts before asking: worktree scans this worktree's sessions, then the repository's other worktrees, and asks before any other project; repo starts with every worktree; all reaches every project without asking. Unlike the other keys, the narrower of this value and the user's option wins (worktree < repo < all), and an unset user option counts as worktree, so this file can narrow the scan but never widen it."
+    },
+    "retro_lenses": {
+      "enum": ["1", "3"],
+      "default": "1",
+      "description": "How many review passes /session-flow:retro session mode runs to produce its Phase 2 findings. 1 runs one pass. 3 runs three subagents in parallel, one on the calls the session made and why, one on the tools and steps it used, one on the approaches it did not try, and merges their findings before scoring. No session-length threshold applies. The setup check compares the value's text, so an unquoted 3 is valid and 2 is not."
+    }
+  }
+}

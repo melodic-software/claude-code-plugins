@@ -81,22 +81,21 @@ tokens"; they are not reused as probe labels.
 4. **prose-context inference**: host instruction files, agent-instruction files, README are a
    judgment-only inference source for *proposing* declarations into non-security keys,
    interactively. The deterministic resolver never parses prose, and prose is never runtime
-   authority. Platform bound: a primary instruction file anywhere from the working directory
-   upward is read *instead of* a secondary agent-instruction file, so in a repository carrying one,
-   the secondary file reaches a session only through a reference the primary file carries. This
-   contract owns that platform bound; the resolution slice and the setup skill state it in one
-   clause each and point here.
+   authority. Platform bound: whether a secondary agent-instruction file reaches a session
+   instead of, alongside, or not at all beside a primary instruction file is a host-harness rule
+   that this contract does not restate. The pass reads both kinds of file from disk either way.
+   This contract owns the decision that the pass reads both files from disk; the resolution
+   slice's Instruction-file loading record owns the upstream pointer, and the setup skill states
+   the bound in one clause and points at that record.
 
-**Platform bound, dated record.** *Claim:* the host harness loads a secondary agent-instruction
-file at session start only where no primary instruction file sits in the working directory or above
-it, and only on a recent enough harness version in a session kind that supports it; with a primary
-file present, or on an unsupporting session, an import line in the primary file is the supported way
-to make the secondary one reach a session. *Basis:* the harness documentation page on project
-memory, which gives the file-combination table, the version floor, and the sessions where direct
-reading is unavailable, and gives the import form for those. *Verified:* 2026-09-19, against harness
-version 2.1.278 and that page as fetched the same day, which supersedes the 2026-09-06 reading that
-the secondary file was never read. *Recheck trigger:* that page changes which file names count for
-that check or which sessions lack support, or a release note names secondary-file loading.
+**Platform bound, dated record.** The upstream pointer for this bound sits with the setup skill,
+because this tree names no vendor. Last verified 2026-09-19, against harness version 2.1.278.
+
+- **Pointer**: when a proposal depends on which instruction files a session loads, read the
+  [instruction-file loading record](../skills/setup/context/prerequisite-resolution-slice.md#instruction-file-loading)
+  and fetch the sections it names live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that record's recheck trigger fires, or its heading is renamed or removed.
 
 Probe evidence is durable per surface under the existing isolation-binding pattern. Only signals
 with no owner (CI-config presence, flag-SDK presence) gain probes owned by this contract;

@@ -20,13 +20,18 @@
 #    test-judge-bg.sh job just before returning; that job waits for a dying
 #    run's lock, and a job that dies leaves its keys to the next task end.
 #    Every wait (slot, run, job) ends at TEST_JUDGE_TIMEOUT (default 180 s,
-#    below the hooks.json timeout of 240 s, which Claude Code enforces on an
-#    asyncRewake hook), so the hook returns within about 2 s of it.
+#    below the hooks.json timeout of 240 s; why that timeout binds is the
+#    comment above the hooks.json template in scripts/gen-hook-filters.sh, as
+#    of 2026-10-11; recheck when that comment's background-hooks pointer
+#    changes), so the hook returns within about 2 s of TEST_JUDGE_TIMEOUT.
 # 4. Validate the verdicts, write the findings file, record them in relayed/.
 # 5. Attended (CLAUDE_CODE_SESSION_ATTENDED exactly 1) with a FLAG, or an
 #    UNKNOWN that started as a FLAG, in the relayed set: exit 2 with the fixed
-#    template, then any count lines, on stderr. asyncRewake wakes Claude only
-#    on exit 2 and shows it that stderr, which asks it to show the user.
+#    template, then any count lines, on stderr, which asks Claude to show the
+#    user. How an asyncRewake hook's exit code and stderr reach Claude:
+#    https://code.claude.com/docs/en/hooks#command-hook-fields, the asyncRewake
+#    row (as of 2026-10-11; recheck when that row changes the exit code that
+#    wakes Claude or the stream it shows).
 #    Otherwise exit 0 with a systemMessage of the counts and path, or, when
 #    every verdict is a PASS, one line with the count; Claude gets it on its
 #    next turn.

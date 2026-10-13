@@ -65,6 +65,10 @@ told:
    an unspecified model silently inherits the parent session's, often its most expensive, model.
    Holding only an objective, a worker resolves each ambiguity toward the sentence you wrote rather
    than the outcome you wanted, and returns something well-formed and wrong.
+   A worker that measures is told which exact commits to compare and how to sample (how many
+   runs, in what order), and its return repeats both beside the numbers; a measurement whose
+   return leaves either out is not evidence. A brief for a worker that writes may state how long
+   the work should take, which imperative 4 uses.
 3. FRESH-CONTEXT VERIFY, after an edit batch or a finding set, hand it to a SEPARATE verifier;
    never self-audit in the context that produced it. Give the verifier concrete pass/fail criteria
    ("run the full suite, report all failures"), scope it to correctness/requirements (not style),
@@ -86,6 +90,20 @@ told:
    listed as active (`context/sources.md`, "A worker's own background work is not a wait"). So
    retiring a finished worker includes checking for its still-running background tasks and
    surfacing each one; stopping one is gated like any kill (`/session-flow:reconcile` step 3).
+   Liveness covers workers that write (edit files, commit, or run a process for the run), never
+   read-only ones such as a verifier. Read a writing worker's progress from its side effects
+   (new commits, written files, its task status), never by sending it a message to ask. Past the
+   runtime its brief states with no side effect, it is stuck: stop it (gated like any kill) and
+   respawn it with consolidated scope. With no stated runtime, confirm at each decision boundary
+   that its task is still running and still producing output. Every resume message restates the
+   brief's scope fence and standing constraints; after an interrupt, respawn the worker instead
+   of resuming it. Landing: "land" means a local commit on the run's own branch, never a push or
+   a merge. Land each unit as soon as it passes verification instead of holding a batch, and
+   apply no cutoff based on remaining budget, since imperative 1 forbids estimating the window.
+   Where a configured batched drain decides when returns are read, a unit lands once its return
+   has been read and verified. A worker runs where its parent session runs; cloud placement is
+   chosen per work item by the execution-target contract
+   (`docs/conventions/execution-target/README.md` in the marketplace repository).
 5. NESTED SUBAGENTS, a worker may spawn its own workers when a delegated task itself subdivides
    AND the depth is non-load-bearing. This is a shipped feature, not experimental, but reliability
    degrades with depth and platforms cap it, so never author a tree that needs a specific or deep
@@ -97,15 +115,8 @@ told:
    capability (a stronger model reaches further single-agent; a weaker one needs more decomposition
    and tighter specs), whether a capable advisor/verifier is on hand, current context pressure
    (delegate to protect a filling window; stay inline when it is roomy), and concurrent-session load
-   / rate-limit headroom (thin headroom caps how many workers you run at once). **When rate-limit
-   headroom is unobservable**, no live reading is obtainable: `rate-limit-guard`'s pull tool
-   `mcp__rate-limit-guard__status` is missing (mods off, the guard not installed, or a policy
-   refused the tool's registration) or answers with no windows (`verdict: "unknown"`, as under
-   API-key or enterprise auth), and the snapshot its mod writes is absent, stale, or missing
-   `rate_limits` (see rate-limit-guard's reader-contract, "Capability detection (fail-open)").
-   Treat
-   headroom as **thin by default**: pick a small conservative concurrent-worker cap, prefer short
-   waves over a wide tree, and do not invent window percentages. Scale further down on this
+   / rate-limit headroom (thin headroom caps how many workers you run at once). With no live
+   rate-limit reading, do not invent window percentages. Scale down on this
    session's own rate-limit errors or on live sibling-automation 429s already visible to the
    session (for example review-lane infra comments classifying `api_error_status: 429`); scale
    back up only after those reactive signals stop, never on a guessed recovery. Sizing is
@@ -127,7 +138,9 @@ told:
 Discipline: trigger-evaluation is mandatory; the ACTION stays calibrated (delegate on value +
 parallelism, not convenience). Treat every worker's return as unverified synthesis: check its
 evidence before accepting it, verify load-bearing claims against a primary source before acting,
-and merge a many-item fan-out into one table (item, verdict, evidence). Cite sources you actually fetched;
+and merge a many-item fan-out into one table (item, verdict, evidence). An item whose return
+lacks a field its brief requires enters that table as a gap, never as a pass, unless a single
+consolidated-scope respawn returns the field. Cite sources you actually fetched;
 never label a claim "known" / "from memory" / "obvious".
 
 **Priming addendum (current session only).** As the main session, not a spawned non-fork worker,
@@ -151,6 +164,27 @@ intervention through it, addressed by the worker's agent ID. Never re-invoke the
 continue a worker: that starts a second, independent worker. Read a refused message as a worker
 the user stopped. Pointers, as-of date and the empirical probe: `context/sources.md`, "SendMessage
 worker continuation".
+`worker_continuation` decides how a worker's next unit (a fix round, a follow-up, a retry, the
+next queue item) runs. Resolve it once, at arm time, lowest layer first: the default `resume`; the
+user's option `${user_config.worker_continuation}`, where a literal, unexpanded placeholder means
+unset; then the repository's `docs/conventions/session-flow.yaml`, which wins when it sets the key
+(schema: [`${CLAUDE_PLUGIN_ROOT}/schemas/session-flow.schema.json`](${CLAUDE_PLUGIN_ROOT}/schemas/session-flow.schema.json)).
+Read the repository value with
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh" --strict "<git root>/docs/conventions/session-flow.yaml" worker_continuation`,
+and only when the working directory's git root is neither `$HOME` nor an ancestor of it; otherwise
+skip that layer and say so. Empty output means unset only when the key is absent: if
+`grep -qE '^worker_continuation[[:space:]]*:' "<file>"` matches, the key is present but empty or not
+a scalar, which is invalid. Exit 3 means the parser rejected the file: name the file and drop the
+layer. A value other than `resume` or `respawn` is named with its file or option, the key and the
+value, and that layer is dropped: the repository's valid value still wins over an invalid user
+value, and an invalid repository value or file resolves the default `resume`, never the user's
+value; the run never stops on it. Report one line, for
+example `worker_continuation: respawn (docs/conventions/session-flow.yaml)`. Under `resume`,
+imperative 4's reuse stands. Under `respawn`, each new unit goes to a fresh worker whose brief
+consolidates the scope (the original brief, every later directive, the prior worker's report and
+its branch); resume instead only when the unit needs state that lives in that worker and is
+costly to move: its checkout, uncommitted changes, or a running process. Settings page:
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
 To choose between a workflow and subagents, and the model and effort each spawn gets, run
 `/multi-agent:assess` and `/multi-agent:route` when they resolve in this session; otherwise read
 <https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of 2026-10-02; recheck when that
@@ -218,6 +252,11 @@ additional output. Retire on completion. When the next grouping needs doing, spa
 reusing a worker whose context now carries the last job. (The exception is imperative 4's long-lived
 worker across *related* subtasks, where cache reuse is the point; that is a deliberate trade, not
 the default.)
+
+**Check one sampled brief per wave, beside the wave.** Pick one brief from each wave you dispatch
+and check it against imperative 2 while that wave runs. The check never gates the wave: what it
+finds corrects the next wave's briefs, and a defect that would change a running worker's result
+goes to that worker as a directive.
 
 **Treat a clean return as unverified, especially a suspiciously clean one.** An under-specified
 worker rarely stalls and asks; it substitutes the nearest plausible interpretation and reports

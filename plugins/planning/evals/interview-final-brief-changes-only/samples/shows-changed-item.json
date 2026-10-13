@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Changed since read-back: Q5, the file is now orders-export-<timestamp>.csv.",
+      "why": "shows the changed file name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "File name: orders-YYYY-MM-DD.csv.",
+      "why": "shows the superseded recommendation, not the change"
+    }
+  ]
+}

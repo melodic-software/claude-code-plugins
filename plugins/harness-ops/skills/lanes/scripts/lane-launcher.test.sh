@@ -13,6 +13,11 @@
 #   - missing / empty prompt file and invalid effort are skipped, not launched
 #   - a lane with no effort is refused while its siblings launch
 #   - CLAUDE_CODE_EFFORT_LEVEL in the environment warns once per run
+#   - run-once: one `claude -p` pass in auto mode, the version-gated
+#     --permission-prompts, the effort refusal, the per-lane mkdir lock, the
+#     running-lane skip and the execution-target host
+#   - print-schedule: entries only for scheduled lanes, the generated script,
+#     the schedule range check and the 262-character Windows /TR limit
 #
 # Uses a per-suite fixture repo (config + prompt files) and PATH-stub `claude`
 # and `git` so no real CLI or network is touched.
@@ -167,6 +172,7 @@ chmod +x "$ARM_STUB"
 # none). Every case resolves `claude`/`git` to the logging stubs; cases that
 # inspect the log reset it first. Real git is never needed — repos are passed
 # via --repo, so resolve_repo never shells out.
+SUITE_BASE_PATH="$PATH"
 export PATH="$STUB_BIN:$PATH"
 # An ambient value would add the override warning to every start/restart below.
 unset CLAUDE_CODE_EFFORT_LEVEL
@@ -1150,6 +1156,738 @@ assert_contains "the env override is used verbatim" "$out" "lane config not foun
 out="$(run_launcher start --repo "$OLD_REPO" --config "$OLD_REPO/.work/lanes.json" --agents-json "$AGENTS_EMPTY" --data-dir "$TMP/data-explicit" --dry-run 2>&1)"
 assert_not_contains "an explicit pre-move --config does not warn" "$out" "reading the pre-move lane config"
 assert_contains "an explicit pre-move --config keeps the pre-move prompt_dir" "$out" "$OLD_REPO/.work/work.md"
+
+# ============================================================================
+# Execution target: host per lane from docs/conventions/execution-target.yaml
+# ============================================================================
+# These cases need real git (a bare origin and a clone), so they run with the
+# logging `claude` stub and a `gh` stub but WITHOUT the git stub. The fixture
+# path holds a literal `$(...)`, and every case runs under BASH_COMPAT=51, where
+# bash expands some array subscripts twice: a launcher that evaluated a path,
+# a value from the file or a telemetry body would create the PWNED file.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+ET_BIN="$TMP/et-bin"
+mkdir -p "$ET_BIN"
+ln -s "$STUB_BIN/claude" "$ET_BIN/claude"
+GH_LOG="$TMP/gh.log"
+cat >"$ET_BIN/gh" <<STUB
+#!/usr/bin/env bash
+printf 'gh %s\n' "\$*" >>"$GH_LOG"
+jqf="" prev=""
+for a in "\$@"; do [[ "\$prev" == "--jq" || "\$prev" == "-q" ]] && jqf="\$a"; prev="\$a"; done
+case "\$*" in
+"repo view"*) printf '%s\n' "\${STUB_GH_SLUG:-acme/widgets}" ;;
+"api user --jq"*) printf '%s\n' "\${STUB_GH_LOGIN:-operator}" ;;
+*"user/installations/"*"/repositories"*)
+  data="\${STUB_GH_REPOS:-}"
+  [[ -n "\$data" ]] || data='{"repositories":[]}'
+  jq -r "\$jqf" <<<"\$data"
+  ;;
+*"user/installations"*)
+  [[ "\${STUB_GH_INSTALL_RC:-0}" != 0 ]] && exit "\$STUB_GH_INSTALL_RC"
+  data="\${STUB_GH_INSTALLATIONS:-}"
+  [[ -n "\$data" ]] || data='{"installations":[{"id":7,"app_slug":"claude","repository_selection":"all","account":{"login":"Acme"}}]}'
+  jq -r "\$jqf" <<<"\$data"
+  ;;
+*) exit 1 ;;
+esac
+STUB
+chmod +x "$ET_BIN/gh"
+ET_PATH="$ET_BIN:$SUITE_BASE_PATH"
+# The rest of the suite builds and reads real repositories.
+PATH="$ET_PATH"
+ET_SANDBOX="$TMP/et \$(touch PWNED) sandbox"
+mkdir -p "$ET_SANDBOX"
+ET_ORIGIN="$ET_SANDBOX/origin.git"
+ET_REPO="$ET_SANDBOX/repo"
+fx_git() { git -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "$@"; }
+git init -q --bare -b main "$ET_ORIGIN"
+git clone -q "$ET_ORIGIN" "$ET_REPO" 2>/dev/null
+# origin is the local bare repository by path. For the cloud-launch cases it is
+# configured as github.com/acme/widgets (the slug the launcher derives), with
+# git reaching the bare repository through insteadOf; the shipped launcher
+# refuses that rewrite, so only the trusted-stage copy below runs under it.
+et_origin_github() {
+  git -C "$ET_REPO" remote set-url origin https://github.com/acme/widgets.git
+  git -C "$ET_REPO" config "url.$ET_ORIGIN.insteadOf" https://github.com/acme/widgets.git
+}
+et_origin_local() {
+  git -C "$ET_REPO" config --unset-all "url.$ET_ORIGIN.insteadOf" 2>/dev/null
+  git -C "$ET_REPO" remote set-url origin "$ET_ORIGIN"
+}
+mkdir -p "$ET_REPO/docs/conventions" "$ET_REPO/.work/lanes"
+printf '.work/\n' >"$ET_REPO/.gitignore"
+printf 'You are the work lane.\n' >"$ET_REPO/.work/lanes/work.md"
+ET_TELEMETRY_NONE="$TMP/et-telemetry-none.json"
+printf '{}\n' >"$ET_TELEMETRY_NONE"
+
+# Every local-lane stage may read untrusted input, so the shipped launcher never
+# reaches its cloud launch. The cloud-launch cases run a copy with two changes:
+# its trusted-stage list names one fixture stage, and its origin-rewrite check
+# is off so the fixture's insteadOf can stand in for github.com. Everything
+# else in the copy is the shipped code.
+TRUSTED_DIR="$TMP/trusted-launcher"
+mkdir -p "$TRUSTED_DIR"
+cp -R "$SCRIPT_DIR/lib" "$TRUSTED_DIR/lib"
+sed -e 's/^ET_TRUSTED_STAGES=""$/ET_TRUSTED_STAGES="fixture:trusted"/' \
+  -e 's/^origin_url_rewritten() {$/origin_url_rewritten() { return 1; }\
+origin_url_rewritten_shipped() {/' \
+  "$SCRIPT" >"$TRUSTED_DIR/lane-launcher.sh"
+assert_contains "the trusted-stage copy names the fixture stage" "$(cat "$TRUSTED_DIR/lane-launcher.sh")" 'ET_TRUSTED_STAGES="fixture:trusted"'
+assert_contains "the trusted-stage copy turns off the origin-rewrite check" "$(cat "$TRUSTED_DIR/lane-launcher.sh")" 'origin_url_rewritten() { return 1; }'
+TRUSTED_SCRIPT="$TRUSTED_DIR/lane-launcher.sh"
+
+# Commit <yaml> (or delete the file when <yaml> is empty) on origin's main.
+et_publish() {
+  if [[ -n "$1" ]]; then
+    printf '%s\n' "$1" >"$ET_REPO/docs/conventions/execution-target.yaml"
+  else
+    rm -f "$ET_REPO/docs/conventions/execution-target.yaml"
+  fi
+  fx_git -C "$ET_REPO" add -A
+  fx_git -C "$ET_REPO" commit -q --allow-empty -m fixture
+  fx_git -C "$ET_REPO" push -q origin HEAD:main 2>/dev/null
+  git -C "$ET_REPO" remote set-head origin main >/dev/null 2>&1
+  ET_SHA_NOW="$(git -C "$ET_REPO" rev-parse HEAD)"
+}
+et_lanes() { # <stage or ""> [extra lane JSON members]
+  jq -n --arg s "$1" --argjson x "${2:-{\}}" \
+    '{lanes: [({name: "work", prompt: "work.md", effort: "high"} + (if $s == "" then {} else {stage: $s} end) + $x)]}' \
+    >"$ET_REPO/.work/lanes/lanes.json"
+}
+ET_TELEMETRY_BINDING='{"telemetry":{"issue":5}}'
+et_cloud_lane() { et_lanes fixture:trusted "$ET_TELEMETRY_BINDING"; }
+et_run_with() { # <script> <action> [args...]
+  PATH="$ET_PATH" BASH_COMPAT=51 bash "$1" --gate-arm-script "$ARM_STUB" "$2" --repo "$ET_REPO" \
+    --agents-json "$AGENTS_EMPTY" --no-pull --no-update --telemetry-json "$ET_TELEMETRY_NONE" "${@:3}"
+}
+et_run() { et_run_with "$SCRIPT" "$@"; }
+et_run_trusted() {
+  local rc
+  et_origin_github
+  et_run_with "$TRUSTED_SCRIPT" "$@"
+  rc=$?
+  et_origin_local
+  return "$rc"
+}
+et_origin_local
+ET_DATA="$TMP/et-data"
+ET_KEY="$(printf '%s' "$(git -C "$ET_REPO" rev-parse --show-toplevel)" | git -C "$ET_REPO" hash-object --stdin)"
+ET_WT="$ET_DATA/lanes/$ET_KEY/worktrees/work"
+
+# --- Policy read and key resolution ------------------------------------------
+# The skill key, read as the dotted key skill.fixture.trusted, sends the lane
+# to a cloud session: fetched first, SHA printed, launched from a linked
+# worktree at that SHA with the probe preamble.
+et_publish $'default: local-worktree\nskill:\n  fixture:\n    trusted: cloud-session'
+et_cloud_lane
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+rc=$?
+assert_eq "cloud-session dry-run exits 0" 0 "$rc"
+assert_contains "the default branch is fetched first" "$out" "DRY-RUN: git -C $(printf '%q' "$ET_REPO") fetch --quiet origin +refs/heads/main:refs/remotes/origin/main"
+assert_contains "the commit the file was read at is printed" "$out" "read docs/conventions/execution-target.yaml at origin/main $ET_SHA_NOW"
+assert_contains "skill.fixture.trusted supplies the value" "$out" "execution target cloud-session (skill.fixture.trusted)"
+assert_contains "the cloud launch runs from a linked worktree at the fetched SHA" "$out" "worktree add --quiet --detach $(printf '%q' "$ET_WT") $ET_SHA_NOW"
+assert_contains "a cloud-session lane prints a claude --cloud line" "$out" "DRY-RUN: claude --cloud"
+assert_contains "the cloud prompt opens with the stage-start probe" "$out" 'stage-start\ probe\ preamble'
+assert_not_contains "a cloud-session lane does not also launch locally" "$out" "claude --bg"
+
+# The two-level skill map is read as skill.<plugin>.<skill>.
+et_publish $'default: local-worktree\nskill:\n  work-items:\n    work-loop: local-background'
+et_lanes work-items:work-loop
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "skill.work-items.work-loop supplies the value" "$out" "execution target local-background (skill.work-items.work-loop)"
+
+# local-background: claude --bg with auto mode from the lane's linked worktree.
+et_publish 'default: local-background'
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "default supplies local-background" "$out" "execution target local-background (default)"
+assert_contains "local-background launches from the linked worktree" "$out" "DRY-RUN: cd $(printf '%q' "$ET_WT")"
+assert_contains "local-background is claude --bg -n <name> --permission-mode auto" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
+
+# cloud-routine and cloud-project print setup steps and launch nothing, for a
+# stage whose input is never untrusted (the trusted-stage copy).
+et_cloud_lane
+for v in cloud-routine cloud-project; do
+  et_publish "default: $v"
+  out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+  rc=$?
+  assert_eq "$v exits 0" 0 "$rc"
+  assert_contains "$v prints setup steps" "$out" "$v is set by default"
+  assert_not_contains "$v launches no local session" "$out" "claude --bg"
+  assert_not_contains "$v launches no cloud session" "$out" "claude --cloud"
+done
+# restart leaves a running lane up when its host is one the launcher does not start.
+cat >"$TMP/et-agents-running.json" <<'JSON'
+[ { "pid": 1, "cwd": "/r", "kind": "background", "startedAt": 1, "sessionId": "sid-et", "name": "work", "status": "idle" } ]
+JSON
+out="$(et_run_trusted restart --agents-json "$TMP/et-agents-running.json" --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "restart to cloud-project prints its setup steps" "$out" "cloud-project is set by default"
+assert_not_contains "restart to cloud-project does not stop the running lane" "$out" "claude stop"
+
+# --- [N1] routines and projects are cloud hosts: untrusted stages get none ----
+et_publish $'default: cloud-project\nclass:\n  untrusted-provenance: cloud-routine'
+for lane in work-items:triage ""; do
+  et_lanes "$lane"
+  out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+  rc=$?
+  label="${lane:-a lane with no stage}"
+  assert_eq "[N1] $label placed on a routine or project exits 1" 1 "$rc"
+  assert_not_contains "[N1] $label gets no setup steps" "$out" "the launcher starts nothing for it"
+  assert_contains "[N1] $label is skipped with the attend-queue message" "$out" "Nothing was filed; escalate it through /work-items:attend-queue"
+done
+et_lanes work-items:triage
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[N1] the triage lane resolved a routine first" "$out" "cloud-routine refused"
+et_lanes ""
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[N1] a lane with no stage resolved a project first" "$out" "cloud-project refused"
+out="$(et_run restart --agents-json "$TMP/et-agents-running.json" --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_not_contains "[N1] restart of a skipped lane does not stop the running session" "$out" "claude stop"
+# A cloud-session placement is refused before restart stops the running lane.
+et_publish 'default: cloud-session'
+et_lanes work-items:triage
+out="$(et_run restart --agents-json "$TMP/et-agents-running.json" --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[P4] restart of an untrusted cloud-session lane is skipped" "$out" "cloud-session refused"
+assert_not_contains "[P4] restart of an untrusted cloud-session lane does not stop the running session" "$out" "claude stop"
+et_lanes work-items:work-loop
+
+# No file on the default branch, or an unknown value, keeps today's launch.
+et_publish ""
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "an absent file is reported with the SHA read" "$out" "docs/conventions/execution-target.yaml absent at origin/main $ET_SHA_NOW"
+assert_contains "an absent file keeps today's launch" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
+# shellcheck disable=SC2016 # the literal $(...) is the fixture.
+et_publish 'default: "$(touch PWNED_VALUE)"'
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "an unknown value names the file and the SHA it was read at" "$out" "at default in docs/conventions/execution-target.yaml at origin/main $ET_SHA_NOW; local-worktree"
+assert_contains "an unknown value keeps today's launch" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
+et_publish $'default: [unclosed'
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "a file the parser rejects is reported" "$out" "does not parse"
+assert_contains "a file the parser rejects keeps today's launch" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
+
+# Only the default branch counts: an uncommitted working-tree edit moves nothing.
+et_publish 'default: local-worktree'
+printf 'default: cloud-session\n' >"$ET_REPO/docs/conventions/execution-target.yaml"
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "a working-tree edit is not read" "$out" "execution target local-worktree (default)"
+git -C "$ET_REPO" checkout -q -- docs/conventions/execution-target.yaml
+
+# class.untrusted-provenance applies to a stage whose input is always untrusted.
+et_publish $'default: local-worktree\nclass:\n  untrusted-provenance: cloud-session'
+et_lanes work-items:triage
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+rc=$?
+assert_contains "class.untrusted-provenance supplies the triage stage's host" "$out" "execution target cloud-session (class.untrusted-provenance)"
+assert_eq "a triage lane placed in the cloud exits 1" 1 "$rc"
+assert_contains "the skip names the escalation route and files nothing" "$out" "Nothing was filed; escalate it through /work-items:attend-queue"
+assert_not_contains "a triage lane placed in the cloud does not launch locally" "$out" "claude --bg"
+assert_not_contains "the skip message carries no em dash" "$out" $'\xe2\x80\x94'
+# The skill key wins over the class key and the default.
+et_publish $'default: local-background\nclass:\n  untrusted-provenance: cloud-routine\nskill:\n  work-items:\n    triage: local-worktree'
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "the skill key wins over the class key" "$out" "execution target local-worktree (skill.work-items.triage)"
+et_lanes work-items:work-loop
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "the class key does not apply to a stage with trusted input" "$out" "execution target local-background (default)"
+
+# --- [fix 1] the launcher enforces the untrusted-input guard -------------------
+# work-loop, work, babysit-loop and babysit-prs read untrusted input on some
+# runs; with no deterministic connector and egress check, none goes to the cloud.
+et_publish 'default: cloud-session'
+for st in work-items:work-loop work-items:work source-control:babysit-loop source-control:babysit-prs; do
+  et_lanes "$st" "$ET_TELEMETRY_BINDING"
+  out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+  rc=$?
+  assert_eq "[fix 1] $st placed in the cloud exits 1" 1 "$rc"
+  assert_contains "[fix 1] $st is skipped as a stage that may read untrusted input" "$out" "stage $st may read untrusted input"
+  assert_not_contains "[fix 1] $st gets no claude --cloud line" "$out" "claude --cloud"
+  assert_not_contains "[fix 1] $st does not fall back to a local launch" "$out" "claude --bg"
+done
+
+# --- [fix 2] a lane with no stage is untrusted; telemetry.repo is pinned ------
+et_lanes "" "$ET_TELEMETRY_BINDING"
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+rc=$?
+assert_eq "[fix 2] a lane with no stage placed in the cloud exits 1" 1 "$rc"
+assert_contains "[fix 2] a lane with no stage is skipped" "$out" "stage unset may read untrusted input"
+assert_not_contains "[fix 2] a lane with no stage gets no claude --cloud line" "$out" "claude --cloud"
+et_lanes fixture:trusted '{"telemetry":{"issue":5,"repo":"evil/elsewhere"}}'
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[fix 2] a telemetry.repo naming another repository is refused" "$out" "telemetry.repo names a repository other than origin"
+assert_not_contains "[fix 2] the foreign telemetry.repo lane gets no claude --cloud line" "$out" "claude --cloud"
+
+# --- [fix 3] fallback comments count only from authorized authors --------------
+ET_TELEMETRY_FB="$TMP/et-telemetry-fallback.json"
+ET_TELEMETRY_SPOOF="$TMP/et-telemetry-spoof.json"
+# shellcheck disable=SC2016 # the literal $(...) is the fixture.
+fb_body='<!-- harness-ops:lane-telemetry marker=fixture:trusted -->
+```json
+{"restart_request": null, "execution_target_fallback": {"reason": "$(touch PWNED_BODY)", "at": "2026-10-04T00:00:00Z"}}
+```
+'
+jq -n --arg b "$fb_body" '{work: [{body: $b, user: {login: "operator"}}]}' >"$ET_TELEMETRY_FB"
+jq -n --arg b "$fb_body" '{work: [{body: $b, user: {login: "intruder"}}]}' >"$ET_TELEMETRY_SPOOF"
+et_cloud_lane
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run --telemetry-json "$ET_TELEMETRY_SPOOF" 2>&1)"
+assert_not_contains "[fix 3] a fallback from another author changes nothing" "$out" "telemetry carries an execution-target fallback"
+assert_contains "[fix 3] the lane still goes to the cloud" "$out" "DRY-RUN: claude --cloud"
+et_lanes fixture:trusted
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[fix 3] a cloud lane without telemetry.issue is refused" "$out" "the lane has no numeric telemetry.issue"
+assert_not_contains "[fix 3] the lane without telemetry.issue gets no claude --cloud line" "$out" "claude --cloud"
+et_cloud_lane
+
+# --- [fix 4] the policy branch is origin's HEAD, not the local symref ---------
+et_publish 'default: local-worktree'
+# A branch `evil` on origin carrying a cloud policy; origin's HEAD stays main.
+fx_git -C "$ET_REPO" checkout -q -b evil
+printf 'default: cloud-session\n' >"$ET_REPO/docs/conventions/execution-target.yaml"
+fx_git -C "$ET_REPO" commit -q -am evil
+fx_git -C "$ET_REPO" push -q origin HEAD:evil 2>/dev/null
+fx_git -C "$ET_REPO" checkout -q main
+fx_git -C "$ET_REPO" branch -q -D evil
+git -C "$ET_REPO" fetch -q origin
+git -C "$ET_REPO" remote set-head origin evil >/dev/null 2>&1
+et_lanes work-items:triage
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+rc=$?
+assert_contains "[fix 4] a local origin/HEAD that disagrees with origin's HEAD refuses the policy read" "$out" "disagrees with the local origin/HEAD"
+assert_not_contains "[fix 4] the policy on the other branch is not read" "$out" "read docs/conventions/execution-target.yaml at origin/evil"
+assert_eq "[fix 4] a triage lane is skipped when the policy read is refused" 1 "$rc"
+assert_not_contains "[fix 4] the skipped triage lane launches nothing" "$out" "claude --"
+et_lanes work-items:work-loop
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[fix 4] other lanes launch local-worktree when the policy read is refused" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
+git -C "$ET_REPO" remote set-head origin main >/dev/null 2>&1
+
+# --- [fix 5] the App check uses origin's slug, not gh's default repository ----
+et_publish 'default: cloud-session'
+et_cloud_lane
+out="$(STUB_GH_SLUG=upstream/widgets \
+  STUB_GH_INSTALLATIONS='{"installations":[{"id":9,"app_slug":"claude","repository_selection":"selected","account":{"login":"upstream"}}]}' \
+  STUB_GH_REPOS='{"repositories":[{"full_name":"upstream/widgets"}]}' et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[fix 5] an App covering gh's default repository does not cover origin" "$out" "cloud-session refused (no Claude GitHub App"
+assert_not_contains "[fix 5] that lane gets no claude --cloud line" "$out" "claude --cloud"
+
+# --- [N2] a rewritten or ambiguous origin URL refuses the policy read --------
+et_publish 'default: local-background'
+et_lanes work-items:work-loop
+et_origin_github
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[N2] an insteadOf rule rewriting origin refuses the policy read" "$out" "origin's URL is rewritten by a url.*.insteadOf rule"
+assert_not_contains "[N2] the rewritten origin's policy is not read" "$out" "read docs/conventions/execution-target.yaml"
+assert_contains "[N2] the lane launches local-worktree" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
+et_origin_local
+git -C "$ET_REPO" config --add remote.origin.url https://github.com/acme/elsewhere.git
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[N2] two remote.origin.url values refuse the policy read" "$out" "remote.origin.url has more than one value"
+git -C "$ET_REPO" config --unset-all remote.origin.url
+git -C "$ET_REPO" config remote.origin.url "$ET_ORIGIN"
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[N2] a plain origin reads the policy again" "$out" "execution target local-background (default)"
+
+# --- [N4] the shared github-actions[bot] is not a telemetry author -----------
+et_publish 'default: cloud-session'
+et_lanes fixture:trusted '{"telemetry":{"issue":5,"author":"github-actions[bot]"}}'
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[N4] github-actions[bot] as telemetry.author is refused" "$out" "telemetry.author github-actions[bot] is a bot account, which is not allowed"
+assert_not_contains "[N4] that lane gets no claude --cloud line" "$out" "claude --cloud"
+et_lanes fixture:trusted '{"telemetry":{"issue":5,"author":"dependabot[bot]"}}'
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[P4] any [bot] login as telemetry.author is refused" "$out" "telemetry.author dependabot[bot] is a bot account, which is not allowed"
+assert_not_contains "[P4] that lane gets no claude --cloud line" "$out" "claude --cloud"
+
+# --- [N5] a telemetry fixture read says so -----------------------------------
+et_cloud_lane
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "[N5] --telemetry-json warns that the read is a local file" "$out" "(--telemetry-json, a test aid), not from GitHub"
+
+# --- Cloud launch rule, on the trusted-stage copy -----------------------------
+out="$(STUB_GH_INSTALLATIONS='{"installations":[{"id":9,"app_slug":"other-app","repository_selection":"all","account":{"login":"acme"}}]}' \
+  et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "no Claude GitHub App refuses the cloud launch" "$out" "cloud-session refused (no Claude GitHub App installation"
+assert_contains "the refused trusted lane launches local-worktree" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
+assert_not_contains "the refused lane prints no claude --cloud line" "$out" "claude --cloud"
+out="$(STUB_GH_INSTALLATIONS='{"installations":[{"id":9,"app_slug":"claude","repository_selection":"selected","account":{"login":"acme"}}]}' \
+  STUB_GH_REPOS='{"repositories":[{"full_name":"acme/other"}]}' et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "an installation selecting other repositories does not cover this one" "$out" "cloud-session refused (no Claude GitHub App"
+out="$(STUB_GH_INSTALLATIONS='{"installations":[{"id":9,"app_slug":"claude","repository_selection":"selected","account":{"login":"acme"}}]}' \
+  STUB_GH_REPOS='{"repositories":[{"full_name":"Acme/Widgets"}]}' et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "an installation selecting this repository covers it" "$out" "DRY-RUN: claude --cloud"
+out="$(STUB_GH_INSTALL_RC=1 et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "a failed installations read refuses the cloud launch" "$out" "cloud-session refused (no Claude GitHub App"
+
+# A lane requesting the lane-stop gate cannot be armed in the cloud.
+et_lanes fixture:trusted '{"telemetry":{"issue":5},"settings":{"pluginConfigs":{"autonomy@m":{"options":{"lane_stop_gate_enabled":true}}}}}'
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "a gate-requesting lane is refused the cloud" "$out" "lane-stop gate, which cannot be armed in a cloud session"
+et_cloud_lane
+
+# A cloud launch needs a clean linked worktree.
+mkdir -p "$(dirname "$ET_WT")"
+git -C "$ET_REPO" worktree add -q --detach "$ET_WT" HEAD
+printf 'scratch\n' >"$ET_WT/untracked.txt"
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "a dirty linked worktree refuses the cloud launch" "$out" "cloud-session refused (no clean linked worktree"
+assert_contains "the dirty-worktree refusal launches local-worktree" "$out" "DRY-RUN: claude --bg -n work"
+rm -f "$ET_WT/untracked.txt"
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "a clean existing linked worktree is moved to the fetched SHA" "$out" "checkout --quiet --detach $ET_SHA_NOW"
+
+# A fallback marker from an authorized author moves exactly one launch local.
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run --telemetry-json "$ET_TELEMETRY_FB" 2>&1)"
+assert_contains "a telemetry fallback marker launches local-worktree" "$out" "telemetry carries an execution-target fallback; this launch runs local-worktree"
+assert_contains "the fallback launch is today's local launch" "$out" "DRY-RUN: claude --bg -n work --permission-mode auto"
+: >"$CLAUDE_LOG"
+out="$(et_run_trusted start --data-dir "$ET_DATA" --telemetry-json "$ET_TELEMETRY_FB" 2>&1)"
+assert_contains "a real fallback launch runs claude --bg" "$(cat "$CLAUDE_LOG")" "--bg -n work --permission-mode auto"
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run --telemetry-json "$ET_TELEMETRY_FB" 2>&1)"
+assert_contains "the next launch after an honored fallback probes the cloud again" "$out" "DRY-RUN: claude --cloud"
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run --telemetry-json "$TMP/missing-telemetry.json" 2>&1)"
+assert_contains "unreadable telemetry refuses the cloud launch" "$out" "lane telemetry could not be read"
+
+# `claude agents --json` does not list cloud sessions: start does not send a
+# second one while the launch record stands; restart does.
+mkdir -p "$ET_DATA/lanes/$ET_KEY"
+printf '2026-10-04T00:00:00Z at %s\n' "$ET_SHA_NOW" >"$ET_DATA/lanes/$ET_KEY/work-cloud-launch"
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "start skips a lane already sent to the cloud" "$out" "skip work: already sent to the cloud"
+printf '\033]0;x\007\033[31mred\n' >"$ET_DATA/lanes/$ET_KEY/work-cloud-launch"
+out="$(et_run_trusted start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_not_contains "[P5] the launch record prints without control characters" "$out" $'\033'
+assert_contains "[P5] the record's printable text still prints" "$out" "already sent to the cloud (]0;x[31mred)"
+printf '2026-10-04T00:00:00Z at %s\n' "$ET_SHA_NOW" >"$ET_DATA/lanes/$ET_KEY/work-cloud-launch"
+out="$(et_run_trusted restart --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "restart sends a new cloud session" "$out" "DRY-RUN: claude --cloud"
+# A real cloud launch: the stub logs one line per argv, so the probe preamble
+# and the lane prompt both reach the single prompt argument.
+: >"$CLAUDE_LOG"
+out="$(et_run_trusted restart --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "a real cloud launch exits 0" 0 "$rc"
+assert_contains "the cloud prompt carries the stage-start probe" "$(cat "$CLAUDE_LOG")" "--cloud Stage-start probe (execution target cloud-session; lane work; stage fixture:trusted"
+assert_contains "the cloud prompt names the plugins the stage needs" "$(cat "$CLAUDE_LOG")" "loaded in this session, not only declared: fixture."
+assert_contains "the cloud prompt ends with the lane prompt" "$(cat "$CLAUDE_LOG")" "You are the work lane."
+assert_contains "the launch record names the SHA" "$(cat "$ET_DATA/lanes/$ET_KEY/work-cloud-launch")" "at $ET_SHA_NOW"
+
+# A stage that is not a <plugin>:<skill> string is warned about (file, lane,
+# key, value) and dropped: the lane runs as one with no stage.
+et_publish $'default: local-worktree\nskill:\n  work-items:\n    work-loop: local-background'
+for bad in '"Work Items"' 5; do
+  et_lanes "" "{\"stage\":$bad}"
+  out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+  rc=$?
+  assert_eq "stage $bad exits 0" 0 "$rc"
+  assert_contains "stage $bad is warned about with the file, lane, key and value" "$out" \
+    "WARNING: $ET_REPO/.work/lanes/lanes.json: lane 'work': stage $bad is not"
+  assert_contains "stage $bad is dropped, so the lane resolves the default" "$out" "execution target local-worktree (default)"
+  assert_not_contains "stage $bad selects no skill key" "$out" "(skill."
+done
+# The dropped stage is gone downstream too: a cloud skip names no stage.
+et_publish 'default: cloud-session'
+et_lanes "" '{"stage":5,"telemetry":{"issue":5}}'
+out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "a dropped stage reaches the cloud skip as unset" "$out" "stage unset may read untrusted input"
+et_publish $'default: local-worktree\nskill:\n  work-items:\n    work-loop: local-background'
+et_lanes work-items:work-loop
+
+# ============================================================================
+# run-once: one headless `claude -p` pass of a lane, for a scheduler
+# ============================================================================
+# Same fixture repository (its path holds a literal `$(...)`), real git, the
+# logging claude stub. No policy file, so the lane runs local-worktree.
+et_publish ''
+RO_LOCK="$ET_DATA/lanes/$ET_KEY/work-run-once.lock"
+claude_runs() { grep -c -- '^-p ' "$CLAUDE_LOG"; }
+
+out="$(et_run run-once --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "run-once with no lane exits 3" 3 "$rc"
+assert_contains "run-once with no lane says it takes one" "$out" "run-once takes exactly one lane name"
+out="$(et_run run-once work work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "run-once with two lanes exits 3" 3 "$?"
+
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_VERSION=2.1.259 et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "run-once exits 0" 0 "$rc"
+assert_contains "run-once runs one print-mode pass in auto mode with the lane's effort and prompt" "$(cat "$CLAUDE_LOG")" "-p --permission-mode auto --permission-prompts none --effort high You are the work lane."
+assert_not_contains "run-once starts no background session" "$(cat "$CLAUDE_LOG")" "--bg"
+assert_eq "run-once releases its lock" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
+
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_VERSION=2.1.258 et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_contains "below 2.1.259 run-once still runs in auto mode" "$(cat "$CLAUDE_LOG")" "-p --permission-mode auto --effort high"
+assert_not_contains "below 2.1.259 run-once omits --permission-prompts" "$(cat "$CLAUDE_LOG")" "--permission-prompts"
+
+# A model, when set, is passed the same way start passes it.
+et_lanes work-items:work-loop '{"model":"opus"}'
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_contains "run-once passes the lane's model" "$(cat "$CLAUDE_LOG")" "--model opus --effort high"
+
+# No effort: refused, nothing runs.
+jq -n '{lanes: [{name: "work", prompt: "work.md", stage: "work-items:work-loop"}]}' >"$ET_REPO/.work/lanes/lanes.json"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "run-once of a lane with no effort exits 1" 1 "$rc"
+assert_contains "the refusal names lanes[].effort" "$out" "add lanes[].effort"
+assert_eq "a lane with no effort runs no pass" 0 "$(claude_runs)"
+et_lanes work-items:work-loop
+
+# A held lock: a second run exits 0 quietly, runs nothing and leaves the lock.
+mkdir -p "$RO_LOCK"
+printf '%s\n' "$$" >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "run-once with the lock held exits 0" 0 "$rc"
+assert_contains "run-once with the lock held says so" "$out" "another run-once holds"
+assert_eq "run-once with the lock held runs no pass" 0 "$(claude_runs)"
+assert_eq "the loser leaves the holder's lock in place" "$$" "$(cat "$RO_LOCK/pid" 2>/dev/null)"
+
+# A lock whose recorded owner has exited is reclaimed.
+bash -c 'exit 0' &
+dead_pid=$!
+wait "$dead_pid"
+printf '%s\n' "$dead_pid" >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "run-once reclaims a lock whose owner exited" 0 "$rc"
+assert_eq "the reclaiming run runs its pass" 1 "$(claude_runs)"
+assert_eq "the reclaiming run releases the lock" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
+
+# After a reboot the recorded pid may belong to an unrelated live process: a
+# lock recorded on another boot is reclaimed even though that pid answers.
+mkdir -p "$RO_LOCK"
+printf 'boot-before\n' >"$RO_LOCK/boot-id"
+printf '%s\n' "$$" >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(LANE_LAUNCHER_FAKE_BOOT_ID=boot-after et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a lock from an earlier boot is reclaimed despite a live pid" 1 "$(claude_runs)"
+assert_eq "the reclaiming run releases the earlier boot's lock" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
+# The same boot and a live pid: still held.
+mkdir -p "$RO_LOCK"
+printf 'boot-now\n' >"$RO_LOCK/boot-id"
+printf '%s\n' "$$" >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(LANE_LAUNCHER_FAKE_BOOT_ID=boot-now et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a live owner on this boot keeps the lock" 0 "$(claude_runs)"
+assert_contains "a live owner on this boot is reported as holding it" "$out" "another run-once holds"
+rm -rf "$RO_LOCK"
+
+# A run that died between mkdir and its pid write leaves a lock with no pid.
+# A fresh one may be a run still starting, so it is held; one older than the
+# grace period is dead and reclaimed.
+mkdir -p "$RO_LOCK"
+: >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a fresh lock with an empty pid is treated as held" 0 "$(claude_runs)"
+printf '%s\n' "$(($(date +%s) - 3600))" >"$RO_LOCK/acquired-at"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "an empty-pid lock older than the grace period is reclaimed" 1 "$(claude_runs)"
+assert_eq "the run that reclaimed the empty-pid lock releases it" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
+mkdir -p "$RO_LOCK"
+printf '%s\n' "$(($(date +%s) - 3600))" >"$RO_LOCK/acquired-at"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a missing-pid lock older than the grace period is reclaimed" 1 "$(claude_runs)"
+rm -rf "$RO_LOCK"
+
+# A lane already running as a background session is not run a second time.
+AGENTS_WORK_BG="$TMP/agents-work-bg.json"
+printf '%s\n' '[{"pid":1,"cwd":"/r","kind":"background","startedAt":1,"sessionId":"sid-bg","name":"work","status":"idle"}]' >"$AGENTS_WORK_BG"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" --agents-json "$AGENTS_WORK_BG" 2>&1)"
+rc=$?
+assert_eq "run-once of a running lane exits 0" 0 "$rc"
+assert_contains "run-once of a running lane names the session" "$out" "sid-bg"
+assert_eq "run-once of a running lane runs no pass" 0 "$(claude_runs)"
+
+# The execution target decides the host: local-background runs from the lane's
+# linked worktree; a cloud host runs nothing here.
+et_publish 'default: local-background'
+out="$(et_run run-once work --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "run-once reads the execution target" "$out" "execution target local-background (default)"
+assert_contains "run-once on local-background runs from the linked worktree" "$out" "DRY-RUN: cd $(printf '%q' "$ET_WT")"
+assert_contains "the dry run previews the print-mode pass" "$out" "DRY-RUN: claude -p --permission-mode auto"
+et_publish 'default: cloud-routine'
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "run-once runs no local pass for a cloud host" 0 "$(claude_runs)"
+et_publish ''
+
+# ============================================================================
+# print-schedule: OS scheduler entries that call a generated per-lane script
+# ============================================================================
+et_lanes work-items:work-loop '{"schedule":{"every_minutes":15}}'
+SCHED_DIR="$ET_DATA/lanes/$ET_KEY/scheduled"
+SCHED_SCRIPT="$SCHED_DIR/work.sh"
+SCHED_SNAPSHOT="$SCHED_DIR/work.lanes.json"
+: >"$CLAUDE_LOG"
+out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "print-schedule exits 0" 0 "$rc"
+assert_contains "print-schedule emits a schtasks entry on the lane's interval" "$out" 'schtasks /Create /TN "HarnessOps Lane work" /SC MINUTE /MO 15 '
+assert_contains "print-schedule emits the cron form" "$out" "*/15 * * * * "
+assert_contains "print-schedule emits the removal" "$out" 'schtasks /Delete /TN "HarnessOps Lane work" /F'
+assert_eq "print-schedule without --write-script writes no script" "absent" "$([[ -e "$SCHED_SCRIPT" ]] && echo present || echo absent)"
+assert_eq "print-schedule calls no claude" "" "$(cat "$CLAUDE_LOG")"
+
+out="$(et_run print-schedule --write-script --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "print-schedule --write-script exits 0" 0 "$rc"
+assert_eq "the generated script is executable" "yes" "$([[ -x "$SCHED_SCRIPT" ]] && echo yes || echo no)"
+bash -n "$SCHED_SCRIPT" 2>/dev/null
+assert_eq "the generated script parses" 0 "$?"
+assert_contains "the generated script calls run-once for the lane" "$(cat "$SCHED_SCRIPT")" "run-once work"
+# Running it does one pass, and the `$(...)` in the repository path stays text.
+: >"$CLAUDE_LOG"
+PATH="$ET_PATH" BASH_COMPAT=51 bash "$SCHED_SCRIPT" >/dev/null 2>&1
+rc=$?
+assert_eq "the generated script exits 0" 0 "$rc"
+assert_eq "the generated script runs one pass" 1 "$(claude_runs)"
+
+# The script and its config snapshot sit under the data directory, outside the
+# lane-writable checkout, and a scheduled run reads the snapshot: a lane that
+# rewrites lanes.json in the checkout changes nothing the scheduler runs.
+assert_eq "nothing is written under the checkout's .work/lanes/scheduled" "absent" "$([[ -e "$ET_REPO/.work/lanes/scheduled" ]] && echo present || echo absent)"
+assert_eq "a config snapshot is written beside the script" "yes" "$([[ -f "$SCHED_SNAPSHOT" ]] && echo yes || echo no)"
+jq -n '{lanes: [{name: "other", prompt: "work.md", effort: "high"}]}' >"$ET_REPO/.work/lanes/lanes.json"
+: >"$CLAUDE_LOG"
+PATH="$ET_PATH" BASH_COMPAT=51 bash "$SCHED_SCRIPT" >/dev/null 2>&1
+assert_eq "a scheduled run ignores a rewritten in-checkout config" 0 "$?"
+assert_eq "a scheduled run after the in-checkout rewrite still runs the snapshot's lane" 1 "$(claude_runs)"
+et_lanes work-items:work-loop '{"schedule":{"every_minutes":15}}'
+
+# A snapshot changed after it was written fails its sha256 check: no pass runs.
+cp "$SCHED_SNAPSHOT" "$TMP/snapshot.orig"
+jq '.lanes[0].effort = "low"' "$TMP/snapshot.orig" >"$SCHED_SNAPSHOT"
+: >"$CLAUDE_LOG"
+out="$(PATH="$ET_PATH" BASH_COMPAT=51 bash "$SCHED_SCRIPT" 2>&1)"
+assert_eq "a changed snapshot makes the scheduled script exit 1" 1 "$?"
+assert_contains "the refusal names the sha256 mismatch" "$out" "does not match the sha256"
+assert_eq "a changed snapshot runs no pass" 0 "$(claude_runs)"
+rm -f "$SCHED_SNAPSHOT"
+: >"$CLAUDE_LOG"
+PATH="$ET_PATH" BASH_COMPAT=51 bash "$SCHED_SCRIPT" >/dev/null 2>&1
+assert_eq "a missing snapshot makes the scheduled script exit 1" 1 "$?"
+assert_eq "a missing snapshot runs no pass" 0 "$(claude_runs)"
+cp "$TMP/snapshot.orig" "$SCHED_SNAPSHOT"
+
+# Only lanes with a schedule object get entries.
+et_lanes work-items:work-loop
+out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+assert_not_contains "a lane with no schedule gets no schtasks entry" "$out" "schtasks /Create"
+assert_contains "a lane with no schedule is named as skipped" "$out" "work: no schedule"
+
+# Cron cannot say every 7 minutes; every 120 is every second hour.
+et_lanes work-items:work-loop '{"schedule":{"every_minutes":120}}'
+out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+assert_contains "120 minutes is the cron form every second hour" "$out" "0 */2 * * * "
+et_lanes work-items:work-loop '{"schedule":{"every_minutes":7}}'
+out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+assert_not_contains "7 minutes has no cron line" "$out" "*/7 "
+assert_contains "7 minutes points at a systemd timer instead" "$out" "OnUnitActiveSec=7min"
+
+# every_minutes is a whole number from 1 to 999. Any other value is warned
+# about (file, lane, key, value) and dropped: the lane runs unscheduled.
+ET_CONFIG="$ET_REPO/.work/lanes/lanes.json"
+for bad in '{"every_minutes":0}' '{"every_minutes":1000}' '{"every_minutes":"15"}' '{"every_minutes":1.5}' '{}' '5'; do
+  et_lanes work-items:work-loop "{\"schedule\":$bad}"
+  out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+  assert_eq "schedule $bad exits 0" 0 "$?"
+  assert_contains "schedule $bad is warned about with the file, lane, key and value" "$out" \
+    "WARNING: $ET_CONFIG: lane 'work': schedule $bad is not"
+  assert_not_contains "schedule $bad gets no schtasks entry" "$out" "schtasks /Create"
+  assert_not_contains "schedule $bad gets no cron line" "$out" "* * * "
+  assert_contains "schedule $bad leaves the lane unscheduled" "$out" "work: no schedule"
+done
+# A bad schedule on one lane leaves the other lanes' entries and other actions alone.
+jq -n '{lanes: [{name: "work", prompt: "work.md", effort: "high", schedule: {every_minutes: 0}},
+  {name: "other", prompt: "work.md", effort: "high", schedule: {every_minutes: 15}}]}' >"$ET_CONFIG"
+out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a bad schedule beside a good one exits 0" 0 "$?"
+assert_not_contains "the bad lane gets no schtasks entry" "$out" 'HarnessOps Lane work"'
+assert_contains "the good lane keeps its schtasks entry" "$out" 'schtasks /Create /TN "HarnessOps Lane other" /SC MINUTE /MO 15 '
+et_lanes work-items:work-loop '{"schedule":{"every_minutes":0}}'
+out="$(et_run run-once work --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_eq "run-once proceeds past a bad schedule" 0 "$?"
+assert_contains "run-once previews its pass despite a bad schedule" "$out" "DRY-RUN: claude -p"
+
+# An integral number written with a fraction (20.0) is the whole number 20.
+et_lanes work-items:work-loop '{"schedule":{"every_minutes":20.0}}'
+out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+assert_eq "every_minutes 20.0 exits 0" 0 "$?"
+assert_contains "every_minutes 20.0 registers every 20 minutes" "$out" 'schtasks /Create /TN "HarnessOps Lane work" /SC MINUTE /MO 20 '
+assert_contains "every_minutes 20.0 gets the 20-minute cron form" "$out" "*/20 * * * * "
+
+# A scheduled lane's name becomes a file name and a task name, so it is held
+# to letters, digits, '.', '_' and '-'.
+jq -n '{lanes: [{name: "w$(touch PWNED_SCHED)", prompt: "work.md", effort: "high", schedule: {every_minutes: 15}}]}' >"$ET_REPO/.work/lanes/lanes.json"
+out="$(et_run print-schedule --write-script --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "a scheduled lane with an unsafe name exits 1" 1 "$rc"
+assert_contains "the refusal names the allowed characters" "$out" "letters, digits"
+assert_eq "no script is written for an unsafe name" "" "$(find "$SCHED_DIR" -name 'w*PWNED*' -print 2>/dev/null)"
+et_lanes work-items:work-loop
+
+out="$(et_run start --write-script --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_eq "--write-script outside print-schedule exits 3" 3 "$?"
+
+# The Windows /TR payload stays within schtasks' 262-character limit with a
+# 120-character repository path. A cygpath stub stands in for Git Bash's.
+WIN_BIN="$TMP/win-bin"
+mkdir -p "$WIN_BIN"
+cat >"$WIN_BIN/cygpath" <<'STUB'
+#!/usr/bin/env bash
+p="$2"
+case "$p" in
+*/bash) printf '%s\n' 'C:\Program Files\Git\usr\bin\bash.exe' ;; # portability-ok: Windows path text, not a regex
+*) printf 'C:%s\n' "${p//\//\\}" ;;
+esac
+STUB
+chmod +x "$WIN_BIN/cygpath"
+tr_payload() { # the /TR value of the first schtasks /Create line, unescaped
+  grep -m1 '^schtasks /Create' <<<"$1" | sed -e 's/.* \/TR "//' -e 's/"$//' -e 's/\\"/"/g'
+}
+long_path() { # <base> <length of the Windows form> -> a path whose C:-prefixed form has that length
+  local base="$1" pad
+  pad=$(($2 - 2 - ${#base} - 1))
+  printf '%s/%s' "$base" "$(printf '%*s' "$pad" '' | tr ' ' 'r')"
+}
+# The script lives under the data directory, so its length sets the payload's.
+LR="$TMP/lr"
+mkdir -p "$LR/.work/lanes"
+printf 'You are the work lane.\n' >"$LR/.work/lanes/work.md"
+jq -n '{lanes: [{name: "work", prompt: "work.md", effort: "high", schedule: {every_minutes: 15}}]}' >"$LR/.work/lanes/lanes.json"
+LD="$(long_path "$TMP/ld" 120)"
+out="$(PATH="$WIN_BIN:$ET_PATH" bash "$SCRIPT" print-schedule --repo "$LR" --data-dir "$LD" 2>&1)"
+rc=$?
+assert_eq "print-schedule with a 120-character data directory exits 0" 0 "$rc"
+payload="$(tr_payload "$out")"
+assert_contains "the /TR payload calls bash" "$payload" "\"C:\\Program Files\\Git\\usr\\bin\\bash.exe\" \"C:${LD//\//\\}\\lanes\\" # portability-ok: Windows path text, not a regex
+assert_contains "the /TR payload names the lane's script under the data directory" "$payload" "\\scheduled\\work.sh\"" # portability-ok: Windows path text, not a regex
+assert_not_contains "the /TR payload does not point into the checkout" "$payload" "${LR//\//\\}"
+within_limit=no
+((${#payload} <= 262)) && within_limit=yes
+assert_eq "the /TR payload is at most 262 characters" "yes" "$within_limit"
+
+LD2="$(long_path "$TMP/ld" 200)"
+out="$(PATH="$WIN_BIN:$ET_PATH" bash "$SCRIPT" print-schedule --repo "$LR" --data-dir "$LD2" 2>&1)"
+rc=$?
+assert_eq "a /TR payload over 262 characters exits 1" 1 "$rc"
+assert_contains "the refusal names the limit" "$out" "262"
+assert_not_contains "no schtasks entry is printed over the limit" "$out" "schtasks /Create"
+
+pwned="$(find "$TMP" "$PWD" -maxdepth 3 -name 'PWNED*' -print 2>/dev/null | head -n 1)"
+assert_eq "no fixture string was evaluated by the shell" "" "$pwned"
 
 # ============================================================================
 echo

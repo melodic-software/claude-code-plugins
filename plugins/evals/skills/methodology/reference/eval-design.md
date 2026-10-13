@@ -1,9 +1,14 @@
 # Eval design
 
-Distilled from Anthropic's "Define success criteria and build evaluations"
-(<https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>) and the evals cookbook
-(`anthropics/claude-cookbooks` `misc/building_evals.ipynb`), both fetched 2026-08-08. Re-fetch the
-sources before treating any specific here as current.
+Distilled from Anthropic's "Define success criteria and build evaluations" and the evals cookbook
+(`anthropics/claude-cookbooks` `misc/building_evals.ipynb`).
+
+- **Pointer**: when a specific here must be current, fetch
+  [Build evaluations](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#build-evaluations)
+  and [Eval design principles](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests#eval-design-principles)
+  live.
+- **As of**: 2026-08-08 (distilled); pointer anchors verified 2026-10-11
+- **Recheck trigger**: either section is retitled, moves, or changes its design principles.
 
 This repository's own defaults and source-conflict records: [local-decisions.md](local-decisions.md).
 

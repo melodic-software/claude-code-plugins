@@ -3,6 +3,41 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.13.2] - 2026-10-11
+
+### Changed
+
+- **Shared `exec-bash.mjs` launcher synced; no change to this plugin's hooks.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once.
+
+## [3.13.1] - 2026-10-11
+
+### Fixed
+
+- The morning brief switches to REST on the cloud GitHub proxy's current GraphQL refusal text; the old pinned-set wording no longer matched, so a cloud run reported every section unreadable instead of reading it over REST.
+
+## [3.13.0] - 2026-10-11
+
+### Changed
+
+- **`/harness-ops:morning-brief` exits 6 when some sections were unreadable**, where a partial brief used to exit 0; 5 still means every section was unreadable. The status page is still built for a partial brief.
+- **The stranded-findings window reads from a per-repo bookmark.** The section reads merges since the older of `--stranded-days` ago and a bookmark under the plugin data dir, prints that bound in its header, and stops paging once results pass it. The bookmark moves to the run's `--stranded-days` floor only after a full read, so a gap between runs no longer drops a merge out of the window. The skill passes `--data-dir` explicitly, which must be an absolute path with no `..` segment or control character (else exit 3, nothing written); a symlinked bookmark is not written through. The skill pre-approves only the script in `allowed-tools`; the page builder, which writes wherever `--out` names, still asks.
+- **`/harness-ops:lanes` restart-consumer reads the telemetry issue search to the same 100-issue limit as the morning brief**, so the two keep resolving the same issue past gh's default of 30 results.
+
+### Fixed
+
+- **`/harness-ops:morning-brief` no longer renders a failed or capped read as an all-clear (#7144).** A response the script cannot parse now renders its section `UNREADABLE` instead of "(none parked)", an empty telemetry list, "(none clean right now)" or the stranded all-clear. Every capped list read prints a `PARTIAL` line when it reaches its cap: the label inventory (the queue rows are then not filtered to labels that exist), a queue count (shown as `N+`), the open-PR list, the decision list, and the telemetry issue search, which now carries an explicit limit.
+
+- read restart requests only from the lanes' write identity
+
+  restart-consumer read restart_request from any comment carrying the public
+  lane telemetry sentinel, so anyone who could comment on a telemetry issue
+  could request lane restarts (#7203). It now reads only comments written by
+  the lanes' write identity: the `gh api user` login when it reports a User,
+  `<slug>[bot]` from a new `--app-slug` option when that call fails or reports
+  a Bot, else the reported Bot login plus `[bot]`. With no identity resolved
+  the run exits 4 before reading any lane. `print-schedule` carries a passed
+  `--app-slug` into the commands it emits.
+
 ## [3.12.0] - 2026-10-11
 
 ### Added

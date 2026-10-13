@@ -12,12 +12,14 @@ PreToolUse / PostToolUse / lifecycle hook scripts.
 
 - **Matcher coverage**: does the matcher cover every tool that can perform the gated action?
   (Bash-only matchers miss a PowerShell/other-shell tool → silent bypass.)
-- **Exit-code semantics**. PreToolUse: 0 allow, 2 block; PostToolUse: 2 shows stderr to Claude.
-  Does the script use them correctly, and fail closed where blocking matters? Verify the semantics
-  against the current hooks reference, not memory.
-  Verified 2026-08-21 against [Hooks reference: Exit code output](https://code.claude.com/docs/en/hooks#exit-code-output).
-  Recheck when the hooks reference changelog or the `hooks` doc page changes in a Claude Code release
-  this repo's `official-docs.md` index records.
+- **Exit-code semantics**. Does the script use each exit code as its event defines it, and fail
+  closed where blocking matters? Grade against the live reference, never memory.
+  - **Pointer**: when grading a hook's exit codes, fetch
+    [Exit code 2 behavior per event](https://code.claude.com/docs/en/hooks#exit-code-2-behavior-per-event)
+    live.
+  - **As of**: 2026-10-11
+  - **Recheck trigger**: that section changes what an exit code does for any event, or a release
+    note names hook exit codes.
 - **Fail-open vs fail-closed** on missing deps (jq), empty/timed-out stdin, parse errors.
 - **Enablement/scope probe**: if it self-disables based on plugin enablement or settings, does it
   read the *merged effective* scopes (user-global + project + local), not just one?
@@ -49,19 +51,23 @@ permissions, not a shell script. Read the module and run `claude plugin validate
 - **Audit `calls:` as the trust boundary.** Each call must be one the component's stated purpose
   needs. Flag any capability with no use the plugin documents, above all: `$.fs.write`,
   `$.process.run`/`$.process.spawn`, `$.http.fetch`, `$.env.set`, `$.mcp.call`,
-  `$.model.complete`, `$.prompt.submit`, `$.session.send`. In `hooks:`, `tool.call` and
-  `prompt.submit` see and can change every tool call and prompt, and `tool.check` can approve a
-  call before a permission prompt; each needs the same justification.
+  `$.model.complete`, `$.prompt.submit`, `$.session.send`. In `hooks:`, `tool.call`,
+  `prompt.submit` and `tool.check` need the same justification. What each call and event can do is
+  read at the pointer below, never from this list.
 - **Compare code to declaration.** A call the source makes that `calls:` omits means the static
-  analysis could not read it, and Claude Code refuses to load such a module.
+  analysis could not read it; what Claude Code does with such a module at load is read at the
+  pointer below.
 
-**Claim:** the output shape above, and the call and event meanings. **Basis:**
-[mods admin](https://code.claude.com/docs/en/plugins/mods/admin) "Review what a mod can do" and
-[mods create](https://code.claude.com/docs/en/plugins/mods/create) "Check what Claude Code reads
-from your mod", fetched as raw markdown 2026-10-01; the `notes` placement was observed by running
-`claude plugin validate --json` on a throwaway mod with Claude Code 2.1.287 the same day. **As
-of:** 2026-10-01. **Recheck:** either section's call table or sample output changes, or a release
-note changes `plugin validate` output.
+The `notes` placement above was observed by running `claude plugin validate --json` on a
+throwaway mod with Claude Code 2.1.287 on 2026-10-01.
+
+- **Pointer**: when grading a mod's calls and events, or the validator's output shape, fetch
+  [Review what a mod can do](https://code.claude.com/docs/en/plugins/mods/admin#review-what-a-mod-can-do)
+  and [Check what Claude Code reads from your mod](https://code.claude.com/docs/en/plugins/mods/create#check-what-claude-code-reads-from-your-mod)
+  live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: either section's call table or sample output changes, or a release note
+  changes `plugin validate` output or mod loading.
 
 **Claim:** loading `plugin-authoring` writes the declarations into that skill's own folder for the
 current process, and a subagent without the Skill tool cannot load it. **Basis:** the skill's

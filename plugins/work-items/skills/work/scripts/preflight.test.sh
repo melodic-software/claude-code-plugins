@@ -178,22 +178,24 @@ write_settings "$CFG7B" \
   '["Bash(git add *)","Bash(git commit --amend)","Bash(git push --force-with-lease *)","Bash(gh pr create *)","Bash(gh issue comment *)"]'
 OUT=$(run "$REPO" "$CFG7B")
 assert_contains "flag-specific commit rule leaves git commit a gap" "$OUT" "'git commit'"
-assert_contains "flag-specific push rule leaves git push a gap" "$OUT" "'git push'"
+# The lane never runs `git push`: every push is `bash <plugin-root>/scripts/lane-push.sh …`
+# (loop-lane convention, "Lane write identity"), so no git push rule is probed.
+assert_not_contains "git push is not probed" "$OUT" "'git push'"
 assert_not_contains "the open gh pr create rule is not a gap" "$OUT" "'gh pr create'"
-assert_eq "two flag-masked verbs → two (b) gaps" "2" "$(run "$REPO" "$CFG7B" --count)"
+assert_eq "one flag-masked probed verb → one (b) gap" "1" "$(run "$REPO" "$CFG7B" --count)"
 
 # --- Case 7c: a bare-exact allow is not coverage, with a nuanced gap message -
 CFG7C="$TEST_TMPDIR/cfg7c"
-# Bash(git push) permits only the argumentless command (which babysit's fix cycle
-# does run) but not the work lane's argument-carrying call, so it is still a GAP —
-# reported with that nuance, not the generic missing-allow message.
+# Bash(git commit) permits only the argumentless command but not the work lane's
+# argument-carrying call, so it is still a GAP — reported with that nuance, not
+# the generic missing-allow message.
 write_settings "$CFG7C" \
-  '["Bash(git add *)","Bash(git commit *)","Bash(git push)","Bash(gh pr create *)","Bash(gh issue comment *)"]'
+  '["Bash(git add *)","Bash(git commit)","Bash(gh pr create *)","Bash(gh issue comment *)"]'
 OUT=$(run "$REPO" "$CFG7C")
-assert_contains "bare-only push is still a gap" "$OUT" "'git push'"
+assert_contains "bare-only commit is still a gap" "$OUT" "'git commit'"
 assert_contains "gap names the bare-exact-only case" "$OUT" "bare-exact allow rule"
 assert_contains "gap points at the open-glob remedy" "$OUT" "Grant the open glob"
-assert_not_contains "bare-only push not the generic missing-allow message" "$OUT" "no Bash()/PowerShell() allow rule covers 'git push'"
+assert_not_contains "bare-only commit not the generic missing-allow message" "$OUT" "no Bash()/PowerShell() allow rule covers 'git commit'"
 assert_eq "bare-only allow → one gap" "1" "$(run "$REPO" "$CFG7C" --count)"
 
 # --- Case 8: worktree root not covered → GAP (c) ----------------------------
@@ -318,7 +320,7 @@ jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$PROJ3/.claude/settings
 assert_eq "interactive path reads local grant → no gap" "0" "$(run "$REPO3" "$CFG16" --count)"
 OUT=$(run "$REPO3" "$CFG16" --worktree-root "$POSIX_CHILD")
 assert_contains "header states the main-local inclusion basis" "$OUT" \
-  "includes this main checkout's settings.local.json: since Claude Code v2.1.211"
+  "includes this main checkout's settings.local.json: where approvals save at the repository root"
 assert_eq "autonomous path reads the main checkout's local grant → no gap" "0" "$(run "$REPO3" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
 
 # --- Case 16b: a linked worktree's OWN local file is still excluded ----------
@@ -360,9 +362,9 @@ CFG16D="$TEST_TMPDIR/cfg16d"
 write_settings "$CFG16D" \
   '["Bash(git add *)","Bash(git commit *)","Bash(git push *)","Bash(gh pr create *)","Bash(gh issue comment *)"]' \
   "$WIN_ROOT"
-jq -n '{permissions:{deny:["Bash(git push *)"]}}' >"$PROJ3/.claude/settings.local.json"
+jq -n '{permissions:{deny:["Bash(git commit *)"]}}' >"$PROJ3/.claude/settings.local.json"
 OUT=$(run "$WT16" "$CFG16D" --worktree-root "$POSIX_CHILD")
-assert_contains "main-local deny reaches a worktree run" "$OUT" "'git push'"
+assert_contains "main-local deny reaches a worktree run" "$OUT" "'git commit'"
 assert_contains "main-local deny carries the DENIED message" "$OUT" "is DENIED"
 assert_eq "main-local deny → exactly one gap" "1" "$(run "$WT16" "$CFG16D" --count --worktree-root "$POSIX_CHILD")"
 
@@ -373,12 +375,12 @@ assert_eq "main-local deny → exactly one gap" "1" "$(run "$WT16" "$CFG16D" --c
 # probe because it is the masking direction: a dropped deny under-reports.
 #
 # plant_main_deny <checkout> — the main checkout's local file carries a deny and
-# nothing else, so any report of 'git push' proves that file was read.
+# nothing else, so any report of 'git commit' proves that file was read.
 plant_main_deny() {
   mkdir -p "$1/.claude"
-  jq -n '{permissions:{deny:["Bash(git push *)"]}}' >"$1/.claude/settings.local.json"
+  jq -n '{permissions:{deny:["Bash(git commit *)"]}}' >"$1/.claude/settings.local.json"
 }
-# CFGRES allows all five verbs and trusts the filesystem root, so ONLY a deny can
+# CFGRES allows every probed verb and trusts the filesystem root, so ONLY a deny can
 # produce a gap — a nonzero count means the main-local layer reached the read.
 CFGRES="$TEST_TMPDIR/cfg-res"
 mkdir -p "$CFGRES"

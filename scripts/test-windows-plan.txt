@@ -31,6 +31,7 @@ test-windows-hooks lib/write-snapshot.test.mjs lib/write-snapshot.test.mjs lib/w
 test-windows-hooks plugins/developer-experience/skills/setup/scripts/pointer-line.test.sh
 test-windows-lib plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
 test-windows-lib lib/hook-utils.test.sh
+test-windows-lib plugins/code-tidying/skills/audit-comment-residue/scripts/detect.test.sh
 test-windows-lib plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1 plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.test.sh
 test-windows-lib plugins/kindle-dedrm/skills/manage/tests plugins/kindle-dedrm/*.Tests.ps1
 test-windows-worktree plugins/source-control/scripts/worktree-claim.test.sh
