@@ -3085,7 +3085,7 @@ rdt_scan_substitutions() {
         # body to a reader of data under a plain quoted word, makes it inert;
         # see rdt_hd_plain. A word with `$` or `\` inside quotes is one this
         # parser could end in the wrong place, so its body is scanned.
-        if ! [[ -z "$nested" && hcmt -lt 0 && "$pre" == "$hfull" &&"${s:hstart:i-hstart}" =~ $hd_word_re ]] ||
+        if ! [[ -z "$nested" && hcmt -lt 0 && "$pre" == "$hfull" && "${s:hstart:i-hstart}" =~ $hd_word_re ]] ||
           ! { ((pd == 0)) && rdt_hd_plain "$pre" && rdt_hd_reader "$pre"; }; then
           hq=0
         fi
