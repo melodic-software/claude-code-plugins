@@ -125,6 +125,11 @@ while IFS= read -r -d '' status && IFS= read -r -d '' path; do
   plugins/*/.claude-plugin/plugin.json)
     rest="${path#plugins/}"
     name="${rest%%/*}"
+    # * matches /, so a nested manifest (an eval fixture) is an ordinary plugin file
+    [[ "$rest" == "$name/.claude-plugin/plugin.json" ]] || {
+      shipped["$name"]=1
+      continue
+    }
     if [[ "$(manifest_version "$merge_base" "$path")" != "$(manifest_version "$head_commit" "$path")" ]]; then
       bumped["$name"]=1
       [[ -n "$release_pr" ]] || shipped["$name"]=1
