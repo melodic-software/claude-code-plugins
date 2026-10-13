@@ -1056,7 +1056,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function reconfirmOf(q){ // on a stale question, the kept decision re-armed exactly
     const d = isStale(q) && decisionOf(q), k = d && d.decision;
     if (!["accept", "alt", "own", "defer", "hedged"].includes(k)) return null;
-    if (k === "accept" && (q.history || []).some(h => h.pageSeq != null && (d.seq != null ? h.pageSeq >= d.seq : d.rev != null && h.rev > d.rev))) return null; // the recommendation changed since this accept: pick Rec instead
+    if (k === "accept" && (q.history || []).some(h => h.pageSeq != null && (d.seq != null ? h.pageSeq >= d.seq : d.rev != null ? h.rev > d.rev : false && !!h.at &&String(h.at) >= String(d.updatedAt)))) return null; // the recommendation changed since this accept (by seq, rev, or time for an older terminal record): pick Rec instead
     const a = (q.alternatives || []).find(x => x.key === d.alt);
     if (k === "alt" && a && !altsOf(q).includes(a)) return {re: true, kind: "accept", alt: null, keep: d.text || "", label: "Reconfirm", text: "the recommendation"};
     if (k === "alt" && !a) return null; // a revise removed the kept alternative: nothing to reconfirm

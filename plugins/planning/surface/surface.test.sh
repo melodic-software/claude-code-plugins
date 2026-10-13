@@ -401,6 +401,9 @@ if command -v playwright-cli >/dev/null 2>&1; then
   printf '%s' '{"ops": [{"op": "add", "question": {"id": "Q9", "group": "g1", "stage": "interview", "short": "Notes owner", "title": "Who writes the release notes?", "recommendation": "The release owner.", "dependsOn": ["Q8"], "commits": [], "alternatives": [{"key": "a", "text": "Each author"}, {"key": "b", "text": "Nobody"}]}},
     {"op": "record-terminal", "id": "Q9", "decision": "accept"}]}' >"$pg/ops/t.json"
   bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/t.json" >/dev/null || bad "page: add and record-terminal refused"
+  # An older terminal record has no rev: strip it, then revise Q9 so only the time orders the two.
+  "$py" -c 'import json, sys; p = sys.argv[1]; d = json.load(open(p)); [q["terminal"].pop("rev", None) for q in d["questions"] if q["id"] == "Q9"]; json.dump(d, open(p, "w"))' "$pg/questions.json"
+  grev Q9 --rec "The release owner, with the support lead."
   grun 10
   bash "$here/round.sh" --dir "$pg" stop >/dev/null 2>&1
   grade ui_a "$tmp/ui_a.out"
@@ -411,7 +414,7 @@ if command -v playwright-cli >/dev/null 2>&1; then
   for n in 1 2 3 4; do grade "ui_live.$n" "$tmp/ul$n.out"; done
   for n in $(seq 1 "$gphases"); do grade "ui_page.$n" "$tmp/up$n.out"; done
 else
-  browser=549 journey=228
+  browser=550 journey=228
   echo "SKIP: $browser browser checks not run, $journey of them the journey (playwright-cli not found)" # silent-skip-ok: browser checks need a local playwright-cli # discriminating-skip-ok: the API, watcher and hygiene checks above still grade this suite
   skip=$((skip + browser))
 fi

@@ -142,6 +142,8 @@ async page => { // the question page itself: choices, chips, banners, header and
     await pick("Q9");
     const b9 = await text("#dscroll .banner");
     ok("#5908: a terminal decision whose prerequisite's earlier page decision was replaced reads 'changed'", /Stale: Q8Notes changed\./.test(b9) && !/decided after you answered/.test(b9), b9);
+    const c9 = await page.$$eval("#choices .choice", els => els.map(e => e.textContent));
+    ok("#5910: an older terminal accept (no rev) whose recommendation changed after it offers no Reconfirm", c9.length > 0 && !c9.some(t => /Reconfirm/.test(t)) && /support lead/.test(await text("#choices .choice.rec")), JSON.stringify(c9));
   }
   ok("zero console errors in phase " + PHASE, errors.length === 0, errors.join(" | "));
   } catch (e) { R.push("ERROR " + e.message.split("\n")[0]); }
