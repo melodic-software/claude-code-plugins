@@ -31,12 +31,15 @@ copies sit far apart in the list is still found. Both majors read `path`
 from a config file the way they read positional paths (verified 2026-10-11
 against jscpd 4.3.0 over 150 shell files and 5.4.1 over 1,590: each gave
 the same report either way; the config keys are in the `Config File` section of
-`docs/rust.md` upstream and of the `master-v4` README; recheck when a major
-above 5 ships or either section stops listing `path`). Every other option
-stays on the command line, which wins over a config file. Passing `--config`
-also stops jscpd's own config discovery, so a consumer's `.jscpd.json` (or
-`package.json` `jscpd` key) no longer reaches the scan: the run is set by
-this plugin's configuration alone.
+`docs/rust.md` upstream and of `apps/jscpd/README.md` on `master-v4`; recheck
+when a major above 5 ships or either section stops listing `path`). Every
+other option stays on the command line, which wins over a config file.
+Passing `--config` also stops jscpd's own discovery of `.jscpd.json`, so a
+consumer's `.jscpd.json` no longer reaches the scan. 5.x also skips the
+`package.json` `jscpd` key; 4.x still merges that key under the config file
+and the command line (`apps/jscpd/src/options.ts` on `master-v4`, read
+2026-10-13; recheck when 4.x is dropped), so on 4.x a key the adapter does
+not set there still applies.
 
 Each duplicate becomes one clone-group row: `file` and `function` are null,
 `instances[]` carries every copy with its line range, and `values` carries
