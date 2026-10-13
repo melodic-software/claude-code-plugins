@@ -1,5 +1,8 @@
 {
   "pullListItem": {
+    "base": {
+      "ref": "main"
+    },
     "body": "Refs: #7339",
     "labels": [],
     "created_at": "2026-10-13T00:54:35Z",
@@ -141,6 +144,41 @@
   },
   "repo": {
     "default_branch": "main"
+  },
+  "connectedEventFromCliCli14616": {
+    "__typename": "ConnectedEvent",
+    "createdAt": "2026-10-07T08:24:54Z",
+    "source": {
+      "__typename": "PullRequest",
+      "number": 14616
+    },
+    "subject": {
+      "__typename": "Issue",
+      "number": 14614
+    }
+  },
+  "pullNotFound": {
+    "data": {
+      "repository": {
+        "pullRequest": null
+      }
+    },
+    "errors": [
+      {
+        "type": "NOT_FOUND",
+        "path": [
+          "repository",
+          "pullRequest"
+        ],
+        "locations": [
+          {
+            "line": 1,
+            "column": 66
+          }
+        ],
+        "message": "Could not resolve to a PullRequest with the number of 999999."
+      }
+    ]
   },
   "workflowRun": {
     "actor": {

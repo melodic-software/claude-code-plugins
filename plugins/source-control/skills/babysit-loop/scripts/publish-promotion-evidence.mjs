@@ -45,7 +45,8 @@
 // - reverted-merge: an autonomous C2/C3 merge named by a merged PR body or a default-branch
 //   commit as `Reverts <owner/repo>#<n>` (GitHub's revert button) or `This reverts commit
 //   <sha>` (git revert); one event per reverted merge, at the earliest revert seen. A merged PR
-//   titled revert... with neither form is listed in unresolvedReverts for a human to read.
+//   titled revert... with neither form is listed in unresolvedReverts for a human to read, as is
+//   a named target that is not a merged pull request, so a bad reference cannot stop a publish.
 // - gate-failure: only the post-merge gate counts: check runs and commit-status contexts on an
 //   autonomous merge's merge commit whose name is a --gate-check (required; none named is a
 //   usage error, never an empty gate). In this repository babysit-prs/scripts/babysit_postmerge.py
@@ -106,9 +107,19 @@ function realGh(path, graphql) {
     ? ["api", "graphql", "-f", `query=${graphql.query}`, ...Object.entries(graphql.variables).flatMap(([key, value]) => ["-F", `${key}=${value}`])]
     : ["api", "--method", "GET", path];
   const run = spawnSync("gh", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-  if (run.status !== 0) throw new PublishError(`gh api ${path} failed: ${(run.stderr || run.error?.message || "").trim()}`);
+  if (run.status !== 0) {
+    // A GraphQL NOT_FOUND (a number that is no pull request) is an answer, not a read failure.
+    let body = null;
+    try {
+      body = JSON.parse(run.stdout);
+    } catch {}
+    if (graphql && Array.isArray(body?.errors) && body.errors.length > 0 && body.errors.every((e) => e?.type === "NOT_FOUND")) return body;
+    throw new PublishError(`gh api ${path} failed: ${(run.stderr || run.error?.message || "").trim()}`);
+  }
   return JSON.parse(run.stdout);
 }
+
+export class NotMergedError extends PublishError {}
 
 const PULL_QUERY =
   "query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){" +
@@ -167,49 +178,43 @@ function eventKey(event) {
 // The post-merge gate's workflow runs, read as babysit-prs/scripts/babysit_postmerge.py check()
 // and _judge() read them (same plugin, mirrored rather than imported across languages):
 // FULL_RUN_WORKFLOW runs from `schedule` and `workflow_dispatch`, and CANARY_WORKFLOW runs from
-// `push`, on the default branch, created at or after a merge on a SHA that contains it. Attempt 1
-// decides; a red full run is a flake only when a lane identity's attempt 2 passed. A merge is
-// verified at the later of its first green lane dispatch run and first green canary run, and runs
-// created after that are not its evidence. Two departures, both toward a failure: a red full run
-// whose re-run has not come counts as red once DISPATCH_DEADLINE has passed since it completed
-// (check() waits on it), and a red run covering several merges is a failure of each.
+// `push`, on the default branch, created at or after a merge (no upper bound), on a SHA that
+// contains it: compare <merge>...<run SHA>, as _Context.contains does. Attempt 1 decides; a red
+// full run is a flake only when a lane identity's attempt 2 passed. A merge is verified at the
+// later of its first green lane dispatch run and first green canary run, and runs created after
+// that are not its evidence; only a verified merge with nothing red or pending passes the gate,
+// so a merge with no lane dispatch run (check()'s 6-hour failure) stays unsettled. Departures,
+// all toward a failure: a compare that is neither ahead nor identical refuses the publish
+// (check() reads it as not containing); a red full run whose re-run has not come counts as red
+// once DISPATCH_DEADLINE has passed since it completed (check() waits on it); a red run covering
+// several merges is a failure of each.
 const FULL_RUN_WORKFLOW = "pr-require-checks.yml";
 const CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml";
 const DISPATCH_DEADLINE_MS = 6 * 3_600_000;
 
-function postMergeRuns(gh, repo, merges, { lane, throughMs }) {
-  if (merges.length === 0) return () => ({ failures: [], unsettled: false, green: 0 });
-  const branch = gh(`repos/${repo}`)?.default_branch;
-  if (!branch) throw new PublishError(`gh api repos/${repo}: no default_branch`);
-  const ordered = [...merges].sort((a, b) => Date.parse(a.mergedAt) - Date.parse(b.mergedAt));
-  const floor = Date.parse(ordered[0].mergedAt);
+function postMergeRuns(gh, repo, branch, merges, { lane, throughMs }) {
+  if (merges.length === 0) return () => ({ failures: [], unsettled: false, verified: false });
+  const floor = Math.min(...merges.map((m) => Date.parse(m.mergedAt)));
   const created = encodeURIComponent(`>=${new Date(floor).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
+  const byCreated = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at);
   const list = (workflow, event) =>
     pages(gh, `repos/${repo}/actions/workflows/${workflow}/runs?event=${event}&branch=${encodeURIComponent(branch)}&created=${created}`, "workflow_runs")
-      .filter((run) => run.head_branch === branch && Date.parse(run.created_at) >= floor && Date.parse(run.created_at) <= throughMs)
+      .filter((run) => run.head_branch === branch && Date.parse(run.created_at) >= floor)
       .map((run) => ({ ...run, check: `${workflow} ${event}` }));
-  const fullRuns = [...list(FULL_RUN_WORKFLOW, "schedule"), ...list(FULL_RUN_WORKFLOW, "workflow_dispatch")];
-  const canaryRuns = list(CANARY_WORKFLOW, "push");
+  const fullRuns = [...list(FULL_RUN_WORKFLOW, "schedule"), ...list(FULL_RUN_WORKFLOW, "workflow_dispatch")].sort(byCreated);
+  const canaryRuns = list(CANARY_WORKFLOW, "push").sort(byCreated);
 
-  // Containment from one base, the earliest merge: on a linear (merge-queue) branch a later merge
-  // is in a run's history exactly when it is among the commits the run's SHA is ahead by.
-  const base = ordered[0].sha;
-  const aheadOf = new Map();
+  const compares = new Map();
   const contains = (sha, runSha) => {
-    if (!aheadOf.has(runSha)) {
-      const shas = new Set();
-      let status = null;
-      for (let page = 1; ; page += 1) {
-        const body = gh(`repos/${repo}/compare/${base}...${runSha}?per_page=${PAGE}&page=${page}`);
-        if (!Array.isArray(body?.commits)) throw new PublishError(`gh api compare ${base}...${runSha}: no commits array`);
-        status ??= body.status;
-        for (const commit of body.commits) shas.add(commit.sha);
-        if (body.commits.length < PAGE) break;
+    const key = `${sha}...${runSha}`;
+    if (!compares.has(key)) {
+      const status = gh(`repos/${repo}/compare/${key}?per_page=1&page=1`)?.status;
+      if (status !== "ahead" && status !== "identical") {
+        throw new PublishError(`refusing to publish: compare ${key} is ${JSON.stringify(status)}, so whether that post-merge run contains the merge is unknown`);
       }
-      aheadOf.set(runSha, { status, shas });
+      compares.set(key, true);
     }
-    const { status, shas } = aheadOf.get(runSha);
-    return sha === base ? status === "ahead" || status === "identical" : shas.has(sha);
+    return compares.get(key);
   };
 
   const outcomes = new Map();
@@ -235,27 +240,28 @@ function postMergeRuns(gh, repo, merges, { lane, throughMs }) {
     return outcomes.get(key);
   };
 
+  // Compares run only where the answer can change the verdict: a red or pending run, a green lane
+  // dispatch run, and a green canary run once a lane dispatch has verified half the merge.
   return (merge) => {
     const mergedMs = Date.parse(merge.mergedAt);
-    const relevant = (run) => Date.parse(run.created_at) >= mergedMs && contains(merge.sha, run.head_sha);
-    const fulls = fullRuns.filter(relevant);
-    const canaries = canaryRuns.filter(relevant);
-    const earliest = (runs) => Math.min(...runs.map((run) => Date.parse(run.created_at)));
-    const greenDispatch = fulls.filter(
-      (run) => run.event === "workflow_dispatch" && lane.has(loginKey(run.actor?.login)) && ["green", "flake"].includes(outcome(run, true).state),
+    const after = (runs) => runs.filter((run) => Date.parse(run.created_at) >= mergedMs);
+    const relevant = (run) => contains(merge.sha, run.head_sha);
+    const fulls = after(fullRuns);
+    const canaries = after(canaryRuns);
+    const dispatch = fulls.find(
+      (run) => run.event === "workflow_dispatch" && lane.has(loginKey(run.actor?.login)) && ["green", "flake"].includes(outcome(run, true).state) && relevant(run),
     );
-    const greenCanary = canaries.filter((run) => outcome(run, false).state === "green");
-    const verifiedAt = greenDispatch.length && greenCanary.length ? Math.max(earliest(greenDispatch), earliest(greenCanary)) : Number.POSITIVE_INFINITY;
-    const result = { failures: [], unsettled: false, green: 0 };
+    const canary = dispatch && canaries.find((run) => outcome(run, false).state === "green" && relevant(run));
+    const verifiedAt = canary ? Math.max(Date.parse(dispatch.created_at), Date.parse(canary.created_at)) : Number.POSITIVE_INFINITY;
+    const result = { failures: [], unsettled: false, verified: Boolean(canary) };
     for (const [runs, attributable] of [
       [fulls, true],
       [canaries, false],
     ]) {
       for (const run of runs.filter((r) => Date.parse(r.created_at) <= verifiedAt)) {
         const { state, conclusion } = outcome(run, attributable);
-        if (state === "red") result.failures.push({ check: run.check, conclusion, at: run.updated_at });
-        else if (state === "pending") result.unsettled = true;
-        else result.green += 1;
+        if (state === "red" && relevant(run)) result.failures.push({ check: run.check, conclusion, at: run.updated_at });
+        else if (state === "pending" && relevant(run)) result.unsettled = true;
       }
     }
     return result;
@@ -279,9 +285,12 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     events.set(eventKey(record), record);
   };
 
-  // Created-ascending order is stable while paging: an update moves no PR between pages.
+  const branch = gh(`repos/${repo}`)?.default_branch;
+  if (!branch) throw new PublishError(`gh api repos/${repo}: no default_branch`);
+  // Merges into the default branch only (babysit_postmerge.py _merged_since). Created-ascending
+  // order is stable while paging: an update moves no PR between pages.
   const seen = new Set();
-  const merged = pages(gh, `repos/${repo}/pulls?state=closed&sort=created&direction=asc`).filter(
+  const merged = pages(gh, `repos/${repo}/pulls?state=closed&base=${encodeURIComponent(branch)}&sort=created&direction=asc`).filter(
     (pr) => inWindow(pr.merged_at) && !seen.has(pr.number) && seen.add(pr.number),
   );
 
@@ -302,9 +311,14 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     for (const issue of onePage(g.closingIssuesReferences, `closingIssuesReferences of #${g.number}`)) {
       linked.set(issue.number, onePage(issue.labels, `labels of issue #${issue.number}`).map((label) => label?.name));
     }
+    // A ConnectedEvent on a PR timeline names the issue as `subject` (recorded from cli/cli #14616);
+    // any other shape after the merge leaves the links unknown.
     const laterLinks = timeline
-      .filter((e) => ["ConnectedEvent", "DisconnectedEvent"].includes(e.__typename) && e.subject?.__typename === "Issue" && Date.parse(e.createdAt) > atMs)
+      .filter((e) => ["ConnectedEvent", "DisconnectedEvent"].includes(e.__typename) && Date.parse(e.createdAt) > atMs)
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+    if (laterLinks.some((e) => e.subject?.__typename !== "Issue" || !Number.isInteger(e.subject.number))) {
+      return { cls: null, reason: "a link event after the merge has an unrecognized shape: links unknown" };
+    }
     for (const e of laterLinks) {
       if (e.__typename === "ConnectedEvent") linked.delete(e.subject.number);
       else if (!linked.has(e.subject.number)) linked.set(e.subject.number, (gh(`repos/${repo}/issues/${e.subject.number}`).labels ?? []).map((label) => label?.name));
@@ -328,7 +342,7 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
   const record = (number) => {
     if (!details.has(number)) {
       const g = gh("graphql", { query: PULL_QUERY, variables: { owner, name, number } })?.data?.repository?.pullRequest;
-      if (!g?.mergedAt) throw new PublishError(`gh api graphql: pull request #${number} unreadable or not merged`);
+      if (!g?.mergedAt) throw new NotMergedError(`#${number} is not a merged pull request`);
       const timeline = onePage(g.timelineItems, `timeline of #${number}`);
       details.set(number, { number, ...classAtMerge(g, timeline), autonomous: autonomousOf(g, timeline), mergedAt: g.mergedAt, sha: g.mergeCommit?.oid, reverted: false });
     }
@@ -369,19 +383,29 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     if (number === undefined) {
       const known = bySha.get(revert.sha);
       number = known ? known.number : gh(`repos/${repo}/commits/${revert.sha}/pulls`).find((pr) => pr.merged_at)?.number;
-      if (number === undefined) continue;
+      if (number === undefined) {
+        unresolvedReverts.push({ target: revert.sha, reason: "no merged pull request for this commit" });
+        continue;
+      }
     }
     if (!firstRevert.has(number) || Date.parse(revert.at) < Date.parse(firstRevert.get(number))) firstRevert.set(number, revert.at);
   }
   for (const [number, at] of firstRevert) {
-    const target = record(number);
+    let target;
+    try {
+      target = record(number);
+    } catch (error) {
+      if (!(error instanceof NotMergedError)) throw error;
+      unresolvedReverts.push({ target: number, reason: "not a merged pull request" });
+      continue;
+    }
     if (target.autonomous && (["C2", "C3"].includes(target.cls) || target.cls === null)) {
       target.reverted = true;
       for (const cell of cellsOf(target)) addEvent(cell, "reverted-merge", at);
     }
   }
 
-  const judgeWorkflows = postMergeRuns(gh, repo, tracked.filter((c) => c.autonomous), { lane, throughMs });
+  const judgeWorkflows = postMergeRuns(gh, repo, branch, tracked.filter((c) => c.autonomous), { lane, throughMs });
 
   // Post-merge gate on each autonomous merge commit: the --gate-check runs and status contexts.
   // A run that did not finish green or red (cancelled, action_required, stale) fails the gate
@@ -416,8 +440,9 @@ export function collect({ repo, since, through, laneLogins, gateChecks, aiReview
     for (const status of [...statuses].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))) {
       if (!latest.has(status.context)) latest.set(status.context, status.state);
     }
+    // Passed only where check() would call the merge verified, with nothing pending.
     const settled =
-      runs.length + latest.size + wf.green > 0 &&
+      wf.verified &&
       !wf.unsettled &&
       runs.every((run) => outcome(run) === "ok") &&
       [...latest.values()].every((state) => state === "success");

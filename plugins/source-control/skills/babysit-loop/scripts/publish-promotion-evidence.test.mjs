@@ -34,12 +34,14 @@ const page1 = (nodes, hasNextPage = false) => ({ pageInfo: { hasNextPage }, node
 // REC.pullGraph: PR #7063, which closes issue #6007 (labeled `work-class: scoped`).
 const ISSUE_6007 = REC.pullGraph.data.repository.pullRequest.closingIssuesReferences.nodes;
 const queued = (at, enqueuer, actor = enqueuer) => ({ __typename: "AddedToMergeQueueEvent", createdAt: at, actor: actorOf(actor), enqueuer: actorOf(enqueuer) });
-const link = (type, issue, at) => ({ __typename: type, createdAt: at, subject: { __typename: "Issue", number: issue } });
+// The shape of a real ConnectedEvent on a PR timeline (cli/cli #14616): `subject` is the issue.
+const LINK = REC.connectedEventFromCliCli14616;
+const link = (type, issue, at) => ({ ...LINK, __typename: type, createdAt: at, subject: { ...LINK.subject, number: issue } });
 
 function pr(
   number,
   mergedAt,
-  { labels = [], merger = LANE, title = REC.pullListItem.title, body = REC.pullListItem.body, linked = [], timeline = [], lastEditedAt = null, patch = {} } = {},
+  { labels = [], merger = LANE, title = REC.pullListItem.title, body = REC.pullListItem.body, linked = [], timeline = [], lastEditedAt = null, patch = {}, base = "main" } = {},
 ) {
   const names = labels.map((name) => ({ name }));
   return {
@@ -57,6 +59,7 @@ function pr(
     },
     list: {
       ...REC.pullListItem,
+      base: { ...REC.pullListItem.base, ref: base },
       number,
       title,
       body,
@@ -78,7 +81,9 @@ const labelEvent = (event, name, at, login = "kyle-sexton", type = "User") => ({
 // `workflowRuns`: {<workflow file>: [run]}; `attempts`: {<run id>: {<n>: run}}; `history`: the
 // default branch's commits oldest first (linear, as a merge-queue branch is), defaulting to the
 // merge commits in merge order.
-function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, workflowRuns = {}, attempts = {}, history, bumpOnPage2 }) {
+// `diverged`: head SHAs a compare reports as diverged. A PR number not in `pulls` answers with the
+// recorded NOT_FOUND response.
+function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issueEvents = {}, reviews = {}, issues = {}, workflowRuns = {}, attempts = {}, history, diverged = [], bumpOnPage2 }) {
   const branch = history ?? [...pulls].sort((a, b) => a.graph.mergedAt.localeCompare(b.graph.mergedAt)).map((p) => p.graph.mergeCommit.oid);
   const page = (items, path) => {
     const n = Number(/[?&]page=(\d+)/.exec(path)[1]);
@@ -90,18 +95,20 @@ function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issue
       assert.deepEqual([graphql.variables.owner, graphql.variables.name], REPO.split("/"));
       assert.match(graphql.query, /^query\(/);
       assert.doesNotMatch(graphql.query, /mutation/);
-      return { data: { repository: { pullRequest: pulls.find((p) => p.graph.number === graphql.variables.number).graph } } };
+      const found = pulls.find((p) => p.graph.number === graphql.variables.number);
+      return found ? { data: { repository: { pullRequest: found.graph } } } : REC.pullNotFound;
     }
     if (path === `repos/${REPO}`) return REC.repo;
     const prefix = `repos/${REPO}/`;
     assert.ok(path.startsWith(prefix), path);
     const rest = path.slice(prefix.length);
     let m;
-    if ((m = /^pulls\?state=closed&sort=(created|updated)&direction=(asc|desc)&/.exec(rest))) {
+    if ((m = /^pulls\?state=closed(?:&base=([\w.-]+))?&sort=(created|updated)&direction=(asc|desc)&/.exec(rest))) {
       if (bumpOnPage2 && /[?&]page=2\b/.test(rest)) pulls.find((p) => p.list.number === bumpOnPage2).list.updated_at = "2026-10-04T00:00:00Z";
-      const key = m[1] === "created" ? "created_at" : "updated_at";
-      const sign = m[2] === "asc" ? 1 : -1;
-      return page(pulls.map((p) => p.list).sort((a, b) => sign * a[key].localeCompare(b[key])), rest);
+      const key = m[2] === "created" ? "created_at" : "updated_at";
+      const sign = m[3] === "asc" ? 1 : -1;
+      const listed = pulls.map((p) => p.list).filter((p) => !m[1] || p.base.ref === m[1]);
+      return page(listed.sort((a, b) => sign * a[key].localeCompare(b[key])), rest);
     }
     if ((m = /^issues\/(\d+)$/.exec(rest))) return issues[m[1]];
     if ((m = /^pulls\/(\d+)\/reviews\?/.exec(rest))) return page(reviews[m[1]] ?? [], rest);
@@ -120,7 +127,7 @@ function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}, issue
     if ((m = /^compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})\?/.exec(rest))) {
       const [base, head] = [branch.indexOf(m[1]), branch.indexOf(m[2])];
       assert.ok(base >= 0 && head >= 0, `compare outside the recorded history: ${rest}`);
-      const status = head > base ? "ahead" : head === base ? "identical" : "behind";
+      const status = diverged.includes(m[2]) ? "diverged" : head > base ? "ahead" : head === base ? "identical" : "behind";
       const ahead = head > base ? branch.slice(base + 1, head + 1).map((sha) => ({ sha })) : [];
       return { ...REC.compare, status, ahead_by: ahead.length, total_commits: ahead.length, commits: page(ahead, rest) };
     }
@@ -153,6 +160,11 @@ const wfRun = (id, event, sha, created, { conclusion = "success", status = "comp
   triggering_actor: { login: triggering },
 });
 const gateEvents = (at, ...cells) => cells.map((cell) => ({ cell, event: "gate-failure", at }));
+// A green lane dispatch run and a green canary run on `tip`: check() calls each merge they contain
+// verified.
+const TIP = shaOf(0xf1f1);
+const verifiedOn = (tip, at) => ({ [FULL]: [wfRun(9001, "workflow_dispatch", tip, at, { actor: LANE })], [CANARY]: [wfRun(9002, "push", tip, at)] });
+const mergeOrder = (pulls) => [...pulls].sort((a, b) => a.graph.mergedAt.localeCompare(b.graph.mergedAt)).map((p) => p.graph.mergeCommit.oid);
 
 test("a red full run on a later SHA containing two merges yields gate-failure for each", () => {
   const tip = shaOf(0xa001);
@@ -171,17 +183,69 @@ test("a red full run on a later SHA containing two merges yields gate-failure fo
   );
 });
 
-test("a run on a SHA without the merge, or created before the merge, is not its evidence", () => {
-  const older = shaOf(0xa002);
+test("a run created before the merge is not its evidence", () => {
   // Run 3 on #1303's own SHA predates #1303's merge, so it is evidence for #1309 only.
   const result = run({
     pulls: [pr(1309, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1303, "2026-09-02T00:00:00Z", { labels: [SCOPED] })],
-    history: [older, shaOf(1309), shaOf(1303)],
-    workflowRuns: {
-      [FULL]: [wfRun(2, "schedule", older, "2026-09-03T00:00:00Z", { conclusion: "failure" }), wfRun(3, "schedule", shaOf(1303), "2026-09-01T12:00:00Z", { conclusion: "failure" })],
-    },
+    workflowRuns: { [FULL]: [wfRun(3, "schedule", shaOf(1303), "2026-09-01T12:00:00Z", { conclusion: "failure" })] },
   });
   assert.deepEqual(result.events, gateEvents("2026-09-01T12:08:00Z", "C2-auto-merge"));
+});
+
+test("a post-merge run whose SHA is behind or diverged from the merge refuses the publish", () => {
+  const other = shaOf(0xa002);
+  const behind = { pulls: [pr(1310, "2026-09-02T00:00:00Z", { labels: [MECHANICAL] })], history: [other, shaOf(1310)] };
+  const red = { [FULL]: [wfRun(2, "schedule", other, "2026-09-03T00:00:00Z", { conclusion: "failure" })] };
+  assert.throws(() => run({ ...behind, workflowRuns: red }), (error) => error instanceof PublishError && /behind/.test(error.message));
+  const diverged = { pulls: [pr(1310, "2026-09-02T00:00:00Z", { labels: [MECHANICAL] })], history: [shaOf(1310), other], diverged: [other] };
+  assert.throws(() => run({ ...diverged, workflowRuns: red }), /diverged/);
+});
+
+test("a merge that is an ancestor of a same-time merge listed before it is still covered by a later run", () => {
+  const tip = shaOf(0xa007);
+  const result = run({
+    pulls: [pr(1401, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] }), pr(1402, "2026-09-01T00:00:00Z", { labels: [SCOPED] })],
+    history: [shaOf(1402), shaOf(1401), tip],
+    workflowRuns: { [FULL]: [wfRun(11, "schedule", tip, "2026-09-02T00:00:00Z", { conclusion: "failure" })] },
+  });
+  assert.deepEqual(result.events, gateEvents("2026-09-02T00:08:00Z", "C2-auto-merge", "C3-auto-merge"));
+});
+
+test("a post-merge run created after --through still counts", () => {
+  const result = run({
+    pulls: [pr(1403, "2026-10-04T00:00:00Z", { labels: [MECHANICAL] })],
+    workflowRuns: { [CANARY]: [wfRun(12, "push", shaOf(1403), "2026-10-06T00:00:00Z", { conclusion: "failure" })] },
+  });
+  assert.deepEqual(result.events, gateEvents("2026-10-06T00:08:00Z", "C2-auto-merge"));
+});
+
+test("a merge is gate-passed only when a green lane dispatch and a green canary both contain it", () => {
+  const pulls = () => [pr(1404, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })];
+  const history = [shaOf(1404), TIP];
+  const gateOf = (result) => termOf(result, "C2-auto-merge", "deterministic-gate pass").detail;
+  assert.deepEqual(gateOf(run({ pulls: pulls() })), { passed: 0, failed: 0, unsettled: 1, total: 1 });
+  const dispatchOnly = { [FULL]: verifiedOn(TIP, "2026-09-02T00:00:00Z")[FULL] };
+  assert.deepEqual(gateOf(run({ pulls: pulls(), history, workflowRuns: dispatchOnly })), { passed: 0, failed: 0, unsettled: 1, total: 1 });
+  const canaryOnly = { [CANARY]: verifiedOn(TIP, "2026-09-02T00:00:00Z")[CANARY] };
+  assert.deepEqual(gateOf(run({ pulls: pulls(), history, workflowRuns: canaryOnly })), { passed: 0, failed: 0, unsettled: 1, total: 1 });
+  assert.deepEqual(gateOf(run({ pulls: pulls(), history, workflowRuns: verifiedOn(TIP, "2026-09-02T00:00:00Z") })), { passed: 1, failed: 0, unsettled: 0, total: 1 });
+});
+
+test("a PR merged into a branch other than the default is not read", () => {
+  const result = run({ pulls: [pr(1405, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], base: "release" })] });
+  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
+});
+
+test("a link event after the merge in an unrecognized shape leaves the class unknown", () => {
+  const odd = { ...link("DisconnectedEvent", 6007, "2026-09-02T00:00:00Z"), subject: { __typename: "PullRequest", number: 5 } };
+  const result = run({ pulls: [pr(1406, "2026-09-01T00:00:00Z", { labels: [MECHANICAL], timeline: [odd] })] });
+  assert.equal(termOf(result, "C2-auto-merge", "autonomous C2 completions").value, 0);
+  assert.deepEqual(result.unclassedAutonomous, [{ number: 1406, reason: "a link event after the merge has an unrecognized shape: links unknown" }]);
+});
+
+test("a revert naming a PR that is not merged or does not exist is listed, not fatal", () => {
+  const result = run({ pulls: [pr(1407, "2026-09-01T00:00:00Z", { body: `Reverts ${REPO}#999999`, merger: "kyle-sexton" })] });
+  assert.deepEqual(result.unresolvedReverts, [{ target: 999999, reason: "not a merged pull request" }]);
 });
 
 test("a red full run is a flake only when a lane identity's re-run passed", () => {
@@ -242,6 +306,8 @@ test("only the named gate checks and status contexts are gate evidence", () => {
     pulls: [pr(1201, "2026-09-01T00:00:00Z", { labels: [MECHANICAL] })],
     checkRuns: { 1201: [REC.checkRun, other("dispatch", "failure"), other("resolve-conflicts / run", "cancelled")] },
     statuses: { 1201: [{ ...REC.status, context: "GitGuardian", state: "error" }] },
+    history: [shaOf(1201), TIP],
+    workflowRuns: verifiedOn(TIP, "2026-09-02T00:00:00Z"),
   });
   assert.deepEqual(result.events, []);
   assert.deepEqual(termOf(result, "C2-auto-merge", "deterministic-gate pass").detail, { passed: 1, failed: 0, unsettled: 0, total: 1 });
@@ -322,7 +388,8 @@ test("a missed-blocking label a human applied to a C3 PR yields verification-div
 
 test("20 autonomous C2 merges over 14+ days pass the C2 term and 19 fail it", () => {
   const merges = (count) => Array.from({ length: count }, (_, i) => pr(600 + i, `2026-09-${String(i + 1).padStart(2, "0")}T00:00:00Z`, { labels: [MECHANICAL] }));
-  const twenty = run({ pulls: merges(20) });
+  const pulls = merges(20);
+  const twenty = run({ pulls, history: [...mergeOrder(pulls), TIP], workflowRuns: verifiedOn(TIP, "2026-09-21T00:00:00Z") });
   assert.equal(termOf(twenty, "C2-auto-merge", "autonomous C2 completions").pass, true);
   assert.equal(twenty.cells["C2-auto-merge"].pass, true);
   const nineteen = run({ pulls: merges(19) });
@@ -469,6 +536,8 @@ test("a cancelled gate run counts as a failure unless a later run of the same ch
       1110: [cancelled("lint-repo", "2026-09-01T00:10:00Z")],
       1111: [cancelled("lint-repo", "2026-09-01T00:10:00Z"), { ...REC.checkRun, completed_at: "2026-09-01T00:20:00Z" }],
     },
+    history: [shaOf(1110), shaOf(1111), TIP],
+    workflowRuns: verifiedOn(TIP, "2026-09-02T00:00:00Z"),
   });
   assert.deepEqual(result.events, [{ cell: "C2-auto-merge", event: "gate-failure", at: "2026-09-01T00:10:00Z" }]);
   assert.deepEqual(termOf(result, "C2-auto-merge", "deterministic-gate pass").detail, { passed: 1, failed: 1, unsettled: 0, total: 2 });
