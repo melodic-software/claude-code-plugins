@@ -1278,12 +1278,12 @@ class RealResolver(unittest.TestCase):
         self.assertNotIn("--credential-roots", self.seen()["argv"])
         settings = json.loads(self.settings.read_text(encoding="utf-8"))
         options = settings["pluginConfigs"]["source-control@mkt"]["options"]
-        options["promotion_evidence_credential_roots"] = "/home/runner"
+        options["promotion_evidence_credential_roots"] = "/srv/probe-creds"
         self.settings.write_text(json.dumps(settings), encoding="utf-8")
         result = self.read()
         self.assertIsNone(result.reason)
         self.assertEqual(
-            self.seen()["argv"][-2:], ["--credential-roots", "/home/runner"]
+            self.seen()["argv"][-2:], ["--credential-roots", "/srv/probe-creds"]
         )
 
     def test_a_demotion_restarts_the_window_at_its_creation(self) -> None:
@@ -1436,7 +1436,7 @@ class ReadPromotion(unittest.TestCase):
                 o: {"value": "/opt/p", "scope": "managed", "file": "/etc/m.json"}
                 for o in policy.PROMOTION_OPTIONS
             }
-            | {"promotion_evidence_credential_roots": {"value": "/home/runner"}},
+            | {"promotion_evidence_credential_roots": {"value": "/srv/probe-creds"}},
         }
         result, _ = self.run_resolver(unfiled)
         self.assertEqual(

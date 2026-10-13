@@ -121,6 +121,7 @@ test("operator settings bootstrap reports the printed cells and leaves an unprin
 });
 
 const ROOTS = "/home/runner, C:\\Users\\runner\\.aws,/nonexistent-probe-host/creds";
+const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 test("set credential roots reach the checker as --credential-roots and are reported in options", cli, () => {
   // The roots name the probe host, so a path absent on this host is still accepted.
@@ -134,7 +135,7 @@ test("set credential roots reach the checker as --credential-roots and are repor
 test("a relative, root, dot-dot, empty or checkout-inside credential root fails closed", cli, () => {
   const checker = stub(GOOD_OUTPUT, 0, ops, ["--credential-roots", "unused"]);
   const worktrees = join(ops, "worktrees");
-  const reason = (value, problem) => new RegExp(`promotion_evidence_credential_roots entry ${RegExp.escape(JSON.stringify(value))} ${problem}`);
+  const reason = (value, problem) => new RegExp(`promotion_evidence_credential_roots entry ${escapeRe(JSON.stringify(value))} ${problem}`);
   const cases = [
     ["home/runner", reason("home/runner", "is not an absolute path")],
     ["//server/share", reason("//server/share", "is not an absolute path")],
@@ -313,7 +314,7 @@ for (const base of [
   test(`credential root ${base} under an ephemeral base fails closed`, cli, () => {
     const checker = stub(GOOD_OUTPUT, 0, ops, ["--credential-roots", "unused"]);
     const result = runWith(checker, { promotion_evidence_credential_roots: `/home/runner,${base}` });
-    const named = RegExp.escape(JSON.stringify(base));
+    const named = escapeRe(JSON.stringify(base));
     assertFailClosed(result, new RegExp(`promotion_evidence_credential_roots entry ${named} sits under an ephemeral base`));
   });
 }
