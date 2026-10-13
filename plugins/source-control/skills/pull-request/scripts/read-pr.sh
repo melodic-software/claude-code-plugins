@@ -13,7 +13,7 @@
 #
 # <pr> is a number, a pull request URL, or a head branch; with none, `view`
 # reads the current branch's pull request. --repo also takes HOST/OWNER/REPO.
-# `view` reads over REST only, so it works where GraphQL is refused, and adds
+# `view` reads over REST only and adds
 # `visibility` (PUBLIC, PRIVATE, INTERNAL, or UNKNOWN when the lookup fails).
 # `list --head-match` keeps the pull requests whose head branch matches the ERE.
 # `list --search` keeps the pull requests the forge's text search matches.
@@ -103,8 +103,7 @@ if [[ "$ACTION" == list ]]; then
   exit 0
 fi
 
-# `view` reads over REST only: sandboxed sessions refuse GraphQL, which
-# `gh pr view` and `gh pr diff` use to find the pull request. `{owner}/{repo}`
+# `view` reads over REST only, never `gh pr view` or `gh pr diff`. `{owner}/{repo}`
 # is gh's placeholder for the current repository, filled from its git remotes.
 api_repo='{owner}/{repo}' api_host=""
 if [[ -n "$REPO" ]]; then
@@ -137,8 +136,8 @@ if [[ "$api_repo" == '{owner}/{repo}' ]]; then
   elif [[ "$remote_url" =~ ^([^@/]*@)?([^/:]+): ]]; then
     remote_host="${BASH_REMATCH[2]}"
   fi
-  if [[ -n "$remote_host" && "$remote_host" != github.com ]] &&
-    gh auth status --hostname "$remote_host" >/dev/null 2>&1; then
+  if [[ "$remote_host" == github.com ]] || { [[ -n "$remote_host" ]] &&
+    gh auth status --hostname "$remote_host" >/dev/null 2>&1; }; then
     api_host="$remote_host"
   fi
 else
@@ -148,7 +147,8 @@ fi
 [[ -z "$api_host" || "$api_host" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?$ ]] ||
   die 1 "not a valid host: $(printf '%q' "$api_host")"
 api_host_args=()
-[[ -n "$api_host" && "$api_host" != github.com ]] && api_host_args=(--hostname "$api_host")
+# Always named, so GH_HOST cannot send a github.com read to another forge.
+[[ -n "$api_host" ]] && api_host_args=(--hostname "$api_host")
 
 api() {
   gh api ${api_host_args[@]+"${api_host_args[@]}"} "$@"
@@ -210,9 +210,7 @@ if [[ "$url" =~ ^https?://([^/]+)/([^/]+/[^/]+)/pull/[0-9]+$ ]]; then
 fi
 visibility=UNKNOWN
 if [[ -n "$repo_path" ]]; then
-  host_args=()
-  [[ "$host" != github.com ]] && host_args=(--hostname "$host")
-  v=$(gh api ${host_args[@]+"${host_args[@]}"} "repos/$repo_path" --jq '.visibility' 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')
+  v=$(gh api --hostname "$host" "repos/$repo_path" --jq '.visibility' 2>/dev/null | tr -d '\r' | tr '[:lower:]' '[:upper:]')
   [[ "$v" =~ ^(PUBLIC|PRIVATE|INTERNAL)$ ]] && visibility="$v"
 fi
 

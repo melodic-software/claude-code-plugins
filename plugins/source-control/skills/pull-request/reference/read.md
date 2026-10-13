@@ -22,7 +22,7 @@ them from the file rather than from a copy of tool output.
   repository), or a head branch; with none
   it reads the current branch's PR. A PR whose head branch is on a fork is not found by branch
   name, or when no `<pr>` is given, so pass its number. `--diff` prints the unified diff instead. `view` reads through
-  the forge's REST API only, so it also works in a session that refuses GraphQL. `--repo` also
+  the forge's REST API only. `--repo` also
   takes `HOST/OWNER/REPO`; without it `view` reads the `origin` remote's host when the forge CLI is
   logged in to that host, and github.com otherwise.
 - **`list`** prints an array of `number`, `url`, `state`, `isDraft`, `title`, `headRefName`,

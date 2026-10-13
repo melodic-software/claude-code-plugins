@@ -102,7 +102,7 @@ assert_eq "view maps a removed file to DELETED" "f0.md DELETED" "$(jq -r '.files
 assert_eq "view keeps label names" "bug" "$(jq -r '.labels[0].name' <<<"$out")"
 calls=$(cat "$TEST_TMPDIR/calls")
 assert_not_contains "view never reaches gh's GraphQL commands" "$calls" "pr "
-assert_contains "view without --repo reads the current repository" "$calls" "api repos/{owner}/{repo}/pulls/7"
+assert_contains "view without --repo names the github.com remote host, so GH_HOST cannot redirect it" "$calls" "api --hostname github.com repos/{owner}/{repo}/pulls/7"
 
 out=$(GH_STUB_MERGED=1 run view 7)
 assert_eq "a merged pull request reads MERGED with its merge commit" "MERGED m1" "$(jq -r '"\(.state) \(.mergeCommit.oid)"' <<<"$out")"
@@ -127,11 +127,13 @@ assert_contains "a URL host that differs from the requested host reaches the vis
 
 out=$(run view https://ghe.example/acme/ghe-app/pull/7)
 assert_eq "a pull request URL names its own host and repository" "https://ghe.example/acme/ghe-app/pull/7" "$(jq -r .url <<<"$out")"
+run view https://github.com/acme/app/pull/7 >/dev/null
+assert_contains "a github.com URL names github.com, so GH_HOST cannot redirect it" "$(cat "$TEST_TMPDIR/calls")" "api --hostname github.com repos/acme/app/pulls/7"
 
 run view 7 --repo acme/app >/dev/null
 calls=$(cat "$TEST_TMPDIR/calls")
 assert_contains "--repo OWNER/REPO reads that repository" "$calls" "api repos/acme/app/pulls/7"
-assert_not_contains "--repo OWNER/REPO names no host" "$calls" "--hostname"
+assert_not_contains "--repo OWNER/REPO names no host for the pull request read" "$calls" "--hostname github.com repos/acme/app/pulls"
 
 out=$(run view feat/7-closed)
 assert_eq "a branch with no open pull request reads its most recent one" "7" "$(jq -r .number <<<"$out")"
