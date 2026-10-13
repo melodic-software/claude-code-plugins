@@ -47,7 +47,7 @@ Run a differential: the pre-change and post-change subject over a harvested corp
 requiring **byte-identical output**. Use the bundled one rather than writing one:
 `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/differential.py" --baseline <path> --candidate <path>
 --config <json>`. Its config takes a `matrix` of modes, and it refuses a run where neither arm ever
-produced output. Run it from the Bash tool, whose shell resolves `python3` (`type -P python3` names
+produced output. Run it from the Bash tool, whose shell resolves `python3` (`command -v python3` names
 the one it found); a bare name inside another process's `subprocess` call searches a different
 `PATH` (harness-integrity rule 6). The module docstring documents the config.
 
