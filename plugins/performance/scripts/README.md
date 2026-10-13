@@ -8,6 +8,7 @@ to ENFORCE the rules in it, and every refusal below is a defect that shipped in 
 | Script | Owns |
 |---|---|
 | `harness-lib.sh` | Shared preconditions: drive-letter path refusal, shim-directory stability, the injected-PATH ledger, interpreter discovery. |
+| `resolve-python.sh` | Prints the interpreter `harness-lib.sh` resolves, for a caller whose shell is not bash. |
 | `pathfix.py` | MSYS versus native-Windows path spelling, for the Python harnesses. |
 | `spawn-census.sh` | One process-spawn census of one subject command, via a stable PATH shim directory. |
 | `run-spawn-census.sh` | Before and after censuses, with the rule 1 warm-agreement proof. |

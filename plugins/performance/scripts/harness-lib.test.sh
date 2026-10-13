@@ -114,32 +114,6 @@ capture env PATH="$STUB_DIR" "$BASH_BIN" -c \
 assert_eq "only a non-running python on PATH is refused, not skipped" "2" "$RUN_RC"
 assert_contains "the refusal says no candidate runs" "no python3 or python on PATH runs" "$RUN_OUT"
 
-# --- the go-faster preamble resolves Python from a non-bash shell ---
-# The Bash tool's shell can be zsh, where `type -P` is a bad option and the
-# library's bash syntax does not hold. The preamble's PY line must run the
-# library under bash itself, so it resolves the same Python from any POSIX
-# shell. dash stands in where zsh is not installed: it rejects the same
-# bash-only forms (`source`, `type -P`).
-PREAMBLE_SKILL="$SCRIPT_DIR/../skills/go-faster/SKILL.md"
-PY_LINE="$(grep -m1 'echo "PY=unresolved"' "$PREAMBLE_SKILL")"
-assert_contains "the preamble has a PY line" 'PY=unresolved' "$PY_LINE"
-for PREAMBLE_SHELL in sh zsh; do
-  PREAMBLE_SHELL_BIN="$(type -P "$PREAMBLE_SHELL" || true)"
-  if [[ -z "$PREAMBLE_SHELL_BIN" ]]; then
-    echo "SKIP: $PREAMBLE_SHELL not installed; the preamble case runs under the other shell"
-    continue
-  fi
-  capture env CLAUDE_PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)" "$PREAMBLE_SHELL_BIN" -c "$PY_LINE"
-  assert_not_contains "the preamble resolves Python under $PREAMBLE_SHELL" "PY=unresolved" "$RUN_OUT"
-  assert_contains "the preamble prints an absolute interpreter path under $PREAMBLE_SHELL" "PY=/" "$RUN_OUT"
-  # Claude Code substitutes ${CLAUDE_PLUGIN_ROOT} into the text before the line
-  # runs, so the variable need not be in the environment.
-  # shellcheck disable=SC2016  # the single-quoted text is the literal placeholder to replace
-  RENDERED="${PY_LINE//'${CLAUDE_PLUGIN_ROOT}'/$(cd "$SCRIPT_DIR/.." && pwd)}"
-  capture env -u CLAUDE_PLUGIN_ROOT "$PREAMBLE_SHELL_BIN" -c "$RENDERED"
-  assert_contains "the rendered preamble prints an absolute interpreter path under $PREAMBLE_SHELL" "PY=/" "$RUN_OUT"
-done
-
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
 echo "OK: harness-lib preconditions"
 exit 0

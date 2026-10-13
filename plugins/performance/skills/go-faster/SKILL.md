@@ -32,13 +32,13 @@ per-area checks live in [reference/areas.md](reference/areas.md), walked by the
 Resolved when this skill loaded:
 
 ```!
-bash -c 'source "${CLAUDE_PLUGIN_ROOT}/scripts/harness-lib.sh" && harness_require_python && echo "PY=$HARNESS_PYTHON"' || echo "PY=unresolved"
+echo "PY=$(bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-python.sh" || echo unresolved)"
 echo "KEY=$(bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh" || echo unresolved)"
 echo "DATA=$(d="${EVAL_GO_FASTER_DATA:-}"; case "$d" in "") ;; /*) echo "$d" ;; *) echo "$PWD/$d" ;; esac || true)"
 echo "TRANSCRIPT=$(t="${EVAL_GO_FASTER_TRANSCRIPT:-}"; if [ -n "$t" ] && [ -f "$t" ]; then case "$t" in /*) echo "$t" ;; *) echo "$PWD/$t" ;; esac; else ls "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"/projects/*/"${CLAUDE_SESSION_ID}.jsonl" 2>/dev/null | head -1; fi || true)"
 ```
 
-If those lines reached you as literal commands, run them yourself with Bash, as written: the `PY` line runs the bash library under `bash` because the Bash tool's shell may be zsh.
+If those lines reached you as literal commands, run them yourself with Bash, as written: the `PY` line runs its script with `bash` because the Bash tool's shell may be zsh.
 `PY=unresolved` means no Python runs here, and `KEY=unresolved` means no hash tool: stop and say which. An empty `TRANSCRIPT` is `none`.
 
 - **Pointer**: when the `TRANSCRIPT` line finds no file in a session that has one, fetch
