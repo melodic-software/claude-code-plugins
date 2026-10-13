@@ -463,3 +463,5 @@ lib/yaml-subset.mjs plugins/user-experience/scripts/lib/yaml-subset.mjs
 lib/yaml-subset.mjs plugins/user-interface/scripts/lib/yaml-subset.mjs
 lib/config-cascade.mjs plugins/user-interface/scripts/lib/config-cascade.mjs
 lib/resolve-convention-home.sh plugins/user-interface/lib/resolve-convention-home.sh
+lib/lane-push.sh plugins/source-control/scripts/lane-push.sh
+lib/lane-push.sh plugins/work-items/scripts/lane-push.sh

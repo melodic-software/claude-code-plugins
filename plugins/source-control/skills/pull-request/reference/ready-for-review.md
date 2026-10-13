@@ -33,14 +33,17 @@ local branch to it
 When the head already contains the base tip, the forge's update pushes nothing (the provider
 reference records the evidence and its recheck trigger), so the flip adds no push of its own then.
 
-Push any local commits first: `git merge --ff-only FETCH_HEAD` refuses when the local branch
-carries commits the remote lacks, and the local-merge fallback below handles that case too.
+Push any local commits first, through `push-branch.sh` as in 2.5.4:
+`bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER"`. `git merge --ff-only FETCH_HEAD`
+refuses when the local branch carries commits the remote lacks, and the local-merge fallback below
+handles that case too.
 
 Where the forge's update is unavailable or refuses (a fork head, a session that cannot reach the
-endpoint), do the same thing locally:
+endpoint), do the same thing locally and push the merge the same way:
 
 ```bash
-git fetch "$REMOTE" "$BASE" && git merge "$REMOTE/$BASE"
+git fetch "$REMOTE" "$BASE" && git merge "$REMOTE/$BASE" &&
+  bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER"
 ```
 
 Refresh the base with a merge, never a rebase: a rebase of an open pull request needs a force-push
@@ -97,7 +100,13 @@ replaces that push's draft run within seconds instead of after it ran to the end
 `push-branch.sh`, as [create.md](create.md) does: it pushes to the remote `resolve-remote.sh
 --push` resolves, so a fork or triangular checkout never pushes to the wrong remote. `--pr` pushes
 the pull request's head branch even when the session runs in another worktree, and exits non-zero
-when that branch has no local ref or its push remote is not the PR's head repository.
+when that branch has no local ref or a push URL of its push remote is not the PR's head repository
+on github.com (an SSH host alias or an enterprise host refuses). Inside a lane
+(the acting gh login is a GitHub App `[bot]` login), it hands the push to the plugin's
+`lane-push.sh` instead, as the `merge.agent-identity` the repository configures, and refuses when
+the session does not act as it, or when `--pr` names a fork head and no `--dir <checkout>` names
+the checkout to push (loop-lane convention, "Lane write identity"). For a fork head in a lane, add
+`--dir` with the PR's checkout.
 
 ```bash
 bash "<skill-dir>/scripts/push-branch.sh" --pr "$PR_NUMBER" || exit 1   # only when 2.5.3 committed anything

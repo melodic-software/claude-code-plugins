@@ -1206,6 +1206,40 @@ def _since(value: str) -> datetime:
     return parsed
 
 
+def _preflight(repo: str, identity: str | None, self_logins: Collection[str]) -> int:
+    """The merge gate's identity rule and credential chokepoint alone: a lane
+    writes nothing unless both pass. With no identity given, the one the
+    repository configures on its default branch is checked (push-branch.sh's
+    lane path). Pushes are bound to the identity at push time by
+    scripts/lane-push.sh, not here."""
+    report: dict[str, Any]
+    if identity is None:
+        try:
+            identity = policy.resolve(repo).agent_identity
+        except policy.PolicyReadError as exc:
+            report = {"ok": False, "error": f"config-unreadable: {exc}"}
+            json.dump(report, sys.stdout, indent=2)
+            sys.stdout.write("\n")
+            return 2
+    try:
+        acting = policy.read_acting_login()
+    except policy.PolicyReadError:
+        acting = None
+    resolved = policy.resolve_identity(identity, acting, self_logins)
+    refusal = resolved.reason
+    if refusal is None and resolved.login:
+        credentials = policy.credential_refusal(resolved.login)
+        refusal = f"credentials:{credentials}" if credentials else None
+    report = (
+        {"ok": False, "error": refusal}
+        if refusal
+        else {"ok": True, "identity": resolved.login}
+    )
+    json.dump(report, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+    return 2 if refusal else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="babysit_postmerge.py",
@@ -1214,7 +1248,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--repo", required=True, help="owner/repo")
     parser.add_argument(
-        "--agent-identity", required=True, help="the merge.agent-identity login"
+        "--agent-identity",
+        help=(
+            "the merge.agent-identity login (required except with --preflight, "
+            "which reads it from the default branch when omitted)"
+        ),
     )
     parser.add_argument(
         "--since",
@@ -1235,7 +1273,8 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="a lane or bot self login (repeatable)",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--remediate",
         action="store_true",
         help=(
@@ -1243,7 +1282,20 @@ def main(argv: list[str] | None = None) -> int:
             "unverified merge, dequeue, file the demotion issue (the only writes)"
         ),
     )
+    mode.add_argument(
+        "--preflight",
+        action="store_true",
+        help=(
+            "check only that the session acts as the identity and holds no "
+            "other account (the lane identity gate, run every cycle); exit 0 or 2"
+        ),
+    )
     args = parser.parse_args(argv)
+
+    if args.preflight:
+        return _preflight(args.repo, args.agent_identity, args.self_login)
+    if args.agent_identity is None:
+        parser.error("--agent-identity is required except with --preflight")
 
     # Only a dedicated App identity can be judged, and only that identity may
     # remediate: its dispatches, re-runs and filed issues are what the check
