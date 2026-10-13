@@ -28,7 +28,7 @@ contains git. The dated record for that composition claim is the `source-control
 
 Uncommitted .md files (first 20; empty = none matched or the probe returned nothing): !`"${CLAUDE_SKILL_DIR}/scripts/uncommitted-md.sh" 20 2>/dev/null || echo "(status unavailable)"`
 
-Every command in this line matches an `allowed-tools` grant, so a dontAsk lane can run this skill. A command outside the grants aborts the whole expansion, and the session ends at zero turns reported as success.
+Every command in this line matches an `allowed-tools` grant, so a dontAsk lane can run this skill.
 
 - **Pointer**: when changing this line or its grants, fetch <https://code.claude.com/docs/en/skills#permission-checks-on-injected-commands> live; the probe that found a zero-turn run under dontAsk is in <https://github.com/melodic-software/claude-code-plugins/pull/6732>. **As of**: 2026-10-11. **Recheck trigger**: a Claude Code release note that changes how pre-compute commands are permission-checked.
 
