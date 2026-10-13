@@ -1051,6 +1051,14 @@ def cmd_transcript_counts(args: argparse.Namespace) -> int:
 STOP_SUMMARY = "stop_hook_summary"
 # A percentile p is expressible only from n >= 1/(1-p) samples (summarize.py's floor).
 P50_FLOOR, P95_FLOOR = 2, 20
+# Notification hooks carry their secret in the URL path (webhook ids, topics), so a hook label
+# keeps only the host. The cap bounds redaction time; labels are cut far shorter anyway.
+URL_PATH = re.compile(r"\b(\w{1,32}://[^/\s\"']{1,253})/[^\s\"']*")
+HOOK_INPUT_MAX = 4096
+
+
+def hook_label(command: str) -> str:
+    return shown_command(URL_PATH.sub(r"\1/***", command[:HOOK_INPUT_MAX]))
 
 
 def percentile(ordered: list[float], p: float) -> float:
@@ -1069,6 +1077,7 @@ def stop_hook_timing(path: Path) -> dict:
     records = 0
     timed: dict[str, list[float]] = {}
     untimed: dict[str, int] = {}
+    labels: dict[str, str] = {}
     for record in tr.iter_records(path):
         if record.get("subtype") != STOP_SUMMARY:
             continue
@@ -1077,7 +1086,10 @@ def stop_hook_timing(path: Path) -> dict:
         for info in infos if isinstance(infos, list) else []:
             if not isinstance(info, dict):
                 continue
-            hook = shown_command(str(info.get("command", "")))
+            raw = str(info.get("command", ""))
+            if raw not in labels:
+                labels[raw] = hook_label(raw)
+            hook = labels[raw]
             ms = info.get("durationMs")
             if isinstance(ms, (int, float)) and not isinstance(ms, bool) and ms >= 0:
                 timed.setdefault(hook, []).append(float(ms))
@@ -1103,6 +1115,8 @@ def stop_hook_timing(path: Path) -> dict:
         ),
         reverse=True,
     )
+    # A hook with any recorded duration is ranked, never also reported as background.
+    untimed = {hook: n for hook, n in untimed.items() if hook not in timed}
     return {"records": records, "hooks": hooks, "untimed": untimed}
 
 

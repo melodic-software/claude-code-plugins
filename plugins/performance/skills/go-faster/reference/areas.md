@@ -233,11 +233,13 @@ them live when a command's output, or the files you find, do not match the entry
   background (`async`, `asyncRewake`) hook. Each `untimed` hook stays out of the ranking. Add one
   `not-checked` finding, `no-data`, reason "no duration recorded for <the untimed hooks,
   comma-separated>; assumed background (async/asyncRewake), not confirmed against the hooks
-  configuration".
+  configuration". Each entry in `hooks` whose `p50_ms` is null ran once: add one `not-checked`
+  finding, `no-data`, reason "timed once, no median: <hook> (<max_ms> ms), comma-separated".
 - **Not checked**: no rows, or it cannot evaluate, and the fallback measured nothing: `no-data`,
   reason "no hook latency rows; /harness-ops:observability says it needs <the telemetry it
-  names>, and no Stop hook in this session's transcript was timed twice; set up that telemetry
-  and rerun /performance:go-faster". Not in the listing, or the call fails, and the
+  names>, and <no Stop hook in this session's transcript was timed twice, or, when `TRANSCRIPT`
+  is `none`, no session transcript was available for the Stop-hook fallback>; set up that
+  telemetry and rerun /performance:go-faster". Not in the listing, or the call fails, and the
   fallback measured nothing: `owner-unavailable`, with the owner-call table's reason. With
   fallback findings, these are not added: the fallback titles say the area covers the Stop event
   only and name the blocking assumption.
