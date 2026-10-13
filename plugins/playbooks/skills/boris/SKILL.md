@@ -151,14 +151,14 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Probe, Then Delete | Delete provably dead code; log the suspected rest, wait a day, remove what never fired |
 | Prove It in the PR | Every routine PR runs /verify and posts a repro and a truth table; fuzz the real app, no mocks |
 | Tune the Routine | Fix the routine, not the PR; expect a few days of tuning |
-| Expect Half to Land | 388 opened, 180 merged behind Claude Code Review + human review; review throughput is the bottleneck |
-| Diff Pane | `/diff` as a persistent live pane; `/focus` hides inline write diffs |
+| Expect Half to Land | Historical (Part 23 tip): under half the routine PRs merged behind automated plus human review; review throughput is the bottleneck |
+| Diff Pane | Read changes in a side pane, keep inline write diffs out of the transcript (Part 24 tip). For what `/diff` and `/focus` do now, see [All commands](https://code.claude.com/docs/en/commands#all-commands) (as of 2026-10-13; recheck when either command changes there) |
 | Read the Diffs That Matter | Read critical or hard-to-get-right code; reading is triage |
-| Flickering TUI | A bug: `claude update`, then `/tui` |
+| Flickering TUI | Treat flicker as a bug, not a setting; Boris's fix order is in Section 123 |
 | Claude Maintains the Renderer | Hand a component over once property-based tests and benchmarks specify it |
-| Pick Effort by the Job | Low to stay in the loop, medium for features, high for bugs and edge cases, max for hard hand-offs (Thariq, Opus 5.5 / Fable 5.1) |
-| Interview, Build Low, Verify High | Spec interview, implement and iterate on low, verify and test on high |
-| Effort and Edge Cases | More effort cuts missed edge cases, not wrong approaches; security and hardware gain most |
+| Pick Effort by the Job | Match effort to the job and to how much you want to stay in the loop (Thariq's mapping, Section 126). For the current levels, see [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level) (as of 2026-10-13; recheck on a new model release) |
+| Interview, Build Low, Verify High | Spec interview, build and iterate at low effort, verify and test at higher effort (Section 128) |
+| Effort and Edge Cases | Historical (Thariq's Part 25 evals, Section 129): more effort cut missed edge cases more than wrong approaches |
 
 ---
 

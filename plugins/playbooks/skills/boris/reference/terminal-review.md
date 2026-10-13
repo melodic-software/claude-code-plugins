@@ -6,7 +6,7 @@ Boris's *"Just landed: /diff is now a persistent pane"* (Part 24, September 10, 
 
 `/diff` went from a one-shot list (open, pick a file, read, close) to a persistent pane beside the conversation that you scroll and click into, and that updates live as Claude writes. Boris's use for it: seeing the code without switching windows. Claude Desktop already had a diff viewer; this brought the terminal in line.
 
-`/focus` does the other half of the job. Asked how to switch off the inline file-write diffs that fill the transcript, Boris answered `/focus`: one gives you a place to read changes, the other stops them appearing inline. For what each command currently does, see the [commands reference](https://code.claude.com/docs/en/commands) (as of 2026-10-11; recheck when `/diff`, `/focus` or `/tui` change there).
+`/focus` does the other half of the job. Asked how to switch off the inline file-write diffs that fill the transcript, Boris answered `/focus`: one gives you a place to read changes, the other stops them appearing inline. For what each command currently does, see the [commands reference](https://code.claude.com/docs/en/commands#all-commands) (as of 2026-10-13; recheck when `/diff`, `/focus` or `/tui` change there).
 
 ## 122. Read the Diffs That Matter
 
