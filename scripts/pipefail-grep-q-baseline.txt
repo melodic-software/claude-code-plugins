@@ -6,7 +6,6 @@
 lib/check-retirements.sh
 lib/state-key.sh
 plugins/actionlint/hooks/actionlint-check.test.sh
-plugins/ai-slop/skills/audit/scripts/detect.sh
 plugins/ai-slop/skills/audit/scripts/detect.test.sh
 plugins/architecture/skills/map-deployment/scripts/collect-deployment.sh
 plugins/attribution/lib/check-retirements.sh

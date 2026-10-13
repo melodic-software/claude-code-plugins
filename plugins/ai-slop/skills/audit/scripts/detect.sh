@@ -541,9 +541,9 @@ EXTRACT_AWK='
     }
     if ($0 ~ /^[[:space:]]*<!-- ai-slop-ignore-start(:[^>]*)? -->[[:space:]]*$/) { ignored = 1; return 0 }
     if ($0 ~ /^[[:space:]]*<!-- ai-slop-ignore-end(:[^>]*)? -->[[:space:]]*$/) { ignored = 0; return 0 }
-    if (ignored) { D[++nd] = out_row(ln, stripped($0)); return 0 }
+    if (ignored) { D[++n_decl] = out_row(ln, stripped($0)); return 0 }
     if ($0 ~ /<!-- ai-slop-ignore(:[^>]*)? -->/ && $0 !~ /`<!-- ai-slop-ignore(:[^>]*)? -->/) {
-      D[++nd] = out_row(ln, stripped($0))
+      D[++n_decl] = out_row(ln, stripped($0))
       return 0
     }
     P[++np] = out_row(ln, stripped($0))
@@ -605,7 +605,7 @@ EXTRACT_AWK='
   }
   function scan_file(k, f,   r, nw, ndw) {
     fence = ""; fence_ind = 0; fence_line = 0; ignored = 0; stopped = 0
-    ln = 0; np = 0; nd = 0; had_nul = 0
+    ln = 0; np = 0; n_decl = 0; had_nul = 0
     split("", P); split("", D); split("", W); split("", DW)
     while ((r = (getline < f)) > 0) {
       ln++
@@ -621,12 +621,12 @@ EXTRACT_AWK='
     nw = quoted_free(P, np, "p", W)
     put("P", k, P, np, 0); put("TP", k, P, np, 1)
     put("W", k, W, nw, 0); put("TW", k, W, nw, 1)
-    if (nd > 0) {
-      ndw = quoted_free(D, nd, "d", DW)
-      put("DP", k, D, nd, 0)
+    if (n_decl > 0) {
+      ndw = quoted_free(D, n_decl, "d", DW)
+      put("DP", k, D, n_decl, 0)
       put("DW", k, DW, ndw, 0); put("TDW", k, DW, ndw, 1)
     }
-    print k "\tscan\t" (nd > 0 ? 1 : 0)
+    print k "\tscan\t" (n_decl > 0 ? 1 : 0)
   }
   {
     tab = index($0, "\t")
