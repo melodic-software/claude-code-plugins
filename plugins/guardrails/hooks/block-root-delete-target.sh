@@ -3073,10 +3073,19 @@ rdt_scan_substitutions() {
 
 rdt_ps_piped=0
 # The walker writes a literal `$` (single-quoted, or escaped by a backtick) as
-# this byte, so rdt_ps_operand can tell it from one PowerShell expands. Empty,
-# and every `$` read as before, when the command itself carries the byte.
-RDT_PS_LIT=$'\002'
-[[ "$COMMAND" == *"$RDT_PS_LIT"* ]] && RDT_PS_LIT=""
+# this byte, so rdt_ps_operand can tell it from one PowerShell expands: the
+# first control byte the command does not carry (\001 is taken above; tab, LF
+# and CR are skipped). Empty, and every `$` read as before, only when the
+# command carries all of them.
+RDT_PS_LIT=""
+for rdt_b in $'\002' $'\003' $'\004' $'\005' $'\006' $'\007' $'\010' $'\013' \
+  $'\014' $'\016' $'\017' $'\020' $'\021' $'\022' $'\023' $'\024' $'\025' \
+  $'\026' $'\027' $'\030' $'\031' $'\032' $'\033' $'\034' $'\035' $'\036' $'\037'; do
+  if [[ "$COMMAND" != *"$rdt_b"* ]]; then
+    RDT_PS_LIT="$rdt_b"
+    break
+  fi
+done
 
 # rdt_ps_param_to <var> <token>: canonical Remove-Item parameter name, empty
 # when the token is not a unique prefix of one. Token includes the leading
@@ -3270,6 +3279,7 @@ rdt_ps_ri_check() {
       recurse)
         if [[ "$__v" == *:* ]]; then
           __att="${__v#*:}"
+          [[ -n "$RDT_PS_LIT" ]] && __att="${__att//"$RDT_PS_LIT"/\$}"
           __att="${__att,,}"
           __att="${__att#\$}"
           if [[ "$__att" != "false" && "$__att" != "0" ]]; then

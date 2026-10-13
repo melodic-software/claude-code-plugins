@@ -1966,6 +1966,16 @@ expect_both 'PS ::$INDEX_ALLOCATION on a drive root blocks with no cwd' 2 \
   --tool PowerShell --command "Remove-Item -Recurse -Force 'C:\\::\$INDEX_ALLOCATION'"
 expect_both 'PS a drive letter before ::$INDEX_ALLOCATION blocks as the drive' 2 \
   --tool PowerShell --command "Remove-Item -Recurse -Force 'C::\$INDEX_ALLOCATION'"
+expect_both 'PS ::$INDEX_ALLOCATION on a UNC share root blocks with no cwd' 2 \
+  --tool PowerShell --command "Remove-Item -Recurse -Force '\\\\srv\\share::\$INDEX_ALLOCATION'"
+expect_both 'PS ::$INDEX_ALLOCATION on ~ blocks with no cwd' 2 \
+  --tool PowerShell --command "Remove-Item -Recurse -Force '~::\$INDEX_ALLOCATION'"
+# The literal-`$` marker byte is one the command does not carry, so a control
+# byte in the command (here in a trailing comment) does not turn the reading off.
+expect_both 'PS a \002 byte in the command does not turn the literal reading off' 2 \
+  --tool PowerShell --command "Remove-Item -Recurse -Force 'C:\\::\$INDEX_ALLOCATION' # "$'\002'
+expect_both 'PS -Recurse:'"'"'$false'"'"' is read as not recursive' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command "Remove-Item -Recurse:'\$false' D:\\rdt-x\\y"
 expect_both 'PS single-quoted $ name alone still blocks (bare variable)' 2 \
   --tool PowerShell --command "Remove-Item -Recurse '\$X'"
 # The literal reading only adds refusals: a target refused before #6626, when
