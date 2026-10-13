@@ -23,6 +23,18 @@ per SKILL.md guardrails. On fetch failure: returns the existing cache (even if
 stale or empty) and logs the error rather than throwing -- a stale KEV list is
 better than no list.
 
+The returned object always carries three annotation properties, so a caller can
+tell a failed fetch from a feed that is genuinely empty and never reports full
+confidence on data it did not get:
+
+    _cache_state     fresh        cache within MaxAgeDays, or refreshed now
+                     stale        refresh failed; serving the prior cached list
+                     unavailable  refresh failed and no usable prior list
+                     empty        refresh succeeded but the feed had no entries
+    _cache_age_days  age in days of the list served, from the cache file mtime
+                     ($null when no list is served)
+    _fetch_error     the refresh failure message ($null when no refresh failed)
+
 Downloads to a temp file first, then validates JSON and atomically replaces
 the cache. Partial/corrupt downloads do not clobber a previously-good cache.
 #>
@@ -74,23 +86,48 @@ function Get-CisaKevCache {
         }
     }
 
+    $state = 'fresh'
+    $fetchError = $null
     if ($needsRefresh) {
-        $cached = Invoke-KevFetch -CachePath $CachePath -LogPath $LogPath -FallbackCache $cached
+        $fetch = Invoke-KevFetch -CachePath $CachePath -LogPath $LogPath
+        if ($null -eq $fetch.Error) {
+            $cached = $fetch.Data
+        } else {
+            # Keep the prior cache, but say so: a fallback is never reported as fresh.
+            $fetchError = $fetch.Error
+            $state = 'stale'
+        }
     }
 
-    if ($null -ne $cached -and $cached.PSObject.Properties['vulnerabilities']) {
-        return $cached
+    if ($null -eq $cached -or -not $cached.PSObject.Properties['vulnerabilities'] -or
+        $null -eq $cached.vulnerabilities) {
+        $cached = [pscustomobject]@{ vulnerabilities = @() }
     }
-    return [pscustomobject]@{ vulnerabilities = @() }
+
+    $ageDays = $null
+    if (@($cached.vulnerabilities).Count -eq 0) {
+        # Nothing to correlate against: after a failed refresh that is unavailable,
+        # after a good one the feed itself was empty.
+        $state = $null -ne $fetchError ? 'unavailable' : 'empty'
+    } elseif (Test-Path -LiteralPath $CachePath) {
+        $mtime = (Get-Item -LiteralPath $CachePath).LastWriteTime
+        $ageDays = [math]::Round((New-TimeSpan -Start $mtime -End (Get-Date)).TotalDays, 1)
+    }
+
+    $cached | Add-Member -NotePropertyName '_cache_state' -NotePropertyValue $state -Force
+    $cached | Add-Member -NotePropertyName '_cache_age_days' -NotePropertyValue $ageDays -Force
+    $cached | Add-Member -NotePropertyName '_fetch_error' -NotePropertyValue $fetchError -Force
+    return $cached
 }
 
 function Invoke-KevFetch {
+    # Returns @{ Data; Error }: the downloaded document on success, the failure message
+    # otherwise, so the caller never mistakes a failed fetch for an empty feed.
     [CmdletBinding()]
-    [OutputType([pscustomobject])]
+    [OutputType([hashtable])]
     param(
         [Parameter(Mandatory)] [string] $CachePath,
-        [string] $LogPath,
-        $FallbackCache
+        [string] $LogPath
     )
 
     Write-EgressLogLine -LogPath $LogPath -Kind 'GET' -Uri $script:CisaKevUrl
@@ -112,14 +149,17 @@ function Invoke-KevFetch {
         }
 
         Move-Item -LiteralPath $tempPath -Destination $CachePath -Force
-        return $downloaded
+        return @{ Data = $downloaded; Error = $null }
     } catch {
+        $fetchFailure = $_.Exception.Message
         Write-EgressLogLine -LogPath $LogPath -Kind 'FAIL' -Uri $script:CisaKevUrl `
             -Message $_.Exception.Message
         Write-Warning "Get-CisaKevCache: fetch failed; keeping prior cache. $($_.Exception.Message)"
         if (Test-Path -LiteralPath $tempPath) {
             Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
         }
-        return $FallbackCache
+        $message = $fetchFailure
+        if ([string]::IsNullOrWhiteSpace($message)) { $message = 'KEV fetch failed (no error detail).' }
+        return @{ Data = $null; Error = $message }
     }
 }

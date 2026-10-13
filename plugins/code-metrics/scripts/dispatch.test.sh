@@ -303,12 +303,20 @@ rc=$?
 assert_eq "an ignored directory exits 0" 0 "$rc"
 assert_doc "an ignored directory measures nothing rather than being walked" "$out" \
   'd["scope"]["files"]==0 and d["measures"]==[]'
-# A scope.exclude glob the matcher cannot use is a configuration error: dropping
-# it would measure the files the consumer asked to leave out, and still exit 0.
-(cd "$repo" && mkdir -p .claude && printf 'scope:\n  exclude: ["[z-a]"]\n' >.claude/code-metrics.yaml)
-out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>/dev/null)"
+# A scope.exclude glob the matcher cannot use never stops the run: the team
+# file's list is dropped by name on stderr and the bundled list applies.
+(cd "$repo" && mkdir -p docs/conventions && printf 'scope:\n  exclude: ["[z-a]"]\n' >docs/conventions/code-metrics.yaml)
+err_file="$(mktemp)"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>"$err_file")"
 rc=$?
-assert_eq "an unusable scope.exclude glob exits 2 rather than measuring anyway" "2:" "$rc:$out"
+err="$(cat "$err_file")"
+rm -f "$err_file"
+assert_eq "an unusable scope.exclude glob does not stop the run" 0 "$rc"
+assert_doc "the run measures with the bundled exclusions" "$out" 'd["status"]=="complete"'
+case "$err" in
+*"docs/conventions/code-metrics.yaml: scope.exclude"*"'[z-a]' is not a usable glob"*) pass "the dropped glob is named with its file and key" ;;
+*) fail "the dropped glob is named with its file and key" "names the file, scope.exclude and '[z-a]'" "$err" ;;
+esac
 rm -rf "$repo"
 
 # 13. A file whose name carries non-ASCII bytes. git quotes such a path by
@@ -499,13 +507,15 @@ python	changed.py
 python	third.py" "$(printf '%s\n' "$listing" | sort)"
 assert_eq "--print-scope lists a file no language lane claims under other" "other	.claude/code-metrics.yaml" \
   "$(printf '%s\n' "$listing" | grep 'code-metrics.yaml')"
-# A value the resolver refuses must stop the run. Reading a derived format from
-# a process substitution would report only the read's own success, so the audit
-# would exit 0 having quietly dropped the configured scope and exclusions.
+# A value the resolver refuses never stops the run and never reaches the
+# dispatcher: the line break that would smuggle in `--disable-lane python` is
+# named on stderr and dropped, so the python lane is still measured.
 (cd "$repo" && printf 'scope:\n  exclude: ["gen/**\\n--disable-lane python"]\n' >.claude/code-metrics.yaml)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>/dev/null)"
 rc=$?
-assert_eq "a refused config value stops the run instead of dropping the config" "2:" "$rc:$out"
+assert_eq "a refused config value does not stop the run" 0 "$rc"
+assert_doc "the smuggled directive did not disable the python lane" "$out" \
+  'any(r["lane"]=="python" and r["status"]=="ok" for r in d["run"])'
 err="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>&1 >/dev/null)"
 case "$err" in
 *"scope.exclude"*) pass "the refusal names the offending key" ;;
@@ -612,8 +622,11 @@ case "$err" in
 *"file(s) in scope"*"finished in"*) pass "CODE_METRICS_PROGRESS=1 reports the scope and each collector on stderr" ;;
 *) fail "CODE_METRICS_PROGRESS=1 reports the scope and each collector on stderr" "scope and finished lines" "$err" ;;
 esac
-err="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES" 2>&1 >/dev/null)"
+quiet="$(mktemp -d)"
+printf 'x = 1\n' >"$quiet/a.py"
+err="$(cd "$quiet" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>&1 >/dev/null)"
 assert_eq "a small run prints no progress by default" "" "$err"
+rm -rf "$quiet"
 
 # 24. An adapter whose collect exits 4 (the tool resolved but cannot run
 # here: ESLint with no configuration for the files) gets an unavailable row
@@ -634,6 +647,56 @@ assert_eq "a collector that cannot run here exits 0" 0 "$rc"
 assert_doc "the row is unavailable with the tool's own reason and no 'collect failed'" "$out" \
   'd["status"]=="empty" and d["run"][0]["status"]=="unavailable" and d["run"][0]["collector"]=="eslint-complexity 10.1.0" and "no configuration" in d["run"][0]["reason"] and "eslint.config" in d["run"][0]["reason"] and "collect failed" not in d["run"][0]["reason"] and d["measures"]==[]'
 rm -rf "$noconf" "$ladder"
+
+# 26. An interpreter that writes CRLF, as native Windows Python does (#6794).
+# A stub `python3` ahead of the real one ends every stdout line with exactly
+# one CR (also when the real one already writes CRLF), so
+# a Linux runner sees what Git Bash sees: every path, lane glob, exclusion,
+# scope default, and registry bash reads back from Python would carry a
+# trailing CR. Unhandled, `a.sh<CR>` matches no lane (every file lands in
+# `other` and the run exits 0 having measured nothing) and a configured
+# registry is "not found".
+crlf="$(mktemp -d)"
+real_py="$(command -v python3 || command -v python)"
+for name in python3 python; do
+  cat >"$crlf/$name" <<EOF
+#!/usr/bin/env bash
+"$real_py" "\$@" | sed 's/\r*\$/\r/'
+exit "\${PIPESTATUS[0]}"
+EOF
+  chmod +x "$crlf/$name"
+done
+team="$(mktemp -d)"
+printf 'scope:\n  registries: [plugins/code-metrics/scripts/fixtures/registry/cluster.txt]\n' >"$team/team.yaml"
+"$PY" "$SCRIPT_DIR/resolve-config.py" "$team/team.yaml" --ladder "$SCRIPT_DIR/collector-ladder.tsv" >"$team/resolved.json"
+out="$(PATH="$crlf:$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --config "$team/resolved.json" --all "$SOURCES")"
+rc=$?
+assert_eq "a CRLF interpreter with a configured registry exits 0" 0 "$rc"
+assert_doc "a CRLF interpreter still sorts every fixture into its lane" "$out" \
+  'd["status"]=="complete" and len(d["run"])==6 and all(r["status"]=="ok" for r in d["run"]) and d["summary"]["files"]==8 and d["scope"]["unclassified"]==0 and any(r["file"].endswith("cm-sample.sh") and r["lane"]=="bash" for r in d["measures"])'
+assert_doc "a CRLF interpreter resolves the registry and collapses the copies" "$out" \
+  'len([r for r in d["measures"] if r["file"].endswith("shared-utils.sh")])==1 and next(r for r in d["measures"] if r["file"].endswith("shared-utils.sh"))["replicas"]["count"]==2'
+assert_doc "no CR reaches a measured path" "$out" \
+  'not any("\r" in r["file"] for r in d["measures"])'
+rm -rf "$team"
+# The derived configuration: a scope default, an exclusion, and ecosystem lane
+# globs all travel from Python to bash as lines.
+repo="$(mktemp -d)"
+home="$(mktemp -d)"
+mkdir -p "$repo/.claude/ecosystems" "$repo/gen"
+printf 'scope:\n  default: all\n  exclude: ["gen/**"]\n' >"$repo/.claude/code-metrics.yaml"
+eco_lane=bash
+printf 'globs: ["*.bats"]\n' >"$repo/.claude/ecosystems/$eco_lane.yaml"
+printf 'a = 1\n' >"$repo/a.py"
+printf 'g = 1\n' >"$repo/gen/b.py"
+printf 'run() { :; }\n' >"$repo/x.bats"
+(cd "$repo" && git init -q -b main && git config user.email t@example.com && git config user.name t && git add -A && git commit -q -m fixture)
+out="$(cd "$repo" && PATH="$crlf:$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines)"
+rc=$?
+assert_eq "a CRLF interpreter with a team configuration exits 0" 0 "$rc"
+assert_doc "a CRLF interpreter honors scope.default all, scope.exclude, and lane globs" "$out" \
+  'd["scope"]["mode"]=="all" and d["scope"]["excluded"]==1 and not any(r["file"]=="gen/b.py" for r in d["measures"]) and any(r["file"]=="x.bats" and r["lane"]=="bash" for r in d["measures"]) and any(r["file"]=="a.py" and r["lane"]=="python" for r in d["measures"])'
+rm -rf "$repo" "$home" "$crlf"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))

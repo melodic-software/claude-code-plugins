@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "# Retry\n\nRequests retry on transient failures: 5xx responses and timeouts.\n\n## Options\n\n- `maxAttempts`: how many times a request is tried, the first try included.\n- `backoffJitter`: spread retries randomly across the delay window.\n- `delayMs`: the wait between tries.\n\n## Jitter\n\nWith `backoffJitter` on, each wait is a random time up to `delayMs`, so clients that failed\ntogether do not retry together.\n"}
+  ],
+  "fail": [
+    {"answer": "# Retry\n\nRequests retry on transient failures: 5xx responses and timeouts.\n\n## Options\n\n- `maxAttempts`: how many times a request is tried, the first try included.\n- `delayMs`: the wait between tries.\n", "why": "theirs only: the jitter docs dropped"},
+    {"answer": "# Retry\n\nRequests retry on failure.\n\n## Options\n\n- `maxRetries`: how many times a request is tried.\n- `backoffJitter`: spread retries randomly across the delay window.\n- `delayMs`: the wait between tries.\n\n## Jitter\n\nWith `backoffJitter` on, each wait is random.\n", "why": "ours only: main's intro and rename dropped"},
+    {"answer": "# Retry\n\nRequests retry on transient failures: 5xx responses and timeouts.\n\n## Options\n\n- `maxRetries`: how many times a request is tried.\n- `maxAttempts`: how many times a request is tried, the first try included.\n- `backoffJitter`: spread retries randomly.\n- `delayMs`: the wait between tries.\n\n## Jitter\n\nRandom waits.\n", "why": "the stale maxRetries line kept beside the rename"}
+  ]
+}

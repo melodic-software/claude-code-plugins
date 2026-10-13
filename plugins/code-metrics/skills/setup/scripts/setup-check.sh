@@ -62,7 +62,7 @@ row() {
 # shellcheck source=../../../scripts/python-resolve.sh
 source "$SCRIPTS/python-resolve.sh"
 if cm_resolve_python; then
-  row PASS "python" "$("${PY[@]}" -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])') (floor $CM_PYTHON_FLOOR) via ${PY[*]}"
+  row PASS "python" "$("${PY[@]}" -I -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])') (floor $CM_PYTHON_FLOOR) via ${CM_PY_NATIVE[*]}"
 else
   row FAIL "python" "no interpreter at or above ${CM_PYTHON_FLOOR} (tried python3, python, py -3); required for every skill"
   printf '\n%d FAIL\n' "$FAILS"
@@ -105,7 +105,15 @@ check_layer() {
   fi
 }
 check_layer "user-global" "$HOME_DIR/.claude/code-metrics.yaml" n/a
-check_layer "team" "$REPO_ROOT/.claude/code-metrics.yaml" yes
+# The team layer is docs/conventions/code-metrics.yaml; the older
+# .claude/code-metrics.yaml is read only while that file is absent.
+team_file="$REPO_ROOT/docs/conventions/code-metrics.yaml"
+legacy_file="$REPO_ROOT/.claude/code-metrics.yaml"
+if [[ ! -f "$team_file" && -f "$legacy_file" ]]; then
+  row WARN "layer team location" "$legacy_file is the older team file; /code-metrics:setup apply moves its keys to $team_file"
+  team_file="$legacy_file"
+fi
+check_layer "team" "$team_file" yes
 check_layer "local" "$REPO_ROOT/.claude/code-metrics.local.yaml" no
 for eco in "$REPO_ROOT"/.claude/ecosystems/*.yaml; do
   [[ -f "$eco" ]] || continue
@@ -123,7 +131,7 @@ trap 'rm -rf "$RESOLVED" "$RESOLVED.err" "$LIVE"' EXIT
 if "${PY[@]}" "$SCRIPTS/resolve-config.py" --ladder "$SCRIPTS/collector-ladder.tsv" --home "$HOME_DIR" --repo-root "$REPO_ROOT" >"$RESOLVED" 2>"$RESOLVED.err"; then
   while IFS=$'\t' read -r measure reference provenance layer; do
     row INFO "reference $measure" "$reference (layer: $layer) $provenance"
-  done < <("${PY[@]}" -c '
+  done < <("${PY[@]}" -I -c '
 import json, sys
 d = json.load(open(sys.argv[1]))
 for t in d["thresholds"]:

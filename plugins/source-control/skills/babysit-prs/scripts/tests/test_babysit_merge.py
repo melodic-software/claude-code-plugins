@@ -670,9 +670,34 @@ class PullRequestBodyHold(TierEvaluateHarness):
                     result = self._evaluate(_pr(body=body), tier=tier)
                     self.assertFalse(result["ready"])
                     self.assertTrue(
-                        any("body says do not merge" in b for b in result["blockers"]),
+                        any("body holds the merge" in b for b in result["blockers"]),
                         result["blockers"],
                     )
+
+    def test_body_line_starting_hold_blocks_with_and_without_the_tier(self) -> None:
+        for body in (
+            "Refs: #1\r\n\r\nHold: a human merges this\r\n",
+            "## Summary\n  hold: until the release ships",
+            "Refs: #1\n Hold: pasted from a rich-text editor",
+            "Refs: #1\rHold: a bare CR line break",
+        ):
+            for tier in (TIER, None):
+                with self.subTest(body=body, tier=tier is not None):
+                    result = self._evaluate(_pr(body=body), tier=tier)
+                    self.assertFalse(result["ready"])
+                    self.assertTrue(
+                        any("body holds the merge" in b for b in result["blockers"]),
+                        result["blockers"],
+                    )
+
+    def test_hold_word_inside_a_line_does_not_block(self) -> None:
+        for body in (
+            "The merge lane reads a hold: label or body line.",
+            "Threshold: 3 retries",
+        ):
+            with self.subTest(body=body):
+                result = self._evaluate(_pr(body=body), tier=None)
+                self.assertTrue(result["ready"], result["blockers"])
 
     def test_do_not_merge_label_blocks_with_and_without_the_tier(self) -> None:
         for name in ("do-not-merge", "Do-Not-Merge"):
@@ -1250,6 +1275,15 @@ class AutoMergeArming(unittest.TestCase):
 
     def setUp(self) -> None:
         RepoConfigFake().install(self)
+        self.enterContext(
+            mock.patch.object(
+                merge.merge_policy,
+                "resolve",
+                return_value=merge.merge_policy.UnattendedPolicy(
+                    reason="authority-unconfigured"
+                ),
+            )
+        )
 
     CI_RULES = [
         {
@@ -1653,6 +1687,17 @@ class RefreshDisarmsAutoMerge(unittest.TestCase):
 
 class RepoPolicyReachesTheGate(unittest.TestCase):
     """`main` reads the target repository's policy; the flags are the fallback."""
+
+    def setUp(self) -> None:
+        self.enterContext(
+            mock.patch.object(
+                merge.merge_policy,
+                "resolve",
+                return_value=merge.merge_policy.UnattendedPolicy(
+                    reason="authority-unconfigured"
+                ),
+            )
+        )
 
     TIER_FLAGS = (
         "--autopilot-merge-tier",

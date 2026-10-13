@@ -1,18 +1,26 @@
 {
   "name": "context-budget",
-  "version": "0.10.1",
-  "description": "Measures a Claude Code session's fixed startup context payload per item at a pinned binary version, including per-tool attribution of the built-in tool pools that /context reports only as totals, derived by A/B deny differencing under comparability rules. Falls back from an SDK meter to a headless /context parser, then to an error rather than a wrong number. Keeps a per-project before/after ledger per lever. Report-only by default; fix applies one approved project-scope trim.",
+  "version": "0.11.1",
+  "description": "Measures a Claude Code session's fixed startup context payload per item at a pinned binary version, including per-tool attribution of the built-in tool pools that /context reports only as totals, derived by A/B deny differencing. Falls back from an SDK meter to a headless /context parser, then to an error rather than a wrong number. Keeps a before/after ledger per lever. Shows a live context breakdown in a pane or above the prompt. Report-only by default; fix applies one approved project trim.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
+  "types": "./types/index.d.ts",
   "userConfig": {
     "settings_write_ask_enabled": {
       "type": "boolean",
       "title": "Settings-write-ask hook",
       "description": "Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher.",
       "default": true
+    },
+    "live_display": {
+      "type": "string",
+      "title": "Live context display",
+      "description": "Where the live context breakdown shows. pane opens it in a pane when you run /context-budget live; band keeps it above the prompt; off shows nothing and measures nothing. /context-budget live pane, band or off changes it for the session.",
+      "default": "pane",
+      "options": ["pane", "band", "off"]
     }
   },
   "keywords": [

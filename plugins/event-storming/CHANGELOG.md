@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.25] - 2026-10-13
+
+### Changed
+
+- The Miro availability gates and setup steps stop restating the MCP tool-name prefix format and how Claude Code stores a sensitive plugin option; they keep our decisions and point at the live sections with an as-of date and recheck trigger.
+
 ## [0.6.24] - 2026-10-07
 
 ### Changed

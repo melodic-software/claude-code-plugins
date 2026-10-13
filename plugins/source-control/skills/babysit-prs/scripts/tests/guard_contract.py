@@ -42,6 +42,7 @@ LEASE_CLI = "skills/babysit-prs/scripts/manage_babysit_lease.py"
 LEDGER_CLI = "skills/babysit-prs/scripts/manage_feedback_ledger.py"
 PRUNE_CLI = "skills/babysit-prs/scripts/prune_babysit_worktrees.py"
 REFRESH_CLI = "skills/babysit-prs/scripts/refresh_pr_branch.py"
+POSTMERGE_CLI = "skills/babysit-prs/scripts/babysit_postmerge.py"
 REVIEW_CLI = "skills/babysit-prs/scripts/request_review.py"
 SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
@@ -750,6 +751,81 @@ REFUSALS: tuple[Refusal, ...] = (
         enforced_at="manage_feedback_ledger.py::main",
     ),
     Refusal(
+        id="ledger.rerun-requires-check-id",
+        claim=(
+            "A check rerun is recorded against one identified check: record-rerun "
+            "without --check-id refuses at exit 2. The flake cap counts reruns per PR, "
+            "head and check, so a rerun recorded with no check would count against "
+            "nothing and the cap could never fire."
+        ),
+        entry_point=LEDGER_CLI,
+        argv=(
+            "record-rerun",
+            "--pr",
+            "owner/repo#1",
+            "--expected-head-sha",
+            "0123456789abcdef0123456789abcdef01234567",
+            "--state-dir",
+            "{state_dir}",
+            "--lease-token",
+            "contract-row",
+            "--apply",
+        ),
+        exit_code=2,
+        error_contains=("--check-id",),
+        refused_by=PYTHON_CLI,
+        enforced_at="manage_feedback_ledger.py::main",
+    ),
+    Refusal(
+        id="ledger.check-id-must-be-hex",
+        claim=(
+            "--check-id accepts only the snapshot's lowercase hex rerun id and refuses "
+            "anything else at exit 2. Check and workflow names are attacker text on a "
+            "fork PR, so the command names a check by an id with no shell "
+            "metacharacters and the helper resolves the name from stored state."
+        ),
+        entry_point=LEDGER_CLI,
+        argv=(
+            "record-rerun",
+            "--pr",
+            "owner/repo#1",
+            "--expected-head-sha",
+            "0123456789abcdef0123456789abcdef01234567",
+            "--state-dir",
+            "{state_dir}",
+            "--check-id",
+            "build",
+        ),
+        exit_code=2,
+        error_contains=("--check-id must be",),
+        refused_by=PYTHON_CLI,
+        enforced_at="manage_feedback_ledger.py::main",
+    ),
+    Refusal(
+        id="ledger.check-id-requires-a-rerun",
+        claim=(
+            "--check-id is refused at exit 2 on any other action rather than "
+            "accepted and ignored, so a caller cannot believe it recorded a rerun "
+            "when it recorded a check-in."
+        ),
+        entry_point=LEDGER_CLI,
+        argv=(
+            "record-worker-checkin",
+            "--pr",
+            "owner/repo#1",
+            "--expected-head-sha",
+            "0123456789abcdef0123456789abcdef01234567",
+            "--state-dir",
+            "{state_dir}",
+            "--check-id",
+            "0123456789abcdef0123456789abcdef",
+        ),
+        exit_code=2,
+        error_contains=("--check-id is only valid",),
+        refused_by=PYTHON_CLI,
+        enforced_at="manage_feedback_ledger.py::main",
+    ),
+    Refusal(
         id="prune.root-is-required",
         claim=(
             "prune_babysit_worktrees.py has no default root: omitting --root is a usage "
@@ -1239,6 +1315,27 @@ MECHANISMS: tuple[Mechanism, ...] = (
         must_contain=("babysit_python",),
         must_not_contain=('for arg in "$@"',),
     ),
+    Mechanism(
+        id="postmerge.remediate-gates-every-write",
+        claim=(
+            "babysit_postmerge.py calls its writers (the attribution re-run, the "
+            "full-run dispatch, the dequeue and the demotion issue) only inside one "
+            "branch of main() that needs --remediate, a readable verdict and a known "
+            "branch. Without the flag it reads GitHub and prints the verdict, whatever "
+            "the verdict says."
+        ),
+        entry_point=POSTMERGE_CLI,
+        must_contain=("elif args.remediate and verdict.readable and branch:",),
+    ),
+    Mechanism(
+        id="postmerge.parser-refuses-abbreviation",
+        claim=(
+            "babysit_postmerge.py sets allow_abbrev=False, so a permission rule written "
+            "against the exact spelling --remediate also covers every prefix of it."
+        ),
+        entry_point=POSTMERGE_CLI,
+        must_contain=("allow_abbrev=False",),
+    ),
 )
 
 
@@ -1257,7 +1354,11 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutation=CONDITIONAL,
         mutates_what=(
             "merges the PR on GitHub, or with --auto arms auto-merge; with --state-dir "
-            "it also keeps a local pending-merge record"
+            "it also keeps a local pending-merge record. With --unattended --merge, "
+            "under the agent identity only: enqueues at the pinned head after a pin "
+            "comment, dequeues the identity's queue entries, disarms an armed "
+            "auto-merge, upserts the reasons comment, and dispatches the full run "
+            "once a queued entry reads back merged"
         ),
         gate="--merge (absent: readiness check only, exit 0 ready / 10 not ready)",
         claim=(
@@ -1316,7 +1417,9 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         path=LEDGER_CLI,
         wrapper=None,
         mutation=CONDITIONAL,
-        mutates_what="records feedback dispositions and fix rounds in queue state",
+        mutates_what=(
+            "records feedback dispositions, fix rounds, and check reruns in queue state"
+        ),
         gate="--apply, additionally requiring --lease-token",
         claim=(
             "Local state only, no GitHub write. The lease token requirement means an "
@@ -1326,6 +1429,9 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "ledger.apply-requires-lease-token",
             "ledger.advisory-round-requires-finding-class",
             "ledger.finding-class-requires-an-advisory-round",
+            "ledger.rerun-requires-check-id",
+            "ledger.check-id-must-be-hex",
+            "ledger.check-id-requires-a-rerun",
         ),
     ),
     EntryPoint(
@@ -1339,6 +1445,22 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "cannot sweep a directory the caller did not name."
         ),
         backed_by=("prune.root-is-required", "prune.removes-worktrees-via-git"),
+    ),
+    EntryPoint(
+        path=POSTMERGE_CLI,
+        wrapper=None,
+        mutation=CONDITIONAL,
+        mutates_what=(
+            "re-runs failed jobs of a red full run; dispatches a full run when none "
+            "covers an unverified auto-merge; dequeues the agent identity's "
+            "merge-queue entries; files, reopens, or comments on the demotion issue"
+        ),
+        gate="--remediate",
+        claim="Read-only without --remediate.",
+        backed_by=(
+            "postmerge.remediate-gates-every-write",
+            "postmerge.parser-refuses-abbreviation",
+        ),
     ),
     EntryPoint(
         path=REFRESH_CLI,

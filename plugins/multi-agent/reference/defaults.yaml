@@ -7,6 +7,15 @@
 # effort: low | medium | high | xhigh | max. Always passed explicitly.
 # pointer*, as_of, recheck: where the default's basis lives, read by
 #   /multi-agent:audit-defaults. The resolver never emits them.
+# basis_<field>: per role, `upstream` or `judgment` for that role's <field>
+#   (model or effort). `upstream` names pointer_<field>, the section whose
+#   statement sets the value or the rule it follows from, and claim_<field>,
+#   which statement in it. `judgment` names reason_<field>: no upstream
+#   statement sets the value, and why it is what it is. The resolver emits the
+#   basis beside each value; the audit checks that an upstream pointer states it.
+#   A workloads.<w>.<field> value records its basis on the role as
+#   basis_<w>_<field>, with pointer_<w>_<field> and claim_<w>_<field> or
+#   reason_<w>_<field>.
 # Which roles may route to haiku, and at what effort: reference/routing-rubric.md.
 schema: 1
 
@@ -24,39 +33,58 @@ fanout:
   model: opus
   pointer: https://code.claude.com/docs/en/workflows#cost
   pointer_cost: https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work
-  as_of: 2026-10-02
-  recheck: a new model row on the cost page, or a workflows Cost section change to how a stage's model is chosen
+  as_of: 2026-10-10
+  recheck: a new model named on the cost page, or a workflows Cost section change to how a stage's model is chosen
 
 roles:
   orchestrator:
     model: inherit
     effort: high
-    pointer: https://code.claude.com/docs/en/workflows#cost
+    basis_model: judgment
+    reason_model: the orchestrator is the session itself, so it runs on the model the user chose; the cost page's orchestrator strategy puts a frontier model in the loop, which inherit follows only when the session is frontier, and no upstream statement sets the orchestrator's model for other sessions
+    basis_effort: judgment
+    reason_effort: no upstream statement sets an orchestrator effort; it plans the run and merges every worker's result, so it stays a level above the worker's
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
-    as_of: 2026-10-02
-    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section
+    as_of: 2026-10-11
+    recheck: the cost page's orchestrator-strategy section changes which model holds the loop, an upstream page states an effort for an orchestrator or lead agent, or a Claude Code release edits the bundled /workflow-authoring skill
   worker:
     model: inherit
     effort: medium
-    pointer: https://code.claude.com/docs/en/workflows#cost
+    workloads:
+      mechanical:
+        model: sonnet
+    basis_model: judgment
+    reason_model: the cost page's orchestrator strategy delegates to lower-cost workers, and the fan-out guard applies that under a frontier session; under any other session no cheaper alias is set, because the same page measured delegation paying only in named cases
+    basis_effort: upstream
+    pointer_effort: https://code.claude.com/docs/en/model-config#choose-an-effort-level
+    claim_effort: the effort table's row for day-to-day engineering work with a clear scope
+    basis_mechanical_model: upstream
+    pointer_mechanical_model: https://code.claude.com/docs/en/costs#choose-the-right-model
+    claim_mechanical_model: the statement that Sonnet handles most coding tasks well, with Opus reserved for complex architectural decisions or multi-step reasoning
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
-    pointer_cost: https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
-    as_of: 2026-10-10
-    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section, a new model row on the cost page, the Agent tool's per-spawn effort parameter changes, or a role proposed for haiku (see routing-rubric.md)
+    as_of: 2026-10-13
+    recheck: model-config's effort table changes the row for clear-scope engineering work, the cost page's orchestrator strategy changes its worker-model advice, a new model is named on the cost page, the costs page changes its model split, the Agent tool's per-spawn effort parameter changes, or a role is proposed for haiku (see routing-rubric.md)
   verifier:
     model: inherit
     effort: high
-    pointer: https://code.claude.com/docs/en/workflows#cost
+    basis_model: judgment
+    reason_model: no upstream statement sets a verifier model; a verifier judges the other stages' work, so it is not one of the stages that can drop to a smaller model
+    basis_effort: upstream
+    pointer_effort: https://code.claude.com/docs/en/model-config#choose-an-effort-level
+    claim_effort: the effort table's row for work where verification matters or edge cases are likely
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
-    as_of: 2026-10-10
-    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section, or the Agent tool's per-spawn effort parameter changes
+    as_of: 2026-10-11
+    recheck: model-config's effort table changes the row for verification-heavy work, an upstream page states a model for a verifying or judging agent, or the Agent tool's per-spawn effort parameter changes
   retrieval:
     model: sonnet
     effort: medium
-    pointer: https://code.claude.com/docs/en/workflows#cost
+    basis_model: judgment
+    reason_model: the workflows Cost section advises a smaller model for stages that do not need the strongest one but names none; sonnet is the smaller alias chosen because no role routes to haiku until it passes the routing eval (see routing-rubric.md)
+    basis_effort: judgment
+    reason_effort: no upstream statement sets an effort for read-only lookup; it stays at the sonnet alias's default level rather than dropping to the quick-exchange level, because a lookup's result feeds other agents without a person reviewing it
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_spawn: https://code.claude.com/docs/en/sub-agents#choose-an-effort-level
-    as_of: 2026-10-10
-    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section, a model-config change to the sonnet alias, the Agent tool's per-spawn effort parameter changes, or a role proposed for haiku (see routing-rubric.md)
+    as_of: 2026-10-11
+    recheck: the workflows Cost section changes its smaller-model advice, a model-config change to the sonnet alias or its default effort, an upstream page states an effort for lookup or search agents, the Agent tool's per-spawn effort parameter changes, or a role is proposed for haiku (see routing-rubric.md)

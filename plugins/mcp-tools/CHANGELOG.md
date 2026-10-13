@@ -3,6 +3,33 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0] - 2026-10-13
+
+### Added
+
+- audit: criterion C20 grades every `x-mcp-header` a tool parameter declares against the MCP 2026-07-28 tools page's constraints. A violation is FAIL, because a Streamable HTTP client drops the whole tool. A sensitive parameter, or a value source cannot show, is WARN. A tool without the keyword passes.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- `/mcp-tools:audit` grades C17 and C18 against the result-size ceiling and the effective approval value read live from the Claude Code MCP page, instead of a copied ceiling number, and the duplicate statements in the checklist and discovery reference cite that one record.
+- `/mcp-tools:audit-posture` and the README point at the MCP scope, precedence and managed-server sections for where configuration lives and which entries load, instead of restating file locations, precedence and entry checks; the organization-provided removal note is a pointer record.
+
+- audit: C16 judges `inputSchema` validity in the dialect the schema declares, or in the spec's default dialect when it declares none, so a keyword valid there is not flagged. The checklist's "Spec revision record" records the decisions for the three tool rules the 2026-07-28 revision added, including declining deterministic `tools/list` ordering: this audit reads source and cannot observe the order a running server returns.
+
+### Fixed
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
 ## [0.7.0] - 2026-10-10
 
 ### Added

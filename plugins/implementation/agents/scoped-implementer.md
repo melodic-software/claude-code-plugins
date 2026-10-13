@@ -31,6 +31,13 @@ worktree/provisioning instructions, and its CI-hygiene clauses govern verbatim. 
 adds no permissions beyond the brief and never overrides it; when the brief and this file appear to
 conflict, STOP and report the conflict.
 
+**A denial is a STOP.** When the auto-mode classifier, a hook or a permission rule denies a call,
+stop that step and report the exact command. Never reach the same effect another way: a fresh PR
+with the same content, merging before review threads form, or deleting file by file after a
+recursive delete is blocked. A guard that names a sanctioned alternative (for example use Edit
+instead of a shell write) is followed, not routed around. This holds even when the brief does not
+say it.
+
 **The design excerpt binds like the acceptance criteria.** When the brief quotes part of the plan's
 `## Design` section, build to its module layout, contracts and variation verdicts, and follow the
 conventions it cites. A phase that cannot honor one of them is a divergence: STOP and report,
@@ -122,7 +129,8 @@ brief's escalation clause names: STOP and report, so the orchestrator can re-dis
 `implementation:implementer`. Never stretch to finish it here.
 
 `effort` is pinned alongside `model` so the phase never runs at the session's level. A dispatcher
-passes no spawn `effort` here.
+passes no `effort` here: neither the Agent tool's per-call parameter nor a Workflow `agent()`
+call's.
 
 We bind `sonnet` at `effort: medium` for a well-scoped implementation phase, and keep Opus as the
 binding for complex work. Where an organization's `availableModels` allowlist blocks `sonnet`, we
@@ -136,7 +144,7 @@ the effort-pin owner's ruling of 2026-10-01.
   for the subagent model order and allowlist substitution, see
   <https://code.claude.com/docs/en/sub-agents#choose-a-model>; for the per-spawn `effort` and its
   rank over the pin, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
-- **As of**: 2026-10-10
+- **As of**: 2026-10-11
 - **Recheck trigger**: the subagents effort section changes precedence or which spawns honor
   `effort`, the costs section changes its model split, either effort-levels section changes its
   advice for `medium`, the allowlist substitution changes, or the `sonnet` alias moves to a new

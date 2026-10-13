@@ -3,6 +3,12 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2] - 2026-10-12
+
+### Changed
+
+- `setup`, `build-cli` and `audit-tools` point at the live Claude Code docs sections they rely on by anchor, each with an as-of date and recheck trigger.
+
 ## [0.1.1] - 2026-10-11
 
 ### Fixed

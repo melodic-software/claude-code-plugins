@@ -40,8 +40,8 @@ usage() {
   cat >&2 <<'EOF'
 Usage: work-item-tracker.sh <verb> [args]
 Verbs:
-  create-item --title <t> [--body <b>] [--labels a,b] [--type <name>]
-              [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <owner>/<repo>]
+  create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b]
+              [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <owner>/<repo>]
   get-item <id>
   claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]
         --ttl-minutes (0-59) ADDS to --ttl-hours; for a sub-hour lease pass
@@ -54,6 +54,7 @@ Verbs:
   list-sub-items <parent-id> [--state open|closed|all]
   list-items [--state open|closed|all] [--repo <owner>/<repo>] [--label <name>]
   list-frontier [--autonomous] [--parent <container-id>] [--repo <owner>/<repo>] [--label <name>]
+  label-provenance <id> --label <name> [--label <name> ...]
   change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <owner>/<repo>]
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
@@ -123,7 +124,7 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | change-link | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | change-link | capabilities) ;;
   list-items) ;;
   list-frontier)
     # Chosen BEFORE the capability gate, so an adapter without list-sub-items
@@ -286,6 +287,50 @@ main() {
       cl_args+=(--branch-ref "${BASH_REMATCH[${#BASH_REMATCH[@]} - 1]}")
     fi
     set -- "${cl_args[@]+"${cl_args[@]}"}"
+  fi
+
+  if [[ "$verb" == "create-item" ]]; then
+    # --body-file is core-side (CONTRACT.md "Verbs"): the file's content becomes --body, so
+    # adapters see one flag and a caller passes the body with no command substitution.
+    local ci_args=() body_file="" has_body="false"
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+      --body-file)
+        [[ $# -ge 2 && -n "$2" && -z "$body_file" ]] || fail_usage
+        body_file="$2"
+        shift 2
+        ;;
+      --title | --body | --labels | --type | --parent | --blocked-by | --repo)
+        [[ "$1" == "--body" ]] && has_body="true"
+        ci_args+=("$1")
+        shift
+        if [[ $# -gt 0 ]]; then
+          ci_args+=("$1")
+          shift
+        fi
+        ;;
+      *)
+        ci_args+=("$1")
+        shift
+        ;;
+      esac
+    done
+    if [[ -n "$body_file" ]]; then
+      if [[ "$has_body" == "true" ]]; then
+        printf 'work-item-tracker: --body and --body-file are mutually exclusive\n' >&2
+        exit "$EX_USAGE"
+      fi
+      if [[ ! -f "$body_file" || ! -r "$body_file" ]]; then
+        printf "work-item-tracker: --body-file '%s' is not a readable file\n" "$body_file" >&2
+        exit "$EX_USAGE"
+      fi
+      if [[ ! -s "$body_file" ]]; then
+        printf "work-item-tracker: --body-file '%s' is empty; write the body to it before create-item\n" "$body_file" >&2
+        exit "$EX_USAGE"
+      fi
+      ci_args+=(--body "$(<"$body_file")")
+    fi
+    set -- "${ci_args[@]+"${ci_args[@]}"}"
   fi
 
   out="$(bash "$adapter_dir/$adapter_verb.sh" "$@")"

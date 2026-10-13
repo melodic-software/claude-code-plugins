@@ -8,6 +8,7 @@
 - [Cross-PR Dependency Signaling](#cross-pr-dependency-signaling)
 - [Main Agent Responsibilities](#main-agent-responsibilities)
 - [Fix-Round Cap](#fix-round-cap)
+- [Flake Cap](#flake-cap)
 - [Merge Conflict Resolution](#merge-conflict-resolution)
 - [Worker Contract](#worker-contract)
 - [Worker Prompt Template](#worker-prompt-template)
@@ -453,6 +454,38 @@ as many rounds as it takes within the cycle. When a PR has both blocking and adv
 outstanding, only the advisory-finding rounds count against this ceiling; continue blocking-defect
 rounds uncapped.
 
+## Flake Cap
+
+A failing check gets one rerun per PR head. If it fails again on that same head, the failure is
+real: fix it as a branch-owned failure or report it, and do not rerun it a second time. A push
+that changes the head gives every check one new rerun, because the cap is counted per PR, head
+SHA, and check (type, name, and workflow).
+
+Whoever triggers the rerun, orchestrator or worker, records it first, write-ahead, under that
+PR's worker lease:
+
+```bash
+python "<skill-dir>/scripts/manage_feedback_ledger.py" record-rerun --pr owner/repo#42 --expected-head-sha <head-sha> --check-id <rerun-id> --lease-token <worker-token> --state-dir <state-dir> --apply
+```
+
+`<rerun-id>` is the 32-character lowercase hex `rerun_id` the snapshot lists for that check. In
+the text output each failing check has its own line, `failing check: rerun_id=<id> name="<name>"`,
+and the id is the hex right after `rerun_id=` at the start of that line; the name after it is
+JSON-escaped and is never a source for the id. In `--json` output it is the entry's `rerun_id`
+under `checks.failing_identities`. Copy only the hex id,
+never the name beside it. Never put a check or workflow name in this command or any other shell
+text: a fork PR names its own jobs, so the name is attacker-controlled, and double quotes still run
+`$(...)` and backticks inside it. The helper exits 2 if two different failing checks share the id;
+report that PR and record nothing. The helper resolves the id against the stored snapshot
+and accepts only a check that snapshot lists as failing at that head; it exits 2 on a malformed
+or unknown id. It exits 4 when the check already had its rerun at this head; treat exit 4 as the
+cap firing, not as a tool failure to retry. Without `--apply` it reports the same verdict and
+records nothing. The record lives in the durable mutation ledger, so a rerun from an earlier cycle
+or an earlier session counts.
+
+This cap counts reruns only. Fixing a failing check is uncapped, as the Fix-Round Cap above
+states.
+
 ## Merge Conflict Resolution
 
 This section's autonomous-resolution path applies only in worker and autopilot tiers: default
@@ -493,10 +526,12 @@ push. The two contracts below are halves of one operation; neither is complete a
 
 ### Why The Push Stays With The Orchestrator
 
-A dispatched subagent starts with a fresh, isolated context window: it "doesn't see your
-conversation history, the skills you've already invoked, or the files Claude has already read.
-Claude composes a delegation message that summarizes the task, and the subagent works from there"
-(<https://code.claude.com/docs/en/sub-agents>, "Context isolation"). Everything a conflict worker
+A dispatched non-fork subagent starts without the dispatching conversation and works from the
+delegation message Claude composes. Pointer:
+[sub-agents: What loads at startup](https://code.claude.com/docs/en/sub-agents#what-loads-at-startup).
+As of 2026-10-11; recheck when that section says a non-fork subagent receives the parent
+conversation or anything beyond the delegation message that carries the operator's turn.
+Everything a conflict worker
 knows about its own authority therefore reaches it inside a delegation prompt written by the agent
 that dispatched it.
 
@@ -647,7 +682,7 @@ On the conflict worker's return, and before pushing anything:
   push. The resolution was computed against a superseded tip. Recovering means returning the worktree to a
   clean checkout of the new head, re-acquired through the same fork-aware path the checkout
   contract uses: `origin` only for a same-repo head, and for a cross-repo head the PR checkout
-  ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#re-acquire-a-cross-repo-head)) or a fetch from the validated fork remote (`safety.md`, Checkout And Push Invariants). A
+  ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#re-acquire-a-cross-repo-head)). A
   `git fetch origin <headRefName>` on a fork PR either finds nothing or fetches an unrelated
   same-named base-repo branch. Then re-checkout that head (discarding the superseded merge
   commit), re-snapshot, and dispatch a fresh conflict worker. Never hand a new conflict worker a worktree still sitting on the superseded merge
@@ -706,12 +741,11 @@ On the conflict worker's return, and before pushing anything:
      the live PR head read with an explicit remote target
      ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#read-the-true-pr-head)) ==
      `git -C <worktree> rev-parse HEAD^1`; a mismatch is the same superseded-tip no-push as above.
-  3. **Push.** `git -C <worktree> push "$PUSH_REMOTE" HEAD:<headRefName>`,
-     where `PUSH_REMOTE` resolves **fail-closed** per `reference/safety.md` (Checkout And Push
-     Invariants): `origin` for a same-repo head, the validated fork remote for a write-allowed
-     in-owner cross-repo head, and **stop (read-only)** rather than defaulting to `origin` when a
-     fork remote is unresolved (an `origin` fallback writes a same-named branch on the base repo,
-     not the fork head). Given the first-parent assertion this is a fast-forward.
+  3. **Push.** `push-branch.sh --dir <worktree> --pr <N>`, the same push `lane_push` makes
+     ([loop.md](loop.md), Checkout And Push Invariants in `reference/safety.md`): it pushes the
+     worktree's HEAD to the PR's own head branch, a write-allowed in-owner fork's included, through
+     `lane-push.sh` as the target's `merge.agent-identity` in a lane and the operator's own path
+     attended. Given the first-parent assertion this is a fast-forward.
 
   Disarm auto-merge before step 1 and again right after step 3, never between 2 and 3, per the
   Worker Contract's auto-merge rule below.
@@ -799,7 +833,8 @@ Each worker must:
   checkout between a read and the next write, silently committing branch-owned fixes into the wrong
   repository. Three classes of call need anchoring:
   - **git**: `git -C <absolute-worktree-path>` on every one (`status`, `add`, `commit`, `diff`,
-    `log`, `push`, all of them).
+    `log`, all of them). The push is `push-branch.sh --dir <absolute-worktree-path>` (below),
+    never `git push`.
   - **file reads and edits**: every path passed to a file-read, edit, write, glob, or search tool
     is absolute, never a bare relative path. A relative path resolves against cwd exactly as a
     shell command does, so a worker can validate a finding against the session's checkout, or
@@ -832,13 +867,20 @@ Each worker must:
   source-of-truth repo
 - stop and report, never resolve, a merge conflict discovered mid-fix-round; hand off to a
   dedicated fresh conflict worker instead (see Merge Conflict Resolution above)
+- rerun a failing check at most once per head, recording it first with
+  `manage_feedback_ledger.py record-rerun --check-id <rerun-id>` (Flake Cap above); a check the
+  ledger refuses with exit 4 failed after its rerun, so fix it or report it
 - commit and push only clear branch-owned fixes, except a conflict worker, which commits its
-  resolution locally and never pushes (Merge Conflict Resolution above)
+  resolution locally and never pushes (Merge Conflict Resolution above); push only through
+  `bash <plugin-root>/skills/pull-request/scripts/push-branch.sh --dir <worktree> --pr <N>`
+  (in a lane it pushes through `lane-push.sh` as the target's `merge.agent-identity`, the loop-lane
+  convention's "Lane write identity"), never a bare `git push`; a non-zero exit is a refusal or a
+  failed push to report
 - disarm auto-merge before every push (ahead of the pre-push head re-check) and again right after
   it: read whether auto-merge is armed and, when it is, disable it
   ([GitHub](../../../reference/providers/github/babysit-prs/orchestration.md#disarm-auto-merge)), and do not push if either the read or the disable fails;
   never re-arm
-  (`safety.md`, "Merge-lane auto-merge")
+  (`safety.md`, "Merge lane: no auto-merge")
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
   through `bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
@@ -908,7 +950,9 @@ instructions (AGENTS.md, CLAUDE.md). Work only in the assigned worktree, and nev
 shell's working directory persisting across separate tool calls: a one-time cd is not enough,
 because cwd can drift back to this session's default checkout between a read and the next write
 and silently commit into the wrong repository. Anchor every git operation with
-git -C <absolute worktree path>, meaning status, add, commit, diff, log, push, all of them. Give every
+git -C <absolute worktree path>, meaning status, add, commit, diff, log, all of them. Push only with
+bash <plugin-root>/skills/pull-request/scripts/push-branch.sh --dir <absolute worktree path>
+--pr <N>, never git push; a non-zero exit means it refused or the push failed. Give every
 file read, edit, write, glob, and search an absolute path, never a bare relative one. A relative
 path resolves against cwd too, so you can validate a finding against the wrong checkout or
 overwrite unrelated work in it. For target-repository files that absolute path is
@@ -946,7 +990,9 @@ or looping worker, not a normal limit on legitimate fix work. Keep iterating tow
 through as many advisory rounds as it takes, for as long as real progress is being made or real
 findings remain; only if the ledger reports the cap reached should you stop and report final
 state instead. Blocking defects, meaning failing CI, P0/P1, and regressions, are never capped; keep fixing
-those. If you hit a merge conflict, do not resolve it yourself. Stop, report which files and
+those. A failing check you judge flaky gets one rerun at this head, recorded first as the Flake
+Cap in this skill's orchestration reference describes; if the ledger refuses, the check already
+had its rerun, so fix it or report it. If you hit a merge conflict, do not resolve it yourself. Stop, report which files and
 what the conflicting hunks appear to be about, and leave it for a dedicated fresh
 conflict worker.
 

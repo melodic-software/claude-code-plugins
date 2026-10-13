@@ -3,6 +3,18 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1] - 2026-10-13
+
+### Changed
+
+- **`audit` cites its sources for harness behavior it relies on.** The pre-compute guidance keeps git reads as separate body Bash calls and points at the worktree skill's gather-block record and the skills page's section on how injected commands run; the effort cap points at the skills page's string-substitution section. Each pointer carries an as-of date and a recheck trigger.
+
+### Fixed
+
+- **`audit` no longer says the Bash tool returns a command's complete output into context.** The decision stands (the pipe is the bound, so it belongs in the command); the reason now points at the Output limits section of the Claude Code tools reference for what a result delivers inline.
+
+- **Implement routes to the Test stage before review.** `/implementation:implement` and `/implementation:implement-dispatch` now name the Test-stage skills in `## Next` (`/testing:plan`, `/testing:audit`, `/testing:run-e2e`), with `/review:quality-gate` once tests are planned, checked and green; the `testing`, `tdd` and `mutation-testing` skills that hand off name their successors too, so the graph runs implement, test, review, verify.
+
 ## [0.7.0] - 2026-10-06
 
 ### Changed

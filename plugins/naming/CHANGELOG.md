@@ -3,6 +3,12 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.11] - 2026-10-13
+
+### Changed
+
+- name-it-better: stop restating which skill field drives loading and the listing cap; point at the live frontmatter reference instead.
+
 ## [0.5.10] - 2026-10-04
 
 ### Changed

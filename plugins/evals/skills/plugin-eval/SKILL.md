@@ -230,11 +230,13 @@ committed `mocks/.replay/` so agent mocks replay without a model call.
 
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta"; a run that feeds a decision keeps `--judge-model opus`, since the CLI's default judge is uncalibrated for decisions; only an exploratory run drops it.
    Run it in the foreground with a tool timeout that covers the estimate (a three-case pass took
-   about six minutes here) and wait. Never background the CLI from a headless `-p` session: the run
-   ends with the session. The run is finished when the process exits and `results.json` exists; read
-   the exit code and the JSON together, never one alone. Write the file somewhere git ignores (the
-   CLI's own copy lands under `<eval dir>/results/<timestamp>/`, and a repo that ignores that tree
-   can take `--json` there too); a run result is evidence to distill, not a file to commit.
+   about six minutes here) and wait. **Stay attached until every run exits:** a headless (`-p`)
+   session never backgrounds the CLI (the run ends with the session), runs suites one after another
+   (`-j` adds concurrency inside one), and answers only after all exit; an interactive session
+   backgrounds a run only as a harness-tracked task it waits for. A run is finished when the process
+   exits and `results.json` exists; read the exit code and the JSON together, never one alone. Write
+   the file where git ignores it (the CLI's own copy lands under `<eval dir>/results/<timestamp>/`,
+   which can take `--json` too when ignored); a run result is evidence to distill, not a file to commit.
 
 4. Read the JSON with the `read` action below. With `--json <file>` there is no terminal table, so
    the JSON is the only record of what happened.
@@ -257,27 +259,24 @@ Read in this order. Stopping early at any step is the finding.
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/run-validity.py" results.json --runs <the run count the eval used>
    ```
 
-   The run count is the run's `--runs`, else the cases' `runs`, else 3. In this repository's
-   checkout the script is `plugins/evals/skills/plugin-eval/scripts/run-validity.py`. It needs the
-   traces `--keep-temp` kept; without them it reports the trace checks unchecked and the run
-   INVALID. Report a score, delta, or interval only from `verdict: VALID` (exit 0), naming any
-   warnings it printed. On `verdict: INVALID` (exit 1), report INVALID with every reason on that
-   line and no number, then fix the cause and rerun. Tell the user to post that INVALID line and
-   its reasons in place of the number; "post nothing" is not the instruction. Exit 2 means the file could not be read or an
-   argument was wrong: say which. The steps below still apply to a VALID run.
+   The run count is the run's `--runs`, else the cases' `runs`, else 3. In this repository's checkout the script is
+   `plugins/evals/skills/plugin-eval/scripts/run-validity.py`. It needs the traces `--keep-temp` kept; without them it reports
+   the trace checks unchecked and the run INVALID. Report a score, delta, or interval only from `verdict: VALID` (exit 0),
+   naming any warnings it printed. On `verdict: INVALID` (exit 1), report INVALID with every reason on that line and no number,
+   then fix the cause and rerun. Tell the user to post that INVALID line and its reasons in place of the number; "post nothing"
+   is not the instruction. Exit 2 means the file could not be read or an argument was wrong: say which. The steps below still
+   apply to a VALID run.
 
-   A with-arm denial aimed at or under the plugin's own directory, at a directory above it (which
-   covers its files), or with no absolute path or no known plugin directory, is a FAIL: the agent reached for a plugin file it could not
-   read, so the fact belongs in the hub. Any other denial, in
-   either arm, is a warning only when that run scored the same as every denial-free run of its case
-   in the same arm, so it left the score unchanged; with a different score, or no denial-free run to
-   compare, it is a FAIL.
+   A with-arm denial aimed at or under the plugin's own directory, at a directory above it (which covers its files), or with no
+   absolute path or no known plugin directory, is a FAIL: the agent reached for a plugin file it could not read, so the fact
+   belongs in the hub. Any other denial, in either arm, is a warning only when that run scored the same as every denial-free run
+   of its case in the same arm, so it left the score unchanged; with a different score, or no denial-free run to compare, it is
+   a FAIL.
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
-3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still scored,
-   as a failure with `explanation: "skipped: cost ceiling"`, so it silently depresses the arm. A
-   non-null `error` does not imply score 0, because the run is graded on what it produced. Either
-   makes the case not comparable; say so instead of reporting its number.
+3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still scored, as a failure with
+   `explanation: "skipped: cost ceiling"`, so it silently depresses the arm. A non-null `error` does not imply score 0, because
+   the run is graded on what it produced. Either makes the case not comparable; say so instead of reporting its number.
 4. `cases[].aggregates.delta`. It is **omitted** when the arms are not comparable. An omitted delta
    is never zero, and neither is a missing `scoreWithout`.
 5. Only now read the delta: with-arm score minus without-arm score. A case the gate's `ceiling`
@@ -291,11 +290,10 @@ Read in this order. Stopping early at any step is the finding.
 
    `<method>` is `${user_config.interval_method}`, and an empty or unfilled value there means the
    default, `normal`, applies; do not mention the setting's state to the user. Pass `--grader-agreement` unless `${user_config.grader_run_twice}`
-   is `false`. Any other method value is passed as is, and the script falls back to `normal`. These
-   values set the command this skill runs; they say nothing about a user's own run. In
-   this repository's checkout the script is `plugins/evals/skills/plugin-eval/scripts/noise-report.py`.
-   Exit 2 means the file could not be read or an argument was malformed: say which, and report no
-   interval.
+   is `false`. Any other method value is passed as is, and the script falls back to `normal`. These values set the command this
+   skill runs; they say nothing about a user's own run. In this repository's checkout the script is
+   `plugins/evals/skills/plugin-eval/scripts/noise-report.py`. Exit 2 means the file could not be read or an argument was
+   malformed: say which, and report no interval.
 
 Read the noise report's lines this way:
 
@@ -319,6 +317,8 @@ Read the noise report's lines this way:
   [local-decisions.md, Interval method](../methodology/reference/local-decisions.md#interval-method)
   records the decision for a human reader.
 
+Spot-read outputs against verdicts before trusting any delta. For each case whose delta you report, open a few runs from each arm (the grader explanations in `results.json`, and the kept trace from `--keep-temp`), at least one its graders passed and one they failed where both exist, and check each verdict against what the output does. A pass on a wrong output, or a fail on a correct one, makes the grader or its rubric the finding: fix it and rerun before quoting the number, and say which run showed it.
+
 What the number means:
 
 - A case at 1.00 in both arms proves the plugin contributed nothing to that case. It is a passing
@@ -334,6 +334,8 @@ What the number means:
 - Spoke reach is version-bound (record below): at 2.1.270 and 2.1.287 every with-arm `Read` under
   the plugin directory was denied; at 2.1.289 `context/`, `reference/`, `actions/` and `templates/`
   reads succeeded. Check the trace for a denied `Read` before crediting a spoke.
+
+End the reading with one line on the change under test: `promote` only when the run is VALID, the noise report's verdict is that the interval excludes 0 with the with-arm ahead, and the spot-read found no verdict it disagrees with; otherwise `do not promote`, followed by the first of those conditions that failed.
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
@@ -467,10 +469,8 @@ file, the exit-code table, and the parser rules as background for a human reader
 - `--json <file>` suppresses the terminal summary table. Without `--keep-temp` the per-run
   `tracePath` points at a directory the runner has already deleted, so decide on `--keep-temp`
   before the run, not after reading a surprising score.
-- A `-p` session that backgrounds the CLI call answers "the run started" and exits, and the run
-  dies with it: one temp directory with an empty `out/`, no JSON, no results directory. Observed
-  on this plugin's own suite, verified 2026-09-13; recheck when a release note touches headless
-  tool execution.
+- A `-p` session that backgrounds the CLI call says "the run started", exits, and kills the run
+  (empty `out/`, no JSON; seen 2026-09-13 and 2026-10-04, #6333). Recheck when headless tools change.
 - A headless `-p` session tends to go from the reads straight to the CLI call and print the
   estimate in its final answer. The estimate step above says before; when the transcript is the
   evidence, read it for the order, not only for the number.

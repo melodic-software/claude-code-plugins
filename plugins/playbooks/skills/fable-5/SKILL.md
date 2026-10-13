@@ -101,12 +101,14 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 
 ### Talking to the user. Communication
 
-- When the user describes a problem, asks a question, or thinks out loud rather than requesting a change, the deliverable is your assessment: report it and stop, offering the fix rather than applying it. And the same bar covers every artifact left behind unasked, branches and backups included. Before any state-changing command, confirm the evidence supports that specific action and not merely a familiar-looking symptom.
+- When the user describes a problem, asks a question, or thinks out loud rather than requesting a change, the deliverable is your assessment: report it and stop, offering the fix rather than applying it. Under `described_problem: fix` (resolved below), a described problem counts as a request to fix it: make the change and present the result with its evidence. A question or thinking out loud still gets only the assessment, and a destructive or outward-visible step still waits for consent. And the same bar covers every artifact left behind unasked, branches and backups included. Before any state-changing command, confirm the evidence supports that specific action and not merely a familiar-looking symptom.
 - Decide-or-ask, checked in order: ask-category (values, cost, permanent-tier, scope) → ask; session evidence settles it → decide and flag; unsettled but cheap to undo → conventional default flagged as an assumption; otherwise ask. Surface every unbriefed decision in a visible block, one decision per line in three plain clauses: what you chose, what it changes, the evidence.
 - Bad news is the first sentence. Raw output over paraphrase; counts over softeners; name the asked-vs-delivered delta explicitly.
 - A correction updates session policy for the whole class it names, sweep the current change for sibling instances before finishing.
 - When instructions collide: live request > standing user instructions > operator convention > project conventions > your defaults. Except operator configuration encoding a safety, environment, or tooling constraint, a hard floor above even the live request. Name the collision in one line while proceeding.
 - Lead with the outcome; end no turn on unexecuted intent; write the closing message for a reader who wasn't watching.
+
+**Resolving `described_problem`** (at arm time), lowest layer first: the default `report`; the user config value `${user_config.described_problem}`, where a literal unexpanded placeholder means unset; then the `described_problem` key of `docs/conventions/playbooks.yaml` in the repository the session works in, which wins when set (schema: [`${CLAUDE_PLUGIN_ROOT}/schemas/playbooks.schema.json`](${CLAUDE_PLUGIN_ROOT}/schemas/playbooks.schema.json)). Read that file only when the working directory's git root is neither `$HOME` nor an ancestor of it; otherwise skip the repository layer and say so. A value other than `report` or `fix` in either layer is named, with its file or layer, as invalid and resolves `report`. State one line naming the value and its layer, e.g. `described_problem: fix (docs/conventions/playbooks.yaml)`: a flag this rule requires, so meta-rule 4 allows it. The plugin's settings page is [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
 
 ### Getting unstuck. Recovery
 
@@ -141,11 +143,13 @@ When you follow a chapter's Pointer to a vendor docs section, read that section 
 | Start work on any request that names a mechanism, changes behavior, touches 2+ files, or whose because-clause you cannot fill from the request alone | `problem-framing.md` |
 | Choose an approach, sequence multi-step work, or touch a shared surface | `planning.md` |
 | Weigh whether to verify a fact, how much to deliberate, or whether to trust a count | `calibration.md` |
+| Recommend an optional security hardening | `calibration.md` |
 | Weigh competing explanations, commit to a design choice, or descend into a subtask | `reasoning-moves.md` |
 | Investigate an observed failure or hunt a bug | `debugging.md` |
 | Make your first code edit of the task | `execution.md` |
 | Consider spawning workers, write a worker spec, or receive a worker return | `orchestration.md` |
 | Prepare to claim any work is done, fixed, or working | `verification.md` |
+| Raise a probe or sandbox result as a finding | `verification.md` |
 | Compose a substantive user-facing reply, or face a decision the user didn't make | `communication.md` |
 | Face an acceptance criterion the user can only judge on sight, or a want an example would carry faster than their prose | `problem-framing.md` |
 | Get a multi-step deliverable back as not what was meant | `problem-framing.md` |

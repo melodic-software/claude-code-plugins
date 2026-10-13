@@ -327,8 +327,9 @@ use() { # <second> <msg-id> <tool-id> <name> <input-json> <output-tokens>
   printf '{"type":"assistant","timestamp":"%s","message":{"id":"%s","content":[{"type":"tool_use","id":"%s","name":"%s","input":%s}],"usage":{"input_tokens":10,"output_tokens":%s}}}\n' \
     "$(ts "$1")" "$2" "$3" "$4" "$5" "$6"
 }
-result() { # <second> <tool-id> <is_error>
-  printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"%s","is_error":%s}]}}\n' "$(ts "$1")" "$2" "$3"
+result() { # <second> <tool-id> <is_error> [content-json, default "ok"]
+  printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"%s","is_error":%s,"content":%s}]}}\n' \
+    "$(ts "$1")" "$2" "$3" "${4:-\"ok\"}"
 }
 {
   printf '{"type":"user","timestamp":"%s","message":{"content":"speed this up"}}\n' "$(ts 0)"
@@ -573,24 +574,25 @@ gh_run ci-timing --repo o/r
 assert_eq "ci-timing exits 0" "0" "$RUN_RC"
 q() { jq -r "$1" <<<"$RUN_OUT"; }
 assert_eq "queue wait is the even-count median of jobs that ran, skipped job excluded" "35000 wait-ms 6" \
-  "$(q '"\(.queue_wait.value) \(.queue_wait.unit) \(.queue_wait.samples)"')"
+  "$(q '"\(.workflows[0].queue_wait.value) \(.workflows[0].queue_wait.unit) \(.workflows[0].queue_wait.samples)"')"
 assert_eq "run length is the median per run in CI minutes" "3 ci-minutes 5" \
-  "$(q '"\(.run_length.value) \(.run_length.unit) \(.run_length.samples)"')"
+  "$(q '"\(.workflows[0].run_length.value) \(.workflows[0].run_length.unit) \(.workflows[0].run_length.samples)"')"
 assert_eq "the slowest step by median is named with its job, skipped steps excluded" "\`e2e\`|\`Test e2e\`|230000|elapsed-ms" \
-  "$(q '"\(.slowest_step.job)|\(.slowest_step.step)|\(.slowest_step.value)|\(.slowest_step.unit)"')"
+  "$(q '"\(.workflows[0].slowest_step.job)|\(.workflows[0].slowest_step.step)|\(.workflows[0].slowest_step.value)|\(.workflows[0].slowest_step.unit)"')"
 assert_eq "test steps match 'test' in any case; their median over an even count" "125000 elapsed-ms 6" \
-  "$(q '"\(.test_steps.value) \(.test_steps.unit) \(.test_steps.samples)"')"
+  "$(q '"\(.workflows[0].test_steps.value) \(.workflows[0].test_steps.unit) \(.workflows[0].test_steps.samples)"')"
 assert_eq "re-runs are runs with attempt above 1, out of the runs listed" "3 count 6" \
-  "$(q '"\(.reruns.value) \(.reruns.unit) \(.reruns.samples)"')"
-assert_eq "runs listed and runs timed are reported" "6 5" "$(q '"\(.runs_listed) \(.runs_timed)"')"
+  "$(q '"\(.workflows[0].reruns.value) \(.workflows[0].reruns.unit) \(.workflows[0].reruns.samples)"')"
+assert_eq "runs listed and runs timed are reported" "6 5" "$(q '"\(.runs_listed) \(.workflows[0].runs_timed)"')"
+assert_eq "a workflow with timed steps keeps its own name, not a step's" "\`CI\`" "$(q .workflows[0].workflow)"
 assert_eq "the run list command is the gh line it ran" \
-  "gh run list --repo o/r --limit 20 --status completed --json databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowName" \
-  "$(q .reruns.command)"
+  "gh run list --repo o/r --limit 20 --status completed --json databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowDatabaseId,workflowName" \
+  "$(q .workflows[0].reruns.command)"
 JOBS_JQ="'[.jobs[] | {name, conclusion, created_at, started_at, completed_at, steps: [(.steps // [])[] | {name, conclusion, started_at, completed_at}]}]'"
 assert_eq "one jobs fetch per timed run, newest first" \
   "gh api repos/o/r/actions/runs/106/jobs --jq $JOBS_JQ|gh api repos/o/r/actions/runs/102/jobs --jq $JOBS_JQ|6" \
   "$(q '"\(.commands[1])|\(.commands[5])|\(.commands | length)"')"
-assert_eq "a job-based finding cites the jobs lines it ran" "5" "$(q '.queue_wait.command | split("; ") | length')"
+assert_eq "a job-based finding cites the jobs lines it ran" "5" "$(q '.workflows[0].queue_wait.command | split("; ") | length')"
 assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 
 # --- 24. pr-timing: review and merge waits from merged pull requests ---
@@ -654,10 +656,10 @@ printf '[%s,%s]\n' \
 gh_run ci-timing --repo o/r
 assert_eq "ci-timing survives missing timestamps" "0" "$RUN_RC"
 assert_eq "the unstarted job is excluded from queue wait and counted" "35000 6 1" \
-  "$(q '"\(.queue_wait.value) \(.queue_wait.samples) \(.queue_wait.excluded)"')"
+  "$(q '"\(.workflows[0].queue_wait.value) \(.workflows[0].queue_wait.samples) \(.workflows[0].queue_wait.excluded)"')"
 assert_eq "the uncompleted test step is excluded and counted" "125000 6 1" \
-  "$(q '"\(.test_steps.value) \(.test_steps.samples) \(.test_steps.excluded)"')"
-assert_eq "run 102's unstarted job leaves it out of run length, counted; 120 120 180 280 s remain" "2.5 4 1" "$(q '"\(.run_length.value) \(.run_length.samples) \(.run_length.excluded)"')"
+  "$(q '"\(.workflows[0].test_steps.value) \(.workflows[0].test_steps.samples) \(.workflows[0].test_steps.excluded)"')"
+assert_eq "run 102's unstarted job leaves it out of run length, counted; 120 120 180 280 s remain" "2.5 4 1" "$(q '"\(.workflows[0].run_length.value) \(.workflows[0].run_length.samples) \(.workflows[0].run_length.excluded)"')"
 
 # --- 25. a gh failure exits 1 with one line naming it ---
 RUN_OUT="$(cd "$GHCWD" && env -u GH_CONFIG_DIR PATH="$SHIM:$PATH" FAKE_GH="$FIX" "$HARNESS_PYTHON" "$FINDINGS" ci-timing --repo o/r 2>&1)"
@@ -687,7 +689,7 @@ printf '[%s,%s]\n' "$(job build success 11:00:00 11:00:00 11:03:00)" \
 gh_run ci-timing --repo o/r
 assert_eq "ci-timing exits 0 on a job with an unparsable end" "0" "$RUN_RC"
 assert_eq "a run with a non-skipped job missing an end is left out of run length and counted" "3 1 1" \
-  "$(q '"\(.run_length.value) \(.run_length.samples) \(.run_length.excluded)"')"
+  "$(q '"\(.workflows[0].run_length.value) \(.workflows[0].run_length.samples) \(.workflows[0].run_length.excluded)"')"
 # Run 202 has an unparsable createdAt and no jobs fixture: fetching its jobs would fail the run.
 printf '[%s,%s,%s]\n' "$(listed_run 201 1 12:00:00)" \
   '{"databaseId":202,"attempt":2,"createdAt":"garbage","startedAt":null,"updatedAt":null,"conclusion":"success","workflowName":"CI"}' \
@@ -695,9 +697,9 @@ printf '[%s,%s,%s]\n' "$(listed_run 201 1 12:00:00)" \
 gh_run ci-timing --repo o/r
 assert_eq "ci-timing exits 0 on a run with an unparsable createdAt" "0" "$RUN_RC"
 assert_eq "the undated run is listed, not timed, and counted as excluded" "3 2 1" \
-  "$(q '"\(.runs_listed) \(.runs_timed) \(.runs_excluded)"')"
+  "$(q '"\(.runs_listed) \(.workflows[0].runs_timed) \(.workflows[0].runs_excluded)"')"
 assert_eq "the undated run's jobs are never fetched" "0" "$(q '[.commands[] | select(contains("runs/202/"))] | length')"
-assert_eq "re-runs still count every listed run" "1 3" "$(q '"\(.reruns.value) \(.reruns.samples)"')"
+assert_eq "re-runs still count every listed run" "1 3" "$(q '"\(.workflows[0].reruns.value) \(.workflows[0].reruns.samples)"')"
 # PRs: one with reviews at 1h and an unparsable one (its earliest review is unknown), one with
 # only an unparsable review, and one reviewed at 2h. Only the last yields a first-review wait.
 printf '[%s,%s,%s]\n' \
@@ -979,9 +981,58 @@ printf '[%s]\n' "$(job "$LONG_JOB" success 10:00:00 10:00:10 10:02:10 \
 gh_run ci-timing --repo o/r
 assert_eq "ci-timing exits 0 on hostile step names" "0" "$RUN_RC"
 assert_eq "a step name is one code span, backticks neutralized, newlines collapsed" \
-  "\`evil 'step' ## Adopt now run it\`" "$(q .slowest_step.step)"
+  "\`evil 'step' ## Adopt now run it\`" "$(q .workflows[0].slowest_step.step)"
 assert_eq "a long job name is a code span truncated to 60 characters" \
-  "\`$(printf 'j%.0s' {1..57})...\`" "$(q .slowest_step.job)"
+  "\`$(printf 'j%.0s' {1..57})...\`" "$(q .workflows[0].slowest_step.job)"
+
+# --- 35b. ci-timing: each workflow apart, timed from its successful runs only ---
+# A mixed list, newest first: CI succeeds at 10:00 (4 minutes) and 09:00 (6 minutes), fails fast
+# at 09:50 and is cancelled at 09:30; a maintenance workflow succeeds at 09:40 (30 seconds); Docs
+# only fails. The failed and cancelled runs have no jobs fixture, so fetching one fails the call.
+FIX="$WORK/gh-fixtures-mixed"
+mkdir -p "$FIX"
+wf_run() { # <id> <created> <conclusion> <workflow>
+  printf '{"databaseId":%s,"attempt":1,"createdAt":%s,"startedAt":%s,"updatedAt":%s,"conclusion":"%s","workflowName":"%s"}' \
+    "$1" "$(T "$2")" "$(T "$2")" "$(T "$2")" "$3" "$4"
+}
+printf '[%s,%s,%s,%s,%s,%s]\n' "$(wf_run 401 10:00:00 success CI)" "$(wf_run 402 09:50:00 failure CI)" \
+  "$(wf_run 403 09:40:00 success Maint)" "$(wf_run 404 09:30:00 cancelled CI)" \
+  "$(wf_run 405 09:00:00 success CI)" "$(wf_run 406 08:00:00 failure Docs)" >"$FIX/runs.json"
+printf '[%s]\n' "$(job build success 10:00:00 10:00:00 10:04:00)" >"$FIX/jobs-401.json"
+printf '[%s]\n' "$(job audit success 09:40:00 09:40:00 09:40:30)" >"$FIX/jobs-403.json"
+printf '[%s]\n' "$(job build success 09:00:00 09:00:00 09:06:00)" >"$FIX/jobs-405.json"
+gh_run ci-timing --repo o/r
+assert_eq "ci-timing exits 0 on a mixed run list" "0" "$RUN_RC"
+wf() { jq -r --arg w "$1" ".workflows[] | select(.workflow == \"\`\" + \$w + \"\`\") | $2" <<<"$RUN_OUT"; }
+assert_eq "workflows are reported apart, most runs listed first" "\`CI\` \`Docs\` \`Maint\`" \
+  "$(q '[.workflows[].workflow] | join(" ")')"
+assert_eq "a workflow's outcomes are counted per conclusion" "cancelled=1 failure=1 success=2" \
+  "$(wf CI '[.outcomes | to_entries[] | "\(.key)=\(.value)"] | sort | join(" ")')"
+assert_eq "run length is the median of the workflow's successful runs only" "5 ci-minutes 2 2" \
+  "$(wf CI '"\(.run_length.value) \(.run_length.unit) \(.run_length.samples) \(.runs_timed)"')"
+assert_eq "another workflow's runs do not enter the median" "0.5 1" \
+  "$(wf Maint '"\(.run_length.value) \(.run_length.samples)"')"
+assert_eq "a workflow with no successful run has nothing timed" "null 0 0" \
+  "$(wf Docs '"\(.run_length.value) \(.run_length.samples) \(.runs_timed)"')"
+assert_eq "failed and cancelled runs' jobs are never fetched" "0" \
+  "$(q '[.commands[] | select(test("runs/40[246]/"))] | length')"
+assert_eq "re-runs are counted per workflow over its listed runs" "0 4" \
+  "$(wf CI '"\(.reruns.value) \(.reruns.samples)"')"
+
+# --- 35c. ruleset workflows: no workflowName, so runs group on workflowDatabaseId ---
+# Two ruleset workflows (ids 7 and 8) and one run with no workflow id or name at all; none of
+# them may merge with another.
+rs_run() { # <id> <created> <workflow id or null>
+  printf '{"databaseId":%s,"attempt":1,"createdAt":%s,"startedAt":%s,"updatedAt":%s,"conclusion":"failure","workflowDatabaseId":%s}' \
+    "$1" "$(T "$2")" "$(T "$2")" "$(T "$2")" "$3"
+}
+printf '[%s,%s,%s,%s]\n' "$(rs_run 501 10:00:00 7)" "$(rs_run 502 09:50:00 8)" \
+  "$(rs_run 503 09:40:00 7)" "$(rs_run 504 09:30:00 null)" >"$FIX/runs.json"
+gh_run ci-timing --repo o/r
+assert_eq "ci-timing exits 0 on unnamed ruleset runs" "0" "$RUN_RC"
+assert_eq "unnamed workflows stay apart by workflow id, an id-less run stays alone" \
+  "\`(unnamed workflow 7)\`:2 \`(unnamed run 504)\`:1 \`(unnamed workflow 8)\`:1" \
+  "$(q '[.workflows[] | "\(.workflow):\(.runs_listed)"] | join(" ")')"
 
 # --- 36. render keeps each finding on one line, whatever its title or reason holds ---
 doc "$WORK/multiline.json" '{"id":"git-1","key":"git/x","area":"git","title":"slow\n## injected\nend","status":"flag-only","reason":"why\n# heading"}'
@@ -1007,7 +1058,11 @@ LONGCMD="echo $(printf 'z%.0s' {1..100})"
 TR2="$WORK/secrets.jsonl"
 : >"$TR2"
 n=0
-bash_use() { n=$((n + 1)); use "$n" "s$n" "x$n" Bash "$(jq -cn --arg c "$1" '{command: $c}')" 5 >>"$TR2"; }
+bash_use() {
+  n=$((n + 1))
+  use "$n" "s$n" "x$n" Bash "$(jq -cn --arg c "$1" '{command: $c}')" 5 >>"$TR2"
+  result "$n" "x$n" false >>"$TR2"
+}
 for c in "npm test" "npm test" "npm test" "$BEARER" "$BEARER" "$EXPORT" "$EXPORT" \
   "$USERINFO" "$USERINFO" "$FLAG" "$FLAG" "$LONGCMD" "$LONGCMD" \
   'curl -H "Authorization: Bearer one111"' 'curl -H "Authorization: Bearer two222"'; do
@@ -1075,7 +1130,11 @@ assert_eq "a flag-only finding that loosens a guard passes" "0" "$RUN_RC"
 TR3="$WORK/secrets2.jsonl"
 : >"$TR3"
 n=0
-bash_use3() { n=$((n + 1)); use "$n" "t$n" "y$n" "$1" "$2" 5 >>"$OUT"; }
+bash_use3() {
+  n=$((n + 1))
+  use "$n" "t$n" "y$n" "$1" "$2" 5 >>"$OUT"
+  result "$n" "y$n" false >>"$OUT"
+}
 SHAPES=(
   'curl -u admin:''hunter3 https://x' 'curl --user=a:''pw4444 https://x'
   "curl -H 'X-Api-Key: key5555' https://x" 'curl -H "PRIVATE-TOKEN: tok6666" https://x'
@@ -1123,7 +1182,82 @@ run render "$WORK/spaces.json"
 assert_eq "a title of 20k spaces renders in under 5 seconds" "yes" \
   "$([[ "$RUN_RC" == 0 && $((SECONDS - start)) -lt 5 ]] && echo yes || echo "no (rc $RUN_RC, $((SECONDS - start))s)")"
 
-# --- 41. stop-hook-timing: per-hook Stop p50 and p95 from stop_hook_summary records only ---
+# --- 41. transcript-counts: paged reads and re-reads of changing input are not repeats ---
+# Only a call whose arguments AND result match an earlier one is a repeat: reusing its output is
+# then safe. Paged reads of one file, a background task's growing output file, and a command whose
+# result changed between runs all fail that test. Identical calls the transcript holds no result
+# for cannot be checked, so they are reported apart as unverified.
+PG="$WORK/paged.jsonl"
+{
+  use 1 p1 r1 Read '{"file_path":"big.md","offset":1,"limit":100}' 5
+  result 2 r1 false '"part one"'
+  use 3 p2 r2 Read '{"file_path":"big.md","offset":101,"limit":100}' 5
+  result 4 r2 false '"part two"'
+  use 5 p3 r3 Read '{"file_path":"big.md","offset":201,"limit":100}' 5
+  result 6 r3 false '"part three"'
+  use 7 p4 r4 Bash '{"command":"cat /tmp/x/tasks/b1.output"}' 5
+  result 8 r4 false '"line 1"'
+  use 9 p5 r5 Bash '{"command":"cat /tmp/x/tasks/b1.output"}' 5
+  result 10 r5 false '"line 1"'
+  use 11 p6 r6 Read '{"file_path":"/tmp/x/tasks/b2.output"}' 5
+  result 12 r6 false '"started"'
+  use 13 p7 r7 Read '{"file_path":"/tmp/x/tasks/b2.output"}' 5
+  result 14 r7 false '"started"'
+  use 15 p8 r8 Bash '{"command":"git status --short"}' 5
+  result 16 r8 false '"M a.py"'
+  use 17 p9 r9 Bash '{"command":"git status --short"}' 5
+  result 18 r9 false '[{"type":"text","text":"M a.py\nM b.py"}]'
+  use 19 p10 r10 Read '{"file_path":"big.md","offset":1,"limit":100}' 5
+  result 20 r10 false '"part one"'
+  use 21 p11 r11 Bash '{"command":"make lint"}' 5
+  printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"r11","is_error":false}]}}\n' "$(ts 22)"
+  use 23 p12 r12 Bash '{"command":"make lint"}' 5
+  printf '{"type":"user","timestamp":"%s","message":{"content":[{"type":"tool_result","tool_use_id":"r12","is_error":false}]}}\n' "$(ts 24)"
+  # A relative task-output path, run from the session's task directory's parent.
+  use 25 p13 r13 Bash '{"command":"tail tasks/b9.output"}' 5
+  result 26 r13 false '"step 3"'
+  use 27 p14 r14 Bash '{"command":"tail tasks/b9.output"}' 5
+  result 28 r14 false '"step 3"'
+} >"$PG"
+run transcript-counts "$PG"
+assert_eq "transcript-counts exits 0 on paged and changing reads" "0" "$RUN_RC"
+assert_eq "paged reads of one file, a task's output and a changed result are not repeats" \
+  '{"big.md (offset 1, limit 100)":2}' "$(q '.repeated_reads | tojson')"
+assert_eq "no command repeated with an unchanged result" '{}' "$(q '.repeated_commands | tojson')"
+assert_eq "an identical command with no result in the transcript is unverified, not a repeat" \
+  '{"make lint":2}' "$(q '.unverified_repeated_commands | tojson')"
+assert_eq "no read is unverified when every result is held" '{}' "$(q '.unverified_repeated_reads | tojson')"
+
+# A whole-file re-read of an unchanged file returns a file_unchanged stub, never the same text:
+# that is a repeat. A tool call whose input is not an object is counted, never a crash.
+UC="$WORK/unchanged.jsonl"
+{
+  use 1 u1 s1 Read '{"file_path":"x.py"}' 5
+  result 2 s1 false '"print(1)"'
+  for n in 2 3; do
+    use $((n * 2 + 1)) "u$n" "s$n" Read '{"file_path":"x.py"}' 5
+    printf '{"type":"user","timestamp":"%s","toolUseResult":{"type":"file_unchanged"},"message":{"content":[{"type":"tool_result","tool_use_id":"s%s","is_error":false,"content":"unchanged stub"}]}}\n' "$(ts $((n * 2 + 2)))" "$n"
+  done
+  use 9 u4 s4 Grep '["not an object"]' 5
+  result 10 s4 false
+  # A path that spells a window is not that window of another file.
+  # Each group repeats on its own; a shared label would add the two.
+  use 11 u5 s5 Read '{"file_path":"foo (offset 1)"}' 5
+  result 12 s5 false '"same"'
+  use 13 u6 s6 Read '{"file_path":"foo","offset":1}' 5
+  result 14 s6 false '"same"'
+  use 15 u7 s7 Read '{"file_path":"foo (offset 1)"}' 5
+  result 16 s7 false '"same"'
+  use 17 u8 s8 Read '{"file_path":"foo","offset":1}' 5
+  result 18 s8 false '"same"'
+} >"$UC"
+run transcript-counts "$UC"
+assert_eq "transcript-counts exits 0 on a non-object tool input" "0" "$RUN_RC"
+assert_eq "file_unchanged re-reads count as repeats; a path that spells a window stays apart from it" \
+  '{"foo (offset 1)":2,"foo (offset 1) #2":2,"x.py":3}' "$(q '.repeated_reads | tojson')"
+assert_eq "a tool call with a non-object input is still counted" "1" "$(q '.tools.Grep.calls')"
+
+# --- 42. stop-hook-timing: per-hook Stop p50 and p95 from stop_hook_summary records only ---
 SH="$WORK/stop-hooks.jsonl"
 SECRET_HOOK="curl -H 'Authorization: Bearer s3cr3tvalue' https://hooks.example/stop"
 {

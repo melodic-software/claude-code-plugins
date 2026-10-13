@@ -3,6 +3,48 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.0] - 2026-10-13
+
+### Added
+
+- `block-unresolved-pr-merge` guard (#6463): blocks a pull-request merge while the PR has an unresolved review thread, a changes-requested review, or a failed check, and blocks an immediate merge on pending checks. It matches `gh pr merge` (`--admin` and `--auto` included), a `PUT` to the REST merge route or the Claude Code cloud `ccr/auto_merge` route through `gh api` or `curl`, the GraphQL merge, auto-merge and merge-queue mutations, and an MCP `merge_pull_request` or `enable_pr_auto_merge` tool. PR state is read over REST, with review threads from GraphQL or, where GraphQL is refused, the cloud `ccr/review_threads` route. It fails open with a visible notice when `gh` is missing, a read fails or its 35 s read budget runs out, except that a GraphQL merge mutation whose pull request cannot be resolved is blocked. Off switch: `block_unresolved_pr_merge_enabled`.
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced: its per-probe timeout is now 20 seconds, up from 5.** A version or `system-lib` probe that resolves a secret or calls a network API, such as `firecrawl --status` behind a key-injecting wrapper, no longer false-fails on a slow run. A fast probe is unaffected; a hung one now costs at most 20 seconds per entry. No change to this plugin's own entries.
+
+- Hook comments in `run-guards.sh`, `abort-boundary.sh`, `block-hook-bypass.sh`, `block-dangerous-git.sh`, `flag-commit-pr-skill-bypass.sh`, `skill-reference-verify.sh` and `stale-path-verify.sh`, and the edit-write-guards plan, no longer restate Claude Code hook, Edit tool, settings-precedence and plugin-manifest behavior. Each states the guard's own reasoning and carries a pointer record (section anchor, as-of date, recheck trigger); `stale-path-verify.sh` cites the Edit-tool record in `skill-reference-verify.sh`. No guard logic changed.
+
+### Fixed
+
+- Shared library comments that restated Claude Code hook, plugin and managed-settings behavior now point at the live docs sections, and the prerequisites probe no longer gives a wrong reason for always exiting 0.
+
+- **The setup and check skills load under `claude -p` again.** Each pre-computed tool probe was a brace group
+  holding a quoted fallback (`{ command -v jq 2>/dev/null || echo "absent"; }`), which Claude Code's
+  shell permission check refuses (`Contains brace with quote character (expansion obfuscation)`).
+  Outside auto mode that aborts the whole skill with no output and exit 0. The rows are now
+  `command -v <tool> 2>/dev/null || echo absent`, which render the same value, and each `command -v`
+  probe is pre-approved in the skill's `allowed-tools`, without which the render still aborts in
+  default permission mode. Probed headless on Claude Code 2.1.296.
+
+- **`block-root-delete-target` judges a PowerShell target holding a literal `$`.** A single-quoted or backtick-escaped `$` is no longer read as an expansion, so `Remove-Item -Recurse -Force 'D:\outside\a$b'` is judged as the path it names and refused outside the allowed roots, where it was let through. A Win32 stream suffix on such a target (`'D:\outside\dir::$INDEX_ALLOCATION'`, `:$I30:$INDEX_ALLOCATION`) is judged as the directory before it, and `'C:\::$INDEX_ALLOCATION'` is refused as a drive root. The literal reading is added to the old one, so it only adds refusals: a target refused when every `$` read as an expansion (`'$env:TEMP'`, `'$HOME\x'`, `'$(x)'`) is refused still. A `$` PowerShell expands is still left alone, and a single-quoted `'$X'` alone is still refused as a bare variable. `cmd /c rd /s` and `powershell -Command Remove-Item` issued from the Bash tool are now listed as a declared gap: the Bash lane matches `rm` only ([#6626](https://github.com/melodic-software/claude-code-plugins/issues/6626)).
+
+- **The shared prerequisites checker now finds a `python-pkg` in the plugin's own installed Python
+  set.** A module that the interpreter cannot import on its own is looked up in the set a plugin
+  with a committed `requirements.txt` installs into its data directory
+  (`<data>/python/<lock hash>-<interpreter tag>/`), imported the way that plugin's launcher runs
+  it. Before, such a package was reported missing. When the data directory is unknown (no
+  `--data-dir`, no `CLAUDE_PLUGIN_DATA`), the entry reports `unverified` instead of failing.
+  Refs #6112.
+
+- **`block-root-delete-target` no longer refuses a backticked `rm -rf /` quoted inside a heredoc whose delimiter is quoted (#6625).** Bash expands nothing in a `<<'EOF'`, `<<"EOF"` or `<<\EOF` body, so where the whole command is one `cat` or `gh pr|issue|api|release` line feeding that body (no pipe, redirection or substitution, nothing before it or after the body), `gh pr create --body-file - <<'EOF'` with an example command in Markdown backticks now runs. Every other heredoc body is still scanned, including one fed to a shell (`bash <<'EOF'`, `cat <<'EOF' | sh`, `bash -c "$(cat <<'EOF' ...)"`, a compound piped into a shell), so a substitution holding a root delete there is still refused.
+
+## [0.50.3] - 2026-10-11
+
+### Changed
+
+- **Shared `exec-bash.mjs` launcher synced.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once. Its `readStdin` now resolves `{ input, stalled }`, and `check-bash-file-changes.mjs` reads that shape, so a stalled payload still records and checks nothing.
+
 ## [0.50.2] - 2026-10-11
 
 ### Fixed

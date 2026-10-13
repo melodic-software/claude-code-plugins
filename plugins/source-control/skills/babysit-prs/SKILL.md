@@ -146,8 +146,8 @@ never routed around. Advisory-only fix attempts are bounded per PR (the fix-roun
 never merged autonomously in ANY tier, the merge gate refuses it absent `--allow-dependency`,
 which is passed only on an explicit user instruction to merge that specific PR.
 
-**Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge") is held in ANY tier:
-the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
+**Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge"), or has a line
+starting `Hold:`, is held in ANY tier: the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
 label is held the same way: the gate blocks on that label unconditionally, and `--block-labels`
 adds further labels in the autopilot merge tier. The PR is reported and left unmerged. The
 hyphenated label name in a body is not a hold.
@@ -158,7 +158,9 @@ autopilot: zero-blocker drafts always route through a worker (see Fan out). The 
 happens only in autopilot, only for a draft its worker assesses complete, and it runs
 `/source-control:pull-request ready` rather than a bare draft flip: that step merges the base
 branch and runs the security review and the verify gate before it flips, which a bare flip does
-not.
+not. A PR that `/source-control:pull-request create` opened ready for review, because the
+repository or its author set `pr_open_state: ready`, is handled as any non-draft PR; no tier turns
+it back into a draft.
 
 ## Autopilot
 
@@ -172,7 +174,7 @@ widens are the single home in [reference/autopilot.md](reference/autopilot.md).
 ## Autopilot merge tier
 
 A config-gated escalation of autopilot's merge authority, off by default and active only while the operator sets `babysit_autopilot_merge_tier`; with the key unset, every merge decision follows the base path above. When enabled, per candidate PR autopilot runs a **genuine review pass** under a **second bot account** (author ≠ approver) that submits an approving review **only when clean**, then runs the pinned merge gate with the `--autopilot-merge-tier` flags layered onto `--merge --expected-head <post-push-head-sha>`. The concrete enabled-path merge command, the second-account approve mechanic, and the review-workflow requiredness precondition for enabling the tier are the single home in [reference/safety.md](reference/safety.md).
-That gate merges **only when every criterion holds**, the criteria and the safety-contract rationale are codified in [reference/safety.md](reference/safety.md). It is **fail-closed** (the umbrella flag refuses unless all three parameter sets are supplied; predicates reused from the shared `babysit_classify` module), and any criterion failing falls back to the human merge-ready list, the tier never routes around the gate.
+That gate merges **only when every criterion holds**, the criteria and the safety-contract rationale are codified in [reference/safety.md](reference/safety.md). It is **fail-closed** (the umbrella flag refuses unless all three parameter sets are supplied; predicates reused from the shared `babysit_classify` module), and any criterion failing falls back to the human merge-ready list, the tier never routes around the gate. The gate's `--unattended` flag is the unattended path, off unless the repository's `pr-pipeline.yaml` sets `merge.authority: local-babysit` and a `merge.agent-identity`: under that identity alone it enqueues a LOW, eligible, promoted pull request at its pinned head, writes the reasons comment for MED or HIGH, and dequeues on a stop or a hold. No tier passes it, and plain `--merge` refuses the configured identity: [reference/safety.md](reference/safety.md#unattended-merge-path).
 
 ## Guarded mutations: deterministic gates, agent judgment
 

@@ -24,7 +24,9 @@ Re-check all check runs for any state changes, then re-check for new comments si
 2. **Stale-base guard:** confirm the PR head is not behind its base on overlapping
    paths before squash-merging. Read the PR's `mergeStateStatus`, `baseRefName` and `headRefOid`,
    then compare `<baseRefName>...<headRefOid>`
-   ([GitHub](../../../reference/providers/github/pull-request/merge.md#stale-base-guard)). If
+   ([GitHub](../../../reference/providers/github/pull-request/merge.md#stale-base-guard)). Capture
+   that `headRefOid` as `HEAD_SHA` here: it is the head every later step in this phase pins to, so
+   a push after this point holds the merge instead of riding along. If
    `behind_by > 0`, update the branch (merge-forward, or the forge's update-branch) and re-run
    readiness; do **not** squash-merge a behind head. Under a non-strict ruleset, GitHub can
    still report `CLEAN` while the head is behind, and a stale-base squash can silently revert
@@ -45,21 +47,31 @@ Re-check all check runs for any state changes, then re-check for new comments si
 
 Default merge mode is squash: one squashed commit per PR onto the default branch. Follow the consuming project's convention when it differs (merge commit / rebase-merge).
 
+Every merge call in 4.2 pins to the `HEAD_SHA` captured in 4.1 step 2, so a push after approval
+fails the merge instead of landing unreviewed. Before any merge call, poll the PR's merge state at
+the pinned head while it reads `UNKNOWN`, and merge or enqueue only once it reads `CLEAN`; any
+other state, or a moved head, is a hold to report
+([GitHub](../../../reference/providers/github/pull-request/merge.md#wait-for-a-known-merge-state)).
+
 In a regular checkout, squash-merge and delete the head branch in one call
 ([GitHub](../../../reference/providers/github/pull-request/merge.md#squash-merge-in-a-regular-checkout)).
 
-In a linked worktree (`git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`), squash-merge without deleting the branch in the merge call: older CLI versions fail there even though the merge succeeded ([GitHub](../../../reference/providers/github/pull-request/merge.md#squash-merge-in-a-linked-worktree)). Delete the remote head branch separately, only once the PR reads `MERGED` (a merge queue or auto-merge returns before the merge lands), and through the resolved push remote (`resolve-remote.sh --push <branch>`), never a hardcoded `origin`. While the PR has not merged yet, report that `<branch>` is deleted once it reads `MERGED`.
+In a linked worktree (`git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`), squash-merge without deleting the branch in the merge call: older CLI versions fail there even though the merge succeeded ([GitHub](../../../reference/providers/github/pull-request/merge.md#squash-merge-in-a-linked-worktree)). Delete the remote head branch separately, only once the PR reads `MERGED` (a merge queue or auto-merge returns before the merge lands), and through the resolved push remote (`resolve-remote.sh --push <branch>`), never a hardcoded `origin`. While the PR has not merged yet, report that the head branch is deleted once it reads `MERGED`. The head branch name comes from GitHub: substitute it for `'<branch>'` only when it matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and contains no `..`, and keep the single quotes. Any other name reaches no command: report it as data and leave the remote branch for the user to delete.
 
 When the repo deletes head branches on merge, the push fails with "remote ref does not exist"; that is expected, and it is the only failure to ignore. 4.3 deletes the local branch.
 
+On a merge-queue base, the CLI merge returning is not proof the PR is queued: confirm queue entry
+per [4.2.2](#422-confirm-queue-entry), with the `HEAD_SHA` captured in 4.1 step 2, before
+reporting the merge as done.
+
 **Through the async merge API.** Use it instead of the CLI merge when the session refuses GraphQL
 (the CLI's merge and PR view run over GraphQL; this is REST) or when the PR is a stack layer
-([stacks.md](stacks.md)). Pin it to the head you verified in 4.1, and never let it bypass rules
-([GitHub](../../../reference/providers/github/pull-request/merge.md#async-merge-api)). For a merge
-queue, request a queue action instead of a direct merge. The response carries a request id to poll
-until it reads `merged`, `enqueued`, or `failed`. `enqueued` means queued, not merged: delete the
-head branch only once the PR reads `MERGED`. GitHub checks only basic PR state when it accepts the
-request and applies the base's rules when the merge runs, so 4.1 still comes first.
+([stacks.md](stacks.md)). Pin it to the `HEAD_SHA` captured in 4.1 step 2, and never let it bypass
+rules ([GitHub](../../../reference/providers/github/pull-request/merge.md#async-merge-api)). For a
+merge queue, request a queue action instead of a direct merge. The response carries a request id to
+poll until it reads `merged`, `enqueued`, or `failed`. `enqueued` means queued, not merged: delete
+the head branch only once the PR reads `MERGED`. GitHub checks only basic PR state when it accepts
+the request and applies the base's rules when the merge runs, so 4.1 still comes first.
 
 **Always use the explicit `<pr_number>` resolved at phase entry.** The PR title becomes the squash commit message. It is shaped to satisfy the resolved subject/title convention, per pull-request SKILL.md's "PR title format" ladder (Conventional Commits by default).
 
@@ -88,18 +100,19 @@ after arming, a push by anyone with write access would merge the new head on `ci
 
 Run the merge script
 ([GitHub](../../../reference/providers/github/pull-request/merge.md#merge-after-ai-review)). It
-stops with a hold message unless the repository owner is melodic-software, the base branch's live
-rules require `ci-status`, every check run on the pinned head was read (the count matches the
-reported total) and both AI review lanes, matched by the exact names above, completed with success,
-and the PR reads `CLEAN` at the pinned head. Only then does it merge, pinned to that head with
-`--match-head-commit`.
+stops with a hold message unless `HEAD_SHA` was captured in 4.1 step 2, the repository owner is
+melodic-software, the base branch's live rules require `ci-status`, every check run on the pinned
+head was read (the count matches the reported total) and both AI review lanes, matched by the exact
+names above, completed with success, and the PR reads `CLEAN` at the pinned head (it polls while
+the merge state reads `UNKNOWN`, as in 4.2). Only then does it
+merge, pinned to that head with `--match-head-commit`.
 
 Behind a merge queue (claude-code-plugins) the queue sets the strategy, so pass no strategy flag.
-There the merge enqueues and returns; had required checks not passed it would arm auto-merge
-instead, which the `CLEAN` read rules out. Never pass `--auto`, `--admin`, `--merge`/`-m` or
-`--rebase`/`-r`. After enqueueing, poll the PR's state and merge-queue membership every 30 seconds
-until it reads `MERGED` or leaves the queue unmerged (run the loop in the background or under a
-monitor; [GitHub](../../../reference/providers/github/pull-request/merge.md#poll-the-merge-queue)).
+Never pass `--auto`,
+`--admin`, `--merge`/`-m` or `--rebase`/`-r`. Confirm queue entry per
+[4.2.2](#422-confirm-queue-entry), then poll the PR's state and merge-queue membership every 30
+seconds until it reads `MERGED` or leaves the queue unmerged (run the loop in the background or under
+a monitor; [GitHub](../../../reference/providers/github/pull-request/merge.md#poll-the-merge-queue)).
 
 A PR that leaves the queue unmerged is reported to the user, not re-enqueued, and 4.3 does not run.
 Delete the head branch per 4.2 only once the PR reads `MERGED`.
@@ -107,6 +120,33 @@ Delete the head branch per 4.2 only once the PR reads `MERGED`.
 The CLI's merge-queue behavior and its recheck trigger, which also fires on a rename of the AI
 review lanes' check names, are recorded in the
 [GitHub provider reference](../../../reference/providers/github/pull-request/merge.md#poll-the-merge-queue).
+
+### 4.2.2 Confirm queue entry
+
+Run this after every merge call on a merge-queue base, from 4.2 or 4.2.1. A merge run ends in one of
+three states, and the report names which: merged, queued, or held with the blocker GitHub returned.
+It changes what the run reports, not who may merge: it enqueues only a PR the user already approved
+in 4.1 step 4 or that 4.2.1 cleared, and only at the head pinned there.
+
+Run the confirm read
+([GitHub](../../../reference/providers/github/pull-request/merge.md#confirm-queue-entry)). It reads
+the PR's state, queue membership, merge state, head and auto-merge request, polling while the merge
+state reads `UNKNOWN`. Merged or queued is reported as such. Open, not queued and `CLEAN` at
+`HEAD_SHA`: it prints the PR's node id to enqueue. Any other state, or a moved head, is a hold that
+prints the state. An armed auto-merge is reported, since 4.2.1 never arms it.
+
+To enqueue, run the enqueue call once as its own command, with the printed node id and `HEAD_SHA`
+written in as literal values rather than a variable or command substitution, pinned to that head,
+then re-run the read. `queued` is the result; a second enqueue answer means the call returned but
+the PR is not in the queue, which is a hold.
+
+A non-zero exit from the read or the enqueue call is a hold: report the printed state or GitHub's error text unedited (for example
+"A conversation must be resolved" names the blocker), do not retry the enqueue, and 4.3 does not
+run. One exception: when the error says the PR is already queued, the merge call won the race;
+re-run the script once, and a `queued` read is the result. A hold with auto-merge armed also tells
+the user that a later push could merge on `ci-status` alone (4.2.1's reason for never arming it)
+and offers disarming auto-merge as their option; this phase does not disarm it. Never jump the
+queue. Only `queued` moves on to the poll in 4.2.1; `merged` moves on to 4.3.
 
 ## 4.3 Worktree transition and next-task setup
 
