@@ -179,7 +179,7 @@ step may mutate at the resolved autonomy tier, and where the escalation and no-p
 attach. The stop modes above decide whether a cycle runs; that file decides what one is.
 Every cycle runs the post-merge check (`babysit-postmerge.sh`, cycle-shape step 1) before any merge; anything but exit 0 means no merge that cycle (exit 5: an auto-merge is not yet verified).
 
-**Unattended merges.** Where the target's `pr-pipeline.yaml` sets `merge.authority: local-babysit` and a `merge.agent-identity`, the only merge route is the gate's `--unattended --merge --expected-head <pin>` under that identity (never `--auto`), and its code enforces the post-merge check, the promotion gate below and the rest ([babysit-prs safety](../babysit-prs/reference/safety.md#unattended-merge-path)). The four options below go in managed settings the lane user cannot write; a user settings file sits under a directory the lane user owns, so it serves only an attended lane ([deployment requirements](reference/promotion-evidence-bootstrap.md#deployment-requirements-by-host)); `--merge human-only` still keeps every merge off. **Every lane write runs under `merge.agent-identity`:** where the target names one, launch the lane with the identity's installation token as its only GitHub credential. Cycle-shape's identity gate, first in every cycle, reads the config from the target's default branch and runs the merge gate's identity and credential rules and `lane-push.sh --check` before any write; a refusal, or an unreadable config, stops the lane, writing nothing. Every lane push then goes through `lane-push.sh`, which builds the https URL itself and pushes only as the identity; the lane never runs a bare `git push`. The contract and its residuals are the convention's ("Lane write identity", §1).
+**Unattended merges.** Where the target's `pr-pipeline.yaml` sets `merge.authority: local-babysit` and a `merge.agent-identity`, the only merge route is the gate's `--unattended --merge --expected-head <pin>` under that identity (never `--auto`), and its code enforces the post-merge check, the promotion gate below and the rest ([babysit-prs safety](../babysit-prs/reference/safety.md#unattended-merge-path)). The options below go in managed settings the lane user cannot write; a user settings file sits under a directory the lane user owns, so it serves only an attended lane ([deployment requirements](reference/promotion-evidence-bootstrap.md#deployment-requirements-by-host)); `--merge human-only` still keeps every merge off. **Every lane write runs under `merge.agent-identity`:** where the target names one, launch the lane with the identity's installation token as its only GitHub credential. Cycle-shape's identity gate, first in every cycle, reads the config from the target's default branch and runs the merge gate's identity and credential rules and `lane-push.sh --check` before any write; a refusal, or an unreadable config, stops the lane, writing nothing. Every lane push then goes through `lane-push.sh`, which builds the https URL itself and pushes only as the identity; the lane never runs a bare `git push`. The contract and its residuals are the convention's ("Lane write identity", §1).
 
 **Promotion-evidence gate (trusted seam, fail-closed).** This one condition stays here rather than
 in that file, because it decides whether anything merges at all. A PR is merge-eligible when its
@@ -193,7 +193,7 @@ the seam needs are in
 [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md); a
 report-only lane-start preflight names each missing one. With a compliant bootstrap, cycle-shape
 step 3 runs the resolution helper and the seam returns a qualified read; otherwise every cell stays
-effective-unpromoted. On the unattended route this gate is code: the merge gate runs `scripts/resolve-promotion-evidence.mjs`, which reads the four options from managed or user settings (never this block, argv or the environment), refuses any value or settings file the lane user can write (so a user settings file, always lane-owned, never passes on this route), restarts the window at the newest demotion record (`--window-start`), and reports `unattended.promoted`. The three-arm resolver, what counts as
+effective-unpromoted. On the unattended route this gate is code: the merge gate runs `scripts/resolve-promotion-evidence.mjs`, which reads the options from managed or user settings (never this block, argv or the environment), refuses any value or settings file the lane user can write (so a user settings file, always lane-owned, never passes on this route), restarts the window at the newest demotion record (`--window-start`), and reports `unattended.promoted`. The three-arm resolver, what counts as
 qualified evidence, and the forgeable surfaces it refuses are in
 [reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md); read it
 before resolving the first cell of a run.
@@ -203,12 +203,11 @@ before resolving the first cell of a run.
 The option values below substitute when this skill loads. Treat an empty value, or one still
 written as a `${user_config.…}` placeholder, as unset. The lane reads these options from this block
 only: never the `CLAUDE_PLUGIN_OPTION_*` environment mirror, and never `.claude/source-control.md`
-or any other repository file. The reasons and their verification record are in
-[reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md#allowed-source-class),
-which also says what each surface must be. The lane-start preflight in
-[reference/cycle-shape.md](reference/cycle-shape.md) step 0 reads this block. The resolution helper
-step 3 runs takes none of these values from the lane: it reads them from the operator's managed
-and user settings itself.
+or any other repository file. The reasons, their verification record and what each surface must be
+are in [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md#allowed-source-class).
+The lane-start preflight in [reference/cycle-shape.md](reference/cycle-shape.md) step 0 reads this
+block. The resolution helper step 3 runs takes none of these values from the lane: it reads them
+from the operator's managed and user settings itself.
 
 | Option | Value |
 | --- | --- |
@@ -216,6 +215,7 @@ and user settings itself.
 | `promotion_evidence_root` | `${user_config.promotion_evidence_root}` |
 | `promotion_evidence_source` | `${user_config.promotion_evidence_source}` |
 | `promotion_evidence_checker` | `${user_config.promotion_evidence_checker}` |
+| `promotion_evidence_credential_roots` (optional) | `${user_config.promotion_evidence_credential_roots}` |
 
 ## do-not-merge
 

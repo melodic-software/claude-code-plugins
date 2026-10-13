@@ -19,6 +19,28 @@ common ancestor of its inputs, which collapses two vendored copies that share
 a basename into one indistinguishable name; the absolute paths are made
 relative to the working directory here.
 
+The file list never goes on jscpd's command line. A lane's scope can be
+thousands of paths, past the Windows command-line limit. On Windows a lane
+of 400 or more files given on the command line got no report and nothing on
+stderr; a length limit in the launch chain (a bun `.EXE` shim, then the
+binary) is the likely cause, not a proven one. The adapter writes the absolute paths to
+the `path` array of a config file in the temporary directory and passes
+`--config <that file>`, so the argument vector has the same length for one
+file or ten thousand, and the lane is still one jscpd run, so a clone whose
+copies sit far apart in the list is still found. Both majors read `path`
+from a config file the way they read positional paths (verified 2026-10-11
+against jscpd 4.3.0 over 150 shell files and 5.4.1 over 1,590: each gave
+the same report either way; the config keys are in the `Config File` section of
+`docs/rust.md` upstream and of `apps/jscpd/README.md` on `master-v4`; recheck
+when a major above 5 ships or either section stops listing `path`). Every
+other option stays on the command line, which wins over a config file.
+Passing `--config` also stops jscpd's own discovery of `.jscpd.json`, so a
+consumer's `.jscpd.json` no longer reaches the scan. 5.x also skips the
+`package.json` `jscpd` key; 4.x still merges that key under the config file
+and the command line (`apps/jscpd/src/options.ts` on `master-v4`, read
+2026-10-13; recheck when 4.x is dropped), so on 4.x a key the adapter does
+not set there still applies.
+
 Each duplicate becomes one clone-group row: `file` and `function` are null,
 `instances[]` carries every copy with its line range, and `values` carries
 `lines` and `tokens`. Tunables arrive as environment variables the calling
@@ -45,10 +67,12 @@ reported as one line to the file named by CODE_METRICS_PARTIAL_REASON_FILE
 variable is unset. `statistics.total.sources` in the jscpd report counts token
 sources, not files, and is not read for this purpose.
 
-jscpd's own exit code is not read: it exits non-zero when a `--threshold` or
-`--exit-code` run finds clones, and this adapter passes neither, so the report
-file is the only success signal (design T1: a collector succeeds when it
-produced parseable output).
+jscpd's own exit code is not read for success: it exits non-zero when a
+`--threshold` or `--exit-code` run finds clones, and this adapter passes
+neither, so the report file is the only success signal (design T1: a
+collector succeeds when it produced parseable output). When no report
+appears, the exit-3 message names jscpd's exit code beside its stderr, so a
+run that failed silently still says how it ended.
 """
 
 from __future__ import annotations
@@ -71,6 +95,7 @@ from adapter_paths import (
 
 NAME = "jscpd"
 REPORT_BASENAME = "jscpd-report.json"
+PATHS_CONFIG_BASENAME = "code-metrics-jscpd-paths.json"
 DEFAULT_MIN_TOKENS = "50"
 DEFAULT_MIN_LINES = "5"
 DEFAULT_MAX_SIZE = "1mb"
@@ -250,15 +275,30 @@ def translate(raw: str, lane: str) -> list[dict]:
     return rows
 
 
+def write_paths_config(directory: str, files: list[str]) -> str:
+    """A jscpd config file whose `path` array holds `files`, made absolute.
+
+    Absolute, so the list means the same files whichever directory jscpd
+    resolves a config file's relative paths against.
+    """
+    config = os.path.join(directory, PATHS_CONFIG_BASENAME)
+    with open(config, "w", encoding="utf-8") as handle:
+        json.dump({"path": [os.path.abspath(path) for path in files]}, handle)
+    return config
+
+
 def _command(
     exe: str,
     output: str,
-    files: list[str],
+    config: str,
     size_cap: int | None,
     line_cap: int | None,
 ) -> list[str]:
     command = [
         exe,
+        # The file list: in a config file, never on the command line.
+        "--config",
+        config,
         "--reporters",
         "json",
         "--output",
@@ -279,7 +319,7 @@ def _command(
     ignore = os.environ.get("CODE_METRICS_DUP_IGNORE") or ""
     if ignore.strip():
         command += ["--ignore", ignore.strip()]
-    return command + files
+    return command
 
 
 def collect(lane: str, measure: str, files: list[str]) -> int:
@@ -306,8 +346,9 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         return 0
     output = tempfile.mkdtemp(prefix="code-metrics-jscpd-")
     try:
+        config = write_paths_config(output, kept)
         result = subprocess.run(
-            _command(exe, output, kept, size_cap, line_cap),
+            _command(exe, output, config, size_cap, line_cap),
             capture_output=True,
             text=True,
             check=False,
@@ -319,6 +360,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         except (OSError, ValueError, TypeError) as exc:
             print(
                 f"jscpd.py: no parseable {REPORT_BASENAME} ({exc}); "
+                f"jscpd exit code {result.returncode}; "
                 f"stderr: {result.stderr.strip()}",
                 file=sys.stderr,
             )

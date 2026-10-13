@@ -19,6 +19,15 @@
 # code is a failed gh or jq); 2 usage.
 set -euo pipefail
 
+# A native jq.exe under Git Bash or Cygwin writes text-mode stdout, which would add a CR to
+# every line of the body and break the CRLF-preserving rewrite below; -b keeps the bytes.
+# Pointer: https://jqlang.org/manual/#invoking-jq (--binary), as of 2026-10-11; recheck
+# when jq changes how it opens streams on Windows. REPO_SWEEP_OSTYPE is the test seam for the platform.
+case ${REPO_SWEEP_OSTYPE:-${OSTYPE-}} in
+msys* | cygwin*) type -P jq >/dev/null && jq() { command jq -b "$@"; } ;;
+*) ;;
+esac
+
 usage() {
   printf 'usage: tick.sh <id> in-progress\n       tick.sh <id> [--partial <detail>] committed <sha> <skill@version>...\n' >&2
   printf '       tick.sh <id> no-findings <skill@version>...\n' >&2
@@ -87,7 +96,9 @@ trap 'rm -rf "$tmp"' EXIT
 
 body=$(gh pr view --json body | jq -r .body)
 rc=0
-printf '%s\n' "$body" | awk -v id="$id" -v mode="$mode" -v done_text="$versions$suffix" -v newf="$tmp/new" '
+# BINMODE=3 stops gawk on Windows from stripping each input line's CR, which the rewrite
+# below must see to keep it; a POSIX awk reads it as an ordinary variable.
+printf '%s\n' "$body" | awk -v BINMODE=3 -v id="$id" -v mode="$mode" -v done_text="$versions$suffix" -v newf="$tmp/new" '
   { cr = sub(/\r$/, "") }
   /^<!-- repo-sweep:begin / { inb = 1 }
   /^<!-- repo-sweep:end -->/ { inb = 0 }
@@ -110,6 +121,7 @@ case $rc in
 esac
 new=$(cat "$tmp/new")
 printf '%s' "$(cat "$tmp/body")" | gh pr edit --body-file - >/dev/null
+# shellcheck disable=SC2310 # jq may be the one-command -b wrapper above; errexit inside it changes nothing
 if ! gh pr view --json body | jq -r .body | tr -d '\r' | grep -Fqx -- "$new"; then
   printf 'tick.sh: edit did not land: %s\n' "$new" >&2
   exit 1
