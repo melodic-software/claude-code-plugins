@@ -193,7 +193,7 @@ the seam needs are in
 [reference/promotion-evidence-bootstrap.md](reference/promotion-evidence-bootstrap.md); a
 report-only lane-start preflight names each missing one. With a compliant bootstrap, cycle-shape
 step 3 runs the resolution helper and the seam returns a qualified read; otherwise every cell stays
-effective-unpromoted. On the unattended route this gate is code: the merge gate runs `scripts/resolve-promotion-evidence.mjs`, which reads the four options from managed or user settings (never this block, argv or the environment), refuses any value or settings file the lane user can write, restarts the window at the newest demotion record (`--window-start`), and reports `unattended.promoted`. The three-arm resolver, what counts as
+effective-unpromoted. On the unattended route this gate is code: the merge gate runs `scripts/resolve-promotion-evidence.mjs`, which reads the four options from managed or user settings (never this block, argv or the environment), refuses any value or settings file the lane user can write (so a user settings file, always lane-owned, never passes on this route), restarts the window at the newest demotion record (`--window-start`), and reports `unattended.promoted`. The three-arm resolver, what counts as
 qualified evidence, and the forgeable surfaces it refuses are in
 [reference/promotion-evidence-resolution.md](reference/promotion-evidence-resolution.md); read it
 before resolving the first cell of a run.
