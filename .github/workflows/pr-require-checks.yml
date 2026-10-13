@@ -503,10 +503,11 @@ jobs:
   # read fixed, path-scoped inputs that a diff confined to the docs-only
   # allowlist (scripts/docs-only-paths.txt) cannot touch, so on such a diff they
   # report an honest evaluated-and-not-applicable success. Exec-bit,
-  # hook-wiring-liveness, and purged-em-dashes are NOT gated: they scan the
-  # whole repository, and a shebang/hook file added under an otherwise
-  # docs-only prefix is real input they must still catch, as
-  # is a docs-only diff that reintroduces an em dash on a purged surface.
+  # hook-wiring-liveness, purged-em-dashes, and next-graph are NOT gated: they
+  # scan the whole repository, and a shebang/hook file added under an otherwise
+  # docs-only prefix is real input they must still catch, as is a docs-only
+  # diff that reintroduces an em dash on a purged surface or strands a
+  # planning-chain `## Next` target.
   # ShellCheck, ungated for the same reason, runs in `lint-shell`.
   #
   # The job skips only on a contract-only event or a draft; otherwise only
@@ -1013,6 +1014,13 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh purged-em-dashes {0}
         run: scripts/check-purged-em-dashes.sh
 
+      # Ungated for the same reason: the planning chain's `## Next` sections
+      # are markdown, and a rename elsewhere can strand one of their targets.
+      - name: Check the planning chain's Next graph against the workflow ladder
+        id: next_graph
+        continue-on-error: true
+        run: python3 scripts/check-next-graph.py
+
       # A plugin's prose counts its own skills by hand ("bundling fourteen
       # skills", "the other thirteen skills are zero-config") and nothing
       # recomputes those numbers when a skill lands, so adding one silently
@@ -1045,7 +1053,7 @@ jobs:
 
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
         if: needs.select-tests.outputs.run_full == 'false'
-        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, the dependabot and workflow schemas, zizmor, the runner policy) cannot be affected — reporting success for them. Exec-bit, hook-wiring-liveness, and purged-em-dashes scan the whole repo and stay unconditional."
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, the dependabot and workflow schemas, zizmor, the runner policy) cannot be affected — reporting success for them. Exec-bit, hook-wiring-liveness, purged-em-dashes, and next-graph scan the whole repo and stay unconditional."
 
       # ONE DETERMINISTIC PROSE DETECTOR, AS WARNINGS. The ai-slop audit's own
       # detector reads the markdown this pull request changed and annotates
@@ -1174,6 +1182,7 @@ jobs:
             comment-hygiene=${{ steps.comment_hygiene.outcome }}
             hook-wiring-liveness=${{ steps.hook_wiring.outcome }}
             purged-em-dashes=${{ steps.purged_em_dashes.outcome }}
+            next-graph=${{ steps.next_graph.outcome }}
             skill-count-claims=${{ steps.skill_count_claims.outcome }}
             runner-policy=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
         run: scripts/aggregate-hygiene-results.sh

@@ -421,13 +421,15 @@ them live when a command's output, or the files you find, do not match the entry
 - **Owner**: none (a cross-session baseline waits on session-flow).
 - **Record**: a measured finding (tier E1, `command` that same line, workload `transcript counts`)
   for each of: the tool with the most `wait_ms` (unit `wait-ms`), each command in
-  `repeated_commands` and each file in `repeated_reads` (unit `count`), and any tool whose
+  `repeated_commands` and each entry in `repeated_reads` (unit `count`), each entry in
+  `unverified_repeated_commands` and `unverified_repeated_reads` (unit `count`), and any tool whose
   `errors` exceed one (unit `count`). A repeat whose cure changes only how this session works
   (reuse the earlier output while its inputs are unchanged) is horizon `now`, effect `batching`,
   confidence `HIGH` (a direct count), with `guard_metric` "a reused result differs from a fresh run" and `revert_if` "the inputs
   changed since the earlier run"; its `fix_owner` is `steps-for-you` with `fix_steps` "reuse the
   earlier output while its inputs are unchanged" and its route is `next-run`. Everything else is
-  `later`, route `next-run`, `fix_owner` `/performance:goal`.
+  `later`, route `next-run`, `fix_owner` `/performance:goal`. An unverified repeat is always
+  `later`: the transcript does not hold its results, so a changed input cannot be ruled out.
 - **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
   found for session unknown: the session id did not expand; this area reads only the live
   session's transcript". `TRANSCRIPT` `none` otherwise: `no-data`, reason "no transcript found
