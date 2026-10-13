@@ -54,9 +54,9 @@ function normalizeOrigin(url) {
 }
 
 /**
- * A checkout root becomes `owner/repo` from its GitHub `origin`, else its directory name. A path
- * (absolute, or starting with `.` or `~`) that is not a checkout here becomes its last segment.
- * Anything else is already a name and is returned unchanged.
+ * A path (absolute, or starting with `.` or `~`) to a checkout root becomes `owner/repo` from its
+ * GitHub `origin`, else its directory name; any other path becomes its last segment. Anything else
+ * is already a name: it is returned unchanged and never looked up on disk.
  *
  * @param {string} target
  * @param {{ cwd?: string, checkoutOrigin?: (dir: string) => { origin: string|null } | null }} [deps]
@@ -64,6 +64,9 @@ function normalizeOrigin(url) {
  */
 export function portableTargetName(target, deps = {}) {
   const { cwd = process.cwd(), checkoutOrigin: readCheckout = checkoutOrigin } = deps;
+  const isPath =
+    path.isAbsolute(target) || path.win32.isAbsolute(target) || /^[.~]/.test(target);
+  if (!isPath) return target;
   const resolved = path.resolve(cwd, target);
   const checkout = readCheckout(resolved);
   if (checkout) {
@@ -71,11 +74,6 @@ export function portableTargetName(target, deps = {}) {
     if (parsed) return `${parsed.owner}/${parsed.repo}`;
     if (path.basename(resolved)) return path.basename(resolved);
   }
-  const isPath =
-    path.isAbsolute(target) ||
-    path.win32.isAbsolute(target) ||
-    /^[.~]/.test(target);
-  if (!isPath) return target;
   const name = path.win32.basename(target.replace(/[\\/]+$/, ""));
   if (!name || name === "." || name === ".." || name === "~") {
     throw new Error(`\`--target\` ${JSON.stringify(target)} has no name in it`);

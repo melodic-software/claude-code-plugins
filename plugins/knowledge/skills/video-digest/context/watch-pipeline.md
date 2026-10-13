@@ -302,8 +302,9 @@ line, never the resolved checkout path, which is machine-local while `README.md`
 artifact. That line is a record for readers and downstream consumers of a finished slice, not
 resume state. An explicit `--target` passed at CLI bootstrap is separately recorded in `watch.json`
 (`state.target`, the portable name only); on `resume`, check `state.target` / the continuation
-prompt's "Synthesis target" section first. When set, reuse it and skip this resolution entirely;
-when unset, run the rungs above.
+prompt's "Synthesis target" section first. When set, treat it as rung 1's `--target`: resolve it
+to a local checkout, asking only for the checkout path when none is found, never which repository.
+When unset, run the rungs above.
 
 Outputs:
 

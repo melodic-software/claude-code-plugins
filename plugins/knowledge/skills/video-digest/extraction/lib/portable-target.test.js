@@ -67,6 +67,12 @@ describe("portableTargetName", () => {
       expect(portableTargetName(repo)).toBe("acme/widgets");
       expect(portableTargetName(path.join(repo, "docs"))).toBe("docs");
       expect(portableTargetName("docs", { cwd: repo })).toBe("docs");
+      expect(
+        portableTargetName(path.basename(repo), { cwd: path.dirname(repo) }),
+      ).toBe(path.basename(repo));
+      expect(
+        portableTargetName(`./${path.basename(repo)}`, { cwd: path.dirname(repo) }),
+      ).toBe("acme/widgets");
     } finally {
       fs.rmSync(repo, { recursive: true, force: true });
     }
