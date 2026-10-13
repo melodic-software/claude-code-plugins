@@ -893,6 +893,39 @@ class TestDirRequired(unittest.TestCase):
         self.assertIn("--dir", p.stderr)
 
 
+class TestInputFiles(DirCase):
+    """DX-2: a missing or malformed input file is a one-line refusal, never a traceback."""
+
+    def check(self, *args):
+        rc, out, err = self.rp(*args)
+        self.assertEqual(rc, 1, out + err)
+        self.assertNotIn("Traceback", err)
+        self.assertIn("refused: cannot read", err)
+
+    def test_missing_files_refuse_cleanly(self):
+        gone = str(self.tmp / "missing.json")
+        out = str(self.tmp / "out.md")
+        for args in (
+            ("export-brief", "--out", out, "--ledger", gone),
+            ("export-ledger", "--out", out, "--ledger", gone),
+            ("export-ledger", "--diff", gone),
+            ("add", "--file", gone),
+            ("add-round", "--file", gone),
+            ("import-ledger", "--ledger", gone),
+            ("doctor", "--ledger", gone),
+            ("sync-ledger", "--ledger", gone),
+        ):
+            with self.subTest(args=args):
+                self.check(*args)
+
+    def test_malformed_json_refuses_cleanly(self):
+        bad = self.tmp / "bad.json"
+        bad.write_text("# not json\n", encoding="utf-8")
+        for cmd in ("add", "add-round"):
+            with self.subTest(cmd=cmd):
+                self.check(cmd, "--file", str(bad))
+
+
 class TestApply(DirCase):
     """AC10, AC9: one atomic write for a list of ops."""
 
@@ -944,6 +977,41 @@ class TestApply(DirCase):
         self.assertEqual(self.q("Q1")["history"][-1]["replyTo"], 1)
         self.assertIn("reply: replied on Q1", out)
         self.assertIn("handle: handled 2", out)
+
+    def test_a_rerun_wake_applies_the_ops_file_once(self):
+        """DX-1: apply consumes ops.json, so re-running the watcher's next adds no duplicate reply."""
+        path = self.file(
+            "ops.json", {"ops": [{"op": "reply", "id": "Q1", "text": "Once."}]}
+        )
+        rc, out, err = self.rp("apply", "--file", path)
+        self.assertEqual(rc, 0, out + err)
+        self.assertFalse(
+            Path(path).exists(), "a successful apply leaves ops.json behind"
+        )
+        rev = self.doc()["rev"]
+        rc, out, err = self.rp("apply", "--file", path)
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("nothing to apply", out)
+        self.assertEqual(self.doc()["rev"], rev)
+        texts = [h.get("text") for h in self.q("Q1").get("history", [])]
+        self.assertEqual(texts.count("Once."), 1, texts)
+
+    def test_an_unfinished_claim_beside_a_new_ops_file_refuses(self):
+        """A killed apply leaves ops.json.applying; a fresh ops.json must not overwrite that batch."""
+        old = {"ops": [{"op": "reply", "id": "Q1", "text": "Orphaned."}]}
+        path = self.file("ops.json.applying", old)[: -len(".applying")]
+        self.file("ops.json", {"ops": [{"op": "reply", "id": "Q1", "text": "New."}]})
+        out = self.assert_refused("apply", "--file", path)
+        self.assertIn("ops.json.applying", out)
+        self.assertEqual(json.loads(Path(path + ".applying").read_text()), old)
+        self.assertTrue(Path(path).exists())
+
+    def test_a_refused_apply_keeps_the_ops_file(self):
+        path = self.file(
+            "ops.json", {"ops": [{"op": "reply", "id": "Q9", "text": "x"}]}
+        )
+        self.assert_refused("apply", "--file", path)
+        self.assertTrue(Path(path).exists())
 
     def test_only_a_reply_line_carries_a_reply_kind(self):
         ops = {
@@ -2095,6 +2163,48 @@ class TestLock(DirCase):
         self.assertEqual(rc, 1, out + err)
         self.assertIn("questions.json.lock", out + err)
         self.assertEqual(self.raw(), before)
+
+    def apply_later(self, path):
+        p = subprocess.Popen(
+            [
+                sys.executable,
+                str(ROUND),
+                "--dir",
+                str(self.dir),
+                "apply",
+                "--file",
+                path,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        self.addCleanup(p.communicate, timeout=30)
+        return p
+
+    def replies(self):
+        return [h.get("text") for h in self.q("Q1").get("history", [])]
+
+    def test_overlapping_applies_claim_the_ops_file_under_the_lock(self):
+        """Two wakes waiting on the lock apply one batch once, and the batch on disk when the lock frees
+        is the one applied: one written while they waited is neither lost nor shadowed by the old one."""
+
+        def reply(text):
+            return {"ops": [{"op": "reply", "id": "Q1", "text": text}]}
+
+        path = self.file("ops.json", reply("Old."))
+        holder = self.hold(2)
+        first, second = self.apply_later(path), self.apply_later(path)
+        time.sleep(0.7)
+        self.file("ops.json", reply("New."))
+        holder.wait(30)
+        for p in (first, second):
+            out, err = p.communicate(timeout=30)
+            self.assertEqual(p.returncode, 0, out + err)
+        self.assertEqual(self.replies().count("New."), 1, self.replies())
+        self.assertNotIn("Old.", self.replies())
+        self.assertFalse(Path(path).exists())
+        self.assertFalse(Path(path + ".applying").exists())
 
 
 class TestRebuild(unittest.TestCase):

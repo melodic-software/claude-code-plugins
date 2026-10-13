@@ -1,7 +1,7 @@
 export const meta = {
   name: 'fanout-sweep',
   description: 'Fan out review leaf surfaces (plugin reviewer agents and project criteria slices) over one diff base, then extract their findings to records',
-  whenToUse: 'Run by /review:fanout run-everything mode, which resolves args: diffBase (required), slices, roles, maxConcurrent. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /review:fanout run-everything.',
+  whenToUse: 'Run by /review:fanout run-everything mode, which resolves args: diffBase (required), slices, roles, maxConcurrent, diversity, session. Invoked with no args (a bare slash command), do not call Workflow: tell the user to run /review:fanout run-everything.',
   phases: [
     { title: 'Review', detail: 'named reviewer agents by tier, then one agent per project criteria slice' },
     { title: 'Extract', detail: 'one extraction agent turns raw findings into records' },
@@ -26,6 +26,14 @@ if (!DIFF_BASE) {
 if (!/^[A-Za-z0-9._\/@^~:{}-]+$/.test(DIFF_BASE) || DIFF_BASE.startsWith('-')) {
   log('diffBase ' + JSON.stringify(DIFF_BASE.slice(0, 80)) + ' is not a git ref: nothing was dispatched')
   return { error: 'bad-diff-base', next: 'Pass the resolved ref or commit id as args.diffBase.' }
+}
+
+// lens: one named agent per concern. model: one prompt per distinct fan-out model tier.
+const DIVERSITY_IN = input.diversity == null ? 'lens' : input.diversity
+let DIVERSITY = typeof DIVERSITY_IN === 'string' ? DIVERSITY_IN.trim() : ''
+if (DIVERSITY !== 'lens' && DIVERSITY !== 'model') {
+  log('diversity ' + JSON.stringify(String(DIVERSITY_IN).slice(0, 80)) + ' is not lens or model: nothing was dispatched')
+  return { error: 'bad-diversity', next: 'Pass args.diversity as "lens" or "model", or omit it for lens.' }
 }
 
 const SLICES = (Array.isArray(input.slices) ? input.slices : [])
@@ -55,6 +63,34 @@ for (const role of Object.keys(FALLBACK_ROLES)) {
   }
 }
 if (!input.roles) log('no roles in args: built-in fallbacks apply')
+
+// Model tiers: the distinct fan-out models in the role map, first seen first, deduped by the
+// model each resolves to. `inherit` is the session model, args.session's alias; with no known
+// alias it counts as frontier, as /multi-agent:route counts an unknown session. The frontier
+// aliases stay out, as every fan-out stage does.
+const SESSION = typeof input.session === 'string' && MODELS.includes(input.session.trim()) &&
+  input.session.trim() !== 'inherit' ? input.session.trim() : ''
+const TIERS = []
+if (DIVERSITY === 'model') {
+  for (const role of ['orchestrator', 'worker', 'verifier', 'retrieval']) {
+    const f = passed[role] && passed[role].fanout
+    if (!f || !MODELS.includes(f.model) || !EFFORTS.includes(f.effort)) continue
+    const m = f.model === 'inherit' ? SESSION : f.model
+    if (!m) {
+      log('roles.' + role + '.fanout is inherit and args.session names no model: an unknown session model is left out of model diversity')
+    } else if (m === 'fable' || m === 'best') {
+      log('roles.' + role + '.fanout is ' + m + ': a frontier tier is left out of model diversity')
+    } else if (!TIERS.includes(m)) {
+      TIERS.push(m)
+    }
+  }
+  if (TIERS.length < 2) {
+    log('diversity model found ' + TIERS.length + ' fan-out tier(s) in roles, fewer than two: the lens roster runs')
+    DIVERSITY = 'lens'
+  }
+}
+const vf = passed.verifier && passed.verifier.fanout
+const TIER_EFFORT = vf && EFFORTS.includes(vf.effort) ? vf.effort : 'high'
 
 // `inherit` omits opts.model. Effort is always explicit.
 function opts(variant) {
@@ -121,17 +157,31 @@ function slicePrompt(slice) {
     COVERAGE_CLAUSE
 }
 
+// Model diversity runs lane-verifier, which inherits the model and pins no effort, so the
+// tier's model and effort apply to it.
+const TIER_AGENT = 'review:lane-verifier'
+const TIER_PROMPT = 'Your role is hunter, across every concern rather than one lens. ' + AGENT_PROMPT
+
 phase('Review')
 
-const named = leaf => () => agentRetry(AGENT_PROMPT, { agentType: leaf.agentType, label: leaf.label, phase: 'Review' })
-const t1 = await inWaves(TIER1.map(named), MAX_CONCURRENT)
-const t2a = await inWaves(TIER2_AGENTS.map(named), MAX_CONCURRENT)
-const t2s = await inWaves(TIER2_SLICES.map(leaf => () =>
-  agentRetry(slicePrompt(leaf.slice), { agentType: SLICE_AGENT, label: leaf.label, phase: 'Review' })
-), MAX_CONCURRENT)
-
-const roster = [...TIER1, ...TIER2_AGENTS, ...TIER2_SLICES]
-const outputs = [...t1, ...t2a, ...t2s]
+let roster
+let outputs
+if (DIVERSITY === 'model') {
+  roster = TIERS.map(t => ({ label: 'model:' + t, tier: t }))
+  outputs = await inWaves(roster.map(leaf => () => agentRetry(TIER_PROMPT, {
+    agentType: TIER_AGENT, label: leaf.label, phase: 'Review',
+    ...opts({ model: leaf.tier === SESSION ? 'inherit' : leaf.tier, effort: TIER_EFFORT }),
+  })), MAX_CONCURRENT)
+} else {
+  const named = leaf => () => agentRetry(AGENT_PROMPT, { agentType: leaf.agentType, label: leaf.label, phase: 'Review' })
+  const t1 = await inWaves(TIER1.map(named), MAX_CONCURRENT)
+  const t2a = await inWaves(TIER2_AGENTS.map(named), MAX_CONCURRENT)
+  const t2s = await inWaves(TIER2_SLICES.map(leaf => () =>
+    agentRetry(slicePrompt(leaf.slice), { agentType: SLICE_AGENT, label: leaf.label, phase: 'Review' })
+  ), MAX_CONCURRENT)
+  roster = [...TIER1, ...TIER2_AGENTS, ...TIER2_SLICES]
+  outputs = [...t1, ...t2a, ...t2s]
+}
 const returned = roster
   .map((leaf, i) => ({ label: leaf.label, output: outputs[i] }))
   .filter(r => r.output != null)
@@ -189,4 +239,6 @@ return {
   nulls,
   ran: roster.map(l => l.label),
   roles: { extract: R.retrieval.single },
+  diversity: DIVERSITY,
+  ...(DIVERSITY === 'model' ? { tiers: TIERS } : {}),
 }

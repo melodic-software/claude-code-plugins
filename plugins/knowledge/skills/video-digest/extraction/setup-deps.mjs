@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Install the video extraction pipeline's node dependencies into
- * `${CLAUDE_PLUGIN_DATA}/node_modules` — a per-plugin directory that survives
- * plugin updates (plugins-reference, persistent data directory). The plugin
+ * `${CLAUDE_PLUGIN_DATA}/node_modules`, the per-plugin directory we keep state
+ * in (its lifetime: https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables,
+ * as of 2026-10-11; recheck when that section changes when it is kept). The plugin
  * ships without a committed `node_modules`; this runs once on first use and
  * again after an update whose `package.json` changed.
  *

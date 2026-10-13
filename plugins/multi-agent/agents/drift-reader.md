@@ -3,7 +3,7 @@ name: drift-reader
 description: "Runs the read stage of the multi-agent:drift-audit workflow: lifts model, effort, subagent and workflow claims out of the repository files the prompt lists, with Read, Grep and Glob only. No web access, no shell, no edits. Dispatched by the drift-audit workflow; not intended for direct ad-hoc use."
 tools: "Read, Grep, Glob"
 model: inherit # reason: the drift-audit workflow passes model and effort per stage from the role map
-maxTurns: 20
+maxTurns: 20 # what a capped run returns: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields, maxTurns row (as of 2026-10-11; recheck when that row changes what a capped subagent returns)
 ---
 You run the read stage of the `multi-agent:drift-audit` workflow. The workflow prompt lists the
 files to read and the structure to return. Return exactly that structure and nothing else.

@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: ratchet-zero-lands-rule
+description: 'The no-console rule is off and `lint-count.sh` counts zero violations. A zero count needs no ceiling: the skill turns the rule on at error severity in .eslintrc.json, runs no ratchet.py add, and adds no ratchet step to CI. A run needs --scaffold and --allow-tools Bash Edit Write.'
+tags: [ratchet, lint]
+expected_outcome: '.eslintrc.json sets no-console to error; no ratchet.py add runs; ci.yml carries no ratchet.py call; the reply says the rule landed with no ceiling.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/review:ratchet the no-console rule. `bash lint-count.sh` prints its violation count. Write the proposed files into the working tree; do not commit.'
+  allowed_tools: [Bash, Read, Grep, Glob, Edit, Write, Skill]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: rule-landed
+    type: regex
+    pattern: '"no-console"\s*:\s*(?:"error"|2\b|\[\s*(?:"error"|2\b))'
+    target: { source: file, path: .eslintrc.json }
+  - name: no-add
+    type: tool_used
+    tool: Bash
+    input_match: 'ratchet\.py\S*\s+add\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-ratchet-step
+    type: regex
+    pattern: 'ratchet\.py'
+    match: not_contains
+    target: { source: file, path: .github/workflows/ci.yml }
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:review:)?ratchet"'
+    arm: with-only

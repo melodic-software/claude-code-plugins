@@ -90,10 +90,10 @@
 #                           The other reads are the test lanes' matrix sizes,
 #                           each pinned whole in MATRIX_READS with its one-leg
 #                           default.
-#  11. A SKIP NEVER PASSES — the aggregate's `treat-skipped-as` is `fail`, a
-#                           draft's included: a draft runs no lane, and a green
-#                           draft ci-status is the newest one on the SHA from
-#                           the flip to ready until the lanes finish.
+#  11. A SKIP NEVER PASSES — the aggregate's `treat-skipped-as` is `fail`, or
+#                           exactly the draft form that passes skips only on a
+#                           draft, where every lane skips; the merge queue
+#                           re-runs every lane before a merge.
 #  12. A SKIP IS CHECKED  — a test lane `test-<x>`, or `lint-shell` on
 #                           `run_shell`, may skip as a job on its own
 #                           `run_<x>` row (the ordered-skip form, the draft gate
@@ -1057,23 +1057,24 @@ fi
 
 # --- 11. A SKIPPED LANE NEVER PASSES -----------------------------------------
 #
-# The draft gate skips every lane on a draft, and the aggregate fails it. A
-# draft's ci-status is the newest one on its SHA from the flip to ready until
-# the `ready_for_review` run's lanes finish, so a draft that passed would let a
-# merge through with nothing linted or tested. `treat-skipped-as` is therefore
-# the literal `fail`: anything else turns a lane skipped for some reason into a
-# green required check with nothing run.
+# The draft gate skips every lane on a draft, and the aggregate passes those
+# skips only there: a draft cannot merge, and the merge queue runs every lane
+# on the merge-group commit before a merge. `treat-skipped-as` is therefore
+# the literal `fail` or exactly $SKIP_AS_DRAFT; anything else turns a lane
+# skipped for some reason on a ready pull request into a green required check
+# with nothing run.
+SKIP_AS_DRAFT="\${{ github.event.pull_request.draft && 'pass' || 'fail' }}"
 skipas_seen=0
 while IFS="$TAB" read -r sjob svalue; do
   [[ -n "$sjob" ]] || continue
   [[ "$sjob" == "$AGGREGATE_JOB" ]] || continue
   skipas_seen=1
-  [[ "$svalue" == "fail" ]] && continue
-  report "A SKIPPED LANE NEVER PASSES: job '$AGGREGATE_JOB' sets treat-skipped-as: $svalue. Use 'fail', a draft's included: a draft runs no lane."
+  [[ "$svalue" == "fail" || "$svalue" == "$SKIP_AS_DRAFT" ]] && continue
+  report "A SKIPPED LANE NEVER PASSES: job '$AGGREGATE_JOB' sets treat-skipped-as: $svalue. Use 'fail' or exactly $SKIP_AS_DRAFT."
 done <<<"$REC_SKIPAS"
 if [[ "$skipas_seen" -eq 0 ]] && has_line "$jobs_all" "$AGGREGATE_JOB"; then
   if [[ -n "$(printf '%s' "$REC_JOBIF" | awk -F'\t' -v j="$JOB_GATE_DRAFT" '$2 == j')" ]]; then
-    report "A SKIPPED LANE NEVER PASSES: a lane carries the draft gate but job '$AGGREGATE_JOB' sets no treat-skipped-as, whose default passes a skip. Set it to 'fail'."
+    report "A SKIPPED LANE NEVER PASSES: a lane carries the draft gate but job '$AGGREGATE_JOB' sets no treat-skipped-as, whose default passes a skip. Set it to 'fail' or exactly $SKIP_AS_DRAFT."
   fi
 fi
 

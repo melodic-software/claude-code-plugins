@@ -37,8 +37,8 @@ approval. `W` is `.work/repo-sweep/` in the worktree root (create it when filing
 
    A defect in a skill bundled with Claude Code (a bare name in the catalog, such as `claude-api`)
    has no plugin here to file against: ask the user to report it to Anthropic with `/bug`
-   ([commands](https://code.claude.com/docs/en/commands), fetched 2026-09-27; recheck when that
-   page drops or renames `/bug`).
+   ([All commands](https://code.claude.com/docs/en/commands#all-commands), fetched 2026-10-11;
+   recheck when that table drops or renames `/bug`).
 5. Show every draft (title, body, target repository). For each approved draft, write the body to
    a file under `W` (for example `W/issue-<slug>.md`) and file with `gh issue create ... --body-file
    W/issue-<slug>.md` only after the user approves it. Do not pipe the body from stdin or a

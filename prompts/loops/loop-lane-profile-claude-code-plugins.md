@@ -40,9 +40,9 @@ Filled instance for the repository in use as of 2026-07-25.
   operations reference, loaded by `reference/tracker-seam.md` and
   `skills/work/SKILL.md`. Re-run the listing rather than reusing a count; it
   moves with every plugin added.
-- Merge rung: `c3-autonomous`, live in tracked config on `main`, raised in
-  the same reviewed change that added the matrix's C3 auto-merge cell
-  (operator-ratified, 2026-07-27; see "Tier is not the rung" below).
+- Merge rung: `c2-mechanical`, live in tracked config on `main`, because
+  unattended auto-merge launches at C2 only (#6202, "Amendment
+  (auto-merge-safe-prs)"; see "Tier is not the rung" below).
   Effective rung today: human-only, until the promotion-evidence seam
   (#4588) returns a qualified read and the copy-blocks drop
   `--merge human-only`.
@@ -84,25 +84,22 @@ elevation, barrier handling, escalation posture. It does **not** raise
 The skill carries one named exception: an invocation line typing both the
 `autopilot` tier keyword and the dedicated raise argument
 `--merge c3-this-run` widens that one invocation's merge rung to C3. It
-changes nothing here, for two independent reasons. Every copy-block below
-passes `--merge human-only`, and the raise fires only on its own dedicated
-token, which no copy-block carries; and the tracked rung already stands at
-`c3-autonomous` (below), so the per-invocation raise buys nothing the tracked
-config does not already grant. Treat it as dormant in this repository, and do not
-swap a copy-block's `--merge human-only` for the raise token to wake it.
+changes nothing here: every copy-block below passes `--merge human-only`, and
+the raise fires only on its own dedicated token, which no copy-block carries.
+The tracked rung stands at `c2-mechanical` (below), so the raise would widen
+one invocation to C3 here, which unattended launches do not take (#6202).
+Treat it as dormant in this repository, and do not swap a copy-block's
+`--merge human-only` for the raise token to wake it.
 
 So the two knobs are independent, and both are needed for "merge things
 overnight without me":
 
 - **Tier `autopilot`**: in the prompt below. Already maximal.
 - **Merge rung**: one line in `.claude/source-control.md` on `main`.
-  Now `c3-autonomous`, flipped in the same reviewed change that added the
-  matrix's **C3 auto-merge cell with an evidence predicate** (closes #1646):
-  **operator direction of 2026-07-27 superseded #1388's 2026-07-25 "stay at
-  `c2-mechanical`" decision**. The other watched repos' raises are recorded
-  via their staged tracked-config PRs, held as drafts until this amendment
-  ratified them. The amendment followed the path #1388 itself prescribed: amend
-  the guardrail contract first, then flip the tracked config. Never the reverse.
+  Now `c2-mechanical`, because unattended auto-merge launches at C2 only
+  (#6202, "Amendment (auto-merge-safe-prs)", item 22). A raise follows the
+  path #1388 prescribed: amend the guardrail contract first, then flip the
+  tracked config. Never the reverse.
 
 `full-autonomy` as a rung **adds nothing over `c3-autonomous`**. C4
 `structural` and C5 `untrusted-provenance`, meaning refactors, migrations,
@@ -140,7 +137,7 @@ machines; neither on the attended box.
 
 > **=== COPY FROM HERE ===**
 >
-> /loop /work-items:work-loop
+> /loop /work-items:work-loop --standing
 >
 > Repository: `melodic-software/claude-code-plugins`
 > Runtime surfaces in this repo: **every tracked markdown file**
@@ -285,9 +282,9 @@ machines; neither on the attended box.
 ### Merge lane, any machine except the attended one
 
 **`--merge human-only` is deliberate here, and stays until #1695 lands.**
-This repository's tracked config resolves `c3-autonomous` (flipped with the
-C3 auto-merge contract amendment), so without the override the lane would
-auto-merge C2 and C3 PRs. Two reasons to keep the override: the ratification
+This repository's tracked config resolves `c2-mechanical` (unattended
+auto-merge launches at C2 only, #6202), so without the override the
+lane would auto-merge C2 PRs. Two reasons to keep the override: the ratification
 ran ahead of the suggested evidence predicates, and this repository has
 recorded **zero autonomous merges ever**. The lane's rung partition also
 does not yet resolve the effective promotion state against telemetry, so

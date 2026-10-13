@@ -463,11 +463,11 @@ behavior.
 
 The `reference/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+writing it into a brief. Those files arrive through the Read tool as plain bytes, and we do not
+rely on a `${…}` token in them being substituted. Where placeholders resolve is the
+record in [evidence-packet.md](reference/evidence-packet.md#layout-and-files). As of 2026-10-11.
+Recheck trigger: that record's pointer section adds supporting files read through the Read tool to
+where `${…}` resolves, or the record moves out of that section.
 
 ## Next
 

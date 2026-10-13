@@ -76,7 +76,7 @@ class OnDemandInstall(unittest.TestCase):
         self.lock = self.tmp / 'requirements.txt'
         self.lock.write_text(lock_text(digest), encoding='utf-8')
         self.env = {**os.environ, 'PIP_NO_INDEX': '1', 'PIP_FIND_LINKS': str(self.wheels),
-                    pydeps.HANDED_OVER: sys.executable}
+                    'EXPLAINER_VIDEO_PYDEPS_INTERPRETER': sys.executable}
 
     def pydeps(self, action, *args, env=None):
         return subprocess.run([sys.executable, '-c', AS_SUPPORTED, action, '--requirements', str(self.lock), *args],
@@ -229,7 +229,7 @@ class Launcher(unittest.TestCase):
             fake, log = Path(tmp) / 'bin', Path(tmp) / 'log'
             fake.mkdir()
             (fake / 'python3.13').write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')   # not supported
-            (fake / 'python3.12').write_text(f'#!/bin/sh\n[ "$1" = -c ] && exit 0\necho "$@" > {log}\n',
+            (fake / 'python3.12').write_text(f'#!/bin/sh\n[ "$1" = -I ] && exit 0\necho "$@" > {log}\n',
                                              encoding='utf-8')
             for f in fake.iterdir():
                 f.chmod(0o755)
@@ -260,7 +260,7 @@ class Launcher(unittest.TestCase):
             r = subprocess.run([sys.executable, '-c', code], cwd=HERE, env=env, capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(log.read_text(encoding='utf-8').splitlines(), [
-                '-c home=[] path=[] uv=[] over=[]',
+                '-I home=[] path=[] uv=[] over=[]',
                 f'{SCRIPT} home=[] path=[] uv=[] over=[{fake / "python3.12"}]',
             ])
 
@@ -288,7 +288,7 @@ class PyLauncher(unittest.TestCase):
                      'sysconfig': types.SimpleNamespace(
                          get_config_var=lambda name: gil_disabled if name == 'Py_GIL_DISABLED' else None)}
             try:
-                exec(cmd[2], {'__builtins__': {**vars(builtins), '__import__': lambda name, *_: fakes[name]}})
+                exec(cmd[-1],{'__builtins__': {**vars(builtins), '__import__': lambda name, *_: fakes[name]}})
             except SystemExit as e:
                 return 1 if e.code else 0
             return 0
@@ -315,8 +315,8 @@ class PyLauncher(unittest.TestCase):
                                      {self.PY313})
         self.assertEqual(found, self.PY313)
         self.assertEqual([c[0] for c in calls], [
-            [self.PY314, '-c', unittest.mock.ANY], [self.PY314, '-c', unittest.mock.ANY],
-            [self.PY, '-0p'], [self.PY314, '-c', unittest.mock.ANY], [self.PY313, '-c', unittest.mock.ANY]])
+            [self.PY314, '-I', '-c', unittest.mock.ANY], [self.PY314, '-I', '-c', unittest.mock.ANY],
+            [self.PY, '-0p'], [self.PY314, '-I', '-c', unittest.mock.ANY], [self.PY313, '-I', '-c', unittest.mock.ANY]])
         for _, env in calls:
             self.assertFalse({'PYTHONHOME', 'UV_INTERNAL__PYTHONHOME'} & set(env), env)
 
@@ -343,7 +343,7 @@ class PyLauncher(unittest.TestCase):
         runtimes = {self.PY314: ((3, 14, 0), 0), py313t: ((3, 13, 5), 1), self.PY313: ((3, 13, 5), 0)}
         found, calls = self.discover({'python': self.PY314, 'py': self.PY}, listing, runtimes)
         self.assertEqual(found, self.PY313)
-        self.assertIn([py313t, '-c', unittest.mock.ANY], [c[0] for c in calls])
+        self.assertIn([py313t, '-I', '-c', unittest.mock.ANY], [c[0] for c in calls])
 
     def test_a_free_threaded_313_on_path_is_skipped(self):
         runtimes = {'/x/python3.13t': ((3, 13, 5), 1), '/x/python3.12': ((3, 12, 9), 0)}
