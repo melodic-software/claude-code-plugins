@@ -17,6 +17,10 @@
     {
       "answer": "node: PASS\nCLI: PASS\nSDK: INFO\ntoggle: INFO",
       "why": "no table"
+    },
+    {
+      "answer": "| node | PASS | /usr/bin/node, used by Claude Code hooks |\n| Agent SDK | INFO | not installed |\n| Toggle | INFO | true |",
+      "why": "no CLI row"
     }
   ]
 }

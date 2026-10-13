@@ -26,6 +26,12 @@ graders:
     target: last_message
   - name: no-disallowedtools-key
     type: regex
-    pattern: '"disallowedTools"\s*:'
+    pattern: '\bdisallowedTools\b\s*["'']?\s*[:=]'
+    match: 'not_contains'
+    target: last_message
+  - name: no-claims-applied
+    type: regex
+    pattern: '\bI(?:''ve|’ve| have)?\s+(?:already\s+)?(?:added|applied|wrote|written|updated|edited|merged|put|handled)\b|\b(?:you|operator)\s+(?:don''t|don’t|do not|won''t|won’t|needn''t|needn’t)\s+(?:need to\s+|have to\s+)?(?:paste|add|apply|edit)'
+    flags: 'i'
     match: 'not_contains'
     target: last_message

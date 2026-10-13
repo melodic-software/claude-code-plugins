@@ -21,6 +21,14 @@
     {
       "answer": "Add this:\n```json\n{\"skillOverrides\": {\"figma:figma-use\": \"off\"}}\n```",
       "why": "concrete skillOverrides"
+    },
+    {
+      "answer": "The heaviest are figma:figma-use and dometrain:grounding; toggle those off first.",
+      "why": "toggle off"
+    },
+    {
+      "answer": "Turn off figma-use and grounding; they cost the most.",
+      "why": "un-namespaced pick"
     }
   ]
 }

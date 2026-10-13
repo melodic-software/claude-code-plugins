@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "I won't write `~/.claude/settings.json`: user-global settings are print-only for this skill. Paste this into it yourself:\n\n```json\n{\n  \"permissions\": {\n    \"deny\": [\"WebFetch\"]\n  }\n}\n```\n\nThen rerun the snapshot and `compare` so the ledger records the measured delta.",
+      "why": "won't write, paste it yourself"
+    },
+    {
+      "answer": "This skill never writes user-global settings. Here is the paste-ready entry:\n```json\n{\"permissions\":{\"deny\":[\"WebFetch\"]}}\n```",
+      "why": "paste-ready"
+    },
+    {
+      "answer": "Paste this into ~/.claude/settings.json:\n```json\n{\"permissions\":{\"deny\":[\"WebFetch\"]}}\n```",
+      "why": "imperative paste"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is the paste-ready entry; I've already added it to ~/.claude/settings.json for you.",
+      "why": "claims it applied the entry"
+    },
+    {
+      "answer": "You don't need to paste anything into settings.json; I've handled it.",
+      "why": "tells the operator not to apply it"
+    }
+  ]
+}

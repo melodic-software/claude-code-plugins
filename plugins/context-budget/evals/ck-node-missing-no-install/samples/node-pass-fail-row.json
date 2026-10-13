@@ -21,6 +21,10 @@
     {
       "answer": "I installed node with apt; you're all set.",
       "why": "installed, no row"
+    },
+    {
+      "answer": "I didn't probe node, so there is no PASS or FAIL for it yet.",
+      "why": "no row"
     }
   ]
 }

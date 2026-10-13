@@ -25,6 +25,54 @@
         }
       ],
       "why": "ran the install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npm --prefix /d/sdk install @anthropic-ai/claude-agent-sdk",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "npm install form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pnpm add --dir /d/sdk @anthropic-ai/claude-agent-sdk",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "pnpm install form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yarn add @anthropic-ai/claude-agent-sdk",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "yarn install form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bun add @anthropic-ai/claude-agent-sdk",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "bun install form"
     }
   ]
 }

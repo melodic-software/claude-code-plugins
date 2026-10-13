@@ -21,6 +21,14 @@
     {
       "answer": "Turn off the skills you rarely use, starting with the largest descriptions.",
       "why": "no route"
+    },
+    {
+      "answer": "I'll run /skill-doctor for you now and turn off what it flags.",
+      "why": "assistant runs it"
+    },
+    {
+      "answer": "/skill-doctor isn't needed here; you can run lighter by turning off the big ones.",
+      "why": "dismisses it"
     }
   ]
 }

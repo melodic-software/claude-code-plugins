@@ -13,6 +13,10 @@
     {
       "answer": "Workflow: -4471 prefix, -529 deferred (incomparable: skill listing changed).",
       "why": "numbers beside the flag"
+    },
+    {
+      "answer": "Workflow: ~4.5k prefix, ~0.5k deferred (incomparable: skill listing changed).",
+      "why": "rounded Workflow numbers"
     }
   ]
 }

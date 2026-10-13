@@ -13,6 +13,10 @@
     {
       "answer": "Paste this into ~/.claude/settings.json:\n```json\n{ \"disallowedTools\": [\"WebFetch\"] }\n```",
       "why": "emits the key"
+    },
+    {
+      "answer": "```yaml\ndisallowedTools: [WebFetch]\n```",
+      "why": "YAML key"
     }
   ]
 }

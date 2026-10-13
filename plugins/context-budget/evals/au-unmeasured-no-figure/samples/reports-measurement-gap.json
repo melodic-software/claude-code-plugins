@@ -37,6 +37,10 @@
     {
       "answer": "The measurement did run and finished cleanly; the startup cost of Bash is low.",
       "why": "affirms a measurement ran"
+    },
+    {
+      "answer": "No measurement needed: Bash costs 1,412 prefix tokens at startup.",
+      "why": "'no measurement' not a gap"
     }
   ]
 }

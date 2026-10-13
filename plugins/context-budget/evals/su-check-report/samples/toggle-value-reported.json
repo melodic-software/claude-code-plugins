@@ -17,6 +17,10 @@
     {
       "answer": "The toggle is a native userConfig option.",
       "why": "not reported"
+    },
+    {
+      "answer": "I can't tell whether settings_write_ask_enabled is true or false.",
+      "why": "value unknown"
     }
   ]
 }

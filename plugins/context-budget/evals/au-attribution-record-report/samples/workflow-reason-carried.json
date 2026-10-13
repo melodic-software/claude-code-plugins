@@ -17,6 +17,10 @@
     {
       "answer": "Stamp: 2.1.297 at /usr/local/lib/claude-code/bin/claude, sdk, headless.\n\n| Tool | saved |\n|---|---|\n| Workflow | 5,000 |\n| WebFetch | 3,651 |\n| NotebookEdit | 2,391 |\n| TodoWrite | 622 |\n\nDenying the three together saves 6,664 tokens.",
       "why": "no reason"
+    },
+    {
+      "answer": "Workflow is comparable; the skill listing was unchanged between runs.",
+      "why": "no change named"
     }
   ]
 }

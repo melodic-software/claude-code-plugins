@@ -25,6 +25,10 @@
     {
       "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
       "why": "off-topic"
+    },
+    {
+      "answer": "Your two scoped denies trimmed the Bash schema a little, which saves context; they don't change what Bash can do otherwise. A bare-name deny removes it entirely.",
+      "why": "claims a saving; the negation is about behaviour"
     }
   ]
 }

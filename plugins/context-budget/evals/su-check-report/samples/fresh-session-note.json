@@ -21,6 +21,14 @@
     {
       "answer": "There is no need to start a new session after reconfiguring.",
       "why": "negated"
+    },
+    {
+      "answer": "The toggle applies at once; you won't have to start a new session.",
+      "why": "negated"
+    },
+    {
+      "answer": "It updates immediately; there is no reason to open a new session.",
+      "why": "negated"
     }
   ]
 }

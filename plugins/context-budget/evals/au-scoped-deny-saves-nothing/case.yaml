@@ -3,7 +3,7 @@ name: au-scoped-deny-saves-nothing
 graders:
   - name: scoped-deny-saves-nothing
     type: regex
-    pattern: '\bsav(?:es|ed|e|ing)\s+(?:you\s+)?nothing\b|\bno\s+(?:token\s+|startup\s+)?saving|\b(?:does|did|do|will|would)(?:n''t|\s+not)\s+(?:\w+\s+){0,2}?(?:save|reduce|remove|shrink|cut|lower|change|drop)\b|\bzero\s+(?:tokens|saving)|\bnothing\s+(?:was\s+|is\s+)?saved\b|\bnot\s+(?:a|any)\s+saving|\bblocks?\s+without\s+saving\b|\b(?:schema|definition)s?\s+(?:stays?|remains?|is\s+still|are\s+still)\b'
+    pattern: '\bsav(?:es|ed|e|ing)\s+(?:you\s+)?nothing\b|\bno\s+(?:token\s+|startup\s+)?saving|\b(?:does|did|do|will|would)(?:n''t|n’t|\s+not)\s+(?:\w+\s+){0,2}?(?:save|reduce|remove|shrink)\b|\bzero\s+(?:tokens|saving)|\bnothing\s+(?:was\s+|is\s+)?saved\b|\bnot\s+(?:a|any)\s+saving|\bblocks?\s+without\s+saving\b|\b(?:schema|definition)s?\s+(?:stays?|remains?|is\s+still|are\s+still)\b'
     flags: 'i'
     target: last_message
   - name: bare-name-is-what-saves
@@ -13,6 +13,12 @@ graders:
     target: last_message
   - name: no-invented-saving-figure
     type: regex
-    pattern: '(?:\b[1-9][0-9]{0,2}(?:,[0-9]{3})+|\b[1-9][0-9]*|\b0\.[0-9]+)(?:\.[0-9]+)?\s*[kK]?\s*(?:tokens?|tok)\b|~\s*[0-9][0-9.,]*\s*[kK]\b|\b(?:hundred|thousand)s?\s+(?:of\s+)?tokens?\b'
+    pattern: '(?:\b[1-9][0-9]{0,2}(?:,[0-9]{3})+|\b[1-9][0-9]*|\b0\.[0-9]+)(?:\.[0-9]+)?\s*[kK]?[\s-]*(?:[A-Za-z]+\s+){0,2}?(?:tokens?|tok)\b|~\s*[0-9]|\b[0-9]+(?:\.[0-9]+)?\s*[kK]\b|\b(?:hundred|thousand)s?\s+(?:of\s+)?tokens?\b'
+    match: 'not_contains'
+    target: last_message
+  - name: no-bare-name-negated
+    type: regex
+    pattern: '\bbare[- ]name\b[^\n.]{0,60}\b(?:would(?:n''t|n’t| not)|does(?:n''t|n’t| not)|won''t|won’t|will not)\b'
+    flags: 'i'
     match: 'not_contains'
     target: last_message

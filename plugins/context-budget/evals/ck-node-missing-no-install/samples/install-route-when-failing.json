@@ -17,6 +17,10 @@
     {
       "answer": "FAIL: node is missing. Run `sudo apt install nodejs`.",
       "why": "FAIL with an unsanctioned route"
+    },
+    {
+      "answer": "| node | FAIL |\nnodejs.org is slow; I can run `nvm install --lts` instead.",
+      "why": "nodejs.org mentioned, not the download route"
     }
   ]
 }

@@ -17,6 +17,22 @@
     {
       "answer": "You saved about ~1.2k on the prefix side.",
       "why": "display-style invented figure"
+    },
+    {
+      "answer": "Bash costs 1,412 prefix tokens at startup.",
+      "why": "unmeasured figure"
+    },
+    {
+      "answer": "Bash: ~1,400",
+      "why": "unmeasured figure"
+    },
+    {
+      "answer": "That's about a 300-token saving.",
+      "why": "unmeasured figure"
+    },
+    {
+      "answer": "They saved about 1.2k at startup.",
+      "why": "unmeasured figure"
     }
   ]
 }

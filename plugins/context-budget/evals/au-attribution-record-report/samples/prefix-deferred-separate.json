@@ -17,6 +17,10 @@
     {
       "answer": "WebFetch saves 1,387 on the prefix side and 2,264 deferred.",
       "why": "only one tool split"
+    },
+    {
+      "answer": "WebFetch: prefix 1387, deferred 2264. NotebookEdit: prefix 913, deferred 1478.",
+      "why": "TodoWrite row missing"
     }
   ]
 }

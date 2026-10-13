@@ -80,6 +80,42 @@
         }
       ],
       "why": "brew"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "curl pipe to sudo -E bash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -fsSL \"https://fnm.vercel.app/install\" | bash",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "quoted URL"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sudo apt-get -y install nodejs",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "flag before install"
     }
   ]
 }

@@ -21,6 +21,14 @@
     {
       "answer": "Workflow is comparable and the largest saver.",
       "why": "claims comparable"
+    },
+    {
+      "answer": "Workflow is not incomparable; it is the largest saver at 5k.",
+      "why": "negated"
+    },
+    {
+      "answer": "Incomparable rows: none.\n\nWorkflow is the largest saver.",
+      "why": "reverse arm crosses a sentence"
     }
   ]
 }

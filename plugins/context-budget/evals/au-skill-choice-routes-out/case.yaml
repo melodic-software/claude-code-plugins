@@ -3,12 +3,12 @@ name: au-skill-choice-routes-out
 graders:
   - name: routes-to-skill-doctor
     type: regex
-    pattern: '(?<!n''t )(?<!not )(?<!need to )(?<!never )\b(?:run|use|try|open|invoke|type)\s+(?:the\s+)?(?:built-in\s+)?`?/skill-doctor|/skill-doctor`?[^\n]{0,80}\b(?:yourself|you (?:can |should |would )?run|for you to run|run it)\b'
+    pattern: '(?<!n''t )(?<!n’t )(?<!not )(?<!need to )(?<!never )(?<!I''ll )(?<!I’ll )(?<!I will )(?<!let me )(?<!I can )\b(?:run|use|try|open|invoke|type)\s+(?:the\s+)?(?:built-in\s+)?`?/skill-doctor|/skill-doctor`?[^\n]{0,80}\b(?:yourself|for you to run)\b'
     flags: 'i'
     target: last_message
   - name: picks-no-skills
     type: regex
-    pattern: '\b(?:turn|switch|shut)(?:ing)?\s+off\s+(?:the\s+)?[`\"]?/?[a-z0-9-]+:[a-z0-9-]+|\b(?:disable|disabling|remove|removing|uninstall)\s+(?:the\s+)?[`\"]?/?[a-z0-9-]+:[a-z0-9-]+|\"skillOverrides\"\s*:\s*\{\s*\"[a-z0-9:-]+\"\s*:\s*\"off\"|\bI(?:''d| would)\s+(?:turn|switch)\s+off\b|\bI\s+recommend\s+(?:turning|switching)\s+off\b'
+    pattern: '\b(?:turn|switch|shut|toggle)(?:ing)?\s+off\s+(?:the\s+)?[`\"]?/?[a-z0-9-]+:[a-z0-9-]+|\b(?:turn|switch|shut|toggle)(?:ing)?\s+off\s+[`\"]?/?[a-z0-9]+-[a-z0-9-]+|\b(?:turn|switch|shut|toggle)(?:ing)?\s+(?:those|these|them|both)\s+off\b|\b(?:disable|disabling|remove|removing|uninstall)\s+(?:the\s+)?[`\"]?/?[a-z0-9-]+:[a-z0-9-]+|\"skillOverrides\"\s*:\s*\{\s*\"[a-z0-9:-]+\"\s*:\s*\"off\"|\bI(?:''d|’d| would)\s+(?:turn|switch)\s+off\b|\bI\s+recommend\s+(?:turning|switching)\s+off\b'
     flags: 'i'
     match: 'not_contains'
     target: last_message
