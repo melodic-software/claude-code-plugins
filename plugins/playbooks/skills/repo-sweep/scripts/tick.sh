@@ -94,10 +94,11 @@ fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-# The body stays in files: Git Bash's command substitution drops CRs.
-gh pr view --json body | jq -j .body >"$tmp/old"
+body=$(gh pr view --json body | jq -r .body)
 rc=0
-awk -v id="$id" -v mode="$mode" -v done_text="$versions$suffix" -v newf="$tmp/new" '
+# BINMODE=3 stops gawk on Windows from stripping each input line's CR, which the rewrite
+# below must see to keep it; a POSIX awk reads it as an ordinary variable.
+printf '%s\n' "$body" | awk -v BINMODE=3 -v id="$id" -v mode="$mode" -v done_text="$versions$suffix" -v newf="$tmp/new" '
   { cr = sub(/\r$/, "") }
   /^<!-- repo-sweep:begin / { inb = 1 }
   /^<!-- repo-sweep:end -->/ { inb = 0 }
@@ -110,8 +111,8 @@ awk -v id="$id" -v mode="$mode" -v done_text="$versions$suffix" -v newf="$tmp/ne
       print > newf
     }
   }
-  { printf "%s%s%s", sep, $0, cr ? "\r" : ""; sep = "\n" }
-  END { if (done) exit 4; if (!hit) exit 3 }' "$tmp/old" >"$tmp/body" || rc=$?
+  { printf "%s%s\n", $0, cr ? "\r" : "" }
+  END { if (done) exit 4; if (!hit) exit 3 }' >"$tmp/body" || rc=$?
 case $rc in
 0) ;;
 3) printf 'tick.sh: no checklist line for %s\n' "$id" >&2 && exit 1 ;;
@@ -119,7 +120,7 @@ case $rc in
 *) exit "$rc" ;;
 esac
 new=$(cat "$tmp/new")
-gh pr edit --body-file - <"$tmp/body" >/dev/null
+printf '%s' "$(cat "$tmp/body")" | gh pr edit --body-file - >/dev/null
 # shellcheck disable=SC2310 # jq may be the one-command -b wrapper above; errexit inside it changes nothing
 if ! gh pr view --json body | jq -r .body | tr -d '\r' | grep -Fqx -- "$new"; then
   printf 'tick.sh: edit did not land: %s\n' "$new" >&2
