@@ -29,9 +29,45 @@ locations through the four plugin options below. Claude Code reads plugin option
 settings, the `--settings` flag, and managed settings only, and ignores a project's
 `.claude/settings.json` for them
 ([hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-config-delivery/README.md)
-fact 5). The lane takes them from the option values substituted into the babysit-loop skill body
-("Promotion-evidence bootstrap options" in [`SKILL.md`](../SKILL.md); fact 7) and never from the
-`CLAUDE_PLUGIN_OPTION_*` environment mirror.
+fact 5). The lane's step 0 preflight reads the option values substituted into the babysit-loop
+skill body ("Promotion-evidence bootstrap options" in [`SKILL.md`](../SKILL.md); fact 7) and never
+the `CLAUDE_PLUGIN_OPTION_*` environment mirror.
+
+The resolution helper does not take the values from the lane at all. It reads
+`pluginConfigs["<name>@<marketplace>"].options` itself (channel F of
+[hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-config-delivery/README.md)),
+from two sources, managed winning per option:
+
+- The managed settings files at the fixed system path for the platform: `managed-settings.json`,
+  then the `managed-settings.d/` drop-ins in the order the managed settings page gives
+  ([managed settings](https://code.claude.com/docs/en/managed-settings), "Delivery mechanisms" and
+  "How Claude Code combines managed sources", read 2026-10-11; recheck when either section
+  changes).
+- The user `settings.json`, located only from the helper's own install path
+  (`<config>/plugins/cache/<marketplace>/<name>/<version>`), never from `CLAUDE_CONFIG_DIR`, `HOME`
+  or another environment value. A `--plugin-dir` install has no such anchor, so only managed
+  settings configure it.
+
+So a stub checker or forged surface the lane keeps outside the checkout cannot stand in for an
+operator's value: the helper rejects path arguments, and the environment mirror and repository
+files never reach it. What the helper cannot see reads as unset and fails closed: a value supplied
+only through a session's `--settings` file, a server-managed (remote) policy, or an MDM policy.
+Configure the four options in managed settings or user settings.
+
+The helper can also read a managed file Claude Code itself skips. When a higher-ranked managed
+source (a remote policy, or an MDM or HKLM policy) delivers policy keys, Claude Code by default
+uses that source and ignores the managed settings files
+([managed settings](https://code.claude.com/docs/en/managed-settings#how-claude-code-combines-managed-sources),
+"How Claude Code combines managed sources", as of 2026-10-11; recheck when that section or the
+`managedSourcesBehavior` default changes). The helper sees only the files, so on such a host a
+stale `managed-settings.json` the harness no longer applies can still supply these options. Keep the
+four options out of managed files on a host whose policy comes from a remote or MDM source, or
+remove the stale file.
+
+The helper trusts its own location and the Node process it runs in. A lane that runs a copy of the
+helper from another directory, or starts Node with a preload such as `NODE_OPTIONS=--require`, is
+running a different program, and no check inside the helper can refuse that; the checker it
+spawns gets only `PATH` and `SystemRoot`.
 
 Never a source, for a location or for a surface itself:
 
@@ -48,18 +84,19 @@ stays unknown. Never put a secret in one of these options.
 
 The options say where a surface is; they do not make it unwritable. A user settings file is
 writable by any agent running as that user, so a location kept there is only as protected as that
-file. Managed settings, or a `--settings` file the executor owns, keep the location out of the
-agent's reach too. Whether a deployment meets the requirement is the operator's to establish. This
+file. Managed settings keep the location out of the agent's reach too, where the managed system
+directory itself is not writable by the lane's identity (the managed settings page notes that on
+WSL `/etc/claude-code` is user-writable). Whether a deployment meets the requirement is the operator's to establish. This
 file states the requirement and does not certify a deployment.
 
 ## The four surfaces
 
-| Option | Passed to the resolution helper as | What it names |
+| Option | The helper passes it to the checker as | What it names |
 |---|---|---|
-| `promotion_evidence_binding` | `--binding`, the checker's `<binding.json>` argument | file: the security binding document |
+| `promotion_evidence_binding` | the `<binding.json>` argument | file: the security binding document |
 | `promotion_evidence_root` | `--probe-evidence-root <dir>` | directory: the protected evidence surface |
 | `promotion_evidence_source` | `--evidence <evidence.json>` | file: epoch-scoped promotion-evidence events |
-| `promotion_evidence_checker` | `--checker <file>` | file: the `check-security-binding.mjs` that decides promoted |
+| `promotion_evidence_checker` | (the program it runs) | file: the `check-security-binding.mjs` that decides promoted |
 
 The checker's `Usage:` comment, and its `usage:` error message, list its three arguments
 ([`check-security-binding.mjs`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/autonomy/skills/setup/scripts/check-security-binding.mjs)).
@@ -146,14 +183,6 @@ absent. A set value is compliant only when it is:
   isolation entries rest on filesystem credential probes is rejected by the checker and every cell
   resolves effective-unpromoted. The phased plan is in
   [`promotion-evidence-implementation-plan.md`](promotion-evidence-implementation-plan.md).
-- Proving where a value came from. The helper enforces where each of the four paths sits (absolute,
-  outside the checkout and worktree roots, not containing one). It cannot tell an operator's
-  option value from a path the lane chose, so a forged checker or surface kept outside those roots
-  passes it, and the cycle step is instructed to pass only the substituted option values. Closing
-  that in code means the helper reads the operator's own settings (channel F of
-  [hook-config-delivery](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-config-delivery/README.md)),
-  which is outside Phase 2 and left to the owner; `--merge human-only` is the control that holds
-  until then.
 
 ## Verification record
 
@@ -187,17 +216,37 @@ absent. A set value is compliant only when it is:
   arguments.
 
 - **Claim:** the checker is the program that prints each cell's `bound X -> effective Y` line in
-  evaluation mode, and the helper reports that line as the resolution. The helper takes the checker
-  path as `--checker` and refuses a path inside the checkout or a worktree root, or containing one,
-  with or without symlinks resolved, and a probe evidence root that is an ancestor of either. It
-  has no operator-controlled source for the checker, so the bootstrap names one. This plugin does
-  not discover another plugin's install directory.
+  evaluation mode, and the helper reports that line as the resolution. The helper reads the
+  checker path from `promotion_evidence_checker` in the operator's settings and refuses a path
+  inside the checkout or a worktree root, or containing one, with or without symlinks resolved,
+  and a probe evidence root that is an ancestor of either. This plugin does not discover another
+  plugin's install directory, so the bootstrap names the checker.
 - **Basis:** `plugins/autonomy/skills/setup/scripts/check-security-binding.mjs` (the
   `Effective promotion state (evaluation mode):` print);
   `plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.mjs`
   (`resolveInput`, the `spawnSync` call);
   [`docs/plugin-philosophy.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/plugin-philosophy.md)
-  "Keep plugins horizontally decoupled", checked 2026-10-01.
-- **As of:** 2026-10-01.
-- **Recheck:** the helper reading an operator source for the checker itself, the checker's print
-  format changing, or the decoupling rule changing.
+  "Keep plugins horizontally decoupled", checked 2026-10-11.
+- **As of:** 2026-10-11.
+- **Recheck:** the checker's print format changing, or the decoupling rule changing.
+
+- **Claim:** the helper takes no bootstrap value as an argument or from the environment. It reads
+  the four options from the managed settings files and the install-anchored user `settings.json`,
+  managed winning per option, and fails closed when an option is unset there, a source exists but
+  cannot be read or parsed, its `pluginConfigs`, this plugin's entry or its `options` is not an
+  object, or a value is
+  not a string (`null` included). A lane-chosen checker or binding passed as
+  an argument, or offered through the `CLAUDE_PLUGIN_OPTION_*` mirror, a checkout
+  `.claude/settings.json`, `.claude/source-control.md`, `CLAUDE_CONFIG_DIR` or `HOME`, does not
+  yield `promoted`.
+- **Basis:** `plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs`
+  (`readOperatorOptions`, `resolveInstall`, `managedSettingsFiles`) and its cases in
+  `resolve-promotion-evidence.test.mjs`; the managed system paths, drop-in order and source ranking
+  on the [managed settings](https://code.claude.com/docs/en/managed-settings) page and the
+  `pluginConfigs` scope ("User or managed", project and local entries ignored) in the
+  [settings reference](https://code.claude.com/docs/en/settings-reference#pluginconfigs), both read
+  2026-10-11.
+- **As of:** 2026-10-11.
+- **Recheck:** the managed system paths, drop-in merge order or source ranking changing; the
+  `pluginConfigs` read scopes changing; or the plugin cache layout
+  `<config>/plugins/cache/<marketplace>/<name>/<version>` changing.

@@ -79,10 +79,14 @@ vs drop the altitude vs change the medium, rather than colliding on their shared
 Arming the shaping at every session start with **no** invocation at all is a
 deliberate non-goal for this version, recorded here so it is not re-litigated:
 
-- **Why it is not a `userConfig` switch.** A `userConfig` boolean substitutes
-  only into an already-invoked skill's *body*; it cannot flip frontmatter or
-  cause a skill to auto-invoke. So no config toggle can, by itself, turn on
-  always-on. A switch that cannot act would be a dead knob.
+- **Why it is not a `userConfig` switch.** A saved option reaches a skill only
+  once that skill is already running; it cannot flip frontmatter or cause a
+  skill to auto-invoke. So no config toggle can, by itself, turn on always-on.
+  A switch that cannot act would be a dead knob. When re-deriving where a saved
+  value can reach, fetch
+  [Reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value)
+  live (as of 2026-10-11; recheck when that section adds frontmatter or
+  invocation to where a value substitutes).
 - **The only mechanism that delivers it is a hook.** Deterministic
   every-session arming needs a `SessionStart` (or `UserPromptSubmit`) hook that
   injects the rules as additional context. That is a code-execution trust

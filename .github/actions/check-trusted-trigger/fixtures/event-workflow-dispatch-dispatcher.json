@@ -1,0 +1,11 @@
+{
+  "inputs": { "pr-number": "42", "dispatcher-run-id": "38155572048" },
+  "ref": "refs/heads/main",
+  "repository": {
+    "id": 1,
+    "full_name": "melodic-software/claude-code-plugins",
+    "default_branch": "main"
+  },
+  "sender": { "login": "github-actions[bot]", "id": 41898282, "type": "Bot" },
+  "workflow": ".github/workflows/pr-unblock.yml"
+}

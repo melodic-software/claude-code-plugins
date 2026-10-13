@@ -1,17 +1,17 @@
 # The bundled `doctor` skill and `/skill-doctor`: verification record
 
 Detail behind the `## Boundary` section in [SKILL.md](../SKILL.md). Each row is a four-part
-record: the claim, the basis it rests on, the date it was checked, and the event that makes it
-worth checking again. The sibling `audit-install-state` and `audit-performance` skills keep their
-own records against the `doctor` surface.
+record: our decision, the pointer to read live (or the probe that holds the evidence), the date it
+was derived, and the event that makes it worth deriving again. The sibling `audit-install-state`
+and `audit-performance` skills keep their own records against the `doctor` surface.
 
-| Claim | Basis | As of | Recheck when |
+| Decision | Pointer | As of | Recheck when |
 |---|---|---|---|
-| `doctor` (alias `/checkup`) is a bundled skill that "finds unused skills, MCP servers, and plugins versus their context cost" among its checks, "reports findings first and asks for confirmation before changing anything", and can fix what it finds | The `/doctor` row on <https://code.claude.com/docs/en/commands> | 2026-09-11 | The row changes the unused-components check or its fix behavior |
-| Its unused-components check groups unused components, labels each group with a benefit estimate, and applies only the groups the user selects | String search of the installed 2.1.252 binary (check titled "Check 1: unused skills, MCP servers, and plugins"; estimate text of the form "37 unused skills, saves ~2.2k est. tokens/session") | 2026-08-31 | A release changes the check's grouping, its disable offer, or its estimate |
-| `/skill-doctor` is a separate built-in command that shows what each skill costs in context and how often it gets used; it needs Claude Code 2.1.252 or later and a session that fetches feature flags | The 2.1.261 entry on <https://code.claude.com/docs/en/changelog> ("Added `/skill-doctor` to show which loaded skills go unused and what they cost in context, so you can prune them"); the `/skill-doctor` row on <https://code.claude.com/docs/en/commands>; the Stats tab carries its report in an interactive session | 2026-09-11 | A later release note names `/skill-doctor`, or it merges into `doctor` |
-| `doctor` survives `disableBundledSkills`; `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry `"doctor": "off"` hides it | The bundled skills section of <https://code.claude.com/docs/en/skills>; the installed 2.1.263 binary registers it with `aliases:["checkup"]` and `survivesBundledKillSwitch` | 2026-09-11 | Either page changes the exemption |
-| Neither native surface reconciles more than one source or clamps its window to an observation horizon | Both descriptions report unused-versus-cost from the client's own counters; nothing names a JSONL store, OTEL, or a withheld verdict | 2026-09-11 | Either surface gains multi-source reconciliation or an observation-horizon discipline |
+| We treat `doctor` (alias `/checkup`) as the native surface that finds unused components against their context cost and offers to fix them, and we never chain into its fixes | [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor); the `/doctor` row of [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) | 2026-10-11 | That section changes the unused-components check or its fix behavior |
+| Its unused-components check groups unused components, labels each group with a benefit estimate, and applies only the groups the user selects | Probe: string search of the installed 2.1.252 binary (check titled "Check 1: unused skills, MCP servers, and plugins"; estimate text of the form "37 unused skills, saves ~2.2k est. tokens/session") | 2026-08-31 | A release changes the check's grouping, its disable offer, or its estimate |
+| We treat `/skill-doctor` as a separate built-in command for per-skill context cost and usage, with its own availability gate read live; the Stats tab carries its report in an interactive session | [skills: find unused skills](https://code.claude.com/docs/en/skills#find-unused-skills); the `/skill-doctor` row of [commands: all commands](https://code.claude.com/docs/en/commands#all-commands); [changelog 2.1.261](https://code.claude.com/docs/en/changelog#2-1-261) | 2026-10-11 | A later release note names `/skill-doctor`, or it merges into `doctor` |
+| We never assume `doctor` is present: it survives the bundled-skill kill switch, but other switches can hide it. Our binary reading on the installed 2.1.263 registers it with `aliases:["checkup"]` and `survivesBundledKillSwitch` | [skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills) | 2026-10-11 | That section changes the exemption |
+| Neither native surface reconciles more than one source or clamps its window to an observation horizon | Both sections above report unused-versus-cost from the client's own counters; nothing names a JSONL store, OTEL, or a withheld verdict | 2026-10-11 | Either surface gains multi-source reconciliation or an observation-horizon discipline |
 
 ## Why the verdict is complementary
 

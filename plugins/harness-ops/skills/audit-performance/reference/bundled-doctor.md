@@ -1,16 +1,16 @@
 # The bundled `doctor` skill: verification record
 
 Detail behind the `## Boundary` section in [SKILL.md](../SKILL.md). Each row is a four-part
-record: the claim, the basis it rests on, the date it was checked, and the event that makes it
-worth checking again. The sibling `audit-install-state` and `audit-skill-visibility` skills keep
+record: our decision, the pointer to read live, the date it was derived, and the event that makes
+it worth deriving again. The sibling `audit-install-state` and `audit-skill-visibility` skills keep
 their own records against the same surface.
 
-| Claim | Basis | As of | Recheck when |
+| Decision | Pointer | As of | Recheck when |
 |---|---|---|---|
-| `doctor` (alias `/checkup`) is a bundled skill that "diagnoses issues and can fix them": installation health (duplicate or leftover installs, `PATH`, unparsable settings), unused skills, MCP servers, and plugins against their context cost, slow hooks, a newer version on the release channel, `CLAUDE.md` deduplication and trimming, auto mode and read-only pre-approval offers. "Reports findings first and asks for confirmation before changing anything" | The `/doctor` row on <https://code.claude.com/docs/en/commands> | 2026-09-11 | The row changes its check list or its fix behavior |
-| `claude doctor` from the terminal "prints read-only installation diagnostics without starting a session" | Same row | 2026-09-11 | The row drops the terminal form |
-| It survives `disableBundledSkills` (2.1.205 or later); `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry `"doctor": "off"` hides it | The bundled skills section of <https://code.claude.com/docs/en/skills>; the installed 2.1.263 binary registers it with `aliases:["checkup"]`, `isEnabled:()=>!DISABLE_DOCTOR_COMMAND`, and `survivesBundledKillSwitch` | 2026-09-11 | Either page changes the exemption, or a release note names the gate |
-| It has no timed or profiling mode: nothing in its description measures how long a hook, a stat walk, or a spawn takes | The row above lists checks and fixes, not timings | 2026-09-11 | A release gives `/doctor` a timed or profiling mode |
+| We treat `doctor` (alias `/checkup`) as the native setup checkup that inspects and offers fixes, and we never chain into its fixes. What it checks and how it confirms are read live | [skills: check your setup with /doctor](https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor); the `/doctor` row of [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) | 2026-10-11 | That section changes its check list or its fix behavior |
+| We name `claude doctor` in the terminal as the read-only native form, worth running when a session will not start | The same `/doctor` row | 2026-10-11 | The row drops the terminal form |
+| We never assume `doctor` is present: it survives the bundled-skill kill switch, but other switches can hide it. Our binary reading on the installed 2.1.263 registers it with `aliases:["checkup"]`, `isEnabled:()=>!DISABLE_DOCTOR_COMMAND`, and `survivesBundledKillSwitch` | [skills: bundled skills](https://code.claude.com/docs/en/skills#bundled-skills); [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills) | 2026-10-11 | Either page changes the exemption, or a release note names the gate |
+| We treat `doctor` as having no timed or profiling mode, so measurement stays this skill's | The `/doctor` row and section above list checks and fixes, not timings | 2026-10-11 | A release gives `/doctor` a timed or profiling mode |
 | Capture first. This skill is capture-at-moment; its Never-read rule bars transcripts, and a `/doctor` session can read them, so a person who wants the transcript-derived history asks there. That is not time-sensitive | This skill's Never-read rule; the owner's 2026-08-31 comment on issue #3533, which derived the hook-timeout aggregate by hand from `hook_cancelled` attachments (whether `/doctor` prints such an aggregate is not established) | 2026-09-29 | A release gives `/doctor` a timed or profiling mode, or this skill's Never-read rule stops covering transcripts (the engine gains a transcript read) |
 
 ## Why the verdict is complementary

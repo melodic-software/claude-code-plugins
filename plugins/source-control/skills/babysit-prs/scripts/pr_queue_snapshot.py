@@ -389,12 +389,15 @@ def print_text(snapshot: dict[str, Any]) -> None:
             print("  material:")
             for finding in pr["material_findings"]:
                 print(f"  - {finding}")
-        failing = pr["checks"]["failing"]
-        pending = pr["checks"]["pending"]
-        if failing:
-            print(f"  failing checks: {', '.join(failing)}")
-        if pending:
-            print(f"  pending checks: {', '.join(pending)}")
+        # Check names are attacker text on a fork PR: the id leads each line and
+        # the name is JSON-escaped, so no name can forge a line or another id.
+        for identity in pr["checks"]["failing_identities"]:
+            print(
+                f"  failing check: rerun_id={identity['rerun_id']} "
+                f"name={json.dumps(identity['name'])}"
+            )
+        for name in pr["checks"]["pending"]:
+            print(f"  pending check: name={json.dumps(name)}")
         for item in pr["feedback"]["blocking"]:
             print(f"  blocking feedback: {item['author']} {item['preview']}")
         for item in pr["feedback"]["material"]:

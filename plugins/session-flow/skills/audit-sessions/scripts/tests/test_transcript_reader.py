@@ -59,6 +59,44 @@ def test_other_record_types_classify_as_unknown_and_are_counted():
     assert stats["records"] == 17
 
 
+# Record types newer Claude Code versions write: one synthetic record each in `current-types.jsonl`.
+USED_CURRENT_TYPES = ["ai-title"]
+IGNORED_CURRENT_TYPES = [
+    "atis-latch",
+    "mode",
+    "bridge-session",
+    "relocated",
+    "file-history-delta",
+    "cost-state",
+    "fork-context-ref",
+    "frame-link",
+    "artifact-comment-monitor",
+    "artifact-autoreact-ledger",
+]
+
+
+@pytest.mark.parametrize("kind", USED_CURRENT_TYPES + IGNORED_CURRENT_TYPES)
+def test_current_record_type_is_known(kind):
+    records, _ = read(READER / "current-types.jsonl")
+
+    (record,) = [r for r in records if r["type"] == kind]
+
+    assert transcript_reader.record_kind(record) == kind
+
+
+def test_current_record_types_count_no_unknown():
+    records, stats = read(READER / "current-types.jsonl")
+
+    assert sorted(r["type"] for r in records) == sorted(USED_CURRENT_TYPES + IGNORED_CURRENT_TYPES)
+    assert (stats["records"], stats["unknown"]) == (11, 0)
+
+
+def test_ignored_types_are_exactly_the_unread_ones():
+    assert transcript_reader.IGNORED_RECORD_TYPES == frozenset(IGNORED_CURRENT_TYPES)
+    assert transcript_reader.IGNORED_RECORD_TYPES < transcript_reader.RECORD_TYPES
+    assert not transcript_reader.IGNORED_RECORD_TYPES & {*KNOWN_TYPES, *USED_CURRENT_TYPES}
+
+
 def test_malformed_lines_are_counted_and_skipped():
     records, stats = read(READER / "malformed.jsonl")
 

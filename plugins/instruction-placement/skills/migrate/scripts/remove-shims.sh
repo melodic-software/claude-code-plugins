@@ -6,7 +6,9 @@
 #
 #   1. It prints what removal costs: the decision and pointer of the pointer
 #      record (decision, pointer, as-of date, recheck trigger) headed "What shim
-#      removal costs" in reference/sources.md.
+#      removal costs" in reference/sources.md. With a nested AGENTS.md it
+#      also prices the nested write-trigger loss, and prints it again with
+#      cutover-check's probe result once that has run.
 #   2. It refuses without --confirm. There is no blanket-yes and no all-repos
 #      mode: one repository per run, one confirmation per run.
 #   3. It refuses unless the INSTALLED harness-memory and instruction-placement
@@ -33,7 +35,7 @@
 #   remove-shims.sh --help
 #
 # Exit: 0 shims removed and every canary passed; 1 refused, or removed and
-# restored; 2 usage error.
+# restored; 2 usage error, or a missing scripts/lib/version.sh.
 
 set -uo pipefail
 
@@ -142,19 +144,8 @@ refuse() {
   exit 1
 }
 
-ver_ge() {
-  local -a a b
-  local i x y
-  IFS=. read -r -a a <<<"$1"
-  IFS=. read -r -a b <<<"$2"
-  for i in 0 1 2; do
-    x="${a[i]:-0}"
-    y="${b[i]:-0}"
-    ((10#$x > 10#$y)) && return 0
-    ((10#$x < 10#$y)) && return 1
-  done
-  return 0
-}
+# shellcheck source=../../../scripts/lib/version.sh
+. "$SCRIPT_DIR/../../../scripts/lib/version.sh" || exit 2
 
 # --- 1. the price ---------------------------------------------------------
 echo "=== remove-shims: $REPO ==="
@@ -176,6 +167,35 @@ else
 fi
 echo
 
+# A nested AGENTS.md is where removal can cost more than the record above
+# prices: a load trigger only its shim carries (shim-droppable.md condition G,
+# measured by cutover-check's nested write probe). Counted from disk, tracked
+# or not, so a file the plan would not list still prices the run. Same walk
+# as the line index below, and a failed walk refuses: an undercount would
+# leave the loss out of the price and skip the probe.
+nested_rc=0
+nested_out="$(find "$REPO" \( -name .git -o -name node_modules \) -prune -o \
+  -name 'AGENTS.md' \( -type f -o -type l \) -print 2>/dev/null)" || nested_rc=$?
+((nested_rc == 0)) || refuse "the AGENTS.md walk failed (find exited $nested_rc) while counting nested files; an undercount would leave the nested write-trigger loss unpriced."
+# Only a nested AGENTS.md beside a CLAUDE.md has a shim this run can remove;
+# one already without a shim loses nothing here.
+NESTED_AGENTS=0
+while IFS= read -r f; do
+  [[ -n "$f" && "$f" != "$REPO/AGENTS.md" ]] || continue
+  [[ -e "${f%/AGENTS.md}/CLAUDE.md" || -L "${f%/AGENTS.md}/CLAUDE.md" ]] || continue
+  NESTED_AGENTS=$((NESTED_AGENTS + 1))
+done <<<"$nested_out"
+nested_loss() { # <the probe's result, or "not yet run">
+  echo "  Nested AGENTS.md files: $NESTED_AGENTS. The nested write probe says: $1. Unless it says"
+  echo "  LOADS, removing their shims also drops the nested load a Write or Edit there triggers"
+  echo "  through the shim (reference/sources.md, 'The nested write trigger'; shim-droppable.md,"
+  echo "  condition G, which keeps these shims unless the operator accepts that loss)."
+}
+if ((NESTED_AGENTS > 0)); then
+  nested_loss "not yet run; cutover-check runs it after --confirm"
+  echo
+fi
+
 # --- 2. the confirmation --------------------------------------------------
 if ((CONFIRM == 0)); then
   echo "Not confirmed. Re-run with --confirm to remove the shims in this repository."
@@ -196,7 +216,9 @@ installed_version() { # <plugin name>
   while IFS= read -r v; do
     v="${v%$'\r'}"
     [[ -n "$v" ]] || continue
-    if [[ -z "$worst" ]] || ver_ge "$worst" "$v"; then worst="$v"; fi
+    # One copy whose version cannot be read could be the stale one.
+    [[ "$v" =~ ^[0-9]+(\.[0-9]+)*$ ]] || return 1
+    if [[ -z "$worst" ]] || ip_ver_ge "$worst" "$v"; then worst="$v"; fi
   done < <(jq -r --arg p "$1@" '.plugins | to_entries[]
              | select(.key | startswith($p)) | .value[].version' \
     "$INSTALLED_PLUGINS" 2>/dev/null)
@@ -208,9 +230,9 @@ for pair in "instruction-placement:$FLOOR_INSTRUCTION_PLACEMENT" "harness-memory
   name="${pair%%:*}"
   floor="${pair##*:}"
   if ! have="$(installed_version "$name")"; then
-    refuse "cannot read the installed version of $name from $INSTALLED_PLUGINS (jq missing, file absent, or the plugin is not installed). An unread version is not a version that carries the corrected doctrine."
+    refuse "cannot read the installed version of $name from $INSTALLED_PLUGINS (jq missing, file absent, the plugin is not installed, or a copy's version is not a dotted number). An unread version is not a version that carries the corrected doctrine."
   fi
-  if ! ver_ge "$have" "$floor"; then
+  if ! ip_ver_ge "$have" "$floor"; then
     refuse "installed $name is $have (the lowest copy across every scope), below the corrected-doctrine release $floor. An older build tells a de-shimmed repository to put the shim back."
   fi
   echo "  installed $name $have (lowest across scopes), at or above $floor"
@@ -220,10 +242,26 @@ echo
 # --- 4. the cutover conditions --------------------------------------------
 echo "Running the cutover check against $REPO:"
 echo
-CHECK_RC=0
-bash "$CUTOVER_CHECK" --repo "$REPO" "${CHECK_ARGS[@]+"${CHECK_ARGS[@]}"}" || CHECK_RC=$?
+# With no nested AGENTS.md the write probe has nothing to price, so it is
+# skipped rather than paying a metered turn whose answer nobody reads.
+PROBE_ARGS=()
+((NESTED_AGENTS > 0)) || PROBE_ARGS=(--skip-write-probe)
+CHECK_OUT="$(mktemp)"
+# Until on_exit takes over below, this trap removes the capture on any exit.
+trap 'rm -f "$CHECK_OUT"' EXIT
+trap 'exit 1' INT TERM HUP
+bash "$CUTOVER_CHECK" --repo "$REPO" ${PROBE_ARGS[@]+"${PROBE_ARGS[@]}"} \
+  "${CHECK_ARGS[@]+"${CHECK_ARGS[@]}"}" | tee "$CHECK_OUT"
+CHECK_RC=${PIPESTATUS[0]}
+PROBE_RESULT="$(sed -n 's/^=== Nested write trigger (not graded): \([A-Z-]*\)\..*/\1/p' "$CHECK_OUT")"
+rm -f "$CHECK_OUT"
 echo
 ((CHECK_RC == 0)) || refuse "cutover-check reported a condition that is not [MET] (exit $CHECK_RC). Nothing was removed."
+if ((NESTED_AGENTS > 0)) && [[ "$PROBE_RESULT" != "LOADS" ]]; then
+  echo "The price, now that the probe has run:"
+  nested_loss "${PROBE_RESULT:-no result}"
+  echo
+fi
 
 # --- 5. the target shape --------------------------------------------------
 PLAN="$(mktemp)"

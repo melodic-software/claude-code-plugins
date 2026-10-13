@@ -21,6 +21,18 @@ Keep example tests for the cases a reader needs to see spelled out (the document
 bug that was reported), and for logic with few inputs, where a property adds nothing a table of
 cases does not.
 
+Two rules the patterns below do not name are worth checking for first:
+
+- **A conserved quantity.** Something the operation must neither create nor lose: the shares of a
+  split bill add up to the bill, a partition holds every input element once, a transfer leaves the
+  total of all balances where it was.
+- **An output that is cheap to verify.** The result is hard to compute but easy to check: a
+  schedule has no overlapping slots, pages never exceed the page size and their lengths add up to
+  the item count, a top-k result holds k items none smaller than an item it dropped.
+
+If no rule of any kind holds, write examples instead. A property whose only check is that the call
+did not raise tells you little more than one example would.
+
 ## State the property before reading the code
 
 Write each property from stated intent: the spec, the acceptance criteria, the issue, the
@@ -51,12 +63,28 @@ one check among others, not as the only oracle:
 - **Algebraic invariants**: idempotence (`f(f(x)) == f(x)`), commutativity, an output size bound
   (`len(filter(xs)) <= len(xs)`).
 
+Whatever the pattern, the assertion must be able to fail when the code is wrong. An expectation
+built with the code's own arithmetic, such as `split(total, n) == [total / n] * n`, makes the same
+rounding mistake the code makes and agrees with it. Check the bill split by its sum, its share
+count, and a one-cent bound on the spread between shares instead. `/testing:test-value` owns the
+rule that an expected value needs a source outside the code under test.
+
 ## Generators
 
 Leave generators unconstrained unless the code's contract requires a constraint: an unbounded list
 strategy, not one capped at 100 items "to be safe". Every constraint is a region the search never
 visits. Generate only inputs the code can legitimately receive (sound), and as many of those as is
 practical (complete); a sound, mostly complete generator beats an elaborate one.
+
+- **Build valid inputs directly; do not filter them after drawing.** When one field constrains
+  another (every line of an invoice in one currency), draw the shared value first and feed it to
+  the dependent generator. Discarded draws exercise nothing, and the run still counts them, so the
+  reported number of cases overstates what was tested.
+- **Assemble large generators from small ones**, so each constraint lives in one place and is
+  reused.
+- **Scale the case count to where the test runs**: few cases while editing, many in CI. When the
+  code is slow on purpose and the library fails a case for exceeding its time limit, raise that
+  limit, so the outcome does not depend on the machine.
 
 ## A failing property
 
@@ -86,6 +114,33 @@ and confirm the property kills mutants in the code it covers, or add a known-bad
 must reject as an expected-fail example (Hypothesis `@example(...).xfail()`). A property that
 kills no mutant and trips on no bad input is a weak oracle; tighten it or replace it with
 examples.
+
+## Keep example tests in their own file
+
+`/testing:audit`'s `rule-recomputed-derived` flags expected values derived from the call's own
+arguments. A property derives its expectation from generated input on purpose, so each language
+adapter under the audit skill's `adapters/` directory lists the markers that identify a property
+(`property_markers`), and the audit skips that rule for any file containing one. The skip covers
+the whole file, so:
+
+- no automated check catches a property whose oracle repeats the algorithm; the author and the
+  reviewer hold it to the rule under Patterns;
+- an example test that shares a file with a property loses the check too, so put example tests in a
+  separate file.
+
+## Language references
+
+Identify the language of the code under test from its manifests and sources, and read only its
+page:
+
+| Code under test | Reference |
+|---|---|
+| Python (`pyproject.toml`, `setup.cfg`, `requirements*.txt`, `.py` sources) | [property/python.md](property/python.md) |
+| TypeScript or JavaScript (`package.json`, `.ts` or `.js` sources) | [property/typescript.md](property/typescript.md) |
+| C# (`.csproj`, `.sln`, `.cs` sources) | [property/csharp.md](property/csharp.md) |
+
+For any other language, read none of them and use the property library the project already has. If
+it has none, ask the user before adding one, and cover the rule with example tests meanwhile.
 
 ## Python: the Hypothesis team's command
 

@@ -70,7 +70,7 @@ If during a self-update run you find drift in any of the following, **clean exit
 
 ### Frontmatter (entire YAML block of every skill file)
 
-- `name`, `description`, `argument-hint`, `disable-model-invocation`, `user-invocable`, `allowed-tools`, `model`, `effort`, `paths`, `hooks`, `context`, `agent`, `shell`
+- Every key in the block, whichever fields it carries, including fields Claude Code adds later. Pointer for the fields Claude Code defines: [Frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). As of: 2026-10-11. Recheck trigger: that section adds, renames or removes a field
 - Applies to every `skills/*/SKILL.md` in this plugin, including skills added later
 
 ### Safety-mechanism content

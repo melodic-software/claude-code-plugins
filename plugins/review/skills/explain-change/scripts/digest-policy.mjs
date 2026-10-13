@@ -11,7 +11,7 @@
 //
 //   digest-policy.mjs [--event ready|review] [--blast-radius LEVEL]
 //                     [--policy off|offer|always] [--requested] < facts.json
-//   digest-policy.mjs --publish-gate <VISIBILITY>|--facts <facts.json> [--explicit] < diff
+//   digest-policy.mjs --publish-gate --facts <facts.json> [--explicit] < diff
 // Exit 0 decided, 2 usage or unreadable facts.
 
 import { execFileSync } from "node:child_process";
@@ -400,8 +400,10 @@ export function publishGate({ explicit, visibility, diff }) {
 
 // ------------------------------------------------------------ CLI
 
-// `--facts <file>` takes the visibility from the saved facts, so no second
-// interpreter reads them; a missing, unreadable or empty value gates as UNKNOWN.
+// The gate's only visibility input is `--facts <file>`: the facts the
+// source-control `view` action looked up and wrote, so no visibility a caller
+// types reaches the gate and no second interpreter reads the facts. A missing,
+// unreadable or empty value gates as UNKNOWN.
 function factsVisibility(file) {
   try {
     const value = JSON.parse(readFileSync(file, "utf8"))?.visibility;
@@ -412,14 +414,13 @@ function factsVisibility(file) {
 }
 
 function gateMain(argv) {
-  let [visibility, ...rest] = argv;
-  if (visibility === "--facts" && rest[0]) [visibility, rest] = [factsVisibility(rest[0]), rest.slice(1)];
-  if (!visibility || visibility.startsWith("--") || rest.some((a) => a !== "--explicit")) {
-    process.stderr.write("usage: digest-policy.mjs --publish-gate <VISIBILITY>|--facts <facts.json> [--explicit] < diff\n");
+  const [flag, file, ...rest] = argv;
+  if (flag !== "--facts" || !file || file.startsWith("--") || rest.some((a) => a !== "--explicit")) {
+    process.stderr.write("usage: digest-policy.mjs --publish-gate --facts <facts.json> [--explicit] < diff\n");
     return 2;
   }
   const diff = readFileSync(0, "utf8");
-  const result = publishGate({ explicit: rest.includes("--explicit"), visibility: visibility.toUpperCase(), diff });
+  const result = publishGate({ explicit: rest.includes("--explicit"), visibility: factsVisibility(file).toUpperCase(), diff });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   return 0;
 }

@@ -346,6 +346,219 @@ assert_eq "a docs file under a symlinked directory exits 2" 2 "$rc"
 rm -f "$REPO/docs/conventions"
 reset
 
+# --- the team layer as docs/conventions/testing.yaml ----------------------------
+TY="$REPO/docs/conventions/testing.yaml"
+printf '# yaml-language-server: $schema=x.json\npaths:\n  exclude: [yaml-team/**]\n' >"$TY"
+run
+assert_eq "docs/conventions/testing.yaml alone is the team layer" "0:$TY" "$rc:$(records layer)"
+assert_eq "and its keys resolve" "yaml-team/**" "$(records paths.exclude)"
+printf '# Testing\n\n```yaml config\npaths:\n  exclude: [md-block/**]\n```\n' >"$DOCS"
+printf 'paths:\n  exclude: [claude-file/**]\n' >"$REPO/.claude/testing.yaml"
+printf 'rules:\n  rule-zero-assertion: warn\n' >"$REPO/.claude/testing.local.yaml"
+run
+assert_eq "testing.yaml wins over the docs block and the .claude file" \
+  "$TY $REPO/.claude/testing.local.yaml" "$(records layer)"
+assert_eq "no key from either ignored file merges in" "yaml-team/**" "$(records paths.exclude)"
+assert_eq "the overlay still merges over testing.yaml" "warn" "$(records rules.zero-assertion)"
+assert_contains "one warning names testing.yaml and the docs file" "$(errs)" "$TY and $DOCS both exist; using $TY"
+assert_contains "one warning names testing.yaml and the .claude file" "$(errs)" "$TY and $REPO/.claude/testing.yaml both exist; using $TY"
+assert_eq "two warnings, one line each" 2 "$(errs | wc -l | tr -d ' ')"
+printf '# Testing\n\nProse only.\n' >"$DOCS"
+rm -f "$REPO/.claude/testing.yaml" "$REPO/.claude/testing.local.yaml"
+assert_eq "a docs file of prose with no block draws no warning" "" "$(errs)"
+printf 'adapters:\n  enable: [js-vitset]\n' >"$TY"
+run
+assert_eq "an unknown adapter in testing.yaml exits 2" 2 "$rc"
+assert_contains "naming testing.yaml and its line" "$out" "$TY:2: unknown adapter: js-vitset"
+rm -f "$DOCS"
+
+# The two run-e2e keys share the file; the scan config ignores them whatever
+# their value, so a run-e2e setting never stops a scan.
+printf 'e2e_driver: run\nreuse_running_instance: sideways\npaths:\n  exclude: [e2e-file/**]\n' >"$TY"
+run
+assert_eq "run-e2e keys in testing.yaml do not stop the scan config" "0:e2e-file/**" "$rc:$(records paths.exclude)"
+assert_eq "and print no scan record" "" "$(records e2e_driver)$(records reuse_running_instance)"
+run --quick
+assert_eq "nor under --quick" "0:e2e-file/**" "$rc:$(records paths.exclude)"
+# A nested value skips with its indented lines, so later keys still load.
+printf 'e2e_driver:\n  mode: run\n  - chrome\nreuse_running_instance:\n- true\npaths:\n  exclude: [e2e-file/**]\n' >"$TY"
+run
+assert_eq "a nested run-e2e value does not stop the scan config" "0:e2e-file/**" "$rc:$(records paths.exclude)"
+assert_contains "and is named on stderr with its file and line" "$(errs)" "$TY:2: warning: e2e_driver holds a nested value"
+assert_contains "for each key" "$(errs)" "$TY:5: warning: reuse_running_instance holds a nested value"
+
+# --- e2e: the run-e2e keys, one line each: key, value, supplying layer ----------
+# erun [args...]: resolve the run-e2e keys; stdout in $out, stderr in $err.
+erun() {
+  rc=0
+  err="$(mktemp "$T/err.XXXXXX")"
+  out="$(bash "$RESOLVE" e2e --root "$REPO" "$@" 2>"$err")" || rc=$?
+  err="$(cat "$err")"
+}
+reset
+erun
+assert_eq "e2e with no layer: every key at its default" \
+  "0:e2e_driver	auto	default
+reuse_running_instance	auto	default
+feature_map_dir	.claude/skills/feature-map	default" "$rc:$out"
+erun --user 'e2e_driver=${user_config.e2e_driver}' --user 'reuse_running_instance='
+assert_eq "an unrendered or empty userConfig value reads as unset" \
+  "e2e_driver	auto	default
+reuse_running_instance	auto	default" "$(head -2 <<<"$out")"
+erun --user e2e_driver=auto
+assert_eq "a userConfig value equal to the default reports the default" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
+erun --user e2e_driver=playwright --user reuse_running_instance=false
+assert_eq "userConfig supplies a value when no file sets the key" \
+  "e2e_driver	playwright	userConfig
+reuse_running_instance	false	userConfig" "$(head -2 <<<"$out")"
+printf 'e2e_driver: run\n' >"$HOME/.claude/testing.yaml"
+erun --user e2e_driver=playwright
+assert_eq "the user-global file wins over userConfig" "e2e_driver	run	$HOME/.claude/testing.yaml" "$(head -1 <<<"$out")"
+printf "e2e_driver: 'harness'  # the repo's own specs\n" >"$TY"
+erun --user e2e_driver=playwright
+assert_eq "testing.yaml wins over the user-global file" "e2e_driver	harness	$TY" "$(head -1 <<<"$out")"
+printf 'e2e_driver: chrome\r\n' >"$REPO/.claude/testing.local.yaml"
+erun
+assert_eq "the overlay wins over testing.yaml (CRLF loads)" "e2e_driver	chrome	$REPO/.claude/testing.local.yaml" "$(head -1 <<<"$out")"
+assert_eq "with nothing on stderr" "" "$err"
+rm -f "$REPO/.claude/testing.local.yaml" "$HOME/.claude/testing.yaml"
+
+# An invalid value never stops the run: the file, key and value are named, and
+# the key takes its default, never a lower layer's value.
+printf 'e2e_driver: cdp\n' >"$TY"
+erun --user e2e_driver=playwright
+assert_eq "an unknown value in testing.yaml exits 0" 0 "$rc"
+assert_eq "and resolves the default, not the lower userConfig value" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
+assert_contains "naming the file, key and value" "$err" "$TY: e2e_driver: unknown value 'cdp'"
+printf 'e2e_driver: run\n' >"$REPO/.claude/testing.local.yaml"
+erun
+assert_eq "a valid higher layer still wins over an invalid one" "e2e_driver	run	$REPO/.claude/testing.local.yaml" "$(head -1 <<<"$out")"
+assert_eq "and the lower layer is never read" "" "$err"
+rm -f "$REPO/.claude/testing.local.yaml"
+erun --user 'reuse_running_instance=maybe'
+assert_eq "an unknown userConfig value resolves the default" "reuse_running_instance	auto	default" "$(sed -n 2p <<<"$out")"
+assert_contains "naming userConfig" "$err" "userConfig: reuse_running_instance: unknown value 'maybe'"
+printf 'e2e_driver: "$(touch %s/pwned)"\n' "$T" >"$TY"
+erun
+assert_eq "a command substitution in a value is text, never run" "0:no" "$rc:$([[ -e "$T/pwned" ]] && echo yes || echo no)"
+assert_contains "and is named as an unknown value" "$err" "unknown value '\$(touch $T/pwned)'"
+# A value that is not a scalar, or does not parse, is invalid too: the layer
+# drops and the key takes its default, never the lower layer's valid value.
+printf 'e2e_driver: run\n' >"$HOME/.claude/testing.yaml"
+printf 'e2e_driver: [run, chrome]\n' >"$TY"
+erun --user e2e_driver=playwright
+assert_eq "a flow list resolves the default, not a lower layer" "0:e2e_driver	auto	default" "$rc:$(head -1 <<<"$out")"
+assert_contains "naming the file, key and value" "$err" "$TY: e2e_driver: unknown value '[run, chrome]'"
+printf 'e2e_driver:\n  mode: chrome\n' >"$TY"
+erun
+assert_eq "a nested map resolves the default" "0:e2e_driver	auto	default" "$rc:$(head -1 <<<"$out")"
+assert_contains "naming the file and key" "$err" "$TY: e2e_driver: no scalar value"
+printf "e2e_driver: chrome\n" >"$TY"
+printf "e2e_driver: 'run\n" >"$REPO/.claude/testing.local.yaml"
+erun
+assert_eq "an unclosed quote in the overlay resolves the default" "0:e2e_driver	auto	default" "$rc:$(head -1 <<<"$out")"
+assert_contains "naming the overlay" "$err" "$REPO/.claude/testing.local.yaml: e2e_driver: unknown value ''run'"
+rm -f "$REPO/.claude/testing.local.yaml" "$HOME/.claude/testing.yaml"
+
+# The keys are read only where no older release reads them: never from the
+# docs block or .claude/testing.yaml, which an older release refuses whole.
+rm -f "$TY"
+printf '# Testing\n\n```yaml config\ne2e_driver: run\n```\n' >"$DOCS"
+printf 'e2e_driver: run\n' >"$REPO/.claude/testing.yaml"
+erun
+assert_eq "the docs block and .claude/testing.yaml are not read for the keys" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
+rm -f "$DOCS" "$REPO/.claude/testing.yaml"
+
+# A scan config that does not resolve never stops the run-e2e keys.
+printf 'e2e_driver: playwright\nadapters:\n  enable: [js-vitset]\nrules:\n  testing/audit/rule-weak-oracle: off\n' >"$TY"
+erun
+assert_eq "an invalid scan config still resolves the run-e2e keys" "0:e2e_driver	playwright	$TY" "$rc:$(head -1 <<<"$out")"
+mkdir -p "$T/elsewhere"
+printf 'e2e_driver: chrome\n' >"$T/elsewhere/overlay.yaml"
+ln -s "$T/elsewhere/overlay.yaml" "$REPO/.claude/testing.local.yaml"
+erun
+assert_eq "a symlinked overlay is skipped, not followed" "0:e2e_driver	playwright	$TY" "$rc:$(head -1 <<<"$out")"
+assert_contains "with a warning naming it" "$err" "skipping a layer that is a symlink or under a symlinked directory: $REPO/.claude/testing.local.yaml"
+rm -f "$REPO/.claude/testing.local.yaml"
+
+# feature_map_dir: a repository path, so only the overlay and testing.yaml set
+# it, and a location that is not the map's own directory is refused.
+fmd() { grep '^feature_map_dir	' <<<"$out"; }
+printf 'feature_map_dir: docs/feature-map/\n' >"$TY"
+erun
+assert_eq "testing.yaml sets feature_map_dir, trailing slash dropped" "0:feature_map_dir	docs/feature-map	$TY" "$rc:$(fmd)"
+printf 'feature_map_dir: .claude/skills/my-map\n' >"$REPO/.claude/testing.local.yaml"
+erun
+assert_eq "the overlay wins over testing.yaml" "feature_map_dir	.claude/skills/my-map	$REPO/.claude/testing.local.yaml" "$(fmd)"
+rm -f "$REPO/.claude/testing.local.yaml" "$TY"
+printf 'feature_map_dir: docs/map\n' >"$HOME/.claude/testing.yaml"
+erun
+assert_eq "the user-global file is not read for it" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
+assert_contains "and says so" "$err" "$HOME/.claude/testing.yaml: feature_map_dir is a repository path; the user-global layer is not read for it"
+rm -f "$HOME/.claude/testing.yaml"
+erun --user feature_map_dir=docs/map
+assert_eq "feature_map_dir has no userConfig level" 2 "$rc"
+# shellcheck disable=SC2088 # '~/map' is the literal value under test
+for bad in '.claude/skills/verify' 'tools/smoke-verify/' '.claude/skills/run-shop/features' 'run-shop' \
+  '/srv/map' '~/map' 'C:/map' '../map' 'docs/../../map' '.' './' 'docs/$(touch pwned)' 'docs/my map' \
+  '.claude/skills' './.claude/skills' '.claude/skills/' '.Claude/SKILLS'; do
+  printf "feature_map_dir: '%s'\n" "$bad" >"$TY"
+  erun
+  assert_eq "feature_map_dir '$bad' is refused and takes the default" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
+  assert_contains "naming the file, key and value for '$bad'" "$err" "$TY: feature_map_dir: refused value '$bad'"
+done
+assert_eq "and the other keys still resolve" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
+printf 'feature_map_dir: .claude/skills\n' >"$TY"
+erun
+assert_contains "the skills root is refused as the skills root, not a map's own directory" "$err" \
+  "refused value '.claude/skills' (the skills root, not a directory of its own under .claude/skills/)"
+printf 'feature_map_dir: ./\n' >"$TY"
+erun
+assert_contains "./ is refused as the repository root" "$err" "$TY: feature_map_dir: refused value './' (the repository root)"
+for good in .claude/skills/feature-map .claude/skills/my-map; do
+  printf 'feature_map_dir: %s\n' "$good" >"$TY"
+  erun
+  assert_eq "a directory under the skills root, '$good', still resolves" "0:feature_map_dir	$good	$TY" "$rc:$(fmd)"
+  assert_eq "with no warning for '$good'" "" "$err"
+done
+# An empty or '.' segment is refused anywhere but one leading ./ and one
+# trailing /, the same rule as the schema pattern.
+for bad in '././.claude/skills/x' '.claude//skills/x' '.claude/skills/x/.' '.claude/./skills/x'; do
+  printf 'feature_map_dir: %s\n' "$bad" >"$TY"
+  erun
+  assert_eq "feature_map_dir '$bad' is refused and takes the default" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
+  assert_contains "naming the value as written and the segment for '$bad'" "$err" \
+    "$TY: feature_map_dir: refused value '$bad' (an empty or '.' path segment)"
+done
+printf 'feature_map_dir: .claude/skills/x//\n' >"$TY"
+erun
+assert_eq "a doubled trailing slash is an empty segment" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
+assert_contains "and is refused for it" "$err" "(an empty or '.' path segment)"
+for pair in '.claude/skills/feature-map=.claude/skills/feature-map' \
+  './.claude/skills/feature-map-web=.claude/skills/feature-map-web' \
+  '.claude/skills/feature-map/=.claude/skills/feature-map'; do
+  printf 'feature_map_dir: %s\n' "${pair%%=*}" >"$TY"
+  erun
+  assert_eq "one leading ./ or one trailing / is allowed: '${pair%%=*}'" "0:feature_map_dir	${pair#*=}	$TY" "$rc:$(fmd)"
+  assert_eq "with no warning for '${pair%%=*}'" "" "$err"
+done
+printf 'feature_map_dir: .claude/skills/run-shop\n' >"$TY"
+printf 'feature_map_dir: docs/map\n' >"$REPO/.claude/testing.local.yaml"
+erun
+assert_eq "a valid overlay still wins over a refused testing.yaml" "feature_map_dir	docs/map	$REPO/.claude/testing.local.yaml" "$(fmd)"
+assert_eq "and the refused lower layer is never read" "" "$err"
+printf 'feature_map_dir: ../outside\n' >"$REPO/.claude/testing.local.yaml"
+printf 'feature_map_dir: docs/map\n' >"$TY"
+erun
+assert_eq "a refused overlay takes the default, not testing.yaml's value" "feature_map_dir	.claude/skills/feature-map	default" "$(fmd)"
+rm -f "$REPO/.claude/testing.local.yaml" "$TY"
+
+erun --user nonsense
+assert_eq "--user without <key>=<value> is a usage error" 2 "$rc"
+erun --user other_key=x
+assert_eq "--user names only a run-e2e key" 2 "$rc"
+reset
+
 # --- the whole suite again under mawk -----------------------------------------
 if [[ -z "${TCFG_TEST_MAWK_LEG:-}" ]] && command -v mawk >/dev/null 2>&1; then
   mkdir -p "$T/mawk-shim"

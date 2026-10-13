@@ -1,6 +1,6 @@
 {
   "name": "planning",
-  "version": "0.72.2",
+  "version": "0.72.3",
   "userConfig": {
     "surface": {
       "type": "string",
@@ -22,6 +22,26 @@
       "type": "boolean",
       "title": "Interview question emoji anchors",
       "description": "When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text.",
+      "default": false
+    },
+    "plan_store": {
+      "type": "string",
+      "title": "Plan store",
+      "description": "Where /planning:plan keeps an approved plan: local (default, PLAN.md in the memory slice only) or tracker (also posted as one comment on the claimed work item). A repository's docs/conventions/planning.yaml plan_store key overrides this value.",
+      "default": "local",
+      "options": ["local", "tracker"]
+    },
+    "phase_order": {
+      "type": "string",
+      "title": "Phase order",
+      "description": "How /planning:plan orders phases: composed (default: dead-code removal, integration slice, riskiest unknown, scaffold, features), subtraction-first (removal, scaffold, features) or riskiest-first. A repository's docs/conventions/planning.yaml phase_order key overrides this value.",
+      "default": "composed",
+      "options": ["composed", "subtraction-first", "riskiest-first"]
+    },
+    "scaffold_stubs": {
+      "type": "boolean",
+      "title": "Stub scaffold commit",
+      "description": "When on, /planning:design hands off the stub files and signatures a change needs, and /planning:plan puts one stub phase right after dead-code removal (first when there is none). Default: off. A repository's docs/conventions/planning.yaml scaffold_stubs key overrides this value.",
       "default": false
     }
   },

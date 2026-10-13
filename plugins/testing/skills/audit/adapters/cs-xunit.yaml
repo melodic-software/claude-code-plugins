@@ -8,9 +8,12 @@ language: cs
 block_model: brace
 # Reqnroll step definitions and the project template's UnitTest1.cs too.
 files: ['*Test.cs', '*Tests.cs', '*StepDefinitions.cs', 'UnitTest*.cs']
-# Test attributes; the method signature that follows opens the block.
+# Test attributes; the method signature that follows opens the block. A
+# Reqnroll [Then] step is where a scenario asserts, so it is judged as a test;
+# [Given] and [When] steps arrange and act, and are not.
 test_start:
   - '^[[:space:]]*\[[[:space:]]*(Fact|Theory|Test([^A-Za-z0-9_]|$)|TestMethod|TestCase|DataTestMethod)'
+  - '^[[:space:]]*\[[[:space:]]*(global::)?(Reqnroll\.)?Then(Attribute)?([^A-Za-z0-9_]|$)'
 # Matched in any attribute of the same stack, before or after the test one.
 test_skip:
   - 'Skip[[:space:]]*='

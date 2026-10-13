@@ -14,6 +14,10 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 - **Spawned only for shell files.** The hook is registered with the `if` filters
   `Edit(*.sh)` and `Edit(*.bash)`, so a Write/Edit of any other file never starts a
   hook process for it; the extension check inside the script is unchanged.
+  - **Pointer**: when deciding whether an `if` row keeps a handler from spawning, fetch
+    [hooks: Common fields](https://code.claude.com/docs/en/hooks#common-fields) live.
+    **As of**: 2026-10-11. **Recheck trigger**: that section changes when an `if` rule
+    keeps a handler from running, or which events evaluate it.
 - **Lint on edit (always).** ShellCheck (`warning` severity and above) runs on
   every edit. It is non-mutating; it only reports.
 - **Format on edit (opt-in).** `shfmt` runs **only when an `.editorconfig`
@@ -98,9 +102,10 @@ the install route on your copy only.
   Claude Code can run it under Git Bash.
 - **Node.js** on `PATH`. Every hook row runs through `node hooks/exec-bash.mjs`, so
   without `node` the hook does not launch and shell edits are neither linted nor formatted.
-  Claude Code's native installer does not ship or use Node.js; only its npm package needs it
-  ([setup docs](https://code.claude.com/docs/en/setup), checked 2026-09-29; recheck when a
-  Claude Code release note changes the installer or its runtime requirements). Unlike the tool
+  We do not assume a Claude Code install brings Node. Pointer: when deciding whether it does,
+  fetch [setup: Install with npm](https://code.claude.com/docs/en/setup#install-with-npm) live.
+  As of: 2026-10-11. Recheck trigger: that section or [System requirements](https://code.claude.com/docs/en/setup#system-requirements) changes which
+  install needs Node at runtime. Unlike the tool
   notices below, a missing `node` shows no notice from this plugin. Check it with
   `/bash-format:setup check`. [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
