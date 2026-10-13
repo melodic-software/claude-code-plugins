@@ -106,11 +106,17 @@ A merged PR whose head the local branch has moved off (priority 5a and 5b) is se
 | Family | Branch name | Source | Owner | Retention (remote mode) |
 |--------|-------------|--------|-------|-------------------------|
 | `agent` | `agent-` followed by hex digits only | Claude Code subagent worktrees; `worktree-create.sh` uses the harness name as the branch | `/source-control:worktree cleanup` | no window; released once no worktree has it checked out |
-| `claude` | `claude/*` | Claude Code on the web | the session that pushed it | 30 days (`CLEAN_RETENTION_CLAUDE_DAYS`) |
+| `claude` | `claude/*` | Claude Code cloud sessions (on the web, routine runs) | the session that pushed it | 30 days (`CLEAN_RETENTION_CLAUDE_DAYS`) |
 | `plan` | `plan/*` | named by hand | whoever named it | 90 days (`CLEAN_RETENTION_PLAN_DAYS`) |
 | `stranded` | `stranded/*` | named by hand | whoever named it | 30 days (`CLEAN_RETENTION_STRANDED_DAYS`) |
 | `pre-wipe` | `pre-wipe/*` | ad hoc safety pushes made before a reimage | whoever pushed it | 30 days (`CLEAN_RETENTION_PREWIPE_DAYS`) |
 | `none` | anything else | no known source | not decided by family | none (`n/a`) |
+
+- **Pointer**: the `claude/` prefix for routine runs is in
+  [Repositories and branch permissions](https://code.claude.com/docs/en/routines#repositories-and-branch-permissions);
+  the on-the-web half rests on branches observed on remotes. **As of**: 2026-10-11. **Recheck
+  trigger**: that section changes the prefix or is renamed, or a `claude/*` branch turns up with
+  another origin.
 
 The `Retention` column is read only by the remote mode below; the local audit still reads the family for information alone.
 

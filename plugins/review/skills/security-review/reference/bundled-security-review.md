@@ -6,15 +6,14 @@ worth checking again.
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
-| The commands table lists a bare `/security-review` with no Skill label, no flags, and no target argument: "Analyze the changes on your current branch for security vulnerabilities. Reviews the diff between your branch and origin's default branch, identifying risks like injection, auth issues, and data exposure. Needs an `origin` remote" | <https://code.claude.com/docs/en/commands>, the row and its Purpose column | 2026-09-11 | The row gains a Skill label, a flag, or a target argument |
+| We treat the native `/security-review` as a developer's single pass over their current branch, with no target this lane could hand it, so this lane never routes a PR to it; what it diffs against and what it needs are read from its row | Pointer: the `/security-review` row of [commands: all commands](https://code.claude.com/docs/en/commands#all-commands) | 2026-10-11 | The row gains a Skill label, a flag, or a target argument |
 | The installed binary still registers it as plugin-backed, not as a bundled skill: `pluginName:"security-review", pluginCommand:"security-review"`, description "Complete a security review of the pending changes on the current branch", and the prompt refuses to run outside a git repository | String search of the installed 2.1.263 binary | 2026-09-11 | An extraction reports the name under bundled skills, or the commands row gains a Skill label |
-| It is the single-pass, on-demand layer of a stack: the security guidance plugin reviews code as Claude writes it; the Claude Security plugin runs a multi-agent deep scan with reviewed patches; Code Review reviews pull requests on Team and Enterprise plans; the managed Claude Security product monitors repositories on Enterprise | The "How the plugin fits with other security tools" table on <https://code.claude.com/docs/en/claude-security> | 2026-09-11 | The table adds, removes, or re-tiers a layer |
-| It is unusable in CI because it diffs against `origin/HEAD`, which the Actions checkout does not create | The body's opening paragraph carries that record with its own basis and recheck trigger; not repeated here | 2026-09-06 | See the body |
+| It is one layer of a defense-in-depth stack that also holds a deep-scan plugin and managed products; a request for a deeper or continuous scan routes to those layers, never to this lane. Which layers exist and their plan tiers are read live | Pointer: [claude-security: how the plugin fits with other security tools](https://code.claude.com/docs/en/claude-security#how-the-plugin-fits-with-other-security-tools) | 2026-10-11 | The table adds, removes, or re-tiers a layer |
+| It is unusable in CI, so this skill is the CI path | Pointer: the opening paragraph under the title of [SKILL.md](../SKILL.md#ci-security-review-reviewsecurity-review) carries that record with its own pointer and recheck trigger; not repeated here | 2026-10-11 | That paragraph moves out from under the title, or stops carrying its own pointer and trigger |
 
-The commands page gives the command no Skill label, so nothing on it contradicts the binary's
-plugin-backed registration; both sources scope the command to the pending changes on the current
-branch, with no flag and no target argument, and the same description is what a 2.1.263 session
-lists for the command. The registry row keeps `plugin-backed-builtin`, the class the binary
+On 2026-09-11 the commands page gave the command no Skill label, so nothing on it contradicted the
+binary's plugin-backed registration, and the binary's description is what a 2.1.263 session
+listed for the command. The registry row keeps `plugin-backed-builtin`, the class the binary
 reports.
 
 ## Why the verdict is complementary

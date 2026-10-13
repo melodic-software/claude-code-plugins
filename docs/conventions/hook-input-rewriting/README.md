@@ -12,9 +12,9 @@ It is not. The rule is one line, and the rest of this doc is why.
 
 **A `PreToolUse` hook denies or asks. It never pairs `allow` with `updatedInput`.**
 
-A `PreToolUse` hook's decision-control fields are `permissionDecision` (`allow`, `deny`, `ask`),
-`permissionDecisionReason`, `updatedInput`, and `additionalContext` (verified against
-[the hooks reference](https://code.claude.com/docs/en/hooks), 2026-09-04). Three of them are
+A `PreToolUse` hook's decision-control fields, and the outcomes `permissionDecision` takes, are
+listed in [hooks § PreToolUse decision control](https://code.claude.com/docs/en/hooks#pretooluse-decision-control)
+(as of 2026-10-11; recheck when that section adds or drops a field or an outcome). The others are
 uncontroversial. `updatedInput` is the one that lets a hook rewrite the call, and its only
 sanctioned pairing here is with `"ask"`.
 

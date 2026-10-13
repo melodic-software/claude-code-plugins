@@ -32,7 +32,11 @@ Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface. In
 | Single candidate | NO. Use `/docs-hygiene:extract-ssot plan <name>` directly |
 | < 3 candidates | NO. Manual sequential dispatch is simpler |
 
-This is NOT the bundled Claude Code `/batch` skill. Bundled `/batch` orchestrates large-scale changes across a codebase in parallel: it decomposes the work into 5 to 30 independent units and spawns one background subagent per unit in an isolated git worktree, each opening its own pull request. This `batch` action is local SSOT-cluster orchestration instead. Basis: [the slash-command reference](https://code.claude.com/docs/en/commands), whose `/batch` entry carries that description and gives `migrate src/ from JavaScript to TypeScript` as its example. Verified 2026-09-06 against Claude Code 2.1.263 and that page as fetched that day. Recheck when the reference drops the `/batch` entry, changes what it does, or when a release note names the bundled `/batch` skill.
+This is NOT the bundled Claude Code `/batch` skill, which is codebase-wide parallel change orchestration. This `batch` action is local SSOT-cluster orchestration instead.
+
+- **Pointer**: for what bundled `/batch` does, read its entry at [All commands](https://code.claude.com/docs/en/commands#all-commands) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: the reference drops the `/batch` entry or changes what it does, or a release note names the bundled `/batch` skill.
 
 ## Inputs
 

@@ -31,8 +31,16 @@ independently verified findings with patch suggestions. For those, recommend the
 Security plugin's `/claude-security` command instead of widening this mode. Presence-gated: route to it only
 when its command appears in the skill listing; otherwise suggest installing
 `claude-security@claude-plugins-official`. Jobs, prerequisites, and output contract are
-upstream-owned. Do not restate them; see
-<https://code.claude.com/docs/en/claude-security>.
+upstream-owned. Do not restate them. Pointer: prerequisites at
+[claude-security: prerequisites](https://code.claude.com/docs/en/claude-security#prerequisites),
+installation at
+[claude-security: install the plugin](https://code.claude.com/docs/en/claude-security#install-the-plugin),
+what a scan does at
+[claude-security: scan and fix your codebase](https://code.claude.com/docs/en/claude-security#scan-and-fix-your-codebase),
+and its output at
+[claude-security: read the scan results](https://code.claude.com/docs/en/claude-security#read-the-scan-results).
+As of: 2026-10-11. Recheck trigger: the page renames the command or the plugin's install id, or
+moves any of these sections.
 
 ## After the review
 

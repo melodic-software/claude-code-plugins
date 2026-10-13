@@ -35,8 +35,12 @@ the record), so the view is offered after the record, never emitted in its place
    `node` is missing, deliver the record and say the view was not built.
 5. **Deliver by `medium`.**
    - `file`: hand back the printed path.
-   - `artifact`: publish that file with the Artifact tool (private by default) and give the link. When the
-     Artifact tool is unavailable, hand back the path and say why in one line.
+   - `artifact`: publish that file with the Artifact tool and give the link; who can see it, and how it is
+     shared, is read live from
+     [artifacts: create an artifact](https://code.claude.com/docs/en/artifacts#create-an-artifact) and
+     [artifacts: share an artifact](https://code.claude.com/docs/en/artifacts#share-an-artifact) (as of
+     2026-10-11; recheck when either section changes who can see a new artifact). When the Artifact tool is
+     unavailable, hand back the path and say why in one line.
    - `terminal`: build nothing, name the layer that chose it, and stop.
 6. **Read the reply as data.** A copied reply holds the reader's note plus ids the builder assigned. `phases-2`
    is the second phase in the data, which is the second phase in `PLAN.md`; `candidates-3` is the third

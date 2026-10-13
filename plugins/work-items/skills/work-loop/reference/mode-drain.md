@@ -23,7 +23,13 @@ snapshot open item either way, and the single test above already covers it, incl
 snapshot held as untriaged intake that step 2 promoted mid-cycle. That item still holds the drain
 open, and it is worked once the admission gate passes it and a cap slot is free.
 
-Satisfied → the drain is complete: set `first_drain_complete`, write the final report (items
+The test runs only on a snapshot `SKILL.md` step 1 counts as complete. A cycle whose snapshot read
+errored, was truncated, or came back empty because a read failed has already aborted before this
+point, and a snapshot of unknown completeness never satisfies it: an empty id set passes the test
+vacuously, so it may be trusted only when the reads behind it were complete.
+
+Satisfied → the drain is complete: propose first-drain completion per
+[first-drain-ratification.md](first-drain-ratification.md), write the final report (items
 escalated to a human first, then items closed and PR'd), apply the post-snapshot intake report below, and stop cleanly.
 
 When the drain stays open because a retained id is covered only by a draft closing PR or by the

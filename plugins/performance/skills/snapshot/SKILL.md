@@ -147,6 +147,27 @@ plugin's judgment) and check that the duration moved with it. A count cut and a 
 size, so report both and never infer one from the other. No evidence yet means `unproven`, not a
 guess. See [prove the proxy](../../reference/techniques.md#d-prove-the-proxy).
 
+### 5. Freeze the harness, when the goal plans a loop
+
+A goal with a `Min attempts:` value will run under `/performance:climb`, which re-runs this
+harness on every attempt and may not change it. Freeze it at baseline time, in this order:
+
+1. **Counts on every run.** Besides the goal's counter, each run prints how many operations
+   failed and how many units of work finished (requests served, files converted, pages built).
+   Without both tallies, a run that failed fast or skipped work reads as a speedup, so a harness
+   missing either one is not frozen.
+2. **Sensitivity.** Prove the harness notices a real change before freezing it:
+   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/discriminate.py" --config <json>`, given a patch
+   known to change the measured path, the harness as the check and the counter line as the
+   signal. On exit 1 the change does not show: change the counter or the workload and rerun. Exit
+   2 says the harness never ran. Exit 0 says the change shows, and only exit 0 permits freezing.
+3. **Record the frozen harness** in the baseline report: the command, the commit it was frozen
+   at, and the discrimination exit code.
+
+```text
+Frozen:  <harness command> @ <sha>  discriminate: exit <0|1|2>  counts: errors=<n> work=<n>
+```
+
 ## Comparing before and after
 
 A post snapshot records the same `Tool:` line and flags any difference in path, revision or hash,
@@ -280,6 +301,7 @@ stored one.
 
 - After a baseline capture: `/implementation:implement` for the change, then
   `/performance:snapshot post`.
+- After a baseline capture with a frozen harness, when the goal plans a loop: `/performance:climb`.
 - After a post capture: `/performance:verify`.
 
 ## Gotchas
