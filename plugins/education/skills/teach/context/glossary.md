@@ -1,35 +1,72 @@
 # Glossary Format
 
-`GLOSSARY.md` is canonical language for a learning workspace. All explainers, exercises, and learning records adhere to its terminology. Building it is itself part of learning: compressing a concept into a tight definition is evidence the user understands it.
+Each workspace keeps its word list in `GLOSSARY.md`. Lessons, exercises, quiz questions and learning records
+use the names it fixes and no others. Each entry also records something the learner has shown: a
+term goes in after the learner has used or explained it correctly, and stating it in a sentence or
+two is part of that evidence.
+
+## When an entry is added
+
+The file does not exist in a new workspace. It is created at the first term the learner
+demonstrates, usually at session close (SKILL.md "Session Close") or during `assess`.
+
+A term qualifies once there is evidence of the kind [assessment.md](assessment.md) records: the
+learner explained it in their own words in the dialog, used it correctly in an exercise answer, or
+answered a quiz question that depends on it. A term that was only shown in a lesson waits. The
+glossary records what the learner knows; it is not reading material for learning the term.
+
+## Writing an entry
+
+1. **Look for an existing entry first.** If the concept is already there under any name, edit that
+   row. Understanding changes over sessions and early definitions turn out wrong; the row is
+   corrected in place, never duplicated.
+2. **Fill the Meaning here cell.** A sentence or two on the concept itself, built from rows already
+   in the file where possible; how it is used and how to do it belong in lessons and `reference.md`.
+   When the field uses the word for more than one thing, this cell also states the one this
+   workspace uses and rules out the others (see the `Cost` row in the example below).
+3. **Fill the Not called cell.** When the field has several words for the concept, the row's Term is
+   the clearest and the rest go here. Leave the cell empty when there is no real competitor; never
+   invent one to fill it.
+4. **Use the Term column everywhere.** Lessons, exercises, quiz questions and other rows use the
+   name in the Term column, never a synonym, so a hard term later reads as a combination of known
+   ones.
 
 ## Template
 
 ```markdown
-# {Topic} Glossary
+# Glossary: {Topic}
 
-{One or two sentence description of the topic this glossary covers.}
+{One or two sentences naming the subject these terms belong to.}
 
-## Terms
-
-**{Term}**:
-{One or two sentence definition. What it IS, not what it does or how to do it.}
-_Avoid_: {OPTIONAL, alternative names NOT to use; omit the line when no genuine competing alias exists}
-
-**{Term 2}**:
-{Definition using glossary's own terms where possible.}
+| Term | Meaning here | Not called |
+|---|---|---|
+| {term} | {what it is, one or two sentences} | {competing names, or empty} |
+| {term 2} | {built from terms above where possible} | |
 ```
 
-## Rules
+When the terms fall into clear groups, give each group its own `## {Group}` heading and table. One
+table is enough for a small or uniform set.
 
-- **Add a term only when the user understands it.** The glossary records compressed knowledge, not a dictionary the user reads to learn. Wait for evidence of comprehension before promoting
-- **Be opinionated.** When several words exist for the same concept, pick the best one and list the rest as `_Avoid_`. This is how language compresses. When no genuine alias exists, omit the `_Avoid_` line. Never invent a weak one to fill the template
-- **Keep definitions tight.** One or two sentences. Define what the term IS
-- **Use the glossary's own terms inside definitions.** Once a term is in the glossary, prefer it everywhere, including inside other definitions. This makes complex terms easier to grasp later
-- **Group under subheadings** when natural clusters emerge. Flat list is fine when terms cohere
-- **Flag ambiguities explicitly.** If a term is used loosely in the wider field, note the resolution: "In this workspace, 'set' always means a working set"
-- **Revise as understanding deepens.** A definition from week one may be wrong by week six. Update in place
-- **Durable = rot-relevant.** The glossary is revisited as authoritative, so on revisit treat entries as unverified and re-verify volatile-domain terms per SKILL.md "Staleness" before relying on them
+Example rows from a workspace on PostgreSQL query plans:
 
-## Relationship to a repo's shared language
+| Term | Meaning here | Not called |
+|---|---|---|
+| Sequential scan | A plan node that reads every row of a table in storage order | table scan, full scan |
+| Index scan | A plan node that finds rows through an index, then fetches each from the table; faster than a sequential scan only when few rows match | |
+| Cost | The planner's estimate of the work a plan node needs, in arbitrary units; not elapsed time, which only EXPLAIN ANALYZE reports | |
 
-For `codebase` mode, the glossary may reference or extend the consuming repo's own shared-language / ubiquitous-language documentation when it has any (e.g. a `UBIQUITOUS-LANGUAGE.md`, a domain glossary in `docs/`). But the learning glossary is personal. It captures the USER's understanding, which may be incomplete. A team's shared language is the authoritative team vocabulary; the learning glossary is the learner's growing one.
+A workspace written before this layout may hold bold-term entries instead of a table; read it by
+meaning and convert it when the file is next edited.
+
+## On revisit
+
+The glossary is reread as settled fact, so it can go stale. Treat every entry as unverified when a
+later session opens it, and re-check terms from fast-moving domains per SKILL.md "Staleness" before
+teaching from them.
+
+## Codebase mode and a repository's own vocabulary
+
+In `codebase` mode the glossary may point to or build on the repository's shared vocabulary
+document when one exists (a `UBIQUITOUS-LANGUAGE.md`, or a domain glossary under `docs/`). The two
+stay separate. The repository's document is the team's agreed vocabulary and is authoritative; the
+learning glossary records this one learner's understanding, which may still be partial.

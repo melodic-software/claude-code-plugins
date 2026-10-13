@@ -88,16 +88,23 @@ unless the case routes it in explicitly.
 | Type | Fields | Passes when |
 |---|---|---|
 | `regex` | `pattern`, `flags`, `match`, `target` | The JS regex is found in the target; `match: not_contains` requires absence, `match: "count:N"` exactly N |
-| `tool_used` | `tool`, `input_match`, `min`, `max` | Matching calls fall in range; `min` defaults to 1 and `max` to unlimited |
+| `tool_used` | `tool`, `input_match`, `min`, `max` | Matching calls fall in range; the range defaults are in the `tool_used` row of [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types), as of 2026-10-11. Recheck trigger: that row or the grader's fields change |
 | `tool_order` | `before`, `after` | The `tool_order` row of [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types), as of 2026-10-07. Recheck trigger: that row or the grader's fields change |
 | `file_exists` | `path`, `exists` | The `file_exists` row of [Grader types](https://code.claude.com/docs/en/plugin-evals#grader-types), as of 2026-10-07. Recheck trigger: that row or the grader's fields change. Scaffold output and files the model only edits do not count |
 | `llm` | `criteria`, `focus` | The judge votes PASS in at least 2 of 3. In the `.md` layout the body is the criteria |
 | `baseline` | `baseline_file`, `criteria` | The judge finds the run at least as good as the reference `.jsonl` in the case dir |
 
-Targets for `regex.target` and `llm.focus`: `last_message` (the default), `trace` (JSON per line,
-where a judge sees only the first 12 and last 12 messages and quotes are JSON-escaped, so match
-`\"`), `files` (the **list of created paths**, not their contents), `{ source: file, path: <p> }`
-(the contents), and `mock_calls`.
+Targets for `regex.target` and `llm.focus`: `last_message`, `trace` (JSON per line, where quotes
+are JSON-escaped, so match `\"`), `files` (the **list of created paths**, not their contents),
+`{ source: file, path: <p> }` (the contents), and `mock_calls`. Pick the target explicitly rather
+than relying on the default, and assume a judge given `trace` sees only part of a long one.
+
+- **Pointer**: when choosing a target, or judging a long trace, fetch
+  [What a grader can look at](https://code.claude.com/docs/en/plugin-evals#what-a-grader-can-look-at)
+  live for the default target and the judge's trace window.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section adds or renames a target, changes the default, or changes how
+  much of a trace the judge reads.
 
 ## Mocks
 
@@ -112,17 +119,38 @@ where a judge sees only the first 12 and last 12 messages and quotes are JSON-es
 
 ## Frontmatter bounds
 
-| Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
-|---|---|---|
-| The complete `prompt.md` frontmatter key set is `schema_version` (currently `"1.1"`), `name`, `description`, `tags`, `plugins`, `runs` (default 3, range 1 to 50), `expected_outcome`, `model`, `max_turns` (default 10, maximum 200), `timeout_seconds` (default 300, maximum 3600), `allowed_tools`, `append_system_prompt`, and `env`. An unknown key is an error (`prompt.md: unknown frontmatter key`), each grader type's option set is strict, `weight` must be positive, and a case whose `schema_version` major exceeds what the binary supports is refused | <https://code.claude.com/docs/en/plugin-evals> and the binary's own validator messages, verified 2026-09-12 | Recheck trigger: the page's frontmatter table gains or loses a key, or a bound changes. Then re-read the page, re-derive this row and the validator's FAIL tier together, and refresh this record with the outcome |
+The `prompt.md` key set, each key's default and bound, and the schema version are the CLI's,
+read live; the validator's FAIL tier mirrors them in its own constants, so a change there is
+re-derived in the validator too. The binary's own load-time messages, read 2026-09-12, showed
+it refusing an unknown key, a non-positive `weight`, and a newer schema major; the validator
+reports the same as FAIL.
+
+- **Pointer**: when writing or checking a case's frontmatter, fetch
+  [`prompt.md` fields](https://code.claude.com/docs/en/plugin-evals#prompt-md-fields) live.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section gains or loses a key, a default or bound changes, or the
+  binary's validator rejects a case the static validator passed. Then re-derive the validator's
+  FAIL tier with it.
+
+Which grants need a sandbox backend is the CLI's rule too, and this checklist never lists the
+tools.
+
+- **Pointer**: when a case grants a tool outside the read-only set, fetch
+  [Grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools) live for which grants
+  run sandboxed and what each platform needs for a sandbox backend.
+- **As of**: 2026-10-11
+- **Recheck trigger**: that section changes which grants run under the sandbox or what a platform
+  needs for the backend, or a run is refused for a grant that section does not name.
 
 - [ ] `runs`, `max_turns`, and `timeout_seconds` are inside their bounds. Hitting `max_turns` is a
       run error, not a low score.
-- [ ] `allowed_tools` requests only what the case needs. Read-only tools (`Read`, `Glob`, `Grep`,
-      `NotebookRead`, `Skill`, `AskUserQuestion`, `Agent`, `TodoWrite`, `TaskCreate`, `TaskGet`,
-      `TaskList`, `TaskUpdate`, `TaskStop`; see the record in the validator's `READ_ONLY_TOOLS`)
-      need no operator grant;
-      anything else needs `--allow-tools` and, for `Bash`, `PowerShell`, `Write`, or `Edit`, a sandbox backend.
+- [ ] `allowed_tools` requests only what the case needs. Read-only tools (the set in the
+      validator's `READ_ONLY_TOOLS`, which mirrors the Grant tools pointer above) need no operator
+      grant;
+      anything else needs `--allow-tools`, and a grant that runs sandboxed also needs a sandbox
+      backend on the machine (the Grant tools record above, in
+      [Frontmatter bounds](#frontmatter-bounds); it has no heading of its own. As of 2026-10-11.
+      Recheck trigger: that record moves or stops naming the backend).
 - [ ] `tags` are set when the suite will ever be filtered. A case runs if **any** of its tags match.
 
 Run the static validator before every paid pass; it checks the bounds above with no model call.
@@ -130,12 +158,17 @@ Run the static validator before every paid pass; it checks the bounds above with
 ## Common mistakes
 
 - `target: files` when the contents were meant. `files` is the list of created paths.
-- Assuming `target` defaults to `trace`. It defaults to `last_message`.
+- Assuming `target` defaults to `trace`. It does not; read the default at the targets
+  record's pointer in [Graders](#graders) (the record has no heading of its own). As of 2026-10-11.
+  Recheck trigger: that record moves or its pointer stops covering the default target.
 - Inline `(?i)` in a pattern. Case-insensitivity is `flags: i`.
 - `file_exists` with the default `exists` in a read-only suite. Nothing is created, so the grader
   can never pass.
 - A gated tool in `allowed_tools` with no matching `--allow-tools` grant. The tool is removed from
   the session and reported on stderr as `not granted`, and the case quietly measures a model without
   it.
-- Taking `claude plugin eval init --bare`'s scaffold as-is: its default grader is `llm`, the paid
-  type.
+- Taking `claude plugin eval init --bare`'s scaffold as-is without checking which grader it
+  writes. Replace a paid `llm` grader with a deterministic one wherever one can decide the case.
+  When checking what the scaffold writes, fetch
+  [Write a case manually](https://code.claude.com/docs/en/plugin-evals#write-a-case-manually)
+  live. As of 2026-10-11. Recheck trigger: that section changes what `init --bare` writes.

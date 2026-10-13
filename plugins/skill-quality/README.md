@@ -25,45 +25,65 @@ the reviewer to confirm the description still names that intent, or to restore t
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
   A plain (unquoted, non-block) `description` that contains `": "` or a line ending in `:` on any
-  line FAILs: that is a YAML mapping indicator, and the skills reference says unparsed frontmatter loads the skill with no fields set
-  (<https://code.claude.com/docs/en/skills#frontmatter-reference>). A quoted or block scalar may
-  contain the indicator. `compatibility`, when present, is 1-500 characters and FAILs outside that
-  (Agent Skills spec; Claude Code accepts the field and does not act on it). Absence is success:
-  the spec says most skills do not need the field. The effective name (the declared field, else
-  the directory leaf) is at most 64 codepoints
-  (FAIL; the Agent Skills spec's `name` cap, <https://agentskills.io/specification>, enforced by
-  its `skills-ref` validator) and carries neither `anthropic` nor `claude` (WARN; a Skills API
-  upload requirement, <https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill>,
-  not a spec rule). Claude Code enforces neither and ships bundled skills named `claude-api` and
-  `claude-in-chrome`, so both are portability findings (verified 2026-09-10; recheck when the
-  spec's validator, the upload requirements, or a Claude Code release changes either rule).
-- `description` + `when_to_use` within the 1536-char **per-skill** listing-entry cap (overflow
-  truncates that entry). A different, narrower limit from the shared budget below. The cap and the
-  1% budget default are upstream's
-  (<https://code.claude.com/docs/en/skills#frontmatter-reference>,
-  <https://code.claude.com/docs/en/settings>; verified 2026-08-31; recheck trigger: either default
-  moving re-derives this line and the scripts' encoded constants).
-- `description` alone within the Agent Skills spec's 1024-**codepoint** field maximum
-  (<https://agentskills.io>, "Maximum 1024 characters"; verified 2026-08-31). A separate limit at a
-  separate layer from the listing-entry cap above: a description can sit under 1536 combined and
-  still breach 1024 on its own, which the Skills API rejects at upload. Over the maximum FAILs;
+  line FAILs: that is a YAML mapping indicator, and a frontmatter block that does not parse costs
+  the skill its fields. A quoted or block scalar may contain the indicator. `compatibility`, when
+  present, is held to the Agent Skills spec's length range and FAILs outside it. Absence is
+  success. The effective name (the declared field, else the directory leaf) is held to the spec's
+  `name` length cap (FAIL) and WARNs when it carries `anthropic` or `claude`, a Skills API upload
+  rule rather than a spec rule. Claude Code enforces neither name rule, so both are portability
+  findings.
+  - **Record**: the parse-failure behavior is recorded in the unquoted-description comment under
+    the `# --- Check 1` header of `scripts/check-skill.sh`, and the name cap in the comment above
+    `NAME_MAX_LEN=` there (a script, so no section anchor). **As of**: 2026-10-11. **Recheck
+    trigger**: that header, that comment's pointer, or `NAME_MAX_LEN` being renamed or moved.
+  - **Pointer**: when a `compatibility`, `name`, or reserved-word finding is in doubt, fetch
+    <https://agentskills.io/specification#compatibility-field>,
+    <https://agentskills.io/specification#name-field> and
+    <https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill> live.
+    **As of**: 2026-10-11. **Recheck trigger**: the spec's validator, the upload requirements, or
+    a Claude Code release changing either rule.
+- `description` + `when_to_use` within the **per-skill** listing-entry cap. A different, narrower
+  limit from the shared budget below.
+  - **Pointer**: for the cap's default, fetch
+    <https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars> live. **As of**:
+    2026-10-11. **Recheck trigger**: that section moving the default, which re-derives
+    `DESC_CHAR_CAP` in `scripts/check-skill.sh`.
+- `description` alone within the Agent Skills spec's `description` field maximum, counted in
+  **codepoints**. A separate limit at a separate layer from the listing-entry cap above: a
+  description can sit under the combined cap and still breach the field maximum on its own. Over
+  the maximum FAILs;
   within 32 codepoints of it WARNs, naming the skill and how much room is left, so an author sees
   the ceiling before the next added trigger phrase hits it. Counted in codepoints, not bytes, so a
   non-ASCII description is measured the way the spec states the limit.
   `CHECK_SKILL_DESC_FIELD_BASELINE=<file>` records skills whose breach predates the FAIL, one
   repo-relative skill path per line; those downgrade to a WARN, and a row whose skill no longer
   breaches FAILs as stale, so the list can only shrink.
+  - **Pointer**: for the field maximum, fetch
+    <https://agentskills.io/specification#description-field> live. **As of**: 2026-10-11.
+    **Recheck trigger**: the spec moving the field maximum, which re-derives `DESC_FIELD_CAP` in
+    `scripts/check-skill.sh`.
 - Trigger-keyword preservation vs `HEAD` (advisory: a dropped phrase warns naming it and never
   fails the run; a phrase moved to a sibling skill warns naming the host; skipped for a new,
   uncommitted skill).
-- `SKILL.md` under 500 lines, the cap the official skill-authoring guidance sets.
+- `SKILL.md` under 500 lines, counted over the whole file: this check's stricter reading of
+  official guidance that sets the number.
+  - **Record**: the comment under the `# --- Check 4` header of `scripts/check-skill.sh` (a
+    script, so no section anchor). **As of**: 2026-10-11. **Recheck trigger**: that header or
+    `LINE_HARD_CAP` being renamed or moved, or that comment's pointer changing.
+  - **Pointer**: for the number and what it covers, fetch
+    <https://code.claude.com/docs/en/skills#add-supporting-files> live. **As of**: 2026-10-11.
+    **Recheck trigger**: that section moving the number or its scope.
 - Backtick- and link-cited skill-internal supporting files resolve. When a path that misses instead
   resolves under a sibling skill, the finding names that sibling and the
   `${CLAUDE_PLUGIN_ROOT}/skills/<sibling>/...` cross-skill form, while keeping the hand-verify
   caveat (the sibling hit is evidence, not proof: paths can collide). A cited path with a backslash
   separator (`scripts\helper.py`), in SKILL.md or in any markdown spoke under `reference/`,
   `references/`, or `context/`, FAILs outright, naming the citing file and the forward-slash
-  form: Claude Code rejects such a component path at plugin load on macOS and Linux.
+  form, so a path authored on Windows loads on every platform.
+  - **Pointer**: for which component paths Claude Code rejects at load, fetch
+    <https://code.claude.com/docs/en/plugins/loading#paths-that-escape-the-plugin-directory> live.
+    **As of**: 2026-10-11. **Recheck trigger**: that section dropping or widening the backslash
+    rule.
 - `markdownlint-cli2` clean (advisory-skips when `npx` is absent).
 - `scripts/*.test.sh` pass where present.
 - Vendored `vendor/` byte-identical vs `HEAD`; stale-tracking metadata keys preserved; sync age.
@@ -117,17 +137,29 @@ the reviewer to confirm the description still names that intent, or to restore t
   rule.
 
 `listing-budget` runs `check-listing-budget.sh`. An always-advisory report on the **shared** budget
-every loaded skill draws from together (`skillListingBudgetFraction`, default 1% of the model's context
-window). This is the aggregate limit `check`'s per-skill cap above does not cover: nothing else in the
-gate checks it, so a marketplace's skill count can silently overflow the live listing with no local
-signal. It never asserts a live value it cannot observe (the model's context window and a consumer's
-settings are both unknowable statically). It reports against a documented, overridable default and
-always exits 0.
+every loaded skill draws from together (`skillListingBudgetFraction`). This is the aggregate limit
+`check`'s per-skill cap above does not cover: nothing else in the gate checks it, so a
+marketplace's skill count can silently overflow the live listing with no local signal. It never
+asserts a live value it cannot observe (the model's context window and a consumer's settings are
+both unknowable statically). It reports against a documented, overridable default and always
+exits 0.
 
-Only **listing-eligible** skills are counted: `disable-model-invocation: true` keeps a skill's
-description out of the model-visible listing entirely, so it spends none of the shared budget. A
-consumer's `skillOverrides` can free further descriptions with `"name-only"`, which repository
-content cannot reveal, so the reported figure is an upper bound for anyone who sets it.
+- **Pointer**: for the budget's basis, default, and override, fetch
+  <https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction> and
+  <https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short> live. **As of**:
+  2026-10-11. **Recheck trigger**: either section changing the basis, the default, or the
+  override, which re-derives the constants in `scripts/check-listing-budget.sh`.
+
+Only **listing-eligible** skills are counted: the report skips a skill with
+`disable-model-invocation: true`, so a description that never reaches the listing does not inflate
+the aggregate. A consumer's `skillOverrides` can free further description characters, which
+repository content cannot reveal, so the reported figure is an upper bound for anyone who sets it.
+
+- **Pointer**: for which skills' descriptions reach the listing, fetch
+  <https://code.claude.com/docs/en/skills#control-who-invokes-a-skill> and
+  <https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings> live. **As
+  of**: 2026-10-11. **Recheck trigger**: either section changing which frontmatter or setting
+  keeps a description out of the listing.
 
 `check` also takes one or more skills roots as positionals, so several trees are gated in one run.
 Each root is walked on its own under its own header and the run ends with a single

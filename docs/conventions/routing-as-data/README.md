@@ -95,8 +95,9 @@ optional, so they are not declared as dependencies. The `installPath` key is a p
 record carried it on Claude Code 2.1.295.
 
 - **Pointer**: when deciding what a bare plugin name resolves to, fetch
-  <https://code.claude.com/docs/en/plugins/dependencies> live.
-- **As of**: 2026-10-08
+  [plugin dependencies § Declare a dependency with a version constraint](https://code.claude.com/docs/en/plugins/dependencies#declare-a-dependency-with-a-version-constraint)
+  live.
+- **As of**: 2026-10-11
 - **Recheck trigger**: that page moves or its bare-name resolution text changes, or a Claude Code
   release note changes the `claude plugin list --json` record keys.
 

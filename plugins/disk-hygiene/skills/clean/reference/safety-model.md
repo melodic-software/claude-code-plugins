@@ -461,7 +461,7 @@ the user can write it.
 **A settings-declared marketplace reaching `known_marketplaces.json` is accepted.** We assume a
 trusted repository's `.claude/settings.json` can put an entry in the file the directory channel
 reads (pointer:
-[Plugins and marketplaces that aren't on disk at session start](https://code.claude.com/docs/en/plugins/loading#plugins-and-marketplaces-that-arent-on-disk-at-session-start)).
+[Plugins and marketplaces that aren't on disk at session start](https://code.claude.com/docs/en/plugins/loading#plugins-and-marketplaces-that-aren%E2%80%99t-on-disk-at-session-start)).
 That gains a repository nothing: the proof also needs the entry's
 `installLocation` to contain the running plugin root and that location's own `marketplace.json`
 to list that root as `disk-hygiene`. A repository entry can satisfy both only for a plugin root
@@ -469,7 +469,7 @@ inside a tree it supplies, so the guard proven is code the repository already co
 stays inside `<config>/plugins/data/`, built from the config dir and the id, and the kill-switch
 read can only add a deny. An entry that overlaps a real directory install makes two candidates,
 which fails closed. No guard change follows. **Basis:** the loading section above and
-`_directory_marketplace_install` in `scripts/destructive_guard.py`. **As of:** 2026-10-07.
+`_directory_marketplace_install` in `scripts/destructive_guard.py`. **As of:** 2026-10-11.
 **Recheck:** when that section stops requiring settings to declare a marketplace before it is
 cloned, or when the derivation stops requiring the marketplace's own manifest or exactly one
 candidate.

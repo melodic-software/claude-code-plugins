@@ -8,7 +8,8 @@
 # for a safety-critical toggle: for an unconfigured key, a watched repository's
 # own `.claude/settings.json` `env` block populates `CLAUDE_PLUGIN_OPTION_*`
 # freely, and env carries no provenance a hook could check. The trusted sources
-# are, in precedence order (mirroring Claude Code's own pluginConfigs merge):
+# are, in precedence order (the README's lane-stop-gate section holds the
+# pointer record for the Claude Code precedence this order follows):
 #
 #   1. managed settings — fixed root-owned system paths plus the
 #      `managed-settings.d/` drop-in directory; a repo cannot forge them. The
@@ -48,11 +49,13 @@ readonly GATE_ARM_ID_RE='^[A-Za-z0-9_-]{8,64}$'
 
 # --- Install anchor -----------------------------------------------------------
 # Parse this plugin's install layout from the CALLER-SUPPLIED plugin root
-# (each entry script passes its own `dirname BASH_SOURCE/..`). Claude Code lays
-# a marketplace plugin out at <config>/plugins/cache/<marketplace>/<name>/<ver>
-# and persists its data at <config>/plugins/data/<id>, where <id> is
-# "<name>@<marketplace>" with every character outside [A-Za-z0-9_-] replaced by
-# "-" (plugins reference, "Persistent data directory").
+# (each entry script passes its own `dirname BASH_SOURCE/..`). The parse expects
+# <config>/plugins/cache/<marketplace>/<name>/<ver> and derives the data
+# directory <config>/plugins/data/<id> with <id> sanitized as Claude Code does.
+# Pointer: when checking the layout or the sanitization rule, fetch
+# https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables
+# live. As of 2026-10-11. Recheck trigger: a Claude Code changelog entry changes
+# the plugin cache or data directory layout.
 GATE_CONFIG_ROOT=""
 GATE_PLUGIN_ID=""
 GATE_PLUGIN_ID_SAFE=""
@@ -192,15 +195,15 @@ gate_user_settings_file_to() {
 # --- Managed settings ---------------------------------------------------------
 # Fixed per-platform paths (settings docs), primary file first, then the
 # `managed-settings.d/` drop-ins in glob (sorted) order — later files override
-# earlier ones in gate_managed_options_to, mirroring Claude Code's merge. Yields
+# earlier ones in gate_managed_options_to, in the order the README's
+# lane-stop-gate pointer record names. Yields
 # nothing on an unrecognized platform. Platform comes from `uname -s`, never
 # `$OSTYPE` (see the header): the exemplar killswitch_config.py keys on
 # sys.platform, and this is the bash equivalent.
-# Server-managed settings (code.claude.com/docs/en/server-managed-settings) are
-# deliberately excluded: their only on-disk artifact is the user-writable cache
-# `~/.claude/remote-settings.json`, which fails this list's trust test —
-# root-owned paths a repo cannot forge — and the page itself calls the channel
-# "a client-side control, not a security boundary".
+# Server-managed settings are deliberately excluded: their only on-disk
+# artifact is the user-writable cache `~/.claude/remote-settings.json`, which
+# fails this list's trust test (root-owned paths a repo cannot forge). The
+# README's lane-stop-gate section owns this rationale and its pointer record.
 #
 # gate_managed_settings_files_load fills the GATE_MANAGED_FILES array in THIS
 # shell and marks it loaded; the print form below re-derives the list on every

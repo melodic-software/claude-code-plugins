@@ -9,7 +9,7 @@ and a mechanical per-repo migration prompt. Mechanics and evidence live in
 fleet inventory and the canonical stub's home live in
 [docs/cloud-fleet-setup.md](../docs/cloud-fleet-setup.md).
 
-## Why this layout (verified 2026-08-15)
+## Why this layout
 
 - Claude Code builds its plugin/command/skill registry at **process start** and never re-reads
   it. A SessionStart hook's `claude plugin install` calls land on disk but are invisible to the
@@ -21,14 +21,15 @@ fleet inventory and the canonical stub's home live in
   bootstrap there; the repo's SessionStart hook runs the *same* script per session as drift
   repair. A file named and homed as "a SessionStart hook" is the wrong semantics for that shared
   role, hence the rename to `.claude/cloud-bootstrap.sh` with two thin callers.
-- Environments are account-scoped with **no API**, so every setup-script edit is manual clicking
-  multiplied by every account. The pasted stub therefore stays minimal and stable; everything
+- Environments are account-scoped and edited only by hand in the environment selector
+  ([Configure your environment](https://code.claude.com/docs/en/cloud-environments#configure-your-environment)), so every setup-script edit is
+  manual clicking multiplied by every account. The pasted stub therefore stays minimal and stable; everything
   that evolves lands in standards or in each repo by reviewed PR.
 
 Ordering: do Part 1 (standards) before Part 2 (accounts). An account cache built before the
 component change lands simply misses it until its next rebuild, because publishing a component
-change does **not** invalidate already-built caches; only a script/network edit in the account
-UI or ~7-day expiry does.
+change does **not** invalidate already-built caches; only the rebuild events in
+[Environment caching](https://code.claude.com/docs/en/cloud-environments#environment-caching) do.
 
 **Recheck trigger:** re-verify the "Why this layout" claims above, and the identical claims
 restated in the Part 1 and Part 3 paste blocks below, if any of these happen: Claude Code starts
@@ -36,7 +37,7 @@ re-reading the plugin/command/skill registry after a SessionStart hook runs (clo
 same-session gap this rollout exists to route around, tracked as #2733); the `cloud-environments`
 docs' Setup scripts vs SessionStart hooks or Environment caching sections change; or
 `docs/cloud-sessions.md`'s "Plugins in sessions on this repo" section, which this file cites as
-ground truth, changes its verified date or verdict.
+ground truth, changes its verdict.
 
 ## Part 1: standards repo, once (paste into a session on `melodic-software/standards`)
 
@@ -68,7 +69,8 @@ Do this:
    component change reaches an environment only on its next cache rebuild,
    and a trivial edit to the account's script field forces one.
 3. shellcheck the script, keep every step best-effort and exit-0 within the
-   ~5-minute cache-build budget, then commit (Conventional Commits) and
+   cache-build limit in the cloud-environments docs' Script requirements
+   section, then commit (Conventional Commits) and
    push / open a PR per this repo's conventions.
 
 Report the diff summary and anything you could not verify from this session.
@@ -79,20 +81,18 @@ Report the diff summary and anything you could not verify from this session.
 For each claude.ai account, at [claude.ai/code](https://claude.ai/code) → environment selector →
 edit **Default** (one environment per account; see the rationale at the end):
 
-1. **Network access**: **All** (operator decision 2026-08-22, superseding the Custom +
-   four-.NET-host recipe). The access level is an exfiltration control whose Custom default
-   already opens publish-capable package registries; the GitHub proxy, MCP connector traffic and
-   the Anthropic API bypass the level at every setting; and a blocked host mid-session kills that
-   session until an environment edit plus a cache rebuild. **All** removes that failure class,
-   including the `dot.net` special case, so
+1. **Network access**: **Full** (operator decision 2026-08-22, superseding the Custom +
+   four-.NET-host recipe; rationale in
+   [cloud-fleet-setup.md](../docs/cloud-fleet-setup.md#step-1-the-shared-environment-claudeai-ui-one-time)).
+   **Full** removes the blocked-host failure class, including the `dot.net` special case, so
    [#2654](https://github.com/melodic-software/claude-code-plugins/issues/2654) Blocker 1 is moot
-   under All. The one exception is an account that handles sensitive material: drop that account
+   under Full. The one exception is an account that handles sensitive material: drop that account
    back to **Custom**, and configure it in full, or the .NET SDK install is back in the failure
    mode Blocker 1 found. In full means **Also include default list of common package managers**
    checked, plus `dot.net`, `aka.ms`, `builds.dotnet.microsoft.com`,
    `download.visualstudio.microsoft.com`.
-2. **Environment variables**: none (values are readable by every session; there is no secrets
-   store).
+2. **Environment variables**: none (who can read them is in
+   [Set environment variables](https://code.claude.com/docs/en/cloud-environments#set-environment-variables)).
 3. **Setup script**: paste the canonical stub below (same as
    [cloud-fleet-setup.md](../docs/cloud-fleet-setup.md) step 1), save. Saving rebuilds the
    environment cache, which is also how a later standards component change is picked up early:
@@ -178,7 +178,7 @@ delegated to the standards component and the checked-out repo's own script), and
 accounts every extra environment multiplies manual UI work. Edit **Default** in place, with the
 network access from Part 2, which every account needs anyway, rather than adding a named
 environment; add a second environment later only when a class of work needs isolation (an account
-handling sensitive material that has to run narrower than All, or an SDK heavy enough that its
+handling sensitive material that has to run narrower than Full, or an SDK heavy enough that its
 cache churn should be contained).
 This supersedes the "add a *Melodic* environment so Default stays pristine" option in
 [docs/cloud-fleet-setup.md](../docs/cloud-fleet-setup.md) for the paste-once fleet play.
