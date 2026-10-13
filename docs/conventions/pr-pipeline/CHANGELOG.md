@@ -1,5 +1,175 @@
 # Changelog for the PR pipeline convention
 
+## 1.10.5 - 2026-10-12
+
+README: `ci-status` on a draft passes its skipped lanes; the `ready_for_review` run tests the head
+and the merge queue re-runs every lane before a merge. `version` stays 1.
+
+## 1.10.4 - 2026-10-12
+
+README gains "Planning lane work": a one-page plan per sub-topic, design and stress tests only for
+trust-boundary changes, ADRs only for trust-boundary or irreversible choices, and stops limited to
+owner-reserved items when the owner pre-approved the recommendations. `version` stays 1.
+
+## 1.10.3 - 2026-10-12
+
+`pr-run-activity.md` run job step 14: the lane-token revoke step never fails the job. A DELETE
+other than 204 is a `::warning::`, and a 204 whose `GET /installation/repositories` is not yet
+refused with 401 is a `::notice::`. A confirmed revoke is recorded in the step log.
+`scripts/write-runner-revoke-step.test.sh` runs the step's script against each case. `version`
+stays 1.
+
+## 1.10.2 - 2026-10-12
+
+`pr-run-activity.md` "The lane token broker": the broker now also requires the dispatcher run's `pr-unblock-dispatched-<ids>` record to list the requesting run, read once with no wait. `version` stays 1.
+
+## 1.10.1 - 2026-10-12
+
+`check-trusted-trigger` refuses a `pr-unblock.yml` run sent by `github-actions[bot]` with `untrusted-actor` unless the dispatcher run it names uploaded an unexpired `pr-unblock-dispatched-<id>[-<id>...]` artifact listing this run's id, waiting up to 2 minutes for it. `version` stays 1.
+
+## 1.10.0 - 2026-10-12
+
+The config names its merge authority and the identity the local babysit lane acts as. Additive:
+`version` stays 1, and the live config gains no `merge:` block, so its rung stays `off`.
+
+- `merge.authority` (`local-babysit` or `pr-merge`) names the repository's one merge authority.
+  Absent means `pr-merge`, the meaning a rung had before this key existed, so an existing
+  `rung: C2` config still validates; the babysit wrapper merges only when it reads `local-babysit`.
+- `merge.agent-identity` (the `[bot]` login of a dedicated GitHub App; any other login, and the
+  shared `github-actions[bot]` and `dependabot[bot]` in any letter case, fail the schema) names the
+  login the local babysit lane acts as. The schema requires it when `merge.authority` is `local-babysit`.
+- `resolve-config` ignores both keys, so its resolved output is unchanged.
+- README "Merge authority" gains "The local babysit lane": the effective rung, same-repository
+  heads only, LOW risk only, review evidence bound to the pinned head SHA, the human-only cap
+  variable `CLAUDE_LANES_MERGE_RUNG_CAP` and its 404 rule, the kill-switch reads, the demotion
+  issue and how a human clears it, the opt-in label `merge: agent-allowed`, the HIGH path floor,
+  the merge queue with `--match-head-commit`, one merge in flight, and
+  `pr-automerge-dependabot.yml` as the one exception to a single merge authority. A verdict
+  carried over by content fingerprint now applies to `pr-merge` only. "Outside this repository"
+  gains the agent identity row.
+- The example config shows both keys, commented out.
+
+## 1.9.1 - 2026-10-12
+
+The lanes token broker denies a repository whose `CLAUDE_LANES_REPO_DISABLED` variable is absent,
+on both its token and check endpoints, with reason `kill-switch` (the detail reads
+`not-false: the repository switch CLAUDE_LANES_REPO_DISABLED is not set`; azure-iac#24). `version` stays 1. Every repository on the
+broker's allowlist must declare the variable as `false`.
+
+## 1.9.0 - 2026-10-11
+
+The read runner asks the lanes token broker before its model step. `version` stays 1; callers of
+the read file must grant `id-token: write`.
+
+- `pr-run-activity-read.yml` gains a `broker-check` job that the run job `needs`. It holds
+  `contents: read` and `id-token: write`, runs only default-branch-tip actions, and never checks
+  out the PR head. After a local kill-switch stop it ends green without a broker call, so the run
+  job stops the lane neutral as before. Otherwise it posts once to the broker's check endpoint
+  (`LANES_BROKER_URL` with `/token` replaced by `/check`), which mints nothing, and fails on any
+  answer but an allow (`lane-check-denied`) or on none (`broker-unreachable`). The report job
+  reads that failure as the run result, so the check is a failure, not neutral. The run job still
+  holds no OIDC token, and fails red with `kill-switch` unless the broker-check job allowed its own
+  run attempt, so "Re-run failed jobs" cannot reuse an earlier allow.
+- `request-lane-token` gains `mode: check`, which takes only the broker variables, lane and
+  activity and fails red on any write-path input.
+- `scripts/check-read-caller-keys.sh` allows `id-token` in the read file only inside its
+  `broker-check` job, and fails when that job is a reusable call or checks out anything but this
+  repository's default branch tip, when the read file's top level is not `permissions: {}` or a
+  job has no permissions map, and on `permissions: write-all` in any file of a read run.
+- Callers of either file grant `id-token: write` on the calling job.
+- The broker's check endpoint sees a repository variable named `CLAUDE_LANES_DISABLED` that
+  shadows the org value, so a shadow no longer lets a read lane run.
+
+## 1.8.0 - 2026-10-11
+
+The `pr-unblock` dispatcher lands, and the write runner trusts its dispatches. `version` stays 1.
+
+- New workflow `.github/workflows/pr-unblock-dispatch.yml` (script
+  `.github/scripts/pr-unblock/dispatch.mjs`) runs on each push to `main` and dispatches
+  `pr-unblock.yml` for the open, non-draft, same-repository PRs GitHub reports as conflicting, at
+  most 3 per run, skipping a head that already carries a `pr-unblock` check run.
+- `pr-run-activity-write.yml` passes `check-trusted-trigger` its `dispatcher-run-id` with the
+  `pr-unblock-dispatch.yml` and `pr-unblock.yml` paths, so a `github-actions[bot]` dispatch runs
+  only through a checked dispatcher run instead of always stopping `untrusted-actor`.
+
+## 1.7.0 - 2026-10-11
+
+The `pr-unblock` lane gets its caller and live config. `version` stays 1.
+
+- New caller `.github/workflows/pr-unblock.yml`, `workflow_dispatch` only (inputs `pr-number`,
+  `dispatcher-run-id`): job `resolve-conflicts`, then job `report-escalation` only when the first
+  job's `escalation-reason` output is set, which it passes on as that job's `escalation-reason`.
+  Both jobs pass `dispatcher-run-id` and `trusted-base: default-tip`.
+- Every write caller job, `pr-refine`'s included, queues in one per-PR job group
+  `pr-pipeline-write-<n>` (`queue: max`); `pr-unblock` also has the workflow group
+  `pr-unblock-<n>`. `pr-refine`'s caller job now also skips the lanes App's own `pull_request`
+  events, so a lane push never waits in that group. README: new [Concurrency](README.md#concurrency)
+  section.
+- The live config adds the leaves `resolve-conflicts` (applies only to a conflicting, non-draft
+  PR without `do-not-merge` or `needs-human`) and `report-escalation`, and the lane `pr-unblock`;
+  `pr-refine / fix-docs` also skips while `do-not-merge` or `needs-human` is on the PR.
+- README: a base merge escalates only on a conflicted `.github/workflows/` path or a model-staged
+  change under it; a workflow change that merges cleanly from the base is pushed.
+
+## 1.6.0 - 2026-10-11
+
+The write runner performs `prepare: merge-base` and takes the pr-unblock lane's inputs. `version`
+stays 1.
+
+- `pr-run-activity-write.yml` passes `prepare-supported: true` to resolve-config and runs a
+  `prepare: merge-base` leaf around a merge of the trusted base: the base's `prepare.sh` before
+  any model turn (a clean merge skips the skill), the skill without the commit tool, `post.sh`,
+  then a two-parent merge commit through the Git Data API, promoted onto the PR branch.
+  `collect-base-activity` takes a `prepare` input that leaves out the commit tool and the
+  instruction to commit. Paths and checks: `pr-run-activity.md`, "prepare: merge-base".
+- New inputs `dispatcher-run-id` (passed to `check-trusted-trigger` with no dispatcher or
+  dispatched workflow named, so every `github-actions[bot]` dispatch stops `untrusted-actor` until
+  the dispatcher change names both), `trusted-base` (`pr-base` or `default-tip`, passed to
+  `check-trusted-base` as `mode`; `default-tip` trusts the default branch tip for config, actions
+  and the merge's second parent) and `escalation-reason` (enum-checked, exported to a script as
+  `ESCALATION_REASON`). New `workflow_call` output `escalation-reason`.
+- The write runner sends `dispatcher-run-id` to the lanes token broker as `dispatcher_run_id`, a
+  positive JSON integer that the broker reads only for a run sent by `github-actions[bot]`
+  (broker side: azure-iac#20).
+- Every `mutate-branch` activity re-reads its PR branch from `git/ref` before the mint; a moved
+  branch skips neutral `superseded-sha` with no token and no model turn. This changes pr-refine:
+  such a run used to run the skill and then fail at promote.
+- The promote step confirms the PR branch through `git/ref` after moving it, and the report job
+  re-reads `GET /pulls/{n}` until its head matches that ref, at most 5 reads 2 s apart.
+- New scripted leaf `.github/scripts/pr-unblock/report-escalation.sh` (effect
+  `publish-artifact`): labels the PR with the human-gated role label and posts one comment with
+  the reason and a resume key. The write runner hands a script the base's
+  `.work-item-tracker.json` as `TRACKER_CONFIG`, copied before the head checkout and hash-checked.
+- Hardening of the merge-base steps: workflow commands stop while the merge scripts and git run,
+  `GIT_NO_REPLACE_OBJECTS=1`, an allowlisted environment and absolute binaries in the commit
+  step, a fresh label read that stops the commit on `do-not-merge` or the human-gated label, and
+  a promote that moves the PR branch only to the commit step's own commit.
+- `scripts/write-runner-never-rules.test.sh` asserts the write runner's structure against the
+  resolve-conflicts `never` row: no forced ref update, no commit unless `post.sh` cleared the
+  merge, the mint before the head checkout, and base scripts run only after their hash check.
+
+## 1.5.0 - 2026-10-11
+
+Composite activities, three new predicates and the `unblock` stage. `version` stays 1: no config
+in this repository or the sandbox used the removed `respond` stage or the retired lanes.
+
+- The `respond` stage is now `unblock`. `lane-rules.json` gains `pr-unblock` (stage `unblock`,
+  forbidden effect `merge`) and drops `pr-address-feedback`, `pr-fix-ci` and `pr-update`, so a
+  config that still names one of those lanes fails `lane-stage`.
+- An activity is a leaf or a composite. A composite lists `children:` slots and may set
+  `applies-when`; it declares no effect. The reader expands it into its leaves, applies lane rules
+  to each, ANDs `enabled` down the path, requires every predicate on the path to match, and
+  rejects an undefined child, a non-sibling `needs:`, a cycle, a composite inside a composite, and
+  a leaf that appears twice in a lane. `resolveGrant` grants a leaf only.
+- A leaf may set `prepare: merge-base` (a writing skill only); resolve-config outputs it.
+- New predicates: `mergeable` (`conflicting`, `clean`; read only from `GET /pulls/{n}` at the new
+  `head-sha` input, re-read while unknown, then `prerequisite-missing`), `labels-absent` (a listed
+  label on the PR skips with `awaiting-human`) and `draft`.
+- New trust-root `resolve-config/activity-rules.json`: per-leaf `never` text and optional
+  `forbidden-effects`. A leaf with no row is valid.
+- The example config replaces the three `respond` lanes with `pr-unblock` and its
+  `resolve-conflicts` and `report-escalation` leaves.
+
 ## 1.4.2 - 2026-10-10
 
 Docs only. `version` stays 1.

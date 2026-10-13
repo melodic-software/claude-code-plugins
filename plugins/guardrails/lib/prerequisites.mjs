@@ -11,12 +11,12 @@
 // report  One TSV table across plugins, then a missing/present summary line.
 // check   One line per entry with the remediation, for setup and check skills.
 //         --for keeps the entries scoped to that skill, hook or MCP server, plus
-//         the plugin-wide ones. --data-dir is the plugin data directory, which a
-//         command run through the Bash tool does not get in its environment.
+//         the plugin-wide ones. --data-dir is the plugin data directory, for a
+//         caller whose environment lacks it (see expandPluginPath).
 // probe   A SessionStart hook. Notifies the user (systemMessage) once per session
 //         for each missing entry a hook needs; the model hears of it when the hook
-//         first skips. Always exits 0 on a valid manifest,
-//         because Claude Code reads hook JSON only from a zero exit.
+//         first skips. Always exits 0 on a valid manifest, for the reason the
+//         node-notice header in prerequisites.sh records.
 //         --run-if-unset-or-true is the plugin option gate exec-bash.mjs offers: the
 //         probe stays silent when CLAUDE_PLUGIN_OPTION_<OPTION> is set to anything
 //         but true, so a plugin's kill switch silences its probe.
@@ -64,7 +64,7 @@ const ENV_RE = /^[A-Za-z_]\w*$/;
 const OPTION_RE = /^[A-Z0-9_]+$/;
 const SERVER_RE = /^[A-Za-z0-9._-]+$/;
 const MANAGER_RE = /^[a-z][a-z0-9-]*$/;
-const PROBE_TIMEOUT_MS = 5000;
+const PROBE_TIMEOUT_MS = 20000;
 const LOCAL_BIN_DEPTH = 8;
 
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -336,9 +336,12 @@ function firstOnPath(names, ctx, rejectStoreAlias = false) {
   return null;
 }
 
-// The data directory comes from --data-dir, else the environment. Hooks get
-// CLAUDE_PLUGIN_DATA in their environment; a command run through the Bash tool
-// does not, so a skill passes --data-dir "${CLAUDE_PLUGIN_DATA}" instead.
+// The data directory comes from --data-dir, else the environment. A hook reads
+// CLAUDE_PLUGIN_DATA from its environment and a skill passes
+// --data-dir "${CLAUDE_PLUGIN_DATA}", per which processes receive the variable:
+// https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves
+// (as of 2026-10-11; recheck when that section changes which processes get
+// CLAUDE_PLUGIN_DATA in their environment).
 function expandPluginPath(p, ctx) {
   if (p.startsWith("${CLAUDE_PLUGIN_DATA}")) {
     const data = ctx.dataDir ?? ctx.env.CLAUDE_PLUGIN_DATA;

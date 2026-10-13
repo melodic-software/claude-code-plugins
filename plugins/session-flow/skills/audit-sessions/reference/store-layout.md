@@ -27,7 +27,8 @@ D/audit-sessions/
 - **Transcript text kept.** A record stores these strings from the transcript, each redacted before
   it is written:
   - excerpts of your own short typed turns, cut to `audit_sessions_excerpt_chars` characters, and
-    the session's custom title and agent name; 0 stores none of the three;
+    the session's custom title, generated title (`link_keys.ai_title`) and agent name; 0 stores
+    none of them;
   - the working directory, edited file paths (relative to it when inside it), branch names, PR
     repositories, and the names of slash commands, model-invoked skills and assistant errors;
   - in the `friction` block, per event: the command shape and, for a denial, the classifier's
@@ -83,3 +84,15 @@ D/audit-sessions/
 - New fields are added within v1, and readers treat a missing field as null.
 - A breaking change moves the store to `store/v2/` and ships a v1-to-v2 migrator in `collect.py`.
   The store cannot be rebuilt from transcripts after Claude Code has swept them.
+
+## Sweep report
+
+- `sweep.py --format json` prints one envelope: `schema` (`audit-sessions.sweep/v1`, the `SCHEMA`
+  constant in `scripts/sweep.py`), `status` (`pass`, `warning` or `error`), `summary`, and `data`,
+  which `build_data` in `scripts/sweep.py` builds. Every session over a threshold stays in `data`;
+  the markdown report is a rendering of it and is not a contract.
+- New fields are added within v1, and a consumer treats a missing field as null and ignores one it
+  does not know. Removing or renaming a field, or changing what one means, moves the schema to
+  `audit-sessions.sweep/v2`.
+- Exit codes: 0 pass, 1 warning (a metric degraded by drift), 2 error, 3 no store under the data
+  directory. Exit 3 writes nothing; any other exit writes only what `--write-report` asks for.

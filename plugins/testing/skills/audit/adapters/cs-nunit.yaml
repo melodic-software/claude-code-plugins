@@ -7,8 +7,10 @@ detect:
   any_regex:
     - 'NUnit\.Framework'
     - '\[[[:space:]]*(Test|TestCase|TestCaseSource|TestFixture)([^A-Za-z0-9_]|$)'
+# This list replaces cs-xunit's, so it repeats the Reqnroll [Then] step.
 test_start:
   - '^[[:space:]]*\[[[:space:]]*(Test|TestCase|TestCaseSource|Theory)([^A-Za-z0-9_]|$)'
+  - '^[[:space:]]*\[[[:space:]]*(global::)?(Reqnroll\.)?Then(Attribute)?([^A-Za-z0-9_]|$)'
 # ExpectedResult makes the return value the assertion, which no body token shows.
 test_skip:
   - 'Ignore'

@@ -244,6 +244,30 @@ export function validateTriageAgentic(manifest) {
 }
 
 /**
+ * Why a promotion `sourceFile` is not a bare file name in the frames directory, or null when it is.
+ * The decisions file is agent-written after reading untrusted video content, so a value that could
+ * name a path outside the frames directory is refused here, before any copy.
+ *
+ * @param {string} sourceFile
+ * @returns {string|null}
+ */
+export function promotionSourceFileReason(sourceFile) {
+  if (sourceFile === "." || sourceFile === "..") {
+    return "must be a file name, not . or ..";
+  }
+  if (/[/\\]/.test(sourceFile)) {
+    return "must be a bare file name with no path separators";
+  }
+  if (sourceFile.includes("\0")) {
+    return "must not contain a NUL character";
+  }
+  if (/^[A-Za-z]:/.test(sourceFile)) {
+    return "must not carry a drive prefix";
+  }
+  return null;
+}
+
+/**
  * @param {unknown} row
  * @param {number} index
  * @returns {string[]}
@@ -257,6 +281,9 @@ function validatePromotionDecisionRow(row, index) {
   }
   if (typeof r.sourceFile !== "string" || r.sourceFile.length === 0) {
     errors.push(`decisions[${index}].sourceFile required`);
+  } else {
+    const reason = promotionSourceFileReason(r.sourceFile);
+    if (reason) errors.push(`decisions[${index}].sourceFile ${reason}`);
   }
   if (r.verdict !== "promote" && r.verdict !== "reject") {
     errors.push(`decisions[${index}].verdict must be promote or reject`);

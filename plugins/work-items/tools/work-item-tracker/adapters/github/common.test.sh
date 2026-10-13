@@ -82,7 +82,7 @@ repo)
 api)
   case "$*" in
   *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
-  *) printf '{"number":1,"title":"t","state":"open","assignees":[{"login":"u"}],"labels":[{"name":"a"}],"type":null,"html_url":"https://github.com/o/r/issues/1"}\n' ;;
+  *) printf '{"number":1,"title":"t","state":"open","assignees":[{"login":"u"}],"labels":[{"name":"a"}],"type":null,"html_url":"https://github.com/o/r/issues/1","created_at":"2026-03-01T10:00:00Z"}\n' ;;
   esac
   exit 0
   ;;
@@ -104,6 +104,8 @@ EOF
     "$(jq -r '.url' <<<"$OUT")"
   assert_eq "wit_emit_item on gh 2.45 → parent_id null" "null" "$(jq -r '.parent_id' <<<"$OUT")"
   assert_eq "wit_emit_item on gh 2.45 → blocked_by_count 0" "0" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+  assert_eq "wit_emit_item on gh 2.45 → created_at from created_at" "2026-03-01T10:00:00Z" \
+    "$(jq -r '.created_at' <<<"$OUT")"
   assert_contains "wit_emit_item on gh 2.45 reads over REST" "$(<"$EMIT_STUB/calls.log")" \
     "api repos/o/r/issues/1"
   assert_not_contains "wit_emit_item on gh 2.45 skips issue view" "$(<"$EMIT_STUB/calls.log")" "issue view"
@@ -125,6 +127,7 @@ EOF
   assert_contains "wit_emit_item on gh 2.94 requests blockedBy" "$CALLS" "blockedBy"
   assert_contains "wit_emit_item on gh 2.94 requests parent" "$CALLS" "parent"
   assert_contains "wit_emit_item on gh 2.94 requests issueType" "$CALLS" "issueType"
+  assert_contains "wit_emit_item on gh 2.94 requests createdAt" "$CALLS" "createdAt"
 
   : >"$EMIT_STUB/calls.log"
   REPO="$(GH_STUB_DIR="$EMIT_STUB" PATH="$EMIT_STUB:$PATH" wit_resolve_repo "")"

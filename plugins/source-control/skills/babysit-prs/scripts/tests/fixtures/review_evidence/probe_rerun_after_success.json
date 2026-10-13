@@ -1,0 +1,261 @@
+{
+  "_source": "Recorded from a lane-completion probe pull request; repository, logins, ids, SHAs and times changed.",
+  "head_sha": "5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f",
+  "runs": [
+    {
+      "id": 9100000001,
+      "name": "pr-review-hosted",
+      "path": ".github/workflows/pr-review-hosted.yml",
+      "head_sha": "5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "run_attempt": 2,
+      "created_at": "2026-09-02T13:04:14Z",
+      "run_started_at": "2026-09-02T13:06:47Z",
+      "triggering_actor": {
+        "login": "octo-maintainer",
+        "type": "User"
+      },
+      "attempts": [
+        {
+          "id": 9100000001,
+          "name": "pr-review-hosted",
+          "path": ".github/workflows/pr-review-hosted.yml",
+          "head_sha": "5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "run_attempt": 1,
+          "created_at": "2026-09-02T13:04:14Z",
+          "run_started_at": "2026-09-02T13:04:14Z",
+          "triggering_actor": {
+            "login": "octo-maintainer",
+            "type": "User"
+          },
+          "jobs": [
+            {
+              "id": 7200000011,
+              "run_id": 9100000001,
+              "run_attempt": 1,
+              "name": "pr-review / claude-review-status",
+              "status": "completed",
+              "conclusion": "success",
+              "head_sha": "5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f",
+              "check_run_url": "https://api.github.com/repos/example-org/review-sandbox/check-runs/7200000011",
+              "annotations": [
+                {
+                  "path": ".github",
+                  "annotation_level": "notice",
+                  "title": "claude-lane-review-complete",
+                  "message": "claude-lane-review-complete lane=claude-review sha=5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f findings=0 inline=0 scope=whole"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 9100000001,
+          "name": "pr-review-hosted",
+          "path": ".github/workflows/pr-review-hosted.yml",
+          "head_sha": "5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "run_attempt": 2,
+          "created_at": "2026-09-02T13:06:48Z",
+          "run_started_at": "2026-09-02T13:06:47Z",
+          "triggering_actor": {
+            "login": "octo-maintainer",
+            "type": "User"
+          },
+          "jobs": [
+            {
+              "id": 7200000012,
+              "run_id": 9100000001,
+              "run_attempt": 2,
+              "name": "pr-review / claude-review-status",
+              "status": "completed",
+              "conclusion": "success",
+              "head_sha": "5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f",
+              "check_run_url": "https://api.github.com/repos/example-org/review-sandbox/check-runs/7200000012",
+              "annotations": [
+                {
+                  "path": ".github",
+                  "annotation_level": "notice",
+                  "title": "claude-lane-review-complete",
+                  "message": "claude-lane-review-complete lane=claude-review sha=5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f findings=0 inline=0 scope=whole"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 9100000002,
+      "name": "pr-review-security-hosted",
+      "path": ".github/workflows/pr-review-security-hosted.yml",
+      "head_sha": "5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f",
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "run_attempt": 2,
+      "created_at": "2026-09-02T13:04:14Z",
+      "run_started_at": "2026-09-02T13:06:46Z",
+      "triggering_actor": {
+        "login": "octo-maintainer",
+        "type": "User"
+      },
+      "attempts": [
+        {
+          "id": 9100000002,
+          "name": "pr-review-security-hosted",
+          "path": ".github/workflows/pr-review-security-hosted.yml",
+          "head_sha": "5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "run_attempt": 1,
+          "created_at": "2026-09-02T13:04:14Z",
+          "run_started_at": "2026-09-02T13:04:14Z",
+          "triggering_actor": {
+            "login": "octo-maintainer",
+            "type": "User"
+          },
+          "jobs": [
+            {
+              "id": 7200000021,
+              "run_id": 9100000002,
+              "run_attempt": 1,
+              "name": "pr-review-security / security-review",
+              "status": "completed",
+              "conclusion": "success",
+              "head_sha": "5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f",
+              "check_run_url": "https://api.github.com/repos/example-org/review-sandbox/check-runs/7200000021",
+              "annotations": [
+                {
+                  "path": ".github",
+                  "annotation_level": "notice",
+                  "title": "claude-lane-review-complete",
+                  "message": "claude-lane-review-complete lane=claude-security-review sha=5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f findings=0 inline=0 scope=whole"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 9100000002,
+          "name": "pr-review-security-hosted",
+          "path": ".github/workflows/pr-review-security-hosted.yml",
+          "head_sha": "5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f",
+          "event": "pull_request",
+          "status": "completed",
+          "conclusion": "success",
+          "run_attempt": 2,
+          "created_at": "2026-09-02T13:06:47Z",
+          "run_started_at": "2026-09-02T13:06:46Z",
+          "triggering_actor": {
+            "login": "octo-maintainer",
+            "type": "User"
+          },
+          "jobs": [
+            {
+              "id": 7200000022,
+              "run_id": 9100000002,
+              "run_attempt": 2,
+              "name": "pr-review-security / security-review",
+              "status": "completed",
+              "conclusion": "success",
+              "head_sha": "5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f",
+              "check_run_url": "https://api.github.com/repos/example-org/review-sandbox/check-runs/7200000022",
+              "annotations": [
+                {
+                  "path": ".github",
+                  "annotation_level": "notice",
+                  "title": "claude-lane-review-complete",
+                  "message": "claude-lane-review-complete lane=claude-security-review sha=5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f findings=0 inline=0 scope=whole"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "comments": [
+    {
+      "id": 8800000001,
+      "user": {
+        "login": "claude[bot]",
+        "type": "Bot"
+      },
+      "created_at": "2026-09-02T13:04:26Z",
+      "body": "(Claude App summary comment; body trimmed)"
+    },
+    {
+      "id": 8800000002,
+      "user": {
+        "login": "claude[bot]",
+        "type": "Bot"
+      },
+      "created_at": "2026-09-02T13:04:27Z",
+      "body": "(Claude App summary comment; body trimmed)"
+    },
+    {
+      "id": 8800000003,
+      "user": {
+        "login": "claude[bot]",
+        "type": "Bot"
+      },
+      "created_at": "2026-09-02T13:04:30Z",
+      "body": "(Claude App summary comment; body trimmed)"
+    },
+    {
+      "id": 8800000004,
+      "user": {
+        "login": "github-actions[bot]",
+        "type": "Bot"
+      },
+      "created_at": "2026-09-02T13:05:21Z",
+      "body": "<!-- claude-lane-reviewed-head lane=claude-security-review sha=5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f -->\nclaude-security-review has reviewed this pull request through 5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f; a later push is reviewed from there."
+    },
+    {
+      "id": 8800000005,
+      "user": {
+        "login": "github-actions[bot]",
+        "type": "Bot"
+      },
+      "created_at": "2026-09-02T13:05:22Z",
+      "body": "<!-- claude-lane-reviewed-head lane=claude-review sha=5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f -->\nclaude-review has reviewed this pull request through 5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f; a later push is reviewed from there."
+    },
+    {
+      "id": 8800000006,
+      "user": {
+        "login": "github-actions[bot]",
+        "type": "Bot"
+      },
+      "created_at": "2026-09-02T13:05:55Z",
+      "body": "<!-- claude-lane-reviewed-head lane=claude-review sha=5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f -->\nclaude-review has reviewed this pull request through 5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f5e1f; a later push is reviewed from there."
+    },
+    {
+      "id": 8800000007,
+      "user": {
+        "login": "claude[bot]",
+        "type": "Bot"
+      },
+      "created_at": "2026-09-02T13:07:04Z",
+      "body": "(Claude App summary comment; body trimmed)"
+    },
+    {
+      "id": 8800000008,
+      "user": {
+        "login": "claude[bot]",
+        "type": "Bot"
+      },
+      "created_at": "2026-09-02T13:07:12Z",
+      "body": "(Claude App summary comment; body trimmed)"
+    }
+  ],
+  "threads": []
+}

@@ -5,6 +5,12 @@ Notable changes to the hook-telemetry envelope contract. The envelope is version
 compatibility"). Removal, rename, or type-change of a field is a major `schema_version` bump; a field is
 marked deprecated here for one minor cycle before removal.
 
+## Data schemas, envelope unchanged at 1.1 - 2026-10-11
+
+- `zone-gate` is retired: context-guard no longer denies tool calls, so nothing emits it, and
+  `data/zone-gate.schema.json` is removed (#7135). Records already written keep their envelope;
+  the 2026-10-03 entry below describes their `data`.
+
 ## Data schemas, envelope unchanged at 1.1 - 2026-10-03
 
 `data` schemas are not version-stamped (README "Versioning"), so this entry carries no

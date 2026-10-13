@@ -463,7 +463,9 @@ Producers on a type: `/visualization:present` (Slides).
   `hosted/<owner>__<repo>__<pr>.json` holding `pages-publish`'s JSON line, so a rebuild of the same
   pull request's page replaces it. When the returned id differs from the sidecar's, the
   lane writes the new sidecar with the old id listed under `stale`, then deletes it from the old
-  host; an id whose delete fails stays under `stale` and is retried on the next publish.
+  host; an id whose delete fails stays under `stale` and is retried on the next publish. A replace
+  that fails (exit 6, as when the page was deleted outside the lane) is retried once without
+  `--id`, and the new id is handled like any other changed id.
 - **The save button stays on a top-level https page**, because the host's policy allows downloads.
   A framed page, such as an Artifact, still loses it (Security baseline, rule 7).
 
