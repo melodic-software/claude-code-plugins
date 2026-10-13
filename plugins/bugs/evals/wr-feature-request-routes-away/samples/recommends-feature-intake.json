@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {
+      "answer": "This is a feature request, not a defect: PDF export is a missing capability, and nothing that exists is broken.\n\nI won't write it up as a five-field bug report. Capture it as a feature request instead, for example with `/planning:prd` or your tracker's enhancement label."
+    },
+    {
+      "answer": "**Feature request, not a bug.** CSV export works as designed; PDF export was never built.\n\nRoute it to your product intake: file it as a feature request (PDF export on the export screen) so it can be prioritized."
+    },
+    {
+      "answer": "That's a missing capability rather than a defect, so `/bugs:write` does not apply.\n\nNext: track it as an enhancement in your backlog."
+    },
+    {
+      "answer": "I didn't write this up as a bug, because it's a feature request.\n\nHere it is written up as a feature request instead:\n\n**Feature request: Add PDF export to the export screen**\n\nNext steps:\n- **To track it:** file it under your tracker's feature type (for example, a `type: feature` / `enhancement` label on GitHub).",
+      "why": "written up as a feature request; file under the feature type"
+    },
+    {
+      "answer": "I haven't written a bug report for this. It's a feature request.\n\nSome options:\n\n- **Feature request:** I can write it up with the problem, the current behavior, and open questions. If the repo has a PRD or requirements-intake skill, I'd use that.\n- **Real defect:** if PDF export used to work, tell me.",
+      "why": "option bullet offering to write the feature request"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No need to file a feature request; this is a bug.\n\n# Bug: Export screen has no PDF option"
+    },
+    {
+      "answer": "I won't treat this as a feature request. Here is the bug report."
+    },
+    {
+      "answer": "This is not something I handle."
+    },
+    {
+      "answer": "- **Feature request:** I can't write it up as one; this is a defect.\n\n# Bug: Export screen has no PDF option",
+      "why": "negated offer"
+    },
+    {
+      "answer": "I won't file it under your tracker's feature type; it is a bug.",
+      "why": "negated routing"
+    }
+  ]
+}

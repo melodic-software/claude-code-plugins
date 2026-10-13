@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "*No bug confirmed.*\n\n**Description claimed**: page 2 skips the last row that belongs on page 1 (off by one).\n**Verified state**: `paginate` is 1-based. `(page - 1) * pageSize` gives page 1 indexes 0..3 and page 2 indexes 4..7 for pageSize 4, so no row is skipped or repeated.\n**Recommendation**: close the loop; check whether the caller passes a 0-based page number."
+    },
+    {
+      "answer": "## No bug confirmed\n\n**Claim:** off-by-one between page 1 and page 2.\n**Verified state:** with 10 items and pageSize 4, page 1 is `slice(0, 4)` and page 2 is `slice(4, 8)`; nothing is dropped.\n**Recommendation:** no report filed. If a page looks wrong, check the page number the caller sends."
+    },
+    {
+      "answer": "No bug confirmed.\n\nClaimed: page 2 skips a row.\nWhat the code does: start = (page - 1) * pageSize, a correct one-based conversion.\nNext step: confirm whether the UI sends a zero-based page."
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**Verified state**: Page 1: `start = 0`, so `slice(0, pageSize)`. Page 2: `start = pageSize`, so `slice(pageSize, 2*pageSize)` returns `items[pageSize .. 2*pageSize-1]`.",
+      "why": "symbolic pageSize math"
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**What I found**: The output matches the function's own comment (`page 2 => items[pageSize .. 2*pageSize-1]`); with pageSize 3, page 2 is `[3, 4, 5]`.",
+      "why": "page 2 begins at items[pageSize]"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No bug confirmed. The code looks fine to me."
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**Verified state**: I assume the reporter is mistaken."
+    },
+    {
+      "answer": "*No bug confirmed.*\n\n**Verified state**: `start = page * pageSize`, which looks fine to me.",
+      "why": "wrong math, not the (page - 1) * pageSize grounding"
+    }
+  ]
+}

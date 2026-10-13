@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "# Bug: Nightly sync job sometimes leaves records stale\n\n**Severity**: medium\n**Suggested fix location**: (unknown — needs reporter confirmation)\n\n## Steps to reproduce\n\n1. (unknown — needs reporter confirmation)\n\n## Expected behavior\n\nRecords are current after the nightly sync.\n\n## Actual behavior\n\nSome records are stale after the nightly sync.\n\n## Notes\n\n- Steps to reproduce: (unknown — needs reporter confirmation)"
+    },
+    {
+      "answer": "## Bug: nightly sync intermittently produces stale records\n\n**Steps to reproduce**\n1. Let the nightly sync job run.\n2. Inspect synced records; some are stale. Trigger: (unknown - needs reporter confirmation)\n\n**Severity:** medium"
+    },
+    {
+      "answer": "Before I write this up: which records came out stale, and roughly when did you last see it (date of the run, or which table)?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Bug: Nightly sync job leaves records stale\n\n## Steps to reproduce\n\n1. Update a customer record at 23:55.\n2. Let the nightly sync start at 00:00 while the update is still committing.\n3. Query the replica at 00:05.\n4. Observe the old value.\n\n**Severity**: medium\n\nWant me to file this as an issue?"
+    },
+    {
+      "answer": "No need to confirm reproduction steps. Steps: unknown."
+    },
+    {
+      "answer": "# Bug: nightly sync is flaky\n\nSteps are unknown at this time."
+    }
+  ]
+}

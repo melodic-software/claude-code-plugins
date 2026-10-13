@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "# Bug: `applyLateFee` charges the late fee on the due date itself\n\n**Severity**: high\n**Suggested fix location**: `apps/billing/src/fees.ts` `applyLateFee` (no patch)\n**Reported by**: session\n**Reported at**: 2026-10-13T12:00:00Z\n\n## Steps to reproduce\n\n1. Create an invoice whose due date is today.\n2. Call `applyLateFee(invoice, today)`.\n3. Inspect the returned invoice total.\n\n## Expected behavior\n\nNo late fee until the day after the due date.\n\n## Actual behavior\n\nA 25.00 late fee is added on the due date.\n\n## Severity justification\n\nCustomers are charged money they do not owe on a core billing flow.\n\n## Notes\n\nNone."
+    },
+    {
+      "answer": "**Title:** applyLateFee applies a 25.00 fee when an invoice is exactly on its due date\n**Severity:** Critical (money-affecting math bug: customers pay a fee they do not owe)\n\n**Steps to reproduce**\n1. Build an invoice whose due date equals today.\n2. Run `applyLateFee(invoice, today)`.\n\n**Expected:** no fee on the due date.\n**Actual:** a 25.00 fee is added.\n\n**Suggested fix location:** `apps/billing/src/fees.ts`, function `applyLateFee` (the due-date comparison). No patch."
+    },
+    {
+      "answer": "## Bug — late fee applied on the due date in applyLateFee\n\nSeverity: medium\n\n### Reproduction steps\n1. Call `applyLateFee(invoice, today)` with `invoice.dueDate === today`.\n\n| Expected | Actual |\n|---|---|\n| no fee | 25.00 fee |\n\n### Suggested fix location\n\n`apps/billing/src/fees.ts` → `applyLateFee`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Bug: applyLateFee charges on the due date\n\n## Expected behavior\nNo fee until the day after."
+    },
+    {
+      "answer": "# Bug: applyLateFee charges on the due date\n\n## Actual behavior\nA 25.00 fee is added."
+    },
+    {
+      "answer": "Actually, the expected fee is wrong."
+    }
+  ]
+}

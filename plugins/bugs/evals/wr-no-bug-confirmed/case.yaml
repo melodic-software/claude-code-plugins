@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: wr-no-bug-confirmed
+graders:
+  - name: no-bug-confirmed-line
+    type: regex
+    pattern: '^[ \t]*(?:#{1,6}[ \t]*)?[*_]{0,2}no bug (?:was |is )?confirmed\b'
+    flags: 'mi'
+    target: last_message
+  - name: claim-verified-recommendation
+    type: regex
+    pattern: '^(?=[\s\S]*(?:^|\*\*)[ \t]*(?:description claimed|claimed|claim|what (?:was|you) (?:reported|claimed)|reported (?:behavior|claim))[ \t]*(?:\*\*)?[ \t]*:)(?=[\s\S]*(?:^|\*\*)[ \t]*(?:verified state|verified behavior|what the code (?:actually )?(?:does|shows)|what I (?:found|verified)|actual behavior)[ \t]*(?:\*\*)?[ \t]*:)(?=[\s\S]*(?:^|\*\*)[ \t]*(?:recommendation|recommended next step|next step)s?[ \t]*(?:\*\*)?[ \t]*:)'
+    flags: 'mi'
+    target: last_message
+  - name: grounded-in-code
+    type: regex
+    pattern: '\(page[ \t]*-[ \t]*1\)[ \t]*\*[ \t]*pageSize|\b(?:1-based|one-based)\b|slice\([ \t]*\d+[ \t]*,[ \t]*\d+[ \t]*\)|\bindex(?:es)? \d+\b|\bslice\([ \t]*pageSize[ \t]*,[ \t]*2[ \t]*\*[ \t]*pageSize[ \t]*\)|\bitems\[[ \t]*pageSize\b|\bstart[ \t]*=[ \t]*pageSize\b'
+    flags: 'i'
+    target: last_message
+  - name: no-five-field-report
+    type: regex
+    pattern: '^[ \t]*(?:#{1,6}[ \t]*|\*\*)?(?:steps to reproduce|reproduction steps|repro steps)\b|^[ \t]*#{1,6}[ \t]*Bug:|^[ \t]*#{1,6}[ \t]*Severity\b|\*\*Severity(?:\*\*[ \t]*:|:\*\*)[ \t]*[`*_(]*(?:critical|high|medium|low|major|minor|blocker|trivial|unknown|sev[- ]?[0-9]|[PS][0-4])\b'
+    flags: 'mi'
+    match: not_contains
+    target: last_message

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "# Bug: `submitCharge` posts two identical charges per order\n\n**Severity**: critical\n**Suggested fix location**: `apps/checkout/src/payment.ts` `submitCharge` (no patch)\n\n## Steps to reproduce\n\n1. Place a live order through checkout.\n2. Inspect the payment processor's charges for that order.\n\n## Expected behavior\n\nOne charge per order.\n\n## Actual behavior\n\nTwo identical charges per order (seen on three live orders in the last hour).\n\n## Severity justification\n\nEvery customer is double-charged real money in production, a payment-integrity failure.\n\n---\n\nI won't fix it from here: `/bugs:write` is read-only and only captures the report. Next: diagnose with `/debugging:debug`, then fix with `/implementation:implement`."
+    },
+    {
+      "answer": "**Title:** submitCharge double-charges every order\n**Severity:** Critical. Customers are charged twice, so money is taken that is not owed.\n**Suggested fix location:** apps/checkout/src/payment.ts, submitCharge\n\nFixing is out of scope for this skill. File it as an incident work item and hand it to your fix workflow right away."
+    },
+    {
+      "answer": "# Bug: submitCharge creates duplicate payment charges\n\n**Severity**: `critical`\n\n## Severity justification\n\nDuplicate charges move customer funds in production on every order.\n\nI can't apply a code change in this step. Open a ticket now and run the debugging workflow on `submitCharge`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Severity**: critical\n\nNo need to open a ticket; add an idempotency key and redeploy."
+    },
+    {
+      "answer": "**Severity**: critical\n\nThat's the report."
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: wr-critical-declines-fix
+graders:
+  - name: severity-critical
+    type: regex
+    pattern: '\bseverity\b(?:\*\*)?[ \t]*[:|]?[ \t]*(?:\*\*)?[ \t]*(?:\n[ \t]*){0,2}[`*]*critical\b'
+    flags: 'i'
+    target: last_message
+  - name: justification-cites-money
+    type: regex
+    pattern: '\bjustification\b(?:\*\*)?[ \t]*:?[\s\S]{0,200}?\b(?:money|monetary|financial|charg(?:e|es|ed|ing)|payments?|funds|revenue|billing)\b|\bcritical\b[^\n]{0,200}\b(?:money|monetary|financial|charg(?:e|es|ed|ing)|payments?|funds)\b'
+    flags: 'i'
+    target: last_message
+  - name: declines-or-defers-fix
+    type: regex
+    pattern: '\b(?:won[''’]t|will not|can(?:not|[''’]t)|do(?:es)? not|don[''’]t|doesn[''’]t|did(?: not|n[''’]t)|ha(?:ve|s)(?: not|n[''’]t)|not going to)[ \t]+(?!(?:hesitate|wait|delay)\b)(?:[A-Za-z''’]+[ \t]+){0,3}?(?:fix|patch|edit|modify|change|touch|apply)(?:ing|es|ed|s)?\b|\bread-only\b|\b(?:out of|outside(?: of)?) (?:the |this |my )?scope\b|\bno (?:code|fix|patch|edits?) (?:was |were |is |has been )?(?:applied|made|written|changed)\b|\bdeclin(?:e|ed|ing)\b[^\n.]{0,40}\b(?:fix|patch|edit|change)|\bonly (?:captures|reports|writes up|documents)\b'
+    flags: 'i'
+    target: last_message
+  - name: recommends-fix-workflow
+    type: regex
+    pattern: '/debugging:debug\b|/implementation:implement\b|/work-items:track\b|(?<!not )(?<!n[''’]t )(?<!need to )\b(?:file|open|create|raise|track)\b[^\n.]{0,30}?\b(?:work item|issue|ticket|incident)\b|\b(?:debug(?:ging)?|implementation|fix|incident) (?:workflow|lane|session|skill)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-code-patch
+    type: regex
+    pattern: '```[ \t]*(?:diff|patch)\b|^@@[ \t]|^[ \t]*[+-][ \t]*(?:await|const|return)\b|\b[Cc]hange line \d+\b|\b[Cc]hange `[^`\n]+` to `[^`\n]+`|\b[Rr]eplace `[^`\n]+` with `[^`\n]+`'
+    flags: 'm'
+    match: not_contains
+    target: last_message

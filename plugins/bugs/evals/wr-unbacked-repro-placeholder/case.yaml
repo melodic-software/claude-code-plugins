@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: wr-unbacked-repro-placeholder
+graders:
+  - name: placeholder-or-targeted-question
+    type: regex
+    pattern: '\(?unknown[ \t]*[—–-]{1,2}[ \t]*needs (?:the )?reporter(?:[''’]s)? confirmation\)?|\bunknown,[ \t]*needs (?:the )?reporter(?:[''’]s)? confirmation\b|^[^\n?]*\b(?:reproduce|repro|trigger|triggers|steps|sequence|which records|what records|which tables?|how (?:often|frequently)|when did|when does|smallest)\b[^\n?]*\?'
+    flags: 'mi'
+    target: last_message
+  - name: no-invented-steps
+    type: regex
+    pattern: '^[ \t]*(?:#{1,6}[ \t]*|\*\*)?(?:steps to reproduce|reproduction steps|repro steps)\b[^\n]*\n(?:(?![ \t]*(?:#{1,6}[ \t]|\*\*(?:expected|actual|severity|notes|suggested)))[^\n]*\n)*?[ \t]*3[.)][ \t]+(?![^\n]*(?:unknown|reporter confirmation))'
+    flags: 'mi'
+    match: not_contains
+    target: last_message

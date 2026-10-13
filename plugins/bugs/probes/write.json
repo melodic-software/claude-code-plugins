@@ -1,0 +1,128 @@
+{
+  "skill": "bugs:write",
+  "plugin": "bugs",
+  "skill_dir": "plugins/bugs/skills/write",
+  "ranking_note": "Authored from the before descriptions at commit 1e8ff6f8bbc232b84b12f6888a85dafc502d5f8b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitor is the sibling bugs skill that hunts unobserved defects.",
+  "competitors": [
+    "bugs:scan"
+  ],
+  "competitor_dirs": {
+    "bugs:scan": "plugins/bugs/skills/scan"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The export button on the reports page throws a 500 and I want it logged properly so someone can pick it up."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Turn this into a proper bug ticket: when I save a profile with an empty name, the page just spins forever."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our invoice totals come out one cent off whenever a discount applies. Can you draft a report for it?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Document this defect for me: logging out in one tab doesn't log out the others."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I keep seeing 'NullReference in OrderMapper.cs' after checkout. Put together a report with severity and where the fix likely lives."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Dates show as yesterday for users in Tokyo. I need a structured writeup of that, nothing changed in the code yet."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The CSV import silently drops the last row. Help me capture it as a bug with repro steps."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I got back an empty list but should have gotten three items from the search endpoint. Summarize that as a defect report."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you write up a report on this crash I hit when clicking Cancel twice? I don't want any code touched."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "There's a defect where the sidebar overlaps the content on narrow screens. Make a formal report of it."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Scan the payments module and see if there are any hidden bugs I haven't noticed yet."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Go through src/auth looking for latent defects nobody has reported."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why is the checkout test failing on CI? Find the root cause and fix it."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review the diff on my branch before I open the PR."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a dark mode toggle to the settings page."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Do a security review of the upload handler for injection and path traversal."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Claude Code crashed when I pasted an image. How do I report that to Anthropic?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Debug this intermittent timeout, I can reproduce it locally with the attached log."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "We need export to PDF support; it doesn't exist today. Write that up as a request."
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-description: "Produce a structured 5-field bug report (title, steps to reproduce, expected vs actual, severity with justification, suggested fix location) from an informal description. Read-only, never modifies code, never opens PRs, never files issues by default. Use when the user names a defect they observed ('there is a bug in X', 'expected X got Y', 'I am seeing ERROR in FILE') or asks for one written up ('report a bug', 'file a bug', 'write this up as a bug'). Skip when: deep investigation is needed, a fix is already in progress, or the request is a feature request (missing capability) rather than a defect. Emits Markdown to stdout by default; with --file, persists a report file and can hand off to a work-item tracker for filing."
+description: "Structured five-field bug report (title, steps to reproduce, expected vs actual, justified severity, suggested fix location) from an informal description, read-only. Use when the user names a defect they observed ('there is a bug in X', 'expected X got Y', 'I am seeing ERROR in FILE'), or asks for one written up ('report a bug', 'file a bug', 'write this up as a bug'). Skip when the defect needs investigation first, a fix is already in progress, or the request is a missing capability rather than a defect."
 argument-hint: "[--file] [--quick|--full] [--no-survey] <bug description>"
 user-invocable: true
 disable-model-invocation: false
@@ -11,22 +11,20 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+Run each as its own Bash call, never combined:
 
 - Current branch, `git branch --show-current`
 - Working tree (empty = clean), `git status --porcelain | head -5`
 
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 5 entries")
-bounds nothing: the command has already run and its result is already formed before there is
-anything to decide about. Pointer: how
+Keep the pipe in the command: a read-time cap ("read only the first 5 entries") bounds nothing,
+because the result is already formed. Pointer: how
 much of a command's output reaches the result, and in what form, is read at
 [tools reference: output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
 As of: 2026-10-11. Recheck trigger: that section changes the inline ceiling or what arrives past it.
 
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: a worktree-isolated session refuses a
-compound command that contains git. The dated record for how the pre-compute block is composed is
+A failure (not a repository, git unavailable) is an unknown value; carry on. These stay body Bash
+calls rather than pre-compute lines because a worktree-isolated session refuses a compound command
+that contains git. The dated record for how the pre-compute block is composed is
 owned by `/source-control:worktree` (its gather-block record, "The pre-compute block runs as one
 shell invocation"); how injected commands run is read at
 [skills: how injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
@@ -36,7 +34,7 @@ block is composed; the skills section changes how a block's commands are run.
 ## Pre-computed context
 
 Consumer gotchas:
-!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/concat-gotchas.sh"`
+!`bash "${CLAUDE_PLUGIN_ROOT}/scripts/concat-gotchas.sh" || echo "(consumer gotchas unavailable)"`
 
 ## Variables
 
@@ -44,91 +42,119 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-`/bugs:write` produces a five-field structured report so the next session (or a human) can act without re-asking on vague repro, missing severity, no fix location, or hand-wavy expected/actual. **Read-only**. It captures, it does not fix, and it does not file (unless you explicitly ask).
+Produce a five-field report (title, steps to reproduce, expected vs actual, severity with
+justification, suggested fix location) that the next session or a human can act on without
+re-asking. **Read-only**: it captures; it does not fix, and it files nothing unless the user asks.
+Any field that cannot be backed from the source, a test, or the reporter gets the placeholder
+`(unknown — needs reporter confirmation)`, never an invented value.
 
-This is the **bug-intake** stage. It sits upstream of filing the report into a work-item tracker, and it is independent of any downstream fix workflow, when the report itself is the deliverable (a Slack message, a PR comment, a verbal handoff), that is all this skill needs to do.
+## Flags
 
-Five fields: title, steps to reproduce, expected vs actual, severity (with justification), and suggested fix location. A `(unknown — needs reporter confirmation)` placeholder is used for any field that cannot be backed from the source, rather than inventing one.
-
-A sharp report captured up front saves the next session from re-asking. Unrepresented reproduction steps cost far more to recover later than to capture now.
-
-## Skip conditions, when not to invoke
-
-- **Investigation needed**, the bug needs reproduce-first diagnosis, not just capture. If your project provides a debugging or investigation skill, hand off to it; otherwise scope the investigation separately from this read-only capture.
-- **Fix already in progress**. This skill only captures; it does not complete a fix.
-- **Feature request** (a missing capability, not a defect). This is product intent, not a bug. If your project provides a PRD or requirements-intake skill, route there; otherwise capture it as a feature request, not a five-field bug report.
-- **Generic chore** (a TODO, docs gap, or non-defect task). File it directly in your tracker; it does not need the five-field bug shape.
-
-If it is ambiguous, surface the question once and let the user pick.
+| Flag | Effect |
+|------|--------|
+| (none) | Survey + targeted Q&A; use `--full` discipline if the symbol is ambiguous |
+| `--quick` | Skip the survey if the symbol is unambiguous; max 1 round of Q&A |
+| `--full` | Always survey; up to 3 rounds of Q&A |
+| `--no-survey` | Trust the description; only ask when a field would otherwise be invented |
+| `--file` | Write the report to a file (Step 4) as well as stdout; then offer to file it in a tracker |
 
 ## The bugs process
 
 ### Step 1. Skip-condition check
 
-If the request matches a skip condition, stop and recommend the right path instead of producing a report: a feature request, an investigation task, and a generic chore each have a better home (above).
+Stop and recommend the right path instead of writing a report when the request is:
+
+- **Investigation needed**: the bug needs reproduce-first diagnosis, not capture. Hand off to the
+  project's debugging or investigation skill, or scope the investigation separately.
+- **Fix already in progress**: this skill only captures.
+- **Feature request** (a missing capability): route to a PRD or requirements-intake skill if the
+  project has one; otherwise capture it as a feature request, not a five-field bug report.
+- **Generic chore** (a TODO, docs gap, or non-defect task): file it directly in the tracker.
+
+If it is ambiguous, ask once and let the user pick.
 
 ### Step 2. Survey before you write
 
-A fast breadth pass before deep work. In parallel:
+A fast breadth pass, in parallel:
 
-- `Glob`/`Grep` for the symbol named in the description (function, class, file, error message)
-- If more than one symbol matches, the description is ambiguous. Ask which one
-- `git log --oneline -10 -- <suspected-file>` if a file is named, a recent change may be the cause
-- Check the output directory (see Step 4) for prior bug reports on the same area, to avoid duplicates
+- `Glob`/`Grep` for the symbol named in the description (function, class, file, error message).
+  If more than one symbol matches, ask which one.
+- `git log --oneline -10 -- <suspected-file>` when a file is named.
+- Check the output directory (Step 4) for prior reports on the same area, to avoid duplicates.
 
-Skip the survey when `--no-survey` was passed (unconditionally, the flag means "trust the description"), or when `--quick` was passed AND the description names a single unambiguous symbol.
+Skip the survey when `--no-survey` was passed, or when `--quick` was passed AND the description
+names a single unambiguous symbol.
 
 ### Step 3. Targeted Q&A
 
-Ask one question at a time. Use `AskUserQuestion` when 2-4 named options exist (e.g. "which `flush()`? There are 3 in the repo: …"); use prose for open-ended questions.
-
-Question priority order. Only ask if the field cannot be backed from context:
+Ask one question at a time, in the table's priority order, and only for a field the context cannot
+back. Use `AskUserQuestion`
+when 2-4 named options exist (e.g. "which `flush()`? There are 3 in the repo: …"); prose otherwise.
 
 | Field | Highest-value question |
 |-------|------------------------|
 | Steps to reproduce | "Walk me through the smallest sequence that triggers it." |
 | Expected vs actual | "What did you expect? What did you see instead?" |
 | Severity | "Who or what is blocked? Production users / dev workflow / cosmetic?" |
-| Fix location | (do not ask. Derive from the survey; if unknown, mark `(unknown — needs reporter confirmation)`) |
+| Fix location | (do not ask. Derive from the survey; if unknown, use the placeholder) |
 | Title | (do not ask. Derive from symptom + symbol) |
 
-A pasted screenshot or image path backs Expected vs actual the way the reporter's own words do; name it under Notes so it is attached when the report is filed. A video file cannot be read, so ask for a screenshot or a few still frames instead. A repo that wants a screenshot on every rendered-output report says so in the `## Gotchas` section of its `.claude/bugs.md`.
+A pasted screenshot or image path backs Expected vs actual like the reporter's own words; name it
+under Notes so it is attached when filed. A video file cannot be read: ask for a screenshot or a few
+still frames. A repo that wants a screenshot on every rendered-output report says so in its consumer
+gotchas.
 
-Stop conditions: every required field has a backed answer OR an explicit `(unknown — needs reporter confirmation)` placeholder. Modifiers:
-
-| Flag | Effect |
-|------|--------|
-| (none) | Survey + targeted Q&A; default to `--full` discipline if the symbol is ambiguous |
-| `--quick` | Skip the survey if the symbol is unambiguous; max 1 round of Q&A |
-| `--full` | Always survey; up to 3 rounds of Q&A |
-| `--no-survey` | Trust the description; only ask when a field would otherwise be invented |
-| `--file` | Write the report to a file (see Step 4) instead of only stdout; then offer to file it in a tracker |
+Stop when every field has a backed answer or the placeholder.
 
 ### Step 4. Emit the report
 
-Default: emit Markdown to stdout (read-only). Follow the 5-field template. See [`context/template.md`](context/template.md) for the full structure.
+Read [`context/template.md`](context/template.md) first and follow it. Default: Markdown to stdout.
 
-A person reads the report, so each field opens with its finding and carries no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The five fields, their order, and the template's shape are unchanged, and no repro step, severity justification, or unknown-field placeholder is dropped to shorten it.
+A person reads the report, so each field opens with its finding and carries no filler: invoke
+`/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that
+discipline inline. Keep the five fields, their order, and the template's shape; drop no repro step,
+severity justification, or placeholder to shorten it.
 
-`--file` mode: write the report to a file with frontmatter `type: bug-report`. Resolve the output directory in this precedence, and always tell the user the final path:
+`--file` mode: write the report with frontmatter `type: bug-report`. Resolve the output directory in
+this order, and always tell the user the final path:
 
-1. If the consumer configured `output_dir`, write to `${user_config.output_dir}`.
-2. Otherwise, write to `${CLAUDE_PLUGIN_DATA}/bug-reports/<project-slug>/`, where `<project-slug>` is the kebab-cased basename of the project root (`${CLAUDE_PROJECT_DIR}`, or the git toplevel when unset). The plugin data directory is per-plugin, not per-project. Without the slug, Step 2's duplicate scan would match another repository's report on the same symbol.
-3. If neither resolves, fall back to `${CLAUDE_PROJECT_DIR}/.bug-reports/` and state clearly where the file landed.
+1. `${user_config.output_dir}`, when the consumer configured `output_dir`.
+2. Otherwise `${CLAUDE_PLUGIN_DATA}/bug-reports/<project-slug>/`, where `<project-slug>` is the
+   kebab-cased basename of the project root (`${CLAUDE_PROJECT_DIR}`, or the git toplevel when
+   unset). The plugin data directory is per-plugin, not per-project: without the slug, Step 2's
+   duplicate scan would match another repository's report on the same symbol.
+3. If neither resolves, `${CLAUDE_PROJECT_DIR}/.bug-reports/`, stating clearly where the file landed.
 
-Filename: derive a slug from the title (kebab-case, ~40-char cap), prefix an ISO basic UTC timestamp with no colons (Windows-safe), e.g. `20260502T143000Z-bug-pricefor-discount-math.md`. If the title cannot yet produce a slug, fall back to the timestamp alone.
+Filename: an ISO basic UTC timestamp with no colons (Windows-safe), then a kebab-case slug of the
+title capped near 40 characters, e.g. `20260502T143000Z-bug-pricefor-discount-math.md`. With no
+usable title yet, the timestamp alone.
 
 ### Step 5. Hand off
 
-After emitting the report, recommend the next step; do not invoke it yourself:
+Recommend the next step; do not invoke it yourself:
 
-- **File it as a work item.** When the `work-items` plugin is installed and a tracker binding resolves, hand the report to `/work-items:track add` (pass the report summary via `--context`); it owns dedupe, the body template, the issue type, and the argv-safe write, so do not call the tracker directly beside it. Map the severity onto the tracker's priority labels if it has them. Without `work-items`, in a GitHub repository with the `gh` CLI: `--body-file` needs a report file on disk (in `--file` mode use the emitted report path; in stdout mode save the report first, offering to re-run the write step or Write it to a temp file). Run `gh issue create --type Bug --body-file <report>` and let `gh` prompt for the title interactively. If filing non-interactively, never interpolate the reporter's title text into the command string: write the title to a file first, then run `gh issue create --type Bug --title "$(cat <title-file>)" --body-file <report>`, because the command-substitution result is a quoted argument value and is not re-parsed, so backticks or `$( )` inside the reporter's text cannot execute. `--type Bug` sets the native GitHub Issue Type (an org-repo feature, the same one the work-items lanes set); on a repo without native Issue Types, drop the flag and add a `type: bug` label instead when the repo defines one. If a work-item tracker MCP tool is available and neither path applies, use it.
-- **A fix is next.** Diagnose first when the root cause is unknown (`/debugging:debug` when the `debugging` plugin is installed); when the report already names the cause, go straight to the fix (`/implementation:implement` when the `implementation` plugin is installed). Without those plugins, route to your project's own investigation or implementation workflow, or scope the fix separately.
-- **The report is the deliverable** (Slack, PR comment, hand-off). Done; copy/paste the stdout.
+- **File it as a work item.** When the `work-items` plugin is installed and a tracker binding
+  resolves, hand the report to `/work-items:track add` (report summary via `--context`); it owns
+  dedupe, the body template, the issue type, and the argv-safe write, so do not call the tracker
+  directly beside it. Map severity onto the tracker's priority labels if it has them.
+  Without `work-items`, in a GitHub repository with the `gh` CLI: `--body-file` needs the report on
+  disk (the `--file` path, or in stdout mode offer to re-run the write step or Write it to a temp
+  file). Run `gh issue create --type Bug --body-file <report>` and let `gh` prompt for the title. If
+  filing non-interactively, never interpolate the reporter's title into the command string: write it
+  to a file, then `gh issue create --type Bug --title "$(cat <title-file>)" --body-file <report>`,
+  so backticks or `$( )` in the reporter's text cannot execute. On a repo without native Issue
+  Types, drop `--type Bug` and add a `type: bug` label when the repo defines one. If neither path
+  applies and a work-item tracker MCP tool is available, use it.
+- **A fix is next.** Diagnose first when the root cause is unknown (`/debugging:debug` when
+  installed); when the report names the cause, go to the fix (`/implementation:implement` when
+  installed). Without those, route to the project's own investigation or implementation workflow,
+  or scope the fix separately.
+- **The report is the deliverable** (Slack, PR comment, hand-off): done.
 
 ## Severity rubric
 
-Severity is `low / medium / high / critical` with a one-line justification. It is not "how upset is the reporter". It is blast radius × blocking factor × data-integrity impact:
+`low / medium / high / critical` with a one-sentence justification, judged by blast radius ×
+blocking factor × data-integrity impact, not by how upset the reporter is:
 
 | Severity | Use when |
 |----------|----------|
@@ -137,15 +163,8 @@ Severity is `low / medium / high / critical` with a one-line justification. It i
 | `medium` | Feature broken for a narrow case, has a workaround, edge-case data issue |
 | `low` | Cosmetic, documentation, dev-experience, or tooling drift |
 
-If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`), map this rubric onto them when filing. If severity cannot be calibrated from context, ask one question rather than inventing it.
-
-## What this skill does NOT do
-
-- **Does not write code or open a PR.** It produces a report only.
-- **Does not invent reproduction steps.** If a step cannot be backed from the source, a test, or the reporter's description, it is marked `(unknown — needs reporter confirmation)` and surfaced under Notes. Flag a gap rather than fabricate one.
-- **Does not file the report by default.** The user reads the report and decides. `--file` persists it; filing into a tracker is an explicit hand-off in Step 5.
-- **Does not investigate the bug.** Step 2's survey is a fast grounding pass, not deep work. A fix that needs real investigation should be scoped separately.
-- **Does not auto-fix typos in the user's description.** "There is a bug in `flusH()`" may be intentional in some languages. Ask one question.
+When filing into a tracker with priority labels (e.g. `p0`–`p3`, `priority:high`), map onto them. If
+severity cannot be calibrated from context, ask one question rather than invent it.
 
 ## Boundary, the built-in `/bug` command
 
@@ -157,20 +176,14 @@ If a tracker uses priority labels (e.g. `p0`/`p1`/`p2`/`p3` or `priority:high`),
   [context/native-bug.md](context/native-bug.md#the-built-in-bug-command-verification-record)
   carries that record. As of: 2026-10-11. Recheck trigger: that row moves or stops carrying its own
   pointer and trigger.
-- **This skill (marketplace plugin).** A five-field report for a defect in the person's code,
-  grounded in their repository, filed nowhere unless they ask.
+- **This skill**: a five-field report for a defect in the person's code, grounded in their
+  repository, filed nowhere unless they ask.
 
-**Routing.** When the defect is in Claude Code itself (the CLI, a built-in command, a bundled
-skill), offer it to the person: you can run `/bug` instead of or alongside this skill. Keep this
-skill for defects in the person's code. An unattended run records the offer in its output instead
-of asking.
-
-**Mutation gate.** `/bug` packages session history for someone outside this repository; only the
-person decides what goes and where. This skill never runs `/bug` on the person's behalf.
-
-**Availability is never assumed.** This section states what to do when the person can run
-`/bug`, never that it is present in their host. The four-part records live in
-[context/native-bug.md](context/native-bug.md).
+When the defect is in Claude Code itself (the CLI, a built-in command, a bundled skill), offer the
+person `/bug` instead of or alongside this skill; an unattended run records the offer in its output
+instead of asking. Never run `/bug` on the person's behalf: it packages session history for someone
+outside this repository, and only the person decides what goes and where. Never assume `/bug` is
+present in their host.
 
 ## Next
 
@@ -180,15 +193,27 @@ person decides what goes and where. This skill never runs `/bug` on the person's
 
 ## Gotchas
 
-- **Repro steps must be backed.** If you cannot derive them from the user's description, the source, or a test, mark `(unknown — needs reporter confirmation)`. Inventing repro is worse than admitting a gap.
-- **Severity is blast radius, not frustration.** Use the rubric; justify in one sentence.
-- **Suggested fix location is not a patch.** Name the file path and function/class. No code, no diff, no "just change line X to Y". The fixer decides the patch.
-- **Title in present tense.** "`priceFor` returns wrong total when `discountPercent` is non-zero", not "fixed pricing bug" or "pricing was broken".
-- **When there is no bug, do not emit a report.** If the survey and Q&A reveal the behavior is correct, emit the short "No bug confirmed" summary instead (see `context/template.md`).
-- **Consumer `## Gotchas` concatenate after these bullets.** The pre-computed Consumer gotchas block is the cascade `## Gotchas` from `.claude/bugs.md` layers (user-global, team, local overlay) in layer order. Treat those lines as additional gotchas for this invocation. Missing layers are absent, not an error. Generalizable lines belong in this shipped skill via an issue, not in the consumer file.
+- **Repro steps must be backed** by the description, the source, or a test. Otherwise use the
+  placeholder and flag it under Notes; invented repro is worse than an admitted gap.
+- **Suggested fix location is not a patch.** Name the file path and function or class. No code, no
+  diff, no "change line X to Y"; the fixer decides the patch.
+- **Title in present tense.** "`priceFor` returns wrong total when `discountPercent` is non-zero",
+  not "fixed pricing bug" or "pricing was broken".
+- **No bug, no report.** When the survey and Q&A show the behavior is correct, emit the "No bug
+  confirmed" form from `context/template.md` instead.
+- **Do not auto-fix typos in the description.** "`flusH()`" may be intentional; ask one question.
+- **The survey is grounding, not investigation.** A bug that needs real investigation is scoped
+  separately.
+- **Consumer gotchas extend these.** The pre-computed block holds the `## Gotchas` sections of the
+  `.claude/bugs.md` layers (user-global, team, local overlay) in layer order; apply them to this
+  invocation. A missing layer is absent, not an error. A generalizable line belongs in this
+  shipped skill via an issue, not in the consumer file.
 
 ## Cross-references
 
-- [`context/template.md`](context/template.md). Read it before emitting a report: the full Markdown template, the `--file` frontmatter, and the "No bug confirmed" form
-- [`context/native-bug.md`](context/native-bug.md). The basis of the `/bug` Boundary section; read it when its recheck trigger fires
-- Consumer conventions (naming, areas, priority labels, tracker choice) come from the consuming project's own `CLAUDE.md` / rules. This skill reads them rather than imposing its own
+- [`context/template.md`](context/template.md): read before emitting a report. The full template, the
+  `--file` frontmatter and footer, and the "No bug confirmed" form.
+- [`context/native-bug.md`](context/native-bug.md): the basis of the `/bug` boundary; read it when its
+  recheck trigger fires.
+- Consumer conventions (naming, areas, priority labels, tracker choice) come from the consuming
+  project's own `CLAUDE.md` and rules; read them rather than imposing this skill's own.

@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: wr-five-fields-late-fee
+graders:
+  - name: title-field
+    type: regex
+    pattern: '^[ \t]*(?:#{1,6}[ \t]*)?(?:\*\*)?(?:Bug(?: report)?|Title)(?:\*\*)?[ \t]*[:—–-]'
+    flags: 'mi'
+    target: last_message
+  - name: steps-field
+    type: regex
+    pattern: '^[ \t]*(?:#{1,6}[ \t]*|\*\*)?(?:steps to reproduce|reproduction steps|steps to repro|repro steps)\b'
+    flags: 'mi'
+    target: last_message
+  - name: expected-and-actual-fields
+    type: regex
+    pattern: '^(?=[\s\S]*^[ \t]*(?:#{1,6}[ \t]*|\|[ \t]*)?(?:\*\*)?expected\b)(?=[\s\S]*^[ \t]*(?:#{1,6}[ \t]*|\|[ \t]*)?(?:\*\*)?actual\b)|\|[ \t]*(?:\*\*)?expected\b[^\n]*\|[ \t]*(?:\*\*)?actual\b'
+    flags: 'mi'
+    target: last_message
+  - name: severity-from-rubric
+    type: regex
+    pattern: '\bseverity\b(?:\*\*)?[ \t]*[:|]?[ \t]*(?:\*\*)?[ \t]*[`*]*(?:low|medium|high|critical)\b'
+    flags: 'i'
+    target: last_message
+  - name: fix-location-names-file-and-function
+    type: regex
+    pattern: '\b(?:suggested fix location|fix location|where to fix)\b(?=[^\n]*(?:\n[^\n]*){0,2}?\bfees\.ts\b)(?=[^\n]*(?:\n[^\n]*){0,2}?\bapplyLateFee\b)'
+    flags: 'i'
+    target: last_message
+  - name: title-not-past-tense
+    type: regex
+    pattern: '^[ \t]*(?:#{1,6}[ \t]*)?(?:\*\*)?(?:Bug(?: report)?|Title)(?:\*\*)?[ \t]*[:—–-][^\n]*\b(?:fixed|was broken|were broken|broke|was charging|was applied)\b'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+  - name: no-patch
+    type: regex
+    pattern: '```[ \t]*(?:diff|patch)\b|^@@[ \t]|^[ \t]*[+-][ \t]*(?:await|const|return)\b|\b[Cc]hange line \d+\b|\b[Cc]hange `[^`\n]+` to `[^`\n]+`|\b[Rr]eplace `[^`\n]+` with `[^`\n]+`'
+    flags: 'm'
+    match: not_contains
+    target: last_message

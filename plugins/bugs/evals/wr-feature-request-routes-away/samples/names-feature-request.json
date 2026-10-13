@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "This is a feature request, not a defect: PDF export is a missing capability, and nothing that exists is broken.\n\nI won't write it up as a five-field bug report. Capture it as a feature request instead, for example with `/planning:prd` or your tracker's enhancement label."
+    },
+    {
+      "answer": "**Feature request, not a bug.** CSV export works as designed; PDF export was never built.\n\nRoute it to your product intake: file it as a feature request (PDF export on the export screen) so it can be prioritized."
+    },
+    {
+      "answer": "That's a missing capability rather than a defect, so `/bugs:write` does not apply.\n\nNext: track it as an enhancement in your backlog."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This is not a feature request; it is a defect in the export screen.\n\n# Bug: Export screen offers no PDF option"
+    },
+    {
+      "answer": "I won't treat this as a feature request. Here is the bug report."
+    },
+    {
+      "answer": "Is this a feature request? Tell me and I will write it up."
+    }
+  ]
+}

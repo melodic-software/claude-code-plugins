@@ -1,0 +1,57 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/calendar.js"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "lens-2 hunter",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "hunter",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "gate",
+            "prompt": "...",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/calendar.js"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ]
+}

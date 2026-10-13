@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: sc-planted-bug-dry-run
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: hunter-and-gate-dispatched
+    type: tool_used
+    tool: Agent
+    min: 2
+  - name: finding-names-function
+    type: regex
+    pattern: '\bfix location\b[^\n]{0,200}\bdiscountRate\b|^[ \t]*#{1,6}[ \t]*(?:Finding\b|\d+[.)])[^\n]*\bdiscountRate\b'
+    flags: 'mi'
+    target: last_message
+  - name: evidence-label
+    type: regex
+    pattern: '\bEvidence\b(?:\*\*)?[ \t]*:?[ \t]*(?:\*\*)?[ \t]*`?(?:reproduced|verified[- ]by[- ]reading)\b'
+    flags: 'i'
+    target: last_message
+  - name: path-line-locator
+    type: regex
+    pattern: '\b(?:src/)?discount\.js(?::\d+|#L\d+|,? line \d+)'
+    flags: 'i'
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
