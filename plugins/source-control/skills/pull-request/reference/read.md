@@ -21,7 +21,8 @@ them from the file rather than from a copy of tool output.
   it reads the current branch's PR. A PR whose head branch is on a fork is not found by branch
   name, or when no `<pr>` is given, so pass its number. `--diff` prints the unified diff instead. `view` reads through
   the forge's REST API only, so it also works in a session that refuses GraphQL. `--repo` also
-  takes `HOST/OWNER/REPO`.
+  takes `HOST/OWNER/REPO`; without it `view` asks github.com, so a checkout on another host passes
+  `--repo HOST/OWNER/REPO`.
 - **`list`** prints an array of `number`, `url`, `state`, `isDraft`, `title`, `headRefName`,
   `baseRefName`, `mergeCommit`, open PRs by default, up to 1000 rows. `--head-match` keeps the
   PRs whose head branch matches the ERE. `--search` keeps the PRs the forge's text search matches,

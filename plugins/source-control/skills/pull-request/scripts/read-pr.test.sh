@@ -46,6 +46,9 @@ repos/*/pulls\?head=*)
   # The stub's branch feat/7-x has a closed pull request 6 and an open one 7.
   if [[ "$ep" == *"head={owner}:feat%2F7-x&"* ]]; then
     printf '[{"number":6,"state":"closed"},{"number":7,"state":"open"}]'
+  elif [[ "$ep" == *"head={owner}:feat%2F7-closed&"* ]]; then
+    # Closed-only: the forge lists the most recent first.
+    printf '[{"number":7,"state":"closed"},{"number":6,"state":"closed"}]'
   else
     printf '[]'
   fi
@@ -118,6 +121,14 @@ assert_contains "a URL host that differs from the requested host reaches the vis
 
 out=$(run view https://ghe.example/acme/ghe-app/pull/7)
 assert_eq "a pull request URL names its own host and repository" "https://ghe.example/acme/ghe-app/pull/7" "$(jq -r .url <<<"$out")"
+
+run view 7 --repo acme/app >/dev/null
+calls=$(cat "$TEST_TMPDIR/calls")
+assert_contains "--repo OWNER/REPO reads that repository" "$calls" "api repos/acme/app/pulls/7"
+assert_not_contains "--repo OWNER/REPO names no host" "$calls" "--hostname"
+
+out=$(run view feat/7-closed)
+assert_eq "a branch with no open pull request reads its most recent one" "7" "$(jq -r .number <<<"$out")"
 
 run view 7 --repo a/b/c/d >/dev/null 2>&1
 assert_exit "a malformed --repo exits 1" 1 "$?"
