@@ -4,7 +4,7 @@ bump: minor
 
 ### Changed
 
-- `lookup`, `check` and `setup` have shorter bodies, and `lookup` and `setup` shorter descriptions. Eval cases and trigger probes measured each change against the old text before it shipped. The vendored upstream baselines and the sync metadata are unchanged.
+- `lookup` and `setup` have shorter bodies and descriptions; `check` keeps its text. Eval cases and trigger probes measured each change against the old text before it shipped. The vendored upstream baselines and the sync metadata are unchanged.
 
 ### Added
 
