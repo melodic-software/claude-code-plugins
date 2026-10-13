@@ -20,6 +20,10 @@ mkdir -p "$STUB_DIR"
 cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$GH_STUB_CALLS"
+if [[ "$1 $2" == "auth status" ]]; then
+  [[ " ${GH_STUB_AUTH_HOSTS:-github.com} " == *" $4 "* ]]
+  exit
+fi
 if [[ "$1 $2" == "pr list" ]]; then
   [[ "${GH_STUB_LIST_FAIL:-}" == 1 ]] && exit 1
   printf '[{"number":1,"headRefName":"fix/improve-a"},{"number":2,"headRefName":"feat/other"},{"number":3,"headRefName":"docs/improve-b"}]'
@@ -78,6 +82,8 @@ STUB_EOF
 cat >"$STUB_DIR/git" <<'STUB_EOF'
 #!/usr/bin/env bash
 [[ "$1 $2" == "branch --show-current" ]] && printf '%s\n' "${GIT_STUB_BRANCH:-}"
+[[ "$1 $2 $3" == "remote get-url origin" ]] && printf '%s\n' "${GIT_STUB_REMOTE:-https://github.com/acme/app.git}"
+exit 0
 STUB_EOF
 chmod +x "$STUB_DIR/gh" "$STUB_DIR/git"
 
@@ -129,6 +135,20 @@ assert_not_contains "--repo OWNER/REPO names no host" "$calls" "--hostname"
 
 out=$(run view feat/7-closed)
 assert_eq "a branch with no open pull request reads its most recent one" "7" "$(jq -r .number <<<"$out")"
+
+GIT_STUB_REMOTE=git@ghe.example:acme/ghe-app.git GH_STUB_AUTH_HOSTS=ghe.example run view 7 >/dev/null
+assert_contains "a remote on a host gh is logged in to reads from that host" "$(cat "$TEST_TMPDIR/calls")" "api --hostname ghe.example repos/{owner}/{repo}/pulls/7"
+GIT_STUB_REMOTE=https://ghe.example/acme/ghe-app.git GH_STUB_AUTH_HOSTS=ghe.example run view 7 >/dev/null
+assert_contains "an https remote names its host too" "$(cat "$TEST_TMPDIR/calls")" "api --hostname ghe.example repos/{owner}/{repo}/pulls/7"
+GIT_STUB_REMOTE=git@github-work:acme/app.git run view 7 >/dev/null
+assert_contains "a remote host gh is not logged in to (an SSH alias) reads github.com" "$(cat "$TEST_TMPDIR/calls")" "api repos/{owner}/{repo}/pulls/7"
+
+run view 7 --repo ../.. >/dev/null 2>&1
+assert_exit "a --repo of dot segments exits 1" 1 "$?"
+run view 7 --repo 'o/r?x=1' >/dev/null 2>&1
+assert_exit "a --repo carrying a query exits 1" 1 "$?"
+run view 7 --repo '-XPOST/o/r' >/dev/null 2>&1
+assert_exit "a flag-shaped --repo host exits 1" 1 "$?"
 
 run view 7 --repo a/b/c/d >/dev/null 2>&1
 assert_exit "a malformed --repo exits 1" 1 "$?"

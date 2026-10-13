@@ -127,6 +127,26 @@ else
   branch=$(git branch --show-current 2>/dev/null | tr -d '\r')
   [[ -n "$branch" ]] || die 2 "no pull request number and no current branch"
 fi
+if [[ "$api_repo" == '{owner}/{repo}' ]]; then
+  # gh fills the placeholder from the remote but sends it to github.com, so a
+  # checkout on another host gh is logged in to must name that host.
+  remote_url=$(git remote get-url origin 2>/dev/null | tr -d '\r')
+  remote_host=""
+  if [[ "$remote_url" =~ ^[a-z+]+://([^@/]*@)?([^/:]+) ]]; then
+    remote_host="${BASH_REMATCH[2]}"
+  elif [[ "$remote_url" =~ ^([^@/]*@)?([^/:]+): ]]; then
+    remote_host="${BASH_REMATCH[2]}"
+  fi
+  if [[ -n "$remote_host" && "$remote_host" != github.com ]] &&
+    gh auth status --hostname "$remote_host" >/dev/null 2>&1; then
+    api_host="$remote_host"
+  fi
+else
+  [[ "$api_repo" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ && ! "${api_repo#*/}" =~ ^\.\.?$ ]] ||
+    die 1 "not a valid OWNER/REPO: $(printf '%q' "$api_repo")"
+fi
+[[ -z "$api_host" || "$api_host" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]+)?$ ]] ||
+  die 1 "not a valid host: $(printf '%q' "$api_host")"
 api_host_args=()
 [[ -n "$api_host" && "$api_host" != github.com ]] && api_host_args=(--hostname "$api_host")
 
