@@ -313,18 +313,12 @@ A re-read of the hooks page found the hook gap unchanged, so this plugin still t
 The record behind the skill body's `## Boundary` section for `cc-plugin-agents-md` and
 [`shim-droppable.md`](shim-droppable.md) (conditions A to F and the nested-`AGENTS.md` verdicts).
 
-- **Claim**: Claude Code ships a built-in `agents-md` plugin (ID `agents-md@builtin`) that reads
-  `AGENTS.md` as the project instructions. Its **Project instructions** option
-  (`instructionFiles`) takes four values: `claude-md-or-agents-md`, the default ("Your `CLAUDE.md`
-  files, or your `AGENTS.md` files when you have no `CLAUDE.md` or `CLAUDE.local.md` in your
-  working directory or above it"), `claude-md-and-agents-md` ("Your `CLAUDE.md` and `AGENTS.md`
-  files together, each directory's `CLAUDE.md` files first and its `AGENTS.md` after them"),
-  `claude-md` ("Your `CLAUDE.md` files only") and `managed-only` ("Your project, local, and user
-  `CLAUDE.md` files, your `.claude/rules/` files, and every `AGENTS.md` are left out. A
-  subdirectory's `CLAUDE.md` and `.claude/rules/` files, and path-scoped rules, still load when
-  Claude reads a file there"). The value is read from `pluginConfigs` in "`~/.claude/settings.json`,
-  a `--settings` file, or managed settings. Claude Code ignores it in project and local settings
-  files." (The settings guide says `--settings` "can set any key your user settings file can set",
+- **Claim**: Claude Code ships a built-in plugin that reads `AGENTS.md` as the project
+  instructions. Its settings IDs (current and earlier) and its **Project instructions** option
+  (`instructionFiles`) values, with what each value loads, are in
+  [memory § Choose which instruction files load](https://code.claude.com/docs/en/memory#choose-which-instruction-files-load);
+  condition B reads the option under both IDs, and the settings scopes that section names, never
+  project or local settings. (The settings guide says `--settings` "can set any key your user settings file can set",
   and the [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs) entry
   gives the scope "User or managed"; see
   [Change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session),
@@ -340,26 +334,24 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   subdirectory's `AGENTS.md`, when Claude opens a file there with the Read tool and that
   subdirectory has none of the three `CLAUDE.md` files of its own". The page states no subdirectory trigger for `claude-md-and-agents-md`, and
   does not say whether a subdirectory `CLAUDE.md`'s `@AGENTS.md` import expands under
-  `managed-only`; the skill keeps the shims in both cases for that reason. Condition D: "In these
-  sessions Claude reads `CLAUDE.md` files only, and **Project instructions** doesn't appear in the
-  `/config` settings panel": "You're on a Claude Code version before v2.1.277", "You disabled the
-  built-in `agents-md` plugin in `/plugin`", and "In some cases, it's your first session after you
-  upgrade from v2.1.276 or earlier"; also "Before v2.1.281, some sessions, such as those on Amazon
-  Bedrock or with telemetry disabled, read `CLAUDE.md` files only". The difference table adds that
-  for "Directories you add with `--add-dir` while `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` is
-  set", "Their `AGENTS.md` doesn't load"; for "An `@path` import of a file outside your working
+  `managed-only`; the skill keeps the shims in both cases for that reason. Condition D: the sessions
+  that read `CLAUDE.md` files only are the ones
+  [memory § When AGENTS.md support is unavailable](https://code.claude.com/docs/en/memory#when-agents-md-support-is-unavailable)
+  lists, as bullets and in the version note after them. The difference table,
+  [memory § Where AGENTS.md differs from CLAUDE.md](https://code.claude.com/docs/en/memory#where-agents-md-differs-from-claude-md),
+  adds a row for directories added with `--add-dir`; for "An `@path` import of a file outside your working
   directory" (condition E), an `AGENTS.md` read through the setting "Loads only if you already
   approved external imports for this project, with no prompt"; and for `InstructionsLoaded` hooks
   (condition F), "Don't fire. They fire as usual for an `AGENTS.md` that a `CLAUDE.md` imports or
   symlinks to". Condition D's first question: "Share one file with other coding tools" says to put
   the `@AGENTS.md` import in a `CLAUDE.md` "when your project also has a `CLAUDE.md`, when you've
-  set **Project instructions** to `claude-md`, or in sessions that can't load `AGENTS.md`". The
-  `/config` sentence quoted above introduces exactly the three bullets that follow it; the
-  pre-2.1.281 sentence sits outside that list, so the skill does not attach the `/config` signal to
-  it. The page does not mention the Agent SDK, cloud or web sessions, or `claude-code-action`, so
+  set **Project instructions** to `claude-md`, or in sessions that can't load `AGENTS.md`". That
+  section's settings-panel signal covers only its bulleted sessions, not the version note after
+  them, so the skill does not attach the signal to the note. The page does not mention the Agent SDK, cloud or web sessions, or `claude-code-action`, so
   condition D asks the operator about each rather than inferring coverage. Condition E's bound:
-  "Imported files can recursively import other files, with a maximum depth of four hops" (line
-  104), the same limit `scripts/lib/discover.sh` `_ip_reaches` encodes. Condition F's per-session
+  the import depth limit in
+  [memory § Import additional files](https://code.claude.com/docs/en/memory#import-additional-files),
+  the same limit `scripts/lib/discover.sh` `_ip_reaches` encodes. Condition F's per-session
   plugins, from [plugins/create](https://code.claude.com/docs/en/plugins/create) "Develop without
   a marketplace" (fetched 2026-10-01, 25,706 bytes, first heading "Create a Claude Code plugin",
   slug in `llms.txt`; the `plugins` page, which has no "Test your plugins locally" heading on this
@@ -395,11 +387,10 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   entry dates the change, so the skill trusts the exemption only from 2.1.287.
 - **Basis**: [memory](https://code.claude.com/docs/en/memory), fetched 2026-10-01 by the rung-1
   route (50,074 bytes; slug in `llms.txt`; first heading "How Claude remembers your project"),
-  sections "When Claude Code reads AGENTS.md" (line 363), "Choose which instruction files load"
-  (line 381; "Add it under the built-in `agents-md` plugin's ID in `pluginConfigs`", with the
-  example key `"agents-md@builtin"`), "When AGENTS.md support is unavailable" (line 406), "Where
-  AGENTS.md differs from CLAUDE.md" (line 416), "Remove an earlier AGENTS.md workaround" (line
-  426) and "Share one file with other coding tools" (line 435). [settings-reference](https://code.claude.com/docs/en/settings-reference), fetched
+  sections `#when-claude-code-reads-agents-md`, `#choose-which-instruction-files-load`,
+  `#when-agents-md-support-is-unavailable`, `#where-agents-md-differs-from-claude-md`,
+  `#remove-an-earlier-agents-md-workaround` and `#share-one-file-with-other-coding-tools`
+  (anchors re-read 2026-10-11). [settings-reference](https://code.claude.com/docs/en/settings-reference), fetched
   2026-10-01, `pluginConfigs`: "Built-in plugins store their options under the same key with an
   `@builtin` suffix"; fetched again 2026-10-02 (416,824 bytes, first heading "All settings"),
   "What runs under `allowManagedHooksOnly`" (line 4008) and "`disableAllHooks`" (line 4021).
@@ -424,9 +415,11 @@ The record behind the skill body's `## Boundary` section for `cc-plugin-agents-m
   `--binary-only` run printed `id` `cc-plugin-agents-md@builtin`, alias `agents-md`, `in_loader`
   true, `load` `unconditional`, `gated` true on `tengu_agents_md_mod` with default true; that is
   one build's reading, not the decision's input.
-- **As of**: 2026-10-01, Claude Code 2.1.287; the hook-policy exemption 2026-10-02, same build.
+- **As of**: 2026-10-01, Claude Code 2.1.287; the hook-policy exemption 2026-10-02, same build;
+  the settings IDs and the unavailable-session list re-read 2026-10-11.
 - **Recheck trigger**: the memory page changes the "When Claude Code reads AGENTS.md" list, the
-  "Choose which instruction files load" table, the "When AGENTS.md support is unavailable" list,
+  "Choose which instruction files load" table or the plugin's settings IDs, the "When AGENTS.md
+  support is unavailable" list,
   the difference table, the "Share one file with other coding tools" conditions, or the shim
   bullet under "Remove an earlier AGENTS.md workaround"; it comes to name the Agent SDK, cloud or
   web sessions, or `claude-code-action`; it changes the four-hop import limit; plugins/create

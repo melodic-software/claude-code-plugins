@@ -277,7 +277,7 @@ class SkillContractTests(unittest.TestCase):
                 self.assertIn(marker, worker)
 
         # The negative half: the push lives in exactly one of the two contracts.
-        self.assertNotIn('push "$PUSH_REMOTE"', worker)
+        self.assertNotIn("push-branch.sh", worker)
 
         orchestrator = sections["Orchestrator Contract (the push)"]
         for marker in (
@@ -285,7 +285,7 @@ class SkillContractTests(unittest.TestCase):
             "rev-parse HEAD^1",
             "rev-list --parents -n 1 HEAD",
             "Re-run the verification in the worktree",
-            'push "$PUSH_REMOTE" HEAD:<headRefName>',
+            "push-branch.sh --dir <worktree> --pr <N>",
             "Never force, in any tier.",
         ):
             with self.subTest(side="orchestrator", marker=marker):
@@ -473,7 +473,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("leave it draft and report why", drafts)
 
     def test_autopilot_draft_flip_runs_the_pull_request_ready_step(self) -> None:
-        # A bare `gh pr ready` flips the draft and nothing else; the ready step
+        # A bare draft flip changes the draft state and nothing else; the ready step
         # is what merges the base first, so the flip must go through it in both
         # homes.
         drafts = _paragraph_containing(
@@ -488,7 +488,7 @@ class SkillContractTests(unittest.TestCase):
             with self.subTest(text=text[:40]):
                 self.assertIn("/source-control:pull-request ready", text)
         self.assertNotIn("marked ready with `gh pr ready`", zero_blocker)
-        self.assertIn("rather than a bare `gh pr ready`", policy)
+        self.assertIn("rather than a bare draft flip", policy)
 
 
 if __name__ == "__main__":

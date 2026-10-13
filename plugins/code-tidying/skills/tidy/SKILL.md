@@ -97,7 +97,7 @@ When no bundled or project lane covers the target files (for example a lone `.gi
 - takes verification from the repository's documented test command;
 - names its branch `chore/tidy-adhoc-<slug>-YYYY-MM-DD`, where `<slug>` is the first glob's literal directory prefix in kebab case (`github-scripts` for `.github/scripts/*.mjs`), or `root` when the glob has no directory;
 - skips the anchor-commit lookup and hunts the whole scope, since no earlier sweep is known to cover the same globs;
-- writes no `.claude/tidy-lanes/` file, so Phase H's Summary names the globs in place of the lane and `none (ad hoc)` in place of the anchor commit.
+- writes no `.claude/tidy-lanes/` file, so Phase H's body facts name the globs in place of the lane and `none (ad hoc)` in place of the anchor commit.
 
 ## Workflow (8 phases)
 
@@ -157,11 +157,11 @@ Self-review by the producing context is enough here: a fresh-context verifier is
 
 ### Phase H. Ship
 
-**`in-place`:** open no PR and post no comment. `in-place` leaves the tidyings staged; `in-place=commit` makes one commit of them, titled per the format below (via `/source-control:commit` when installed). Print to the user the title, Summary, Test plan, and the audit-trail sections below that would have gone to the PR, then stop.
+**`in-place`:** open no PR and post no comment. `in-place` leaves the tidyings staged; `in-place=commit` makes one commit of them, titled per the format below (via `/source-control:commit` when installed). Print to the user the title, the body content `/source-control:pull-request create` would write, and the audit-trail sections below that would have gone to the PR, then stop.
 
 Otherwise, never call `git commit` or `gh pr create` directly. Phase E already committed the tidyings, so what is left is PR creation, and that has a canonical gate (issue-linkage resolution, injection-safe body assembly, a pre-create check for a valid closing keyword or explicit opt-out) that a bare `gh pr create` skips.
 
-If the `source-control` plugin is installed, invoke `/source-control:pull-request create` via the Skill tool. Its stage-and-commit step is a no-op here (the tree is clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Its body template is fixed to Summary + Test plan, so supply only those two sections; tidy's own audit trail goes in a follow-up comment (below), not the PR body:
+If the `source-control` plugin is installed, invoke `/source-control:pull-request create` via the Skill tool. Its stage-and-commit step is a no-op here (the tree is clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and the facts the body needs (lane, tidyings, anchor commit, verification commands run and their results); it writes the body from the repo's configured sections. Tidy's own audit trail goes in a follow-up comment (below), not the PR body:
 
 Title:
 
@@ -175,10 +175,10 @@ Examples:
 - `docs(skills): repair stale cross-references`
 - `chore(tools): apply shellcheck/shfmt drift across tools/*.sh`
 
-Body sections:
+Body facts to supply:
 
-- **Summary**. 1-3 bullets: which lane, which tidyings, anchor commit.
-- **Test plan**. Verification commands run + results.
+- Which lane, which tidyings, and the anchor commit.
+- Verification commands run and their results.
 
 `/source-control:pull-request create` reports the created `<pr_number>`. Immediately post one follow-up comment on that PR with `tidy`'s audit trail:
 

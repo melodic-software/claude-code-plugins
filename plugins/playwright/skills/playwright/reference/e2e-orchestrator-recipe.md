@@ -23,8 +23,7 @@ Endpoint URLs are often dynamic (Aspire in particular assigns ports at startup).
 ## Recommended flow
 
 ```bash
-# 1. Open a named session against the app under test (make the name unique
-#    when other agents may drive browsers on the same machine)
+# 1. Open a named session; use a name no other live run uses (see Cross-worktree notes)
 playwright-cli -s=smoke open http://localhost:<port>/<entry-path>
 
 # 2. Snapshot to locate interactive elements
@@ -40,7 +39,7 @@ playwright-cli -s=smoke screenshot --filename=smoke-<date>.png
 playwright-cli -s=smoke console            # check for JS errors
 playwright-cli -s=smoke network            # verify the API call shape
 
-# 5. Tear down
+# 5. Tear down (only the sessions this run opened)
 playwright-cli -s=smoke close
 ```
 
@@ -53,7 +52,7 @@ playwright-cli -s=smoke close
 | Structured log inspection | The orchestrator's log/trace surface |
 | **UI flow through Swagger/Scalar or the app itself** | Playwright CLI |
 | **Interactive component behavior (Blazor, SPA hydration)** | Playwright CLI |
-| **Visual regression** | Playwright CLI screenshot + image diff |
+| **Visual regression** | Playwright CLI screenshot + image diff; when `/testing:check-visual-parity` is among the available skills, it holds the baseline and counts the differing pixels |
 | Performance (Core Web Vitals, Lighthouse) | Chrome DevTools tooling |
 
 Playwright CLI complements the orchestrator's own observability and `curl`. It does NOT replace them. Reach for it when the test needs actual DOM/UI interaction, not HTTP.
@@ -82,7 +81,7 @@ Blazor's enhanced-nav intercepts link clicks. If a test expects page navigation 
 
 ## Cleanup discipline
 
-Never commit `.playwright-cli/` content. Add it to the project's `.gitignore`. Run `rm -rf .playwright-cli/` after large traces/videos to reclaim disk. Close each batch's own session (`playwright-cli -s=<name> close`) between test batches so no zombie daemon holds file locks. `close-all` and `kill-all` reach every playwright-cli browser on the machine, other agents' included; keep them for a daemon that will not close.
+Never commit `.playwright-cli/` content. Add it to the project's `.gitignore`. Run `rm -rf .playwright-cli/` after large traces/videos to reclaim disk. Between test batches, close each session the batch opened (`playwright-cli -s=<name> close`) so no browser is left holding file locks; leave other sessions alone, since another run or worktree may own them. `close-all` and `kill-all` reach every playwright-cli browser on the machine, other agents' included: they are the recovery step in the skill's "Recover from stale sessions", for a daemon that will not close or a socket error when no other run may be live, never a routine cleanup.
 
 ## Cross-worktree notes
 

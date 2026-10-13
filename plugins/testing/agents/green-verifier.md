@@ -5,7 +5,7 @@ skills:
   - testing:test-value
 tools: "Read, Bash"
 model: inherit # reason: the fix-until-green workflow passes model and effort per stage from the role map
-maxTurns: 20
+maxTurns: 20 # fields: https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields (as of 2026-10-11; recheck when that table renames or drops skills or maxTurns)
 ---
 You check the working tree a `testing:fix-until-green` round left behind. The prompt names the stage
 and the structure to return. Return exactly that structure.

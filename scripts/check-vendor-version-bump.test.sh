@@ -90,7 +90,7 @@ base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
   fail "vendor edit without a bump should fail, got success: $out"
-elif grep -q "STALE VERSION: plugins/alpha/vendor/" <<<"$out"; then
+elif grep -q "STALE VERSION: a vendor/ tree of plugins/alpha/" <<<"$out"; then
   ok "vendor edit without a bump fails as STALE VERSION"
 else
   fail "expected STALE VERSION for alpha, got: $out"
@@ -113,7 +113,7 @@ base_fixture f
 git -C "$f" rm -q plugins/beta/vendor/pkg/index.js
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
   fail "deleted vendor file without a bump should fail, got success: $out"
-elif grep -q "STALE VERSION: plugins/beta/vendor/" <<<"$out"; then
+elif grep -q "STALE VERSION: a vendor/ tree of plugins/beta/" <<<"$out"; then
   ok "a deleted vendor file without a bump fails"
 else
   fail "expected STALE VERSION for beta, got: $out"
@@ -130,7 +130,7 @@ git -C "$f" mv plugins/alpha/vendor/pkg/index.js plugins/beta/vendor/pkg/moved.j
 set_version "$f" beta 2.0.1
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
   fail "a vendor file moved alpha -> beta with only beta bumped should fail, got success: $out"
-elif grep -q "STALE VERSION: plugins/alpha/vendor/" <<<"$out"; then
+elif grep -q "STALE VERSION: a vendor/ tree of plugins/alpha/" <<<"$out"; then
   ok "a cross-plugin vendor move without a source-plugin bump fails as STALE VERSION"
 else
   fail "expected STALE VERSION for alpha on the move, got: $out"
@@ -156,7 +156,7 @@ set_version "$f" alpha 1.0.1
 echo 'module.exports = 2;' >"$f/plugins/beta/vendor/pkg/index.js"
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
   fail "one unbumped plugin of two should fail, got success: $out"
-elif grep -q "plugins/beta/vendor/" <<<"$out" && ! grep -q "plugins/alpha/vendor/" <<<"$out"; then
+elif grep -q "tree of plugins/beta/ " <<<"$out" && ! grep -q "tree of plugins/alpha/ " <<<"$out"; then
   ok "names the unbumped plugin and not the bumped one"
 else
   fail "expected beta named and alpha not, got: $out"
@@ -186,7 +186,7 @@ echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 add_fragment "$f" alpha patch
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
   fail "a fragment must not stand in for a legacy plugin's bump, got success: $out"
-elif grep -q "STALE VERSION: plugins/alpha/vendor/ changed vs HEAD but plugins/alpha/.claude-plugin/plugin.json is still 1.0.0" <<<"$out" &&
+elif grep -q "STALE VERSION: a vendor/ tree of plugins/alpha/ changed vs HEAD but plugins/alpha/.claude-plugin/plugin.json is still 1.0.0" <<<"$out" &&
   grep -q "^Bump the version of every plugin" <<<"$out" && ! grep -q "new-changelog-fragment.sh" <<<"$out"; then
   ok "a plugin not in fragment mode still needs the version bump, and is told so"
 else
@@ -200,7 +200,7 @@ echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 printf 'alpha\n' >"$f/scripts/fragment-plugins.txt"
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
   fail "a fragment-mode plugin with no fragment should fail, got success: $out"
-elif grep -q "STALE VERSION: plugins/alpha/vendor/ changed vs HEAD but alpha, in fragment mode, has no fragment for it" <<<"$out" &&
+elif grep -q "STALE VERSION: a vendor/ tree of plugins/alpha/ changed vs HEAD but alpha, in fragment mode, has no fragment for it" <<<"$out" &&
   grep -q "Run scripts/new-changelog-fragment.sh alpha patch" <<<"$out" &&
   grep -q "^Add a patch fragment for every plugin in fragment mode" <<<"$out" &&
   ! grep -q "^Bump the version" <<<"$out"; then
@@ -230,21 +230,21 @@ run_dependabot_gate() { # <gh-answer> <author>
   PATH="$f/stub:$PATH" GH_ANSWER="$1" CHANGELOG_PR_AUTHOR="$2" GITHUB_REPOSITORY=melodic-software/claude-code-plugins \
     run_gate "$f" --check-bump "$dependabot_base" 2>&1
 }
-if out="$(run_dependabot_gate true 'dependabot[bot]')" && grep -q "Dependabot-only change to plugins/alpha/vendor/" <<<"$out"; then
+if out="$(run_dependabot_gate true 'dependabot[bot]')" && grep -q "Dependabot-only change to a vendor/ tree of plugins/alpha/" <<<"$out"; then
   ok "a verified Dependabot vendor change to a fragment-mode plugin needs no fragment"
 else
   fail "a verified Dependabot change set should pass, got: $out"
 fi
 if out="$(run_dependabot_gate false 'dependabot[bot]')"; then
   fail "an unverified Dependabot commit should not be exempt, got success: $out"
-elif grep -q "STALE VERSION: plugins/alpha/vendor/" <<<"$out"; then
+elif grep -q "STALE VERSION: a vendor/ tree of plugins/alpha/" <<<"$out"; then
   ok "an unverified Dependabot commit still needs a fragment"
 else
   fail "expected STALE VERSION for an unverified commit, got: $out"
 fi
 if out="$(run_dependabot_gate true kyle-sexton)"; then
   fail "a pull request another author opened should not be exempt, got success: $out"
-elif grep -q "STALE VERSION: plugins/alpha/vendor/" <<<"$out"; then
+elif grep -q "STALE VERSION: a vendor/ tree of plugins/alpha/" <<<"$out"; then
   ok "a pull request another author opened still needs a fragment"
 else
   fail "expected STALE VERSION for another author, got: $out"
@@ -273,15 +273,18 @@ else
 fi
 rm -rf "$f"
 
-# --- a vendor/ nested below the plugin root is out of scope -----------------
+# --- an ADDED skill-level vendor/ tree is in scope --------------------------
+# It installs with the plugin, so it needs a bump.
 base_fixture f
 mkdir -p "$f/plugins/alpha/skills/digest/vendor"
 echo nested >"$f/plugins/alpha/skills/digest/vendor/lib.js"
 git -C "$f" add plugins/alpha/skills/digest
 if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
-  ok "a vendor/ nested below the plugin root is out of scope"
+  fail "an added skill-level vendor/ tree without a bump should fail, got success: $out"
+elif grep -q "STALE VERSION: a vendor/ tree of plugins/alpha/" <<<"$out"; then
+  ok "an added skill-level vendor/ tree without a bump fails as STALE VERSION"
 else
-  fail "nested vendor dir should not trip the gate, got: $out"
+  fail "expected STALE VERSION for an added skill-level vendor/ tree, got: $out"
 fi
 rm -rf "$f"
 
@@ -429,10 +432,46 @@ printf 'module.exports = 9;\n' >"$f/plugins/alpha/vendor/pkg/$quoted_name"
 git -C "$f" add "plugins/alpha/vendor/pkg/$quoted_name"
 status=0
 out="$(run_gate "$f" --check-bump HEAD 2>&1)" || status=$?
-if [[ "$status" -eq 1 ]] && grep -q "STALE VERSION: plugins/alpha/vendor/" <<<"$out"; then
+if [[ "$status" -eq 1 ]] && grep -q "STALE VERSION: a vendor/ tree of plugins/alpha/" <<<"$out"; then
   ok "an added non-ASCII vendor path without a bump fails as STALE VERSION"
 else
   fail "a non-ASCII vendor path should fail as STALE VERSION for alpha, got status $status: $out"
+fi
+rm -rf "$f"
+
+# --- a skill-level vendor/ tree needs a bump too ----------------------------
+# plugins/<name>/skills/<skill>/vendor/ installs with the plugin exactly like
+# the plugin-root vendor/, so an unbumped edit never reaches consumers.
+base_fixture f
+mkdir -p "$f/plugins/alpha/skills/lookup/vendor/pkg"
+echo 'module.exports = 1;' >"$f/plugins/alpha/skills/lookup/vendor/pkg/index.js"
+git -C "$f" add -A
+git_test_config "$f" commit -qm skill-vendor
+echo 'module.exports = 2;' >"$f/plugins/alpha/skills/lookup/vendor/pkg/index.js"
+if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
+  fail "skill-level vendor edit without a bump should fail, got success: $out"
+elif grep -q "STALE VERSION: a vendor/ tree of plugins/alpha/" <<<"$out"; then
+  ok "a skill-level vendor edit without a bump fails as STALE VERSION"
+else
+  fail "expected STALE VERSION for alpha on a skill-level vendor edit, got: $out"
+fi
+set_version "$f" alpha 1.0.1
+if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
+  ok "a skill-level vendor edit with a bump passes"
+else
+  fail "skill-level vendor edit + bump should pass, got: $out"
+fi
+rm -rf "$f"
+
+# --- a vendor/ nested deeper than one skill segment is not claimed ----------
+base_fixture f
+mkdir -p "$f/plugins/alpha/skills/lookup/scripts/vendor"
+echo 'x' >"$f/plugins/alpha/skills/lookup/scripts/vendor/a.js"
+git -C "$f" add -A
+if out="$(run_gate "$f" --check-bump HEAD 2>&1)"; then
+  ok "a vendor/ nested deeper than skills/<s>/ is not claimed by this gate"
+else
+  fail "deeper-nested vendor/ should not trip the gate, got: $out"
 fi
 rm -rf "$f"
 

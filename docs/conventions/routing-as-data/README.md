@@ -95,8 +95,9 @@ optional, so they are not declared as dependencies. The `installPath` key is a p
 record carried it on Claude Code 2.1.295.
 
 - **Pointer**: when deciding what a bare plugin name resolves to, fetch
-  <https://code.claude.com/docs/en/plugins/dependencies> live.
-- **As of**: 2026-10-08
+  [plugin dependencies § Declare a dependency with a version constraint](https://code.claude.com/docs/en/plugins/dependencies#declare-a-dependency-with-a-version-constraint)
+  live.
+- **As of**: 2026-10-11
 - **Recheck trigger**: that page moves or its bare-name resolution text changes, or a Claude Code
   release note changes the `claude plugin list --json` record keys.
 
@@ -149,7 +150,7 @@ user-writable layer.
 
 | Plugin | Status |
 |---|---|
-| `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows. Exception: the deferred `axe-accessibility` row keeps a bare `id` and `detect` until it is qualified |
+| `user-interface` (`/user-interface:design`) | Adopts: bare own-marketplace detects, slash skill ids, no pointer on own-skill rows. Exception: the deferred `axe-accessibility` row keeps a bare `id` and `detect` until it is qualified. Team layer: `<home>/user-interface.yaml` holds `routing` beside `css` keys, and `routing` is accepted in the team layer only; it is validated, but `/user-interface:design` does not apply it yet. Deviation ([ADR 0061](../../adr/0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md)): the `css` keys also take a structured personal layer (user-global `~/docs/conventions/user-interface.yaml` and `<home>/user-interface.local.yaml`), against the no-structured-personal-layer rule above |
 | `user-experience` (`/user-experience:shape`) | Adopts: group field `job`, the first team-layer implementer; applies #6642's two limits narrower than this doc |
 | Developer-experience plugin | Planned |
 

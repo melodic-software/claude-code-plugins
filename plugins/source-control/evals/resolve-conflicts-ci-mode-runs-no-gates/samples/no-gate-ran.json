@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": []},
+    {"answer": ["src/http/retry.ts.orig"], "why": "a backup file is not the gate sentinel"}
+  ],
+  "fail": [
+    {"answer": [".gate-ran"], "why": "a gate ran and wrote the sentinel"}
+  ]
+}

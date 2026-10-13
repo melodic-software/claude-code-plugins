@@ -6,6 +6,7 @@
     "cross_repo_edges": true,
     "labels": true,
     "leases": false,
+    "list_items_label_filter": true,
     "sub_items": false
   },
   "limits": {
@@ -25,6 +26,7 @@
     "get-item": true,
     "link-blocks": true,
     "list-items": true,
+    "label-provenance": false,
     "list-sub-items": false,
     "reclaim": false,
     "release": false,

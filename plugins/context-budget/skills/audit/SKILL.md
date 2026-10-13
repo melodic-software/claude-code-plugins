@@ -12,13 +12,12 @@ metadata:
 
 ## Purpose
 
-`/context` itemizes skills, agents, and MCP tools natively. The model cannot invoke it in this
-session, so for those, ask the person to run it and read its tables (the Boundary section below).
-What it structurally cannot itemize is the built-in tool pool: `System tools` and
-`System tools (deferred)` are lump sums, and together they are typically the largest single
-contributor to the fixed startup payload. This skill measures that attribution on the consumer's
-own machine by A/B differencing: a baseline session versus one session per candidate tool with
-that tool denied by bare name. The two attributed buckets compose differently, so price a basket
+Per-skill, per-agent, and per-MCP-tool attribution stays with `/context`, which the person runs
+(the Boundary section below). This skill covers what our measurements see `/context` report only
+as totals: the built-in tool pools, `System tools` and `System tools (deferred)`. Together they
+are typically the largest single contributor to the fixed startup payload. This skill measures
+that attribution on the consumer's own machine by A/B differencing: a baseline session versus one
+session per candidate tool with that tool denied by bare name. The two attributed buckets compose differently, so price a basket
 per bucket rather than as one number: deferred-side deltas add, and a basket's deferred saving is
 the sum of its members; prefix-side deltas double-count, and their sum is only an upper bound on
 what the basket saves on the prefix side. Confirm both on this binary with
@@ -41,9 +40,9 @@ Two rules govern everything this skill says, per the plugin's
   bundled `/doctor`. Tell the operator to run either one themselves;
   never reimplement their checks, and never decide here what to turn off. Pointers: for
   `/skill-doctor`, see <https://code.claude.com/docs/en/skills#find-unused-skills>; for `/doctor`,
-  see the `/doctor` row on <https://code.claude.com/docs/en/commands>. As of 2026-10-02. Recheck
-  when either changes which command it sends that question to, or when a release note names
-  `/skill-doctor` or `/doctor`.
+  see <https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor>. As of 2026-10-11.
+  Recheck when either section changes which command it sends that question to, or when a release
+  note names `/skill-doctor` or `/doctor`.
 - Per-skill / per-agent / per-MCP-tool attribution → `/context` natively, which the person runs.
 - Live in-session occupancy over time → the `context-guard` plugin, if installed.
 - Settings correctness, permission-rule state → the `harness-config` plugin, if installed.
@@ -57,7 +56,7 @@ session feels crowded:
   went, with one simple chart in plain language. The model and the person can both invoke it where
   it resolves.
 - **This skill (marketplace plugin).** Measures the fixed startup payload of a fresh headless
-  session per item, including the built-in tool pools `/context` reports as lump sums, and keeps a
+  session per item, including the built-in tool pools `/context` shows only as totals, and keeps a
   before/after ledger for every lever the operator toggles.
 
 **Routing.** When the bundled `explain-usage` skill resolves in this session, prefer it for a
@@ -75,11 +74,11 @@ records live in [reference/native-explain-usage.md](reference/native-explain-usa
 
 Both show what fills a context window, so "what is eating my context" can land on either:
 
-- **`/context` (built-in command)**: visualizes the current session's context usage as a colored
-  grid, with optimization suggestions and capacity warnings; `all` expands the per-item breakdown.
-  It is reserved for the person to run; the model does not invoke it.
+- **`/context` (built-in command)**: shows the current session's context usage; what it shows and
+  what its argument does are read live at the pointer below. It is reserved for the person to run;
+  the model does not invoke it.
 - **This skill (marketplace plugin).** Measures a fresh headless session's startup payload per
-  item, splits the built-in tool pools `/context` reports as lump sums, and ledgers before/after
+  item, splits the built-in tool pools `/context` shows only as totals, and ledgers before/after
   deltas.
 
 **Routing.** When the person wants a live look at the current session's window, offer it to the
@@ -95,14 +94,19 @@ session is a separate path: the `cli-parse` rung in [reference/engine.md](refere
 **Availability is never assumed.** The command is gated; this section states what to do when the
 person can run it, never that it is present.
 
-**Verification record, `/context`.** Claim: `/context` is a gated, user-only built-in command
-("Visualize current context usage as a colored grid", argument hint `[all]`) that the model
-cannot invoke. Basis: the `/harness-ops:inventory` extraction of the installed Claude Code 2.1.285
-binary on 2026-09-29 (`builtin_commands` lane: `gated` true, `user_invocable` true,
-`model_invocable` false); the `/context [all]` row on <https://code.claude.com/docs/en/commands>,
-fetched 2026-09-30. As of 2026-09-30. Recheck when a release renames or removes `/context`,
-changes its gate, or makes it model-invocable. The remaining records live in
-[reference/native-context.md](reference/native-context.md).
+**Verification record, `/context`.** We treat `/context` as a gated, user-only built-in command
+the model cannot invoke.
+
+- **Probe:** the `/harness-ops:inventory` extraction of the installed Claude Code 2.1.285 binary
+  on 2026-09-29 (`builtin_commands` lane: `gated` true, `user_invocable` true, `model_invocable`
+  false).
+- **Pointer:** the `/context [all]` row in
+  [commands § All commands](https://code.claude.com/docs/en/commands#all-commands).
+- **As of:** 2026-10-11.
+- **Recheck trigger:** a release renames or removes `/context`, changes its gate, or makes it
+  model-invocable.
+
+The remaining records live in [reference/native-context.md](reference/native-context.md).
 
 ## Boundary, the built-in `skill-doctor` command
 
@@ -131,17 +135,21 @@ live in [reference/native-skill-doctor.md](reference/native-skill-doctor.md).
 This skill measures **the local Claude Code CLI, in a headless session**. On cloud or web surfaces
 (where the container's binary and settings are not the operator's own), the numbers describe the
 container, not the operator's machine. Say so in the report. Interactive sessions can differ from
-headless ones (deferral eligibility is partly server-decided); the stamp's `sessionKind: headless`
-is the honest boundary of the claim.
+headless ones (the deferral record is in `reference/engine.md` under "Session-kind boundary",
+relayed as of 2026-10-11; recheck this relay when that heading moves or its record's trigger fires);
+the stamp's `sessionKind: headless` is the honest boundary of the claim.
 
 ## Prerequisites
 
 - `node`. Required for correctness. Absent: stop and report the gap; do not estimate.
 - The Claude Code CLI (`claude` on PATH, or a `--binary` path the operator names).
 - `@anthropic-ai/claude-agent-sdk`. Required for exact mode only. Absent, the engine degrades to
-  parsing headless `/context` output (display-rounded, and undocumented as a `-p` surface. The
-  record carries both caveats). To enable exact mode, offer the operator this one-time install
-  into the plugin's own data directory (network access; their call):
+  parsing headless `/context` output, display-rounded and resting on a surface the docs do not
+  list for `-p` (the `cli-parse` rung under "Degradation ladder" in
+  [reference/engine.md](reference/engine.md) carries the record, relayed as of 2026-10-11; recheck
+  this relay when that heading moves or its record's trigger fires; the run record carries both
+  caveats). To enable exact mode, offer the operator this
+  one-time install into the plugin's own data directory (network access; their call):
 
   ```shell
   mkdir -p "${CLAUDE_PLUGIN_DATA}/sdk" && npm install --prefix "${CLAUDE_PLUGIN_DATA}/sdk" @anthropic-ai/claude-agent-sdk
@@ -163,8 +171,11 @@ bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"
 
 The audit's artifacts live under `${CLAUDE_PLUGIN_DATA}/audit/<state-key>/`, keyed by project so
 one machine's many checkouts never share a ledger. Pass this resolved absolute path wherever
-`<data-dir>` appears below. Note near the ledger that uninstalling the plugin from its last scope
-deletes this directory unless `--keep-data` is passed.
+`<data-dir>` appears below. Note near the ledger what an uninstall does to this directory and how
+to keep it, read live at
+[plugins CLI reference § What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+As of 2026-10-11. Recheck when that section changes when a plugin's data directory is deleted or
+how to keep it.
 
 ### 2. Take the baseline snapshot
 
@@ -175,10 +186,10 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/measure.mjs" snapshot \
 
 Each measurement spawns a short-lived headless session against the pinned binary and records
 per-category tokens, the live tool list, per-agent tokens, the skill-listing signature, and the
-binary stamp. `/context` counts with the token-counting API or, from Claude Code 2.1.261, a
-local estimate when that API is unavailable. The dated record is in
-`reference/engine.md` under "Session-kind boundary." Exit 3 means measurement is unavailable.
-The JSON record names the remediation; relay it and stop. Never substitute an estimate of your own.
+binary stamp. How `/context` counts those tokens is not always a measured API count; the dated
+record is in `reference/engine.md` under "Session-kind boundary", relayed as of 2026-10-11
+(recheck this relay when that heading moves or its record's trigger fires). Exit 3 means measurement is
+unavailable. The JSON record names the remediation; relay it and stop. Never substitute an estimate of your own.
 
 ### 3. Attribute the built-in tool pools
 
@@ -200,8 +211,9 @@ memorized inventory. Ask the operator (or take from arguments) which to measure:
 
 - The **full sweep** is the skill argument `--full-sweep`. The engine flag is `--tools
   from-baseline`. It prices every live tool; warn that it is one run per tool and let the
-  operator opt in. Interactive-only tools never appear in that live list: Artifact,
-  SendUserFile, AskUserQuestion, plan-mode tools, EndConversation, interactive-only MCP servers.
+  operator opt in. Interactive-only tools never appear in that live list;
+  [reference/interactive-only-tools.json](reference/interactive-only-tools.json) names them
+  (relayed as of 2026-10-11; recheck this relay when that file moves or its `tools` list changes).
   The attribution record's `knownUncovered` names them; the report lists each as known-uncovered,
   never as absent. That category is distinct from unmeasured-but-candidate.
 
@@ -278,12 +290,13 @@ otherwise use the payload's share of the measured window.
 
 ## Reading the numbers honestly
 
-- **A scoped deny saves nothing.** A bare tool name removes a schema from the request, except
-  `EndConversation`, which the permissions page exempts while any other tool remains. A scoped
-  rule is a runtime guard whose schema still ships. The dated record is in
-  [`reference/engine.md`](reference/engine.md).
-- **A deferred tool is out of the context window but still in every request.** Do not present the
-  deferred bucket as already-saved weight.
+- **A scoped deny saves nothing.** We price only bare-name denies, and never treat a scoped rule
+  as a saving; which denies remove a schema, and the tool they cannot remove, are read at the
+  pointer in [`reference/engine.md`](reference/engine.md) "Mechanism claims and citations"
+  (relayed as of 2026-10-11; recheck when that heading moves or the table's trigger fires).
+- **The deferred bucket is recurring request weight.** Do not present it as already-saved weight;
+  the deferral pointer is in the same engine.md table (relayed as of 2026-10-11; recheck when that
+  heading moves or the table's trigger fires).
 - **`System tools` deltas are valid only between runs with identical skill listings.** The engine
   enforces this via the listing signature; relay its verdict rather than overriding it.
 - **Zero is a finding.** A lever that measures zero here is reported as measuring zero here, at
@@ -314,8 +327,10 @@ Each of these produces a confidently wrong number unless the engine's guard is h
 
 Bare invocation is the audit. It changes no configuration. When a measured result suggests a
 trim, print the exact config the operator would apply and let them apply it, with the ledger
-loop verifying the result. For persistent denies, print a `permissions.deny` entry. There is
-no `disallowedTools` settings key.
+loop verifying the result. For persistent denies, print a `permissions.deny` entry, never a
+`disallowedTools` settings key (the engine.md "Mechanism claims and citations" table carries the
+pointer, relayed as of 2026-10-11; recheck this relay when that heading moves or the table's
+trigger fires).
 
 ### Fix path (`fix` in the arguments only)
 
@@ -333,23 +348,19 @@ Write posture splits by scope, and the split is not negotiable:
   settings file, so even in auto mode the write prompts rather than sliding through. It does not
   see a settings write made through `Bash` or `PowerShell`, or one rendered into place by another
   program such as a dotfile manager (README "Hook" names each route and records why the hook is
-  not widened). **A checkpoint, not a
-  guarantee**: a `PermissionRequest` hook can still answer the prompt, and `disableAllHooks` set
-  outside managed settings turns off user, project, local, and plugin hooks. The checkpoint
-  survives `bypassPermissions`, because hooks are evaluated before the mode check and can still
-  block a tool there; in a headless run that skips permissions, a call that would still prompt is
-  denied instead. Verified 2026-09-06 against Claude Code 2.1.263 and three pages: the settings
-  reference (<https://code.claude.com/docs/en/settings-reference>, `disableAllHooks`), the
-  permission-modes page (<https://code.claude.com/docs/en/permission-modes>, the unattended `-p`
-  row and the `PermissionRequest` sentence), and the Agent SDK permissions page
-  (<https://code.claude.com/docs/en/agent-sdk/permissions>, "Bypass permissions mode"). Recheck
-  when any of the three stops carrying its statement, or when a release note names hook evaluation
-  order or `disableAllHooks`. Say so when describing the protection.
+  not widened). **A checkpoint, not a guarantee**: other hooks, settings, and permission modes
+  decide what happens to its `ask`, including in `bypassPermissions` and headless runs. Before
+  describing the protection, read those limits at the pointers in the "Hook" section of
+  `${CLAUDE_PLUGIN_ROOT}/README.md` (`PermissionRequest` hooks, `disableAllHooks`, hook order
+  against the mode check, and `-p` denials) and say so. This relay is as of 2026-10-11; recheck it
+  when that heading moves or its record's trigger fires.
 - **User-global** (`~/.claude/settings.json`): **never written by this skill.** Print the exact
   edit, fully resolved and paste-ready; applying it is the operator's. "Protected path" is not a
-  human-confirmation guarantee. In auto mode a write there routes to the classifier, which can
-  approve with no human involved. Print-only is the posture precisely because the prompt cannot
-  be relied on.
+  human-confirmation guarantee: in auto mode the classifier, not a person, decides a write there.
+  Print-only is the posture precisely because the prompt cannot be relied on. Pointer:
+  [permission modes § Protected paths](https://code.claude.com/docs/en/permission-modes#protected-paths).
+  As of 2026-10-11. Recheck when that section stops routing auto-mode protected-path writes to
+  the classifier.
 - **Managed policy**: read-only by construction; never targeted, never suggested as a write.
 - **Env-var levers**: no persistent settings surface exists; print the export line and where the
   operator might put it.
