@@ -38,6 +38,15 @@
 # It never edits `installed_plugins.json`. That file is Claude Code's internal
 # state, not a published contract; every mutation goes through the CLI.
 #
+# IT LEAVES THE TRACKED SETTINGS FILE AS IT FOUND IT. The uninstall call also
+# rewrites `.claude/settings.json` in this directory: it drops the reaped ids'
+# `enabledPlugins` entries, and was observed to reorder keys and drop unrelated
+# settings. When that file is tracked by git here and unmodified before the
+# pass, it is restored from git afterwards and an `info:` line names it, so the
+# plain `git worktree remove` that follows does not refuse a tree the reap
+# dirtied. Untracked, already modified, or outside a git work tree: the file is
+# never touched, and a `warn:` line names it if the CLI changed it.
+#
 # Usage:
 #   reap-project-plugin-records.sh --worktree-path <dir> [--dry-run]
 #
@@ -236,6 +245,88 @@ if [[ "$dry_run" -eq 1 ]]; then
   exit 0
 fi
 
+# The settings file the uninstall CLI rewrites. Relative on purpose: the cwd
+# guard above pins the cwd to the directory being reaped, and git resolves a
+# relative pathspec against the cwd.
+SETTINGS_REL=".claude/settings.json"
+
+# file_fingerprint <path> — a byte-level fingerprint, or `absent`.
+file_fingerprint() {
+  if [[ -f "$1" ]]; then
+    cksum <"$1" 2>/dev/null || printf 'unreadable'
+  else
+    printf 'absent'
+  fi
+}
+
+# settings_git_state — `clean` (tracked; worktree and index match HEAD),
+# `modified`, `flagged` (assume-unchanged or skip-worktree), `untracked`, or
+# `nogit` (no git, or not inside a work tree: the orphaned-directory and
+# recreated-directory cases).
+settings_git_state() {
+  have git || {
+    printf 'nogit'
+    return
+  }
+  [[ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]] || {
+    printf 'nogit'
+    return
+  }
+  git ls-files --error-unmatch -- "$SETTINGS_REL" >/dev/null 2>&1 || {
+    printf 'untracked'
+    return
+  }
+  # assume-unchanged (lowercase tag) or skip-worktree (S) hides local edits from
+  # both diffs below, so the file would read clean and the restore would drop them.
+  case "$(git ls-files -v -- "$SETTINGS_REL" 2>/dev/null)" in
+    [a-z]\ * | S\ *)
+      printf 'flagged'
+      return
+      ;;
+    *) ;;
+  esac
+  # Both halves: `git diff HEAD` alone compares only the worktree to HEAD, so a
+  # staged-only change would read clean and the restore's --staged would drop it.
+  if git diff --quiet -- "$SETTINGS_REL" 2>/dev/null &&
+    git diff --cached --quiet HEAD -- "$SETTINGS_REL" 2>/dev/null; then
+    printf 'clean'
+  else
+    printf 'modified'
+  fi
+}
+
+settings_before_state="$(settings_git_state)"
+settings_before_print="$(file_fingerprint "$SETTINGS_REL")"
+
+# settle_settings — runs once after the uninstall loop and the post-reap
+# enumeration, on every exit path that follows them, so the survivor result is
+# always read before the file is touched. It restores only this one file, and
+# only when git proved it tracked and clean before the pass, so it cannot
+# discard anyone's edit. It never touches installed_plugins.json, so it cannot
+# bring an install record back.
+settle_settings() {
+  local reason
+  [[ "$(file_fingerprint "$SETTINGS_REL")" != "$settings_before_print" ]] || return 0
+  if [[ "$settings_before_state" == "clean" ]]; then
+    if git restore --source=HEAD --staged --worktree -- "$SETTINGS_REL" >/dev/null 2>&1 &&
+      git diff --quiet HEAD -- "$SETTINGS_REL" 2>/dev/null; then
+      printf 'info: restored %s from git: the uninstall CLI rewrote it, and it was tracked and unmodified before the pass.\n' \
+        "$SETTINGS_REL"
+    else
+      printf 'warn: the uninstall CLI rewrote %s and restoring it from git failed; the tree is dirty, so plain removal will refuse it.\n' \
+        "$SETTINGS_REL"
+    fi
+    return 0
+  fi
+  case "$settings_before_state" in
+    modified) reason="it already had uncommitted changes before the pass" ;;
+    flagged) reason="assume-unchanged or skip-worktree is set, so git cannot see local edits" ;;
+    untracked) reason="git does not track it here" ;;
+    *) reason="this directory is not inside a git work tree" ;;
+  esac
+  printf 'warn: the uninstall CLI changed %s; left as is because %s.\n' "$SETTINGS_REL" "$reason"
+}
+
 reaped=0
 noop=0
 while IFS= read -r id; do
@@ -263,6 +354,7 @@ done <<<"$matches"
 # certainty it does not have, and it is the one outcome a caller acts on by
 # deleting the directory.
 if ! survivors="$(collect_matches)"; then
+  settle_settings
   printf 'info: reaped %s, no-op %s, surviving UNKNOWN\n' "$reaped" "$noop"
   printf 'warn: the post-reap check could not enumerate plugin install records — this pass is UNVERIFIED.\n'
   printf 'warn:   %s uninstall call(s) reported success and %s reported a no-op, but nothing confirmed any record is gone.\n' \
@@ -276,6 +368,7 @@ if [[ -n "$survivors" ]]; then
   survivor_count="$(printf '%s\n' "$survivors" | grep -c '[^[:space:]]')"
 fi
 
+settle_settings
 printf 'info: reaped %s, no-op %s, surviving %s\n' "$reaped" "$noop" "$survivor_count"
 
 if [[ "$survivor_count" -gt 0 ]]; then

@@ -28,13 +28,30 @@ function fakeGitHub(routes) {
     if (!(key in routes)) {
       throw new GitHubError(404, key);
     }
-    if (routes[key] instanceof GitHubError) {
-      throw routes[key];
+    const value = typeof routes[key] === "function" ? routes[key]() : routes[key];
+    if (value instanceof GitHubError) {
+      throw value;
     }
-    return structuredClone(routes[key]);
+    return structuredClone(value);
   };
   github.calls = calls;
   return github;
+}
+
+// A route that answers each read with the next value, repeating the last.
+function inTurn(...values) {
+  let read = 0;
+  return () => values[Math.min(read++, values.length - 1)];
+}
+
+// Records each wait instead of waiting.
+function fakeSleep() {
+  const waits = [];
+  const sleep = async (ms) => {
+    waits.push(ms);
+  };
+  sleep.waits = waits;
+  return sleep;
 }
 
 let dir;
@@ -65,6 +82,7 @@ async function gate({
   runId,
   dispatchedWorkflow,
   requireKind,
+  sleep = fakeSleep(),
 }) {
   const outputPath = writeJson("output", "");
   await main({
@@ -85,6 +103,7 @@ async function gate({
       ...(requireKind === undefined ? {} : { REQUIRE_KIND: requireKind }),
     },
     github,
+    sleep,
   });
   return readOutputs(readFileSync(outputPath, "utf8"));
 }
@@ -310,21 +329,37 @@ const ACTIONS_BOT = { login: "github-actions[bot]", id: 41898282, type: "Bot" };
 const KYLE = { login: "kyle-sexton", id: 153232337, type: "User" };
 const TIP_REF = { ref: "refs/heads/main", object: { sha: TIP_SHA, type: "commit" } };
 
+const artifactsRoute = `${dispatcherRoute}/artifacts?per_page=100`;
+// The fixture's one artifact is the dispatcher run's record of this run.
+const RECORD = fixture("api-run-dispatcher-artifacts.json").artifacts[0];
+const listing = (...artifacts) => ({ total_count: artifacts.length, artifacts });
+const record = (overrides = {}) => ({ ...RECORD, ...overrides });
+
 // No tagRoute: the fake answers 404, so no tag shares the branch name.
 function dispatcherRoutes({
   dispatcher = {},
   self = {},
   compare = { status: "ahead" },
   tip = TIP_REF,
+  artifacts = listing(record()),
 } = {}) {
   return {
     [pullRoute]: fixture("api-pull-42.json"),
-    [dispatcherRoute]: { ...fixture("api-run-dispatcher.json"), ...dispatcher },
+    [dispatcherRoute]:
+      typeof dispatcher === "function"
+        ? dispatcher
+        : { ...fixture("api-run-dispatcher.json"), ...dispatcher },
     [selfRoute]: { ...fixture("api-run-self.json"), ...self },
     [tipRoute]: tip,
     [compareRoute]: compare,
+    [artifactsRoute]: artifacts,
   };
 }
+
+// The dispatcher run as each read sees it: the window check's read first, then
+// one per record read.
+const dispatcherIn = (...statuses) =>
+  inTurn(...statuses.map((status) => ({ ...fixture("api-run-dispatcher.json"), status })));
 
 function dispatched({ github, event = fixture("event-workflow-dispatch-dispatcher.json"), ...rest }) {
   return gate({
@@ -346,7 +381,16 @@ test("dispatcher: a run created inside a push dispatcher run's window proceeds",
   assert.deepEqual(await dispatched({ github }), PROCEED);
   assert.deepEqual(
     [...github.calls].sort(),
-    [compareRoute, dispatcherRoute, pullRoute, selfRoute, tagRoute, tipRoute].sort(),
+    [
+      artifactsRoute,
+      compareRoute,
+      dispatcherRoute,
+      dispatcherRoute,
+      pullRoute,
+      selfRoute,
+      tagRoute,
+      tipRoute,
+    ].sort(),
   );
 });
 
@@ -643,6 +687,187 @@ test("dispatcher: the run id is ignored on a pull_request event", async () => {
     PROCEED,
   );
   assert.deepEqual(github.calls, []);
+});
+
+// The dispatcher run's record of the runs it dispatched
+
+const artifactReads = (github) => github.calls.filter((call) => call === artifactsRoute).length;
+
+test("dispatcher: recorded proceeds with no wait", async () => {
+  const sleep = fakeSleep();
+  const github = fakeGitHub(dispatcherRoutes());
+  assert.deepEqual(await dispatched({ github, sleep }), PROCEED);
+  assert.deepEqual(sleep.waits, []);
+  assert.equal(artifactReads(github), 1);
+});
+
+test("dispatcher: recorded among several dispatched ids proceeds", async () => {
+  const github = fakeGitHub(
+    dispatcherRoutes({
+      artifacts: listing(record({ name: `pr-unblock-dispatched-38155580000-${SELF_RUN_ID}-38155589999` })),
+    }),
+  );
+  assert.deepEqual(await dispatched({ github }), PROCEED);
+});
+
+test("dispatcher: absent, then present on the 2nd read, proceeds after one sleep", async () => {
+  const sleep = fakeSleep();
+  const github = fakeGitHub(
+    dispatcherRoutes({
+      dispatcher: { status: "in_progress" },
+      artifacts: inTurn(listing(), listing(record())),
+    }),
+  );
+  assert.deepEqual(await dispatched({ github, sleep }), PROCEED);
+  assert.deepEqual(sleep.waits, [5000]);
+  assert.equal(artifactReads(github), 2);
+});
+
+test("dispatcher: status in_progress, then present at the artifact read, proceeds", async () => {
+  const sleep = fakeSleep();
+  const github = fakeGitHub(dispatcherRoutes({ dispatcher: { status: "in_progress" } }));
+  assert.deepEqual(await dispatched({ github, sleep }), PROCEED);
+  assert.deepEqual(sleep.waits, []);
+});
+
+test("dispatcher: absent at the first completed, found by the extra read, proceeds", async () => {
+  const sleep = fakeSleep();
+  const github = fakeGitHub(
+    dispatcherRoutes({
+      dispatcher: dispatcherIn("in_progress", "in_progress", "completed"),
+      artifacts: inTurn(listing(), listing(), listing(record())),
+    }),
+  );
+  assert.deepEqual(await dispatched({ github, sleep }), PROCEED);
+  assert.deepEqual(sleep.waits, [5000, 5000]);
+  assert.equal(artifactReads(github), 3);
+  // The extra read after completed reads the artifacts only.
+  assert.equal(github.calls.filter((call) => call === dispatcherRoute).length, 3);
+});
+
+test("dispatcher: absent at the first completed and at the extra read refuses after exactly one sleep", async () => {
+  const sleep = fakeSleep();
+  const github = fakeGitHub(
+    dispatcherRoutes({ dispatcher: { status: "completed" }, artifacts: listing() }),
+  );
+  assert.deepEqual(await dispatched({ github, sleep }), STOPPED("untrusted-actor"));
+  assert.deepEqual(sleep.waits, [5000]);
+  assert.equal(artifactReads(github), 2);
+});
+
+test("dispatcher: absent on every in-progress read refuses after 24 sleeps", async () => {
+  const sleep = fakeSleep();
+  const github = fakeGitHub(
+    dispatcherRoutes({ dispatcher: { status: "in_progress" }, artifacts: listing() }),
+  );
+  assert.deepEqual(await dispatched({ github, sleep }), STOPPED("untrusted-actor"));
+  assert.deepEqual(sleep.waits, Array(24).fill(5000));
+  assert.equal(artifactReads(github), 25);
+});
+
+test("dispatcher: completed at the last allowed read refuses with no wait past 2 min", async () => {
+  const sleep = fakeSleep();
+  const statuses = [...Array(25).fill("in_progress"), "completed"];
+  const github = fakeGitHub(
+    dispatcherRoutes({ dispatcher: dispatcherIn(...statuses), artifacts: listing() }),
+  );
+  assert.deepEqual(await dispatched({ github, sleep }), STOPPED("untrusted-actor"));
+  assert.deepEqual(sleep.waits, Array(24).fill(5000));
+});
+
+test("dispatcher: an absent record logs the re-read with ids only", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const github = fakeGitHub(
+    dispatcherRoutes({ dispatcher: { status: "completed" }, artifacts: listing() }),
+  );
+  assert.deepEqual(await dispatched({ github }), STOPPED("untrusted-actor"));
+  assert.deepEqual(
+    log.mock.calls.map((call) => call.arguments[0]),
+    [
+      `check-trusted-trigger: dispatcher record: absent, re-read 1 (dispatcher run ${DISPATCHER_RUN_ID}, run ${SELF_RUN_ID})`,
+      "check-trusted-trigger: proceed=false reason=untrusted-actor",
+    ],
+  );
+});
+
+for (const [label, artifacts] of [
+  ["the record has expired", listing(record({ expired: true }))],
+  ["the record has no expired field", listing(record({ expired: undefined }))],
+  ["the record belongs to another workflow_run.id", listing(record({ workflow_run: { ...RECORD.workflow_run, id: 38155572049 } }))],
+  ["the record's workflow_run.id is a string", listing(record({ workflow_run: { ...RECORD.workflow_run, id: DISPATCHER_RUN_ID } }))],
+  ["the record lists a prefix of this run's id", listing(record({ name: "pr-unblock-dispatched-3815558052" }))],
+  ["the record lists this run's id with a digit more", listing(record({ name: "pr-unblock-dispatched-381555805290" }))],
+  ["the record lists this run's id with a leading zero", listing(record({ name: "pr-unblock-dispatched-038155580529" }))],
+  ["the record lists another run only", listing(record({ name: "pr-unblock-dispatched-38155580530" }))],
+  ["the name has a trailing dash", listing(record({ name: `pr-unblock-dispatched-${SELF_RUN_ID}-` }))],
+  ["the name has an empty id", listing(record({ name: `pr-unblock-dispatched--${SELF_RUN_ID}` }))],
+  ["the name has another prefix", listing(record({ name: `xpr-unblock-dispatched-${SELF_RUN_ID}` }))],
+  ["the name uses an underscore", listing(record({ name: `pr-unblock-dispatched_${SELF_RUN_ID}` }))],
+  ["the name ends in a newline", listing(record({ name: `pr-unblock-dispatched-${SELF_RUN_ID}\n` }))],
+  ["the name lists an id of 16 digits", listing(record({ name: `pr-unblock-dispatched-${SELF_RUN_ID}-1234567890123456` }))],
+  ["the name is not a string", listing(record({ name: Number(SELF_RUN_ID) }))],
+  ["the listing has no artifacts array", { total_count: 1 }],
+  ["the listing is empty", listing()],
+]) {
+  test(`dispatcher: refused with untrusted-actor when ${label}`, async () => {
+    const github = fakeGitHub(dispatcherRoutes({ dispatcher: { status: "completed" }, artifacts }));
+    assert.deepEqual(await dispatched({ github }), STOPPED("untrusted-actor"));
+  });
+}
+
+for (const status of [500, 502, 404]) {
+  test(`dispatcher: an artifacts read failing with ${status} refuses with no wait`, async () => {
+    const sleep = fakeSleep();
+    const github = fakeGitHub(
+      dispatcherRoutes({
+        dispatcher: { status: "in_progress" },
+        artifacts: new GitHubError(status, "artifacts"),
+      }),
+    );
+    assert.deepEqual(await dispatched({ github, sleep }), STOPPED("untrusted-actor"));
+    assert.deepEqual(sleep.waits, []);
+  });
+}
+
+test("dispatcher: a dispatcher run read failing between record reads refuses", async () => {
+  const sleep = fakeSleep();
+  const run = { ...fixture("api-run-dispatcher.json"), status: "in_progress" };
+  const github = fakeGitHub(
+    dispatcherRoutes({
+      dispatcher: inTurn(run, run, new GitHubError(502, "run")),
+      artifacts: listing(),
+    }),
+  );
+  assert.deepEqual(await dispatched({ github, sleep }), STOPPED("untrusted-actor"));
+  assert.deepEqual(sleep.waits, [5000]);
+});
+
+test("dispatcher: a recorded run that fails the window check refuses before the record is read", async () => {
+  const github = fakeGitHub(dispatcherRoutes({ self: { created_at: "2026-10-11T12:05:01Z" } }));
+  assert.deepEqual(await dispatched({ github }), STOPPED("untrusted-actor"));
+  assert.equal(artifactReads(github), 0);
+});
+
+test("dispatcher: a re-run attempt 2 by a listed human refuses once the record has expired", async () => {
+  const github = fakeGitHub(
+    dispatcherRoutes({
+      dispatcher: { status: "completed" },
+      self: { run_attempt: 2, triggering_actor: KYLE },
+      artifacts: listing(record({ expired: true })),
+    }),
+  );
+  assert.deepEqual(
+    await dispatched({ github, triggeringActor: "kyle-sexton" }),
+    STOPPED("untrusted-actor"),
+  );
+});
+
+test("dispatcher: a listed human's own dispatch reads no record", async () => {
+  const event = fixture("event-workflow-dispatch-dispatcher.json");
+  event.sender = KYLE;
+  const github = fakeGitHub(dispatcherRoutes({ artifacts: listing() }));
+  assert.deepEqual(await dispatched({ github, event, triggeringActor: "kyle-sexton" }), PROCEED);
+  assert.equal(artifactReads(github), 0);
 });
 
 // actor-only mode (require-pr: false)

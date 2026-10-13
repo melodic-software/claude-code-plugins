@@ -474,6 +474,19 @@
         "Proposes splitting that shared target (per-type registration files or entries collected by the registry) before serializing the phases",
         "Does NOT conclude the three phases must run fully sequential solely because they share pricing/registry.py"
       ]
+    },
+    {
+      "id": 37,
+      "name": "audit-flags-external-integration-without-verdict",
+      "prompt": "/planning:plan review. PLAN.md's Design section has Variation verdicts for the search index (contain now) but none for the SMS provider, and Phase 2 adds an SMS-provider-named column to the customers table and calls the provider's SDK from the domain service.",
+      "expected_output": "The design section audit finds an external integration (the SMS provider) with no variation verdict and a phase that puts the provider's name into storage and its SDK into domain code. It routes the missing verdict back to /planning:design instead of deciding it in the plan.",
+      "files": [],
+      "expectations": [
+        "Output flags the SMS provider as an external integration with no variation verdict",
+        "Output flags Phase 2 for putting the provider's name into storage and its SDK into domain code",
+        "Output routes the missing verdict back to /planning:design rather than choosing one in the plan",
+        "Output does not flag the search index, which already has a verdict"
+      ]
     }
   ]
 }

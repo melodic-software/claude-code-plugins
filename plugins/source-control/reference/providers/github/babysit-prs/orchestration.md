@@ -16,8 +16,7 @@ merge.
 
 ## Re-acquire a cross-repo head
 
-A cross-repo head is re-acquired with `gh pr checkout`, or with a fetch from the validated fork
-remote.
+A cross-repo head is re-acquired with `gh pr checkout`.
 
 ## Remote target for gh calls
 

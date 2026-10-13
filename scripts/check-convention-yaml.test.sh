@@ -175,6 +175,37 @@ for i in "${!names[@]}"; do
   fi
 done
 
+# 10b. A control or line-separator character the unattended merge policy refuses
+#      in a value (babysit_merge_policy.py `_SEPARATOR`: C0 and C1 controls,
+#      U+2028, U+2029) is a finding even where the parser accepts the file,
+#      a tab or a CR inside a value included; LF and a line-ending CR, which
+#      the reader strips, are not. The policy reads only pr-pipeline.yaml, so
+#      no other file is held to it. Bytes are written with printf so the
+#      fixture holds the raw UTF-8.
+names=('C0 control' 'C1 control' 'line separator' 'paragraph separator' 'tab inside a value' 'CR inside a value')
+bodies=($'a: x\001y' $'a: x\302\205y' $'a: x\342\200\250y' $'a: x\342\200\251y' $'a: "x\ty"' $'a: x\ry')
+for i in "${!names[@]}"; do
+  name="${names[i]}" body="${bodies[i]}"
+  label="a $name the policy refuses: exits 1 naming the file"
+  new_repo && put plugins/pr-pipeline/schemas/pr-pipeline.schema.json '{}' && put docs/conventions/pr-pipeline.yaml "$body"
+  run_sut
+  if [[ $RC -eq 1 && "$ERR" == *"docs/conventions/pr-pipeline.yaml: line 1 carries a control or line-separator character"* &&
+    "$LOG" != *pr-pipeline.yaml* ]]; then
+    ok "$label"
+  else
+    fail "$label: $(state)"
+  fi
+done
+label="CRLF line endings and plain UTF-8 text are not a separator finding"
+# spellchecker:ignore-next-line
+new_repo && put plugins/pr-pipeline/schemas/pr-pipeline.schema.json '{}' && put docs/conventions/pr-pipeline.yaml $'a: "x y"\r\nb: caf\303\251\r\n'
+run_sut
+if [[ $RC -eq 0 && "$LOG" == *pr-pipeline.yaml* ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="a tab in a file the policy does not read is not a separator finding"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put docs/conventions/alpha.yaml $'a: "x\ty"'
+run_sut
+if [[ $RC -eq 0 && "$LOG" == *alpha.yaml* ]]; then ok "$label"; else fail "$label: $(state)"; fi
+
 # 11. A missing runtime parser is an environment failure.
 label="missing lib/yaml-subset.awk exits 2"
 new_repo && put docs/conventions/alpha.yaml 'mode: on' && put plugins/alpha/schemas/alpha.schema.json '{}'

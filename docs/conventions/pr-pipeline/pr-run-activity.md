@@ -150,8 +150,10 @@ the broker request, and no other permission; it never holds `checks: write` or `
    `dispatcher-run-id` input with `dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml`
    and `dispatched-workflow: .github/workflows/pr-unblock.yml`, so a `workflow_dispatch` sent by
    `github-actions[bot]` proceeds only when it names a run of that dispatcher on the default branch
-   whose window holds this run's creation, and this run is `pr-unblock.yml`; every other
-   bot-sent dispatch stops with `untrusted-actor`. The checks are in the gate's README. Only
+   whose window holds this run's creation and whose `pr-unblock-dispatched-<id>[-<id>...]`
+   artifact lists this run's id, and this run is `pr-unblock.yml`; every other bot-sent dispatch
+   stops with `untrusted-actor`. The gate waits up to 2 minutes for that record while the
+   dispatcher run is still going. The checks are in the gate's README. Only
    with a `dispatcher-run-id` does the skill step pass claude-code-action
    `allowed_bots: github-actions`, which otherwise refuses a run a bot started.
 4. `check-trusted-base` asserts the PR targets the default branch and fails red otherwise. On `pull_request` the base
@@ -206,10 +208,12 @@ the broker request, and no other permission; it never holds `checks: write` or `
     `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
 14. Write file only, `if: always()` whenever step 6 output a token: `actions/github-script`,
     pinned by SHA, so no binary resolved through `PATH` or `BASH_ENV` runs with the token, sends
-    `DELETE /installation/token` with it, then `GET /installation/repositories`, and fails red
-    unless they return 204 and 401. It is a backstop for an honest activity that did not clean
-    up, not a control against a hostile one: the activity holds the token and can write the
-    runner's files.
+    `DELETE /installation/token` with it, then `GET /installation/repositories`. It never fails
+    the job (`continue-on-error: true`): a DELETE other than 204 is a `::warning::`, and a 204
+    whose GET is not yet refused with 401 is a `::notice::`; a confirmed revoke, 204 then 401,
+    raises no annotation and is recorded in the step log. It is a backstop for an honest
+    activity that did not clean up, not a control against a hostile one: the activity holds the
+    token and can write the runner's files.
 
 A stacked PR, one whose base is not the default branch, gets a failure check from step 4. Retarget
 it to the default branch to run its lanes.
@@ -564,7 +568,10 @@ run it names passes the checks the trusted-trigger gate applies. That run must b
 started by a push or a listed human, with a re-run attempt started by a listed human. Its head
 must be an ancestor of the tip and no tag may be named `main`. This run must be a `pr-unblock.yml`
 `workflow_dispatch` created between the dispatcher run's `run_started_at` and the earlier of its
-`updated_at` and `run_started_at` plus 10 minutes. The client sends it once and never retries: the broker
+`updated_at` and `run_started_at` plus 10 minutes. The dispatcher run must also hold an unexpired
+`pr-unblock-dispatched-<ids>` artifact whose ids include this run's; the broker reads it once,
+with no wait, since the trusted-trigger gate in step 3 has already waited for it. The client
+sends it once and never retries: the broker
 reserves the job's `check_run_id` when it mints, so a second request is denied `already-minted`,
 and a 200 lost in transit leaves a token nobody revokes until it expires within the hour.
 
@@ -596,7 +603,7 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 | 503 | `github-unavailable` | With `dispatcher_run_id`: a dispatcher, run, tag or compare read failed; nothing was minted |
 | 403 | `pr-not-eligible` | The PR is not open, not from a branch of this repository, or does not target `main` |
 | 403 | `default-branch-not-main` | The repository's default branch is not `main` |
-| 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, a repository variable of that name exists (it would shadow the org value), or the repository's `CLAUDE_LANES_REPO_DISABLED` is set and not exactly `false` |
+| 403 | `kill-switch` | The organization's `CLAUDE_LANES_DISABLED` is not exactly `false`, a repository variable of that name exists (it would shadow the org value), or the repository's `CLAUDE_LANES_REPO_DISABLED` is absent or not exactly `false` |
 | 403 | `already-minted` | This job already received its mint |
 | 503 | `key-unavailable`, `github-unavailable`, `store-unavailable` | The broker could not sign, read GitHub, or record the mint; nothing was minted |
 

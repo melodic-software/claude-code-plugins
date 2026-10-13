@@ -8,6 +8,7 @@ to ENFORCE the rules in it, and every refusal below is a defect that shipped in 
 | Script | Owns |
 |---|---|
 | `harness-lib.sh` | Shared preconditions: drive-letter path refusal, shim-directory stability, the injected-PATH ledger, interpreter discovery. |
+| `resolve-python.sh` | Prints the interpreter `harness-lib.sh` resolves, for a caller whose shell is not bash. |
 | `pathfix.py` | MSYS versus native-Windows path spelling, for the Python harnesses. |
 | `spawn-census.sh` | One process-spawn census of one subject command, via a stable PATH shim directory. |
 | `run-spawn-census.sh` | Before and after censuses, with the rule 1 warm-agreement proof. |
@@ -71,6 +72,6 @@ Name the check relative to `check.cwd`, which the harness does resolve.
 
 `0` the harness ran and the result is as expected. `1` the subject or the comparison came out
 negative: a mismatch, a check that does not discriminate. `2` the harness could not run, or could not
-have measured what it claims. The `1` and `2` split is load-bearing rather than tidy: conflating "the
+have measured what it claims. Keep the `1` and `2` split even where it looks fussy: conflating "the
 check does not discriminate" with "the check never ran" is what produced four confident wrong
 verdicts in the source run.
