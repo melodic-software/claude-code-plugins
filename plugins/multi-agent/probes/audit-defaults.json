@@ -1,0 +1,130 @@
+{
+  "skill": "multi-agent:audit-defaults",
+  "plugin": "multi-agent",
+  "skill_dir": "plugins/multi-agent/skills/audit-defaults",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin route (reads the current defaults without checking them) and setup (changes a layer) skills plus the cross-plugin config and instruction audits that check other surfaces against docs.",
+  "competitors": [
+    "multi-agent:route",
+    "multi-agent:setup",
+    "multi-agent:assess",
+    "harness-config:audit",
+    "harness-config:audit-instructions"
+  ],
+  "competitor_dirs": {
+    "multi-agent:route": "plugins/multi-agent/skills/route",
+    "multi-agent:setup": "plugins/multi-agent/skills/setup",
+    "multi-agent:assess": "plugins/multi-agent/skills/assess",
+    "harness-config:audit": "plugins/harness-config/skills/audit",
+    "harness-config:audit-instructions": "plugins/harness-config/skills/audit-instructions"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Anthropic released a new model this week. Do our bundled role defaults still match what their docs recommend?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The dates next to the defaults in our multi-agent reference are months old. Can you see whether anything upstream moved?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Verify the orchestrator, worker and verifier defaults against their source pages and propose a diff if any drifted."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Has the official guidance on workflows or subagents changed since we wrote our routing defaults?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Recheck just the setting that keeps parallel workers off frontier models against its source."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Sweep this repository for model and effort advice that's out of date or copied from vendor docs."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Are the model and effort defaults the multi-agent plugin ships still accurate? Don't edit anything, just tell me."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Did any recheck trigger fire on our routing defaults since the last review?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check whether our docs about subagent effort still agree with what Anthropic publishes."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Audit the worker role default against current upstream guidance."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which model and effort does the verifier get for this run?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Change the team default for worker effort to medium."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Audit my Claude Code settings and permissions for drift after the update."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Should this backlog cleanup run as a workflow or inline?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find stale or conflicting instructions in our CLAUDE.md and rules files."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Print the resolved role map with the layer behind each value."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is node installed for the drift checker's fetch gate hook?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Fan this plan out to worker agents and verify each phase."
+    }
+  ]
+}

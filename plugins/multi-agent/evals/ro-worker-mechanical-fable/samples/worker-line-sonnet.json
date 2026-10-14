@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"session_model\":\"fable\",\"session_frontier\":true,\"workload\":\"mechanical\",\"roles\":{\"worker\":{\"role\":\"worker\",\"single\":{\"model\":\"sonnet\",\"omit_model\":false,\"effort\":\"medium\",\"guarded\":false},\"fanout\":{\"model\":\"sonnet\",\"omit_model\":false,\"effort\":\"medium\",\"guarded\":false},\"source\":{\"model\":\"bundled\",\"effort\":\"bundled\"},\"basis\":{\"model\":\"upstream\",\"fanout_model\":\"upstream\",\"effort\":\"upstream\"}}},\"layers\":[],\"notes\":[]}\n```\n\nworker: single sonnet @ medium; fanout sonnet @ medium (basis: model upstream, fanout model upstream, effort upstream)\n\nEffort above maxEffortLevel runs at the cap; see reference/config.md \"Hard cap\".\n",
+      "why": "exact line"
+    },
+    {
+      "answer": "```json\n{\"session_model\":\"fable\",\"session_frontier\":true,\"workload\":\"mechanical\",\"roles\":{\"worker\":{\"role\":\"worker\",\"single\":{\"model\":\"sonnet\",\"omit_model\":false,\"effort\":\"medium\",\"guarded\":false},\"fanout\":{\"model\":\"sonnet\",\"omit_model\":false,\"effort\":\"medium\",\"guarded\":false},\"source\":{\"model\":\"bundled\",\"effort\":\"bundled\"},\"basis\":{\"model\":\"upstream\",\"fanout_model\":\"upstream\",\"effort\":\"upstream\"}}},\"layers\":[],\"notes\":[]}\n```\n\n- `worker: single sonnet @ medium; fanout sonnet @ medium (basis: model upstream, fanout model upstream, effort upstream)`\n\n`Effort above maxEffortLevel runs at the cap; see reference/config.md \"Hard cap\".`\n",
+      "why": "bulleted, backticked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "worker: single inherit: omit the model option @ medium; fanout opus @ medium (basis: model judgment, fanout model unrecorded, effort upstream)\n",
+      "why": "mechanical workload not applied"
+    },
+    {
+      "answer": "worker: single sonnet @ medium; fanout sonnet @ medium\n",
+      "why": "basis missing"
+    },
+    {
+      "answer": "worker: sonnet @ medium\n",
+      "why": "one variant only"
+    },
+    {
+      "answer": "The worker runs single sonnet @ medium; fanout sonnet @ medium (basis: model upstream, fanout model upstream, effort upstream).\n",
+      "why": "not the per-role line form"
+    }
+  ]
+}

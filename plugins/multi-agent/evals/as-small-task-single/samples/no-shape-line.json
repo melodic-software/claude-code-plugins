@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: single\nreason: one 30-line function in one file, one dependent chain that fits this context\n",
+      "why": "two lines"
+    },
+    {
+      "answer": "```text\nverdict: single\nreason: one file\n```\n",
+      "why": "fenced two lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: single\nreason: one 30-line function in one file, one dependent chain that fits this context\nshape: sections\n",
+      "why": "shape line added"
+    },
+    {
+      "answer": "verdict: single\nreason: one 30-line function in one file, one dependent chain that fits this context\nshape: none\n",
+      "why": "shape none"
+    },
+    {
+      "answer": "verdict: single\nreason: x\n`shape: n/a`\n",
+      "why": "backticked shape line"
+    }
+  ]
+}

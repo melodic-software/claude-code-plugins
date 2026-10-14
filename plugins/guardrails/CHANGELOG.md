@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.51.1] - 2026-10-14
+
+### Changed
+
+- The README no longer says the `block-windows-drive-tmp` matcher covers the legacy `MultiEdit` tool, and dates the file-path lane's measured sweep.
+
 ## [0.51.0] - 2026-10-13
 
 ### Added
