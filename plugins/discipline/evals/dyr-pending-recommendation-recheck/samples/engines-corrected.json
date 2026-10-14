@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": "2. engines pins `node >=20`, not >=16, so `node:test` is available."
+    },
+    {
+      "answer": "The engines field says \">=20\"."
+    },
+    {
+      "answer": "Node ≥ 20 is required, so the built-in runner works."
+    },
+    {
+      "answer": "engines requires node twenty or later."
+    },
+    {
+      "answer": "engines requires Node 20+, so node:test is available."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The engines field pins node >=16.",
+      "why": "repeats the wrong value"
+    },
+    {
+      "answer": "node:test needs node 18 or later.",
+      "why": "only the requirement, not the pin"
+    },
+    {
+      "answer": "The CI job takes about twenty minutes.",
+      "why": "twenty unrelated to node"
+    },
+    {
+      "answer": "engines: node >=16, unchanged.",
+      "why": "old value restated"
+    }
+  ]
+}

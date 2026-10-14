@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: mym-buried-answer-draft
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: buried-answer-finding
+    type: regex
+    pattern: '(?<!\bnot )(?<!n''t )(?<!\bno )(?<!\bnever )(?<!\bnothing )\b(?:buried|bur(?:y|ies|ying))\b|(?<!\bnot )(?<!n''t )(?<!\bno )(?<!\bnever )(?<!\bnothing )(?<!buried )\blede\b|\blead(?:s|ing)? with (?:the |its )?(?:answer|yes|verdict|conclusion)\b|\banswer\b[^\n.]{0,40}\b(?:first|up front|upfront|at the (?:top|start|bottom|end)|to the (?:top|front|start)|comes last|is last|last (?:line|paragraph|sentence))\b|\banswer\b[^\n.]{0,40}\b(?:below|under(?:neath)?|beneath|after)[ \t]+(?:the |two |three |a |all )?(?:\w+[ \t]+)?(?:history|setup|background|context|paragraphs?|preamble)\b|\b(?:hidden|hides?)\b[^\n.]{0,40}\b(?:answer|yes|verdict)\b|\bbottom line first\b'
+    flags: 'i'
+    target: last_message
+  - name: unclear-reference-finding
+    type: regex
+    pattern: '(?<!\bnot )(?<!n''t )(?<!\bno )(?<!\bnever )(?<!\bnothing )\b(?:ambiguous(?:ly)?|ambiguity|unclear (?:reference|referent|antecedent|pronoun)s?|dangling (?:pronoun|reference)s?|pronouns?|antecedents?|referents?)\b|[\"“`'']it[\"”`''][^\n]{0,80}\b(?:refer|mean|point|unclear|resolve|stand)'
+    flags: 'i'
+    target: last_message
+  - name: tangent-finding
+    type: regex
+    pattern: '(?<!\bnot )(?<!n''t )(?<!\bno )(?<!\bnever )(?<!\bnothing )\b(?:tangent(?:s|ial)?|off[- ]topic|irrelevant|digression)\b|\bnot what (?:Dana|she|they) asked\b|\b(?:Poetry|Hatch|PDM|packaging[- ]tool)\b[^\n]{0,120}(?<!\bnot )(?<!n''t )(?<!\bno )(?<!\bnever )(?<!\bnothing )\b(?:cut|removed?|drop(?:ped)?|deleted?|unneeded|not needed|relation|relevance)\b'
+    flags: 'i'
+    target: last_message
+  - name: answer-first-in-file
+    type: regex
+    pattern: '(?:##[ \t]*Draft reply[^\n]*\n|^)[\s\S]{0,400}?\b(?:yes|can drop|can be dropped|ok to drop|safe to drop)\b'
+    flags: 'i'
+    target: { source: file, path: drafts/reply.md }

@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor the discipline of actually using the session's skills: map the task to the listing, invoke the fitting skill instead of reinventing it, name skills when delegating, and audit for one that should have fired. Use when: 'use your skills', 'you have a skill for that', 'did you check your skills', 'there's a skill for this', 'you reinvented that', 'you skipped the skill', 'invoke your skills', or at conversation start to set the posture that available skills get used."
+description: "Re-anchors actually using the session's skills: maps the task to the listing, invokes the fitting skill instead of reinventing it, names skills when delegating, and audits for one that should have fired. Use when: 'use your skills', 'you have a skill for that', 'did you check your skills', 'there's a skill for this', 'you reinvented that', 'you skipped the skill', 'invoke your skills', or at conversation start to set the posture that available skills get used."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -12,8 +12,8 @@ metadata:
 # Use your skills
 
 A drift corrector for skill-use discipline: the skills are in context to be
-used, not ignored. The method, re-anchor, audit the work in flight, correct
-forward, report, and the tone that firing this is not an accusation, lives in
+used, not ignored. The shared method (re-anchor, audit the work in flight,
+correct forward, report) lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md).
 Read it; this file adds only what is specific to discovering and invoking the
 skills already available.
@@ -27,29 +27,25 @@ the listing budget), with the full body loading only when the skill is invoked
 recheck when that page stops describing the listing as name-plus-description
 with the body loaded on invocation, or when a release note changes what the
 skill listing carries).
-The listing covers only what the MODEL can reach, a skill set to
-`disable-model-invocation: true` is **manual-only**: its description is not in
-the model's context and the model never auto-invokes it, so it surfaces only
-when a user types `/name` (the inverse, `user-invocable: false`, stays in the
-model's listing but is hidden from the `/` menu). This corrector therefore
-audits only what the model could actually have reached: a **model-visible**
-skill that sat in the listing and went unused, its procedure reinvented. Or
-skipped. Instead of invoked. It does not fault the model for not
-auto-firing a manual-only skill that was never in its listing. Over a long
-session the listing loses salience the same way a standing rule does; this
-re-anchors the habit of consulting it.
+A skill set to `disable-model-invocation: true` is **manual-only** and absent
+from the model's listing (the inverse, `user-invocable: false`, stays in the
+model's listing but is hidden from the `/` menu). This corrector therefore audits only what the model
+could actually have reached: a **model-visible** skill that sat in the listing
+and went unused, its procedure reinvented or skipped instead of invoked. It
+does not fault the model for not auto-firing a manual-only skill.
 
 The discipline, at each of the three surfaces where skills apply:
 
 - **This conversation.** Before doing multi-step or specialized work, scan the
   in-context listing for a skill that already owns it, and invoke that skill
-  rather than improvising the procedure. A skill's description is written to
-  say when it applies. Read it as a routing signal, not decoration.
-- **The current task.** Map the task's shape to the skills that fit it. Often
-  more than one across a task's phases (research, plan, implement, review), and invoke each at its moment rather than carrying the whole task by hand.
+  rather than improvising the procedure. Read a skill's description as a
+  routing signal, not decoration.
+- **The current task.** Map the task's shape to the skills that fit it, often
+  more than one across a task's phases (research, plan, implement, review),
+  and invoke each at its moment rather than carrying the whole task by hand.
 - **Delegated (subagent) work.** Never assume a delegated subagent knows
   which skills fit its task: **name the relevant skills in the delegation
-  prompt** so the subagent knows to reach for them. For a custom subagent that
+  prompt**. For a custom subagent that
   should always carry a discipline, recommend its `skills:` frontmatter, after
   checking the preload section below for which skills it can carry; a skill it
   cannot preload goes into the prompt directly. This is guidance, not a config
@@ -80,26 +76,26 @@ Name concrete, located findings (per the method doc's step 2, self-audit):
 Correct each forward now: **invoke the skill this turn** and let it govern the
 work rather than merely noting it existed; re-issue the delegation prompt with
 the relevant skills named; and where a subagent should always carry a
-discipline, recommend the `skills:` preload. Where the audit finds the right
-skills were in fact used, say so, a clean audit is a correct outcome.
+discipline, recommend the `skills:` preload.
 
 ## Out of scope. Routed, not owned
 
-This skill corrects session behavior. *what should have fired and didn't*. It
+This skill corrects session behavior: *what should have fired and didn't*. It
 does **not** own the levers that decide whether a skill *can* surface. Route
 those:
 
-- **A skill's description quality**. Key use case first, natural trigger
-  keywords, within the per-entry character cap, is skill-authoring QA. Route
+- **A skill's description quality** (key use case first, natural trigger
+  keywords, within the per-entry character cap) is skill-authoring QA. Route
   to `/skill-quality:check`, invoked via the Skill tool (degrade to prose
   guidance when not installed).
-- **The listing budget across all installed skills**, the listing is capped
-  at a fraction of the context window, and on overflow descriptions are dropped
-  from the least-invoked skills first, so a real skill can silently lose its
-  triggering keywords. That machine-level overflow is a configuration concern;
-  route to `/harness-config:audit`, invoked via the Skill tool (degrade to prose).
-  `/doctor` estimates the
-  listing's cost.
+- **The listing budget across all installed skills.** On overflow,
+  descriptions are dropped, so a real skill can silently lose its triggering
+  keywords (how the budget is set and what gets dropped:
+  [Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short),
+  as of 2026-10-13; recheck when that section changes the budget or the drop
+  order). That machine-level overflow is a configuration concern; route to
+  `/harness-config:audit`, invoked via the Skill tool (degrade to prose).
+  `/doctor` estimates the listing's cost.
 - **Deterministic per-prompt routing.** A `UserPromptSubmit` hook that injects a
   task-to-skill mapping on every message is an always-on mechanism with a
   per-prompt token cost, owned by a hooks-capable plugin, not by this corrector.
@@ -112,25 +108,18 @@ the listing overflowed its budget, that is the routed territory above.
 
 ## What this skill does NOT do
 
-- **Does not tune descriptions or budgets.** Description hygiene routes to
-  `/skill-quality:check`; listing-budget overflow routes to
-  `/harness-config:audit`. Both are invoked via the Skill tool. This skill
-  audits use, not surfaceability.
 - **Does not force-invoke an ill-fitting skill.** The goal is to use the skill
   that *fits*, not to fire one for its own sake; "no skill fits, proceeding
   directly" is a valid outcome.
 - **Does not mutate config or frontmatter at runtime.** The subagent `skills:`
   preload and hook options are recommendations routed to the user, not changes
   the skill makes.
-- **Does not fabricate a finding.** Work that already invoked the fitting
-  skills audits clean; say so.
 
 ## Gotchas
 
-- The listing carries every skill *name* always, but when many skills are
-  installed the *descriptions* can be trimmed to fit the budget, so a skill
-  whose description looks absent may be budget-dropped, not missing. That is a
-  routed concern (above), not evidence the skill does not exist.
+- A skill whose description looks absent from the listing may be
+  budget-dropped, not missing. That is a routed concern (above), not evidence
+  the skill does not exist.
 - A subagent's silence on skills is easy to miss: it will not error, it will
   just do the work without the discipline the parent took for granted. The fix
   lives in the *delegation prompt* (name the skills) or the *agent definition*

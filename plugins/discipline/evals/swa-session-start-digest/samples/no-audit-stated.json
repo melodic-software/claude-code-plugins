@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Session-start digest (no audit run, nothing to audit yet).\n\n- **Core** (every session): use-your-skills, do-your-research, mind-your-maxims, tighten-your-output\n- **Situational** (relevance-gated): recheck-against-upstream, reason-dont-recite, point-dont-copy, ...\n- **Never** (invoked directly): scrutinize-dont-coast\n"
+    },
+    {
+      "answer": "Posture set. Nothing was audited, since there is no work yet."
+    },
+    {
+      "answer": "This is the digest only; the full batch did not run."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Audit complete: 3 findings corrected.",
+      "why": "claims an audit"
+    },
+    {
+      "answer": "Posture set for core and situational correctors.",
+      "why": "silent on the audit"
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:point-dont-copy",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/point-dont-copy",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the SSOT extraction and attribution audit skills, the agent-doc writing skill, the reuse-or-replace sibling and the coupling reduction skill.",
+  "competitors": [
+    "docs-hygiene:extract-ssot",
+    "attribution:audit",
+    "docs-hygiene:write-for-agents",
+    "discipline:reuse-or-replace",
+    "coupling:reduce"
+  ],
+  "competitor_dirs": {
+    "docs-hygiene:extract-ssot": "plugins/docs-hygiene/skills/extract-ssot",
+    "attribution:audit": "plugins/attribution/skills/audit",
+    "docs-hygiene:write-for-agents": "plugins/docs-hygiene/skills/write-for-agents",
+    "discipline:reuse-or-replace": "plugins/discipline/skills/reuse-or-replace",
+    "coupling:reduce": "plugins/coupling/skills/reduce"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You pasted a whole section of the vendor docs into our README. Link to it instead."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "That doc lists every tool the plugin supports; it will go stale. Point at the source rather than enumerating."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Review what you drafted for pasted-in material and swap it for references to the original."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This skill hardcodes the names of internal helpers from another plugin. That will break when they rename."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our guide shouldn't carry a second copy of the API reference; cite it."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Cite the upstream page here rather than restating its table of defaults."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm writing docs now; make sure you reference rather than reproduce the canonical text."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "You copied a closed list of supported models into the prompt. Reference the live source instead."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check my draft for places where the content will drift from the original."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Replace the copied config values with a pointer to where they are defined."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The same paragraph appears in five rule files. Consolidate into one source of truth."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find text in our docs that was lifted from external pages and report where it came from."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add this guidance to CLAUDE.md in as few lines as possible."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "These two modules always change together; reduce the coupling."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Deduplicate the repeated prose across our ADRs into a single named home."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Audit which markdown files restate things an outside source owns."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Trim our AGENTS.md down to what earns its place."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I changed a constant; find every file that restates it."
+    }
+  ]
+}

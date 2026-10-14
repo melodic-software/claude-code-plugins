@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "**Gap**: `importsNotUsedAsValues` was deprecated in TypeScript 5.0; replace it with `verbatimModuleSyntax`."
+    },
+    {
+      "answer": "1. Gap: deprecated `importsNotUsedAsValues`."
+    },
+    {
+      "answer": "verbatimModuleSyntax replaces importsNotUsedAsValues."
+    },
+    {
+      "answer": "### importsNotUsedAsValues\n\n**Gap.** Deprecated in TypeScript 5.0; use `verbatimModuleSyntax`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "importsNotUsedAsValues matches the docs.",
+      "why": "called conforming"
+    },
+    {
+      "answer": "importsNotUsedAsValues is not deprecated in 5.4.",
+      "why": "negated"
+    },
+    {
+      "answer": "importsNotUsedAsValues is not yet deprecated in 5.4.",
+      "why": "negation: not yet"
+    },
+    {
+      "answer": "Nothing deprecated: importsNotUsedAsValues matches the 5.4 docs.",
+      "why": "negation before the keyword"
+    },
+    {
+      "answer": "importsNotUsedAsValues: fine.\nuseDefineForClassFields: deprecated? No, undocumented.",
+      "why": "deprecated belongs to another setting"
+    }
+  ]
+}

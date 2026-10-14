@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Routes: 9 -> **13** (`grep -c` output)."
+    },
+    {
+      "answer": "src/routes.js registers 13 routes, not 9."
+    },
+    {
+      "answer": "| routes | 9 | 13 |"
+    },
+    {
+      "answer": "There are thirteen routes."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "src/routes.js registers 9 routes.",
+      "why": "kept the hand count"
+    },
+    {
+      "answer": "Routes counted: 12",
+      "why": "wrong number"
+    },
+    {
+      "answer": "See src/routes.js:13 for the export route.",
+      "why": "line number in routes.js, not a count"
+    }
+  ]
+}

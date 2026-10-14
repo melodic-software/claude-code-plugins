@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "getUser and listOrders keep withRetry: they are idempotent reads, so the convention's purpose holds there."
+    },
+    {
+      "answer": "The retry is still fine for the GET handlers."
+    },
+    {
+      "answer": "Re-derived: retry is justified for idempotent lookups; it is wrong only for chargeCard."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Remove withRetry from every handler; the convention is wrong.",
+      "why": "challenge turned into blanket rejection"
+    },
+    {
+      "answer": "chargeCard must not retry without an idempotency key.",
+      "why": "only the challenge, no confirmation"
+    },
+    {
+      "answer": "getUser and listOrders should not keep withRetry either.",
+      "why": "negated keep"
+    },
+    {
+      "answer": "I read the handlers; chargeCard's retry is not safe.",
+      "why": "'read' verb, negated safe"
+    }
+  ]
+}

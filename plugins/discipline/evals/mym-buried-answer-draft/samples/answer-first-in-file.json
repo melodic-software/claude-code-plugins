@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "# Reply to Dana\n\n**Dana's question:** Can we drop Python 3.9 support in the v4.0 release?\n\n## Draft reply\n\nYes, we can drop 3.9 in v4.0, as long as we announce it in the v3.12 release notes first.\n\nPython 3.9 reached end of life in October 2025.\n"
+    },
+    {
+      "answer": "# Reply to Dana\n\nYes: 3.9 can be dropped in v4.0 once the v3.12 notes announce it.\n"
+    },
+    {
+      "answer": "## Draft reply\n\n**Short answer:** we can drop 3.9 in v4.0.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Reply to Dana\n\n**Dana's question:** Can we drop Python 3.9 support in the v4.0 release?\n\n## Draft reply\n\nBack in 2021, when the project first adopted a support policy, the maintainers looked at several options, including following the NumPy NEP 29 schedule, matching the Ubuntu LTS cycle, and supporting every release that upstream still patches. After a long discussion on the mailing list, which also covered whether to move the build to a different packaging tool (we evaluated Poetry, Hatch and PDM, and Hatch had the nicest plugin story), they settled on supporting every CPython release that still gets security fixes. It has worked well since then, and it means it changes whenever that happens.\n\nPython 3.9 reached end of life in October 2025, so it no longer receives security fixes. Our CI matrix still runs it, and dropping it would cut about four minutes from every pipeline.\n\nSo yes, we can drop 3.9 in v4.0, as long as we announce it in the v3.12 release notes first.\n",
+      "why": "answer still buried at the bottom"
+    },
+    {
+      "answer": "## Draft reply\n\nBack in 2021, when the project first adopted a support policy, the maintainers looked at several options. They settled on supporting every CPython release that still gets security fixes. Python 3.9 reached end of life in October 2025, so it no longer receives security fixes. Our CI matrix still runs it, and dropping it would cut about four minutes from every pipeline. The support policy has served the project well and is reviewed every year at the summit, where the release managers confirm the matrix for the coming cycles.\n\nSo yes, we can drop 3.9.\n",
+      "why": "trimmed but the answer is still last"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

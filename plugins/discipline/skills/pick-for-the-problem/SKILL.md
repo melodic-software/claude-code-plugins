@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor choosing a tool, library, framework, language, or approach to fit the problem, not habit, incumbency, or preconception; re-derive the choice. Use when: 'pick for the problem', 'right tool for the job', 'which library should we use', 'what framework', 'should we build this or use X', 'is this the right approach', 'you defaulted to X', 'we always reach for X', 'evaluate the options', 'choose a dependency', or at conversation start on a build-vs-buy or technology-selection decision."
+description: "Re-anchors fitting a tool, library, framework, language, or approach to the problem, not habit, incumbency, or preconception; re-derives the choice. Use when: 'pick for the problem', 'right tool for the job', 'which library should we use', 'what framework', 'should we build this or use X', 'is this the right approach', 'you defaulted to X', 'we always reach for X', 'evaluate the options', 'choose a dependency', or at conversation start on a build-vs-buy or technology-selection decision."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -12,9 +12,8 @@ metadata:
 # Pick for the problem
 
 A drift corrector for selection discipline: the tool must fit the problem,
-not the reflex. The method, re-anchor, audit the work in flight, correct
-forward, report, and the tone that firing this is not an accusation, lives
-in
+not the reflex. The shared method (re-anchor, audit the work in flight,
+correct forward, report) lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md).
 Read it; this file adds only what is specific to selecting a tool, library,
 framework, language, or approach.
@@ -41,8 +40,7 @@ baseline.
 **The discipline that replaces them:**
 
 - **Define the actual problem first.** Name what is being solved, the real
-  requirements, before any candidate is on the table. Do not let the first
-  solution shape decide the problem.
+  requirements, before any candidate is on the table.
 - **Survey the field.** More than one candidate, judged against the stated
   requirements and the plausible future ones (variables that could shift and
   turn a choice into future pain).
@@ -56,8 +54,7 @@ baseline.
      only if it is well-maintained, well-known, safe, and secure.
 - **Every dependency is a coupling point.** Weigh, at adoption time, the
   cost this coupling can impose later: abandonment, a pricing pivot, a
-  license change, security posture, and exit cost. A dependency adopted
-  without that weighing is an unpriced liability.
+  license change, security posture, and exit cost.
 - **Building what already exists is a finding.** Re-implementing a solved,
   well-served problem (native or vetted) is a selection error in the other
   direction. Name it.
@@ -66,7 +63,7 @@ baseline.
 
 When the selection is load-bearing, the field survey and the maintenance /
 security / license / adoption judgment must come from CURRENT research, not
-training-data recall, a tool's maintenance status, licensing, and security
+training-data recall: a tool's maintenance status, licensing, and security
 posture drift constantly. Route to a research capability rather than judging
 from memory: invoke `/discovery:research` via the Skill tool, or
 `/discovery:research deep` for a large surface. Degrade to an explicit in-thread research pass (fetch the primary
@@ -80,7 +77,7 @@ full convention: [recommendation-basis](https://github.com/melodic-software/clau
 
 ## Audit. What to look for
 
-Name concrete, located findings (per the method doc's step 2, self-audit). This fires
+Name concrete, located findings (per the method doc's step 2, self-audit),
 both at an explicit choice-time AND over choices already embedded in the
 work in flight:
 
@@ -102,10 +99,8 @@ from the same recall that produced the reflex.
 
 The incumbency sin here is selection-specific. "the repo uses X, so this
 new work uses X". The general interrogation of inherited precedent is
-`/discipline:reason-dont-recite`; this skill applies that lens narrowly to a
-technology choice and adds the field survey, the ladder, and the coupling
-price. Route a broader inherited-design challenge there. The reciprocal
-boundary: consistency of idioms, structure, and process, where matching the
+`/discipline:reason-dont-recite`; route a broader inherited-design challenge
+there. Consistency of idioms, structure, and process, where matching the
 established way is usually right, is `/discipline:reuse-or-replace`'s axis,
 which carves tool/dependency selection out to this skill.
 
@@ -114,11 +109,6 @@ which carves tool/dependency selection out to this skill.
 - **Does not churn a well-fitted choice.** A tool re-derived from the problem
   and found to fit audits clean, including an incumbent one; the duty is to
   re-derive, not to switch for its own sake.
-- **Does not issue a verdict from recall.** A load-bearing evaluation routes
-  to research; the skill does not pronounce a maintenance or security verdict
-  from memory.
-- **Does not fabricate a finding.** A choice already problem-derived and
-  field-surveyed audits clean; say so.
 - **Does not audit a whole repository's dependency graph.** The audit covers the
   selection in flight; a repo-wide coupling-risk inventory is out of scope.
 

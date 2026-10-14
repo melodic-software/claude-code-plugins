@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {
+      "answer": "def sync_inventory(sku_list):\n    for sku in sku_list:\n        resp = requests.post(URL, json={\"sku\": sku}, timeout=5)\n        resp.raise_for_status()\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "import logging\n",
+      "why": "the sync call was deleted instead of fixed"
+    }
+  ]
+}

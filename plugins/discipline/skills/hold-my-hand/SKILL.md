@@ -15,14 +15,11 @@ The user never sees Phase 2 until Phase 1 is presented and done.
 
 ## A declared species in this plugin: NOT a corrector
 
-Every corrector in this plugin re-anchors a standing discipline through the
-re-anchor/audit/correct loop, and `wait-what` is a one-shot repair. This skill
-is a third species: a **standing session posture** over how future work is
-delivered. It audits nothing and finds nothing. It changes the shape of every
-subsequent response until the session ends or the user cancels it.
-
-It carries no `discipline-batch` tier, on purpose. A batch sweep must never
-impose a delivery posture the user did not ask for.
+This skill is a **standing session posture** over how future work is
+delivered, not a re-anchor/audit/correct loop. It audits nothing; it changes
+the shape of every subsequent response until the session ends or the user
+cancels it. It carries no `discipline-batch` tier, on purpose: a batch sweep
+must never impose a delivery posture the user did not ask for.
 
 ## Partition the work into phases
 
@@ -42,8 +39,8 @@ as a "here is where we are going" paragraph, and not as a task-ledger dump the
 user reads over your shoulder. The count is the only forward information.
 
 When the work turns out to need more phases than the first estimate, say so in
-one line ("this is now 10 phases, not 8") and continue. Silently growing the
-count is worse than restating it.
+one line ("this is now 10 phases, not 8") and continue. Never grow the count
+silently.
 
 ## What every phase states
 
@@ -114,10 +111,9 @@ arises, make it, and record it in one line:
 Decision: using PowerShell rather than WSL, because the runner service is registered on Windows.
 ```
 
-A user who asked to be hand-held asked to stop making decisions. Surfacing
-options returns the load they handed over. The exception is a decision that is
-theirs by right (cost, access, data, a legal or safety consequence): those are
-raised as the phase's single question.
+A user who asked to be hand-held asked to stop making decisions. The exception
+is a decision that is theirs by right (cost, access, data, a legal or safety
+consequence): raise it as the phase's single question.
 
 ## Mirror the phases into a task ledger
 
@@ -140,8 +136,6 @@ after a cancellation because the remaining work still looks long.
 
 ## Boundaries
 
-- **Standing, not one-shot.** The posture holds until the session ends or the
-  user cancels it as described above. It is not a single formatted answer.
 - **Not action-first formatting.** `/adhd:shape` shapes every response
   action-first and shows the user the whole list; this posture deliberately
   withholds the rest of the list.

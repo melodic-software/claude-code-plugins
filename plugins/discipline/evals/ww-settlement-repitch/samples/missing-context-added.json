@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Here is the same point again, in steps.\n\n1. A capture joins a settlement batch. The cutoff is the last time a capture can join today's batch.\n2. The payment service provider (PSP) moved the cutoff to 17:00 UTC.\n3. A capture after 17:00 UTC on Friday joins Monday's settlement batch.\n4. T+2 means the money arrives two business days after the batch closes. Monday plus two business days is Wednesday.\n5. Reconciliation marks these payments as late until the ledger records them.\n"
+    },
+    {
+      "answer": "PSP means payment service provider. T+2: the money arrives 2 business days after the batch closes."
+    },
+    {
+      "answer": "The PSP is our payment processor. T+2 means the money arrives 2 business days after the settlement batch closes."
+    },
+    {
+      "answer": "PSP: payment service provider. T+2: the funds arrive two days after the batch closes, counted in business days."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The payout run slipped because the PSP moved the cutoff, so anything captured after 17:00 UTC rolls into the next batch and lands T+2 from that close rather than from today's, which is why Friday's captures show up Wednesday instead of Tuesday, and reconciliation will flag them as late until the ledger catches up.",
+      "why": "original, nothing defined"
+    },
+    {
+      "answer": "T+2 means two business days later.",
+      "why": "PSP still undefined"
+    },
+    {
+      "answer": "The PSP moved the cutoff. T+2 means two business days later.",
+      "why": "PSP never expanded"
+    },
+    {
+      "answer": "PSP means payment service provider. Funds arrive later.",
+      "why": "T+2 not explained"
+    }
+  ]
+}

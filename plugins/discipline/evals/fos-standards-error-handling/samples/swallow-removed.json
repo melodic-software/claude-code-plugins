@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {
+      "answer": "def sync_inventory(sku_list):\n    for sku in sku_list:\n        try:\n            resp.raise_for_status()\n        except requests.RequestException as exc:\n            log.warning(\"sync failed for %s: %s\", sku, exc)\n"
+    },
+    {
+      "answer": "def sync_inventory(sku_list):\n    for sku in sku_list:\n        resp.raise_for_status()\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def doIt(sku_list):\n    for sku in sku_list:\n        try:\n            resp.raise_for_status()\n        except Exception:\n            pass\n",
+      "why": "original file left as it was"
+    },
+    {
+      "answer": "def sync_inventory(sku_list):\n    try:\n        run()\n    except:\n        pass\n",
+      "why": "bare except still swallows"
+    },
+    {
+      "answer": "def f():\n    try:\n        run()\n    except Exception:  # TODO log\n        pass\n",
+      "why": "comment added, still swallows"
+    },
+    {
+      "answer": "def sync_inventory(sku_list):\n    try:\n        run()\n    except Exception as exc:\n        pass\n",
+      "why": "named exception, still swallowed"
+    },
+    {
+      "answer": "def sync_inventory(sku_list):\n    try:\n        run()\n    except requests.RequestException:\n        # ignore\n        pass\n",
+      "why": "narrowed but still swallowed, comment line between"
+    },
+    {
+      "answer": "def sync_inventory(sku_list):\n    for sku in sku_list:\n        try:\n            run()\n        except Exception:\n            continue\n",
+      "why": "continue is a swallow"
+    },
+    {
+      "answer": "def f():\n    try:\n        run()\n    except Exception: pass\n",
+      "why": "one-line swallow"
+    }
+  ]
+}

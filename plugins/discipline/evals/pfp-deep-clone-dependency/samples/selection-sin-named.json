@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Finding: the lodash pick traces to **habit** ('we always reach for lodash')."
+    },
+    {
+      "answer": "That is the Habit sin, not a requirement."
+    },
+    {
+      "answer": "Incumbency and habit picked lodash; neither names a requirement."
+    },
+    {
+      "answer": "The lodash pick is the availability sin: it was at hand, not chosen for fit."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "lodash is fine; it is well maintained.",
+      "why": "no sin named"
+    },
+    {
+      "answer": "Switched to structuredClone.",
+      "why": "fix with no diagnosis"
+    },
+    {
+      "answer": "structuredClone has broad availability in Node 17+.",
+      "why": "availability as a plain word, no sin named"
+    },
+    {
+      "answer": "This is not habit; lodash fits.",
+      "why": "negation"
+    }
+  ]
+}

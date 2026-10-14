@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: pfp-deep-clone-dependency
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-package-json
+    type: regex
+    pattern: '"name":"(?:Read|Grep)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:package\.json)|^(?=[^\n]*"type":"tool_result")[^\n]*?(?:config-loader)'
+    flags: 'm'
+    target: trace
+  - name: native-option-named
+    type: regex
+    pattern: '(?<!\bnot )(?<!n''t )(?<!n''t use )(?<!not use )(?<!avoid )(?<!instead of )(?<!\bover )(?<!rather than )`?\bstructuredClone\b(?!(?:\(\))?`?[ \t]+(?:is not|isn''t|cannot|can''t|won''t|does not|doesn''t)[ \t]+(?:an option|available|suitable|support|handle|work|fit))'
+    target: last_message
+  - name: selection-sin-named
+    type: regex
+    pattern: '(?<!\bnot )(?<!n''t )(?<!\bno )\b(?:habit(?:ual)?|incumbency|preconception)\b|\b(?:availability|popularity)\b[^\n]{0,30}\b(?:sin|bias)\b|\b(?:sins?|bias)\b[^\n]{0,30}\b(?:availability|popularity)\b'
+    flags: 'i'
+    target: last_message
+  - name: basis-label
+    type: regex
+    pattern: '\bBasis\b\**[ \t]*[:|—–-]?[ \t]*\**[ \t]*`?(?:verified|judgment)\b|\|[^\n]*\bBasis\b[^\n]*\|[\s\S]*?\|[ \t]*\**`?(?:verified|judgment)\b'
+    flags: 'i'
+    target: last_message

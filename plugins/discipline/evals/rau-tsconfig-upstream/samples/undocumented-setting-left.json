@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"compilerOptions\": {\n    \"strict\": false,\n    \"useDefineForClassFields\": false\n  }\n}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "{\n  \"compilerOptions\": {\n    \"strict\": false,\n    \"useDefineForClassFields\": true\n  }\n}\n",
+      "why": "flipped the human's call"
+    },
+    {
+      "answer": "{\n  \"compilerOptions\": {\n    \"strict\": false\n  }\n}\n",
+      "why": "deleted the human's call"
+    }
+  ]
+}

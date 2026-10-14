@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "2. `doIt` is not a snake_case verb phrase (docs/standards/naming.md, N-1). Renamed to `sync_inventory`."
+    },
+    {
+      "answer": "| src/sync.py:8 | `doIt` | **naming.md** N-1 |"
+    },
+    {
+      "answer": "`doIt` breaks naming.md N-1; renamed to `sync_inventory`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "`doIt` should be renamed to something descriptive.",
+      "why": "finding with no citation"
+    },
+    {
+      "answer": "Conforms to docs/standards/error-handling.md after the fix.",
+      "why": "only the other doc"
+    },
+    {
+      "answer": "The module does not violate naming.md.",
+      "why": "negation"
+    },
+    {
+      "answer": "No violations of naming.md.",
+      "why": "negation"
+    }
+  ]
+}

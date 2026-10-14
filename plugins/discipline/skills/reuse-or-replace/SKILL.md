@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor anti-fragmentation: where an established way exists, new work REUSES it or openly REPLACES it (migrate, record why), never a SILENT second way. Use when: 'reuse or replace', 'we already have a way of doing this', 'don't invent a second way', 'keep it one way', 'follow the existing pattern or replace it', 'be consistent', 'you added a parallel way', 'this diverges from how we do it elsewhere', or at conversation start on work that extends an established codebase, structure, or process."
+description: "Re-anchors anti-fragmentation: given an established way, new work REUSES it or openly REPLACES it (migrate, record why), never a SILENT second way. Use when: 'reuse or replace', 'we already have a way of doing this', 'don't invent a second way', 'keep it one way', 'follow the existing pattern or replace it', 'be consistent', 'you added a parallel way', 'this diverges from how we do it elsewhere', or at conversation start on work that extends an established codebase, structure, or process."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -12,9 +12,8 @@ metadata:
 # Reuse or replace
 
 A drift corrector for anti-fragmentation discipline: one way to do a thing,
-not two. When an established way already exists, new work reuses it or openly
-replaces it. It does not add a silent second way beside it. The method, re-anchor, audit the work in flight, correct forward, report, and the tone
-that firing this is not an accusation, lives in
+not two. The shared method (re-anchor, audit the work in flight, correct
+forward, report) lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md).
 Read it; this file adds only what is specific to reusing or replacing an
 established way rather than splitting into a parallel one.
@@ -23,24 +22,22 @@ established way rather than splitting into a parallel one.
 
 When a codebase, structure, or process already has an **established way** of
 doing something, new work must not silently stand up a **second, parallel
-way** beside it. Two coexisting ways of doing the same thing is fragmentation
-It splits the reader's model, doubles the surface that drifts, and taxes
-every future change with a "which one?" decision. Resolve the source of truth
-per the method doc's ladder: if the consuming project states a
-consistency / one-way rule in its own `CLAUDE.md` / `.claude/rules/`, re-anchor
-THAT. Otherwise re-anchor this portable baseline.
+way** beside it. Two coexisting ways of doing the same thing is
+fragmentation: it splits the reader's model, doubles the surface that
+drifts, and taxes every future change with a "which one?" decision. Resolve
+the source of truth per the method doc's ladder: if the consuming project
+states a consistency / one-way rule in its own `CLAUDE.md` /
+`.claude/rules/`, re-anchor THAT. Otherwise re-anchor this portable baseline.
 
-Facing an established way, new work has exactly **two honest options**. The
-two this skill is named for:
+Facing an established way, new work has exactly **two honest options**:
 
 - **Reuse it.** Follow the established way, so the codebase keeps one way.
 - **Replace it.** Openly argue the established way should change, then, if it
-  should. *migrate* the old uses to the new way and *record* the decision.
+  should, *migrate* the old uses to the new way and *record* the decision.
   Replacement converges the codebase on the new single way.
 
 The **sin is neither of those**: it is leaving the established way in place and
-quietly adding a divergent way alongside it, so both now exist. That silent
-second way is what this skill exists to catch.
+quietly adding a divergent way alongside it, so both now exist.
 
 ### Misconstrual guard. This is NOT "always conform" (mandatory)
 
@@ -90,7 +87,7 @@ touches a concern it might list; do not load it otherwise. The index sits at
 `standards_dir`. A listed entry is the established way for that concern; a
 second way beside it is the finding above, and replacing it means updating
 the entry too. With no index or no `paved-path` row, find the established way
-in the codebase as before.
+in the codebase.
 
 ## Scope, the unlintable "approach" level
 
@@ -101,14 +98,9 @@ documentation formats, and process or workflow choices.
 
 **Mechanical style is out of scope**. Indentation, quote style, import
 order, line length, and everything a formatter or linter settles
-deterministically belong to those tools, not to a judgment corrector. This
-skill fires at the level a linter cannot reach: the *approach*, not the
-whitespace.
+deterministically belong to those tools, not to a judgment corrector.
 
 ## Distinct axes, the two skills this must not be confused with
-
-Firing this cleanly requires keeping it apart from two siblings; the
-boundaries are deliberate, not incidental.
 
 - **`/discipline:reason-dont-recite` (evaluation-side).** That skill
   interrogates *inherited* content. Is this existing convention actually
@@ -151,20 +143,6 @@ where replacement is warranted, record the rationale at the blast-radius-
 appropriate level AND, if the established way is genuinely superseded, migrate the existing uses and retire it rather than leaving both. Never settle
 for the silent second way.
 
-## What this skill does NOT do
-
-- **Does not mandate conformity.** A well-grounded replacement that supersedes
-  the established way and migrates its uses is a correct outcome, not a
-  violation; the duty is to keep one way, not to freeze the incumbent one.
-- **Does not police mechanical style.** Formatting and lint-settled choices
-  belong to the linter/formatter; this skill audits the unlintable approach
-  level only.
-- **Does not govern tool or dependency selection.** That is
-  `/discipline:pick-for-the-problem`; incumbency there is a selection sin, not
-  a consistency target.
-- **Does not fabricate a finding.** New work that already reuses the
-  established way, or replaces it with a recorded reason, audits clean; say so.
-
 ## Gotchas
 
 - The tell is **two ways where one would do**, not divergence itself. A
@@ -172,8 +150,8 @@ for the silent second way.
   decision recorded) kept the codebase on one way; it is the goal, not the
   finding. The finding is the old way and the new way both left standing.
 - "Be consistent" read as "never replace" inverts the skill. Blind trust in
-  the status quo is the failure mode on the *other* side; the misconstrual
-  guard exists because straight conformity is not the goal. One way is.
+  the status quo is the failure mode on the *other* side; straight
+  conformity is not the goal. One way is.
 - A recorded reason is the burden, not correctness. An unexplained second way
   is a finding even if it would have been defensible; the fix is to state the
   rationale (and keep one way), not to argue the divergence was fine.

@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor: inherited content is evidence of what is, never self-justifying authority; re-derive decisions coasting on precedent. Use when: 'reason don't recite', 'why is it this way', 'challenge that convention', 'you're deferring to precedent', \"that's just how it's done\", 'question the inherited design', 'stop reciting the docs', 'is this actually right', or at conversation start on legacy or inherited code. To RECOVER past reasoning from history, use '/discovery:trace-intent' if installed."
+description: "Re-anchors: inherited content is evidence of what is, never self-justifying authority; re-derives choices coasting on precedent. Use when: 'reason don't recite', 'why is it this way', 'challenge that convention', 'you're deferring to precedent', \"that's just how it's done\", 'question the inherited design', 'stop reciting the docs', 'is this actually right', or at conversation start on legacy or inherited code. To RECOVER past reasoning from history, use '/discovery:trace-intent' if installed."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,9 +11,8 @@ metadata:
 
 # Reason, don't recite
 
-A drift corrector for incumbency discipline. The method, re-anchor, audit
-the work in flight, correct forward, report, and the tone that firing this
-is not an accusation, lives in
+A drift corrector for incumbency discipline. The shared method (re-anchor,
+audit the work in flight, correct forward, report) lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md).
 Read it; this file adds only what is specific to interrogating inherited
 content.
@@ -43,10 +42,8 @@ portable baseline:
 
 This is a distinct axis from `/discipline:do-your-research`. That skill
 acquires external evidence you LACK; this one questions internal evidence
-you INHERITED and took on faith. Firing it is a re-anchor, not an
-accusation, a gentle "should we actually be doing it this way" is a
-first-class use, and the audit may find every inherited choice is well
-justified.
+you INHERITED and took on faith. The audit may find every inherited choice
+is well justified.
 
 ## Audit. What to look for
 
@@ -67,8 +64,7 @@ inherited source says. Reason about whether it should still hold.
 
 ## Reciprocal boundaries
 
-Siblings carve their axes out of this one. Conformance to an EXTERNAL vendor's
-current docs is
+Conformance to an EXTERNAL vendor's current docs is
 `/discipline:recheck-against-upstream`'s axis; the production-side rule that
 new work reuses or openly replaces an established way (never a silent second
 way) is `/discipline:reuse-or-replace`'s; a technology/dependency selection is
@@ -85,18 +81,11 @@ and routes it to the human, and does not open a standards PR (or any outward
 artifact) without explicit opt-in. Degrade to that skill in prose when it is
 not installed.
 
-## What this skill does NOT do
-
-- **Does not treat challenge as rejection.** Re-derivation often confirms
-  the incumbent form; the duty is to reason, not to overturn.
-- **Does not fabricate a finding.** Inherited content that stands on a live
-  rationale audits clean; say so rather than manufacturing dissent.
-
 ## Gotchas
 
 - The tell is a justification that only restates the incumbency. "because
   that's what's there". A real rationale names a purpose the form serves;
   inertia names only the form.
-- Confirming an inherited choice is a valid outcome. This is not a mandate
-  to change things. It is a mandate to know WHY, and to re-derive when the
-  only answer is "it's always been like this".
+- Confirming an inherited choice is a valid outcome. Re-derivation often
+  confirms the incumbent form; the mandate is to know WHY, and to re-derive
+  when the only answer is "it's always been like this", not to overturn.

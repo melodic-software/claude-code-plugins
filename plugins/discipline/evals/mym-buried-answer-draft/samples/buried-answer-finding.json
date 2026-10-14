@@ -1,0 +1,48 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Relation / buried lede**: the answer ('yes') is the last line. Moved it to the top."
+    },
+    {
+      "answer": "Manner: the reply should lead with the answer; it now opens with 'Yes'."
+    },
+    {
+      "answer": "The answer sits at the bottom under two paragraphs of history."
+    },
+    {
+      "answer": "Relation: Dana asked a yes/no question and the answer came last, under two paragraphs of history. Moved it to the top."
+    },
+    {
+      "answer": "The yes was hidden at the end; the reply now leads with the answer."
+    },
+    {
+      "answer": "Buried lede: the answer is in the last paragraph."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Audit clean: the reply is clear and complete.",
+      "why": "no finding"
+    },
+    {
+      "answer": "Fixed a typo in the second paragraph.",
+      "why": "different finding"
+    },
+    {
+      "answer": "The answer is not buried; the reply is fine.",
+      "why": "negation"
+    },
+    {
+      "answer": "No buried lede. Cut the tangent.",
+      "why": "negation: no buried lede"
+    },
+    {
+      "answer": "The reply never buries the answer.",
+      "why": "negation: never"
+    }
+  ]
+}

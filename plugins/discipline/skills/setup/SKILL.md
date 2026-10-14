@@ -1,5 +1,5 @@
 ---
-description: "Validate the discipline plugin's configuration (the posture-batch overlay, do-your-research's fan-out verification depth, lever_scope and docs/conventions/discipline.yaml), explain how to change the personal options through Claude Code's plugin configuration prompt, and write the repository file after confirmation. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'what's in my posture batch', 'what's my deep-research depth', 'set lever_scope for this repo', or the user wants to adjust which correctors the batch runs, how deeply the research fan-out verifies, or when a repeated change gets a lever. Actions: check (read-only, default), apply (writes docs/conventions/discipline.yaml only)."
+description: "Checks the discipline plugin's configuration (posture-batch overlay, research fan-out depth, lever_scope) and, with apply, writes docs/conventions/discipline.yaml after confirmation."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true

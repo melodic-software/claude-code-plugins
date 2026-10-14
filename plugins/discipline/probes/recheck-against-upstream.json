@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:recheck-against-upstream",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/recheck-against-upstream",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the docs-reading skill, the harness-config audit, the do-your-research sibling, the attribution audit and the multi-agent defaults audit.",
+  "competitors": [
+    "discovery:read-docs",
+    "harness-config:audit",
+    "discipline:do-your-research",
+    "attribution:audit",
+    "multi-agent:audit-defaults"
+  ],
+  "competitor_dirs": {
+    "discovery:read-docs": "plugins/discovery/skills/read-docs",
+    "harness-config:audit": "plugins/harness-config/skills/audit",
+    "discipline:do-your-research": "plugins/discipline/skills/do-your-research",
+    "attribution:audit": "plugins/attribution/skills/audit",
+    "multi-agent:audit-defaults": "plugins/multi-agent/skills/audit-defaults"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is our GitHub Actions workflow still how GitHub recommends doing it today?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Compare our Terraform provider setup with the vendor's current documentation."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Has upstream changed since we wrote this integration? Check before we ship."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our setup works, but is it still right? Verify it against what the vendor currently publishes."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go through the entire infra config and compare every piece to what the docs now say."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our Nginx config might have drifted from the current official guidance. Take a look."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Audit every surface of this subsystem against the latest vendor documentation."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Just because it runs doesn't mean it's correct; check it against the source of truth."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm touching the SSO integration. First confirm we're following the provider's current docs."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do a deep conformance pass of our Kubernetes manifests versus upstream."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Read the hooks docs page and tell me what it says about timeouts."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Audit my settings.json for correctness and security."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Go back and back up your claims with sources."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Are the model defaults in our guidance still current? Propose a diff."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Fetch the official page on webhooks and summarize the retry section."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check my .mcp.json and permissions for drift."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Cite where that figure came from."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Recheck the role map after the new model release."
+    }
+  ]
+}

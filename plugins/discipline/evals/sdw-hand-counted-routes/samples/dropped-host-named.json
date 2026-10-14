@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Dropped: reports.internal."
+    },
+    {
+      "answer": "v2 removes `reports.internal`."
+    },
+    {
+      "answer": "| Dropped | reports.internal |"
+    },
+    {
+      "answer": "v2 removes `reports.internal`; it is v1-only."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "v2 drops none.",
+      "why": "kept the hand claim"
+    },
+    {
+      "answer": "Dropped: reports.",
+      "why": "not the host name"
+    },
+    {
+      "answer": "v1 hosts: metrics.internal, api.internal, search.internal, reports.internal, billing.internal",
+      "why": "listed, not called dropped"
+    },
+    {
+      "answer": "v2 drops none; reports.internal stays.",
+      "why": "drops none"
+    },
+    {
+      "answer": "reports.internal was not dropped.",
+      "why": "negation"
+    }
+  ]
+}

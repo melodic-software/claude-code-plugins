@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "1. Write tests with jest -> **vitest**. The `test` script is `vitest run`, not jest."
+    },
+    {
+      "answer": "| 1 | jest | vitest | package.json:6 |"
+    },
+    {
+      "answer": "Recommendation 1 was wrong.\nThe test script actually runs `vitest run`, so new tests should use vitest, not jest."
+    },
+    {
+      "answer": "Rec 1: the `test` script runs vitest, so write the new tests in vitest rather than jest. Basis: verified."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Recommendation 1 stands: keep jest as the runner.",
+      "why": "kept the unverified claim"
+    },
+    {
+      "answer": "Unchanged: 1 (jest), 2 (engines), 3 (--runInBand).",
+      "why": "never names the real runner"
+    },
+    {
+      "answer": "Recommendation 1 stands: keep jest; vitest is not needed.",
+      "why": "negation: vitest dismissed"
+    },
+    {
+      "answer": "Keep jest. There is no vitest here.",
+      "why": "negation: no vitest"
+    },
+    {
+      "answer": "Keep jest; vitest is not used in this repo.",
+      "why": "vitest only negated; jest kept"
+    }
+  ]
+}

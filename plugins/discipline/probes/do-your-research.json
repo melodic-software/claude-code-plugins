@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:do-your-research",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/do-your-research",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the upstream-recheck, self-scrutiny and pointer-over-copy siblings in this plugin, plus discovery:research for a fresh external question and attribution:audit for copied-content provenance.",
+  "competitors": [
+    "discipline:recheck-against-upstream",
+    "discovery:research",
+    "discipline:scrutinize-dont-coast",
+    "discipline:point-dont-copy",
+    "attribution:audit"
+  ],
+  "competitor_dirs": {
+    "discipline:recheck-against-upstream": "plugins/discipline/skills/recheck-against-upstream",
+    "discovery:research": "plugins/discovery/skills/research",
+    "discipline:scrutinize-dont-coast": "plugins/discipline/skills/scrutinize-dont-coast",
+    "discipline:point-dont-copy": "plugins/discipline/skills/point-dont-copy",
+    "attribution:audit": "plugins/attribution/skills/audit"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "That number you just gave me, where did it come from? I think you made it up."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Stop guessing about how the retry policy behaves and go back it with sources."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You recommended Redis earlier. Were those recommendations actually grounded in anything?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I don't trust a single claim you've made in this session. Go through all of them and check each one."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Back up that benchmark claim with a real source before we build on it."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "This sounds like something you remember from training rather than something you looked up. Can you verify it?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make sure the version limit you quoted is actually correct."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before we continue, put evidence behind every recommendation you've handed me so far."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do a thorough fact-check pass on everything we've concluded today."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "You jumped to an answer without checking. Redo it properly with citations."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Research the pros and cons of Kafka versus RabbitMQ for a new project and give me a sourced summary."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is our eslint config still current with what the eslint docs say today?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find copied paragraphs in our docs that were lifted from the vendor site."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Poke holes in the migration you just wrote; I think it is unsound even though it sounds confident."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What does the official Postgres page say about partial index limits?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Look at the docs and tell me if our Terraform backend settings drifted from upstream."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which of our markdown files restate content that an outside source owns?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Do a second pass on your last answer with fresh eyes; I suspect you missed a case."
+    }
+  ]
+}

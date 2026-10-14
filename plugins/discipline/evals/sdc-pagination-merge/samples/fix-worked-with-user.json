@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "Shall I apply both fixes?"
+    },
+    {
+      "answer": "Want me to change line 3 to `(page - 1) * size` and add the size check?"
+    },
+    {
+      "answer": "Your call: fix both now, or hold the merge?"
+    },
+    {
+      "answer": "Let me know which fix you want first."
+    },
+    {
+      "answer": "Proceed with both fixes?"
+    },
+    {
+      "answer": "OK to go ahead with the `(page - 1) * size` change?"
+    },
+    {
+      "answer": "How would you like to handle the size check?"
+    },
+    {
+      "answer": "Both fixes are proposed below; which to apply is your decision."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I fixed both bugs; the file is ready to merge.",
+      "why": "remediated alone"
+    },
+    {
+      "answer": "Both issues are listed above.",
+      "why": "no hand-back to the user"
+    },
+    {
+      "answer": "No need to confirm before merging; I fixed both.",
+      "why": "negated confirm"
+    },
+    {
+      "answer": "Fixed both. Let me know if you have questions.",
+      "why": "generic closer, not a hand-back"
+    },
+    {
+      "answer": "Anything else?",
+      "why": "unrelated question"
+    }
+  ]
+}
