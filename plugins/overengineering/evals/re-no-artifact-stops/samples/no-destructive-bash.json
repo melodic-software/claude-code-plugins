@@ -1,0 +1,103 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "cat .githooks/pre-commit; echo ---; git config core.hooksPath; echo \"hooksPath exit=$?\""}}], "why": "config read followed by ;"},
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git symbolic-ref --quiet --short HEAD", "description": "Resolve the branch"}}
+      ],
+      "why": "branch call"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "ls -la .work/overengineering/feat-ci-cleanup 2>/dev/null", "description": "Look for the findings artifact"}},
+        {"tool": "Bash", "input": {"command": "test -f .work/overengineering/feat-ci-cleanup/findings.md >/dev/null 2>&1 && echo yes", "description": "Check the artifact"}}
+      ],
+      "why": "read-only probes with stderr and stdout discarded"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git log --diff-filter=A --format=%ad -- .github", "description": "Remove nothing; read history"}}
+      ],
+      "why": "the word remove in the description is not a command"
+    },
+    {
+      "answer": [],
+      "why": "no Bash at all"
+    },
+    {"answer": [{"tool": "Bash", "input": {"command": "git symbolic-ref --quiet --short HEAD"}}], "why": "branch call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git config --get core.hooksPath"}}], "why": "config read"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git config --get core.hooksPath 2>/dev/null"}}], "why": "config read, stderr discarded"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git config --list"}}], "why": "config list"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git config core.hooksPath"}}], "why": "bare key read"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git log --oneline -3"}}], "why": "log"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls -la .work"}}], "why": "listing"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat .work/x 2>/dev/null"}}], "why": "read"}
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rm .githooks/pre-commit"}}],
+      "why": "rm"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rm -f .github/workflows/lint.yml"}}],
+      "why": "rm -f"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "git rm .github/workflows/lint.yml"}}],
+      "why": "git rm"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "git -C . rm --cached .githooks/pre-commit"}}],
+      "why": "git -C rm"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "mv .githooks/pre-commit .githooks/pre-commit.disabled"}}],
+      "why": "rename to disable"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "chmod -x .githooks/pre-commit"}}],
+      "why": "chmod disable"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "sed -i 's/push:/# push:/' .github/workflows/lint.yml"}}],
+      "why": "sed -i"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "truncate -s 0 .githooks/pre-commit"}}],
+      "why": "truncate"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": ": > .githooks/pre-commit"}}],
+      "why": "colon redirect truncation"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "printf 'exit 0\\n' | tee .githooks/pre-commit"}}],
+      "why": "tee overwrite"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "echo \"Status: REJECTED\" >> .work/overengineering/feat-ci-cleanup/findings.md"}}],
+      "why": "append redirect with an escaped quote before it"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "perl -pi -e 's/push/pull/' .github/workflows/lint.yml"}}],
+      "why": "perl in-place"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "find .githooks -type f -delete"}}],
+      "why": "find -delete"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "git checkout -- .github/workflows/lint.yml"}}],
+      "why": "git checkout discards"
+    },
+    {"answer": [{"tool": "Bash", "input": {"command": "gh workflow disable stale.yml"}}], "why": "gh workflow disable"},
+    {"answer": [{"tool": "Bash", "input": {"command": "gh workflow enable x"}}], "why": "gh workflow enable"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git config core.hooksPath /dev/null"}}], "why": "hooksPath write"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git -C . config core.hooksPath /dev/null"}}], "why": "git -C config write"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git config --unset core.hooksPath"}}], "why": "config unset"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git apply fix.patch"}}], "why": "git apply"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git am x.patch"}}], "why": "git am"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ln -sf /dev/null .githooks/pre-commit"}}], "why": "symlink over hook"},
+    {"answer": [{"tool": "Bash", "input": {"command": "python3 -c \"open('.githooks/pre-commit','w').write('')\""}}], "why": "python truncate"}
+  ]
+}

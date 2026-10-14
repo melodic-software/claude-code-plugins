@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Refusing the `documents` layer: it belongs to `/overengineering:justify`."},
+    {"answer": "Use overengineering:justify on docs/setup.md instead."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "documents is not an enforcement layer; run `/overengineering:audit` with one of the ten.", "why": "names only audit"},
+    {"answer": "Justify each document separately.", "why": "no skill name"},
+    {"answer": "Try `/docs-hygiene:audit-derivability`.", "why": "another plugin"}
+  ]
+}

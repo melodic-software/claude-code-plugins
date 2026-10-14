@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: ju-ambiguous-heading
+description: Justify pointed at a heading that appears twice with the same ancestry declines the target, names the collision, and asks for a whole-file target or a rename, writing no findings artifact
+tags: [overengineering, justify, outcome, refusal, finding-ids]
+runs: 3
+expected_outcome: docs/runbook.md has two top-level "## Notes" sections. The run declines the target, names the heading collision, and asks for a whole-file target or a disambiguating rename. It gives no verdict for either Notes section and writes no findings.md (a .work/.gitignore guard write is allowed).
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/overengineering:justify docs/runbook.md#Notes"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: no-findings-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*findings\.md"'
+    min: 0
+    max: 0
+  - name: no-findings-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*findings\.md"'
+    min: 0
+    max: 0
+  - name: no-findings-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<![0-9&>])>{1,2}|\btee\b|\bmv\b|\bcp\b)(?:[^"\\]|\\.)*?findings\.md'
+    min: 0
+    max: 0
+  - name: names-heading-collision
+    type: regex
+    pattern: '\b(?:two|2|both|duplicate[ds]?|identical|repeated)\b[^\n]{0,60}Notes|Notes`?[^\n]{0,80}(?<!not )(?<!n''t )(?<!no )\b(?:ambiguous|collid\w*|collision|twice|duplicated?|appears (?:two|2) times|more than once|not unique|non-unique)\b|(?<!not )(?<!n''t )(?<!no )\b(?:ambiguous|heading collision|collision)\b[^\n]{0,80}Notes'
+    flags: i
+  - name: offers-whole-file
+    type: regex
+    pattern: '(?:^|(?<=[.!?;:]\s))(?!(?:[^\n.!?;]|\.(?=\S))*(?:\bnot\b|n''t\b|\bnever\b)(?:[^\n.!?;]|\.(?=\S))*\b(?:whole|entire|full)[- ]file)(?:[^\n.!?;]|\.(?=\S))*\b(?:whole[- ]file|entire file|full file)\b|(?<!n''t )(?<!not )(?<!never )\bre-?run\b[^\n]{0,60}\bjustify\s+docs/runbook\.md(?![#\w])|\b(?:target|judge|point (?:me )?at|justify)\b[^\n]{0,30}`?docs/runbook\.md`?(?!#)(?:\s+as a whole|\s+itself|\s+instead|`?\s*\(the whole)'
+    flags: i
+  - name: offers-rename
+    type: regex
+    pattern: '(?<!not )(?<!n''t )(?<!no )\b(?:renam(?:e|ing)|retitl(?:e|ing))\b[^\n]{0,80}\b(?:heading|section|Notes|one|them|either)\b|\b(?:disambiguat\w*|unique)\b[^\n]{0,40}\b(?:heading|name|title)\b'
+    flags: i
+  - name: no-verdict-on-occurrence
+    type: regex
+    pattern: '\b(?:KEEP|RETIRE|DOWNGRADE|CONSOLIDATE|UNPROVEN|FLAG-FOR-HUMAN)\b'
+    match: not_contains

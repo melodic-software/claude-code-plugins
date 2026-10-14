@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [], "why": "stopped"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "overengineering:realign"}}], "why": "a different skill (wrong for other reasons, but not this grader)"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "overengineering:audit-pass"}}], "why": "different name with audit as a prefix"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "overengineering:audit"}}], "why": "invoked the audit"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "overengineering:audit", "args": "unattended"}}], "why": "with args"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "audit"}}], "why": "bare name"}
+  ]
+}

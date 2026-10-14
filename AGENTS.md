@@ -51,8 +51,9 @@ which also answers the untrusted-text risk below for them. A hook `ask` or `perm
 answers, so lane sessions carry none. `--permission-prompts none` is documented for print mode and
 unattended runs; that a `--bg` lane denies with it is not probed. Never use bypass mode or
 `--dangerously-skip-permissions`: lanes read untrusted issue and PR text while holding push
-credentials. On a long run, keep the task list in a file and tick it as you go, and end with
-three headings: Blocked on me, Changed, Found, unless a skill defines its own report shape.
+credentials. On a long run, keep the task list in a file and tick it as you go, so the work
+survives a compaction: read the file, not the scrollback. End with three headings: Blocked on me,
+Changed, Found, unless a skill defines its own report shape.
 
 ## Org architecture
 

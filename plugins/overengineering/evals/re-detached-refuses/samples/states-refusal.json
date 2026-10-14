@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "Detached checkout, no logical ref supplied; no branch identity, so the artifact's branch cannot be verified and nothing will be executed."},
+    {"answer": "I won't execute anything from this checkout. Re-run on an attached branch."},
+    {"answer": "Refusing: there is no branch identity to compare against the artifact."},
+    {"answer": "Stopping here; check out a branch and run realign again."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "I won't refuse; presenting the first finding now.", "why": "negated refusal"},
+    {"answer": "Finding 1 of 2: `.githooks/pre-commit`. Shall I proceed?", "why": "presents and asks instead"},
+    {"answer": "Retiring the hook cannot be undone easily. Accept?", "why": "warning only"}
+  ]
+}

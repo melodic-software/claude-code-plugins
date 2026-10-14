@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": "Declining `docs/runbook.md#Notes`: the heading `## Notes` appears twice with the same ancestry, so the target is ambiguous."},
+    {"answer": "There are two top-level `## Notes` sections in docs/runbook.md."},
+    {"answer": "Heading collision: `Notes` occurs more than once at the top level."},
+    {"answer": "The target is ambiguous: docs/runbook.md has duplicate Notes headings."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "The `## Notes` heading is not ambiguous; judging it now.", "why": "negated"},
+    {"answer": "Notes has no collision, so here is the verdict.", "why": "negated collision"},
+    {"answer": "Judging `docs/runbook.md#Notes` (the first occurrence).", "why": "silently picks one"},
+    {"answer": "There are two files under docs/.", "why": "count about something else"}
+  ]
+}
