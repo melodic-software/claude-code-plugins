@@ -21,10 +21,9 @@ Never write a price, a cache or batch rate, a per-task or per-session cost, or a
 into a skill, agent, reference, doc or prompt. A mechanism, such as each turn resending the
 conversation, is fine; the number is the docs' to state.
 
-On a subscription the `/usage` session cost is a locally computed estimate of the work, not a bill;
-which rates it uses is
-[Using the `/usage` command](https://code.claude.com/docs/en/costs#using-the-%2Fusage-command)'s
-to state. Do not present it as spend.
+On a subscription, present the `/usage` session cost as an estimate of the work, not as spend;
+[Using the `/usage` command](https://code.claude.com/docs/en/costs#using-the-%2Fusage-command)
+says why and which rates it uses.
 
 Two exceptions:
 
