@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/home/<user>/.claude/plugins/multi-agent/skills/audit-defaults/SKILL.md"
+          }
+        }
+      ],
+      "why": "read the plugin's own skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/home/<user>/repo/docs/models.md"
+          }
+        }
+      ],
+      "why": "read a repository doc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/home/<user>/.claude/plugins/multi-agent/reference/defaults.yaml"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/home/<user>/repo/AGENTS.md"
+          }
+        }
+      ],
+      "why": "plugin read, then a repository read"
+    }
+  ]
+}

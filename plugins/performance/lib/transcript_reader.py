@@ -1,4 +1,4 @@
-# GENERATED from plugins/session-flow/scripts/transcript_reader.py by scripts/sync-shared-copies.sh. Do not edit this copy:
+# GENERATED from lib/transcript_reader.py by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
 # -*- coding: utf-8 -*-
 """The one reader of Claude Code transcript JSONL for the session-flow scripts.

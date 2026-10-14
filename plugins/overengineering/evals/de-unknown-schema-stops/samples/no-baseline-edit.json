@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing edited"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/w/.work/overengineering/main/spine-baseline.md", "old_string": "a", "new_string": "b"}}], "why": "edited a baseline"}
+  ]
+}

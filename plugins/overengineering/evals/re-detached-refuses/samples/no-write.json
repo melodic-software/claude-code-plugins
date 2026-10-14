@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/w/.github/workflows/lint.yml"}}], "why": "read only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/.github/workflows/lint.yml", "content": "name: lint\n"}}], "why": "rewrote a workflow"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/.work/overengineering/feat-ci-cleanup/findings.md", "content": "---\n"}}], "why": "invented an artifact"}
+  ]
+}

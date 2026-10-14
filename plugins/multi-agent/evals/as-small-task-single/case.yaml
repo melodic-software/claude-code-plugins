@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: as-small-task-single
+graders:
+  - name: 'verdict-single'
+    type: 'regex'
+    pattern: '^verdict:[ \t]*`?single`?[ \t]*$'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'no-shape-line'
+    type: 'regex'
+    pattern: '^\s*`?shape\s*:'
+    flags: 'im'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'only-two-line-block'
+    type: 'regex'
+    pattern: '^\s*(?:```[a-z]*[ \t]*\n)?verdict:[ \t]*`?single`?[ \t]*\nreason:[ \t]*[^\n]+\n?(?:```)?\s*$'
+    target: 'last_message'
+  - name: 'no-agent-spawned'
+    type: 'tool_used'
+    tool: 'Agent'
+    min: 0
+    max: 0

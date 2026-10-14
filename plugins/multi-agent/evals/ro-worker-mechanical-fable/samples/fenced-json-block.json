@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"session_model\":\"fable\",\"session_frontier\":true,\"workload\":\"mechanical\",\"roles\":{\"worker\":{\"role\":\"worker\",\"single\":{\"model\":\"sonnet\",\"omit_model\":false,\"effort\":\"medium\",\"guarded\":false},\"fanout\":{\"model\":\"sonnet\",\"omit_model\":false,\"effort\":\"medium\",\"guarded\":false},\"source\":{\"model\":\"bundled\",\"effort\":\"bundled\"},\"basis\":{\"model\":\"upstream\",\"fanout_model\":\"upstream\",\"effort\":\"upstream\"}}},\"layers\":[],\"notes\":[]}\n```\n\nworker: single sonnet @ medium; fanout sonnet @ medium (basis: model upstream, fanout model upstream, effort upstream)\n\nEffort above maxEffortLevel runs at the cap; see reference/config.md \"Hard cap\".\n",
+      "why": "fenced json"
+    },
+    {
+      "answer": "```json\n{\"session_model\":\"fable\",\"session_frontier\":true,\"workload\":\"mechanical\",\"roles\":{\"worker\":{\"role\":\"worker\",\"single\":{\"model\":\"sonnet\",\"omit_model\":false,\"effort\":\"medium\",\"guarded\":false},\"fanout\":{\"model\":\"sonnet\",\"omit_model\":false,\"effort\":\"medium\",\"guarded\":false},\"source\":{\"model\":\"bundled\",\"effort\":\"bundled\"},\"basis\":{\"model\":\"upstream\",\"fanout_model\":\"upstream\",\"effort\":\"upstream\"}}},\"layers\":[],\"notes\":[]}\n```\n\n- `worker: single sonnet @ medium; fanout sonnet @ medium (basis: model upstream, fanout model upstream, effort upstream)`\n\n`Effort above maxEffortLevel runs at the cap; see reference/config.md \"Hard cap\".`\n",
+      "why": "fenced json, bulleted lines"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"session_model\":\"fable\",\"session_frontier\":true,\"workload\":\"mechanical\",\"roles\":{\"worker\":{\"role\":\"worker\",\"single\":{\"model\":\"sonnet\",\"omit_model\":false,\"effort\":\"medium\",\"guarded\":false},\"fanout\":{\"model\":\"sonnet\",\"omit_model\":false,\"effort\":\"medium\",\"guarded\":false},\"source\":{\"model\":\"bundled\",\"effort\":\"bundled\"},\"basis\":{\"model\":\"upstream\",\"fanout_model\":\"upstream\",\"effort\":\"upstream\"}}},\"layers\":[],\"notes\":[]}\n\nworker: single sonnet @ medium; fanout sonnet @ medium (basis: model upstream, fanout model upstream, effort upstream)\n",
+      "why": "unfenced JSON"
+    },
+    {
+      "answer": "```text\n{\"session_model\":\"fable\",\"session_frontier\":true,\"workload\":\"mechanical\",\"roles\":{\"worker\":{\"role\":\"worker\",\"single\":{\"model\":\"sonnet\",\"omit_model\":false,\"effort\":\"medium\",\"guarded\":false},\"fanout\":{\"model\":\"sonnet\",\"omit_model\":false,\"effort\":\"medium\",\"guarded\":false},\"source\":{\"model\":\"bundled\",\"effort\":\"bundled\"},\"basis\":{\"model\":\"upstream\",\"fanout_model\":\"upstream\",\"effort\":\"upstream\"}}},\"layers\":[],\"notes\":[]}\n```\n",
+      "why": "text fence"
+    },
+    {
+      "answer": "```json\n{\"worker\": \"sonnet\"}\n```\n",
+      "why": "summary object, not the printed JSON"
+    }
+  ]
+}

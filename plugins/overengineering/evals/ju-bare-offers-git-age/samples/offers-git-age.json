@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {"answer": "No target was given, so I'm **offering git-age discovery (rung 2)**. I haven't run it."},
+    {"answer": "**Offer:** I can rank candidate artifacts by when they were first added to git, oldest first, using `git log --diff-filter=A --name-only`.\n\nReply with one of these:\n\n1. **Yes**, and I'll run the discovery.\n2. **A target**, such as `README.md`.\n"},
+    {"answer": "No target given and no conversation context to infer one (rung 2 of the no-target ladder). I can run git-age discovery: rank tracked paths by the date each was first added, oldest first, and drop any that something cites. Want me to run it?"},
+    {"answer": "Shall I run git-age discovery to list candidate paths?"},
+    {"answer": "I can rank files by git age (oldest first). Want that?"},
+    {"answer": "Run `git log --diff-filter=A` discovery over the repository and show the oldest uncited paths?"}
+  ],
+  "fail": [
+    {"answer": "I'm not offering git-age discovery here; tell me what to point at.", "why": "negated offer"},
+    {"answer": "I did not run git-age discovery. Reply with one of these:\n\n1. **Yes**\n2. **A target**\n", "why": "no offer, negation only"},
+    {"answer": ""},
+    {"answer": "I did not run git-age discovery. Shall I proceed?", "why": "bare confirmation after a negation"},
+    {"answer": "OK to go ahead?", "why": "bare confirmation"},
+    {"answer": "What should I point at?", "why": "skips the offer rung"},
+    {"answer": "Git-age discovery ranked 4 paths; the oldest is README.md.", "why": "ran it instead of offering"},
+    {"answer": "git-age discovery is not available here.", "why": "warning only"}
+  ]
+}

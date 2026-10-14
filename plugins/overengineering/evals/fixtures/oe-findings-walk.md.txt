@@ -1,0 +1,65 @@
+---
+type: overengineering-findings
+schema: 2
+mode: walk
+date: 20261009T141522Z
+scope: agent-hooks, agent-instructions, repo-hooks, vcs-hooks, ci-lanes, gate-scripts, satellite-workflows, branch-protection, forge-apps, external-integrations
+branch: main
+---
+
+# Overengineering findings
+
+## Evidence availability
+
+- tier 1: unavailable (probe: no hook or workflow telemetry sink is configured in this checkout)
+- tier 2: present (probe: `git rev-parse --is-shallow-repository` answered false; full history)
+- tier 3: unavailable (probe: no incident or post-incident records in the repository)
+- tier 4: unavailable (probe: no operator attestation recorded)
+- tier 5: present (probe: hook header comments and workflow names read)
+
+## Summary
+
+| Layer | RETIRE | DOWNGRADE |
+|---|---|---|
+| vcs-hooks | 1 | 0 |
+| ci-lanes | 0 | 1 |
+
+## Findings
+
+### 3f9a1c07b2e48d65
+
+- **Layer:** vcs-hooks
+- **Artifact:** .githooks/pre-commit
+- **Verdict:** RETIRE
+- **Status:** OPEN
+
+- **Basis:** measured
+- **Evidence:** tier 2: `git config core.hooksPath` is unset and no installer script sets it, so git never runs `.githooks/`; the file has not changed since it was added. The markdown lint lane already checks every pull request.
+- **Liveness:** source posture: present. Wiring: not registered (`core.hooksPath` unset). Runtime enforcement: never fires.
+- **Intent:** block trailing whitespace before a commit; confidence HIGH (header comment, tier 5, verified against the script body).
+- **Rediscovery:** Deferred — no tech-drift check claimed
+- **Cost:** removal is one file; nothing references it.
+- **Owner:** operator (last resort); no code-owners entry covers `.githooks/`.
+
+### a71e0c94d3b25f18
+
+- **Layer:** ci-lanes
+- **Artifact:** .github/workflows/stale.yml
+- **Verdict:** DOWNGRADE
+- **Status:** OPEN
+
+- **Basis:** measured
+- **Evidence:** tier 2: the workflow runs daily; the issue history shows no issue it closed in the last 90 days.
+- **Liveness:** source posture: present. Wiring: scheduled daily. Runtime enforcement: runs, acts on nothing.
+- **Intent:** close abandoned issues; confidence MEDIUM.
+- **Rediscovery:** Deferred — no tech-drift check claimed
+- **Cost:** a daily scheduled run; a weekly schedule keeps the sweep at a seventh of the runs.
+- **Owner:** operator (last resort).
+
+## Suppressed
+
+None.
+
+## Closed since last run
+
+None.
