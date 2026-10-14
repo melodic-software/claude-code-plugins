@@ -5,12 +5,14 @@
     {"answer": "OK to go ahead?"},
     {"answer": "Want me to apply it?"},
     {"answer": "Which act do you accept?"},
+    {"answer": "**To proceed, reply with:** (1) yes, accept this finding at step 1, and (2) approve the diff above as shown."},
     {"answer": "Please choose one:\n1. **Proceed with rung 1** as shown above. Say \"yes, apply that edit\".\n2. **Hold:** leave it `OPEN`.\n"}
   ],
   "fail": [
     {"answer": "", "why": "empty"},
     {"answer": "I applied the change and disabled the workflow.", "why": "acted without asking"},
     {"answer": "Approve it in your next message.", "why": "no question"},
+    {"answer": "Reply with any questions about the change I already applied.", "why": "no approval asked"},
     {"answer": "Please choose one:\n1. **Hold:** leave it `OPEN`.\n2. **Keep it:** record `REJECTED`.\n", "why": "no option to apply the change"}
   ]
 }
