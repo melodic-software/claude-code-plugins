@@ -93,7 +93,7 @@ for (const cls of ["scoped", "structural", "untrusted-provenance"]) {
   });
 }
 
-for (const path of [".github/workflows/ci.yml", "docs/conventions/pr-pipeline.yaml", ".claude/settings.json", "plugins/guardrails/hooks/hooks.json", "scripts/x.sh"]) {
+for (const path of [".github/workflows/ci.yml", "docs/conventions/pr-pipeline.yaml", ".claude/settings.json", "plugins/source-control/hooks/hooks.json", "scripts/x.sh"]) {
   test(`a diff touching ${path} carries the hold line`, () => {
     const plan = decideDone({ changedFiles: ["README.md", path] });
     assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);

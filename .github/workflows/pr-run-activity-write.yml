@@ -1051,8 +1051,12 @@ jobs:
             fs.writeFileSync(`${OUT_DIR}/lane.json`, `${JSON.stringify({ branch })}\n`);
 
       # The skill's outcome file is model output, copied as data and capped.
+      # Skill runs only: the report-outcome run must not overwrite the
+      # artifact it reads.
       - name: Collect the issue outcome
-        if: always() && inputs.issue-number != '' && steps.lane-token.outcome == 'success'
+        if: >-
+          always() && inputs.issue-number != '' && steps.lane-token.outcome == 'success'
+          && steps.config.outputs.kind == 'skill'
         env:
           SCRATCH_OUTCOME: ${{ runner.temp }}/lane-scratch/work-outcome.json
           OUT_DIR: ${{ runner.temp }}/work-outcome
@@ -1065,7 +1069,9 @@ jobs:
           [ -f "$OUT_DIR/lane.json" ] || echo '{"branch":""}' >"$OUT_DIR/lane.json"
 
       - name: Upload the issue outcome
-        if: always() && inputs.issue-number != '' && steps.lane-token.outcome == 'success'
+        if: >-
+          always() && inputs.issue-number != '' && steps.lane-token.outcome == 'success'
+          && steps.config.outputs.kind == 'skill'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: work-outcome-${{ inputs.issue-number }}

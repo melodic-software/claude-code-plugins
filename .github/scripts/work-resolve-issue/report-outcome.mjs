@@ -42,7 +42,6 @@ const HOLD_PATHS = [
   /^docs\/conventions\//,
   /^plugins\/[^/]+\/hooks\//,
   /^plugins\/[^/]+\/\.claude-plugin\//,
-  /^plugins\/guardrails\//,
   /^scripts\//,
 ];
 const MAX_TEXT = 3000;

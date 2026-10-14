@@ -662,7 +662,7 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
 - `report-outcome` downloads that artifact. On `done` it opens a draft PR from the branch whose
   body starts `Closes #<n>`, copies the issue's `work-class:` labels, and adds
   `Hold: a human merges this` for scoped, structural or untrusted-provenance work or a diff under
-  `.github/`, `.claude/`, `docs/conventions/`, `scripts/`, `plugins/guardrails/` or a plugin's
+  `.github/`, `.claude/`, `docs/conventions/`, `scripts/` or a plugin's
   `hooks/` or `.claude-plugin/`. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also
   removes `agent-ready`.
