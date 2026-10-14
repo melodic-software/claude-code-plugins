@@ -77,6 +77,48 @@ trust-before-scale floor. A cap never changes a disposition: an over-cap
 `autonomous-eligible` item stays enqueued for a later drain run. It is deferred, not
 rejected and not re-gated.
 
+## Rule admission (C1/C2)
+
+The table above decides a disposition once an item has a class; a person stamps that class by
+applying the autonomous-eligible label and a `work-class:` label. Owner-written rules in the
+binding's optional `admission.rule_admission[]` let a no-model evaluator admit an issue to C1 or
+C2 without that label, from the intake-triage lane's proposed class. Each entry is
+`{id, work_class, proposed_class}`: `id` is `R<n>`, `work_class` is `C1` or `C2`, and
+`proposed_class` is the `work-class:` label the lane must propose. The evaluator writes no label;
+an admit is recorded as `admitted-by-rule: <id>@<binding sha>`.
+
+Precedence, top-down, first hit decides:
+
+1. `needs-human` present → refuse.
+2. Trust-surface hit → refuse: the `area: security` label, or a deny-list term in the title or
+   body (hook, guard or guardrail, permission, allow or deny list, workflow, `.github`, ruleset,
+   CODEOWNERS, secret, token, credential, pin, SHA, checksum, admission, work-class,
+   label-provenance, autonomy, security, merge, sandbox, auto mode, binding, trust, ci), matched
+   as whole words. Plugin names that contain a term, such as `context-guard`, refuse too: a false
+   positive fails closed.
+3. Any `work-class:` label present → refuse, label left untouched.
+4. A rule matches → admit; otherwise refuse.
+
+A rule matches only when every term of the shared predicate holds, each read from provider
+metadata or lane output, never from text an agent controls:
+
+- the issue author's association is `OWNER` or `MEMBER`;
+- every comment is from an `OWNER` or `MEMBER`, or is the lane comment;
+- exactly one lane comment exists (`github-actions[bot]`, starting with
+  `<!-- claude-lane intake-triage -->`), its run was not escalated, and the issue body was not
+  edited after it;
+- no `provenance: signal`, `area: security`, `do-not-merge`, `work-map`, `status:` or `wayfind:`
+  label;
+- the lane comment's second line is `Proposed work class: <proposed_class>` for the rule's
+  `proposed_class`.
+
+Untrusted text can only refuse: the title and body scan is a deny list, and the proposed class is
+model output, so it admits only beside the author and comment tests issue text cannot change.
+
+Each rule carries a dispatch constraint. A rule-admitted C1 gets no push or PR authority, and any
+diff escalates. A rule-admitted C2 is human-merged: its PR carries `Hold: a human merges this`, so
+it never takes a gate-proven C2 auto-merge rung until that rung's promotion evidence exists.
+
 ## Binding and fail-closed behavior
 
 - Serialization home: the security binding's `admission` object, holding the decision-table

@@ -162,11 +162,37 @@
           "description": "Items one drain run may dispatch autonomously.",
           "type": "integer",
           "minimum": 1
+        },
+        "rule_admission": {
+          "description": "Owner-written C1/C2 admission rules. A rule admits an issue whose intake-triage lane comment proposes its proposed_class, once the shared predicate and the trust-surface scan in the admission-policy leaf pass. A rule never writes a label. Absent: no issue is admitted by rule.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/RuleAdmission" }
         }
       }
     }
   },
   "$defs": {
+    "RuleAdmission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "work_class", "proposed_class"],
+      "properties": {
+        "id": {
+          "description": "Rule id, unique, recorded in telemetry as admitted-by-rule: <id>@<binding sha>.",
+          "type": "string",
+          "pattern": "^R[1-9][0-9]*$"
+        },
+        "work_class": {
+          "description": "Only C1 and C2 may be rule-admitted.",
+          "enum": ["C1", "C2"]
+        },
+        "proposed_class": {
+          "description": "The lane's proposed work-class label this rule admits; unique across rules.",
+          "type": "string",
+          "pattern": "^work-class: [a-z0-9-]+$"
+        }
+      }
+    },
     "SurfaceLevels": {
       "type": "object",
       "propertyNames": { "pattern": "^L[0-3]$" },

@@ -389,6 +389,23 @@ the no-progress streak. The contract for the operation is in
 "Verbs (core public surface)". Unlike the other refusals, one refused only for a body edited after
 admission is escalated once (`kind=escalated`, to human attention), not refused again each cycle.
 
+**Rule admission (second path, after the labeler precondition).** A snapshot item that is not in
+flight and carries no admitted autonomous-eligible role label (absent, or refused above) may still
+be admitted by the owner's C1/C2 rules in the security binding's `admission.rule_admission[]`; the
+`autonomy` plugin's `admission-policy.md` ("Rule admission") owns their meaning. Resolve the
+security binding as `/autonomy:setup` "Guardrail binding resolution" defines it, never from a
+repo-local file; when none resolves, or the tracker is not GitHub-bound, skip this path. Run
+`bash ${CLAUDE_PLUGIN_ROOT}/scripts/rule-admit.sh --repo <owner/name> --binding <path> --issue <n> [--issue <n> ...]`
+and admit an item only on its `"verdict": "admit"` row from an exit-`0` run; any other exit admits
+nothing. Neither the script nor this lane writes a label: a rule-admitted item gets no
+autonomous-eligible role label and no `work-class:` label, and the row's
+`admitted-by-rule: <id>@<binding sha>` reason goes into the cycle report as the admission of record.
+It dispatches under the row's `constraint`. `no-push` (C1): the `/work-items:work` invocation states
+the item is read-only, grants no push or PR, and escalates any diff. `human-merge` (C2): the
+invocation states the PR body carries `Hold: a human merges this`, beside any hold `merge-hold.sh`
+reports, so `ready` refuses and a person merges. A refuse row changes nothing; the cycle report
+gives only the refused count. Rule-admitted items still pass the hard gates below and the item cap.
+
 Pointer: for the permission each GitHub role maps to (`admin`, `write`, `read`, `none`; maintain
 maps to `write`, triage to `read`), see
 [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user).

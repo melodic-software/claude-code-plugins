@@ -1,0 +1,8 @@
+{
+  "admission": {
+    "rule_admission": [
+      { "id": "R1", "work_class": "C1", "proposed_class": "work-class: read-only" },
+      { "id": "R2", "work_class": "C2", "proposed_class": "work-class: mechanical" }
+    ]
+  }
+}

@@ -854,7 +854,11 @@ function validateAdmissionStructure(admission) {
     findings.push("admission: must be an object");
     return;
   }
-  checkAllowedKeys(admission, ["classification", "rules", "autonomous_concurrency", "items_per_run"], "admission");
+  checkAllowedKeys(
+    admission,
+    ["classification", "rules", "autonomous_concurrency", "items_per_run", "rule_admission"],
+    "admission",
+  );
   for (const key of ["classification", "rules", "autonomous_concurrency", "items_per_run"]) {
     if (!Object.hasOwn(admission, key)) findings.push(`admission.${key}: required key missing`);
   }
@@ -912,6 +916,46 @@ function validateAdmissionStructure(admission) {
       findings.push(`admission.${cap}: must be an integer >= 1`);
     }
   }
+
+  if (Object.hasOwn(admission, "rule_admission")) validateRuleAdmission(admission.rule_admission);
+}
+
+// Owner-written rules that admit an issue to C1 or C2 from the intake-triage
+// lane's proposed class (admission-policy leaf, "Rule admission"). Only C1 and
+// C2 may be rule-admitted, and one proposed class names one rule, so an issue
+// never matches two.
+function validateRuleAdmission(rules) {
+  if (!Array.isArray(rules)) {
+    findings.push("admission.rule_admission: must be an array of rule-admission entries");
+    return;
+  }
+  const ids = new Set();
+  const proposed = new Set();
+  rules.forEach((rule, index) => {
+    const where = `admission.rule_admission[${index}]`;
+    if (!isPlainObject(rule)) {
+      findings.push(`${where}: must be an object`);
+      return;
+    }
+    checkAllowedKeys(rule, ["id", "work_class", "proposed_class"], where);
+    if (typeof rule.id !== "string" || !/^R[1-9][0-9]*$/.test(rule.id)) {
+      findings.push(`${where}.id: must match R<n> (R1, R2, ...)`);
+    } else if (ids.has(rule.id)) {
+      findings.push(`${where}.id: duplicate rule id ${JSON.stringify(rule.id)}`);
+    } else {
+      ids.add(rule.id);
+    }
+    checkEnum(rule.work_class, ["C1", "C2"], `${where}.work_class`);
+    if (typeof rule.proposed_class !== "string" || !/^work-class: [a-z0-9-]+$/.test(rule.proposed_class)) {
+      findings.push(`${where}.proposed_class: must be a "work-class: <name>" label`);
+    } else if (proposed.has(rule.proposed_class)) {
+      findings.push(
+        `${where}.proposed_class: ${JSON.stringify(rule.proposed_class)} is already bound by another rule; one proposed class maps to one rule`,
+      );
+    } else {
+      proposed.add(rule.proposed_class);
+    }
+  });
 }
 
 // The TEMPORAL home is keyed by ROUTINE IDENTITY, and every entry must be the
