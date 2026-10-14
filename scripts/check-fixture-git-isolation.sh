@@ -275,7 +275,8 @@ scan() {
     # --get user.name`) — an under-selection, the direction this gate calls
     # unsafe. Deleting each read occurrence first leaves any write on the line
     # still visible.
-    # Each prefilter below is a substring guard every pattern after it requires.
+    # Each early index() return below lists substrings; every pattern in that function,
+    # callees included, requires at least one of them. A new pattern must too.
     function ident_write(s,   t) {
       if (!index(s, "user.")) return 0
       t = s
