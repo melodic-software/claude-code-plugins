@@ -91,22 +91,21 @@ Precedence, top-down, first hit decides:
 
 1. `needs-human` present → refuse.
 2. Trust-surface hit → refuse: the `area: security` label, or a deny-list term in the title or
-   body (hook, guard or guardrail, permission, allow or deny list, workflow, `.github`, ruleset,
-   CODEOWNERS, secret, token, credential, pin, SHA, checksum, admission, work-class,
-   label-provenance, autonomy, security, merge, sandbox, auto mode, binding, trust, ci), matched
-   as whole words. Plugin names that contain a term, such as `context-guard`, refuse too: a false
-   positive fails closed.
+   body (hook, guard or guardrail, permission, allow or deny list, workflow, the CI configuration
+   directory, ruleset, CODEOWNERS, secret, token, credential, pin, SHA, checksum, admission,
+   work-class, label-provenance, autonomy, security, merge, sandbox, auto mode, binding, trust,
+   ci), matched as whole words. Plugin names that contain a term, such as `context-guard`, refuse
+   too: a false positive fails closed.
 3. Any `work-class:` label present → refuse, label left untouched.
 4. A rule matches → admit; otherwise refuse.
 
 A rule matches only when every term of the shared predicate holds, each read from provider
 metadata or lane output, never from text an agent controls:
 
-- the issue author's association is `OWNER` or `MEMBER`;
-- every comment is from an `OWNER` or `MEMBER`, or is the lane comment;
-- exactly one lane comment exists (`github-actions[bot]`, starting with
-  `<!-- claude-lane intake-triage -->`), its run was not escalated, and the issue body was not
-  edited after it;
+- the tracker's author association names the issue author a repository owner or org member;
+- every comment is from an owner or member, or is the lane comment;
+- exactly one lane comment exists (the CI workflow identity's comment carrying the intake-triage
+  lane marker), its run was not escalated, and the issue body was not edited after it;
 - no `provenance: signal`, `area: security`, `do-not-merge`, `work-map`, `status:` or `wayfind:`
   label;
 - the lane comment's second line is `Proposed work class: <proposed_class>` for the rule's
