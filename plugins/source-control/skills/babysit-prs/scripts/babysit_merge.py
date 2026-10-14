@@ -2148,13 +2148,17 @@ def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
         for error in payload.get("errors") or []
         if is_json_object(error)
     ]
-    if proc.returncode == 0 and is_json_object(entry) and not errors:
+    if is_json_object(entry):
+        # An entry is a live enqueue even beside errors: reported enqueued so
+        # it is recorded and checked against the one-in-flight rule.
         record["status"] = "enqueued"
         record["success"] = True
         record["mergeQueue"] = {
             "state": entry.get("state"),
             "position": entry.get("position"),
         }
+        if errors:
+            record["message"] = "; ".join(e for e in errors if e)
         return record
     record["status"] = "failed" if errors else None
     record["message"] = "; ".join(e for e in errors if e) or (

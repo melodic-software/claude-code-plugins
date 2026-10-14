@@ -545,6 +545,25 @@ class MergeQueueIsEnqueued(AsyncMergeHarness):
         self.assertFalse(any("merge-async" in " ".join(c) for c in self.captures))
         self.assertFalse(any(c[:2] == ["pr", "merge"] for c in self.captures))
 
+    def test_an_entry_returned_beside_errors_is_still_enqueued_and_recorded(
+        self,
+    ) -> None:
+        state = tempfile.TemporaryDirectory()
+        self.addCleanup(state.cleanup)
+        answer = {**_enqueued(), "errors": [{"message": "partial"}]}
+        code = self._run(
+            _proc(answer, returncode=1, stderr="gh: partial"),
+            merge_action="merge_queue",
+            extra=("--state-dir", state.name),
+        )
+        self.assertEqual(code, 0)
+        self.assertTrue(self.output["enqueued"])
+        path = pathlib.Path(state.name) / merge.PENDING_MERGES_FILE
+        record = json.loads(path.read_text(encoding="utf-8"))["requests"][
+            "owner/repo#1"
+        ]
+        self.assertEqual((record["queued"], record["head"]), (True, HEAD))
+
     def test_an_answer_without_a_queue_entry_is_not_enqueued(self) -> None:
         answer = {"data": {"enqueuePullRequest": {"mergeQueueEntry": None}}}
         code = self._run(_proc(answer), merge_action="merge_queue")
