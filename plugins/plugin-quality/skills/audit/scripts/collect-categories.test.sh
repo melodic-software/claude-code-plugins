@@ -240,8 +240,9 @@ has "research-corroborators" "the url variant is not counted"
 run 1 "one corroborator does not meet the bar" --notes "$(tier_ledger t-one.md "$SRC_A" "$SRC_B")"
 has "research-corroborators" "the short corroborator count is named"
 
-# batch_ledger <name> <second finding's last corroborator> - two Errors findings
-# from one batched research pass, sources in one shared subdirectory.
+# batch_ledger <name> <second finding's last corroborator> [<first finding's last
+# corroborator>] - two Errors findings from one batched research pass, sources in
+# one shared subdirectory.
 mkdir "$WORK/research"
 printf 'All hooks run in parallel.\n' >"$WORK/research/hooks.md"
 printf 'Release: hooks run in parallel.\n' >"$WORK/research/release.md"
@@ -252,7 +253,7 @@ B_C="https://example.invalid/post saved=$WORK/research/post.md span=Hooks run in
 batch_ledger() {
   {
     printf '## Errors\n### first claim\nevidence: e1\nresearch: tier-1\n'
-    printf 'primary: %s\ncorroborator: %s\ncorroborator: %s\n' "$SRC_A" "$SRC_B" "$SRC_C"
+    printf 'primary: %s\ncorroborator: %s\ncorroborator: %s\n' "$SRC_A" "$SRC_B" "${3:-$SRC_C}"
     printf '### second claim\nevidence: e2\nresearch: tier-1\n'
     printf 'primary: %s\ncorroborator: %s\ncorroborator: %s\n' "$B_A" "$B_B" "$2"
     printf '\n## Improvements\nnone\n\n## Quality of life\nnone\n\n## Standards alignment\nnone\n\n## Emitted findings\nnot-applicable\n'
@@ -269,6 +270,14 @@ if [[ "$last_out" == *"title=first claim"* ]]; then
   fail "the other batched finding is not named — output was: $last_out"
 else
   pass "the other batched finding is not named"
+fi
+
+run 1 "a first batched finding whose corroborator repeats its own primary is rejected" --notes "$(batch_ledger b-dup-first.md "$B_C" "https://code.claude.com/docs/en/skills#x saved=$SAVED_C span=\"a default of 1.\"")"
+has "research-corroborators section=Errors title=first claim distinct-checked=1" "the first batched finding short of corroborators is named"
+if [[ "$last_out" == *"title=second claim"* ]]; then
+  fail "the valid second batched finding is not named — output was: $last_out"
+else
+  pass "the valid second batched finding is not named"
 fi
 
 CLAIM_ONLY="$(
