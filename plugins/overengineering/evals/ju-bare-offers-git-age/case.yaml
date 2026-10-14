@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: ju-bare-offers-git-age
+description: Bare justify with no conversation context names the no-target rung, offers git-age discovery and waits, without running it or writing a findings artifact
+tags: [overengineering, justify, outcome, no-target-ladder, consent-gate]
+runs: 3
+expected_outcome: With no argument and no prior conversation, the run states it has no target (the no-target ladder), offers git-age discovery as a question and waits for an answer. It runs no git log discovery command and writes no findings.md.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/overengineering:justify"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-git-age-run
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:diff-filter|\bgit\s+(?:-C\s+\S+\s+)?(?:log|whatchanged|rev-list)\b)'
+    min: 0
+    max: 0
+  - name: no-findings-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*findings\.md"'
+    min: 0
+    max: 0
+  - name: no-findings-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*findings\.md"'
+    min: 0
+    max: 0
+  - name: states-no-target
+    type: regex
+    pattern: '\b(?:no|without an?|without any)\s+(?:target|argument)\b|\bnothing (?:was )?(?:named|given|pointed at|passed)\b|\bno-target\b|\b(?:ladder|rung)\b'
+    flags: i
+  - name: offers-git-age
+    type: regex
+    pattern: '(?:\bgit[- ]age\b|\bgit\s+(?:history|log)\b|\boldest\b|\bfirst[- ](?:seen|added)\b|\bby (?:age|when (?:each|it) was added)\b)(?:[^\n?.!]|\.(?=\S)){0,200}(?:[.!:]\s+(?=(?:[^\n?.!]|\.(?=\S)){0,80}\b(?:that|it|this|run|rank|discovery|list)\b)(?:[^\n?.!]|\.(?=\S)){0,80})?\?|(?:\bI can\b|\bI could\b|\bOffer\b)[^\n]{0,300}(?:\bgit[- ]age\b|\bgit\s+log\b|\bfirst (?:added|seen)\b|\boldest\b)[\s\S]{0,800}?\b(?:Reply with|Let me know|Tell me|Say)\b[^\n]{0,80}\n[\s\S]{0,40}?\*\*Yes\*\*|(?<!not )(?<!n''t )(?<!never )\boffer(?:ing|s)?\b[^\n]{0,40}\bgit[- ]age discovery\b'
+    flags: i

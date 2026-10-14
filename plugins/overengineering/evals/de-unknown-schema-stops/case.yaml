@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: de-unknown-schema-stops
+description: Delta on a home whose findings artifact declares schema 9 and has no spine baseline stops with a visible unrecognized-schema message before invoking the audit, and writes no baseline
+tags: [overengineering, delta, outcome, refusal, schema]
+runs: 3
+expected_outcome: The bootstrap path reads the artifact, finds schema 9, and stops with a visible message naming the unrecognized schema. No Skill call invokes overengineering:audit, and no spine-baseline.md is written.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/overengineering:delta"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-audit-invoked
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:overengineering:)?audit"'
+    min: 0
+    max: 0
+  - name: no-baseline-write
+    type: tool_used
+    tool: Write
+    input_match: 'spine-baseline\.md'
+    min: 0
+    max: 0
+  - name: no-baseline-edit
+    type: tool_used
+    tool: Edit
+    input_match: 'spine-baseline\.md'
+    min: 0
+    max: 0
+  - name: no-baseline-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<![0-9&>])>{1,2}|\btee\b|\bmv\b|\bcp\b|\btouch\b)(?:[^"\\]|\\.)*?spine-baseline\.md'
+    min: 0
+    max: 0
+  - name: reports-unrecognized-schema
+    type: regex
+    pattern: '\bschema\b`?:?`?\s*(?:is\s+|of\s+)?`?(?:9|nine)\b`?[^\n]{0,80}\b(?:unrecogni[sz]ed|unsupported|unknown|not recogni[sz]ed|not supported|isn''t recogni[sz]ed|isn''t supported|not one (?:I|this lane) (?:can )?read)\b|\b(?:unrecogni[sz]ed|unsupported|unknown)\s+`?schema\b[^\n]{0,30}\b(?:9|nine)\b|\b(?:unrecogni[sz]ed|unsupported|unknown)\b[^\n]{0,40}`?schema:?\s*(?:9|nine)\b|\bschema\b`?:?`?\s*`?(?:9|nine)\b`?[^\n]{0,80}(?:\bonly\b[^\n]{0,10}\b1\b[^\n]{0,15}\b2\b[^\n]{0,20}\brecogni[sz]ed\b|\brecogni[sz]es only\b[^\n]{0,10}\b1\b[^\n]{0,15}\b2\b)|\bschema:?\s*`?(?:9|nine)\b[\s\S]{0,200}?(?:\bonly schemas?\b[^\n]{0,20}\b1\b[^\n]{0,15}\b2\b[^\n]{0,20}\brecogni[sz]ed\b|\b(?:unknown|unrecogni[sz]ed|unsupported) schema\b)'
+    flags: i

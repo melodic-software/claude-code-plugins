@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {"answer": "The artifact declares this:\n\n```yaml\nschema: 9\n```\n\nOnly schemas `1` and `2` are recognized. With an unknown schema, the delta lane stops."},
+    {"answer": "That artifact's frontmatter says `schema: 9`, and this plugin recognizes only `1` and `2`. I stopped before invoking the audit."},
+    {"answer": "The findings artifact declares `schema: 9`, and only `1` and `2` are recognized. Stopped before invoking anything."},
+    {"answer": "Stopping: the findings artifact at `.work/overengineering/main/findings.md` declares `schema: 9`, which is unrecognized (only 1 and 2 are). The audit was not invoked and no baseline was written."},
+    {"answer": "Unrecognized schema 9 in findings.md; stopping before the audit."},
+    {"answer": "Schema 9 is not supported by this lane, so the run stops here."},
+    {"answer": "The artifact carries an unknown `schema: nine`... stopping."}
+  ],
+  "fail": [
+    {"answer": "```yaml\nschema: 2\n```\n\nOnly schemas `1` and `2` are recognized, so the audit runs.", "why": "recognized schema"},
+    {"answer": "The artifact declares `schema: 2`, and only `1` and `2` are recognized, so the audit runs.", "why": "wrong number, recognized"},
+    {"answer": ""},
+    {"answer": "Unknown schemas would stop the run, but this one is fine. Bootstrapping the baseline.", "why": "warning only, no 9"},
+    {"answer": "Schema 9 recognized; capturing the bootstrap baseline.", "why": "accepts it"},
+    {"answer": "Schema 2 is unsupported here.", "why": "wrong number"},
+    {"answer": "Read-only pass; realign is never entered. Running the audit now.", "why": "no stop"}
+  ]
+}
