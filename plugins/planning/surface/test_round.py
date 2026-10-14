@@ -12,6 +12,7 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -2991,6 +2992,32 @@ class TestRoundTooling(DirCase):
             "--sync-ledger",
             str(self.tmp / "missing.md"),
         )
+
+    def test_a_failed_sync_after_the_write_keeps_the_round_and_names_the_recovery(self):
+        ledger = self.ledger()
+        # A directory where sync-ledger writes its temp file: the pre-check passes, the write fails.
+        (self.tmp / f".{ledger.name}.sync").mkdir()
+        rc, out, err = self.rp(
+            "add-round",
+            "--file",
+            self.round_file(question("Q4")),
+            "--round",
+            "2",
+            "--sync-ledger",
+            str(ledger),
+        )
+        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(self.q("Q4")["round"], 2)
+        self.assertEqual(ledger.read_text(encoding="utf-8"), self.LEDGER)
+        self.assertIn("round 2 posted; register not synced (", err)
+        recover = f"--dir {shlex.quote(str(self.dir))} sync-ledger --ledger {shlex.quote(str(ledger))}"
+        self.assertIn(f"run: round.sh {recover}", err)
+        # Once the cause is gone, the named command writes the round's row.
+        (self.tmp / f".{ledger.name}.sync").rmdir()
+        rc, out, err = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out + err)
+        rows = ledger.read_text(encoding="utf-8").splitlines()
+        self.assertIn("- Q4 | open | round 2 | Question Q4? |", rows)
 
     def test_a_question_added_after_a_later_round_is_marked_and_in_the_register(self):
         doc = base_doc()

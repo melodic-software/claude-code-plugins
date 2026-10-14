@@ -63,6 +63,7 @@ import math
 import os
 import re
 import secrets
+import shlex
 import shutil
 import signal
 import subprocess
@@ -1440,8 +1441,20 @@ def cmd_add_round(d, a):
             read_input(a.sync_ledger, "ledger", newline=""), a.sync_ledger
         )
     write_op(op_add_round_linted, "add-round")(d, a)
-    if a.sync_ledger:
-        cmd_sync_ledger(d, argparse.Namespace(ledger=a.sync_ledger))
+    if not a.sync_ledger:
+        return
+    # The round stays posted: the register is derived state that sync-ledger rebuilds from the
+    # page. The ledger is re-read, not the pre-check's text, so an edit made since is not lost.
+    try:
+        notes = write_synced_ledger(d, a.sync_ledger)
+    except (SystemExit, OSError) as e:
+        cause = e.code if isinstance(e, SystemExit) else e
+        sys.exit(
+            f"{f'round {a.round}' if a.round else 'the round'} posted; register not synced "
+            f"({cause}); run: round.sh --dir {shlex.quote(str(d))} sync-ledger --ledger "
+            f"{shlex.quote(a.sync_ledger)}"
+        )
+    report_notes(notes, ("conflict",))
 
 
 # Per-op argument defaults for `apply`: the op file's keys map onto the same namespace the CLI builds.
@@ -1867,17 +1880,22 @@ def cmd_export_ledger(d, a):
         report_notes(exporters.merged_register(d, text)[2], ("conflict",))
 
 
-def cmd_sync_ledger(d, a):
-    path = Path(a.ledger)
+def write_synced_ledger(d, ledger):
+    """Rewrite only the register rows of ledger from page state; return the merge notes."""
+    path = Path(ledger)
     # Read untranslated so a CRLF ledger keeps its line endings.
     text, notes = exporters.sync_ledger(
-        d, read_input(path, "ledger", newline=""), a.ledger
+        d, read_input(path, "ledger", newline=""), ledger
     )
     tmp = path.with_name(f".{path.name}.sync")
     write_text(tmp, text)
     os.replace(tmp, path)
-    print(f"synced the register rows of {a.ledger}")
-    report_notes(notes, ("conflict",))
+    print(f"synced the register rows of {ledger}")
+    return notes
+
+
+def cmd_sync_ledger(d, a):
+    report_notes(write_synced_ledger(d, a.ledger), ("conflict",))
 
 
 def cmd_import_ledger(d, a):
