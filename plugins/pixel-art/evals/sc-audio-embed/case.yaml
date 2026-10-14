@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: sc-audio-embed
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: template-wav-marker
+    type: regex
+    pattern: '^\{"type":"assistant".*?"type":"tool_use","id":"[^"]*","name":(?:"Write","input":\{"file_path":"[^"]*\.html?","content":"(?:[^"\\]|\\.)*?/\*WAV:[^*"\\]+\*/null|"Edit","input":\{"file_path":"[^"]*\.html?","old_string":"(?:[^"\\]|\\.)*","new_string":"(?:[^"\\]|\\.)*?/\*WAV:[^*"\\]+\*/null|"Bash","input":\{"command":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\n))(?:cat|tee)\b(?=(?:[^\\"]|\\")*?\.html?\b)(?:[^\\"]|\\")*?<<-?\s*(?:\\"|'')?(\w+)(?:\\"|'')?(?:[^\\"]|\\")*?\\n(?:(?!\\n\1(?:\\n|"))(?:[^"\\]|\\.))*?/\*WAV:[^*"\\]+\*/null)'
+    flags: 'm'
+    target: trace
+  - name: template-sets-pixelscene
+    type: regex
+    pattern: '^\{"type":"assistant".*?"type":"tool_use","id":"[^"]*","name":(?:"Write","input":\{"file_path":"[^"]*\.html?","content":"(?:[^"\\]|\\.)*?__pixelScene\\?["'']?\]?\s*=|"Edit","input":\{"file_path":"[^"]*\.html?","old_string":"(?:[^"\\]|\\.)*","new_string":"(?:[^"\\]|\\.)*?__pixelScene\\?["'']?\]?\s*=|"Bash","input":\{"command":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\n))(?:cat|tee)\b(?=(?:[^\\"]|\\")*?\.html?\b)(?:[^\\"]|\\")*?<<-?\s*(?:\\"|'')?(\w+)(?:\\"|'')?(?:[^\\"]|\\")*?\\n(?:(?!\\n\1(?:\\n|"))(?:[^"\\]|\\.))*?__pixelScene\\?["'']?\]?\s*=)'
+    flags: 'm'
+    target: trace
+  - name: template-defines-seek
+    type: regex
+    pattern: '^\{"type":"assistant".*?"type":"tool_use","id":"[^"]*","name":(?:"Write","input":\{"file_path":"[^"]*\.html?","content":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\n))seek\s*(?::|\(|=)|"Edit","input":\{"file_path":"[^"]*\.html?","old_string":"(?:[^"\\]|\\.)*","new_string":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\n))seek\s*(?::|\(|=)|"Bash","input":\{"command":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\n))(?:cat|tee)\b(?=(?:[^\\"]|\\")*?\.html?\b)(?:[^\\"]|\\")*?<<-?\s*(?:\\"|'')?(\w+)(?:\\"|'')?(?:[^\\"]|\\")*?\\n(?:(?!\\n\1(?:\\n|"))(?:[^"\\]|\\.))*?(?:\b|(?<=\\n))seek\s*(?::|\(|=))'
+    flags: 'm'
+    target: trace
+  - name: embed-ran
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\b|(?<=\\n))(?:python[0-9.]*|uv run(?: python[0-9.]*)?)\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*\bembed\.py\b|(?:"command":"|[;&|(]\s*|\\n\s*|(?:\b|(?<=\\n))(?:then|do)\s+)\\?["'']?(?:\./|/|\$\{?\w+\}?/)[^\s"''\\]*\bembed\.py\b|^(?!.*(?:__doc__|help\())(?=.*(?:\b|(?<=\\n))(?:import\s+embed\b|from\s+embed\s+import\b))'

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "out/mage/$mage.png"
+      ],
+      "why": "relative"
+    },
+    {
+      "answer": [
+        "/tmp/ws/out/mage/sheet.png",
+        "/tmp/ws/out/mage/$mage.png"
+      ],
+      "why": "absolute, among others"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "out/mage/mage.png"
+      ],
+      "why": "no $ prefix"
+    },
+    {
+      "answer": [
+        "out/mage/sheet.png",
+        "out/mage/preview.png"
+      ],
+      "why": "sheet only"
+    },
+    {
+      "answer": [
+        "out/mage/$mage.json"
+      ],
+      "why": "not a png"
+    }
+  ]
+}

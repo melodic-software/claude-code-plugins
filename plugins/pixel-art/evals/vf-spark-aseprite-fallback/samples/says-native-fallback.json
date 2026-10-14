@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Aseprite not found on PATH; rendered with the native backend.",
+      "why": "notice echoed"
+    },
+    {
+      "answer": "Aseprite isn't installed here, so backends.py fell back to native.",
+      "why": "fell back"
+    },
+    {
+      "answer": "Backend: native backend used instead (Aseprite missing).",
+      "why": "native instead"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Aseprite rendered it; no fallback to native was needed.",
+      "why": "aseprite claimed"
+    },
+    {
+      "answer": "Rendered with Aseprite. sheet.png and spark.gif are in out/spark/.",
+      "why": "aseprite claimed, no fallback"
+    },
+    {
+      "answer": "It did not fall back to native.",
+      "why": "negated"
+    }
+  ]
+}

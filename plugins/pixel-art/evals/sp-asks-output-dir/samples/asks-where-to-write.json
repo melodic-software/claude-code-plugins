@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Brief is set. Where should I write the files?",
+      "why": "where should"
+    },
+    {
+      "answer": "Which folder should the sprite go in?",
+      "why": "which folder"
+    },
+    {
+      "answer": "Shall I put them in `./out/chest/`?",
+      "why": "shall I with a path"
+    },
+    {
+      "answer": "No output directory is configured. What output path do you want?",
+      "why": "what path"
+    },
+    {
+      "answer": "OK to write them to out/chest/?",
+      "why": "ok-to question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Files are in ./out/chest/.",
+      "why": "statement"
+    },
+    {
+      "answer": "No need to choose a folder; I used ./out.",
+      "why": "negated"
+    },
+    {
+      "answer": "The output directory is not set, so I wrote to ./out/chest/. Want any changes?",
+      "why": "statement plus unrelated question"
+    },
+    {
+      "answer": "Which palette should I use?",
+      "why": "question about something else"
+    },
+    {
+      "answer": "Saved to ./out/chest/. Shall I proceed?",
+      "why": "confirmation without location"
+    }
+  ]
+}

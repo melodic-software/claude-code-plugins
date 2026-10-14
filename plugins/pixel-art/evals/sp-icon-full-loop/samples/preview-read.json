@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval-ws/out/potion/preview.png"
+          }
+        }
+      ],
+      "why": "absolute"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "out/potion/preview.png"
+          }
+        }
+      ],
+      "why": "relative"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "out/potion/sheet.png"
+          }
+        }
+      ],
+      "why": "sheet, not preview"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "out/potion/preview.png.bak"
+          }
+        }
+      ],
+      "why": "other file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "file out/potion/preview.png",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "not the Read tool"
+    }
+  ]
+}

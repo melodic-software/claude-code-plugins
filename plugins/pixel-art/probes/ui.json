@@ -1,0 +1,130 @@
+{
+  "skill": "pixel-art:ui",
+  "plugin": "pixel-art",
+  "skill_dir": "plugins/pixel-art/skills/ui",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement.",
+  "competitors": [
+    "pixel-art:sprite",
+    "pixel-art:animate",
+    "pixel-art:scene",
+    "pixel-art:tileset",
+    "pixel-art:vfx"
+  ],
+  "competitor_dirs": {
+    "pixel-art:sprite": "plugins/pixel-art/skills/sprite",
+    "pixel-art:animate": "plugins/pixel-art/skills/animate",
+    "pixel-art:scene": "plugins/pixel-art/skills/scene",
+    "pixel-art:tileset": "plugins/pixel-art/skills/tileset",
+    "pixel-art:vfx": "plugins/pixel-art/skills/vfx"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make a parchment-style Window.png for my MZ project."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Need a 9-slice frame for dialogue boxes, 24 px, dark blue."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Create IconSet.png with weapons, armor and status icons."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Design the HUD for my platformer: heart meter, coin counter, and a minimap border."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make a bitmap font from 8x8 glyphs, with a .fnt file."
+    },
+    {
+      "id": "pos-validation-06",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Menu buttons and health bar frames in pixels for Godot."
+    },
+    {
+      "id": "pos-validation-07",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Retro sci-fi skin for windows and cursors."
+    },
+    {
+      "id": "pos-validation-08",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Glyph grid for a chunky 5x7 typeface."
+    },
+    {
+      "id": "pos-validation-09",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Build a cursor and gauge set for my battle menu."
+    },
+    {
+      "id": "pos-validation-10",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "An ornate gothic border for dialogue windows."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw one sword icon."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make terrain tiles for a swamp."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Magic circle effect that loops."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Cutscene with a title card and a short dialogue."
+    },
+    {
+      "id": "neg-validation-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Walk cycle for my knight."
+    },
+    {
+      "id": "neg-validation-06",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Design the web UI for my SaaS dashboard in Figma with Tailwind."
+    },
+    {
+      "id": "neg-validation-07",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Suggest a Google font pairing for my blog headings."
+    },
+    {
+      "id": "neg-validation-08",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Draw a character portrait for the dialogue box."
+    }
+  ]
+}

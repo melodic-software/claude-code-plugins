@@ -1,0 +1,130 @@
+{
+  "skill": "pixel-art:scene",
+  "plugin": "pixel-art",
+  "skill_dir": "plugins/pixel-art/skills/scene",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement.",
+  "competitors": [
+    "pixel-art:sprite",
+    "pixel-art:animate",
+    "pixel-art:tileset",
+    "pixel-art:ui",
+    "pixel-art:vfx"
+  ],
+  "competitor_dirs": {
+    "pixel-art:sprite": "plugins/pixel-art/skills/sprite",
+    "pixel-art:animate": "plugins/pixel-art/skills/animate",
+    "pixel-art:tileset": "plugins/pixel-art/skills/tileset",
+    "pixel-art:ui": "plugins/pixel-art/skills/ui",
+    "pixel-art:vfx": "plugins/pixel-art/skills/vfx"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make an intro sequence for my game: a city skyline at dusk, twinkling stars, and a title that fades in with dithering."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want a short pixel animation in one HTML file of a campfire at night with sparks floating up."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Build a cutscene where two characters talk, with typewriter text and music from my mp3."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Rainy cityscape background loop in pixel style that runs in the browser."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "A pixel card reveal with a shine sweep, single page, no assets."
+    },
+    {
+      "id": "pos-validation-06",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Create a little movie about a robot finding a flower, 20 seconds, 320x180."
+    },
+    {
+      "id": "pos-validation-07",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Title screen with parallax mountains and drifting clouds, canvas only."
+    },
+    {
+      "id": "pos-validation-08",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Ambient loop of a lighthouse at sea with waves and a rotating beam."
+    },
+    {
+      "id": "pos-validation-09",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Dialogue beat: a shopkeeper greets the player, bitmap font text, portrait bobbing."
+    },
+    {
+      "id": "pos-validation-10",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Reuse the sprites I made earlier in a scene where they walk through a forest at sunrise."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw a single pixel tree."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Export my hero's run cycle as a sheet for RPG Maker."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Generate a cave tileset in blob-47 layout."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a repeating hills layer PNG for my Godot platformer's parallax."
+    },
+    {
+      "id": "neg-validation-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make a bitmap font and some HUD icons."
+    },
+    {
+      "id": "neg-validation-06",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I need explosion frames as a sprite sheet."
+    },
+    {
+      "id": "neg-validation-07",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Render a 3D animated product video of a sneaker."
+    },
+    {
+      "id": "neg-validation-08",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Cut together a 30 second promo from my screen recordings with background music."
+    }
+  ]
+}

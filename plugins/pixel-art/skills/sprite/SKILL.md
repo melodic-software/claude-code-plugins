@@ -1,5 +1,5 @@
 ---
-description: "Create static pixel-art sprites (characters, items, icons, portraits, faces, battlers, props) as engine-ready PNG sheets with no external tools: the model authors a palette-locked spec or a procedural generator, the bundled stdlib renderer writes the files, and a render-review loop iterates until the sprite reads. Use when: 'make a sprite', 'pixel art of X', 'draw a 32x32 icon', 'character portrait', 'RPG Maker face', 'item icons', 'pixel-art character design'. Not for movement cycles (use /pixel-art:animate) or composed scenes and cutscenes (use /pixel-art:scene)."
+description: "Static pixel-art sprites (characters, items, icons, portraits, faces, battlers, props) as engine-ready PNG sheets, rendered with no external tools and reviewed until they read. Use when asked to 'make a sprite', 'pixel art of X', 'draw a 32x32 icon', 'character portrait', 'RPG Maker face', 'item icons', or 'pixel-art character design'. Movement cycles: /pixel-art:animate; composed scenes: /pixel-art:scene."
 argument-hint: "<what to draw> [size] [palette] [engine]"
 user-invocable: true
 disable-model-invocation: false
@@ -14,12 +14,10 @@ Produce a static sprite the user can drop into a game or project, and show it to
 
 ## 1. Brief
 
-Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md). That file is the only copy of the
-fields: subject, style references, proportions, size, palette, view, mood, target, and 2 to 6 done
-criteria. Ask only what changes the output. State every unspecified field as a default in one line.
-
-Write `brief.md` beside the spec before the first render. A later run that finds it there reads it
-and does not ask again.
+Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md), the only copy of the fields
+(including 2 to 6 done criteria). Ask only what changes the output; state every unspecified field
+as a default in one line. Write `brief.md` beside the spec before the first render. A later run
+that finds it there reads it and does not ask again.
 
 When the request is vague or high-stakes, offer `/planning:interview` (if the planning plugin is
 installed). Planning owns a numbered-question brief. If planning is not installed, or the user does
@@ -47,11 +45,11 @@ Write the spec that `render.py` reads (its docstring is the format). Two authori
   writing that machinery: it draws down, left, and up and mirrors for right, and one `down` frame
   is a static character. Portraits and faces stay hand-authored grids.
 
-The spec `palette` may be an inline object, a bundled preset name, or a path to a project palette
-file ([`palettes/README.md`](${CLAUDE_PLUGIN_ROOT}/palettes/README.md)). When the project has
-`pixel-art-palette.json` (or another path its `CLAUDE.md` names), use that path instead of
-inventing colors. Do not retype a preset by hand. Images from another backend are snapped with
-`render.py --snap` (see [`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md)), not by eye.
+Set the spec `palette` to the project's palette file when it has one (`pixel-art-palette.json`, or
+the path its `CLAUDE.md` names); otherwise to a bundled preset name or an inline object
+([`palettes/README.md`](${CLAUDE_PLUGIN_ROOT}/palettes/README.md)). Never invent colors over a
+project palette or retype a preset by hand. Snap images from another backend with
+`render.py --snap` ([`backends.md`](${CLAUDE_PLUGIN_ROOT}/reference/backends.md)), not by eye.
 
 Apply [`craft-static.md`](${CLAUDE_PLUGIN_ROOT}/reference/craft-static.md): readable silhouette
 first, one light direction, hue-shifted ramps, selective outline, no pillow shading, no banding,
@@ -59,34 +57,34 @@ no dithering on small sprites.
 
 ## 4. Render
 
+Output directory, first match wins: an explicit path in the request; an assets location the
+project declares in its `CLAUDE.md` or rules; `${user_config.output_dir}` (empty or unexpanded
+means unset); otherwise ask before rendering. Keep the spec, `brief.md`, and the generator beside
+the output so the next iteration edits source, not pixels.
+
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/backends.py" <spec.json> --out <dir> --scale 8
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 ```
 
-`backends.py` writes the same files `render.py` does. Pass `--backend <name>` when this request
-names one; otherwise pass `--backend ${user_config.backend}` when that option is set, rather than
-relying on the environment to carry it. Aseprite builds `source.aseprite` from the frame rows.
-
-Output directory, first match wins: an explicit path in the request; an assets location the
-project declares in its `CLAUDE.md` or rules; `${user_config.output_dir}` (empty or unexpanded
-means unset); otherwise ask. Keep the
-spec, `brief.md`, and the generator beside the output so the next iteration edits source, not pixels.
+Pass `--backend <name>` when this request names one; otherwise pass
+`--backend ${user_config.backend}` when that option is set, rather than relying on the environment
+to carry it. Aseprite builds `source.aseprite` from the frame rows.
 
 ## 5. Review loop
 
-Read `preview.png` with the Read tool. Every round, list each done criterion in `brief.md` as pass
-or fail with a one-line reason, and check [`craft-static.md`](${CLAUDE_PLUGIN_ROOT}/reference/craft-static.md)
-where a criterion does not already cover it: silhouette at 1x, part separation, light consistency,
-outline, stray pixels, palette discipline. Fix the spec or generator, re-render, re-read. Stop when
-every done criterion passes, or after the round budget (typically 2 to 4) with the failing criteria
-named. The user's direction can end the loop earlier.
+Read `preview.png`. Every round, mark each done criterion in `brief.md` pass or fail with a
+one-line reason, and check [`craft-static.md`](${CLAUDE_PLUGIN_ROOT}/reference/craft-static.md)
+where no criterion covers it: silhouette at 1x, part separation, light consistency, outline, stray
+pixels, palette discipline. Fix the spec or generator, re-render, re-read. Stop when every
+criterion passes, or after the round budget (typically 2 to 4) with the failing criteria named,
+or earlier at the user's direction.
 
 ## 6. Deliver
 
-Report the engine asset (`sheet.png`), `sheet.json`, the preview, and `index.html` from the
-gallery. Give the user a way to see it: the gallery path, converted to a host path when the
-session runs in WSL (`wslpath -w`), or send the preview file when a file-sending tool exists.
+Report `sheet.png` (the engine asset), `sheet.json`, the preview, and the gallery `index.html`.
+Give the user a way to see it: the gallery path (via `wslpath -w` when the session runs in WSL),
+or the preview file sent with a file-sending tool when one exists.
 
 ## Next
 

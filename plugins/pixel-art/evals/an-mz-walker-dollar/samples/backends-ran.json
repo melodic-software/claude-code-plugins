@@ -1,0 +1,126 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/backends.py\" out/mage/mage.json --out out/mage --scale 4",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "documented form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 out/mage/mage.py > out/mage/mage.json && python3 /plugin/scripts/backends.py out/mage/mage.json --out out/mage",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "chained after the generator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/plugin/scripts\npython3 $S/backends.py spec.json --out out --scale 8",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "run on a new line after a variable assignment"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "if [ -f spec.json ]\nthen /plugin/scripts/backends.py spec.json --out out; fi",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "direct exec after then on a new line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd out/digits && python3 digits.py /home/<user>/.claude/plugins/pixel-art/scripts/backends.py && python3 /home/<user>/.claude/plugins/pixel-art/scripts/gallery.py .",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "observed: a generator script runs backends.py passed as its argument"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugin/scripts/render.py out/mage/mage.json --out out/mage",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "render.py"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "head /plugin/scripts/backends.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/plugin/scripts\nless $S/backends.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "new line, but reads the script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m py_compile /plugin/scripts/backends.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "compiles backends.py without running it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 gen.py spec.json\nls /plugin/scripts/backends.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "backends.py only listed on a later line"
+    }
+  ]
+}

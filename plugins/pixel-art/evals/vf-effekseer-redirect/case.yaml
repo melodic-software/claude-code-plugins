@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: vf-effekseer-redirect
+graders:
+  - name: no-efkefc-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*\.efkefc"'
+    min: 0
+    max: 0
+  - name: no-efkefc-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*\.efkefc"'
+    min: 0
+    max: 0
+  - name: no-efkefc-shell
+    type: tool_used
+    tool: Bash
+    input_match: '(?:>>?|(?:\b|(?<=\\n))(?:tee(?:\s+-a)?|touch|(?:cp|mv|install|ln)\b(?:[^"\\|;&]|\\.)*?|open\s*\(|Path\s*\())\s*\\?["'']?[^\s"''\\|;&]*\.efkefc\b'
+    min: 0
+    max: 0
+  - name: mentions-effekseer
+    type: regex
+    pattern: 'efkefc|effekseer'
+    flags: 'i'
+    target: last_message
+  - name: offers-cell-sheet
+    type: regex
+    pattern: '(?<!not )(?<!n''t )(?<!n’t )(?<!cannot )(?<!able to )\b(?:offer|make|made|render|build|built|create|produce|draw|drew|deliver|write|wrote|give|gave|ship)(?:s|ed|ing)?\b[^\n.?!]{0,80}\b(?:(?:cell|sprite|pixel|effect|animation)s?[ -]?sheet|img/animations)|\binstead\b(?!\s+of\b)(?![^\n.?!]*?(?:\b(?:not|no|never|cannot)\b|n[''’]t\b))[^\n.?!]{0,80}\b(?:(?:cell|sprite|pixel|effect|animation)s?[ -]?sheet|img/animations)'
+    flags: 'i'
+    target: last_message

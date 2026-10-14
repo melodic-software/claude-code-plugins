@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: an-mz-walker-dollar
+graders:
+  - name: kit-used
+    type: regex
+    pattern: '\\?"name\\?":\s*\\?"Read\\?",\s*\\?"input\\?":\s*\{\s*\\?"file_path\\?":\s*\\?"[^"\\]*\bkit\.py\\?"|\\?"name\\?":\s*\\?"Bash\\?",\s*\\?"input\\?":\s*\{\s*\\?"command\\?":\s*\\?"(?:[^"\\]|\\.){0,400}?(?:\b|(?<=\\n))(?:cp|rsync|install|python[0-9.]*|cat|head|sed|awk|less)\b(?:[^"\\]|\\.){0,400}?\bkit\.py\b'
+    target: trace
+  - name: backends-ran
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\b|(?<=\\n))(?:python[0-9.]*|uv run(?: python[0-9.]*)?)\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*\bbackends\.py\b|(?:"command":"|[;&|(]\s*|\\n\s*|(?:\b|(?<=\\n))(?:then|do)\s+)\\?["'']?(?:\./|/|\$\{?\w+\}?/)[^\s"''\\]*\bbackends\.py\b|^(?!.*(?:__doc__|help\())(?=.*(?:\b|(?<=\\n))(?:import\s+backends\b|from\s+backends\s+import\b))|(?:\b|(?<=\\n))(?:python[0-9.]*|uv run(?: python[0-9.]*)?)\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*\.py\\?["'']?(?:\s+[^\s;&|<>\\]+)*?\s+\\?["'']?[^\s"''\\]*\bbackends\.py\b'
+  - name: dollar-sheet-created
+    type: file_exists
+    path: '**/mage/$*.png'
+  - name: names-dollar-file
+    type: regex
+    pattern: '(?<!not )(?<!no )\$[A-Za-z][\w-]*\.png\b'
+    target: last_message

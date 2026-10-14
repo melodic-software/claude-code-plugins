@@ -1,0 +1,142 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Bash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls out/fire; grep -n efkefc /plugin/reference/engine-layouts.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads mentions only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'no .efkefc here' >&2",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect to stderr"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p out/fire\nls out/fire/*.efkefc",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "new line, only lists"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '{}' > out/fire/fire.efkefc",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "touch out/fire/fire.efkefc",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "touch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp out/fire/sheet.png out/fire/fire.efkefc",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cp"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf x | tee -a out/fire/fire.efkefc",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"open('out/fire/fire.efkefc','w').write('x')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python open"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat >> \"out/fire/Fire.efkefc\" <<'EOF'\nx\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "heredoc append"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p out/fire\ntouch out/fire/fire.efkefc",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "touch on a new line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<'EOF'\nopen('out/fire/fire.efkefc', 'w').write('{}')\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "open() on a new line inside a heredoc"
+    }
+  ]
+}

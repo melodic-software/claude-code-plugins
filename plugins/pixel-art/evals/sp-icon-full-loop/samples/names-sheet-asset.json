@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Engine asset: `out/potion/sheet.png` (12x12, 1x). Preview: `out/potion/preview.png`.",
+      "why": "label first"
+    },
+    {
+      "answer": "- `out/potion/sheet.png` - the 1x engine asset\n- `out/potion/preview.png` - 8x preview",
+      "why": "label after"
+    },
+    {
+      "answer": "**Asset**: out/potion/sheet.png",
+      "why": "bold label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done. Preview: `out/potion/preview.png`; gallery at `out/potion/index.html`.",
+      "why": "no sheet.png"
+    },
+    {
+      "answer": "sheet.png failed to render.\nThe preview is out/potion/preview.png.",
+      "why": "sheet named without asset role"
+    },
+    {
+      "answer": "Asset: out/potion/preview.png",
+      "why": "preview as asset"
+    }
+  ]
+}

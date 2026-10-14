@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Engine asset: `out/potion/sheet.png` (1x). Preview: `out/potion/preview.png` (8x, review only).",
+      "why": "preview labeled as preview"
+    },
+    {
+      "answer": "Never ship preview.png as the asset; use sheet.png.",
+      "why": "warning about preview"
+    },
+    {
+      "answer": "Don't use preview.png in your game; it is upscaled.",
+      "why": "negated use"
+    },
+    {
+      "answer": "preview.png is not the asset. sheet.png is.",
+      "why": "negated copula"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your asset: `out/potion/preview.png`",
+      "why": "preview as asset"
+    },
+    {
+      "answer": "preview.png is the final asset.",
+      "why": "copula"
+    },
+    {
+      "answer": "Use out/potion/preview.png in your game.",
+      "why": "use instruction"
+    },
+    {
+      "answer": "**Deliverable**: `out/potion/preview.png`",
+      "why": "bold deliverable"
+    }
+  ]
+}

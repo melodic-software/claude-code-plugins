@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: vf-spark-aseprite-fallback
+graders:
+  - name: aseprite-backend-requested
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\b|(?<=\\n))(?:python[0-9.]*|uv run(?: python[0-9.]*)?)\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*\bbackends\.py\b(?:[^"\\]|\\.)*?--backend(?:=|\s+)\\?["'']?aseprite\b|CLAUDE_PLUGIN_OPTION_BACKEND=\\?["'']?aseprite\b(?:[^"\\]|\\.)*?\bbackends\.py\b'
+  - name: says-native-fallback
+    type: regex
+    pattern: '(?<!not )(?<!n''t )(?<!n’t )\b(?:fell|falls|falling|fall) back\b[^\n]{0,60}\bnative\b|(?<!not )(?<!n''t )(?<!n’t )\b(?:rendered|rendering|renders|used|using)\s+(?:with|on|through|via|by)\s+(?:the\s+)?[`*]*native\b|\bnative backend\b[^\n]{0,40}\b(?:instead|fallback)\b'
+    flags: 'i'
+    target: last_message
+  - name: delivers-sheet-png
+    type: regex
+    pattern: '\bsheet\.png\b'
+    target: last_message
+  - name: delivers-gif
+    type: regex
+    pattern: '[\w$-]+\.gif\b'
+    target: last_message

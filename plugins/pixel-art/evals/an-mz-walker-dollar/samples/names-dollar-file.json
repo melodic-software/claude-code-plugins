@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "MZ asset: `out/mage/$mage.png` (copy of sheet.png). Drop it in img/characters/.",
+      "why": "backticked"
+    },
+    {
+      "answer": "Copied sheet.png to out/mage/$mage.png so MZ reads one character.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Delivered `out/mage/sheet.png` and `out/mage/walk.gif`.",
+      "why": "sheet only"
+    },
+    {
+      "answer": "MZ asset: out/mage/mage.png",
+      "why": "no $"
+    },
+    {
+      "answer": "I did not create $.png",
+      "why": "no name after $"
+    }
+  ]
+}

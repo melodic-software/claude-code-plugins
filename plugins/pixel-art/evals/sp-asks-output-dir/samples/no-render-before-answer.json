@@ -1,0 +1,113 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no Bash at all"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n 1,60p \"${CLAUDE_PLUGIN_ROOT}/scripts/render.py\"",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /home/<user>/.claude/plugins/cache/pixel-art/scripts/",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the docstring and lists scripts"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import ast,sys; print(ast.get_docstring(open(sys.argv[1]).read()))\" /plugin/scripts/render.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "docstring read through python"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/backends.py\" chest.json --out out/chest --scale 8",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "renders through backends.py"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugin/scripts/render.py chest.json --out ./out",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "renders through render.py"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /plugin/scripts && python3 -c 'import render; render.main([\"c.json\",\"--out\",\"o\"])'",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "import bypass"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "chmod +x r.sh; /plugin/scripts/backends.py chest.json --out o",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "direct exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p ~/chest && cd ~/chest && python3 gen.py > spec.json\nB=/home/<user>/.claude/plugins/cache/pixel-art/scripts\npython3 $B/backends.py spec.json --out out --scale 8 && python3 $B/gallery.py out;",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "observed: renders on a new line after a variable assignment, before any answer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /plugin/scripts && python3 - <<'EOF'\nimport render\nrender.main(['c.json', '--out', 'o'])\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "import on a new line inside a heredoc"
+    }
+  ]
+}
