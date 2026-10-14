@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "<script>\nconst AUDIO = \"data:audio/wav;base64,UklGRiQAAABXQVZF\";\nconst FRAMES = {\"w\":64};\n</script>",
+      "why": "every marker inlined"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "<script>\nconst AUDIO = /*WAV:chime.wav*/null;\n</script>",
+      "why": "WAV marker left"
+    },
+    {
+      "answer": "<script>\nconst AUDIO = \"data:audio/wav;base64,UklGRiQAAABXQVZF\";\nconst FRAMES = /*EMBED:frames.json*/null;\n</script>",
+      "why": "EMBED marker left"
+    }
+  ]
+}

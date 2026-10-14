@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "out/potion/brief.md"
+      ],
+      "why": "relative path"
+    },
+    {
+      "answer": [
+        "/tmp/eval-ws/out/potion/brief.md",
+        "/tmp/eval-ws/out/potion/potion.json"
+      ],
+      "why": "absolute path among others"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "out/potion/potion.json",
+        "out/potion/sheet.png"
+      ],
+      "why": "no brief"
+    },
+    {
+      "answer": [
+        "out/potion/brief.txt"
+      ],
+      "why": "wrong extension"
+    },
+    {
+      "answer": [
+        "out/brief.md"
+      ],
+      "why": "not beside the potion output"
+    }
+  ]
+}

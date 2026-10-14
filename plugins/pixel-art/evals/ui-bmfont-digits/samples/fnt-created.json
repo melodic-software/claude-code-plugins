@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "out/digits/digits.fnt"
+      ],
+      "why": "relative"
+    },
+    {
+      "answer": [
+        "/tmp/ws/out/digits/sheet.png",
+        "/tmp/ws/out/digits/digits.fnt"
+      ],
+      "why": "absolute among others"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "out/digits/sheet.png",
+        "out/digits/sheet.json"
+      ],
+      "why": "no fnt"
+    },
+    {
+      "answer": [
+        "out/digits/digits.fnt.txt"
+      ],
+      "why": "wrong extension"
+    }
+  ]
+}

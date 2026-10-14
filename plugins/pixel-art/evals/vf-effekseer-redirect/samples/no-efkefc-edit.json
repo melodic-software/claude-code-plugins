@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing edited"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "out/fire/gen.py",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "other file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "out/fire/fire.efkefc",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "efkefc edited"
+    }
+  ]
+}

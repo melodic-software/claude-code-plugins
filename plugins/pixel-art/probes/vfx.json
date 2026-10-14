@@ -1,0 +1,130 @@
+{
+  "skill": "pixel-art:vfx",
+  "plugin": "pixel-art",
+  "skill_dir": "plugins/pixel-art/skills/vfx",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement.",
+  "competitors": [
+    "pixel-art:sprite",
+    "pixel-art:animate",
+    "pixel-art:scene",
+    "pixel-art:tileset",
+    "pixel-art:ui"
+  ],
+  "competitor_dirs": {
+    "pixel-art:sprite": "plugins/pixel-art/skills/sprite",
+    "pixel-art:animate": "plugins/pixel-art/skills/animate",
+    "pixel-art:scene": "plugins/pixel-art/skills/scene",
+    "pixel-art:tileset": "plugins/pixel-art/skills/tileset",
+    "pixel-art:ui": "plugins/pixel-art/skills/ui"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make a hit spark for sword impacts, 5 frames."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need a fireball explosion sheet for my shooter."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Create a healing spell with rising sparkles."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Dust and smoke puff particles as a sheet."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "RPG Maker MZ battle animation cells for a lightning strike."
+    },
+    {
+      "id": "pos-validation-06",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Summoning circle effect that loops, with a GIF preview."
+    },
+    {
+      "id": "pos-validation-07",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Slash trail for dagger attacks, white to blue."
+    },
+    {
+      "id": "pos-validation-08",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Water splash when the player lands in a puddle."
+    },
+    {
+      "id": "pos-validation-09",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Coin pickup glint, quick burst."
+    },
+    {
+      "id": "pos-validation-10",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Frost nova ring expanding outward."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Walk cycle for my hero."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw a still crystal item."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Build a tileset for ice caves."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a window skin for my menus."
+    },
+    {
+      "id": "neg-validation-05",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Cutscene with fireworks over a harbor, as an HTML page."
+    },
+    {
+      "id": "neg-validation-06",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Build an Effekseer .efkefc effect for Unity."
+    },
+    {
+      "id": "neg-validation-07",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add a lens flare and glow to my vacation photo."
+    },
+    {
+      "id": "neg-validation-08",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a CSS keyframe ripple for a website button."
+    }
+  ]
+}

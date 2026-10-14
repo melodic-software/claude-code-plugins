@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": ".efkefc is an Effekseer particle file, not a pixel sheet, so I can't write one. I can make an MV-style cell sheet for img/animations instead. Want that?",
+      "why": "offer"
+    },
+    {
+      "answer": "Effekseer files are out of scope. I rendered a pixel cell sheet instead: out/fire/sheet.png (1x), sheet.json, fire.gif.",
+      "why": "delivered"
+    },
+    {
+      "answer": "Effekseer is not a pixel format. Shall I build a sprite sheet of the fire burst instead?",
+      "why": "question offer"
+    },
+    {
+      "answer": "I didn't make an `.efkefc` file. That's MZ's native Effekseer format, a particle project rather than pixel art, and this skill can't produce one. What you have instead is the same fire burst as an MV-style animation sheet, which MZ plays from `img/animations`. It's rendered.",
+      "why": "observed: delivered sheet named after 'instead'"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I can't offer a cell sheet for Effekseer.",
+      "why": "negated offer"
+    },
+    {
+      "answer": "Effekseer .efkefc files are not supported.",
+      "why": "refusal only"
+    },
+    {
+      "answer": "I'm not able to produce a sprite sheet here; .efkefc is out of scope.",
+      "why": "negated ability"
+    },
+    {
+      "answer": "Instead of a cell sheet, here is the .efkefc you asked for.",
+      "why": "no offer verb"
+    },
+    {
+      "answer": "Instead, an animation sheet is not something this skill can make for Effekseer.",
+      "why": "instead with a negation"
+    },
+    {
+      "answer": "I wrote the .efkefc instead; no sheet was needed.",
+      "why": "instead names no sheet"
+    },
+    {
+      "answer": "I'm not going to make a cell sheet or an .efkefc file.",
+      "why": "negation earlier in the sentence than the verb"
+    }
+  ]
+}

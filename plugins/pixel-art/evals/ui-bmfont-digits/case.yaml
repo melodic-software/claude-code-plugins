@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: ui-bmfont-digits
+graders:
+  - name: fnt-created
+    type: file_exists
+    path: '**/digits/*.fnt'
+  - name: fnt-page-is-sheet
+    type: regex
+    pattern: '^page[ \t]+id=0[ \t]+file="?sheet\.png"?[ \t]*$'
+    flags: 'm'
+    target: { source: file, path: out/digits/digits.fnt }
+  - name: fnt-char-per-digit
+    type: regex
+    pattern: '^(?=[\s\S]*^char[ \t]+id=48\b)(?=[\s\S]*^char[ \t]+id=49\b)(?=[\s\S]*^char[ \t]+id=50\b)(?=[\s\S]*^char[ \t]+id=51\b)(?=[\s\S]*^char[ \t]+id=52\b)(?=[\s\S]*^char[ \t]+id=53\b)(?=[\s\S]*^char[ \t]+id=54\b)(?=[\s\S]*^char[ \t]+id=55\b)(?=[\s\S]*^char[ \t]+id=56\b)(?=[\s\S]*^char[ \t]+id=57\b)'
+    flags: 'm'
+    target: { source: file, path: out/digits/digits.fnt }
+  - name: backends-ran
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\b|(?<=\\n))(?:python[0-9.]*|uv run(?: python[0-9.]*)?)\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*\bbackends\.py\b(?:[^\\";&|]|\\")*?\s--out\b|(?:"command":"|[;&|(]\s*|\\n\s*|(?:\b|(?<=\\n))(?:then|do)\s+)\\?["'']?(?:\./|/|\$\{?\w+\}?/)[^\s"''\\]*\bbackends\.py\b(?:[^\\";&|]|\\")*?\s--out\b|^(?!.*(?:__doc__|help\())(?=.*(?:\b|(?<=\\n))(?:import\s+backends\b|from\s+backends\s+import\b))|(?:\b|(?<=\\n))(?:python[0-9.]*|uv run(?: python[0-9.]*)?)\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*\.py\\?["'']?(?:\s+[^\s;&|<>\\]+)*?\s+\\?["'']?[^\s"''\\]*\bbackends\.py\b|^(?=.*\bbackends\.py\b)(?=.*(?:\b|(?<=\\n))subprocess\.(?:run|call|check_call|check_output|Popen)\()(?=.*\\?["'']--out\\?["''])(?=.*(?:\b|(?<=\\n))python[0-9.]*\s+[^\s;&|]*\.py\b)'

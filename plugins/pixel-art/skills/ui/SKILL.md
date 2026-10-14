@@ -1,5 +1,5 @@
 ---
-description: "Create pixel-art UI with no external tools: window skins (RPG Maker MZ Window.png and generic 9-slice frames), icon grids (MZ IconSet.png), HUD elements, and bitmap fonts (a glyph grid or a BMFont .fnt beside it). The model authors a palette-locked spec, the bundled stdlib renderer writes the sheet, and a render-review loop iterates until the skin reads. Use when: 'window skin', '9-slice frame', 'icon set', 'HUD', 'bitmap font', 'Window.png', 'IconSet'. Not for a single item icon or character (use /pixel-art:sprite), a tileset (use /pixel-art:tileset), an effect sheet (use /pixel-art:vfx), or a cutscene (use /pixel-art:scene)."
+description: "Pixel-art UI: window skins (RPG Maker MZ Window.png, 9-slice frames), icon grids (MZ IconSet.png), HUD elements, and bitmap fonts (glyph grid or BMFont .fnt). Use when asked for a 'window skin', '9-slice frame', 'icon set', 'HUD', 'bitmap font', 'Window.png', or 'IconSet'. One item icon or character: /pixel-art:sprite; a tileset: /pixel-art:tileset; an effect sheet: /pixel-art:vfx."
 argument-hint: "<window, icons, hud, or font> [engine]"
 user-invocable: true
 disable-model-invocation: false
@@ -38,10 +38,10 @@ backend (`native` or `aseprite`). Stay on native unless the request or that sett
   solid block; the engine stretches the edges and the center.
 - **Icons**: a uniform grid. `columns` is the IconSet.png row in `engine-layouts.md`.
 - **HUD**: one element or a strip, palette-locked, readable at 1x.
-- **Font**: a glyph grid (one cell per character, in a stated order). When the target wants BMFont,
-  write the text `.fnt` the Godot font line in `engine-layouts.md` points at, with `sheet.png` as
-  the page and one character entry per glyph using the rects in `sheet.json`. Nearest-neighbor
-  only. No anti-aliased system font.
+- **Font**: a glyph grid, one cell per character in a stated order. For a BMFont target, also
+  write the text `.fnt` the Godot font line in `engine-layouts.md` points at: `sheet.png` as the
+  page, one character entry per glyph from the `sheet.json` rects. Nearest-neighbor only; no
+  anti-aliased system font.
 
 ## 4. Render
 
@@ -50,10 +50,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/backends.py" <spec.json> --out <dir> --sc
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py" <dir>
 ```
 
-`backends.py` writes the same files `render.py` does. Pass `--backend <name>` when this request
-names one; otherwise pass `--backend ${user_config.backend}` when that option is set, rather than
-relying on the environment to carry it.
-
+Pass the backend from step 2 as `--backend <name>`; do not rely on the environment to carry it.
 Output location resolves as in `/pixel-art:sprite`. Keep the spec and the generator beside the output.
 
 ## 5. Review loop

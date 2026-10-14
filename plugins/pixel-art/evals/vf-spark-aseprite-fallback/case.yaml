@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: vf-spark-aseprite-fallback
+graders:
+  - name: aseprite-backend-requested
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\b|(?<=\\n))(?:python[0-9.]*|uv run(?: python[0-9.]*)?)\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*\bbackends\.py\b(?:[^"\\]|\\.)*?--backend(?:=|\s+)\\?["'']?aseprite\b|CLAUDE_PLUGIN_OPTION_BACKEND=\\?["'']?aseprite\b(?:[^"\\]|\\.)*?\bbackends\.py\b'
+  - name: says-native-fallback
+    type: regex
+    pattern: '(?:(?<!not )(?<!n[''’]t )(?<!no )\b(?:instead|fallback|fall(?:s|ing)?[ -]back|fell back|not found|missing|absent|unavailable)\b|(?:\bnot|n[''’]t)\s+(?:installed|available|on\s+(?:the\s+)?PATH)\b)[^\n]{0,80}\bnative\b|\bnative\b[^\n]{0,80}(?:(?<!not )(?<!n[''’]t )(?<!no )\b(?:instead|fallback|fall(?:s|ing)?[ -]back|fell back|not found|missing|absent|unavailable)\b|(?:\bnot|n[''’]t)\s+(?:installed|available|on\s+(?:the\s+)?PATH)\b)'
+    flags: 'i'
+    target: last_message
+  - name: delivers-sheet-png
+    type: regex
+    pattern: '\bsheet\.png\b'
+    target: last_message
+  - name: delivers-gif
+    type: regex
+    pattern: '[\w$-]+\.gif\b'
+    target: last_message
+  - name: sheet-created
+    type: file_exists
+    path: '**/spark/sheet.png'
+  - name: gif-created
+    type: file_exists
+    path: '**/spark/*.gif'

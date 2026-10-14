@@ -1,0 +1,114 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/backends.py\" out/spark/spark.json --out out/spark --scale 2 --backend aseprite",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "flag last"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugin/scripts/backends.py --backend=aseprite out/spark/spark.json --out out/spark",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "equals form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "CLAUDE_PLUGIN_OPTION_BACKEND=aseprite python3 /plugin/scripts/backends.py s.json --out o",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "environment form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/plugin/scripts\npython3 $S/backends.py out/spark/spark.json --out out/spark --backend aseprite",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "run on a new line after a variable assignment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugin/scripts/backends.py s.json --out o --backend native",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "native"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "aseprite --version",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "probe only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n aseprite /plugin/scripts/backends.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugin/scripts/render.py s.json --out o --backend aseprite",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "render.py"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/plugin/scripts\npython3 $S/backends.py out/spark/spark.json --out out/spark",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "new line, no backend flag"
+    }
+  ]
+}

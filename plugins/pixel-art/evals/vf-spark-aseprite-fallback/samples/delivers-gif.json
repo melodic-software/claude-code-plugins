@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "GIF: `out/spark/spark.gif`",
+      "why": "named gif"
+    },
+    {
+      "answer": "sheet.png, sheet.json and hit.gif",
+      "why": "inline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "sheet.png and sheet.json; no GIF was written.",
+      "why": "word GIF without a file"
+    },
+    {
+      "answer": "Preview: out/spark/preview.png",
+      "why": "no gif"
+    }
+  ]
+}

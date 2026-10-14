@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/home/<user>/.claude/plugins/cache/pixel-art/scripts/kit.py\"}}]}}",
+      "why": "Read"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cp \\\"${CLAUDE_PLUGIN_ROOT}/scripts/kit.py\\\" out/mage/\",\"description\":\"copy kit\"}}]}}",
+      "why": "copied"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 out/mage/mage.py\",\"description\":\"x\"}}]}}\n{\\\"type\\\":\\\"assistant\\\",\\\"message\\\":{\\\"content\\\":[{\\\"type\\\":\\\"tool_use\\\",\\\"id\\\":\\\"toolu_01\\\",\\\"name\\\":\\\"Bash\\\",\\\"input\\\":{\\\"command\\\":\\\"cp /plugin/scripts/kit.py out/mage/kit.py\\\",\\\"description\\\":\\\"x\\\"}}]}}",
+      "why": "escaped trace line"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"S=/plugin/scripts\\ncp $S/kit.py out/mage/gen_mage.py\",\"description\":\"run\"}}]}}",
+      "why": "copy on a new line after a variable assignment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/home/<user>/.claude/plugins/cache/pixel-art/scripts/render.py\"}}]}}",
+      "why": "different file"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Glob\",\"input\":{\"pattern\":\"**/kit.py\"}}]}}",
+      "why": "Glob only"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"ls /plugin/scripts/kit.py\",\"description\":\"x\"}}]}}",
+      "why": "listed, not read"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"start from ${CLAUDE_PLUGIN_ROOT}/scripts/kit.py\"}]}}",
+      "why": "skill text only"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"S=/plugin/scripts\\nls $S/kit.py\",\"description\":\"run\"}}]}}",
+      "why": "new line, only lists it"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat notes.txt; ls /plugin/scripts/kit.py\",\"description\":\"x\"}}]}}",
+      "why": "cat ends at a semicolon; kit.py is only listed"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"head -1 notes.txt && ls /plugin/scripts/kit.py\",\"description\":\"x\"}}]}}",
+      "why": "head ends at &&; kit.py is only listed"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat notes.txt | wc -l; ls /plugin/scripts/kit.py\",\"description\":\"x\"}}]}}",
+      "why": "pipe between cat and kit.py"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat notes.txt\\nls /plugin/scripts/kit.py\",\"description\":\"x\"}}]}}",
+      "why": "cat ends at a newline; kit.py is only listed"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"python3 out/mage/mage.py\",\"description\":\"x\"}}]}}\n{\\\"type\\\":\\\"assistant\\\",\\\"message\\\":{\\\"content\\\":[{\\\"type\\\":\\\"tool_use\\\",\\\"id\\\":\\\"toolu_01\\\",\\\"name\\\":\\\"Bash\\\",\\\"input\\\":{\\\"command\\\":\\\"cat notes.txt\\\\nls /plugin/scripts/kit.py\\\",\\\"description\\\":\\\"x\\\"}}]}}",
+      "why": "escaped trace line: cat ends at a newline; kit.py is only listed"
+    }
+  ]
+}

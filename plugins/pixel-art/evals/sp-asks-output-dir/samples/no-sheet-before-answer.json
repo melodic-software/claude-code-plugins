@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "asked first, wrote nothing"
+    },
+    {
+      "answer": [".git/index", ".git/objects/ab/cdef"],
+      "why": "git bookkeeping only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["chest/spec.json", "chest/sheet.png", "chest/preview.png"],
+      "why": "rendered into a guessed folder"
+    },
+    {
+      "answer": ["/tmp/ws/assets/sprites/treasure-chest/sheet.png"],
+      "why": "rendered at depth"
+    }
+  ]
+}

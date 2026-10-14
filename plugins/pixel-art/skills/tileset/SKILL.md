@@ -1,5 +1,5 @@
 ---
-description: "Create pixel-art tilesets with no external tools: terrain, autotiles (RPG Maker MZ A1-A5 and B-E, blob-47, 16-tile corner sets), seamless backgrounds, and parallax layers, laid out as the target engine's sheet. The model authors a palette-locked spec or a procedural generator, the bundled stdlib renderer writes the sheet, and a render-review loop iterates until the seams read. Use when: 'tileset', 'autotile', 'terrain tiles', 'blob tileset', 'parallax background', 'RPG Maker tileset', 'seamless tile'. Not for a single sprite or icon (use /pixel-art:sprite), a character walk cycle (use /pixel-art:animate), a window skin or icon set (use /pixel-art:ui), an effect sheet (use /pixel-art:vfx), or an HTML cutscene (use /pixel-art:scene)."
+description: "Pixel-art tilesets as the target engine's sheet: terrain, autotiles (RPG Maker MZ A1-A5 and B-E, blob-47, 16-tile corner), seamless tiles, and parallax layers. Use when asked for a 'tileset', 'autotile', 'terrain tiles', 'blob tileset', 'parallax background', 'RPG Maker tileset', or 'seamless tile'. One sprite or icon: /pixel-art:sprite; a window skin or icon set: /pixel-art:ui; an HTML cutscene: /pixel-art:scene."
 argument-hint: "<terrain or set> [engine] [tile size]"
 user-invocable: true
 disable-model-invocation: false

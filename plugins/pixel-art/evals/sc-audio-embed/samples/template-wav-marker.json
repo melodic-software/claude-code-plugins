@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/star.template.html\",\"content\":\"<script>\\nconst WAV = /*WAV:../../chime.wav*/null;\\n</script>\"}}]}}",
+      "why": "relative marker"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/template.html\",\"content\":\"const audioURL=/*WAV:chime.wav*/null;\"}}]}}",
+      "why": "same folder"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"mkdir -p out/star/ && cd out/star && python3 - <<'E'\\nimport wave\\ns=wave.open('../../chime.wav'); d=s.readframes(s.getnframes()); r=s.getframerate()\\no=wave.open('chime_loop.wav','wb'); o.setparams((1,1,r,0,'NONE','not compressed')); o.writeframes(d); o.close()\\nE\\ncat > brief.md <<'E'\\n# Brief\\n\\n- Subject: a night sky with one blinking star\\n- Audio: `chime.wav` padded to a 2.0 s `chime_loop.wav`\\nE\\ncat > star.template.html <<'E'\\n<!doctype html>\\n<html lang=\\\"en\\\">\\n<body>\\n<canvas id=\\\"screen\\\"></canvas>\\n<script>\\n\\\"use strict\\\";\\nconst AUDIO = /*WAV:chime_loop.wav*/null;\\nconst W = 64, H = 36;\\nconst LOOP = 2, STEP = 1 / 60, TICKS = 120;\\nlet tick = 0, paused = false;\\nwindow.__pixelScene = {\\n  duration: LOOP,\\n  audio: typeof AUDIO === \\\"string\\\" ? AUDIO : null,\\n  seek(seconds) { paused = true; tick = Math.round(seconds / STEP) % TICKS; paint(); },\\n  frameDataURL,\\n  play() { paused = false; requestAnimationFrame(frame); },\\n};\\n</script>\\n</body>\\n</html>\\nE\\nP=/home/<user>/.claude/plugins/pixel-art\\npython3 $P/scripts/embed.py star.template.html star.html && python3 $P/scripts/gallery.py .\"}}]}}",
+      "why": "observed: template written by a Bash heredoc"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Edit\",\"input\":{\"file_path\":\"out/star/star.template.html\",\"old_string\":\"/*WAV:campfire.wav*/null\",\"new_string\":\"/*WAV:chime_loop.wav*/null\",\"replace_all\":false}}]}}",
+      "why": "copied example, marker pointed at this scene's audio by Edit"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat <<\\\"EOF\\\" > out/star/template.html\\n<script>\\nconst AUDIO = /*WAV:chime.wav*/null;\\n</script>\\nEOF\"}}]}}",
+      "why": "heredoc with the redirect after the delimiter"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/brief.md\",\"content\":\"Audio: /*WAV:../../chime.wav*/null\"}}]}}",
+      "why": "marker in brief, not html"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/star.html\",\"content\":\"const WAV = 'data:audio/wav;base64,UklGR';\"}}]}}",
+      "why": "inlined by hand"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/star.html\",\"content\":\"// add /*WAV:*/null later\"}}]}}",
+      "why": "empty path"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"mkdir -p out/star && cp /home/<user>/.claude/plugins/pixel-art/examples/campfire/scene.html out/star/star.template.html\"}}]}}",
+      "why": "copies the campfire example; no marker is written in the trace"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -n \\\"WAV\\\\|__pixelScene\\\\|seek\\\" /home/<user>/.claude/plugins/pixel-art/examples/campfire/scene.html\"}}]}}",
+      "why": "reads the example, writes nothing"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -n 1,240p /plugin/examples/campfire/scene.html\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_x\",\"content\":\"const AUDIO = /*WAV:campfire.wav*/null;\\nwindow.__pixelScene = {\\n  seek(seconds) { paint(); },\\n};\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/star.template.html\",\"content\":\"<script>\\nconst AUDIO = null;\\nwindow.scene = { duration: 2 };\\n</script>\"}}]}}",
+      "why": "markers only in a tool result the model read; the template it wrote lacks them"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cd out/star\\ncat > star.template.html <<'E'\\n<script>\\nconst AUDIO = null;\\nwindow.scene = { duration: 2 };\\n</script>\\nE\\ncat > check.js <<'E'\\nconst AUDIO = /*WAV:chime.wav*/null;\\nwindow.__pixelScene = { seek(t) { draw(t); } };\\nE\\nnode check.js\"}}]}}",
+      "why": "html heredoc ends before the markers; they sit in a later .js heredoc"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > out/star/brief.md <<'EOF'\\n- Audio: /*WAV:chime.wav*/null\\n- API: window.__pixelScene = { seek(t) }\\nEOF\"}}]}}",
+      "why": "markers in a markdown heredoc, not html"
+    }
+  ]
+}

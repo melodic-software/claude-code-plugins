@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "<script>\nconst AUDIO = \"data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=\";\n</script>",
+      "why": "embed.py inlined the WAV"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "<script>\nconst AUDIO = /*WAV:chime.wav*/null;\n</script>",
+      "why": "template copied, marker never inlined"
+    },
+    {
+      "answer": "<script>\nconst AUDIO = \"chime.wav\";\n</script>",
+      "why": "audio left as an external file"
+    }
+  ]
+}
