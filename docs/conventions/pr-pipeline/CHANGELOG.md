@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## 1.10.6 - 2026-10-14
+
+`pr-run-activity.md` "The lane token broker": the request body gains `issue_number`, which the
+broker requires on an `issues` event, sent by `request-lane-token`'s new `issue-number` input.
+`version` stays 1.
+
 ## 1.10.5 - 2026-10-12
 
 README: `ci-status` on a draft passes its skipped lanes; the `ready_for_review` run tests the head
