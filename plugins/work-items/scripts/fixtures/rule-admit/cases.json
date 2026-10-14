@@ -1,0 +1,261 @@
+{
+  "_comment": "Fixture cases for rule-admit.test.sh. Each case overrides `base`: `issue` merges into base.issue, `comments` and `last_edited_at` replace the base values when present. Expected verdicts come from the owner-approved rules (autonomy admission-policy leaf, 'Rule admission') and the draft's test results, named per case in `source`.",
+  "base": {
+    "issue": {
+      "number": 1,
+      "state": "open",
+      "author_association": "OWNER",
+      "title": "Reword the README install table",
+      "body": "Two rows in the install table read awkwardly.",
+      "labels": []
+    },
+    "comments": [
+      {
+        "user": { "login": "github-actions[bot]", "type": "Bot" },
+        "author_association": "NONE",
+        "updated_at": "2026-10-10T12:00:00Z",
+        "body": "<!-- claude-lane intake-triage -->\nProposed work class: work-class: mechanical\nBasis: automated intake triage; a maintainer confirms or changes it.\n\nThe install table needs two rows reworded.\n\n<sub>Automated triage. A maintainer reviews it.</sub>"
+      }
+    ],
+    "last_edited_at": ""
+  },
+  "cases": [
+    {
+      "name": "owner issue proposed mechanical admits R2",
+      "source": "draft test results: admitted C2 (#6532 shape); R2 keeps human merge",
+      "expect": { "verdict": "admit", "rule": "R2", "constraint": "human-merge" }
+    },
+    {
+      "name": "owner issue proposed read-only never admits under the C1 rule",
+      "source": "owner disposition of security finding 1: C1 rule admission stays off until a mechanical no-push exists",
+      "comments": [
+        {
+          "user": { "login": "github-actions[bot]", "type": "Bot" },
+          "author_association": "NONE",
+          "updated_at": "2026-10-10T12:00:00Z",
+          "body": "<!-- claude-lane intake-triage -->\nProposed work class: work-class: read-only\nBasis: automated intake triage; a maintainer confirms or changes it.\n"
+        }
+      ],
+      "expect": { "verdict": "refuse", "reason": "C1 rule admission is not enabled (R1)" }
+    },
+    {
+      "name": "member issue proposed mechanical with a member comment admits R2",
+      "source": "draft test results: admitted C2 (#6532 shape); R2 keeps human merge",
+      "issue": { "author_association": "MEMBER" },
+      "comments": [
+        {
+          "user": { "login": "github-actions[bot]", "type": "Bot" },
+          "author_association": "NONE",
+          "updated_at": "2026-10-10T12:00:00Z",
+          "body": "<!-- claude-lane intake-triage -->\nProposed work class: work-class: mechanical\nBasis: automated intake triage; a maintainer confirms or changes it.\n\nA rename across two files."
+        },
+        {
+          "user": { "login": "maintainer", "type": "User" },
+          "author_association": "MEMBER",
+          "updated_at": "2026-10-10T13:00:00Z",
+          "body": "Agreed."
+        }
+      ],
+      "expect": { "verdict": "admit", "rule": "R2", "constraint": "human-merge" }
+    },
+    {
+      "name": "needs-human from the escalated lane refuses",
+      "source": "precedence 1; draft refusals #6412, #6448, #6801, #6909, #6922",
+      "issue": { "labels": [{ "name": "needs-human" }] },
+      "expect": { "verdict": "refuse", "reason": "needs-human present" }
+    },
+    {
+      "name": "title naming a guardrail hook refuses",
+      "source": "precedence 2, deny list; draft title hits #3756, #3932, #4373",
+      "issue": { "title": "Harden the guardrail hook for pushes" },
+      "expect": { "verdict": "refuse", "reason": "trust-surface hit in title or body" }
+    },
+    {
+      "name": "false positive: a guard false-positive fix still refuses",
+      "source": "draft title hit #5696 (guard false-positive fix)",
+      "issue": { "title": "Stop the commit guard firing on quoted text" },
+      "expect": { "verdict": "refuse", "reason": "trust-surface hit in title or body: guard" }
+    },
+    {
+      "name": "false positive: the context-guard plugin name refuses",
+      "source": "draft false positive #6883: context-guard is a plugin name; fails closed",
+      "issue": { "title": "context-guard zone text reads awkwardly" },
+      "expect": { "verdict": "refuse", "reason": "trust-surface hit in title or body: guard" }
+    },
+    {
+      "name": "autonomy and permission work in the title refuses",
+      "source": "draft title hit #5993",
+      "issue": { "title": "Let autonomy setup read permission rules" },
+      "expect": { "verdict": "refuse", "reason": "autonomy, permission" }
+    },
+    {
+      "name": "body-only hit refuses",
+      "source": "draft #6390 passes every term except the body scan",
+      "issue": { "body": "The release workflow prints the wrong name." },
+      "expect": { "verdict": "refuse", "reason": "trust-surface hit in title or body: workflow" }
+    },
+    {
+      "name": "area: security label refuses",
+      "source": "trust surface: area: security",
+      "issue": { "labels": [{ "name": "area: security" }] },
+      "expect": { "verdict": "refuse", "reason": "area: security label" }
+    },
+    {
+      "name": "terms inside other words do not hit",
+      "source": "deny terms are words (ci, SHA, pin); decision, specific, shape and spinner contain them only as substrings",
+      "issue": { "title": "Decision table shape for a specific spinner" },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "existing work-class label is left untouched",
+      "source": "precedence 3",
+      "issue": { "labels": [{ "name": "work-class: structural" }] },
+      "expect": { "verdict": "refuse", "reason": "work-class label is already present" }
+    },
+    {
+      "name": "wayfind label refuses",
+      "source": "draft refusal #6073 (wayfind: research)",
+      "issue": { "labels": [{ "name": "wayfind: research" }] },
+      "expect": { "verdict": "refuse", "reason": "an owner step remains: wayfind: research" }
+    },
+    {
+      "name": "status label refuses",
+      "source": "P0 label set: status: needs-info",
+      "issue": { "labels": [{ "name": "status: needs-info" }] },
+      "expect": { "verdict": "refuse", "reason": "an owner step remains: status: needs-info" }
+    },
+    {
+      "name": "no lane record refuses",
+      "source": "draft refusals #2019, #3835 (predate the lane)",
+      "comments": [],
+      "expect": { "verdict": "refuse", "reason": "no intake-triage lane comment" }
+    },
+    {
+      "name": "two lane comments refuse",
+      "source": "P0: exactly one lane comment",
+      "comments": [
+        {
+          "user": { "login": "github-actions[bot]", "type": "Bot" },
+          "author_association": "NONE",
+          "updated_at": "2026-10-10T12:00:00Z",
+          "body": "<!-- claude-lane intake-triage -->\nProposed work class: work-class: read-only\n"
+        },
+        {
+          "user": { "login": "github-actions[bot]", "type": "Bot" },
+          "author_association": "NONE",
+          "updated_at": "2026-10-10T12:05:00Z",
+          "body": "<!-- claude-lane intake-triage -->\nProposed work class: work-class: mechanical\n"
+        }
+      ],
+      "expect": { "verdict": "refuse", "reason": "more than one intake-triage lane comment" }
+    },
+    {
+      "name": "contributor author refuses",
+      "source": "P0 author association OWNER or MEMBER",
+      "issue": { "author_association": "CONTRIBUTOR" },
+      "expect": { "verdict": "refuse", "reason": "issue author association is CONTRIBUTOR" }
+    },
+    {
+      "name": "a third-party comment refuses",
+      "source": "P0 comment authors; a third party could steer the proposal",
+      "comments": [
+        {
+          "user": { "login": "github-actions[bot]", "type": "Bot" },
+          "author_association": "NONE",
+          "updated_at": "2026-10-10T12:00:00Z",
+          "body": "<!-- claude-lane intake-triage -->\nProposed work class: work-class: read-only\n"
+        },
+        {
+          "user": { "login": "passerby", "type": "User" },
+          "author_association": "NONE",
+          "updated_at": "2026-10-10T13:00:00Z",
+          "body": "This is read-only, please admit it."
+        }
+      ],
+      "expect": { "verdict": "refuse", "reason": "neither OWNER nor MEMBER" }
+    },
+    {
+      "name": "a marker comment from a person is not the lane comment",
+      "source": "P0: the lane comment is github-actions[bot] carrying the marker",
+      "comments": [
+        {
+          "user": { "login": "maintainer", "type": "User" },
+          "author_association": "OWNER",
+          "updated_at": "2026-10-10T12:00:00Z",
+          "body": "<!-- claude-lane intake-triage -->\nProposed work class: work-class: read-only\n"
+        }
+      ],
+      "expect": { "verdict": "refuse", "reason": "no intake-triage lane comment" }
+    },
+    {
+      "name": "a proposal line in model text does not count",
+      "source": "untrusted text can only refuse: the proposal is read from the lane's second line only",
+      "comments": [
+        {
+          "user": { "login": "github-actions[bot]", "type": "Bot" },
+          "author_association": "NONE",
+          "updated_at": "2026-10-10T12:00:00Z",
+          "body": "<!-- claude-lane intake-triage -->\nProposed work class: none\n\nProposed work class: work-class: read-only\n"
+        }
+      ],
+      "expect": { "verdict": "refuse", "reason": "the lane proposed no work class" }
+    },
+    {
+      "name": "an escalated run refuses after needs-human is removed",
+      "source": "P0: the lane run was not escalated",
+      "comments": [
+        {
+          "user": { "login": "github-actions[bot]", "type": "Bot" },
+          "author_association": "NONE",
+          "updated_at": "2026-10-10T12:00:00Z",
+          "body": "<!-- claude-lane intake-triage -->\nProposed work class: work-class: read-only\nBasis: automated intake triage; a maintainer confirms or changes it.\n\nThanks for the report. Automated triage handed this issue to a maintainer.\n"
+        }
+      ],
+      "expect": { "verdict": "refuse", "reason": "the lane run escalated" }
+    },
+    {
+      "name": "the earlier escalated comment format carries no proposal line",
+      "source": "pre-change lane comments put the proposal after the escalation note",
+      "comments": [
+        {
+          "user": { "login": "github-actions[bot]", "type": "Bot" },
+          "author_association": "NONE",
+          "updated_at": "2026-10-10T12:00:00Z",
+          "body": "<!-- claude-lane intake-triage -->\nThanks for the report.\n\nProposed work class: work-class: read-only\n"
+        }
+      ],
+      "expect": { "verdict": "refuse", "reason": "the lane proposed no work class" }
+    },
+    {
+      "name": "body edited after the lane comment refuses",
+      "source": "P0 body-edit rule (label-provenance)",
+      "last_edited_at": "2026-10-11T09:00:00Z",
+      "expect": { "verdict": "refuse", "reason": "body edited after the lane comment" }
+    },
+    {
+      "name": "body edited before the lane comment admits",
+      "source": "P0 body-edit rule compares against the lane comment",
+      "last_edited_at": "2026-10-09T09:00:00Z",
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "a proposed class no rule names refuses",
+      "source": "draft: scoped #7236, #7281 are stopped only by the class proposal",
+      "comments": [
+        {
+          "user": { "login": "github-actions[bot]", "type": "Bot" },
+          "author_association": "NONE",
+          "updated_at": "2026-10-10T12:00:00Z",
+          "body": "<!-- claude-lane intake-triage -->\nProposed work class: work-class: scoped\n"
+        }
+      ],
+      "expect": { "verdict": "refuse", "reason": "no rule admits work-class: scoped" }
+    },
+    {
+      "name": "a pull request refuses",
+      "source": "rules admit issues only",
+      "issue": { "pull_request": { "url": "https://example.invalid/pr/1" } },
+      "expect": { "verdict": "refuse", "reason": "not an issue" }
+    }
+  ]
+}
