@@ -1,0 +1,156 @@
+{
+  "skill": "harness-ops:prerequisites",
+  "plugin": "harness-ops",
+  "skill_dir": "plugins/harness-ops/skills/prerequisites",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling harness-ops skills and nearby skills in other plugins a request borders.",
+  "competitors": [
+    "harness-ops:audit-install-state",
+    "harness-ops:audit-native-overlap",
+    "harness-ops:audit-performance",
+    "harness-ops:audit-skill-visibility",
+    "harness-ops:behavior-probes",
+    "harness-ops:changelog",
+    "harness-ops:check",
+    "harness-ops:inventory",
+    "harness-ops:known-issues",
+    "harness-ops:lanes",
+    "harness-ops:machine-profile",
+    "harness-ops:morning-brief",
+    "harness-ops:observability",
+    "harness-ops:plugins",
+    "harness-ops:setup",
+    "disk-hygiene:clean",
+    "harness-config:audit",
+    "toolchain:check-prerequisites"
+  ],
+  "competitor_dirs": {
+    "harness-ops:audit-install-state": "plugins/harness-ops/skills/audit-install-state",
+    "harness-ops:audit-native-overlap": "plugins/harness-ops/skills/audit-native-overlap",
+    "harness-ops:audit-performance": "plugins/harness-ops/skills/audit-performance",
+    "harness-ops:audit-skill-visibility": "plugins/harness-ops/skills/audit-skill-visibility",
+    "harness-ops:behavior-probes": "plugins/harness-ops/skills/behavior-probes",
+    "harness-ops:changelog": "plugins/harness-ops/skills/changelog",
+    "harness-ops:check": "plugins/harness-ops/skills/check",
+    "harness-ops:inventory": "plugins/harness-ops/skills/inventory",
+    "harness-ops:known-issues": "plugins/harness-ops/skills/known-issues",
+    "harness-ops:lanes": "plugins/harness-ops/skills/lanes",
+    "harness-ops:machine-profile": "plugins/harness-ops/skills/machine-profile",
+    "harness-ops:morning-brief": "plugins/harness-ops/skills/morning-brief",
+    "harness-ops:observability": "plugins/harness-ops/skills/observability",
+    "harness-ops:plugins": "plugins/harness-ops/skills/plugins",
+    "harness-ops:setup": "plugins/harness-ops/skills/setup",
+    "disk-hygiene:clean": "plugins/disk-hygiene/skills/clean",
+    "harness-config:audit": "plugins/harness-config/skills/audit",
+    "toolchain:check-prerequisites": "plugins/toolchain/skills/check-prerequisites"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "A formatter hook complained it can't find its binary. What else is missing across my plugins?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Does this machine have everything the enabled plugins declare they need?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "List the external CLIs my plugin fleet depends on and mark the ones not installed."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Report missing tools for all my enabled plugins, don't install anything."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which dependencies do my installed plugins require that I haven't got?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I rely on these hooks, tell me which tools are absent from this host."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is shfmt or biome missing for the plugins I enabled?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run a fleet-wide dependency report for Claude Code plugins."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Show what every plugin's prerequisites file asks for versus what resolves here."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Why did the markdown formatter not run? Check what the plugins need."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Just check node and jq for the harness-ops hooks."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Install the missing tools now."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check the toolchain plugin's own tool requirements."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run npm install in this project."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which tools does the machine have configured in general? Profile this host."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Does my project's build need any packages? Look at package.json."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Update all my plugins to the latest."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check the typos spell checker is available for its hook only."
+    }
+  ]
+}

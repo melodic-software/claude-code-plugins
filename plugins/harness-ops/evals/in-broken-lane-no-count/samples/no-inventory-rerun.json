@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.integrity' claude-inventory.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the saved file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n inventory.py /opt/plugins/harness-ops/skills/inventory/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "mentions the name"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/opt/plugins/harness-ops/skills/inventory/scripts/inventory.py\" --deps-dir /d --out ./claude-inventory.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reruns"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/plugins/harness-ops/skills/inventory/scripts/inventory.py --builtin",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "direct exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp && python3 -I /opt/plugins/harness-ops/skills/inventory/scripts/inventory.py --bundled",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "after cd, with flag"
+    }
+  ]
+}

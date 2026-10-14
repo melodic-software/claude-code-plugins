@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "If /skill-doctor is available in your session, run it for the one-shot unused-versus-cost report.",
+      "why": "verbatim relay"
+    },
+    {
+      "answer": "For unused versus context cost right now, try `/skill-doctor` yourself.",
+      "why": "paraphrase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /doctor for the checkup.",
+      "why": "only /doctor"
+    },
+    {
+      "answer": "/skill-doctor is not available, so I skipped it.",
+      "why": "not available"
+    },
+    {
+      "answer": "I ran /skill-doctor and it found two unused skills.",
+      "why": "claims it ran it"
+    },
+    {
+      "answer": "No other tools apply here.",
+      "why": "absent"
+    },
+    {
+      "answer": "/skill-doctor isn't available in this build.",
+      "why": "isn't available"
+    },
+    {
+      "answer": "/skill-doctor doesn't resolve here, so I used the engine.",
+      "why": "doesn't resolve"
+    },
+    {
+      "answer": "/skill-doctor won't resolve in this session.",
+      "why": "won't resolve"
+    }
+  ]
+}

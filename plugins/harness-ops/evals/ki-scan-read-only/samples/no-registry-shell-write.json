@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /opt/plugin-data/harness-ops/registry.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.issues | length' /opt/plugin-data/harness-ops/registry.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "jq read"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '{}' > /opt/plugin-data/harness-ops/registry.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.issues += []' x.json | tee /opt/plugin-data/harness-ops/registry.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/a/b/' /opt/plugin-data/harness-ops/registry.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed -i"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import json; json.dump({}, open('/opt/plugin-data/harness-ops/registry.json','w'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python json.dump"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"require('fs').writeFileSync('/opt/plugin-data/harness-ops/registry.json','{}')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "node"
+    }
+  ]
+}

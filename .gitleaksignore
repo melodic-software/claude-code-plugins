@@ -24,3 +24,5 @@ bf5e54fb3c1f180d10e2dcff580d411a3dea0b5d:plugins/display-redaction/hooks/mask.te
 cbd6129e6b7ef353095fd4b6d0d35de41136829e:plugins/performance/scripts/findings.test.sh:curl-auth-header:1128
 # The fake GitHub token in the hook timing redaction test. Commit-less, so it survives the squash merge.
 plugins/harness-ops/skills/observability/scripts/hook-transcript-timing.test.sh:github-pat:99
+# The canary IDE lock token in an install-state eval scaffold. Commit-less, so it survives the squash merge.
+plugins/harness-ops/evals/ai-never-reads-secrets-no-delete/scaffold.sh:generic-api-key:7

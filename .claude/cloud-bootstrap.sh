@@ -124,18 +124,16 @@ if [[ ! -f node_modules/.package-lock.json || package-lock.json -nt node_modules
 fi
 
 # --- Plugins (best effort) -----------------------------------------------------
-# .claude/settings.json declares this repo as its own marketplace through a
-# relative `directory` source; the fleet list the environment bakes into the
-# snapshot enables the catalog, and the settings block carries only this
-# repo's deltas (see the enabled-set computation below). Cloud sessions do
-# install plugins declared in project settings at session start, but only from a
-# marketplace source that path can resolve; a checkout-relative `directory`
-# source is documented as a development source, and sessions in fact arrive with
-# an empty plugin registry — no plugin skill loaded and every `/plugin` command
-# unknown. Registering the checkout by absolute path and installing the enabled
-# set repairs the on-disk state while keeping the property the directory source
-# exists for: a session exercises the plugin code on the current branch, not
-# published main.
+# This script is the only place this checkout is registered as a `directory`
+# marketplace source, and it runs only in cloud sessions. .claude/settings.json
+# declares no marketplace, so a local session keeps the user's own registration
+# (local branch testing uses `claude --plugin-dir`). The fleet list the
+# environment bakes into the snapshot enables the catalog, and the settings
+# block carries only this repo's deltas (see the enabled-set computation
+# below). Cloud sessions arrive with an empty plugin registry: no plugin skill
+# loaded and every `/plugin` command unknown. Registering the checkout by
+# absolute path and installing the enabled set repairs the on-disk state, and a
+# session exercises the plugin code on the current branch, not published main.
 #
 # Timing limit (docs/cloud-sessions.md, "Plugins in sessions on this repo"):
 # the plugin/command registry is read at process start, BEFORE a SessionStart

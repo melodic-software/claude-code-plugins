@@ -1,0 +1,160 @@
+{
+  "skill": "harness-ops:morning-brief",
+  "plugin": "harness-ops",
+  "skill_dir": "plugins/harness-ops/skills/morning-brief",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling harness-ops skills and nearby skills in other plugins a request borders.",
+  "competitors": [
+    "harness-ops:audit-install-state",
+    "harness-ops:audit-native-overlap",
+    "harness-ops:audit-performance",
+    "harness-ops:audit-skill-visibility",
+    "harness-ops:behavior-probes",
+    "harness-ops:changelog",
+    "harness-ops:check",
+    "harness-ops:inventory",
+    "harness-ops:known-issues",
+    "harness-ops:lanes",
+    "harness-ops:machine-profile",
+    "harness-ops:observability",
+    "harness-ops:plugins",
+    "harness-ops:prerequisites",
+    "harness-ops:setup",
+    "disk-hygiene:clean",
+    "harness-config:audit",
+    "work-items:triage",
+    "source-control:babysit-prs",
+    "session-flow:orient"
+  ],
+  "competitor_dirs": {
+    "harness-ops:audit-install-state": "plugins/harness-ops/skills/audit-install-state",
+    "harness-ops:audit-native-overlap": "plugins/harness-ops/skills/audit-native-overlap",
+    "harness-ops:audit-performance": "plugins/harness-ops/skills/audit-performance",
+    "harness-ops:audit-skill-visibility": "plugins/harness-ops/skills/audit-skill-visibility",
+    "harness-ops:behavior-probes": "plugins/harness-ops/skills/behavior-probes",
+    "harness-ops:changelog": "plugins/harness-ops/skills/changelog",
+    "harness-ops:check": "plugins/harness-ops/skills/check",
+    "harness-ops:inventory": "plugins/harness-ops/skills/inventory",
+    "harness-ops:known-issues": "plugins/harness-ops/skills/known-issues",
+    "harness-ops:lanes": "plugins/harness-ops/skills/lanes",
+    "harness-ops:machine-profile": "plugins/harness-ops/skills/machine-profile",
+    "harness-ops:observability": "plugins/harness-ops/skills/observability",
+    "harness-ops:plugins": "plugins/harness-ops/skills/plugins",
+    "harness-ops:prerequisites": "plugins/harness-ops/skills/prerequisites",
+    "harness-ops:setup": "plugins/harness-ops/skills/setup",
+    "disk-hygiene:clean": "plugins/disk-hygiene/skills/clean",
+    "harness-config:audit": "plugins/harness-config/skills/audit",
+    "work-items:triage": "plugins/work-items/skills/triage",
+    "source-control:babysit-prs": "plugins/source-control/skills/babysit-prs",
+    "session-flow:orient": "plugins/session-flow/skills/orient"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me my operator morning pass for this repo."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What needs my attention in the queues today?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Show merge-ready PRs and the decisions waiting on me."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How many open items sit in each queue label right now?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is the loop lane telemetry fresh or stale?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Print the daily standup dashboard for this GitHub repository."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which parked decisions have a recommendation I should sign off on?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "One-pass view of queues, merge-ready pull requests and lane freshness please."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Quick ops overview before I start the day."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What's waiting for me across the work queues? Don't change anything."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Triage this new issue and decide if it's real."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Merge the PRs that are ready."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Catch me up on where this session stands."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Start the work lanes for the morning."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Babysit my open pull requests."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Answer the escalations in the human queue."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What happened in this session so far?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Create an issue for the flaky test."
+    }
+  ]
+}

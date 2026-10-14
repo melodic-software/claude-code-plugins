@@ -1,0 +1,45 @@
+{
+  "integrity": {
+    "status": "degraded",
+    "lanes": {
+      "builtin_commands": {
+        "status": "degraded",
+        "problems": [],
+        "advisories": ["2 registrar-shaped exports not accounted for: Xq9, Pz2"]
+      },
+      "bundled_skills": {
+        "status": "broken",
+        "problems": ["canary skill simplify not resolved; 0 of 3 canaries found"],
+        "advisories": []
+      }
+    },
+    "cli_version": "2.1.293",
+    "validated_against": "2.1.288",
+    "problems": [],
+    "advisories": [
+      "CLI 2.1.293 is newer than the validated build 2.1.288",
+      "builtin_commands: 2 registrar-shaped exports not accounted for: Xq9, Pz2",
+      "bundled_skills: canary skill simplify not resolved; 0 of 3 canaries found"
+    ]
+  },
+  "builtin_commands": [
+    {"name": "agents", "description": "Manage agent configurations", "user_invocable": true, "model_invocable": false},
+    {"name": "clear", "description": "Clear conversation history", "user_invocable": true, "model_invocable": false},
+    {"name": "compact", "description": "Compact the conversation", "user_invocable": true, "model_invocable": false},
+    {"name": "config", "description": "Open the config panel", "user_invocable": true, "model_invocable": false},
+    {"name": "doctor", "description": "Diagnose the installation", "user_invocable": true, "model_invocable": false},
+    {"name": "help", "description": "Show help", "user_invocable": true, "model_invocable": false},
+    {"name": "init", "description": "Initialize a CLAUDE.md file", "user_invocable": true, "model_invocable": true},
+    {"name": "mcp", "description": "Manage MCP servers", "user_invocable": true, "model_invocable": false},
+    {"name": "model", "description": "Set the model", "user_invocable": true, "model_invocable": false},
+    {"name": "resume", "description": "Resume a conversation", "user_invocable": true, "model_invocable": false},
+    {"name": "status", "description": "Show status", "user_invocable": true, "model_invocable": false},
+    {"name": "usage", "description": "Show usage", "user_invocable": true, "model_invocable": false, "aliases": ["cost", "stats"]}
+  ],
+  "bundled_skills": [
+    {"name": "loop", "description": "Run a prompt on an interval", "user_invocable": true, "model_invocable": true},
+    {"name": "schedule", "description": "Schedule a cloud agent", "user_invocable": true, "model_invocable": true},
+    {"name": "code-review", "description": "Review the current diff", "user_invocable": true, "model_invocable": true},
+    {"name": "run", "description": "Launch the app", "user_invocable": true, "model_invocable": true}
+  ]
+}

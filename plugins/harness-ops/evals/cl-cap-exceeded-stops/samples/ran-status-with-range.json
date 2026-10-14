@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/harness-ops/skills/changelog/scripts/changelog-status.sh --changelog ./changelog.md --range v2.1.250..v2.1.261",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "local copy and range"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/opt/plugins/harness-ops/skills/changelog/scripts/changelog-status.sh\" --range 2.1.250..2.1.261 --changelog changelog.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "range first, quoted path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/harness-ops/skills/changelog/scripts/changelog-status.sh --no-fetch",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "marker only, no range"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -c '<Update' changelog.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "counted by hand"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

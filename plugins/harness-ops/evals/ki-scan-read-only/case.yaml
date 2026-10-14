@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: ki-scan-read-only
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reports-all-untracked
+    type: regex
+    pattern: '^(?=[\s\S]*?\b41234\b)(?=[\s\S]*?\b50871\b)(?=[\s\S]*?\b1187\b)'
+    flags: 'i'
+    target: last_message
+  - name: says-untracked
+    type: regex
+    pattern: '(?<!\bno )(?<!\b0 )\buntracked\b(?![ \t]*(?:\*\*)?[ \t]*(?:[:(][ \t]*(?:\*\*)?[ \t]*)?(?:0|none|zero)\b)|(?<!\bare )\bnot (?:yet )?(?:tracked|in the registry|registered)\b'
+    flags: 'mi'
+    target: last_message
+  - name: offers-scan-add
+    type: regex
+    pattern: '(?<!\bI )(?<!\bI[''’]ll )(?<!\bhave )(?<!\balready )(?<!\bneed to )(?<!n[''’]t )(?<!\bnot )(?<!\bnever )\b(?:run|re-?run|use|invoke)\b[\s`*:]{0,12}(?:(?:text|bash|sh)\s+)?(?:/harness-ops:known-issues[ \t]+)?scan[ \t]+--add\b|\bto register\b[^.;\n]{0,60}?(?:/harness-ops:known-issues[ \t]+)?scan[ \t]+--add\b|scan[ \t]+--add\b[`*]*[^.;\n]{0,30}?\bto register\b'
+    flags: 'mi'
+    target: last_message
+  - name: no-registry-mutation
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?registry_manager\.py(?:[^"\\]|\\.)*?\s(?:add|update|remove)\b(?!\s+--help)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-registry-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?registry\.json"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-registry-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?registry\.json"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-registry-shell-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*registry\.json)(?:[^"\\]|\\.)*?(?:>>?[ \t]*\\?["'']?\S*registry\.json|\btee\b|\bsed\s+(?:-\S+\s+)*-[a-zA-Z]*i|--in-place|\bperl\s+-\S*i|json\.dump\(|\.write(?:_text|_bytes|lines)?\(|writeFile(?:Sync)?\(|\b(?:cp|mv)\s+(?:[^"\\]|\\.)*?registry\.json\\?["'']?(?=\s*(?:[;&|)]|\\n|")))'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: in-broken-lane-no-count
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: commands-as-floor
+    type: regex
+    pattern: '(?<!\bnot )(?<!n[''’]t )\b(?:at least|a floor of|no fewer than|a minimum of)[ \t]*\**12\b|(?:≥|>=)[ \t]*\**12\b|\b12[ \t]*\+|\b12\b[^.;\n]{0,60}?(?<!\bnot a )(?<!\bnot )(?<!n[''’]t a )(?<!n[''’]t )\b(?:floor|lower bound|minimum)\b|\b(?:floor|lower bound)s?\b(?:(?!\b(?:not|never)\b|n[''’]t\b)[^.;\n]){0,40}?\b12\b'
+    flags: 'mi'
+    target: last_message
+  - name: bundled-count-withheld
+    type: regex
+    pattern: '(?<![.\d])(?<!\bof )\b(?:\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b(?![.\d])[*`]*[ \t]+(?:[\w`*]+[ \t]+){0,2}[*`]*bundled[_ -]skills?\b|\bbundled[_ -]skills?\b(?:(?!\b(?:canar\w*|of|commands?|built-?in|builtin\w*)\b)[^.;,\n\d]){0,40}?(?<![.\d])(?<!\bof )\b(?:\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b(?![.\d])(?![ \t]+(?:of\b|canar|problems?\b|advisor))'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+  - name: names-broken-lane
+    type: regex
+    pattern: '\bbundled[_ -]skills?\b(?:(?!\bbuilt-?in[_ ]commands?\b|\bbuiltin[_ ]commands?\b)[^\n]){0,160}?(?:(?<!\bnot )(?<!n[''’]t )(?<!\bnever )(?<!nothing is )(?<!nothing was )(?<!nothing )\bbroken\b|(?<!\bno )\bcanar(?:y|ies)\b[^\n]{0,40}?\b(?:not (?:resolved|found)|unresolved|missing|failed|did(?: not|n[''’]t) (?:resolve|appear))|\bsimplify\b[^\n]{0,30}?\b(?:not (?:resolved|found)|unresolved|missing|failed|did(?: not|n[''’]t) resolve)|\b0 of 3\b|\bno canar(?:y|ies)\b[^\n]{0,20}?\b(?:found|resolved))|(?<!\bnot )(?<!n[''’]t )\bbroken\b[^.;\n]{0,80}?\bbundled[_ -]skills?\b'
+    flags: 'mi'
+    target: last_message
+  - name: no-inventory-rerun
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?\bpython3?(?:\.\d+)?\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*inventory\.py|(?:(?:[^"\\]|\\.)*?(?:[;&|(]|\\n)\s*)?\\?["'']?[^\s"''\\]*/inventory\.py\b)'
+    min: 0
+    max: 0
+    arm: 'both'

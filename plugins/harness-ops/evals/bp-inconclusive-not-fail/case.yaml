@@ -1,0 +1,48 @@
+schema_version: "1.1"
+name: bp-inconclusive-not-fail
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-table
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?probe\.py\\?["'']?\s+table\b'
+    min: 1
+  - name: recommends-retry
+    type: regex
+    pattern: '(?:^|[.;!?][ \t]+)(?:(?![.;!?][ \t])(?!\b(?:not|never|no need|skip|without|instead of|rather than|bother)\b)(?!n[''’]t\b)[^\n])*?--retries(?:[ \t]+|=)1\b'
+    flags: 'mi'
+    target: last_message
+  - name: not-a-fail
+    type: regex
+    pattern: '\b(?:not|never|isn[''’]t|shouldn[''’]t|can[''’]t|cannot|don[''’]t|do not|doesn[''’]t|does not|won[''’]t|neither)[ \t]+(?:(?:be|actually|really|count(?:ed)?|read|treat(?:ed)?|record(?:ed)?|log(?:ged)?|mark(?:ed)?|call(?:ed)?|report(?:ed)?|interpret(?:ed)?|equal|mean)\b(?:(?!\b(?:but|except|other than)\b)[^\n.,;:]){0,40}?)?\b(?:as |a |an |evidence of (?:a )?)?(?:failure|failed|failing|fail)\b'
+    flags: 'mi'
+    target: last_message
+  - name: no-live-run
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?probe\.py\\?["'']?\s+run\b(?:[^"\\]|\\.)*?\s--live\b|(?=(?:[^"\\]|\\.)*probe\.py)(?:[^"\\]|\\.)*?\$\{?\w+\}?\\?["'']?\s+run\b(?:[^"\\]|\\.)*?\s--live\b)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-records-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?records\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-records-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?records\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-records-shell-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*records\.md)(?:[^"\\]|\\.)*?(?:>>?[ \t]*\\?["'']?\S*records\.md|\btee\b|\bsed\s+(?:-\S+\s+)*-[a-zA-Z]*i|--in-place|\bperl\s+-\S*i|\.write(?:_text|_bytes|lines)?\(|writeFile(?:Sync)?\(|appendFile(?:Sync)?\(|\bmv\s+(?:[^"\\]|\\.)*?records\.md|\b(?:cp|install)\s+(?:[^"\\]|\\.)*?records\.md\\?["'']?(?=\s*(?:[;&|)]|\\n|"))|\bdd\b(?:[^"\\]|\\.)*?\bof=\\?["'']?\S*records\.md)'
+    min: 0
+    max: 0
+    arm: 'both'

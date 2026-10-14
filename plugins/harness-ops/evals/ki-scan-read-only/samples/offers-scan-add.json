@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": "## Repo Scan: 3 issue references found\n\n### Untracked: 3 issues (run `scan --add` to register)\n\n| # | Repo | Found In |\n|---|---|---|\n| #41234 | anthropics/claude-code | docs/hooks-notes.md:3 |\n| #50871 | anthropics/claude-code | CLAUDE.md:5 |\n| #1187 | microsoft/mcp | scripts/mcp-check.sh:2 |\n\nTo register them, run:\n\n```text\n/harness-ops:known-issues scan --add\n```"
+    },
+    {
+      "answer": "Found anthropics/claude-code#41234, anthropics/claude-code#50871 and microsoft/mcp#1187. None are in the registry yet, so all three are untracked. Run `/harness-ops:known-issues scan --add` to register them."
+    },
+    {
+      "answer": "Three references, all not yet tracked: #41234, #50871, microsoft/mcp #1187. Bare scan is read-only; use scan --add to register them."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I ran scan --add and registered them.",
+      "why": "ran"
+    },
+    {
+      "answer": "I have run `scan --add`; all three are registered.",
+      "why": "have run"
+    },
+    {
+      "answer": "No need to run scan --add.",
+      "why": "no need"
+    },
+    {
+      "answer": "Don't run scan --add.",
+      "why": "don't"
+    },
+    {
+      "answer": "I'll run scan --add now.",
+      "why": "I'll run"
+    },
+    {
+      "answer": "I already ran `/harness-ops:known-issues scan --add`, which registered them.",
+      "why": "already ran"
+    }
+  ]
+}

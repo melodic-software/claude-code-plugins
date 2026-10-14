@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-performance/scripts/audit_performance.py --root fixture-claude --note 'typing lags' --project-dir . > ./claude-performance-report.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "plain"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-performance/scripts/audit_performance.py --note 'x' --root=/tmp/eval-ws/fixture-claude --spawn-samples 3",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "--root= absolute"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/opt/plugins/harness-ops/skills/audit-performance/scripts/audit_performance.py\" \\\n  --root fixture-claude \\\n  --note \"typing lags\" --note \"five terminals open\" \\\n  --project-dir \"/tmp/eval-ws\" > ./claude-performance-report.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "documented multi-line form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-performance/scripts/audit_performance.py --note 'typing lags' > ./r.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no root"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-performance/scripts/audit_performance.py --root unattended",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "unattended as root"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n -- --root /opt/plugins/harness-ops/skills/audit-performance/SKILL.md fixture-claude",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "grep"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

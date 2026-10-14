@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/skills/machine-profile/scripts/profile.sh\" diff --data-dir /d --prerequisites /tmp/p.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/profile.sh diff --data-dir /d",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "plain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/profile.sh discover",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "discover only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /d/machine-profile/profile.json | diff - /tmp/now.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hand diff"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/eval-ws/notes.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "other"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "plugins/notes/skills/search/SKILL.md",
+            "old_string": "Search",
+            "new_string": "Find"
+          }
+        }
+      ],
+      "why": "edit skill"
+    }
+  ]
+}

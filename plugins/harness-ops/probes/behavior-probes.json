@@ -1,0 +1,158 @@
+{
+  "skill": "harness-ops:behavior-probes",
+  "plugin": "harness-ops",
+  "skill_dir": "plugins/harness-ops/skills/behavior-probes",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling harness-ops skills and nearby skills in other plugins a request borders.",
+  "competitors": [
+    "harness-ops:audit-install-state",
+    "harness-ops:audit-native-overlap",
+    "harness-ops:audit-performance",
+    "harness-ops:audit-skill-visibility",
+    "harness-ops:changelog",
+    "harness-ops:check",
+    "harness-ops:inventory",
+    "harness-ops:known-issues",
+    "harness-ops:lanes",
+    "harness-ops:machine-profile",
+    "harness-ops:morning-brief",
+    "harness-ops:observability",
+    "harness-ops:plugins",
+    "harness-ops:prerequisites",
+    "harness-ops:setup",
+    "disk-hygiene:clean",
+    "harness-config:audit",
+    "harness-config:audit-permission-state",
+    "testing:run-e2e"
+  ],
+  "competitor_dirs": {
+    "harness-ops:audit-install-state": "plugins/harness-ops/skills/audit-install-state",
+    "harness-ops:audit-native-overlap": "plugins/harness-ops/skills/audit-native-overlap",
+    "harness-ops:audit-performance": "plugins/harness-ops/skills/audit-performance",
+    "harness-ops:audit-skill-visibility": "plugins/harness-ops/skills/audit-skill-visibility",
+    "harness-ops:changelog": "plugins/harness-ops/skills/changelog",
+    "harness-ops:check": "plugins/harness-ops/skills/check",
+    "harness-ops:inventory": "plugins/harness-ops/skills/inventory",
+    "harness-ops:known-issues": "plugins/harness-ops/skills/known-issues",
+    "harness-ops:lanes": "plugins/harness-ops/skills/lanes",
+    "harness-ops:machine-profile": "plugins/harness-ops/skills/machine-profile",
+    "harness-ops:morning-brief": "plugins/harness-ops/skills/morning-brief",
+    "harness-ops:observability": "plugins/harness-ops/skills/observability",
+    "harness-ops:plugins": "plugins/harness-ops/skills/plugins",
+    "harness-ops:prerequisites": "plugins/harness-ops/skills/prerequisites",
+    "harness-ops:setup": "plugins/harness-ops/skills/setup",
+    "disk-hygiene:clean": "plugins/disk-hygiene/skills/clean",
+    "harness-config:audit": "plugins/harness-config/skills/audit",
+    "harness-config:audit-permission-state": "plugins/harness-config/skills/audit-permission-state",
+    "testing:run-e2e": "plugins/testing/skills/run-e2e"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "After the last update, will auto mode deny this kind of command? Run a probe."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Rerun the existing behavior checks and tell me which ones pass on this version."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Add a new case that tests whether a hook can block a subagent's tool call."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which of the live behavior cases touch the release that just shipped?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Do a dry run of the permission probes so I can see what they would do."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Try each sandbox case beside its control and give me a verdict per case."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check empirically whether a worktree-isolated subagent can write outside its directory."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write a probe case for a PreToolUse hook that returns ask."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want to verify, not read about, how permission prompts behave today. Run the cases."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Re-test the hook ordering behavior we documented, with a control for each case."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Show me the permission rules in effect across all my settings files."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What does the Claude Code changelog say changed in hooks?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run the unit tests for this repo."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write end to end tests for the login page."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is the hook bug I'm seeing already filed upstream?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Explain how auto mode classification is supposed to work."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Draft an autoMode block that approves git status."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Benchmark the hook latency over the last week."
+    }
+  ]
+}

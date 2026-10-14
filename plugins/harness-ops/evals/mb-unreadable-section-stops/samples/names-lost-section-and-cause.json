@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "```\nMorning brief — <fixtures> — 2026-07-20T08:00Z\n  1 of 5 sections unreadable: merge-ready\n\n== Queues (open issues per label) ==\n  needs-triage             5\n  status: ready            12\n\n== Merge-ready PRs (non-draft, mergeStateStatus=CLEAN) ==\n  UNREADABLE: could not parse the PR list\n\n== Parked decisions (status: needs-decision) with RECOMMENDED lines ==\n  #412 Pick the cache backend\n    RECOMMENDED: use the sqlite cache with a seven-day TTL.\n\n== Lane telemetry freshness (last-cycle age + flags) ==\n  babysit    last-cycle=2026-07-19T20:00Z  age=12h 0m  STALE (>6h)\n```\n\nThe merge-ready section was lost: the PR list could not be parsed (`could not parse the PR list`). The fixture holds a GitHub error document, not a PR array. Re-run with a valid `--pr-json`; I have not rebuilt that section.",
+      "why": "verbatim plus cause"
+    },
+    {
+      "answer": "Morning brief — <fixtures> — 2026-07-20T08:00Z\n  1 of 5 sections unreadable: merge-ready\n\n== Queues (open issues per label) ==\n  needs-triage             5\n  status: ready            12\n\n== Merge-ready PRs (non-draft, mergeStateStatus=CLEAN) ==\n  UNREADABLE: could not parse the PR list\n\n== Parked decisions (status: needs-decision) with RECOMMENDED lines ==\n  #412 Pick the cache backend\n    RECOMMENDED: use the sqlite cache with a seven-day TTL.\n\n== Lane telemetry freshness (last-cycle age + flags) ==\n  babysit    last-cycle=2026-07-19T20:00Z  age=12h 0m  STALE (>6h)\n\nOne section unreadable. **Merge-ready**: could not parse the PR list, so that section carries no data this run.",
+      "why": "bold label"
+    },
+    {
+      "answer": "Morning brief — <fixtures> — 2026-07-20T08:00Z\n  1 of 5 sections unreadable: merge-ready\n\n== Queues (open issues per label) ==\n  needs-triage             5\n  status: ready            12\n\n== Merge-ready PRs (non-draft, mergeStateStatus=CLEAN) ==\n  UNREADABLE: could not parse the PR list\n\n== Parked decisions (status: needs-decision) with RECOMMENDED lines ==\n  #412 Pick the cache backend\n    RECOMMENDED: use the sqlite cache with a seven-day TTL.\n\n== Lane telemetry freshness (last-cycle age + flags) ==\n  babysit    last-cycle=2026-07-19T20:00Z  age=12h 0m  STALE (>6h)\n\nLost section: could not parse the PR list (Merge-ready PRs). Stopping here.",
+      "why": "cause before section"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Merge-ready PRs: none clean right now.",
+      "why": "all-clear"
+    },
+    {
+      "answer": "The merge-ready section is unreadable.",
+      "why": "no cause"
+    },
+    {
+      "answer": "Something could not be parsed; check the fixtures.",
+      "why": "no section, vague cause"
+    }
+  ]
+}

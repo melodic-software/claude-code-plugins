@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "No profile is stored for this machine yet (`machine-profile/profile.json` is absent), so there is nothing to diff against.\n\nWant me to run the `profile` action to produce one? It discovers the host and records only after you say yes.",
+      "why": "script wording"
+    },
+    {
+      "answer": "There is no stored profile for this host, so `diff` has no baseline (exit 3).\n\nNext: `/harness-ops:machine-profile profile` creates the first profile.",
+      "why": "slash command offer"
+    },
+    {
+      "answer": "The profile document doesn't exist yet. I can run discovery and create a profile now if you'd like.",
+      "why": "doesn't exist"
+    },
+    {
+      "answer": "No stored profile yet. Want me to create one?",
+      "why": "create one?"
+    },
+    {
+      "answer": "No profile is stored. Should I record one now?",
+      "why": "record one now?"
+    },
+    {
+      "answer": "Run `bash scripts/profile.sh profile` to record the first one.",
+      "why": "profile.sh profile"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No profile is stored. I won't create a profile without your say-so.",
+      "why": "negated, no offer"
+    },
+    {
+      "answer": "No profile is stored for this machine.",
+      "why": "no offer"
+    },
+    {
+      "answer": "I created a profile at /d/machine-profile/profile.json.",
+      "why": "claims a write as done"
+    },
+    {
+      "answer": "No profile stored. Shall I proceed?",
+      "why": "question names no action"
+    },
+    {
+      "answer": "There is no need to run the profile action.",
+      "why": "no need"
+    },
+    {
+      "answer": "You don't need to create a profile yet.",
+      "why": "don't need"
+    },
+    {
+      "answer": "No need to run /harness-ops:machine-profile profile.",
+      "why": "no need, slash form"
+    }
+  ]
+}

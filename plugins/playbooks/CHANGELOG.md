@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.23.1] - 2026-10-14
+
+### Changed
+
+- `/playbooks:repo-sweep next` routes a step that cannot finish in the session through `/session-flow:workflow`, handing it the `[~]` step and the PR checklist, instead of invoking `/session-flow:handoff` itself.
+
 ## [0.23.0] - 2026-10-13
 
 ### Added
