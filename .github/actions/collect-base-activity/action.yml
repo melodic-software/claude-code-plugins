@@ -3,10 +3,11 @@ description: >
   Copy what an activity runs out of the base checkout before the PR head
   replaces it: a script's whole directory to $RUNNER_TEMP/base-script, or for
   a skill the base plugins/ and .claude-plugin/ to
-  $RUNNER_TEMP/base-marketplace, plus the skill's plugin, prompt (with its
+  $RUNNER_TEMP/base-marketplace, plus the plugins to install, prompt (with its
   changed-paths) and claude_args (with read access to the marketplace copy,
-  and for any effect but read the write tool set, a scratch directory and,
-  unless the runner commits for it, the instruction to commit). Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
+  and for any effect but read the write tool set, a scratch directory, the
+  web tools when the activity sets web-access and, unless the runner commits
+  for it, the instruction to commit). Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
   step 8 and Skill activities.
 
 inputs:
@@ -66,9 +67,11 @@ inputs:
     default: .base
 
 outputs:
-  plugin:
-    description: "`<plugin>@<marketplace>`, for a skill."
-    value: ${{ steps.skill.outputs.plugin }}
+  plugins:
+    description: >
+      The plugins to install for a skill, one `<plugin>@<marketplace>` per
+      line: the skill's own, plus the research plugins under web-access.
+    value: ${{ steps.skill.outputs.plugins }}
   claude-args:
     description: The skill's claude_args after the fixed ones.
     value: ${{ steps.skill.outputs.claude-args }}
@@ -154,6 +157,7 @@ runs:
         # where an unlisted read is denied, so the skill could not read its
         # own reference files. A rule path starting `//` is absolute.
         allowed="Skill($SKILL),Read(/$MARKETPLACE/**)"
+        plugins="${SKILL%%:*}@$marketplace"
         disallowed=""
         system_prompt=""
         case "$EFFECT" in
@@ -173,12 +177,38 @@ runs:
               allowed="$allowed,mcp__github_file_ops__commit_files"
             fi
             allowed="$allowed,Edit(/$SCRATCH/**)"
-            disallowed="WebFetch,WebSearch"
             system_prompt="You run unattended as a CI lane activity on $subject, and no one can answer a question. Run every step the skill instructions name. Your scratchpad directory is $SCRATCH: put every temporary or state file there."
             if [ "$CAN_COMMIT" = true ] && [ "$PREPARE" != merge-base ]; then
               # The slash command never says the edits reach the PR only as
               # commits on CLAUDE_BRANCH.
               system_prompt="$system_prompt A change to a repository file reaches the branch only as a commit: before you finish, commit every repository file you changed with the mcp__github_file_ops__commit_files tool. An uncommitted change is discarded when the run ends."
+            fi
+            # The web stays off unless the activity sets web-access. On, the
+            # skill may search, fetch the listed domains (`any`: every one)
+            # and run the research skills, whose plugins are installed too. A
+            # WebFetch(domain:...) rule also opens that domain to the
+            # skill's sandboxed shell commands, which the research skills
+            # read raw pages with.
+            disallowed="WebFetch,WebSearch"
+            if [ "$(jq -r '.selected["web-access"].enabled // false' "$RESOLVED")" = true ]; then
+              domains=$(jq -r '.selected["web-access"].domains
+                | if . == "any" then "=any"
+                  elif type == "array" and length > 0 and all(type == "string") then .[]
+                  else error("bad") end' "$RESOLVED") ||
+                fail "web-access: domains must be any or a list of host names"
+              if [ "$domains" = =any ]; then
+                allowed="$allowed,WebFetch(domain:*)"
+              else
+                host='^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+                while IFS= read -r domain; do
+                  [[ $domain =~ $host ]] || fail "web-access: a domain is not a host name"
+                  allowed="$allowed,WebFetch(domain:$domain)"
+                done <<<"$domains"
+              fi
+              allowed="$allowed,WebSearch,Skill(discovery:read-docs),Skill(discovery:research),Skill(knowledge:docpage-digest),Skill(knowledge:map-corpus)"
+              plugins="$plugins"$'\n'"discovery@$marketplace"$'\n'"knowledge@$marketplace"
+              disallowed=""
+              system_prompt="$system_prompt This run may read web pages: read each external source through /discovery:read-docs, /discovery:research, /knowledge:docpage-digest or /knowledge:map-corpus."
             fi
             # The activity's checks run from a base copy outside the working
             # directory, which the skill cannot edit, against the checkout,
@@ -208,7 +238,7 @@ runs:
               done
               # The skill's bare Edit and Write must not reach the copy it runs.
               chmod -R a-w "$CHECKS_DIR"
-              disallowed="$disallowed,Edit(/$CHECKS_DIR/**),Write(/$CHECKS_DIR/**)"
+              disallowed="${disallowed:+$disallowed,}Edit(/$CHECKS_DIR/**),Write(/$CHECKS_DIR/**)"
               system_prompt="$system_prompt Before you report done, run each of these repository checks as written, with no arguments:$wrappers."
             fi
             ;;
@@ -245,7 +275,9 @@ runs:
         done
         delimiter="prompt_$(openssl rand -hex 16)"
         {
-          echo "plugin=${SKILL%%:*}@$marketplace"
+          echo "plugins<<$delimiter"
+          printf '%s\n' "$plugins"
+          echo "$delimiter"
           echo "claude-args=$claude_args"
           echo "prompt<<$delimiter"
           printf '%s\n' "$command_line"

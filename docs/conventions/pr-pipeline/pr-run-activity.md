@@ -278,8 +278,21 @@ gets neither the tool nor that sentence: it stages its resolution and the runner
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags and
 `CHECK_DATA_ROOT` naming the checkout, makes the copy read-only and denies `Edit` and `Write` on
 it, allows `Bash(<wrapper>)` with no arguments, and names the
-wrappers in `--append-system-prompt` as checks to run before reporting done. `WebFetch` and `WebSearch` stay off
-(`--disallowedTools`) unless a skill needs them. No rule limits which files it changes: with its
+wrappers in `--append-system-prompt` as checks to run before reporting done. `WebFetch` and
+`WebSearch` stay off (`--disallowedTools`) unless the activity sets `web-access`. With it on, the
+runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
+(`WebFetch(domain:*)` for `any`), and `Skill` for `/discovery:read-docs`, `/discovery:research`,
+`/knowledge:docpage-digest` and `/knowledge:map-corpus`; installs the `discovery` and `knowledge`
+plugins from the base marketplace copy beside the skill's own; and says so in
+`--append-system-prompt`. A `domain:` rule also adds its domain to the sandbox's network allowlist,
+so the skill's sandboxed shell commands, which the research skills read raw pages with, reach the
+same domains
+([permissions: WebFetch](https://code.claude.com/docs/en/permissions#webfetch),
+[sandboxing: network isolation](https://code.claude.com/docs/en/sandboxing#network-isolation);
+as of 2026-10-14; recheck when either page changes what a `domain:` rule adds to the sandbox).
+Without it, `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` runs every shell command sandboxed and
+`--permission-mode dontAsk` refuses every host outside the empty allowlist. Fetched pages are
+untrusted text, so the activity must set `reads-untrusted: true`. No rule limits which files it changes: with its
 token it can change, commit and push any file in the repository, and claude-code-action writes
 the token into the origin URL under `use_commit_signing`
 (`src/github/operations/git-config.ts:129-133` at `ed670b4`), so a `git push` works too. The PR is
@@ -288,7 +301,8 @@ every lane commit. The hardening is the broker's scoped, hour-long token revoked
 ends, base-SHA config and runner, the trusted-actor filter, the kill switch,
 `--setting-sources user`, an explicit `--permission-mode` and never `bypassPermissions`. The
 residuals are in [Trust-root paths](README.md#trust-root-paths): the model can read its token
-(`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until it is revoked, which is
+(`GH_TOKEN`, `GITHUB_TOKEN`, `.git/config`) until it is revoked, and under `web-access` send it to
+any domain the activity allows, which is
 [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md)'s
 accepted residual, a skill's own `Bash` grant can exceed its job (`Bash(git:*)` in
 `ai-slop:audit`), and a lane commit can change instruction files the PR author's local session

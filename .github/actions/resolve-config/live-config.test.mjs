@@ -6,6 +6,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { parse } from "yaml";
+
 import { resolve, resolveGrant } from "./resolve.mjs";
 
 const read = (relative) =>
@@ -132,6 +134,14 @@ test("live config: resolve-issue may run the changelog fragment check", () => {
   assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE).checks, [
     "scripts/check-changelog-fragments.sh --check",
   ]);
+});
+
+// Owner decision 2026-10-14: the run may read any web page.
+test("live config: resolve-issue may read any domain; no other activity reads the web", () => {
+  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE)["web-access"], { enabled: true, domains: "any" });
+  const doc = parse(FILES.config);
+  const others = Object.entries(doc.activities).filter(([name, a]) => name !== "resolve-issue" && a["web-access"]?.enabled);
+  assert.deepEqual(others, []);
 });
 
 test("live config: resolve-issue may only write its branch; report-outcome may only write PRs and issues", () => {

@@ -183,8 +183,14 @@
         "model": ["skill"],
         "max-turns": ["skill"],
         "prepare": ["skill"],
-        "checks": ["skill"]
+        "checks": ["skill"],
+        "web-access": ["skill"]
       },
+      "if": {
+        "required": ["web-access"],
+        "properties": { "web-access": { "properties": { "enabled": { "const": true } } } }
+      },
+      "then": { "properties": { "reads-untrusted": { "const": true } } },
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
         "prepare": {
@@ -205,6 +211,32 @@
             "pattern": "^scripts/[A-Za-z0-9_-]+\\.sh( --[a-z][a-z-]*)*$"
           },
           "description": "Repository check scripts a skill with an effect other than read may run, each with its fixed flags. The write runner runs each from the base copy against the checkout, through a wrapper the skill can call with no arguments."
+        },
+        "web-access": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "default": { "enabled": false },
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "domains": {
+              "oneOf": [
+                { "const": "any" },
+                {
+                  "type": "array",
+                  "minItems": 1,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^(\\*\\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+                  }
+                }
+              ]
+            }
+          },
+          "if": { "properties": { "enabled": { "const": true } } },
+          "then": { "required": ["domains"] },
+          "description": "Whether a skill with an effect other than read may read the web, off when absent. On, the write runner allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. Needs reads-untrusted: true."
         },
         "model": {
           "type": "string",
