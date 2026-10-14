@@ -40,6 +40,30 @@
         }
       ],
       "why": "interpreter read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"print('a-b'.replace('-','_'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read-only str.replace"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import os; print(os.readlink('docs'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read-only readlink"
     }
   ],
   "fail": [
