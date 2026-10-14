@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Working tree clean; using the branch diff against origin/trunk: greet.sh.\n\n| Ecosystem | Build | Test | Lint | Status |\n|---|---|---|---|---|\n| bash | pass | pass | pass | PASS |\n\nOverall: PASS (1 of 1 ecosystems passed)",
+      "why": "ran"
+    },
+    {
+      "answer": "**bash** — build pass, test pass, lint pass → **PASS**\n\n**Overall:** **PASS**",
+      "why": "ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:check all` to verify the full repo.",
+      "why": "fell through to no changes"
+    },
+    {
+      "answer": "no changes found on this branch.",
+      "why": "lower case"
+    }
+  ]
+}

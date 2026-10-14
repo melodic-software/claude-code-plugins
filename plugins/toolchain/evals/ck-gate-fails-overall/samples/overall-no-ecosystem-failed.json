@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| bash | pass | pass | pass | PASS |\n\nOverall: FAIL (0 of 1 ecosystems failed, 1 gate failed)",
+      "why": "observed"
+    },
+    {
+      "answer": "**Overall: FAIL (0 of 1 ecosystems failed, 1 gate failed)**",
+      "why": "observed, bold"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| bash | pass | FAIL | pass | FAIL |\n\nOverall: FAIL (1 of 1 ecosystems failed, 1 gate failed)",
+      "why": "a cell wrongly failed"
+    },
+    {
+      "answer": "Overall: FAIL (1 gate failed)",
+      "why": "ecosystem count missing"
+    }
+  ]
+}

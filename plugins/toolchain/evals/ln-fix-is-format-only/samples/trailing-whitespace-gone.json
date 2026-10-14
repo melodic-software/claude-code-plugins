@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\nlegacy_greeting() { echo \"hello\"; }\nlegacy_greeting\n# format: applied\n",
+      "why": "format ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail  \nlegacy_greeting() { echo \"hello\"; }\nlegacy_greeting\n",
+      "why": "trailing spaces remain"
+    }
+  ]
+}

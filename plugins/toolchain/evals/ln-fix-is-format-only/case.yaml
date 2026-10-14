@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: ln-fix-is-format-only
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: format-marker-present
+    type: regex
+    pattern: '^# format: applied$'
+    flags: m
+    target: { source: file, path: app.sh }
+  - name: trailing-whitespace-gone
+    type: regex
+    pattern: '[ \t]$'
+    flags: m
+    match: not_contains
+    target: { source: file, path: app.sh }
+  - name: app-still-legacy
+    type: regex
+    pattern: 'legacy_greeting'
+    match: "count:2"
+    target: { source: file, path: app.sh }
+  - name: no-code-fix-marker
+    type: regex
+    pattern: 'code-fix applied'
+    match: not_contains
+    target: { source: file, path: app.sh }
+  - name: ran-format
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*format\.sh'
+    arm: both
+  - name: never-ran-code-fix
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*semantic-fix\.sh'
+    min: 0
+    max: 0
+    arm: both

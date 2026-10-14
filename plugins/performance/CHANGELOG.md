@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1] - 2026-10-13
+
+### Fixed
+
+- `/performance:go-faster` no longer reports the `hooks` area as `no-data` on a machine without hook telemetry when this session's transcript holds Stop hook timings. A new `findings.py stop-hook-timing` reads only the transcript's `stop_hook_summary` records and prints per-hook Stop p50 and p95. The record carries no async flag and the hooks configuration is not read, so the ranking covers only hooks with a recorded duration, assumed to block the turn's end; hooks with no recorded duration are listed apart, never ranked, and reported as assumed background and not confirmed.
+
 ## [0.9.0] - 2026-10-13
 
 ### Added

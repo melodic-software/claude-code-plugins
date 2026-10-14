@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Code-fix plan — ecosystems: bash (1 file scoped)\n- bash: bash tools/semantic-fix.sh app.sh  (1 file)\n\nNon-interactive session without --yes: stopped after the plan, nothing was changed. Re-run with `--yes` to apply: `/toolchain:lint --code-fix --yes`.",
+      "why": "contract plan"
+    },
+    {
+      "answer": "| Ecosystem | code-fix-cmd | Files |\n|---|---|---|\n| bash | `bash tools/semantic-fix.sh <files>` | `app.sh` |\n\n**Stopped:** headless run, no consent flag. Pass `--yes` to apply.",
+      "why": "backticked file"
+    },
+    {
+      "answer": "Plan: `tools/semantic-fix.sh` on **app.sh**. I mutated nothing. To apply, run it again with --yes.",
+      "why": "bold file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stopped: --code-fix needs consent in a headless run. Re-run with --yes.",
+      "why": "no plan"
+    },
+    {
+      "answer": "Plan: bash tools/semantic-fix.sh <files> (1 file).",
+      "why": "file not named"
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash tools/build.sh app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "relative"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /tmp/ws/tools/build.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "absolute"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tools/build.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "only read the script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "shellcheck app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran a bundled default instead"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}
