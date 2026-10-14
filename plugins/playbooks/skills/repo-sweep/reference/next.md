@@ -156,9 +156,12 @@ never combined with `&&` or other commands in one call. The record for these sha
 
 A step that cannot finish in this session: leave `[~]` and route the next step with
 `/session-flow:workflow` (if installed), handing it the `[~]` step and the PR checklist; without
-session-flow, see
-[when your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up)
-(as of 2026-10-13; recheck when that page moves or renames the section).
+session-flow, follow the pointer below.
+
+- **Pointer**: when a step cannot finish in this session and session-flow is not installed, fetch
+  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up> live. **As of**:
+  2026-10-13. **Recheck trigger**: the section changes how it splits work between compaction and a
+  fresh session, or moves.
 
 ## 5. After the last step
 
