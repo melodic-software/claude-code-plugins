@@ -12,13 +12,23 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single invocation:
+Collect these with **individual** Bash calls, one command per call, never combined into a single
+invocation:
 
 - Current branch, `git branch --show-current`
 - Recent commits, `git log --oneline -5`
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
-Keep the pipe in the command: a read-time cap bounds nothing, since the Bash tool returns the full output. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as separate body Bash calls, never pre-compute lines: the pre-compute block runs as one shell invocation, and a worktree-isolated session refuses a compound command containing git. Record: the worktree skill's [reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md), "The pre-compute block runs as one shell invocation".
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git. The dated record for that composition claim is the worktree skill's
+[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+"The pre-compute block runs as one shell invocation".
 
 ## Variables
 
@@ -26,17 +36,21 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Resolve an **underspecified** task (one missing the constraints needed to act safely): drive every unknown it depends on to a decision OR capture it as a named, explicit assumption, before exploration, research, `/planning:plan`, or execution. The contract it writes is the target every later stage aims at. Supportive, not adversarial: attacking an existing artifact is `/planning:devils-advocate`.
+Rework often comes from acting on assumptions the user never made and the agent never surfaced, an **underspecified** task, one missing the constraints needed to act safely. `/planning:interview` is the pipeline's underspecification resolver: a structured pass driving every unknown the task depends on to a decision OR capturing it as a named, explicit assumption, before exploration, planning, or execution start.
 
-**Domain-routed.** The loop runs on any task, proposal, or choice. An engineering task locks a PLAN.md Brief and can hand off to `/planning:plan`; a general decision ends at a shared-understanding summary. Step 1 classifies the domain; engineering machinery (codebase grounding, the Brief, ADR/glossary outputs, pipeline handoff) engages only for engineering. A user can override the inference in prose ("this isn't a code task", "interview me on this decision").
+The **pre-clarity** stage. Upstream of exploration, research, and `/planning:plan`. `/planning:plan` presupposes a coherent task; `/planning:interview` produces one out of fuzzy intent. The contract it writes is the target every later stage aims at.
 
-**Two modes, one schema.** Fuzzy intent runs the Q&A loop; intent already clear from conversation is synthesized directly (front-loaded brief). Both write the same output for the domain. The default action auto-detects which fits; `lock` skips Q&A entirely.
+**Supportive, not adversarial.** `/planning:devils-advocate` attacks an existing artifact after the fact. `/planning:interview` walks alongside the user to extract a clear contract from the start.
+
+**Domain-routed.** The interview loop is universal. Any task, proposal, or choice can be its subject. What the session *produces* depends on context: an engineering task in a code repo locks a PLAN.md Brief and can hand off to `/planning:plan`; a general decision drives to a shared understanding and ends there. The domain is inferred from the task's build surface. The problem itself decides, with repo and working directory as context that never suffices alone. Never asked, and it is orthogonal to the `me`/`auto`/`lock` action. Engineering machinery, codebase grounding, the Brief, ADR/glossary outputs, pipeline handoff, engages only when the context is engineering; the universal loop runs either way. A user can override the inference in prose ("this isn't a code task", "interview me on this decision").
+
+**Two invocation modes, one schema.** When intent is fuzzy, `/planning:interview` runs the depth-first Q&A loop. When intent is already clear from conversation, `/planning:interview` synthesizes directly without asking (front-loaded brief). Both write the same output for the session's domain. A PLAN.md Brief for an engineering task, a shared-understanding summary otherwise. The default action **auto-detects** which mode fits and routes accordingly. **Cost framing**: every clarification round-trip skipped is time and tokens saved. Auto-detect removes redundant Q&A; explicit `lock` skips Q&A entirely when the user has already given the answer.
 
 ## Emit checklist
 
-For interview sessions with ≥2 open questions OR explicit `me` mode, copy `templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; **one ledger per topic**, not per session). Re-interview appends `## Resolved (<round>, <date>)` sections; do not create `interview-checklist-2.md`. Tick each step as completed. Steps 1, 3, 4 are mandatory; Steps 1.5 + 2 are mode-conditional.
+For interview sessions with ≥2 open questions OR explicit `me` mode, copy `templates/checklist.md` into the topic's memory slice as `<memory_dir>/<topic-slug>/interview-checklist.md` (default `.work/`; **one ledger per topic**. Not per session). Re-interview appends `## Resolved (<round>, <date>)` sections; do not create `interview-checklist-2.md`. Tick each step as completed. Steps 1, 3, 4 are mandatory; Steps 1.5 + 2 are mode-conditional.
 
-The ledger's `## Open-question register` is emitted the moment **any** round is asked, whatever that threshold says, before the first reply arrives. The acceptance-criteria coverage prompt does not count as a round here: it writes no row and does not by itself make the register exist (see "Acceptance-criteria capture"). Register mechanics, the drift check, the unattended ladder, and the gate that grades it: [`context/loop.md`](context/loop.md) "The open-question register".
+The ledger's `## Open-question register` is emitted the moment **any** round is asked, whatever that threshold says. It has to exist before the first reply arrives. The acceptance-criteria coverage prompt is the one thing that does not count as a round for this purpose: it writes no row and does not by itself make the register exist (see "Acceptance-criteria capture"). Register mechanics, the drift check, the unattended ladder, and the gate that grades it: [`context/loop.md`](context/loop.md) "The open-question register".
 
 ## Gates
 
@@ -415,24 +429,24 @@ Section schema: write the literal `## Brief` template (TLDR / Goal / Constraints
 
 ### Step 5. Hand off
 
-Route the handoff by what the session produced. Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger. **A user who arrived mid-flow, unsure what was settled or which stage the work is in**, gets `/session-flow:workflow`, which works out the stage from what is on disk; recommend it before guessing a pipeline step. **A general (non-engineering) session is terminal**: deliver the shared-understanding summary and stop, offering no pipeline handoff. **An engineering session** wrote a PLAN.md Brief. When the Brief defers a question only a named person other than the user can answer (an assumption-sweep `person` item the user could not answer, or a `tenant` item whose owner is not the user), also recommend `/planning:questionnaire` (if enabled), beside the next step, not in place of it. Recommend the next step per task shape:
+Route the handoff by what the session produced. Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger. **A user who arrived mid-flow, unsure what was settled or which stage the work is in**, gets `/session-flow:workflow`, which works out the stage from what is on disk; recommend it before guessing a pipeline step. **A general (non-engineering) session is terminal**. It produced a shared-understanding summary, not a Brief; deliver that summary and stop, offering no pipeline handoff (nothing downstream consumes it). **An engineering session** wrote a PLAN.md Brief. When the Brief defers a question only a named person other than the user can answer (an assumption-sweep `person` item the user could not answer, or a `tenant` item whose owner is not the user), also recommend `/planning:questionnaire` (if enabled), which turns it into a document that person fills in; it runs beside the next step, not in place of it. Recommend the next step per task shape:
 
-- **Code change with unknowns about the codebase** → clear context, then codebase exploration (`/discovery:explore` if enabled; it reads the Brief as scope)
+- **Code change with unknowns about the codebase** → clear context, then codebase exploration (`/discovery:explore` if enabled. It reads the Brief as scope)
 - **Code change relying on external libs/APIs/best-practices** → external research (`/discovery:research` if enabled)
 - **Already understand the codebase and the externals** → `/planning:design`, whose handoff writes PLAN.md's `## Design` before `/planning:plan`. Design-significant work (new types or contracts, a new module or library, a package-topology, cross-module, or data-model change) gets its design rounds there; work with no design question open records the one-line early exit in one step. **When the task is small, not design-significant, and the contract IS the plan**, proceed directly to implementation (`/implementation:implement` if enabled) instead; small design-significant work still goes through `/planning:design` first
 - **The approved Brief is one unit of work that a later session, an AFK lane or another person picks up** → `/work-items:track add --agent-ready`, one tracker item carrying the Brief's acceptance criteria and any design part it already holds; the session that picks it up runs design and plan from there
-- **Interview outgrew one session (branches keep opening faster than they close, or the user or harness asks for a pause)** → route the next step with `/session-flow:workflow` (if installed), handing it the ledger and Brief paths and the first open branch; without session-flow, follow the pointer below. Resume continues from the first open branch. Before the first resumed round, resolve the surface through `${CLAUDE_PLUGIN_ROOT}` again (never an absolute path copied from a save-point) and run `round.sh --dir '<memory_dir>/<topic-slug>/interview-surface' doctor --ledger <ledger>`, which lists what the running version needs and the ledger lacks ([`context/surface.md`](context/surface.md) "Resume"). When the effort is too big AND still foggy, recommend `/planning:wayfind` instead (Stance), which charts from the same ledger
+- **Interview outgrew one session (branches keep opening faster than they close, or the user or harness asks for a pause)** → route the next step with `/session-flow:workflow` (if installed), handing it the ledger and Brief paths and the first open branch; without session-flow, follow the pointer below. The ledger + Brief survive; resume continues from the first open branch. Before the first resumed round, resolve the surface through `${CLAUDE_PLUGIN_ROOT}` again (never an absolute path copied from a save-point) and run `round.sh --dir '<memory_dir>/<topic-slug>/interview-surface' doctor --ledger <ledger>`, which lists what the running version needs and the ledger lacks ([`context/surface.md`](context/surface.md) "Resume"). When it outgrew the session because the effort is too big AND still foggy, recommend `/planning:wayfind` instead (Stance, above), which charts from the same ledger
   - **Pointer**: when the interview outgrows the session and session-flow is not installed, fetch <https://code.claude.com/docs/en/context-window#when-your-context-fills-up> live. **As of**: 2026-10-13. **Recheck trigger**: the section changes how it splits work between compaction and a fresh session, or moves.
 
 ## Session-config recommendation (model, effort, advisor)
 
-Recommend how the session carrying the work forward should be configured, from the interview's read of complexity and ambiguity. An engineering interview recommends at the stop/handoff boundary, for the downstream execution session; a terminal interview (a general decision, per Step 5) recommends at the early post-survey surface and again at the stop boundary, for the current session.
+Turn the interview's read of complexity and ambiguity into a recommendation for how the session carrying the work forward should be configured. *When* it lands follows from *what* it configures: an engineering interview recommends at the stop/handoff boundary, for the downstream execution session; a terminal interview (a general decision, per Step 5) recommends at the early post-survey surface and again at the stop boundary, for the current session.
 
-Read [`context/session-config.md`](context/session-config.md) at that boundary, before forming the recommendation: it owns the two knobs and their picking signals, the advisor pairing, live-fetched model and effort names (a failed fetch degrades, never halts), the advisory framing, and the per-surface wording. Do not form the recommendation from this summary.
+Read [`context/session-config.md`](context/session-config.md) at that boundary, before forming the recommendation: it owns the two orthogonal knobs and their picking signals, the advisor pairing, the rule that current model and effort names are fetched live and never pinned (and that a failed fetch degrades rather than halts), the advisory framing, and the per-surface wording. Do not form the recommendation from this summary.
 
 ## Routing by size and fog
 
-Read [`context/routing.md`](context/routing.md) at entry and at every round boundary. It owns the diff-size and retry-cost entry gate, the bigger-than-you-thought check that recommends `/planning:wayfind chart` on fog or `/session-flow:workflow` on context size alone, what the wayfind handoff carries, and the "this is small, ship it" exit with the gates it still runs.
+Read [`context/routing.md`](context/routing.md) at entry and at every round boundary. It owns why the entry gate is diff size and retry cost, the bigger-than-you-thought check that recommends `/planning:wayfind chart` on fog or `/session-flow:workflow` on context size alone, what the wayfind handoff carries, and the "this is small, ship it" exit with the gates it still runs.
 
 ## What this skill does NOT do
 
@@ -455,7 +469,13 @@ Read [`context/routing.md`](context/routing.md) at entry and at every round boun
 
 ## Spoke paths
 
-The `context/` files write the plugin's root directory as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or writing it into a brief: those files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash tool unexpanded. Basis: the plugins reference, <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified 2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+The `context/` files write the plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
+writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
+in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
+2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
 
 ## Composition with other skills
 
@@ -469,8 +489,10 @@ The `context/` files write the plugin's root directory as `<plugin-root>`, which
 | Design types, contracts, module boundaries | `/planning:design` | Reads PLAN.md Brief; its handoff writes PLAN.md `## Design` |
 | Plan the implementation | `/planning:plan` | Reads PLAN.md Brief + `## Design` + explore + research findings |
 | Stress-test the plan | `/planning:devils-advocate` | Adversarial pass on `/planning:plan` output |
-| Validate the interview's answers via agents | `/planning:audit-answers` | Fresh validators challenge each answer in the filled ledger (hand-answered or auto-accepted); only the doubtful ones return as human questions |
+| Validate the interview's answers via agents | `/planning:audit-answers` | Fresh validators challenge each answer in the filled ledger (hand-answered or auto-accepted); only the doubtful ones return as human questions. The Step 3 recap and `--procedure` check show the Q&A and that the procedure ran; this re-validates the answers, and neither duplicates the other |
 | Record a decision that earns an ADR | `/architecture:record-decision` (if enabled) | Owns ADR convention discovery, the no-convention offer-and-defer, and the write; without it the interview writes to the declared convention or defers |
 | Pause and resume later | `/session-flow:workflow` (if enabled) | Routes the continuation; the ledger and Brief carry the state (Step 5) |
 
-**Mid-interview composition (`me` mode):** invoke research, exploration, and prototyping *during* the interview when a recommendation needs external or codebase grounding or a question needs something built to react to; return to the open branch after. When branches outgrow the session, recommend routing the continuation with `/session-flow:workflow` (Step 5). **The ungrillable question:** when a look, feel, or behavior question cannot be answered by asking (the user has to see the thing), stop grilling and route it to a throwaway prototype: `/prototype:explore-directions` (look and feel) or `/prototype:pressure-test` (logic, state, data shape), invoked via the Skill tool if enabled. Those skills gate their own model-initiated entry, so confirm the spike's scope with the user and checkpoint this interview before handing off: the question registered `open` at ask-time, plus the ledger and Brief written per lock-in. Then come back and answer the question in one line. The prototype produces the answer and is thrown away.
+**Mid-interview composition (`me` mode):** research, exploration, and prototyping are not only downstream. Invoke them *during* the interview when a recommendation needs external/codebase grounding or when a question needs something built to react to; when branches outgrow the session, recommend routing the continuation with `/session-flow:workflow` (Step 5). Return to the open branch after. **The ungrillable question:** when a look, feel, or behavior question cannot be answered by asking. The user has to see the thing to know what they think. Stop grilling and route it to a throwaway prototype: `/prototype:explore-directions` (look and feel) or `/prototype:pressure-test` (logic, state, data shape), invoked via the Skill tool if enabled. Those skills gate their own model-initiated entry, so confirm the spike's scope with the user and checkpoint this interview before handing off. The detour leaves an active workflow. Checkpointing is persistence the interview already owes: the question registered `open` at ask-time, plus the ledger and Brief written per lock-in, which is what lets the open branch survive the detour. Then come back and answer the question in one line. The prototype is the instrument that produces the answer, not a deliverable; it is thrown away.
+
+`/planning:interview` is sister to `/planning:plan`: one resolves *what*, the other resolves *how*. They share the topic slug, share the directory, feed each other.

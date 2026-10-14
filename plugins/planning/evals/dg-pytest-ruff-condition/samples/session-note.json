@@ -35,6 +35,10 @@
       "why": "declines to give the note"
     },
     {
+      "answer": "See the docs for /clear and resumed sessions.\n",
+      "why": "names both terms without saying what either does to the goal"
+    },
+    {
       "answer": "/clear and resume behavior is not covered here.\n",
       "why": "declines with not covered"
     }

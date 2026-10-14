@@ -4,7 +4,7 @@ bump: minor
 
 ### Changed
 
-- Tighter bodies for the eleven model-invoked skills, with every gate, route, stop and report line kept; shorter descriptions for `audit-answers`, `brainstorm`, `design` and `plan`, with every quoted trigger phrase kept. `setup` is unchanged.
+- Tighter bodies for ten model-invoked skills, with every gate, route, stop and report line kept; shorter descriptions for `audit-answers`, `brainstorm`, `design` and `plan`, with every quoted trigger phrase kept. `interview` and `setup` are unchanged.
 
 ### Added
 
