@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/knowledge/skills/course-digest/extraction/setup-deps.mjs\" --data-dir \"/data/knowledge\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "prerequisite check only"
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/knowledge/skills/course-digest/extraction/run.mjs\" --data-dir \"/data/knowledge\" extract-course.js --course-dir .work/x",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "nohup node run.mjs --data-dir /d discover-resources.js --course-dir x > log 2>&1 &",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node extraction/build-course-json.js https://www.youtube.com/watch?v=Ab3dE5fGh7I",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

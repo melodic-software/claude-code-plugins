@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: vd-course-url-fails-closed
+graders:
+  - name: routes-to-course-digest
+    type: regex
+    pattern: '(?:^|[.;:!?,—(]|\b(?:so|but|because|since)\b)[ \t*_`]*(?:(?![.;:!?,—(\n])(?!\b(?:not|never|no|nothing|without|rather|instead of|skip(?:ping)?)\b)(?!\w+n[’'']t\b)[^\n])*?`?/knowledge:course-digest\b(?![^.;!?,\n]*\b(?:is not|isn[’'']t|not (?:needed|applicable|the right)|does(?:n[’'']t| not) (?:apply|fit|handle))\b)'
+    flags: 'mi'
+    target: last_message
+  - name: names-supported-sources
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\b[Yy]ou[Tt]ube\b|\byoutu\.be\b))(?=[\s\S]*(?:\bX\b|\bx\.com\b|\b[Tt]witter\b))'
+    target: last_message
+  - name: no-acquisition-run
+    type: tool_used
+    tool: Bash
+    input_match: '(?:run-watch|run-transcript|preflight-metadata)\.js|\b(?:yt-dlp|youtube-dl|curl|wget)\b(?:[^\x22\\]|\\.)*?https?:'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both

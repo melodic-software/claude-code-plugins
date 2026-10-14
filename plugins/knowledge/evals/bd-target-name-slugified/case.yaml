@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: bd-target-name-slugified
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: slug-skill-written
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"(?![^"]*\.\.)(?:[^"]*/)?\.claude/skills/outside-notes/SKILL\.md"'
+    min: 1
+  - name: no-traversal-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*?(?:\.\.[/\\]|(?<!\.claude/skills/)(?<![\w-])outside-notes/(?:SKILL\.md|reference/))'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-traversal-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*?(?:\.\.[/\\]|(?<!\.claude/skills/)(?<![\w-])outside-notes/(?:SKILL\.md|reference/))'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-traversal-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:mkdir|touch|cp|mv|tee|install|ln)\b|>)(?:[^"\n;&|]|\\")*?(?:\.\./+outside-notes|(?<!\.claude/skills/)(?<![\w-])outside-notes/(?:SKILL\.md|reference))'
+    min: 0
+    max: 0
+    arm: both

@@ -1,0 +1,105 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "unzip -l books/field-notes.epub",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "zipinfo -1 books/field-notes.epub",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "zipinfo"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "unzip -Z1 books/field-notes.epub",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "zipinfo mode"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -I -c \"import zipfile; print(zipfile.ZipFile('books/field-notes.epub').namelist())\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python namelist"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p cache && unzip -l \"books/field-notes.epub\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "after another command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "unzip -o books/field-notes.epub -d cache",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "extracts without listing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la books",
+            "description": "Check before unzip -l"
+          }
+        }
+      ],
+      "why": "listing named only in the description"
+    },
+    {
+      "answer": [],
+      "why": "no Bash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "file books/field-notes.epub",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no listing"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".work/docs-example-com-api-overview-138253a9/docpage-digest-checklist.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".work/docs-example-com-api-overview-138253a9/docpage-digest-checklist.md",
+            "old_string": "other",
+            "new_string": "api"
+          }
+        }
+      ]
+    }
+  ]
+}

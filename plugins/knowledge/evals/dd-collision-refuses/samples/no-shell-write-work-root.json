@@ -1,0 +1,138 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work/docs-example-com-api-overview-138253a9/docpage-digest-checklist.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la .work/ 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -m1 'Canonical URL' .work/docs-example-com-api-overview-138253a9/docpage-digest-checklist.md 2>/dev/null || echo none",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '%s' 'https://docs.example.com/api/overview' | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "test -d \"$PWD/.work/docs-example-com-api-overview-138253a9\" && echo exists",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv .work/docs-example-com-api-overview-138253a9 .work/old-root",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm -rf .work/docs-example-com-api-overview-138253a9",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/other/api/' .work/docs-example-com-api-overview-138253a9/docpage-digest-checklist.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'Canonical URL: x\\n' > .work/docs-example-com-api-overview-138253a9/docpage-digest-checklist.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo x | tee -a \".work/docs-example-com-api-overview-138253a9/docpage-digest-checklist.md\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp templates/checklist.md /abs/root/.work/docs-example-com-api-overview-138253a9/docpage-digest-checklist.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -sL https://docs.example.com/api/overview.md -o x; mkdir -p .work/new-root",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "skill": "knowledge:book-distill",
+  "plugin": "knowledge",
+  "skill_dir": "plugins/knowledge/skills/book-distill",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other four knowledge skills: course-digest, docpage-digest, map-corpus, video-digest.",
+  "competitors": [
+    "knowledge:course-digest",
+    "knowledge:docpage-digest",
+    "knowledge:map-corpus",
+    "knowledge:video-digest"
+  ],
+  "competitor_dirs": {
+    "knowledge:course-digest": "plugins/knowledge/skills/course-digest",
+    "knowledge:docpage-digest": "plugins/knowledge/skills/docpage-digest",
+    "knowledge:map-corpus": "plugins/knowledge/skills/map-corpus",
+    "knowledge:video-digest": "plugins/knowledge/skills/video-digest"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I have Designing Data-Intensive Applications as an EPUB in my downloads. Pull its core ideas into reference files a skill can load."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here's a PDF of a Kubernetes book I bought. Can you go through it and organize what it teaches by concept for our agents?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make a skill out of the Release It! ebook I just dropped in the repo at books/release-it.pdf."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I don't have time to read this 400-page PDF on database internals. Get the knowledge out of it into something Claude can reference."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Process books/clean-architecture.epub into concept-based reference notes for developers."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Turn the chapters of this refactoring textbook PDF into structured reference material grouped by topic."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Take this EPUB on domain-driven design and boil it down into reference files our coding agent can consult."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you read through this programming book PDF and capture its key concepts as skill references?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Convert the O'Reilly PDF in ./docs/vendor/observability.pdf into a set of concept-organized reference docs."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want the lessons from this software architecture ebook (EPUB) available to Claude as reference files, organized by idea."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Summarize this blog article for me: https://example.com/blog/why-we-moved-to-postgres"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Digest the Stripe webhooks documentation page at https://docs.stripe.com/webhooks into our knowledge base."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Go through the Dometrain course on clean architecture and tell me what applies to our repo."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Watch this conference talk and give me the takeaways: https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a README for the new billing module."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Map out the whole Terraform docs site before we decide which pages to ingest."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Search the web for the latest guidance on Python packaging with uv."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Fill in the form fields of this PDF invoice and save it."
+    }
+  ]
+}

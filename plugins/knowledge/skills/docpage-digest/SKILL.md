@@ -1,5 +1,5 @@
 ---
-description: "Ingest a single online documentation page into a verified knowledge slice with dual verification and an interview-ready handoff. Use when: 'digest this doc', 'ingest this documentation page', 'run the doc pipeline on URL', 'docpage digest', 'pull this vendor doc into the knowledge base', 'distill this docs page', or the user supplies a documentation URL. Book files route to /knowledge:book-distill; courses to course-digest; single videos to video-digest."
+description: "One online documentation page turned into a verified knowledge slice: the original, section digests, independent verification records and an interview-ready handoff. Use when the user supplies a single documentation URL or asks to digest one vendor docs page into the knowledge base. Several pages or a whole site go to /knowledge:map-corpus; a book file to /knowledge:book-distill."
 argument-hint: "[url]"
 user-invocable: true
 disable-model-invocation: false
@@ -17,76 +17,73 @@ pointer to that publisher's recorded pages) lives in a separable publisher profi
 
 ## Work root
 
+This skill's `.work/` root resolves through the knowledge plugin's own `library_dir` setting.
 Configured library dir: `${user_config.library_dir}`
 
-This skill's `.work/` root resolves through the knowledge plugin's own `library_dir` setting.
-
 **Resolve the root once, before the first write**, and record the resolved absolute path in the
-checklist's Provenance block. Every `<work-root>` path below is relative to it, and a resumed
-session reads it back instead of re-deriving it. Resolution rules for the rendered value above
-(the README's option table owns the value forms; this is how a run turns one into a directory):
+checklist's Provenance block. Every `<work-root>` path below is relative to it; a resumed session
+reads it back instead of re-deriving it. Resolve the rendered value above as follows (the README's
+option table owns the value forms):
 
-- **Unset**, an empty value, or a surviving literal `${user_config.library_dir}` token, means
-  the option was never configured. Use the default `.`; never create a directory named after the
-  token.
-- **Relative** (including the default `.`). Resolve against the session's own working tree:
+- **Unset**, empty, or a surviving literal `${user_config.library_dir}` token: use the default
+  `.`; never create a directory named after the token.
+- **Relative** (including the default `.`): resolve against the session's own working tree,
   `git rev-parse --show-toplevel` run in the session's working directory, or that directory itself
   outside git. Never resolve against the `CLAUDE_PROJECT_DIR` project root: in a worktree session
-  it can name a checkout other than the one the session writes to. The slice stays untracked
-  either way, because the root self-ignores (below).
+  it can name a checkout other than the one the session writes to.
   - **Pointer**: for where `CLAUDE_PROJECT_DIR` points after a session enters a worktree, see
     <https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree>; for the write
     refusal, see <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation>.
   - **As of**: 2026-10-11
   - **Recheck trigger**: either section changes where `CLAUDE_PROJECT_DIR` points inside a
     worktree session or which writes the isolation checks refuse.
-- **Absolute**. Use verbatim, with no project-directory prefix.
-- **Leading `~`**, the home directory, with no project-directory prefix.
-- **`${NAME}` / `%NAME%` env-var reference**. Read the variable yourself (`printenv NAME` in
+- **Absolute**: use verbatim, with no project-directory prefix.
+- **Leading `~`**: the home directory, with no project-directory prefix.
+- **`${NAME}` / `%NAME%` env-var reference**: read the variable yourself (`printenv NAME` in
   bash, `$env:NAME` in PowerShell) and use its value with no project-directory prefix. **An unset
-  variable fails the run loudly**. Report it and stop. Never hand the reference to a shell for
-  expansion: an unset variable expands to the empty string there, silently writing the slice to
+  variable fails the run**: report it and stop. Never hand the reference to a shell for
+  expansion; an unset variable expands to the empty string there and silently writes the slice to
   the wrong root.
 
 The slice lands at `<resolved-root>/.work/<slug>/`. The root self-ignores (a `.gitignore`
-containing `*`) and is never committed by this skill; graduating a slice to a tracked corpus
-repository is a separate, human-gated act.
+containing `*`); never commit it. Graduating a slice to a tracked corpus repository is a separate,
+human-gated act.
 
-**Slug guard. Identity, then containment.** A final path segment alone is not an identity, because docs
-sites repeat `overview`, `settings`, and `index` across dozens of pages, and two such pages
-sharing one work root lets a later run overwrite an immutable `source.*` or resume from another
-page's checklist. Derive `<slug>` deterministically from the canonical URL in one fixed form: the post-redirect page URL with no fragment and no trailing slash, BEFORE any channel suffix
-like `.md` is appended, dropping only known tracking-only query parameters (`utm_*`, `gclid`,
-`fbclid`) and KEEPING content-selecting ones (`?version=v2` selects a different document and
-must yield a different identity; `ref` often selects a branch or revision, so it stays in the
-identity unless the matched publisher profile establishes it as tracking-only for that host), so equivalent spellings resume the same root and different resources never share one:
+**Slug guard. Identity, then containment.** Derive `<slug>` from the canonical URL, never from the
+final path segment alone: docs sites repeat `overview`, `settings`, and `index` across pages, and
+two pages sharing one work root let a later run overwrite an immutable `source.*` or resume from
+another page's checklist. The canonical URL is the post-redirect page URL with no fragment and no
+trailing slash, taken BEFORE any channel suffix like `.md` is appended. Drop only tracking-only
+query parameters (`utm_*`, `gclid`, `fbclid`); KEEP content-selecting ones (`?version=v2` is a
+different document). Keep `ref`, which often selects a branch or revision, unless the matched
+publisher profile marks it tracking-only for that host. Equivalent spellings then resume the same
+root, and different resources never share one:
 
 1. Join the host (dots → hyphens) and every non-empty path segment with hyphens.
 2. Slugify to lowercase alphanumerics and hyphens only. Strip `/`, `\`, and `..`, and collapse
    hyphen runs.
 3. Append `-<hash8>`: the first 8 lowercase hex characters of the canonical URL's SHA-256
-   (`printf '%s' '<canonical-url>' | { sha256sum 2>/dev/null || shasum -a 256; }`, the fallback
-   covers stock macOS, where `sha256sum` is absent). Truncate the host+path prefix, never the hash,
-   so the whole slug is ≤ 40 chars. Truncation is what reintroduces collisions; the hash is the
-   part a truncated prefix cannot lose, and it recomputes identically on resume. (The hash suffix
-   also makes a Windows-reserved base name impossible, so no reserved-name escape is needed.)
+   (`printf '%s' '<canonical-url>' | { sha256sum 2>/dev/null || shasum -a 256; }`; the fallback
+   covers stock macOS, which lacks `sha256sum`). Keep the whole slug ≤ 40 chars by truncating the
+   host+path prefix, never the hash: the hash keeps truncated slugs distinct and recomputes
+   identically on resume. It also rules out a Windows-reserved base name.
 
-Never build a path from raw URL text, a crafted URL must not steer a filename toward path
-traversal, and confirm the resolved work root is still inside `<resolved-root>/.work/` before
+Never build a path from raw URL text (a crafted URL could steer a filename toward path
+traversal), and confirm the resolved work root is still inside `<resolved-root>/.work/` before
 writing.
 
 **Collision check, before the first write, including the checklist copy.** If
 `<resolved-root>/.work/<slug>/` already exists, read the `Canonical URL` line from its
 `docpage-digest-checklist.md`:
 
-- **Same URL** → this is a resume; continue from the first unticked phase.
+- **Same URL** → resume from the first unticked phase.
 - **Different URL, or no URL recorded** → **refuse and stop**, naming both URLs (or the missing
-  one) and the path. An unidentifiable work root is treated exactly like a mismatched one: the
-  run never overwrites an immutable original or inherits a checklist it cannot attribute.
+  one) and the path. Never overwrite an immutable original or inherit a checklist you cannot
+  attribute.
 
-Recording the canonical URL is therefore the first thing a new run writes. Copy the template and
-fill `Canonical URL` and the resolved work root *before* fetching, so an interrupted run leaves a
-root the next collision check can identify.
+So the canonical URL is the first thing a new run writes: copy the template and fill
+`Canonical URL` and the resolved work root *before* fetching, so an interrupted run leaves a root
+the next collision check can identify.
 
 ## Untrusted-source discipline (binding for every phase)
 

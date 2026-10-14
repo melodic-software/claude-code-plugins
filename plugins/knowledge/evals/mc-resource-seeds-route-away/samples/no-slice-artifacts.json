@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/retry-spec/retry-spec-1a2b3c4d/map-corpus-checklist.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a checklist alone is allowed before Phase 1"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/retry-spec/retry-spec-1a2b3c4d/link-map.json",
+            "content": "{}"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/retry-spec/retry-spec-1a2b3c4d/queue.json",
+            "content": "{}"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/.work/retry-spec/s/resources/spec/manifest.json",
+            "content": "{}"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/retry-spec/s/resources/spec/inventory.json",
+            "content": "{}"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/retry-spec/s/mapper-handoff.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

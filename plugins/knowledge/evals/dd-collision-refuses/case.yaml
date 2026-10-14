@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: dd-collision-refuses
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-recorded-url
+    type: regex
+    pattern: 'docs\.example\.com/other/overview\b'
+    flags: 'i'
+    target: last_message
+  - name: reports-refusal
+    type: regex
+    pattern: '^(?![^\n]*\?[ \t*_]*$)[^\n]*?(?<!\bnot )(?<!n[’'']t )(?<!\bwithout )(?<!\bno )(?<!\bbefore )(?<!\bneed for )(?<!\bneed to )\b(?:abort(?:ed|ing)|stop(?:ped|ping)|halt(?:ed|ing)|refus(?:ed|ing)|declin(?:ed|ing))\b|^[ \t#>*_-]*(?:abort|stop|halt|refus(?:e|ed))\b(?![^\n]*\?[ \t*_]*$)|\b(?:will not|won[’'']t|cannot|can[’'']t|did not|didn[’'']t)[ \t]+(?:overwrite|continue|proceed|resume|fetch|write)\b'
+    flags: 'mi'
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write-work-root
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:rm|mv|cp|tee|touch|mkdir|install|ln)\b|\bsed[ \t]+-[a-zA-Z]*i|>)(?:[^"\n;&|]|\\")*?\.work/'
+    min: 0
+    max: 0
+    arm: both

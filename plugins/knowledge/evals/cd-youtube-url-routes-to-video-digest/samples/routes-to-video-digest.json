@@ -1,0 +1,52 @@
+{
+  "pass": [
+    {
+      "answer": "That URL is a single public YouTube video, not a course. Course-digest handles auth-walled course platforms; use `/knowledge:video-digest https://www.youtube.com/watch?v=Ab3dE5fGh7I` instead."
+    },
+    {
+      "answer": "**Wrong skill for this input.** Single public YouTube videos go to /knowledge:video-digest, which pulls the transcript and frames."
+    },
+    {
+      "answer": "This isn't a course platform URL, so run /knowledge:video-digest on it.",
+      "why": "negation in an earlier clause"
+    },
+    {
+      "answer": "Want me to run /knowledge:video-digest on it?",
+      "why": "offer of the route"
+    },
+    {
+      "answer": "Routing: `/knowledge:video-digest` handles this.",
+      "why": "label then token"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I won't route this to /knowledge:video-digest; starting the course pipeline.",
+      "why": "negated route"
+    },
+    {
+      "answer": "No need for /knowledge:video-digest here. Discovering course structure.",
+      "why": "no need"
+    },
+    {
+      "answer": "Rather than /knowledge:video-digest, I'll treat it as a one-lesson course.",
+      "why": "rather than"
+    },
+    {
+      "answer": "/knowledge:video-digest is not needed; extracting with the course pipeline.",
+      "why": "negated after"
+    },
+    {
+      "answer": "Instead of /knowledge:video-digest, run extract-course.js.",
+      "why": "instead of"
+    },
+    {
+      "answer": "Extraction started for the YouTube course.",
+      "why": "no route"
+    },
+    {
+      "answer": "Use /knowledge:course-digest extract https://www.youtube.com/watch?v=Ab3dE5fGh7I",
+      "why": "same skill"
+    }
+  ]
+}

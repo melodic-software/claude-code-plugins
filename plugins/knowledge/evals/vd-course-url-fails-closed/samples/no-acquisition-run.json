@@ -1,0 +1,88 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/knowledge/skills/video-digest/extraction/setup-deps.mjs\" --data-dir \"/data/knowledge\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "prerequisite gate only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yt-dlp --version",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "version check"
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/knowledge/skills/video-digest/extraction/run.mjs\" --data-dir \"/d\" watch/run-watch.js \"https://dometrain.com/course/getting-started-domain-driven-design/\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node run.mjs --data-dir /d transcript/run-transcript.js \"https://dometrain.com/course/getting-started-domain-driven-design/\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node run.mjs --data-dir /d acquisition/preflight-metadata.js \"https://dometrain.com/course/getting-started-domain-driven-design/\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yt-dlp --skip-download --write-info-json \"https://dometrain.com/course/getting-started-domain-driven-design/\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -sL https://dometrain.com/course/getting-started-domain-driven-design/ | head",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

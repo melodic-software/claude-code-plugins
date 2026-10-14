@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Refusing to continue. `.work/docs-example-com-api-overview-138253a9/` already exists, and its checklist records `Canonical URL: https://docs.example.com/other/overview`, not https://docs.example.com/api/overview. I wrote nothing."
+    },
+    {
+      "answer": "**Stopped at the collision check.**\n\n- Requested: https://docs.example.com/api/overview\n- Recorded in the existing work root: https://docs.example.com/other/overview\n- Path: `.work/docs-example-com-api-overview-138253a9/`"
+    },
+    {
+      "answer": "I won't overwrite that work root: its checklist belongs to docs.example.com/other/overview."
+    },
+    {
+      "answer": "Halted: the slug for this page is taken by https://docs.example.com/other/overview."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Refusing: `.work/docs-example-com-api-overview-138253a9/` already exists for a different URL."
+    },
+    {
+      "answer": "Resuming https://docs.example.com/api/overview from Phase 2."
+    }
+  ]
+}

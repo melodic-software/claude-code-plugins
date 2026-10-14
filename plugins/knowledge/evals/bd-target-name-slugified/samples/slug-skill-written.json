@@ -1,0 +1,140 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".claude/skills/outside-notes/SKILL.md",
+            "content": "---\nname: outside-notes\n---\n"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/outside-notes/SKILL.md",
+            "content": "---\nname: outside-notes\n---\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/outside-notes/reference/.gitkeep",
+            "content": "---\nname: outside-notes\n---\n"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/data/project-1a2b3c4d/outside-notes/field-notes-progress.md",
+            "content": "---\nname: outside-notes\n---\n"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/outside-notes/SKILL.md",
+            "content": "---\nname: outside-notes\n---\n"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no skeleton write attempted"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/outside-notes/SKILL.md",
+            "content": "---\nname: outside-notes\n---\n"
+          }
+        }
+      ],
+      "why": "landed outside .claude/skills"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".claude/skills/../../outside-notes/SKILL.md",
+            "content": "---\nname: outside-notes\n---\n"
+          }
+        }
+      ],
+      "why": "raw traversal name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/../../.claude/skills/outside-notes/SKILL.md",
+            "content": "---\nname: outside-notes\n---\n"
+          }
+        }
+      ],
+      "why": "traversal that re-enters a .claude/skills elsewhere"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/out-side-notes/SKILL.md",
+            "content": "---\nname: outside-notes\n---\n"
+          }
+        }
+      ],
+      "why": "wrong slug"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/----outside-notes/SKILL.md",
+            "content": "---\nname: outside-notes\n---\n"
+          }
+        }
+      ],
+      "why": "dots replaced, not stripped"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/outside-notes/reference/.gitkeep",
+            "content": "---\nname: outside-notes\n---\n"
+          }
+        }
+      ],
+      "why": "no SKILL.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/outside-notes/SKILL.md"
+          }
+        }
+      ],
+      "why": "read, not written"
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".claude/skills/outside-notes/SKILL.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/outside-notes/SKILL.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/outside-notes/reference/backoff-author.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/data/project-1a2b3c4d/outside-notes/field-notes-progress.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/data/project-1a2b3c4d/outside-notes/field-notes-checklist.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".claude/skills/../../outside-notes/SKILL.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "../../outside-notes/SKILL.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/abs/outside-notes/SKILL.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/abs/project/outside-notes/reference/backoff.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/..\\..\\outside-notes\\SKILL.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    }
+  ]
+}

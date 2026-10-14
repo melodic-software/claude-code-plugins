@@ -1,0 +1,60 @@
+{
+  "pass": [
+    {
+      "answer": "Both seeds are resource seeds (raw repository files), and the mapper's V1 requires at least one origin seed for discovery. Run each one through `/knowledge:docpage-digest` instead:\n\n1. `/knowledge:docpage-digest https://raw.githubusercontent.com/example-org/retry-spec/main/SPEC.md`\n2. `/knowledge:docpage-digest https://raw.githubusercontent.com/example-org/retry-spec/main/README.md`"
+    },
+    {
+      "answer": "No origin seed was given, so there is nothing to discover. Route these URLs to /knowledge:docpage-digest, one run per URL."
+    },
+    {
+      "answer": "This needs an origin seed (a site root such as `https://example.org`); a resource-seeds-only corpus is outside the mapper's V1 scope.\n\nNext: `/knowledge:docpage-digest <url>` for each file."
+    },
+    {
+      "answer": "An origin seed is required for map-corpus. Instead, digest each file with /knowledge:docpage-digest."
+    },
+    {
+      "answer": "**map-corpus: not run, by design.** Both seeds point to specific files in a repo, not to a site root. This version of map-corpus needs at least one site-root URL to discover pages from, so a set of file URLs is out of scope. The skill's instruction is to run `/knowledge:docpage-digest` once per URL instead."
+    },
+    {
+      "answer": "**Why map-corpus couldn't take this corpus.** Both seeds point at individual repo files, not at a site root. map-corpus needs at least one site-root URL to discover pages from (via `llms.txt` or a sitemap), so a set of file URLs only is outside what it handles."
+    },
+    {
+      "answer": "**Routing.** Both URLs point at individual files, not a site to discover. `/knowledge:map-corpus` needs at least one site URL to discover pages from. With only file URLs, its rule is to digest each one separately with `/knowledge:docpage-digest`."
+    },
+    {
+      "answer": "**Why `/knowledge:map-corpus` didn't run.** Both URLs point at individual files, not a site root. The mapper can only build its link map from a site's `llms.txt` or sitemap, so it needs at least one site root. Two file URLs alone go to `/knowledge:docpage-digest` instead, one run per URL."
+    },
+    {
+      "answer": "**Why this went to `/knowledge:docpage-digest` instead of a corpus map:** both URLs are links to single raw repo files, not a site root. Map-corpus needs at least one site root to discover from, so its rule is to run `/knowledge:docpage-digest` once per URL instead."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No origin seed is needed here; both URLs are mapped as resources."
+    },
+    {
+      "answer": "An origin seed isn't required for raw files, so I mapped them."
+    },
+    {
+      "answer": "Route each URL to /knowledge:docpage-digest."
+    },
+    {
+      "answer": "Mapped 2 resources into link-map.json."
+    },
+    {
+      "answer": "Map-corpus doesn't need a site root for raw files, so I mapped both of them."
+    },
+    {
+      "answer": "map-corpus does not require a site-root URL; both files were mapped as resources."
+    },
+    {
+      "answer": "No need for an origin seed here; I mapped both files."
+    },
+    {
+      "answer": "A site URL is optional for the mapper, so both files were mapped."
+    },
+    {
+      "answer": "Does map-corpus need a site root for this corpus?"
+    }
+  ]
+}

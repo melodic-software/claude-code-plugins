@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: cd-youtube-url-routes-to-video-digest
+graders:
+  - name: routes-to-video-digest
+    type: regex
+    pattern: '(?:^|[.;:!?,—(]|\b(?:so|but|because|since)\b)[ \t*_`]*(?:(?![.;:!?,—(\n])(?!\b(?:not|never|no|nothing|without|rather|instead of|skip(?:ping)?)\b)(?!\w+n[’'']t\b)[^\n])*?`?/knowledge:video-digest\b(?![^.;!?,\n]*\b(?:is not|isn[’'']t|not (?:needed|applicable|the right)|does(?:n[’'']t| not) (?:apply|fit|handle))\b)'
+    flags: 'mi'
+    target: last_message
+  - name: no-course-extraction
+    type: tool_used
+    tool: Bash
+    input_match: '(?:extract-course|discover-resources|build-course-json|download-resources)\.js'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
