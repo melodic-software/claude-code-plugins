@@ -3,7 +3,7 @@ description: "When the bundled explain-usage skill resolves in this session, pre
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/build-dashboard.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-dashboard.mjs\":*)"]
-argument-hint: "[week|session|day|month|since:YYYY-MM-DD|all|clean|latency|compare] [--write] [--dry-run] [--days N]"
+argument-hint: "[week|session|day|month|since:YYYY-MM-DD|all|clean|latency|compare|hooks] [--write] [--dry-run] [--days N]"
 shell: bash
 metadata:
   workflow-stage: operator
@@ -11,7 +11,7 @@ metadata:
   cadence: weekly
 ---
 
-**Arguments.** `[week|session|day|month|since:YYYY-MM-DD|all|clean|latency|compare] [--write] [--dry-run] [--days N]`. Full form: [scope|action] [--write]. Week (default), session, session:<id>, day, month, since:YYYY-MM-DD, all (any reporting scope takes --write), clean [--keep-days N] [--dry-run] [--hook-root REL] [--skill-usage-scope repo|user|data-dir], latency [--days N|--since YYYY-MM-DD] [--budget EVENT=MS], compare <session-a> <session-b>
+**Arguments.** `[week|session|day|month|since:YYYY-MM-DD|all|clean|latency|compare|hooks] [--write] [--dry-run] [--days N]`. Full form: [scope|action] [--write]. Week (default), session, session:<id>, day, month, since:YYYY-MM-DD, all (any reporting scope takes --write), clean [--keep-days N] [--dry-run] [--hook-root REL] [--skill-usage-scope repo|user|data-dir], latency [--days N|--since YYYY-MM-DD] [--budget EVENT=MS] [--transcript PATH], compare <session-a> <session-b>, hooks [--enabled FILE] <transcript.jsonl>...
 
 ## Repository context. Gather first
 
@@ -147,8 +147,9 @@ builder. Node missing: the markdown report stands and the dashboard is not built
 | Action | Args | Effect |
 |---|---|---|
 | `clean` | `[--keep-days N]` (default 30) `[--dry-run]` `[--quiet]` `[--hook-root REL]` `[--skill-usage-scope repo\|user\|data-dir]` `[--skill-usage-dir REL]` `[--keep-skill-usage-days N]` (default 365) | Prune the hook log root (the shared file line by line, session files untouched for the window whole, stale `prune-pending/` sets regardless of the logging switch), the retired shared file while it exists, and the OTEL store. See [context/read-routing.md](context/read-routing.md) "Retention" and `scripts/clean.sh`. Skill-usage pruning is **opt-in**: inert unless `--skill-usage-scope` is passed, and `data-dir` requires an explicit `--skill-usage-dir` rather than trusting `CLAUDE_PLUGIN_DATA` |
-| `latency` | `[--days N \| --since YYYY-MM-DD]` (default `--days 7`) `[--budget EVENT=MS]`... `[--min-fires N]` (20) `[--min-sessions N]` (5, minimum 3) | Read-only. Per lane and hook event from `hook_execution_complete` in the hot OTEL store: p50/p95 against a p95 budget, and a within-session slope that flags latency growing across a session. Fires `clean` has compacted to the cold tier are not included; a window reaching past the oldest hot fire prints a warning. Exit 0 none flagged, 1 flagged, 2 cannot evaluate (no duckdb, no store, or no rows in the window); the exit-2 message names two routes: turning telemetry on per [context/operator-setup.md](context/operator-setup.md), and for Stop hooks the `stop_hook_summary` transcript records `/harness-ops:audit-performance` names. Takes about 60 s on a large store: run on demand or from a routine or loop, never a SessionStart hook. See `scripts/hook-latency.sh --help` |
+| `latency` | `[--days N \| --since YYYY-MM-DD]` (default `--days 7`) `[--budget EVENT=MS]`... `[--min-fires N]` (20) `[--min-sessions N]` (5, minimum 3) `[--transcript PATH]`... | Read-only. With no duckdb or no store and `--transcript` given, it reads that transcript instead through `hooks`' reader: lane `unknown`, Stop p50/p95 from the slowest hook per `stop_hook_summary` record with its budget, every other event labeled `sampled` with no budget flag and no slope. Per lane and hook event from `hook_execution_complete` in the hot OTEL store: p50/p95 against a p95 budget, and a within-session slope that flags latency growing across a session. Fires `clean` has compacted to the cold tier are not included; a window reaching past the oldest hot fire prints a warning. Exit 0 none flagged, 1 flagged, 2 cannot evaluate (no duckdb, no store, or no rows in the window); the exit-2 message names two routes: turning telemetry on per [context/operator-setup.md](context/operator-setup.md), and rerunning with `--transcript`. Takes about 60 s on a large store: run on demand or from a routine or loop, never a SessionStart hook. See `scripts/hook-latency.sh --help` |
 | `compare` | `<session-a> <session-b>` (two different `session.id` values, `^[A-Za-z0-9._-]+$`) | Read-only. One task run as two sessions, side by side from the hot OTEL store: `claude_code.token.usage` by type (`cacheCreation` its own column) split by model and effort (`unset` when the attribute is absent), per-type totals, and each session's `claude_code.cost.usage` reconciled against its `api_request` events with status `match`, `events short` or `events exceed metric`. The metric is the total of record. Costs are Claude Code's estimate: on a subscription they measure work, not a bill. Exit 0 rendered, 2 cannot evaluate: a session with no metric rows (aged to the cold tier, or `OTEL_METRICS_INCLUDE_SESSION_ID` off) or a non-delta metric ("cannot reconcile: cumulative metrics"). See `scripts/session-compare.sh --help` |
+| `hooks` | `<transcript.jsonl>...` `[--enabled FILE]` | Read-only; executes no hook and reads only the transcript paths the operator gives. Per hook command and event: samples and median ms, `complete` for Stop, `sampled` otherwise; then the slowest hook per event (never a sum: hooks on one event run in parallel); then each `--enabled` hook with no sample. The enabled list is operator-supplied, one `EVENT<TAB>COMMAND` per line with the command as the transcript records it, because a manifest's command (`${CLAUDE_PLUGIN_ROOT}` unexpanded) does not match the recorded one. Exit 0 read, 2 nothing to read. See `scripts/hook-transcript-timing.sh --help` |
 
 `latency` telemetry record:
 
@@ -165,6 +166,14 @@ builder. Node missing: the markdown report stands and the dashboard is not built
 - **Pointer**: for missing `api_request` events, see anthropics/claude-code#98193; for the metrics and their attributes, `effort` included, see <https://code.claude.com/docs/en/monitoring-usage#cost-counter> and <https://code.claude.com/docs/en/monitoring-usage#token-counter>; for the event, see <https://code.claude.com/docs/en/monitoring-usage#api-request-event>; for the temporality default, see <https://code.claude.com/docs/en/monitoring-usage#common-configuration-variables>. No docs section covers which requests skip `api_request` as of this date.
 - **As of**: 2026-10-01; #98193 open.
 - **Recheck trigger**: #98193 closes or changes state, the monitoring page documents which requests skip `api_request`, or `compare` reports `events short` on a store recorded after a fix shipped.
+
+`hooks` transcript record:
+
+`hooks` and the `latency` fallback read three transcript record shapes: a `system` record with `subtype: "stop_hook_summary"` and `hookInfos[].{command, durationMs}`, one per Stop firing; and `attachment` records whose `attachment.type` is `hook_success` or `hook_non_blocking_error`, read for `hookEvent`, `hookName`, `command`, `durationMs` and `toolUseID` only. Attachments also carry the hook's `stdout`, `stderr` and `content`; the reader never reads or prints them ([context/privacy.md](context/privacy.md)). Attachments are written for only some firings, likely not for a silent successful hook, so their rows are labeled `sampled`. Stop attachments are skipped because the summary already holds every Stop hook. A transcript carries no `claude.lane`.
+
+- **Pointer**: neither shape is documented; [hooks](https://code.claude.com/docs/en/hooks) contains neither `stop_hook_summary` nor `durationMs` as of the date below. The keys are our observation of Claude Code 2.1.288 transcripts, and the attachment envelope matches the one `hooks/hook-failure-audit.sh` parses.
+- **As of**: 2026-10-13, Claude Code 2.1.288
+- **Recheck trigger**: the hooks page documents a per-hook timing record, or `hooks` exits 2 with "no hook durations found" on a transcript whose hooks ran.
 
 Action invocation: `/harness-ops:observability clean [flags]`.
 
@@ -185,7 +194,7 @@ When the user asks to inspect traces, logs, metrics, or hook data outside a scop
 
 ### 0. Dispatch. Action vs scope
 
-If the first argument is `clean`, `latency` or `compare`: delegate to `scripts/clean.sh`, `scripts/hook-latency.sh` or `scripts/session-compare.sh` with the remaining arguments and return its exit code.
+If the first argument is `clean`, `latency`, `compare` or `hooks`: delegate to `scripts/clean.sh`, `scripts/hook-latency.sh`, `scripts/session-compare.sh` or `scripts/hook-transcript-timing.sh` with the remaining arguments and return its exit code.
 
 ```bash
 if [[ "${1:-}" == "clean" ]]; then
@@ -200,11 +209,15 @@ if [[ "${1:-}" == "compare" ]]; then
   shift
   exec bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/session-compare.sh" "$@"
 fi
+if [[ "${1:-}" == "hooks" ]]; then
+  shift
+  exec bash "${CLAUDE_PLUGIN_ROOT}/skills/observability/scripts/hook-transcript-timing.sh" "$@"
+fi
 SCOPE="${1:-week}"
 case "$SCOPE" in
   session|day|week|month|all) ;;
   session:*|since:*) ;;
-  *) echo "Unknown scope: $SCOPE. Use session|session:<id>|day|week|month|since:YYYY-MM-DD|all|clean|latency|compare <id-a> <id-b>" >&2; exit 1 ;;
+  *) echo "Unknown scope: $SCOPE. Use session|session:<id>|day|week|month|since:YYYY-MM-DD|all|clean|latency|compare <id-a> <id-b>|hooks <transcript>" >&2; exit 1 ;;
 esac
 ```
 
