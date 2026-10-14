@@ -36,9 +36,11 @@ re-read the page.
 
 ## Worktrees
 
-- The Bash guard's `eval` refusal: reproduced on Claude Code 2.1.285, Linux/WSL2, verified
-  2026-10-01, with the message `this command runs a string through eval, which can't be verified
-  to stay inside the worktree`. Recheck: re-run `claude plugin eval --help` from an isolated
+- The Bash guard's `eval` refusal: `claude plugin eval --help` refused from a worktree-isolated
+  subagent on Claude Code 2.1.296, Linux/WSL2, verified 2026-10-13 (#5696), with the message `this
+  command runs a string through eval, which can't be verified to stay inside the worktree`. The
+  user's own `!` command clause rests on the repro on Claude Code 2.1.285, Linux/WSL2, verified
+  2026-10-01. Recheck: re-run `claude plugin eval --help` from an isolated
   worktree session.
 - The CLI's linked-worktree refusal (`registers more linked worktrees than can be screened`):
   observed on Claude Code 2.1.289, Linux/WSL2, 2026-10-04. Recheck: re-run on a plugin in a

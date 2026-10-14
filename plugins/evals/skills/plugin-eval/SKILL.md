@@ -475,7 +475,8 @@ record a drift outcome in this plugin's CHANGELOG.
 | Docker credential-store refusal and the `~/.docker/bin` exemption | <https://code.claude.com/docs/en/changelog> (2.1.293); no docs page covers it | 2026-10-10 | A docs page documents the check, or a release note touches sandbox credential exclusion or exempt paths |
 | Cloud route host and packages | [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) | 2026-10-11 | That section changes its host description or package list |
 | Read-only tool set | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-10-10 | That section's allowed-tools sentence changes |
-| Worktree Bash guard refusal | Observed on Claude Code 2.1.285 ([records.md](reference/records.md#worktrees)) | 2026-10-01 | A release note touches worktree isolation or `plugin eval` |
+| Worktree Bash guard refusal of `claude plugin eval --help` | Observed on Claude Code 2.1.296 ([records.md](reference/records.md#worktrees)) | 2026-10-13 | A release note touches worktree isolation or `plugin eval` |
+| Worktree Bash guard refusal of the user's `!` command | Observed on Claude Code 2.1.285 ([records.md](reference/records.md#worktrees)) | 2026-10-01 | A release note touches worktree isolation or `plugin eval` |
 | CLI linked-worktree refusal | Observed on Claude Code 2.1.289 ([records.md](reference/records.md#worktrees)) | 2026-10-04 | A release note changes the limit or the CLI's repository screening |
 | Model and judge resolution | <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-10-01 | The table changes its `--model` or `--judge-model` row |
 | Flag order, trust refusal, flag defaults | `claude plugin eval --help`; <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-09-12 | `--help` no longer matches, or a release note touches the flag set |
