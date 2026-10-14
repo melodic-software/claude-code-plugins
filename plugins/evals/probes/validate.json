@@ -1,0 +1,126 @@
+{
+  "skill": "evals:validate",
+  "plugin": "evals",
+  "skill_dir": "plugins/evals/skills/validate",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other three evals skills.",
+  "competitors": [
+    "evals:design",
+    "evals:methodology",
+    "evals:plugin-eval"
+  ],
+  "competitor_dirs": {
+    "evals:design": "plugins/evals/skills/design",
+    "evals:methodology": "plugins/evals/skills/methodology",
+    "evals:plugin-eval": "plugins/evals/skills/plugin-eval"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Look over my eval cases before I spend any money running them."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is this suite going to load okay? I keep getting an error when the case is read."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Lint all the case.yaml files under my evals folder."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "One of my graders has an option the binary doesn't recognize, I think. Can you find it?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My case refuses to load and the error message tells me nothing. What's wrong with it?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make sure my prompt file, the yaml for the case and the grader files are all well-formed before I kick off the eval."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Grade my deterministic graders offline against the sample answers so I know they work."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I set timeout_seconds to some huge number and max_turns to zero. Does the loader reject that?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do a dry static pass over my plugin eval cases and flag the common authoring mistakes."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run the whole eval suite and report the results."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Scaffold a new set of eval cases for my agent."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What's a good grading method for factual accuracy?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Validate the evals.json for my skill-creator skill."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Validate my plugin.json manifest."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Fix the formatting in my YAML config files."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "How much will the full eval run cost?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run shellcheck on my scripts."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Explain the difference between LLM-judged and exact-match scoring."
+    }
+  ]
+}

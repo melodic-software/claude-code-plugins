@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: vd-course-url-fails-closed
+graders:
+  - name: routes-to-course-digest
+    type: regex
+    pattern: '(?:^|[.;:!?,—(]|\b(?:so|but|because|since)\b)[ \t*_`]*(?:(?![.;:!?,—(\n])(?!\b(?:not|never|no|nothing|without|rather|instead of|skip(?:ping)?|avoid(?:ing)?|wrong)\b)(?!\w+n[’'']t\b)[^\n])*?`?/knowledge:course-digest\b(?![^.;!?,\n]*\b(?:is not|isn[’'']t|is (?:the )?wrong|not (?:needed|applicable|the right)|does(?:n[’'']t| not) (?:apply|fit|handle))\b)(?![^\n.!]*\?)'
+    flags: 'mi'
+    target: last_message
+  - name: names-supported-sources
+    type: regex
+    pattern: '^(?=[\s\S]*(?:\b[Yy]ou[Tt]ube\b|\byoutu\.be\b))(?=[\s\S]*(?:\b[Xx]\.com\b|\b[Tt]witter\b|\b[Yy]ou[Tt]ube\b[^\n.;]{0,40}?\bX\b|\bX\b[^\n.;]{0,40}?\b[Yy]ou[Tt]ube\b))'
+    target: last_message
+  - name: no-acquisition-run
+    type: tool_used
+    tool: Bash
+    input_match: '(?:run-watch|run-transcript|preflight-metadata)\.js|"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|({`]|\\n|-c[ \t]+(?:''|\\")))?[ \t]*(?:\w+=(?:[^\s"\\;&|]|\\.)*[ \t]+)*(?:(?:sudo|exec|env|time|nohup|uvx|npx|pipx[ \t]+run|python3?(?:[ \t]+-[a-zA-Z]+)*?[ \t]+-m)[ \t]+)*(?:[\w./~${}-]*/)?(?:yt[-_]dlp|youtube[-_]dl|curl|wget)\b(?!-)(?![ \t]+(?:--version|--help|-[Vh])\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write-work
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?(?:\.work\b))(?=(?:[^"\\]|\\.)*?(?:(?:\b|(?<=\\n))(?:rm|rmdir|mv|cp|tee|touch|mkdir|install|ln|truncate)\b|(?<![\w-])-delete\b|(?:\b|(?<=\\n))(?:sed|perl)\b(?:[^"\\;&|]|\\[^n])*?[ \t]-[a-zA-Z]*i|(?:\b|(?<=\\n))python3?(?:[ \t]+-[a-zA-Z]+)*?[ \t]+-c\b|>(?!>?[ \t]*(?:&|/dev/null))))'
+    min: 0
+    max: 0
+    arm: both

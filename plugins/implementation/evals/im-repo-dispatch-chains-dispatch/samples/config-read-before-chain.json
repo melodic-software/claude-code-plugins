@@ -1,0 +1,113 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/.work/late-fee/PLAN.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/docs/conventions/implementation.yaml"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "implementation:implement-dispatch",
+            "args": ".work/late-fee/PLAN.md"
+          }
+        }
+      ],
+      "why": "config resolved, then chained"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/conventions/implementation.yaml"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "implementation:implement-dispatch",
+            "args": ".work/late-fee/PLAN.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/.work/late-fee/PLAN.md"
+          }
+        }
+      ],
+      "why": "relative path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/.work/late-fee/PLAN.md"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "implementation:implement-dispatch",
+            "args": ".work/late-fee/PLAN.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/docs/conventions/implementation.yaml"
+          }
+        }
+      ],
+      "why": "chained before reading the repository setting"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/.work/late-fee/PLAN.md"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "implementation:implement-dispatch",
+            "args": ".work/late-fee/PLAN.md"
+          }
+        }
+      ],
+      "why": "never read the setting"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/.work/late-fee/PLAN.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/docs/conventions/implementation.yaml"
+          }
+        }
+      ],
+      "why": "never chained"
+    }
+  ]
+}

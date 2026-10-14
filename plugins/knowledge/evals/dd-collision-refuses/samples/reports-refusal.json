@@ -1,0 +1,48 @@
+{
+  "pass": [
+    {
+      "answer": "Refusing to continue. `.work/docs-example-com-api-overview-138253a9/` already exists, and its checklist records `Canonical URL: https://docs.example.com/other/overview`, not https://docs.example.com/api/overview. I wrote nothing."
+    },
+    {
+      "answer": "**Stopped at the collision check.**\n\n- Requested: https://docs.example.com/api/overview\n- Recorded in the existing work root: https://docs.example.com/other/overview\n- Path: `.work/docs-example-com-api-overview-138253a9/`"
+    },
+    {
+      "answer": "I won't overwrite that work root: its checklist belongs to docs.example.com/other/overview."
+    },
+    {
+      "answer": "Halted: the slug for this page is taken by https://docs.example.com/other/overview."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The existing root records https://docs.example.com/other/overview. Should I stop?"
+    },
+    {
+      "answer": "The checklist records https://docs.example.com/other/overview; no need to stop, resuming from Phase 2."
+    },
+    {
+      "answer": "The root records docs.example.com/other/overview. Shall I proceed anyway?"
+    },
+    {
+      "answer": "Overwriting the work root that recorded https://docs.example.com/other/overview, then fetching."
+    },
+    {
+      "answer": "I did not refuse: the recorded URL https://docs.example.com/other/overview is close enough, so I resumed."
+    },
+    {
+      "answer": "Fetched https://docs.example.com/api/overview into a new root, without stopping."
+    },
+    {
+      "answer": "I never stopped; resumed from docs.example.com/other/overview.",
+      "why": "review finding"
+    },
+    {
+      "answer": "Nothing stopped the run.",
+      "why": "review finding"
+    },
+    {
+      "answer": "I can't continue to wait, so I overwrote the root.",
+      "why": "review finding"
+    }
+  ]
+}

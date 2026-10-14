@@ -1,0 +1,48 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped at the prerequisites gate: video-extraction deps are MISSING and setup-deps.mjs failed (npm install could not reach the registry)."
+    },
+    {
+      "answer": "The watch cannot proceed: yt-dlp is missing. Install it, then re-run."
+    },
+    {
+      "answer": "No video, no watch: the download failed, so I stopped there.",
+      "why": "no-video rule"
+    },
+    {
+      "answer": "I didn't run the watch because the prerequisites gate blocked it.",
+      "why": "negation in an earlier clause"
+    },
+    {
+      "answer": "Unable to start the watch until yt-dlp is installed.",
+      "why": "unable to"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I won't stop here; fetching the transcript instead.",
+      "why": "negated"
+    },
+    {
+      "answer": "Rather than stopping, I ran the transcript action.",
+      "why": "rather than"
+    },
+    {
+      "answer": "Watch complete. Recommendations are in recommendations/.",
+      "why": "completion"
+    },
+    {
+      "answer": "Shall I proceed with installing yt-dlp?",
+      "why": "question only"
+    },
+    {
+      "answer": "Nothing is blocked; continuing.",
+      "why": "nothing"
+    },
+    {
+      "answer": "The pipeline never stopped.",
+      "why": "never"
+    }
+  ]
+}

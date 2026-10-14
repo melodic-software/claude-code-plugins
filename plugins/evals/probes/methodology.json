@@ -1,0 +1,126 @@
+{
+  "skill": "evals:methodology",
+  "plugin": "evals",
+  "skill_dir": "plugins/evals/skills/methodology",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other three evals skills.",
+  "competitors": [
+    "evals:design",
+    "evals:plugin-eval",
+    "evals:validate"
+  ],
+  "competitor_dirs": {
+    "evals:design": "plugins/evals/skills/design",
+    "evals:plugin-eval": "plugins/evals/skills/plugin-eval",
+    "evals:validate": "plugins/evals/skills/validate"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How should I think about evaluating an LLM feature that summarizes legal documents?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What's the difference between exact match grading and having a model judge the output, and when do I pick which?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My success criterion says 'the bot should be accurate'. How do I rewrite that so it's measurable?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is a golden answer a good idea for open-ended generation tasks, or does a rubric work better?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How many test cases do I need before I can trust an eval result for a prompt?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We call the Messages API from a service. Which kinds of evals fit that part of the repo, and which fit the rest?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What does Anthropic recommend for grading a response that has several acceptable phrasings?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want to evaluate the whole repo, not just one prompt. What are the options for each piece?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Explain how to measure prompt quality properly. I don't have a suite yet and don't know where to start."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Generate the eval cases and criteria doc for my skill right now."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run the evals for my plugin against the no-plugin baseline."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Lint my eval suite so it loads cleanly."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Sweep model and effort settings against my existing eval suite to find the cheapest config that still passes."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explain how transformer attention works."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a pytest for my billing module."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is my skill's evals.json schema valid for skill-creator?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me a plain-language explanation of what a p-value is."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What is the delta in this run, and is the improvement real?"
+    }
+  ]
+}

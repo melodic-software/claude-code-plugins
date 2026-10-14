@@ -17,7 +17,7 @@ from conftest import SCRIPTS, envelope, run_cli
 
 RULES = json.loads((SCRIPTS.parent / "reference" / "sweep-rules.json").read_text(encoding="utf-8"))
 RULE = {rule["metric"]: rule for rule in RULES["rules"]}
-LENSES = {"cost", "cache", "context", "interruption", "permission", "delegation", "hooks"}
+LENSES = {"cost", "cache", "context", "interruption", "permission", "delegation", "hooks", "churn"}
 ROUTES = {"retro-codify", "work-item", "unhobble-experiment", "config-change"}
 UNITS = {"tokens", "s", "ms", "count", "ratio", "usd"}
 
@@ -447,3 +447,86 @@ def test_suppressed_excerpts_print_nothing_and_exit_1(data_dir):
     assert result.returncode == 1
     assert result.stdout == ""
     assert "redaction" in result.stderr
+
+
+def edited(session_id: str, prs: list[tuple[str, int]] | None, paths: dict | None) -> dict:
+    """A store record carrying `prs` and `edits.by_relpath` as collect.py writes them; None drops the field."""
+    rec = record(session_id)
+    if prs is not None:
+        rec["prs"] = [{"repo": repo, "number": number} for repo, number in prs]
+    if paths is not None:
+        rec["edits"] = {"files": len(paths), "by_relpath": paths}
+    return rec
+
+
+def test_churn_sums_one_paths_edits_across_the_sessions_of_one_pr(data_dir):
+    # The rule's threshold is 5: a.py is edited 4 + 3 = 7 times within PR 12, so it is over;
+    # b.py's 2 + 3 = 5 is not, and PR 13's a.py (6) is its own ticket. The placeholders collect.py
+    # stores in place of a path name no file, so PR 14 has no pair. Ties order by repo, then PR number.
+    write_store(
+        data_dir,
+        edited("s1", [("o/r", 12)], {"a.py": 4, "b.py": 2}),
+        edited("s2", [("o/r", 12)], {"a.py": 3, "b.py": 3}),
+        edited("s3", [("o/r", 13)], {"a.py": 6}),
+        edited("s4", [("o/r", 12), ("o/r", 13)], {"a.py": 50}),
+        edited("s5", [("o/r", 14)], {"<suppressed>": 40}),
+        edited("s6", [("o/r", 14)], {"<too-long>": 40}),
+        edited("s7", [("o/r", 100)], {"c.py": 6}),
+        edited("s8", [("o/r", 9)], {"c.py": 6}),
+    )
+    result = sweep(data_dir)
+    assert result.returncode == 0, result.stdout + result.stderr
+    env = envelope(result)
+    assert env["data"]["metrics"]["edits.churn_per_pr"] == {"value": 6, "unit": "count", "n": 5}
+    churn = findings_by_metric(env)["edits.churn_per_pr"]
+    assert churn["threshold"] == 5 and churn["value"] == 7 and churn["lens"] == "churn"
+    assert churn["evidence"] == [
+        {"repo": "o/r", "number": 12, "path": "a.py", "edits": 7, "sessions": ["s1", "s2"]},
+        {"repo": "o/r", "number": 9, "path": "c.py", "edits": 6, "sessions": ["s8"]},
+        {"repo": "o/r", "number": 13, "path": "a.py", "edits": 6, "sessions": ["s3"]},
+        {"repo": "o/r", "number": 100, "path": "c.py", "edits": 6, "sessions": ["s7"]},
+    ]
+    reasons = [u["reason"] for u in env["data"]["unchecked"] if u["what"] == "edits.churn_per_pr"]
+    assert any(reason.startswith("review outcome not linked") for reason in reasons)
+    md = sweep(data_dir, "--format", "md").stdout.split("## Findings", 1)[1].split("## Drift", 1)[0]
+    line = next(row for row in md.splitlines() if row.startswith("- `edits.churn_per_pr`"))
+    assert line == (
+        "- `edits.churn_per_pr`: `o/r`#12 `a.py` (7 edits: s1, s2), `o/r`#9 `c.py` (6 edits: s8), "
+        "`o/r`#13 `a.py` (6 edits: s3), `o/r`#100 `c.py` (6 edits: s7)"
+    )
+
+
+def test_churn_joins_each_path_onto_its_sessions_working_directory(data_dir):
+    # One file edited from the checkout root and from a subdirectory is one path (3 + 3 = 6, over 5);
+    # same-named files in two subdirectories stay two paths (3 each, not over).
+    def at(session_id, cwd, paths):
+        rec = edited(session_id, [("o/r", 12)], paths)
+        rec["cwd"] = cwd
+        return rec
+
+    write_store(
+        data_dir,
+        at("s1", "/w", {"sub/a.py": 3}),
+        at("s2", "/w/sub", {"a.py": 3}),
+        at("s3", "/w/front", {"package.json": 3}),
+        at("s4", "/w/back", {"package.json": 3}),
+    )
+    env = envelope(sweep(data_dir))
+    assert findings_by_metric(env)["edits.churn_per_pr"]["evidence"] == [
+        {"repo": "o/r", "number": 12, "path": "/w/sub/a.py", "edits": 6, "sessions": ["s1", "s2"]},
+    ]
+
+
+def test_records_without_prs_or_edits_sweep_cleanly(data_dir):
+    write_store(
+        data_dir,
+        edited("no-prs", None, {"a.py": 30}),
+        edited("no-edits", [("o/r", 12)], None),
+        edited("empty-prs", [], {"a.py": 30}),
+        record("neither"),
+    )
+    result = sweep(data_dir, "--format", "md")
+    assert result.returncode == 0, result.stdout + result.stderr
+    env = envelope(sweep(data_dir))
+    assert env["data"]["metrics"]["edits.churn_per_pr"] == {"value": None, "unit": "count", "n": 0}
+    assert "edits.churn_per_pr" not in findings_by_metric(env)

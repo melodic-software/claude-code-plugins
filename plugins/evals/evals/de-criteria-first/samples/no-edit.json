@@ -1,0 +1,57 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:design"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/repo/src/summarize.py"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/repo/README.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "one call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/repo/src/summarize.py"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/repo/README.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "after a read"
+    }
+  ]
+}

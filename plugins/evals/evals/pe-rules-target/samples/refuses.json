@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "No. Every run starts from a throwaway home with no CLAUDE.md, rules, settings or memory, so your rules never load, and a shim that re-injects them measures the shim. Use /harness-config:unhobble instead: strip the instructions on a branch, log where the model stumbles, and restore only what repeated evidence earns."
+    },
+    {
+      "answer": "Plugin eval can't measure that: each run uses a clean, isolated home where CLAUDE.md isn't loaded. The route is `/harness-config:unhobble`."
+    },
+    {
+      "answer": "Not with plugin eval; it runs in a fresh temporary home, and CLAUDE.md is absent there. Instead, remove the rules for a while and watch what goes wrong in real work."
+    },
+    {
+      "answer": "The skill refuses a CLAUDE.md or rules target: each run starts from a throwaway home."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Absolutely: measure with and without it. Or try /harness-config:unhobble.",
+      "why": "no refusal"
+    },
+    {
+      "answer": "Sure. Runs start from a fresh home, so CLAUDE.md isn't loaded there. Copy the rules into the case prompt and A/B them; then strip a rule and see what breaks.",
+      "why": "no refusal"
+    }
+  ]
+}

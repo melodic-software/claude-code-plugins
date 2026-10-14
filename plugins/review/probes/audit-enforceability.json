@@ -1,0 +1,132 @@
+{
+  "skill": "review:audit-enforceability",
+  "plugin": "review",
+  "skill_dir": "plugins/review/skills/audit-enforceability",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other model-invoked review skills.",
+  "competitors": [
+    "review:explain-change",
+    "review:fanout",
+    "review:quality-gate",
+    "review:ratchet",
+    "review:code-review",
+    "review:security-review"
+  ],
+  "competitor_dirs": {
+    "review:explain-change": "plugins/review/skills/explain-change",
+    "review:fanout": "plugins/review/skills/fanout",
+    "review:quality-gate": "plugins/review/skills/quality-gate",
+    "review:ratchet": "plugins/review/skills/ratchet",
+    "review:code-review": "plugins/review/skills/code-review",
+    "review:security-review": "plugins/review/skills/security-review"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here is the findings file from last week's review run at .work/review/findings.md. Which of these could a static analyzer flag instead of us catching them by hand each time?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We keep getting the same missing ConfigureAwait comment in review. Go through findings-2026-10.jsonl and tell me what deterministic check would stop it recurring."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "For each row in this review findings export, propose the cheapest automated rule that would catch it: editorconfig, a Roslyn analyzer, Semgrep, an arch test, or a hook."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can any of the review comments in review-findings.md be turned into a lint rule or an architecture test? Write proposals only, don't build them."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The reviewer agents flagged the same layering violation three PRs in a row. Look at the findings file and tell me which enforcement level should own it."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Classify these persisted review findings by whether a machine check could catch them or they genuinely need a model."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm tired of paying a model to re-find null-check issues every review. Map the findings in .work/fanout/merged.json to deterministic checks."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which findings in this file are Semgrep-able and which need LLM judgment? Give me one proposal per finding with an owner."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Turn the recurring items in our saved review findings into candidates for analyzer rules or hooks."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Read findings.md and suggest, per finding, whether a custom analyzer or an editorconfig severity bump would cover it."
+    },
+    {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do an enforceability pass on the review output we saved yesterday."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Freeze the current count of CA2007 violations as a CI ceiling so it can only go down."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run every reviewer on my branch and give me one combined ranked findings report."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a Semgrep rule that bans eval() in our JavaScript code and add it to CI."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review this diff for bugs before I open the PR."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Apply the persisted review findings from the last breadth review run."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is our convention of file-scoped namespaces something a tool could check in general?"
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Set up ESLint with the recommended config in this repo."
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "skill": "review:quality-gate",
+  "plugin": "review",
+  "skill_dir": "plugins/review/skills/quality-gate",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other model-invoked review skills.",
+  "competitors": [
+    "review:audit-enforceability",
+    "review:explain-change",
+    "review:fanout",
+    "review:ratchet",
+    "review:code-review",
+    "review:security-review"
+  ],
+  "competitor_dirs": {
+    "review:audit-enforceability": "plugins/review/skills/audit-enforceability",
+    "review:explain-change": "plugins/review/skills/explain-change",
+    "review:fanout": "plugins/review/skills/fanout",
+    "review:ratchet": "plugins/review/skills/ratchet",
+    "review:code-review": "plugins/review/skills/code-review",
+    "review:security-review": "plugins/review/skills/security-review"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I think the feature's done. Can you check it over before I call it ready?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Self-review my working tree changes."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Does what I built actually match the acceptance criteria in issue 341?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Look at the new dependency between Orders and Billing and tell me if it breaks our layering."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "If I change the signature of ParseConfig, what else breaks? Find the callers outside my diff."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run a security-focused review on the auth middleware I just changed."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Implementation is complete, give it one review pass."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We shipped every item in the spec container for the export feature; do the closing review."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check my diff against the plan in PLAN.md."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Review the code I changed on this branch for quality and conventions."
+    },
+    {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Who depends on the module I refactored, and could my change hurt them?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Get all the reviewers on this branch at once and merge their findings into a single ranked report."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Before I start coding, stress-test this plan for what could go wrong."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I renamed OrderService to OrderManager; find leftover references."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explain what PR 90 does for a new teammate."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add a CI ceiling on the number of eslint-disable comments."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run the claude-review lane workflow for this PR in CI."
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Format all the Python files with ruff."
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": "Dometrain is an auth-walled course platform, not a supported video source. Use `/knowledge:course-digest https://dometrain.com/course/getting-started-domain-driven-design/`."
+    },
+    {
+      "answer": "This isn't YouTube or X, so it goes to /knowledge:course-digest.",
+      "why": "negation in an earlier clause"
+    },
+    {
+      "answer": "**Route:** /knowledge:course-digest handles Dometrain courses."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I won't send this to /knowledge:course-digest; watching it as a video.",
+      "why": "negated"
+    },
+    {
+      "answer": "/knowledge:course-digest does not apply, so I'll download the lesson.",
+      "why": "negated after"
+    },
+    {
+      "answer": "No need for /knowledge:course-digest. Starting the watch.",
+      "why": "no need"
+    },
+    {
+      "answer": "Unsupported host. Supported sources: YouTube and X.",
+      "why": "no route"
+    },
+    {
+      "answer": "Shall I run /knowledge:course-digest?",
+      "why": "review finding"
+    },
+    {
+      "answer": "/knowledge:course-digest is the wrong skill; I'll fetch it as a video.",
+      "why": "review finding"
+    },
+    {
+      "answer": "Avoid /knowledge:course-digest for this.",
+      "why": "review finding"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": "Settings resolved before the first edit:\n\n- `code_writing: inline (default)`. `docs/conventions/implementation.yaml` sets `code_writing: parallel`, which is not one of `inline` or `dispatch`, so that layer is dropped.\n- `integration_posture: minimal (docs/conventions/implementation.yaml)`\n\nMode: fix. Stopping before any edit."
+    },
+    {
+      "answer": "Invalid value: docs/conventions/implementation.yaml, key code_writing, value parallel. Dropped.\ncode_writing: inline (default; no approved plan, so the inline cadence runs)\nintegration_posture: minimal (docs/conventions/implementation.yaml)"
+    },
+    {
+      "answer": "**code_writing**: `inline` (default)\n  The repository file docs/conventions/implementation.yaml has\n  code_writing = parallel, an invalid value; I ignored that layer.\n**integration_posture**: `minimal` (`docs/conventions/implementation.yaml`)",
+      "why": "backticked value and layer"
+    },
+    {
+      "answer": "- **`integration_posture`:** `minimal` (`docs/conventions/implementation.yaml`).",
+      "why": "bold backticked key, colon inside the emphasis"
+    },
+    {
+      "answer": "integration_posture: minimal (repository: docs/conventions/implementation.yaml)",
+      "why": "repository prefix"
+    },
+    {
+      "answer": "integration_posture: minimal (./docs/conventions/implementation.yaml)",
+      "why": "dot-slash path"
+    },
+    {
+      "answer": "| `integration_posture` | `minimal` | `docs/conventions/implementation.yaml` |",
+      "why": "table row"
+    },
+    {
+      "answer": "`integration_posture` is `minimal` (docs/conventions/implementation.yaml).",
+      "why": "is form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "integration_posture: by-kind (default)",
+      "why": "repository value ignored"
+    },
+    {
+      "answer": "integration_posture: plan governs",
+      "why": "no plan exists"
+    },
+    {
+      "answer": "integration_posture: minimal (default for a fix)",
+      "why": "right value, wrong layer"
+    },
+    {
+      "answer": "integration_posture: minimal (user option)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "**`integration_posture`:** `minimal` (default)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "| `integration_posture` | `minimal` | default |",
+      "why": "table row, wrong layer"
+    },
+    {
+      "answer": "`integration_posture` is `by-kind` (docs/conventions/implementation.yaml).",
+      "why": "wrong value"
+    }
+  ]
+}

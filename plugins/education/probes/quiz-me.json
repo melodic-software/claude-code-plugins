@@ -1,0 +1,124 @@
+{
+  "skill": "education:quiz-me",
+  "plugin": "education",
+  "skill_dir": "plugins/education/skills/quiz-me",
+  "ranking_note": "Authored blind from the before descriptions at commit c67216035c6a99df142a1b24c5ce30c74fc7a7a6, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the two other model-invoked education skills.",
+  "competitors": [
+    "education:explain",
+    "education:illustrate"
+  ],
+  "competitor_dirs": {
+    "education:explain": "plugins/education/skills/explain",
+    "education:illustrate": "plugins/education/skills/illustrate"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Quiz me on the refactor we just finished."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before we merge, I want a comprehension check on what you changed, with questions at the end."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you check that I really followed all the work from this session?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Generate a report of what we did on this change, with a quiz I have to pass."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Test me on the decisions we made in that migration."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Check whether I grasp this change."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Pull up the earlier report for ticket PLAT-412."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me a recap page of the work you just completed plus some questions to answer at the bottom."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I merged your changes without reading them. Quiz me so I know what I missed."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Bring back the write-up from last week's caching work."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Verify the change we just made achieves what we planned and the tests pass."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I don't understand this diff. Explain it in plain words."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Quiz questions on the French Revolution for my history class, please."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Walk me through a pull request as a digest with risk areas, for someone else to review."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Set up a multi-week coaching program so I learn Go, with regular practice."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Draw a diagram of the architecture we just built."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run the build and lint and tell me if everything is green."
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Summarize what we changed today in two sentences."
+    }
+  ]
+}

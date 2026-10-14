@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "## Row A\nALLOWED: billing/rounding.py, tests/test_rounding.py\nFORBIDDEN: billing/tax.py, tests/test_tax.py, everything else\n\n## Row B\nALLOWED: billing/tax.py, tests/test_tax.py\nFORBIDDEN: billing/rounding.py, tests/test_rounding.py",
+      "why": "catch-all after the sibling paths"
+    },
+    {
+      "answer": "FORBIDDEN:\n- Every other file. In particular:\n  - `/srv/dev/wt/rounding/billing/tax.py`\n  - `/srv/dev/wt/rounding/tests/test_tax.py`",
+      "why": "observed: catch-all followed by the sibling paths"
+    },
+    {
+      "answer": "FORBIDDEN\n- Every other file in the repo. This includes /srv/dev/wt/rounding/billing/tax.py\n  and /srv/dev/wt/rounding/tests/test_tax.py.",
+      "why": "observed: catch-all that names the sibling paths"
+    },
+    {
+      "answer": "If the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.",
+      "why": "escalation clause only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Row A\nALLOWED: billing/rounding.py, tests/test_rounding.py\nFORBIDDEN: everything else\n\n## Row B\nALLOWED: billing/tax.py, tests/test_tax.py\nFORBIDDEN: billing/rounding.py, tests/test_rounding.py\nAcceptance: no TAX_RATE remains in billing/tax.py; pytest tests/test_tax.py passes.",
+      "why": "row A's FORBIDDEN is only 'everything else'"
+    },
+    {
+      "answer": "## Row A\nALLOWED: billing/rounding.py, tests/test_rounding.py\nFORBIDDEN: billing/tax.py, tests/test_tax.py\nAcceptance: round_half_even in billing/rounding.py returns 2.68 for 2.675; pytest tests/test_rounding.py passes.\n\n## Row B\nALLOWED: billing/tax.py, tests/test_tax.py\nFORBIDDEN: everything else",
+      "why": "row B's FORBIDDEN is only 'everything else'"
+    },
+    {
+      "answer": "**FORBIDDEN**\n\n- All other files",
+      "why": "bulleted catch-all only"
+    },
+    {
+      "answer": "FORBIDDEN: every other file in the repo.",
+      "why": "catch-all sentence only"
+    }
+  ]
+}

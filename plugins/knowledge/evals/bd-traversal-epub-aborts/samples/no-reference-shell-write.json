@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p .claude/skills/retry-patterns/reference",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls .claude/skills/retry-patterns/reference 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '# Backoff\\n' > .claude/skills/retry-patterns/reference/backoff.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat notes.md | tee .claude/skills/retry-patterns/reference/notes.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp cache/OEBPS/ch1.xhtml .claude/skills/retry-patterns/reference/ch1.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    }
+  ]
+}

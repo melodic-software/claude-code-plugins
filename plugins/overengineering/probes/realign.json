@@ -1,0 +1,130 @@
+{
+  "skill": "overengineering:realign",
+  "plugin": "overengineering",
+  "skill_dir": "plugins/overengineering/skills/realign",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings and nearby model-invoked skills, as near-miss targets.",
+  "competitors": [
+    "overengineering:audit",
+    "overengineering:delta",
+    "overengineering:justify",
+    "harness-config:audit-automation-gaps",
+    "code-tidying:audit-dead-code"
+  ],
+  "competitor_dirs": {
+    "overengineering:audit": "plugins/overengineering/skills/audit",
+    "overengineering:delta": "plugins/overengineering/skills/delta",
+    "overengineering:justify": "plugins/overengineering/skills/justify",
+    "harness-config:audit-automation-gaps": "plugins/harness-config/skills/audit-automation-gaps",
+    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The review flagged the size-limit check as not worth it. Turn it off in config first and we'll see if anyone notices."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Apply the accepted findings from the CI gate review, one at a time with my okay on each."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Okay, retire the hooks that were judged dead weight. Start with the first and wait for me."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Execute finding OE-003: disable that workflow, keep the file, and we'll delete it after a quiet week."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The audit already decided the spellcheck job goes. Make it happen."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Now act on the hook and CI findings we agreed to; disable before removing."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Finding 4 has been disabled for two weeks with no fallout. Delete it for good."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Work through the approved retirements from the enforcement review, gating each with me."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Switch off the bot integration the review marked for retirement and observe."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Let's carry out the removal plan for the redundant pre-push checks, one item per approval."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which of our CI checks are overbuilt? Report only, change nothing."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Revert the commit that turned off the lint job yesterday, it broke the release."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a hook that blocks commits containing secrets."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Remove the unused exports the dead-code scan listed."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Has any finding changed since the last gate review?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Does the pre-push hook script have a reason to exist?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Apply the rename plan for the docs folder file names."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which MCP servers should we install for this repo?"
+    }
+  ]
+}

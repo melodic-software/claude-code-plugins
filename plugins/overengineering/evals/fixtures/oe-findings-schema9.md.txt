@@ -1,0 +1,23 @@
+---
+type: overengineering-findings
+schema: 9
+mode: walk
+date: 20261009T141522Z
+scope: vcs-hooks
+branch: main
+---
+
+# Overengineering findings
+
+## Evidence availability
+
+- tier 2: present (probe: full history)
+
+## Findings
+
+### 3f9a1c07b2e48d65
+
+- **Layer:** vcs-hooks
+- **Artifact:** .githooks/pre-commit
+- **Verdict:** RETIRE
+- **Status:** OPEN

@@ -1,0 +1,119 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".claude/skills/outside-notes/SKILL.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/outside-notes/SKILL.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/outside-notes/reference/backoff-author.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/data/project-1a2b3c4d/outside-notes/field-notes-progress.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/data/project-1a2b3c4d/outside-notes/field-notes-checklist.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".claude/skills/../../outside-notes/SKILL.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "../../outside-notes/SKILL.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/outside-notes/SKILL.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/outside-notes/reference/backoff.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/..\\..\\outside-notes\\SKILL.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

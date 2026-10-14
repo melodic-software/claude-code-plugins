@@ -1,0 +1,73 @@
+{
+  "pass": [
+    {
+      "answer": "Settings for phase 2:\n\n- competing_attempts: auto (docs/conventions/implementation.yaml)\n- competing_attempt_count: 3 (default). docs/conventions/implementation.yaml sets competing_attempt_count: 7, which is invalid (not a whole number from 2 to 5), so that layer is dropped.\n- drain_cadence: batched (docs/conventions/implementation.yaml)\n\nPhase 2 is marked multi-shape, so it would get 3 attempts."
+    },
+    {
+      "answer": "Invalid: `docs/conventions/implementation.yaml` key `competing_attempt_count` value `7` is outside 2 to 5.\n`competing_attempt_count: 3` (default)\n`competing_attempts: auto` (`docs/conventions/implementation.yaml`)\n\nPhase 2 gets 3 attempts.",
+      "why": "terse invalid line"
+    },
+    {
+      "answer": "**competing_attempts**: auto (from docs/conventions/implementation.yaml)\n**competing_attempt_count**: 3 (default)\n  docs/conventions/implementation.yaml has a value of 7 for competing_attempt_count,\n  which is out of range; the repository layer is dropped for that key.\n",
+      "why": "split across lines"
+    },
+    {
+      "answer": "- **`competing_attempts`:** `auto` (`docs/conventions/implementation.yaml`).\n- **`competing_attempt_count`:** `3` (default). The repo file sets it to `7`, but the allowed range is 2 to 5, so the repo value is dropped.",
+      "why": "value is dropped"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml: competing_attempt_count 7 is invalid.",
+      "why": "key then value"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets competing_attempt_count; competing_attempt_count is 7, which is above the 2-5 range.",
+      "why": "above the range"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml has competing_attempt_count: 7, must be 2 to 5; dropped.",
+      "why": "must be, dropped"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "competing_attempt_count: 7 (docs/conventions/implementation.yaml)",
+      "why": "invalid value taken as valid"
+    },
+    {
+      "answer": "competing_attempt_count: 5 (docs/conventions/implementation.yaml sets 7, clamped to the maximum)",
+      "why": "clamped, never named invalid"
+    },
+    {
+      "answer": "competing_attempt_count is invalid, so it takes the default 3.",
+      "why": "file and value not named"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets competing_attempt_count: seven, which is out of range.",
+      "why": "spelled-out number"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets competing_attempt_count: 7, which is not invalid.",
+      "why": "negated"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets competing_attempt_count: 7. The allowed range is 2 to 5, but the repo value is not dropped; phase 2 gets 7 attempts.",
+      "why": "range stated, invalid value kept"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets competing_attempt_count: 7. No invalid values found.",
+      "why": "no invalid values"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets competing_attempt_count: 7; nothing invalid there.",
+      "why": "nothing invalid"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets competing_attempt_count: 7, above the maximum but allowed.",
+      "why": "but allowed"
+    },
+    {
+      "answer": "Is competing_attempt_count: 7 in docs/conventions/implementation.yaml invalid?",
+      "why": "a question"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/knowledge/skills/video-digest/extraction/setup-deps.mjs\" --data-dir \"/data/knowledge\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/youtube-watch/QUEUE.md",
+            "content": "| 1 | pending |"
+          }
+        }
+      ]
+    }
+  ]
+}

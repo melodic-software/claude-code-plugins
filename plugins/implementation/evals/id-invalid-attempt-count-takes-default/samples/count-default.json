@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": "Settings for phase 2:\n\n- competing_attempts: auto (docs/conventions/implementation.yaml)\n- competing_attempt_count: 3 (default). docs/conventions/implementation.yaml sets competing_attempt_count: 7, which is invalid (not a whole number from 2 to 5), so that layer is dropped.\n- drain_cadence: batched (docs/conventions/implementation.yaml)\n\nPhase 2 is marked multi-shape, so it would get 3 attempts."
+    },
+    {
+      "answer": "Invalid: `docs/conventions/implementation.yaml` key `competing_attempt_count` value `7` is outside 2 to 5.\n`competing_attempt_count: 3` (default)\n`competing_attempts: auto` (`docs/conventions/implementation.yaml`)\n\nPhase 2 gets 3 attempts.",
+      "why": "backticked line"
+    },
+    {
+      "answer": "**competing_attempts**: auto (from docs/conventions/implementation.yaml)\n**competing_attempt_count**: 3 (default)\n  docs/conventions/implementation.yaml has a value of 7 for competing_attempt_count,\n  which is out of range; the repository layer is dropped for that key.\n",
+      "why": "bold key"
+    },
+    {
+      "answer": "- **`competing_attempt_count`:** `3` (default). The repo file sets it to `7`, but the allowed range is 2 to 5, so the repo value is dropped.",
+      "why": "bold backticked key, colon inside the emphasis"
+    },
+    {
+      "answer": "competing_attempt_count: 3 (the default)",
+      "why": "the default"
+    },
+    {
+      "answer": "| `competing_attempt_count` | `3` | built-in default |",
+      "why": "table row"
+    },
+    {
+      "answer": "`competing_attempt_count` is `3` (default).",
+      "why": "is form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "competing_attempt_count: 5 (clamped from 7)",
+      "why": "clamped"
+    },
+    {
+      "answer": "competing_attempt_count: 7 (docs/conventions/implementation.yaml)",
+      "why": "invalid value resolved"
+    },
+    {
+      "answer": "competing_attempt_count: three (default)",
+      "why": "spelled-out number"
+    },
+    {
+      "answer": "competing_attempt_count: 3 (docs/conventions/implementation.yaml)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "Phase 2 gets 3 attempts, one per constraint.",
+      "why": "no setting line"
+    },
+    {
+      "answer": "**`competing_attempt_count`:** `3` (docs/conventions/implementation.yaml)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "| `competing_attempt_count` | `7` | default |",
+      "why": "table row, wrong value"
+    },
+    {
+      "answer": "`competing_attempt_count` is `3` (docs/conventions/implementation.yaml).",
+      "why": "wrong layer"
+    }
+  ]
+}

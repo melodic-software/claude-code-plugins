@@ -1,0 +1,128 @@
+{
+  "skill": "knowledge:docpage-digest",
+  "plugin": "knowledge",
+  "skill_dir": "plugins/knowledge/skills/docpage-digest",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other four knowledge skills: book-distill, course-digest, map-corpus, video-digest.",
+  "competitors": [
+    "knowledge:book-distill",
+    "knowledge:course-digest",
+    "knowledge:map-corpus",
+    "knowledge:video-digest"
+  ],
+  "competitor_dirs": {
+    "knowledge:book-distill": "plugins/knowledge/skills/book-distill",
+    "knowledge:course-digest": "plugins/knowledge/skills/course-digest",
+    "knowledge:map-corpus": "plugins/knowledge/skills/map-corpus",
+    "knowledge:video-digest": "plugins/knowledge/skills/video-digest"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Pull https://docs.github.com/en/actions/using-jobs/using-concurrency into our knowledge base, verified."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Ingest this one vendor page: https://learn.microsoft.com/azure/storage/blobs/storage-blob-overview"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Take the Claude Code hooks reference page and turn it into a knowledge slice with its claims checked: https://code.claude.com/docs/en/hooks"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here's a single docs URL, https://docs.stripe.com/payments/payment-intents. Digest it and hand me something I can interview against."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Process the PostgreSQL page on index types into our knowledge store: https://www.postgresql.org/docs/current/indexes-types.html"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you capture the Terraform docs page for the S3 backend as a checked knowledge slice? https://developer.hashicorp.com/terraform/language/backend/s3"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want the Kubernetes Pod lifecycle page ingested with its claims verified: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run this official documentation page through the ingest pipeline: https://docs.python.org/3/library/asyncio-task.html"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Turn the npm package.json reference page into a knowledge slice we can query: https://docs.npmjs.com/cli/v10/configuring-npm/package-json"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Grab the Cloudflare Workers limits page and verify everything before adding it to our knowledge: https://developers.cloudflare.com/workers/platform/limits/"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Map the entire Kubernetes docs site and queue up the pages worth ingesting."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Turn this PDF of a networking textbook into skill reference files."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write API documentation for our new payments endpoint."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What does the Python asyncio docs say about TaskGroup? Just answer quickly."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Summarize this news article: https://example.com/news/ai-regulation"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Digest this Udemy course and tell me what applies here: https://www.udemy.com/course/example-aws/"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Watch https://youtu.be/abc123XYZ and give me the transcript."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Fetch these 30 docs URLs across the Azure and Bicep sites and plan which to ingest."
+    }
+  ]
+}

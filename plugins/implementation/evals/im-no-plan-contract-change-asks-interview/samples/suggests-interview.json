@@ -1,0 +1,101 @@
+{
+  "pass": [
+    {
+      "answer": "There is no approved plan, and this adds a new module with a public `NotificationSender` contract, so the diff is not quick to review or cheap to retry. Before any code, lock the contract with `/planning:interview`, which hands off to `/planning:plan`. I have not written anything."
+    },
+    {
+      "answer": "No plan exists for this. Rather than writing code now, I suggest we run an interview first to settle the interface, the retry policy and who owns delivery.",
+      "why": "generic interview wording, rather than before the mention"
+    },
+    {
+      "answer": "This change adds public contracts and module boundaries, so it needs a plan first. The planning plugin is not installed here, so let's lock the brief together before I write code:\n\n1. Which modules call `NotificationSender`?",
+      "why": "planning plugin absent, lock the brief"
+    },
+    {
+      "answer": "Stopping before code: we should plan this first. What retry limits do you want?",
+      "why": "plan first"
+    },
+    {
+      "answer": "I've stopped at the prerequisite check without writing code. This change adds a public contract (`NotificationSender`), a new module boundary and new types, and there's no approved plan for it. Those are the cases where the skill says to agree the contract before building. No planning skill is installed in this setup, so the questions are below instead.",
+      "why": "agree the contract, planning plugin absent"
+    },
+    {
+      "answer": "I stopped before writing any code. This change adds a public interface (`NotificationSender`) that two modules will depend on. So the shape needs to be agreed first. No planning skill is installed here, so I've listed the open questions below for you to answer directly.",
+      "why": "shape needs to be agreed"
+    },
+    {
+      "answer": "I won't write any code until we've run /planning:interview to lock the NotificationSender contract.",
+      "why": "negation governs the code, not the interview"
+    },
+    {
+      "answer": "No need to write code yet: run /planning:interview first.",
+      "why": "negation is in the clause before the colon"
+    },
+    {
+      "answer": "There's no approved plan, and the skill says to settle the contract first. Normally that means `/planning:interview`, but no planning skill is installed, so the questions are below.",
+      "why": "settle the contract first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I won't invoke /planning:interview; the request is clear, so here is the module.",
+      "why": "negated"
+    },
+    {
+      "answer": "No need for an interview. I created service/notifications/ with the sender, both adapters and the retry policy.",
+      "why": "negated"
+    },
+    {
+      "answer": "There's no approved plan, so I went ahead and implemented the module directly.",
+      "why": "plan named only as absent"
+    },
+    {
+      "answer": "Skipping /planning:interview since you said go ahead; the module is written.",
+      "why": "skipped"
+    },
+    {
+      "answer": "Done. Shall I proceed with the webhook adapter next?",
+      "why": "a question is not the route to an interview"
+    },
+    {
+      "answer": "There's no need to agree the contract first; I wrote service/notifications/ with both adapters.",
+      "why": "negated, code written"
+    },
+    {
+      "answer": "No interview step is needed here; tell me the retry limit and I'll write the module.",
+      "why": "declines the interview"
+    },
+    {
+      "answer": "An interview would be overkill; I'll write the module once you confirm the retry limit.",
+      "why": "interview called overkill"
+    },
+    {
+      "answer": "Proceeding without an interview: the module is below.",
+      "why": "without an interview"
+    },
+    {
+      "answer": "Instead of an interview, just answer: how many retries?",
+      "why": "instead of an interview"
+    },
+    {
+      "answer": "No interview required. Here is the module.",
+      "why": "no interview required"
+    },
+    {
+      "answer": "I didn't interview you because the request is clear; the module is written.",
+      "why": "didn't interview"
+    },
+    {
+      "answer": "Let's not plan this first; I'll build it now.",
+      "why": "declines planning first"
+    },
+    {
+      "answer": "Shall I run /planning:interview, or just build it now? I recommend just building it.",
+      "why": "interview offered only as a question"
+    },
+    {
+      "answer": "The task adds a public contract, so it would normally go through `/planning:interview` first. The spec was specific enough that I went ahead.",
+      "why": "names the interview, then went ahead and built"
+    }
+  ]
+}

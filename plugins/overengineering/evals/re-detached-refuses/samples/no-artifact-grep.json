@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [], "why": "no grep"},
+    {"answer": [{"tool": "Grep", "input": {"pattern": "detached", "path": "plugins/overengineering"}}], "why": "unrelated grep"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Grep", "input": {"pattern": "id:", "path": ".work/overengineering/main"}}], "why": "searched the home"},
+    {"answer": [{"tool": "Grep", "input": {"pattern": "RETIRE", "path": ".work"}}], "why": "searched .work"}
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Mode | Topic | Records | Frontier | Last touched | Due for review |\n|---|---|---|---|---|---|\n| topic | sql-joins | 2 | LEFT JOIN | 2026-10-13 | none due |",
+      "why": "LEFT JOIN"
+    },
+    {
+      "answer": "topic / sql-joins: two records; next up LEFT JOIN; touched today; due: INNER JOIN retrieval.",
+      "why": "LEFT JOIN"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Mode | Topic | Records | Frontier | Last touched | Due for review |\n|---|---|---|---|---|---|\n| topic | sql-joins | 2 | INNER JOIN | 2026-10-13 | none due |",
+      "why": "frontier is the concept already demonstrated"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    }
+  ]
+}

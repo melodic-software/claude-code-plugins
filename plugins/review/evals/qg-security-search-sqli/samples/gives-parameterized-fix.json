@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | CRITICAL | high | Injection | SQL injection (CWE-89) via `q` in the LIKE clause. | src/routes/search.js:12 | Bind the term with a `?` placeholder: `db.prepare(\"... name LIKE ? ...\").all(`%${term}%`)` |",
+      "why": "placeholder fix"
+    },
+    {
+      "answer": "P1, src/routes/search.js:10. Any visitor can inject arbitrary SQL. Fix: use a parameterized query.",
+      "why": "parameterized"
+    },
+    {
+      "answer": "Blocking: search.js is open to SQLi. Use prepared statements as products.js does.",
+      "why": "prepared statements"
+    },
+    {
+      "answer": "Critical sql injection in the search route. Fix: parameterise the LIKE term, or bind the term as a named parameter.",
+      "why": "British spelling, bind the term"
+    },
+    {
+      "answer": "| 1 | **CRITICAL** | High | SQL injection (CWE-89) | `req.query.q` is pasted straight into the SQL string, so a UNION SELECT returns users' emails and password hashes. | `src/routes/search.js:9-17` | Pass the search term as a `?` parameter, the way `src/routes/products.js:8-9` already does. |",
+      "why": "observed Opus reply: the fix names a `?` parameter without the word placeholder or bind"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "src/routes/search.js: no SQL injection risk here; products.js already uses placeholders.",
+      "why": "negated text"
+    },
+    {
+      "answer": "src/routes/search.js is not vulnerable to SQL injection. Parameterized queries would be overkill.",
+      "why": "negated, fix term present"
+    },
+    {
+      "answer": "src/routes/search.js builds its SQL from strings; fine for an internal tool. Could switch to placeholders someday.",
+      "why": "mention without a finding"
+    },
+    {
+      "answer": "CRITICAL: SQL injection in src/routes/search.js:12 lets anyone dump the users table.",
+      "why": "fix-free mention"
+    },
+    {
+      "answer": "P1 SQL injection in src/routes/search.js. Fix: escape single quotes in the term before building the query.",
+      "why": "escaping, not a bound parameter"
+    },
+    {
+      "answer": "CRITICAL: SQL injection in src/routes/search.js:12. The term is not passed as a parameter; escape quotes in it before concatenating.",
+      "why": "negated parameter phrase with an escaping fix"
+    },
+    {
+      "answer": "SQL injection in src/routes/search.js:12, the query isn't parameterized, so anyone can dump the users table.",
+      "why": "the term describes the bug; no fix given"
+    },
+    {
+      "answer": "SQL injection: search.js runs a non-parameterized query. Fix: strip quotes.",
+      "why": "non-parameterized describes the bug; the fix strips quotes"
+    },
+    {
+      "answer": "SQL injection: the query is built without placeholders. Fix: validate q against a character blocklist.",
+      "why": "without placeholders describes the bug; the fix is a blocklist"
+    },
+    {
+      "answer": "SQL injection: the term is never parameterized; escape it.",
+      "why": "never parameterized describes the bug; the fix is escaping"
+    },
+    {
+      "answer": "SQL injection: unlike products.js, which uses a placeholder, this concatenates q. Fix: escape single quotes in q.",
+      "why": "the placeholder describes products.js; the fix is escaping"
+    }
+  ]
+}

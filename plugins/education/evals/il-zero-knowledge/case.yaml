@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: il-zero-knowledge
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: read-fixture
+    type: tool_used
+    tool: Read
+    input_match: 'retry\.js'
+    arm: both
+  - name: mermaid-present
+    type: regex
+    pattern: '```mermaid\b'
+    target: last_message
+  - name: identifiers-in-parentheses
+    type: regex
+    pattern: '(?:^|\))[^(\n]*\b(?:shouldRetry|MAX_ATTEMPTS|delayFor)\b'
+    flags: 'm'
+    match: 'not_contains'
+    target: last_message
+  - name: plain-heading-first
+    type: regex
+    pattern: '^\s*#[^\n]*\b(?:shouldRetry|MAX_ATTEMPTS|delayFor|retry\.js)\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message

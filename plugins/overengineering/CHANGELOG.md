@@ -3,6 +3,16 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-10-14
+
+### Added
+
+- Eight outcome eval cases (`au-`, `de-`, `ju-`, `re-`) with deterministic graders and a shared seed script, and frozen trigger-probe sets for all four skills.
+
+### Changed
+
+- `audit`, `delta`, `justify` and `realign` have shorter descriptions with one trigger per use, and shorter bodies with the same contracts: rationale and repeated statements are cut, every gate, refusal and write rule stays.
+
 ## [0.4.26] - 2026-10-13
 
 ### Changed

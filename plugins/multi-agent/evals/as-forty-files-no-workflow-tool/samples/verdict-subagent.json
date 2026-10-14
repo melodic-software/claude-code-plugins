@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: subagent\nreason: 42 independent files with the same edit would suit a workflow, but the Workflow tool is not callable in this session, so downgraded to subagent; 42 workers, 4 at a time\nshape: sections\n",
+      "why": "subagent verdict"
+    },
+    {
+      "answer": "```text\nverdict: subagent\nreason: 42 independent same-step items; no Workflow tool in this session, downgraded to subagents\nshape: sections\n```\n",
+      "why": "fenced block"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: workflow\nreason: 42 independent files\nshape: sections\n",
+      "why": "workflow despite no tool"
+    },
+    {
+      "answer": "verdict: subagent or workflow\nreason: either works\nshape: sections\n",
+      "why": "hedged verdict"
+    },
+    {
+      "answer": "The verdict would be subagent.\n",
+      "why": "no verdict line"
+    }
+  ]
+}

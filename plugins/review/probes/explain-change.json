@@ -1,0 +1,132 @@
+{
+  "skill": "review:explain-change",
+  "plugin": "review",
+  "skill_dir": "plugins/review/skills/explain-change",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other model-invoked review skills.",
+  "competitors": [
+    "review:audit-enforceability",
+    "review:fanout",
+    "review:quality-gate",
+    "review:ratchet",
+    "review:code-review",
+    "review:security-review"
+  ],
+  "competitor_dirs": {
+    "review:audit-enforceability": "plugins/review/skills/audit-enforceability",
+    "review:fanout": "plugins/review/skills/fanout",
+    "review:quality-gate": "plugins/review/skills/quality-gate",
+    "review:ratchet": "plugins/review/skills/ratchet",
+    "review:code-review": "plugins/review/skills/code-review",
+    "review:security-review": "plugins/review/skills/security-review"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Walk me through PR 482, what changed and why, before I review it."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm reviewing #1290 tomorrow; give me a digest: motivation, before and after, and the risky parts."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Where in this pull request should I spend my review attention? Just rate the risk areas."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Summarize what this branch changes in plain terms with annotated hunks so a newcomer can follow."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Explain pull request 77 to me and add a short quiz at the end so I know I understood it."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you build an interactive explainer page for PR 3051?"
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I don't understand what this PR is doing. Can you break it down for me?"
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me the risk map for the open PR on this branch, nothing else."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make me a reviewer's guide for pull request 615: why it exists and what moved."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Turn on the PR digest so it always runs when a pull request is marked ready."
+    },
+    {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What does this change actually do? Lay out the diff on my current branch for me."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review PR 482 and post inline comments on any bugs you find."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write the PR description for my branch and open it as a draft."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explain what a monad is in plain words."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Quiz me on the refactor we just finished in this session."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is this PR safe to merge? Run a security review on it."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What could my change break outside the diff? Who calls the functions I edited?"
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make a slide deck summarizing our Q3 roadmap."
+    }
+  ]
+}

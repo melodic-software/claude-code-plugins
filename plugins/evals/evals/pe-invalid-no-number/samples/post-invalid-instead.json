@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": "There is no delta to report: the run is INVALID (2 run errors; permission denials unchecked because no traces were kept). Don't post a number. Post the INVALID line and its reasons instead, then rerun with --keep-temp after fixing the errored runs."
+    },
+    {
+      "answer": "Verdict: INVALID, so the run has no reportable score. Reasons: two runs ended with an error, and the trace checks could not run since the traces were not kept (`--keep-temp`). What you can share with the team is the `verdict: INVALID` line and those reasons."
+    },
+    {
+      "answer": "No number yet. The gate says INVALID: 2 run errors, and permission denials unchecked with no kept traces. Share `verdict: INVALID (2 run errors; permission denials unchecked: no kept traces)` in the channel in place of a delta, fix the errors, and rerun with --keep-temp."
+    },
+    {
+      "answer": "Post the INVALID verdict and its reasons in place of the delta."
+    },
+    {
+      "answer": "The INVALID line is what you post."
+    },
+    {
+      "answer": "The run is invalid (2 run errors, no kept traces), so there is no delta. Post the verdict line and its reasons instead.",
+      "why": "lowercase invalid, object is the verdict line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The run is INVALID. Post nothing until it is fixed.",
+      "why": "post nothing"
+    },
+    {
+      "answer": "Post nothing; the run is INVALID.",
+      "why": "post nothing, then INVALID"
+    },
+    {
+      "answer": "Don't post the INVALID run's delta.",
+      "why": "negated"
+    },
+    {
+      "answer": "Do not post it: INVALID.",
+      "why": "negated"
+    },
+    {
+      "answer": "Post the delta with a note.",
+      "why": "posts the number"
+    },
+    {
+      "answer": "The run is INVALID: 2 run errors, and traces weren't kept. The noise report is meaningless when the run is INVALID, so don't share anything until you rerun.",
+      "why": "noun report, negated share"
+    },
+    {
+      "answer": "No. INVALID (2 run errors, no kept traces). Don't share or post a delta from an INVALID run; rerun first.",
+      "why": "negated clause, object is a delta"
+    },
+    {
+      "answer": "The run is invalid, so there is nothing to post.",
+      "why": "nothing to post"
+    }
+  ]
+}

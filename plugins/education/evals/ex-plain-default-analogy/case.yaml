@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: ex-plain-default-analogy
+graders:
+  - name: opens-with-analogy
+    type: regex
+    pattern: '^[\s\S]{0,300}?(?:\b(?:is|are|works|acts)\s+(?:(?:a lot|much|just|kind of|sort of|a bit|rather|something)\s+)?like\s+\**(?:a|an|the)\b|\b(?:it|that|this)[''’]?s\s+(?:(?:a lot|much|just|kind of|sort of|a bit|rather|something)\s+)?like\b|\bworks the (?:same )?way\b|\bimagine\b|\bthink of\b|\bpicture (?:a|an|the|this|yourself)\b)'
+    flags: 'i'
+    target: last_message
+  - name: no-peer-jargon
+    type: regex
+    pattern: '\bB-?\+?tree\b|O\(log|\blogarithmic\b|\bcardinality\b|\bselectivity\b|\bwrite amplification\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: rung-offer-high-school
+    type: regex
+    pattern: '(?<!n[''’]t )(?<!\bnot )(?<!\bno )(?<!\bnever )\b(?:want|like|prefer|need)\b[^\n.?]{0,30}?\bhigh[- ]school\b[^\n.?]{0,30}\?|\bhigh[- ]school (?:version|one|take|rung|words)\?|\bsay the word\b[^\n]{0,40}\bhigh[- ]school\b|\bif you(?: would|[''’]d)? (?:like|want|prefer)\b[^\n.]{0,30}\bhigh[- ]school\b|\bask (?:me )?for (?:the |a )?high[- ]school\b'
+    flags: 'i'
+    target: last_message
+  - name: teach-handoff-line
+    type: regex
+    pattern: '/education:teach topic\b'
+    target: last_message
+  - name: rung-report-last-line
+    type: regex
+    pattern: 'explain_starting_rung\W{0,4}plain\W{1,4}default\b[^\n]{0,30}\s*$'
+    target: last_message
+  - name: report-follows-handoff
+    type: regex
+    pattern: '/education:teach topic[\s\S]*explain_starting_rung'
+    target: last_message
+  - name: no-stagecraft
+    type: regex
+    pattern: '\b(?:key insight|the big idea|bottom line)\s*:|\blet(?:''|’)?s pause\b|\btake a moment\b|\bstep \d+ of \d+\b|\bdoes (?:that|this) make sense\?|\bin your own words\b|\bexplain it back\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message

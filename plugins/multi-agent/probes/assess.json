@@ -1,0 +1,130 @@
+{
+  "skill": "multi-agent:assess",
+  "plugin": "multi-agent",
+  "skill_dir": "plugins/multi-agent/skills/assess",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin route, audit-defaults and setup skills (model and effort questions rather than shape) plus the cross-plugin orchestration skills that run delegation once the shape is chosen.",
+  "competitors": [
+    "multi-agent:route",
+    "multi-agent:audit-defaults",
+    "multi-agent:setup",
+    "session-flow:orchestrate",
+    "implementation:implement-dispatch"
+  ],
+  "competitor_dirs": {
+    "multi-agent:route": "plugins/multi-agent/skills/route",
+    "multi-agent:audit-defaults": "plugins/multi-agent/skills/audit-defaults",
+    "multi-agent:setup": "plugins/multi-agent/skills/setup",
+    "session-flow:orchestrate": "plugins/session-flow/skills/orchestrate",
+    "implementation:implement-dispatch": "plugins/implementation/skills/implement-dispatch"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need to rename a config key across 40 files. Is that a Workflow job, a few subagents, or just do it here?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Would spinning up subagents for this migration be overkill, or should you just handle it in this conversation?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before we start: does this research task deserve a full workflow script, or is it small enough to keep inline?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can this session even run workflows? If not, what is the next best way to split this job up?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Help me decide the execution shape for reviewing these twelve PRs: parallel agents or one pass by you."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is it worth parallelizing this lint cleanup, or will coordinating agents cost more than it saves?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Quick call: should the dependency audit across all our plugins be scripted as a workflow or done by delegated agents?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm about to kick off a workflow from my skill. Check first whether that's the right shape for the task and whether the tool exists here."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "One context or several agents for summarizing these three log files? Give me a one-line reason."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do we have access to the Workflow tool right now, and if so should we use it for this sweep?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which model should the worker agents run on for this fan-out?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Arm this session for heavy delegation; I'm about to hand out a lot of spawn prompts."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Here's the approved plan. Dispatch the phases to worker subagents and verify what they return."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Change the verifier effort to high in our team's multi-agent config."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Has Anthropic's model guidance changed since we set our role defaults? Recheck them against the docs."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run every reviewer against this branch and give me one merged ranked report."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What effort level do the retrieval agents get in a research run?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write me an orchestration brief I can paste into a worker's prompt."
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "skill": "knowledge:course-digest",
+  "plugin": "knowledge",
+  "skill_dir": "plugins/knowledge/skills/course-digest",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other four knowledge skills: book-distill, docpage-digest, map-corpus, video-digest.",
+  "competitors": [
+    "knowledge:book-distill",
+    "knowledge:docpage-digest",
+    "knowledge:map-corpus",
+    "knowledge:video-digest"
+  ],
+  "competitor_dirs": {
+    "knowledge:book-distill": "plugins/knowledge/skills/book-distill",
+    "knowledge:docpage-digest": "plugins/knowledge/skills/docpage-digest",
+    "knowledge:map-corpus": "plugins/knowledge/skills/map-corpus",
+    "knowledge:video-digest": "plugins/knowledge/skills/video-digest"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go through the Dometrain Getting Started with Microservices course and tell me what we should apply here."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here's a Pluralsight course URL: https://app.pluralsight.com/library/courses/example-course. Pull out what's relevant to this codebase."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I bought a Udemy course on Kubernetes; can you work through it and give me recommendations for our repo? https://www.udemy.com/course/example-k8s/"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I won't have time to sit through all 12 hours of this training course. Get me the key lessons and how they map to our project."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What does the Dometrain course on EF Core teach that we should adopt in this service?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Break down this paid video course module by module and give me action items for our code."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Synthesize the lessons from this online course into concrete changes we could make: https://dometrain.com/course/example-testing/"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Review the Pluralsight path on ASP.NET Core security and list recommendations applicable to this API."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Pull the main ideas from this multi-lesson course I'm enrolled in and relate them to our architecture."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you take this Udemy class on React performance and tell me which parts matter for our frontend?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Watch this single YouTube video and summarize it: https://www.youtube.com/watch?v=abc123XYZ"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Distill this EPUB on software estimation into reference files."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Ingest the Azure Functions triggers documentation page into the knowledge base: https://learn.microsoft.com/azure/azure-functions/functions-triggers-bindings"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Map the Next.js docs site and the RFC repo so we know what to ingest."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Recommend a good course for learning Rust."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Read this X post and tell me what it says: https://x.com/example/status/1234567890"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Summarize this article about microservice anti-patterns: https://example.com/articles/microservices"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Design a training curriculum for our new hires."
+    }
+  ]
+}

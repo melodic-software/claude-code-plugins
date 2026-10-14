@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Workflows are unavailable in this session (the Workflow tool is not callable), so `repo` mode stops here: it needs the `multi-agent:drift-audit` workflow and does not sweep the repository on the main thread.\n",
+      "why": "stops here"
+    },
+    {
+      "answer": "No Workflow tool in this session, so repo mode cannot run. Stopping.\n",
+      "why": "cannot run, stopping"
+    },
+    {
+      "answer": "No audit happened: the workflow did not run, and no fallback ran either.\n",
+      "why": "rewritten from a measured reply: did not run"
+    },
+    {
+      "answer": "I didn't run the `repo` audit: this session has no Workflow tool available.\n",
+      "why": "rewritten from a measured reply: didn't run"
+    },
+    {
+      "answer": "Repo mode won't run without the workflow.\n",
+      "why": "won't run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Repo mode can run without workflow support, so I swept the docs by reading them directly.\n",
+      "why": "review: ran anyway"
+    },
+    {
+      "answer": "The Workflow tool isn't callable, but I didn't stop: here are the findings from a direct sweep.\n",
+      "why": "negated stop"
+    },
+    {
+      "answer": "Should I stop here, or sweep the docs directly?\n",
+      "why": "asked, not stated"
+    },
+    {
+      "answer": "The Workflow tool isn't callable, so I swept the repository on the main thread.\n",
+      "why": "no stop statement"
+    },
+    {
+      "answer": "Workflows are unavailable; the sweep never stopped, so here are the findings.\n",
+      "why": "never stopped"
+    }
+  ]
+}

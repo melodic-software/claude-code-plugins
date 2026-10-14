@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": "## Brief: phase 1, half-even invoice rounding\n\n1. Provision: `git -C /srv/dev/billing fetch origin`, then `git -C /srv/dev/billing worktree add -b feat/invoice-rounding /srv/dev/wt/invoice-rounding origin/integration/rounding`.\n2. Before your first edit, confirm the base: `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding` must equal `git -C /srv/dev/wt/invoice-rounding rev-parse origin/integration/rounding`.\n   On a mismatch, STOP and report. Do not edit.\n3. ALLOWED: billing/invoice.py, new cases in tests/test_invoice.py. FORBIDDEN: CHANGELOG.md, every other path.\n\nStructure: `decimal.Decimal` amounts quantized to the cent with `ROUND_HALF_EVEN`\nDesign: none\n"
+    },
+    {
+      "answer": "**Base check (STOP on a mismatch):**\n\n```\ngit -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding\n```\n\nThe output must equal origin/integration/rounding's commit.\n\n- **Structure:** none\n- **Design:** none\n",
+      "why": "bulleted bold label"
+    },
+    {
+      "answer": "Run `git -C \"/srv/dev/wt/invoice-rounding\" merge-base HEAD origin/integration/rounding` before any edit; if it differs from the base, STOP and report.\n\n**Structure**: a lookup from rounding mode to quantize rule\n**Design excerpt**: `none`\n",
+      "why": "Design excerpt label, backticked none"
+    },
+    {
+      "answer": "Design: (none)",
+      "why": "parenthesized none"
+    },
+    {
+      "answer": "### Design\nnone",
+      "why": "heading form"
+    },
+    {
+      "answer": "**Design: none.** The plan has no `## Design` section.",
+      "why": "bold, period after none"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Design: see the plan's rounding notes.",
+      "why": "not none"
+    },
+    {
+      "answer": "Design: N/A",
+      "why": "not the contract's word"
+    },
+    {
+      "answer": "The plan has no Design section, so there is nothing to quote.",
+      "why": "no Design: line"
+    },
+    {
+      "answer": "Design excerpt omitted.",
+      "why": "no label"
+    },
+    {
+      "answer": "Design: none of the plan sections apply; see the rounding notes.",
+      "why": "none does not end the value"
+    },
+    {
+      "answer": "Design: nonexistent",
+      "why": "not the word none"
+    }
+  ]
+}

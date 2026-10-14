@@ -1,5 +1,5 @@
 ---
-description: "Watch a single public video from YouTube or X (Twitter): transcript, links, and repo-applicability recommendations. Use when: 'youtube', '/youtube-digest', 'watch this YouTube video', 'transcript for YouTube', 'watch this video', 'digest this video', 'digest this post', 'summarize this talk', or a youtube.com, youtu.be, x.com, or twitter.com URL for one public video. Auth-walled courses go to /knowledge:course-digest."
+description: "Transcript, links and repository-applicability recommendations from one public YouTube or X (Twitter) video. Use when the user gives a youtube.com, youtu.be, x.com or twitter.com video URL or asks to watch or digest a video or talk, to fetch only its transcript, to queue videos for later, or to resume a digest. Auth-walled courses go to /knowledge:course-digest."
 argument-hint: "<watch [<url>|<n>]|<url>|queue <url>...|queue list|transcript <url>|resume <slug>>"
 user-invocable: true
 disable-model-invocation: false
@@ -22,8 +22,7 @@ printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && magick -version 2>/
 Absorb a single public video (transcript + visual frames), harvest reference links, fact-check
 claims through deeper external research, and produce a prioritized repo-applicability menu.
 Supported sources: YouTube (`youtube.com`, `youtu.be`) and X/Twitter status posts (`x.com`,
-`twitter.com`). An unsupported host fails closed with the supported-source list rather than
-guessing.
+`twitter.com`). Fail closed on any other host, naming the supported sources; never guess.
 
 Durable artifacts live under `.work/<watch-epic>/<video-slug>/`; the video, bulk frames, working
 contact sheets, and shallow clones stay in the OS temp directory. Where this skill says "deeper
@@ -127,7 +126,7 @@ Ordered phase spine. Each phase's procedure, inputs, and outputs: `context/watch
 1. **Prerequisites gate**. Run `setup-deps.mjs`; STOP if the pre-computed context above shows
    MISSING, or a version below its floor, for yt-dlp, ffmpeg, or ImageMagick (install fallbacks
    and the upgrade policy: "Prerequisites" below). Cloud agents without the media toolchain fail
-   closed, and so does any run whose video exists but fails to download ("No video, no watch").
+   closed, as does any run whose video exists but fails to download ("No video, no watch").
 2. **Phase 0b. Companion deep-dive**, only when `source/companion-sources.md` exists, and **before**
    CLI bootstrap.
 3. **CLI bootstrap**. Deterministic stages (acquire → transcript → coverage watching → link
@@ -257,9 +256,9 @@ Verify before starting (stop and route to the fix path on failure):
 3. **ffmpeg**, required for `watch` only (scene-detect frame extraction). Floor 7.1+.
 4. **ImageMagick 7**, required for `watch` only (contact sheets). `magick -version`
 
-If any prerequisite is missing or below its floor, stop and inform the user. Re-run
-`setup-deps.mjs` for the node dependencies; the media binaries are OS-level installs via your
-platform's package manager, or one of the fallbacks below.
+If any prerequisite is missing or below its floor, stop and tell the user. `setup-deps.mjs` fixes
+the node dependencies; the media binaries are OS-level installs via the platform's package
+manager, or one of the fallbacks below.
 
 **When the usual install falls short.** These are pointers to try, not rules for any one machine:
 
@@ -287,11 +286,11 @@ download through.
 
 **No video, no watch.** When the source has a video, a `watch` needs the file itself. When
 acquisition cannot download it (an HTTP 403 on the media stream, a bot check that cookies do not
-clear), `run-watch.js` exits non-zero, and the watch stops there: report the failure and the fix
+clear), `run-watch.js` exits non-zero and the watch stops there: report the failure and the fix
 path from `context/gotchas.md`. Do not continue without frames, and do not switch to the
-`transcript` action on the user's behalf; a transcript-only digest runs only when the user asks
-for that action by name. A source with no video at all (the 0-video X result above) is not a
-failed download and keeps its text-only path.
+`transcript` action on the user's behalf; run a transcript-only digest only when the user names
+that action. A source with no video at all (the 0-video X result above) is not a failed download
+and keeps its text-only path.
 
 **Optional. Faster-whisper** (`large-v3`, `batch_size=8`): powers the `asr` transcript rung,
 selected automatically for caption-absent entries and available on request via

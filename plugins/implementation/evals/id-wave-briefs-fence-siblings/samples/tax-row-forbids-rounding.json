@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "## Brief: phase 1, row A\n\nWorktree: /srv/dev/wt/rounding. Use `git -C /srv/dev/wt/rounding` for every git command.\n\nALLOWED: billing/rounding.py, tests/test_rounding.py\nFORBIDDEN: billing/tax.py, tests/test_tax.py, opening a PR\n\nDivergence: if an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\nAcceptance: round_half_even(2.675) == 2.68, round_half_even(2.665) == 2.66, pytest tests/test_rounding.py passes.\n\n## Brief: phase 1, row B\n\nWorktree: /srv/dev/wt/tax.\n\nALLOWED: billing/tax.py, tests/test_tax.py\nFORBIDDEN: billing/rounding.py, tests/test_rounding.py, opening a PR\n\nDivergence: \"If an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\"\n"
+    },
+    {
+      "answer": "### Row A brief\n\n**ALLOWED**\n- `billing/rounding.py`\n- `tests/test_rounding.py`\n\n**FORBIDDEN**\n- `billing/tax.py`\n- `tests/test_tax.py`\n- any other file\n\nif an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\n### Row B brief\n\n**ALLOWED**\n- `billing/tax.py`\n- `tests/test_tax.py`\n\n**FORBIDDEN**\n- `billing/rounding.py`\n- `tests/test_rounding.py`\n\nif an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n"
+    },
+    {
+      "answer": "| Row | ALLOWED | FORBIDDEN |\n|---|---|---|\n| A | billing/rounding.py, tests/test_rounding.py | billing/tax.py, tests/test_tax.py |\n| B | billing/tax.py, tests/test_tax.py | billing/rounding.py, tests/test_rounding.py |\n\nBoth briefs: if an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\nRow B: if an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Row A\n\nALLOWED: billing/rounding.py, tests/test_rounding.py\nFORBIDDEN: everything else\n\nif an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\n## Row B\n\nALLOWED: billing/tax.py, tests/test_tax.py\nFORBIDDEN: everything else\n\nif an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n",
+      "why": "FORBIDDEN is 'everything else' in both"
+    },
+    {
+      "answer": "## Row A\n\nALLOWED: billing/rounding.py, tests/test_rounding.py\nFORBIDDEN: billing/tax.py, tests/test_tax.py\n\nif an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\n## Row B\n\nALLOWED: billing/tax.py, tests/test_tax.py\nFORBIDDEN: anything outside ALLOWED\n\nif an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n",
+      "why": "row B's FORBIDDEN never names the sibling's paths"
+    },
+    {
+      "answer": "## Row B\nFORBIDDEN: everything else\n\n## Row A\nALLOWED: billing/rounding.py",
+      "why": "rounding.py only in row A's ALLOWED list"
+    },
+    {
+      "answer": "## Row A\nALLOWED: billing/rounding.py, tests/test_rounding.py\nFORBIDDEN: billing/tax.py, tests/test_tax.py\nAcceptance: round_half_even in billing/rounding.py returns 2.68 for 2.675; pytest tests/test_rounding.py passes.\n\n## Row B\nALLOWED: billing/tax.py, tests/test_tax.py\nFORBIDDEN: everything else",
+      "why": "row B forbids only 'everything else'; rounding.py appears in row A's Acceptance line"
+    }
+  ]
+}

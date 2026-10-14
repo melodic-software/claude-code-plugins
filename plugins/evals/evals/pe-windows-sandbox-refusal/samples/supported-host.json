@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "I won't start this here. Native Windows has no sandbox backend, so every run that grants Bash is refused by the CLI and scores 0; you'd pay for nothing. Run the suite under WSL2, on a Linux host with bubblewrap and socat, on macOS, or in a Claude cloud session."
+    },
+    {
+      "answer": "Stop before spending: on native Windows each Bash-granting run is refused rather than run unsandboxed, so those cases score zero. Use WSL2 (install bubblewrap and socat) or macOS."
+    },
+    {
+      "answer": "Not on this machine. Windows has no sandbox backend, so the CLI refuses the Bash runs and they would score 0 instead of measuring anything. Move the run to macOS or a cloud session."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Install WSL1 and run it there.",
+      "why": "WSL1"
+    },
+    {
+      "answer": "Run it from Git Bash or as administrator.",
+      "why": "unsupported"
+    },
+    {
+      "answer": "You need WSL. Then rerun.",
+      "why": "no version"
+    }
+  ]
+}

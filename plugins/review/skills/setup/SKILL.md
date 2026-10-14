@@ -1,5 +1,5 @@
 ---
-description: "Configure the review plugin for this repository: bootstrap the consumer's standards index per the standards convention, since review criteria resolve through that index, persisting docs/standards/ and, on relocation, .claude/standards.yaml; and write the repository's docs/conventions/review.yaml settings after confirmation. Use when: 'set up review', 'configure the review plugin', 'review setup', 'set up standards', 'bootstrap the standards index', 'turn off the ratchet offer for this repo', or a review skill reports a missing or version-skewed standards index. Actions: check (read-only verification, default) | apply (bootstrap, reconfigure, or migrate). Re-runnable."
+description: "Check or apply the review plugin's repository setup: the standards index and docs/conventions/review.yaml settings."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true

@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": "Before writing cases, let's pin down what success means:\n\n1. What does a good summary look like for the agent picking it up?\n2. Which failures matter most: a missed customer ask, a wrong fact, or length?\n3. Do you have a baseline, such as how often agents correct today's summaries?\n\nA starting criterion to confirm: at least 95% of summaries contain no fact absent from the thread."
+    },
+    {
+      "answer": "I'll hold off on test cases until the criteria are measurable. How will you know a summary is correct? What accuracy target would you accept, and over how many tickets?"
+    },
+    {
+      "answer": "What counts as a usable summary for your agents?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Want me to save them under tests/?",
+      "why": "location question"
+    },
+    {
+      "answer": "Shall I generate 20 more cases?",
+      "why": "volume question"
+    },
+    {
+      "answer": "Which language is the summarizer written in?",
+      "why": "unrelated question"
+    },
+    {
+      "answer": "Before I write anything: what's the target directory and which test framework do you use?",
+      "why": "target means a directory"
+    },
+    {
+      "answer": "Success criteria: 95% of summaries are accurate.",
+      "why": "no question"
+    }
+  ]
+}

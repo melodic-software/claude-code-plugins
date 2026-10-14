@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Backpressure is a flow-control signal by which a consumer that cannot keep up makes its producers slow down, buffer or shed load instead of overrunning it.\n\nIn a message queue it appears at three points: the broker bounds a queue and blocks or rejects publishers once it is full (publisher confirms make that visible to the producer); the consumer caps unacknowledged deliveries with a prefetch limit; and a pull-based consumer pauses fetching while its local buffer drains. The tradeoff is latency against loss: blocking publishers keeps every message but pushes delay upstream, while dropping or dead-lettering keeps latency flat and loses work.\n\nWant the plain version?\n\nWant to actually learn this, not just get past it? `/education:teach topic backpressure` runs a multi-session coached deep-dive.\nexplain_starting_rung: peer (repository: docs/conventions/education.yaml)",
+      "why": "plain version"
+    },
+    {
+      "answer": "In a message queue, backpressure means the consumer's limited capacity propagates upstream as a signal that throttles producers.\n\nPrefetch limits, bounded queues and pause/resume on the consumer are the usual mechanisms.\n\nWant the plainer version?\n\nWant to actually learn this, not just get past it? `/education:teach topic backpressure` runs a multi-session coached deep-dive.\n\n`explain_starting_rung: peer (docs/conventions/education.yaml)`\n",
+      "why": "plainer version"
+    },
+    {
+      "answer": "Backpressure is a flow-control signal by which a consumer that cannot keep up makes its producers slow down, buffer or shed load.\n\nSay the word if you want the plainer version.\n\nWant to actually learn this, not just get past it? `/education:teach topic backpressure` runs a multi-session coached deep-dive.\nexplain_starting_rung: peer (repository)",
+      "why": "offer phrase without a question mark"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Imagine a kitchen where the cook plates food faster than the waiter can carry it: plates pile up until the cook is told to slow down. That telling-to-slow-down is backpressure.\n\nWant the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic backpressure` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (default)",
+      "why": "offers only a higher rung"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    },
+    {
+      "answer": "Backpressure is a flow-control signal by which a consumer that cannot keep up makes its producers slow down, buffer or shed load.\n\nPut in plain words, the slow consumer tells the fast producer to wait.\n\nWant to actually learn this, not just get past it? `/education:teach topic backpressure` runs a multi-session coached deep-dive.\nexplain_starting_rung: peer (repository)",
+      "why": "says 'plain words' but offers nothing"
+    },
+    {
+      "answer": "Backpressure is a flow-control signal by which a consumer that cannot keep up makes its producers slow down, buffer or shed load.\n\nNo plain version is needed here; you asked at peer level.\n\nWant to actually learn this, not just get past it? `/education:teach topic backpressure` runs a multi-session coached deep-dive.\nexplain_starting_rung: peer (repository)",
+      "why": "negated offer"
+    }
+  ]
+}

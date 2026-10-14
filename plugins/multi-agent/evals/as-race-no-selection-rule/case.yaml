@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: as-race-no-selection-rule
+graders:
+  - name: 'verdict-subagent'
+    type: 'regex'
+    pattern: '^verdict:[ \t]*`?subagent`?[ \t]*$'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'shape-race-no-rule'
+    type: 'regex'
+    pattern: '^shape:[ \t]*`?race \(no selection rule stated\)'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'reason-race-waits-for-rule'
+    type: 'regex'
+    pattern: '^reason:(?=[^\n]*\b(?:rule|criteri(?:on|a))\b)[^\n]*(?:\b(?:must not|mustn[''’]t|should not|shouldn[''’]t|cannot|can[''’]t|do not|don[''’]t|won[''’]t|will not|not to|never)\s+(?:be\s+)?(?:start|begin|run|launch|spawn)(?:ed)?\b[^\n]*\b(?:until|before|unless|without|pending)\b|(?<!n''t )(?<!n’t )(?<!not )(?<!never )(?<!need to )(?<!than )(?<!instead of )(?<!without )\b(?:hold|wait|block|pause)\w*\b[^\n]*\b(?:until|before|pending)\b)(?![^\n.!?]*\?)'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'no-agent-spawned'
+    type: 'tool_used'
+    tool: 'Agent'
+    min: 0
+    max: 0

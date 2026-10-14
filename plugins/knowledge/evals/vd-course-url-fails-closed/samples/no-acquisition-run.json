@@ -1,0 +1,184 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/knowledge/skills/video-digest/extraction/setup-deps.mjs\" --data-dir \"/data/knowledge\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "prerequisite gate only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yt-dlp --version",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "version check"
+    },
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v yt-dlp",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v yt-dlp || echo missing; python3 -c \"import yt_dlp\" 2>&1 | tail -1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/knowledge/skills/video-digest/extraction/run.mjs\" --data-dir \"/d\" watch/run-watch.js \"https://dometrain.com/course/getting-started-domain-driven-design/\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node run.mjs --data-dir /d transcript/run-transcript.js \"https://dometrain.com/course/getting-started-domain-driven-design/\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node run.mjs --data-dir /d acquisition/preflight-metadata.js \"https://dometrain.com/course/getting-started-domain-driven-design/\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yt-dlp --skip-download --write-info-json \"https://dometrain.com/course/getting-started-domain-driven-design/\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -sL https://dometrain.com/course/getting-started-domain-driven-design/ | head",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m yt_dlp --skip-download --write-auto-subs 7zZy1QTvokM",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yt-dlp --skip-download --write-auto-subs 7zZy1QTvokM",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pipx run yt-dlp 7zZy1QTvokM",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m yt_dlp https://dometrain.com/course/x",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "u=https://dometrain.com/x; yt-dlp \"$u\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pipx run yt-dlp https://dometrain.com/course/x",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    }
+  ]
+}
