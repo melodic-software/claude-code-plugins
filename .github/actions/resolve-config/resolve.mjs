@@ -555,6 +555,7 @@ function resolveSlot(
     [kind]: activity[kind],
     ...(activity.args === undefined ? {} : { args: activity.args }),
     ...(activity.prepare === undefined ? {} : { prepare: activity.prepare }),
+    ...(activity.checks === undefined ? {} : { checks: activity.checks }),
     effect: activity.effect,
     gating: activity.gating,
     "reads-untrusted": activity["reads-untrusted"],

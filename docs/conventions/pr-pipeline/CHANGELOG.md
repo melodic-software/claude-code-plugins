@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## 1.13.0 - 2026-10-14
+
+Schema: a skill leaf's optional `checks`, repository check scripts with fixed flags that a write
+skill may run. `pr-run-activity.md` "Skill activities" says how the write runner runs them from the
+base copy against the checkout. The live config gives `resolve-issue` the changelog fragment check.
+`version` stays 1.
+
 ## 1.12.3 - 2026-10-14
 
 The `work-resolve-issue` lane's allowlist gains `work-class: mechanical` beside `work-class: read-only`,

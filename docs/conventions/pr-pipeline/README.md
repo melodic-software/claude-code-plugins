@@ -183,6 +183,10 @@ Each leaf declares:
   else an applying leaf that sets `prepare` fails red rather than running without it.
 - `model` and `max-turns` (optional, `skill` only): the model and turn budget for the Claude Code
   run. When unset, `pr-run-activity`'s defaults apply.
+- `checks` (optional, `skill` only): repository check scripts, each `scripts/<name>.sh` with its
+  flags fixed, that a skill with an effect other than `read` may run. The write runner runs each
+  from the base copy against the checkout, so no head code runs
+  ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)).
 - `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
   runner derives ordering from it, takes the token grant from
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a

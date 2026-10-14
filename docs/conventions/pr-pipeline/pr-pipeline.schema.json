@@ -182,7 +182,8 @@
       "dependentRequired": {
         "model": ["skill"],
         "max-turns": ["skill"],
-        "prepare": ["skill"]
+        "prepare": ["skill"],
+        "checks": ["skill"]
       },
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
@@ -194,6 +195,16 @@
           "type": "string",
           "minLength": 1,
           "description": "Arguments passed verbatim: after the skill name in that skill's own syntax, or to the script."
+        },
+        "checks": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^scripts/[A-Za-z0-9_-]+\\.sh( --[a-z][a-z-]*)*$"
+          },
+          "description": "Repository check scripts a skill with an effect other than read may run, each with its fixed flags. The write runner runs each from the base copy against the checkout, through a wrapper the skill can call with no arguments."
         },
         "model": {
           "type": "string",

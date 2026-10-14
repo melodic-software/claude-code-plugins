@@ -117,6 +117,8 @@ runs:
         CAN_COMMIT: ${{ inputs.can-commit }}
         PREPARE: ${{ inputs.prepare }}
         SCRATCH: ${{ runner.temp }}/lane-scratch
+        CHECKS_DIR: ${{ runner.temp }}/lane-checks
+        WORKSPACE: ${{ github.workspace }}
         ISSUE_NUMBER: ${{ inputs.issue-number }}
       run: |
         fail() {
@@ -177,6 +179,34 @@ runs:
               # The slash command never says the edits reach the PR only as
               # commits on CLAUDE_BRANCH.
               system_prompt="$system_prompt A change to a repository file reaches the branch only as a commit: before you finish, commit every repository file you changed with the mcp__github_file_ops__commit_files tool. An uncommitted change is discarded when the run ends."
+            fi
+            # The activity's checks run from a base copy outside the working
+            # directory, which the skill cannot edit, against the checkout,
+            # through a wrapper with the flags fixed: the Bash rule allows the
+            # wrapper alone, with no arguments.
+            mapfile -t checks < <(jq -r '.selected.checks // [] | .[]' "$RESOLVED")
+            if ((${#checks[@]})); then
+              [[ $CHECKS_DIR =~ ^/[A-Za-z0-9_./-]+$ && $WORKSPACE =~ ^/[A-Za-z0-9_./-]+$ ]] ||
+                fail "the checks directory or workspace has a name a rule cannot carry"
+              shape='^scripts/[A-Za-z0-9_-]+\.sh( --[a-z][a-z-]*)*$'
+              for check in "${checks[@]}"; do
+                [[ $check =~ $shape ]] || fail "a check must be a scripts/ script with fixed flags"
+              done
+              mkdir -p "$CHECKS_DIR/bin"
+              cp -R "$BASE_PATH/scripts" "$CHECKS_DIR/"
+              wrappers=""
+              for check in "${checks[@]}"; do
+                script=${check%% *}
+                flags=${check#"$script"}
+                wrapper="$CHECKS_DIR/bin/$(basename "$script" .sh)"
+                [ ! -e "$wrapper" ] || fail "two checks run the same script"
+                printf '#!/usr/bin/env bash\ncd %q || exit 2\nCHECK_DATA_ROOT=%q exec %q%s\n' \
+                  "$WORKSPACE" "$WORKSPACE" "$CHECKS_DIR/$script" "$flags" >"$wrapper"
+                chmod +x "$wrapper"
+                allowed="$allowed,Bash($wrapper)"
+                wrappers="$wrappers $wrapper"
+              done
+              system_prompt="$system_prompt Before you report done, run each of these repository checks as written, with no arguments:$wrappers."
             fi
             ;;
           *) fail "the activity's effect is not a known effect" ;;
