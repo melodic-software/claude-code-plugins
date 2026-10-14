@@ -5,7 +5,7 @@ context:
 graders:
   - name: read-mission
     type: regex
-    pattern: '\bweekly\b|\bsales reports?\b|\bfan-?out\b|\bduplicated[- ]totals?\b'
+    pattern: '\bweekly (?:sales )?reports?\b|\bsales reports?\b|\bfan-?out\b|\bduplicated[- ]totals?\b|\bSuccess Looks Like\b'
     flags: 'i'
     target: last_message
   - name: header-fields

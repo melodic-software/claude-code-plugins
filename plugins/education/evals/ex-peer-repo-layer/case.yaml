@@ -9,7 +9,7 @@ graders:
     input_match: 'parse-concern-value\.sh|conventions/education\.yaml'
   - name: opens-with-definition
     type: regex
-    pattern: '^\s*(?:#[^\n]*\n\s*)?[^\n.]{0,60}?\bbackpressure\b(?:\*\*)?\s+(?:is|means|refers to)\b'
+    pattern: '^\s*(?:#[^\n]*\n\s*)?[^\n.]{0,60}?\bbackpressure\b(?:\*\*)?\s+(?:is|means|refers to)\b(?!\s+(?:(?:a lot|much|just|kind of|sort of|a bit|rather|something)\s+)?like\b)'
     flags: 'i'
     target: last_message
   - name: no-analogy-opener
@@ -20,7 +20,7 @@ graders:
     target: last_message
   - name: offers-plain-version
     type: regex
-    pattern: '\bplain(?:er)? (?:version|one|rung|take|words)\b'
+    pattern: '(?<!n[''’]t )(?<!\bnot )(?<!\bno )(?<!\bnever )\b(?:want|like|prefer|need)\b[^\n.?]{0,30}?\bplain(?:er)?\b[^\n.?]{0,30}\?|\bplain(?:er)? (?:version|one|take|rung|words)\?|\bsay the word\b[^\n]{0,40}\bplain(?:er)?\b|\bif you(?: would|[''’]d)? (?:like|want|prefer)\b[^\n.]{0,30}\bplain(?:er)?\b|\bask (?:me )?for (?:the |a )?plain(?:er)?\b'
     flags: 'i'
     target: last_message
   - name: no-higher-rung-offer

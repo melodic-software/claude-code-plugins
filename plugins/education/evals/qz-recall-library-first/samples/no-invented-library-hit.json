@@ -17,6 +17,14 @@
     {
       "answer": "Found 2 matching reports for the change.",
       "why": "invented hits"
+    },
+    {
+      "answer": "The library has a report for the auth rate-limit ordering change. It only holds quizzed work, and git history agrees.",
+      "why": "invented library hit"
+    },
+    {
+      "answer": "From the retained reports: you scored 4 of 5 on the rate-limit ordering quiz. The library only holds quizzed work; git history has the commits.",
+      "why": "invented score"
     }
   ]
 }

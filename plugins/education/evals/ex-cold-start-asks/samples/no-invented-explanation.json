@@ -7,12 +7,24 @@
     {
       "answer": "There's no previous response to work from. Which concept or message should I explain?",
       "why": "ask only"
+    },
+    {
+      "answer": "What would you like explained? There's nothing earlier in this conversation for me to explain, so give me a concept, a file, an error message or some code and I'll explain it in plain words.\n\nexplain_starting_rung: plain (default)",
+      "why": "observed shape: ask plus a stray rung report, no explanation"
     }
   ],
   "fail": [
     {
       "answer": "A database index is like the index at the back of a cookbook: it lets you jump to the right page.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic database-indexes` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (default)",
       "why": "closes an explanation it should not have given"
+    },
+    {
+      "answer": "What topic should I explain? Meanwhile, caching is like keeping a snack on your desk.",
+      "why": "asks, then invents an analogy"
+    },
+    {
+      "answer": "Which concept should I explain? Here's what it's actually doing in the meantime: the last command rebuilt the cache.",
+      "why": "asks, then invents an explanation"
     }
   ]
 }

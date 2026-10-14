@@ -53,6 +53,14 @@
     {
       "answer": "## Quiz\n\n1. Which paths skip auth?\n2. What runs first?\n3. What does a revoked token get?\n\n## Answer key\n\n| Q | Answer | Notes |\n|---|---|---|\n| 1 | /health, /login | exact Set lookup |\n| 2 | rate limiter | moved above auth |\n| 3 | 401 revoked_token | [note] |\n",
       "why": "a key with answers but no section named for any question"
+    },
+    {
+      "answer": "# Auth middleware change\n\n## Context\n\nAuth now skips PUBLIC_PATHS.\n\n## Intuition\n\nCheap checks first.\n\n## Decisions\n\nRate limit before auth.\n\n## What was done\n\nRewrote auth.js.\n\n## Quiz\n\n**Q1.** No header on /health: what happens?\n**Q2.** Lowercase bearer: what now?\n\n## Answer key\n\n| Q | Answer | Section |\n|---|---|---|\n| 1 | B | Decisions |\n| 2 | C | Context |\n| 2 | C | What was done |\n",
+      "why": "two questions; three section cells in the key"
+    },
+    {
+      "answer": "# Auth middleware change\n\n## Context\n\nAuth now skips PUBLIC_PATHS.\n\n## Intuition\n\nCheap checks first.\n\n## Decisions\n\nRate limit before auth.\n\n## What was done\n\nRewrote auth.js.\n\n## Quiz\n\n1. What does auth do on /health? (Section: Decisions)\n2. What does a forged token get?\n\n## Answer key\n\n1. next(). See the Decisions section.\n2. A 401. See the What was done section.\n",
+      "why": "two questions, anchors repeated across question and key"
     }
   ]
 }

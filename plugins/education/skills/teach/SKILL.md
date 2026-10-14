@@ -49,7 +49,7 @@ Path resolution rules every action MUST follow:
 - **`<project-slug>`.** Canonicalize the project path FIRST, then derive both the basename-slug and
   the hash from that one canonical path, so a project opened via a symlink and via its real path
   map to one workspace. Canonical path:
-  `(cd "${CLAUDE_PROJECT_DIR}" 2>/dev/null && pwd -P) || realpath "${CLAUDE_PROJECT_DIR}" 2>/dev/null || readlink -f "${CLAUDE_PROJECT_DIR}" 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR}"`
+  `(cd "${CLAUDE_PROJECT_DIR}" 2>/dev/null && pwd -P) || realpath "${CLAUDE_PROJECT_DIR}" 2>/dev/null || readlink -f "${CLAUDE_PROJECT_DIR}" 2>/dev/null || printf '%s' "${CLAUDE_PROJECT_DIR}"` <!-- portability-ok: readlink -f is a fallback rung after pwd -P and realpath -->
   (`pwd -P` leads because it folds every alias of a directory, including macOS `/private/var/…`
   and the drive-letter and mount-alias spellings Git for Windows hands out, into one physical
   path). For a **linked git worktree**, hoist to the main repository first: if
@@ -153,7 +153,7 @@ When an interactive session resolves a higher root while plugin-data workspaces 
 ONE-TIME migration (move the tree), record the outcome in the pointer file either way, and never
 re-offer. Never force-migrate; if compat cannot stay scan-only, stop and ask the user.
 
-**Root hazards** (tell the user, do not stay silent): in a cloud-synced root the same repo on two
+**Root hazards (documented, not silent):** in a cloud-synced root the same repo on two
 machines gets sibling workspaces, and sync conflicts can collide on `learning-records/NNNN`;
 gitignored in-repo roots fragment across worktrees; temp roots die with the session; committed
 roots put personal learning state in a shared repo (an explicit rung-1 team choice only).

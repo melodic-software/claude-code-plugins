@@ -7,6 +7,10 @@
     {
       "answer": "Four tries at most. 429 is retried, any other client error stops, a server error (5xx) is retried. ```mermaid\n```",
       "why": "spelled-out four"
+    },
+    {
+      "answer": "## Which statuses are retried\n\n```mermaid\nflowchart LR\n  subgraph c1[\"Retry\"]\n    a1[\"429 (rate limited)\"]\n    a2[\"500 and above\"]\n  end\n  subgraph c2[\"Give up\"]\n    b1[\"400 to 499, except 429\"]\n    b2[\"Below 400 (such as 200)\"]\n  end\n```\n\n- 429 is the only 4xx code that is retried.\n\n| `MAX_ATTEMPTS` | The attempt limit, set to 4. |\n",
+      "why": "observed shape: rules carried by Retry and Give up subgraphs"
     }
   ],
   "fail": [
@@ -21,6 +25,14 @@
     {
       "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
       "why": "off-topic"
+    },
+    {
+      "answer": "# How src/retry.js decides when to give up\n\nIt never retries a 429, retries every 4xx client error, gives up on 5xx, and stops after MAX_ATTEMPTS (4).\n\n```mermaid\nflowchart LR\n  a[\"Fail\"] --> b[\"Check status\"]\n```\n\n```mermaid\nflowchart LR\n  c[\"Attempt 4\"] --> d[\"Give up\"]\n```\n\n## Sources\n\n- src/retry.js\n",
+      "why": "every status rule inverted"
+    },
+    {
+      "answer": "# How src/retry.js decides when to give up\n\n- 429: give up\n- Other 4xx: retry\n- 5xx: give up\n- Stops after 4 attempts (MAX_ATTEMPTS).\n\n## Sources\n\n- src/retry.js\n",
+      "why": "status tokens present, verbs swapped"
     }
   ]
 }

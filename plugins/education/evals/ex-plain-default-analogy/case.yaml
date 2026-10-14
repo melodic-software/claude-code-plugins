@@ -3,7 +3,7 @@ name: ex-plain-default-analogy
 graders:
   - name: opens-with-analogy
     type: regex
-    pattern: '^[\s\S]{0,300}?\b(?:like|imagine|think of|picture|similar to|works the way)\b'
+    pattern: '^[\s\S]{0,300}?(?:\b(?:is|are|works|acts)\s+(?:(?:a lot|much|just|kind of|sort of|a bit|rather|something)\s+)?like\s+\**(?:a|an|the)\b|\b(?:it|that|this)[''’]?s\s+(?:(?:a lot|much|just|kind of|sort of|a bit|rather|something)\s+)?like\b|\bworks the (?:same )?way\b|\bimagine\b|\bthink of\b|\bpicture (?:a|an|the|this|yourself)\b)'
     flags: 'i'
     target: last_message
   - name: no-peer-jargon
@@ -14,7 +14,7 @@ graders:
     target: last_message
   - name: rung-offer-high-school
     type: regex
-    pattern: '\bhigh[- ]school\b'
+    pattern: '(?<!n[''’]t )(?<!\bnot )(?<!\bno )(?<!\bnever )\b(?:want|like|prefer|need)\b[^\n.?]{0,30}?\bhigh[- ]school\b[^\n.?]{0,30}\?|\bhigh[- ]school (?:version|one|take|rung|words)\?|\bsay the word\b[^\n]{0,40}\bhigh[- ]school\b|\bif you(?: would|[''’]d)? (?:like|want|prefer)\b[^\n.]{0,30}\bhigh[- ]school\b|\bask (?:me )?for (?:the |a )?high[- ]school\b'
     flags: 'i'
     target: last_message
   - name: teach-handoff-line

@@ -17,6 +17,10 @@
     {
       "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
       "why": "off-topic"
+    },
+    {
+      "answer": "No sources were read for this; src/retry.js is described from memory.\n\n```mermaid\nflowchart LR\n  a --> b\n```\n",
+      "why": "mentions sources and the file, but has no sources section"
     }
   ]
 }

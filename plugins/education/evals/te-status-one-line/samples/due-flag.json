@@ -7,6 +7,10 @@
     {
       "answer": "topic/sql-joins: 2 learning records, frontier LEFT JOIN, last touched 2026-10-13, nothing due for review.",
       "why": "nothing due"
+    },
+    {
+      "answer": "| Mode | Topic | Records | Frontier | Last touched | Review due |\n|---|---|---|---|---|---|\n| topic | sql-joins | 2 | LEFT JOIN | 2026-10-13 | No |",
+      "why": "observed shape: Review due column"
     }
   ],
   "fail": [
@@ -17,6 +21,18 @@
     {
       "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
       "why": "off-topic"
+    },
+    {
+      "answer": "topic/sql-joins: 2 learning records, frontier LEFT JOIN, last touched 2026-10-13, nothing due.",
+      "why": "bare 'nothing due', no review flag"
+    },
+    {
+      "answer": "topic/sql-joins: 2 learning records, frontier LEFT JOIN, no concepts due.",
+      "why": "bare 'no concepts due'"
+    },
+    {
+      "answer": "topic/sql-joins: 2 learning records, frontier LEFT JOIN. Not due.",
+      "why": "bare 'not due'"
     }
   ]
 }

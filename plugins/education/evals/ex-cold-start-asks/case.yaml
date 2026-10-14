@@ -8,7 +8,8 @@ graders:
     target: last_message
   - name: no-invented-explanation
     type: regex
-    pattern: '/education:teach topic\b'
+    pattern: '/education:teach topic\b|\b(?:is|are|works)\s+(?:(?:a lot|much|just|kind of|sort of|a bit|rather|something)\s+)?like\b|\b(?:it|that)[''’]s like\b|\bimagine\b|what it[''’]s actually doing'
+    flags: 'i'
     match: 'not_contains'
     target: last_message
   - name: short-ask

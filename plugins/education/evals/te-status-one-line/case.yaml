@@ -25,7 +25,7 @@ graders:
     target: last_message
   - name: due-flag
     type: regex
-    pattern: '\bdue\b'
+    pattern: '\bdue[- ]for[- ]review\b|\breview[- ]due\b|\breview\b[^\n]{0,40}\bdue\b|\bdue\b[^\n]{0,40}\breview\b'
     flags: 'i'
     target: last_message
   - name: no-record-bodies

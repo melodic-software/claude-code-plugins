@@ -7,6 +7,10 @@
     {
       "answer": "Imagine a library with no catalog: to find one book you walk every shelf. A card catalog (an alphabetical box of cards, each saying which shelf a book is on) lets you go straight to the right shelf.\n\nWhat it's actually doing: a database index is that card box for one column of a table.\n\nWant the high school version next?\n\nWant to actually learn this, not just get past it? `/education:teach topic database-indexes` runs a multi-session coached deep-dive.\n\n`explain_starting_rung: plain (default)`\n",
       "why": "imagine opener"
+    },
+    {
+      "answer": "A database index works a lot like **the index at the back of a thick cookbook**.\n\nSay you want every recipe that uses ginger.\n\nWant to actually learn this, not just get past it? `/education:teach topic database indexes` runs a multi-session coached deep-dive.\n\nexplain_starting_rung: plain (default)",
+      "why": "observed shape: hedged 'works a lot like' with bold"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
       "why": "off-topic"
+    },
+    {
+      "answer": "An index, like other database objects, stores a sorted copy of one column with a pointer back to each row, so a lookup reads the sorted copy instead of the whole table.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic database indexes` runs a multi-session coached deep-dive.\n\nexplain_starting_rung: plain (default)",
+      "why": "'like' used as 'such as', no analogy"
     }
   ]
 }

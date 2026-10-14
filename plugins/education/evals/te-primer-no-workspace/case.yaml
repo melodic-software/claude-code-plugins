@@ -13,8 +13,8 @@ graders:
     target: last_message
   - name: good-vs-bad
     type: regex
-    pattern: '^(?=[\s\S]*\b(?:good|strong|better)\b)(?=[\s\S]*\b(?:bad|weak|worse|poor)\b)'
-    flags: 'i'
+    pattern: '^(?=[\s\S]*?(?:^|\||[.!?][ \t]+)[ \t]*(?:[-*>][ \t]*)?(?:\*{1,2}|_)?(?:[❌✗]|(?:bad|weak|weaker|worse|poor|vague)\b[^\n:|]{0,50}?(?::|[ \t]*\|)))(?=[\s\S]*?(?:^|\||[.!?][ \t]+)[ \t]*(?:[-*>][ \t]*)?(?:\*{1,2}|_)?(?:[✅✓]|(?:good|better|strong|stronger|precise)\b[^\n:|]{0,50}?(?::|[ \t]*\|)))'
+    flags: 'im'
     target: last_message
   - name: ask-template
     type: regex

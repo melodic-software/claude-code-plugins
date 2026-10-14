@@ -17,6 +17,10 @@
     {
       "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
       "why": "off-topic"
+    },
+    {
+      "answer": "The report library has nothing on this change; it only holds work that was quizzed. I will not check the tracker.",
+      "why": "negated fallback"
     }
   ]
 }

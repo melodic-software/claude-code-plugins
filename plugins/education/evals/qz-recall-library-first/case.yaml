@@ -3,7 +3,7 @@ name: qz-recall-library-first
 graders:
   - name: library-first
     type: regex
-    pattern: '^(?:(?!\bgit\b|\btracker\b)[\s\S])*?\blibrary\b'
+    pattern: '^(?:(?!\bgit\b|\btracker\b|\blibrary\b)[\s\S])*?(?:^|\n|[.!?:;][ \t]+)(?:(?!\bgit\b|\btracker\b|\blibrary\b|\bnot\b|\bnever\b|\bdid(?:n[''’]t| not)\b|\bwon[''’]t\b|\bhaven[''’]t\b|\bskipp(?:ed|ing)\b|[.!?\n])[\s\S])*?\blibrary\b'
     flags: 'i'
     target: last_message
   - name: coverage-boundary
@@ -13,12 +13,12 @@ graders:
     target: last_message
   - name: fallback-named
     type: regex
-    pattern: '\bgit\b[^\n]{0,30}\b(?:history|log|archaeology)\b|\b(?:issue |work-item )?tracker\b'
+    pattern: '(?:^|\n|[.!?:;][ \t]+)(?:(?!\bnot\b|\bnever\b|\bdid(?:n[''’]t| not)\b|\bwon[''’]t\b|\bhaven[''’]t\b|\bskipp(?:ed|ing)\b|n[''’]t\b|\bwill not\b|[.!?\n])[\s\S])*?(?:\bgit\b[^\n.]{0,30}\b(?:history|log|archaeology)\b|\b(?:issue |work-item )?tracker\b)'
     flags: 'i'
     target: last_message
   - name: no-invented-library-hit
     type: regex
-    pattern: '\bfound (?:a|the|one|\d+) (?:matching )?(?:quiz )?(?:report|quiz)(?:zes|es|s)?\b|\bfrom the (?:report )?library\b[^\n]{0,40}\b(?:you|we) (?:scored|answered)\b'
+    pattern: '\bfound (?:a|the|one|\d+) (?:matching )?(?:quiz )?(?:report|quiz)(?:zes|es|s)?\b|\bfrom the (?:report )?library\b[^\n]{0,40}\b(?:you|we) (?:scored|answered)\b|\blibrary (?:has|holds|contains) (?:a|one|the|\d+) (?:matching )?(?:quiz )?report\b|\byou scored\b'
     flags: 'i'
     match: 'not_contains'
     target: last_message

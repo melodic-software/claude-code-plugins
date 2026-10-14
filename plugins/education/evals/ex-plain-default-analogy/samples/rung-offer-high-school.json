@@ -17,6 +17,14 @@
     {
       "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
       "why": "off-topic"
+    },
+    {
+      "answer": "A database index is like the index at the back of a book.\n\nNo high-school version is needed here.\n\nWant to actually learn this, not just get past it? `/education:teach topic database indexes` runs a multi-session coached deep-dive.\n\nexplain_starting_rung: plain (default)",
+      "why": "negated offer"
+    },
+    {
+      "answer": "A database index is like the index at the back of a book.\n\nI won't offer a high-school version this time.\n\nWant to actually learn this, not just get past it? `/education:teach topic database indexes` runs a multi-session coached deep-dive.\n\nexplain_starting_rung: plain (default)",
+      "why": "refusal, not an offer"
     }
   ]
 }

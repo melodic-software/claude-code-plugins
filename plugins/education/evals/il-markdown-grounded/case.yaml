@@ -14,8 +14,8 @@ graders:
     target: last_message
   - name: grounded-rules
     type: regex
-    pattern: '^(?=[\s\S]*\b429\b)(?=[\s\S]*(?:\b4xx\b|\b400\b|\bclient error))(?=[\s\S]*(?:\b5xx\b|\b500\b|\bserver error))(?=[\s\S]*(?:\bMAX_ATTEMPTS\b|\b(?:4|four) (?:attempts|tries|calls)\b))'
-    flags: 'i'
+    pattern: '^(?=[\s\S]*?(?:\b429\b(?:(?!\bexcept\b|\bother than\b|\bunless\b|\bnot\b|\bnever\b|n[''’]t\b)[^\n,;.]){0,60}?(?<!n[''’]t )(?<!\bnot )(?<!\bno )(?<!\bnever )\b(?:retr(?:y|ies|ied|ying)|try again|tried again|another (?:try|attempt))\b|(?<!n[''’]t )(?<!\bnot )(?<!\bno )(?<!\bnever )\b(?:retr(?:y|ies|ied|ying)|try again|tried again|another (?:try|attempt))\b(?:(?!\bexcept\b|\bother than\b|\bunless\b|\bnot\b|\bnever\b|n[''’]t\b)[^\n,;.]){0,60}?\b429\b|\bsubgraph\b[^\n]*(?<!n[''’]t )(?<!\bnot )(?<!\bno )(?<!\bnever )\b(?:retr(?:y|ies|ied|ying)|try again|tried again|another (?:try|attempt))\b[^\n]*\n(?:(?![ \t]*end\b)[^\n]*\n){0,8}?(?![ \t]*end\b)[^\n]*\b429\b))(?=[\s\S]*?(?:(?:\b4xx\b|\b400\b|\b4\d\d\s*(?:-|–|to)\s*4\d\d\b|\bclient errors?\b)(?:(?!\bexcept\b|\bother than\b|\bunless\b|\bnot\b|\bnever\b|n[''’]t\b)[^\n,;.]){0,60}?(?<!n[''’]t )(?<!\bnot )(?<!\bno )(?<!\bnever )\b(?:give(?:s)? up|gave up|giving up|stops?|not retried|never retried|no retry|returns? false|final|fails?)\b|(?<!n[''’]t )(?<!\bnot )(?<!\bno )(?<!\bnever )\b(?:give(?:s)? up|gave up|giving up|stops?|not retried|never retried|no retry|returns? false|final|fails?)\b(?:(?!\bexcept\b|\bother than\b|\bunless\b|\bnot\b|\bnever\b|n[''’]t\b)[^\n,;.]){0,60}?(?:\b4xx\b|\b400\b|\b4\d\d\s*(?:-|–|to)\s*4\d\d\b|\bclient errors?\b)|\bsubgraph\b[^\n]*(?<!n[''’]t )(?<!\bnot )(?<!\bno )(?<!\bnever )\b(?:give(?:s)? up|gave up|giving up|stops?|not retried|never retried|no retry|returns? false|final|fails?)\b[^\n]*\n(?:(?![ \t]*end\b)[^\n]*\n){0,8}?(?![ \t]*end\b)[^\n]*(?:\b4xx\b|\b400\b|\b4\d\d\s*(?:-|–|to)\s*4\d\d\b|\bclient errors?\b)))(?=[\s\S]*?(?:(?:\b5xx\b|\b500\b|\b5\d\d\s*(?:-|–|to)\s*5\d\d\b|\bserver errors?\b)(?:(?!\bexcept\b|\bother than\b|\bunless\b|\bnot\b|\bnever\b|n[''’]t\b)[^\n,;.]){0,60}?(?<!n[''’]t )(?<!\bnot )(?<!\bno )(?<!\bnever )\b(?:retr(?:y|ies|ied|ying)|try again|tried again|another (?:try|attempt))\b|(?<!n[''’]t )(?<!\bnot )(?<!\bno )(?<!\bnever )\b(?:retr(?:y|ies|ied|ying)|try again|tried again|another (?:try|attempt))\b(?:(?!\bexcept\b|\bother than\b|\bunless\b|\bnot\b|\bnever\b|n[''’]t\b)[^\n,;.]){0,60}?(?:\b5xx\b|\b500\b|\b5\d\d\s*(?:-|–|to)\s*5\d\d\b|\bserver errors?\b)|\bsubgraph\b[^\n]*(?<!n[''’]t )(?<!\bnot )(?<!\bno )(?<!\bnever )\b(?:retr(?:y|ies|ied|ying)|try again|tried again|another (?:try|attempt))\b[^\n]*\n(?:(?![ \t]*end\b)[^\n]*\n){0,8}?(?![ \t]*end\b)[^\n]*(?:\b5xx\b|\b500\b|\b5\d\d\s*(?:-|–|to)\s*5\d\d\b|\bserver errors?\b)))(?=[\s\S]*(?:\bMAX_ATTEMPTS\b|\b(?:4|four) (?:attempts|tries|calls)\b))'
+    flags: 'im'
     target: last_message
   - name: no-html-page
     type: regex
@@ -25,6 +25,6 @@ graders:
     target: last_message
   - name: sources-name-fixture
     type: regex
-    pattern: '\bsources?\b[\s\S]{0,200}?\bretry\.js\b'
-    flags: 'i'
+    pattern: '^(?:#{1,6}[ \t]*|\*\*)sources?\b[^\n]*\n(?:[ \t]*\n)*(?:[^\n]*\n){0,3}?[^\n]*\bretry\.js\b|^\W{0,6}sources?\W{0,4}:[^\n]*\bretry\.js\b'
+    flags: 'im'
     target: last_message

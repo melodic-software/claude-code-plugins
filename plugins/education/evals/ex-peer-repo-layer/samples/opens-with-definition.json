@@ -17,6 +17,14 @@
     {
       "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
       "why": "off-topic"
+    },
+    {
+      "answer": "Backpressure is like a crowded kitchen: the cook plates food faster than the waiter can carry it, so someone tells the cook to slow down.\n\nWant the plain version?\n\nWant to actually learn this, not just get past it? `/education:teach topic backpressure` runs a multi-session coached deep-dive.\nexplain_starting_rung: peer (repository)",
+      "why": "an 'is like' analogy opener"
+    },
+    {
+      "answer": "Backpressure means a lot like traffic lights on a motorway ramp: cars wait so the road keeps moving.\n\nWant the plain version?\n\nWant to actually learn this, not just get past it? `/education:teach topic backpressure` runs a multi-session coached deep-dive.\nexplain_starting_rung: peer (repository)",
+      "why": "a hedged 'means ... like' analogy opener"
     }
   ]
 }

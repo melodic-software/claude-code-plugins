@@ -17,6 +17,10 @@
     {
       "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
       "why": "off-topic"
+    },
+    {
+      "answer": "I did not search the library. Git history has no commits, so there is nothing to recall; the library only holds work that was quizzed anyway.",
+      "why": "negated library search"
     }
   ]
 }
