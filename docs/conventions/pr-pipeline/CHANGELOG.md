@@ -1,5 +1,10 @@
 # Changelog for the PR pipeline convention
 
+## 1.12.3 - 2026-10-14
+
+The `work-resolve-issue` lane's allowlist gains `work-class: mechanical` beside `work-class: read-only`,
+and the comment above it names both. `labeled-after` is unchanged. `version` stays 1.
+
 ## 1.12.2 - 2026-10-14
 
 The `work-resolve-issue` lane goes live: its `labeled-after` is now 2026-10-14T19:21:59Z, so issues

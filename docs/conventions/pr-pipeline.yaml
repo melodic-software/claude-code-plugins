@@ -42,8 +42,9 @@ activities:
     inputs: [issue]
     applies-when:
       events: [labeled]
-      # Only issues with the label "work-class: read-only" are admitted for now.
-      labels: ["work-class: read-only"]
+      # Only issues labeled "work-class: read-only" or "work-class: mechanical"
+      # are admitted; an issue with any other work class starts nothing.
+      labels: ["work-class: read-only", "work-class: mechanical"]
       # Only issues labeled agent-ready after this time start a run; an issue
       # labeled earlier starts nothing.
       labeled-after: "2026-10-14T19:21:59Z"
