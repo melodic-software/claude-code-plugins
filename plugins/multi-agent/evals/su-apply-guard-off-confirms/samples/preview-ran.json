@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh apply --layer user fanout.frontier_guard=false roles.worker.effort=high"
+          }
+        }
+      ],
+      "why": "preview"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh; \"$S\" check session=opus; echo \"--- exit $?\"; \"$S\" apply --layer user fanout.frontier_guard=false roles.worker.effort=high; echo \"--- exit $?\""
+          }
+        }
+      ],
+      "why": "observed measured call: script path in a shell variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts; bash \"$S/setup.sh\" apply --layer user fanout.frontier_guard=false roles.worker.effort=high"
+          }
+        }
+      ],
+      "why": "directory in a variable, bash \"$S/setup.sh\" apply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no preview"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh check session=opus"
+          }
+        }
+      ],
+      "why": "check only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh; \"$S\" apply --layer user --write fanout.frontier_guard=false roles.worker.effort=high"
+          }
+        }
+      ],
+      "why": "variable form with --write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n apply /home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh"
+          }
+        }
+      ],
+      "why": "read the script, did not run apply"
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/assess/scripts/workflow-availability.sh"
+          }
+        }
+      ],
+      "why": "ran the availability script only"
+    },
+    {
+      "answer": [],
+      "why": "no tool calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "write fix A",
+            "prompt": "Fix the flaky login test."
+          }
+        }
+      ],
+      "why": "spawned an agent"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/assess/scripts/workflow-availability.sh"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "worker",
+            "prompt": "Edit file 1"
+          }
+        }
+      ],
+      "why": "spawned after the check"
+    }
+  ]
+}

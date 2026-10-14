@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /home/<user>/.claude/plugins/multi-agent/workflows"
+          }
+        }
+      ],
+      "why": "listing the plugin's own workflows dir"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn 'effort' docs/"
+          }
+        }
+      ],
+      "why": "grep bypass"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rg -l opus ."
+          }
+        }
+      ],
+      "why": "rg bypass"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git grep -n subagent"
+          }
+        }
+      ],
+      "why": "git grep bypass"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/audit-defaults/scripts/list-targets.sh"
+          }
+        }
+      ],
+      "why": "listed sweep targets"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"sweeping\"; grep -rn effort docs/"
+          }
+        }
+      ],
+      "why": "grep after a quoted string"
+    }
+  ]
+}

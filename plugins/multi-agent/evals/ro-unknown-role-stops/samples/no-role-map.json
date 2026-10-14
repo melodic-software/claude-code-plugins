@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Unknown role `planner`. resolve-roles: unknown role planner; valid roles: orchestrator worker verifier retrieval, or all\n",
+      "why": "error only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Unknown role planner; here is the map for all instead:\n```json\n{\"session_model\":\"opus\",\"roles\":{}}\n```\n",
+      "why": "printed a map"
+    },
+    {
+      "answer": "planner is unknown, so I treated it as orchestrator:\norchestrator: single inherit: omit the model option @ high; fanout inherit: omit the model option @ high (basis: model judgment, fanout model unrecorded, effort judgment)\n",
+      "why": "per-role line for a substitute"
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "skill": "multi-agent:check",
+  "plugin": "multi-agent",
+  "skill_dir": "plugins/multi-agent/skills/check",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are discovery:check and harness-ops:prerequisites (the same node-resolution shape for another plugin or the whole fleet) plus the same-plugin audit-defaults and setup skills.",
+  "competitors": [
+    "discovery:check",
+    "harness-ops:prerequisites",
+    "multi-agent:audit-defaults",
+    "multi-agent:setup"
+  ],
+  "competitor_dirs": {
+    "discovery:check": "plugins/discovery/skills/check",
+    "harness-ops:prerequisites": "plugins/harness-ops/skills/prerequisites",
+    "multi-agent:audit-defaults": "plugins/multi-agent/skills/audit-defaults",
+    "multi-agent:setup": "plugins/multi-agent/skills/setup"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "A multi-agent hook just warned that node can't be found. Is that true?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is the drift checker's fetch gate actually registered, or is it silently not running?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I trust the drift audit's fetch restrictions, confirm node resolves for that plugin."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Look at whether the multi-agent plugin has its node dependency; don't install anything."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I got a notice about a missing runtime from the multi-agent hooks. Diagnose it read-only."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Did the fetch gate hook for the drift-checker agent fire this session?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Quick sanity check that the multi-agent plugin's hook can start."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is node on the path for that plugin's fetch gate, and is the hook wired up?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The multi-agent hook seems inert. Check node and the hook registration."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Confirm the prerequisites for multi-agent's hook are present without changing my machine."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The discovery truncation hook says node is missing. Check that plugin."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "List every external tool my enabled plugins need and which ones are missing."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Recheck the multi-agent model defaults against Anthropic's docs."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Install node so the multi-agent hooks work."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Show me the resolved multi-agent role map and whether my overlay is gitignored."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Are the bundled routing defaults still current after the new model release?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which model should the verifier agent use?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "A guardrails hook says jq is missing. Is it installed?"
+    }
+  ]
+}

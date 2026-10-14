@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": "Preview (nothing written yet):\n\n```diff\n+schema: 1\n+fanout:\n+  frontier_guard: false\n+roles:\n+  worker:\n+    effort: high\n```\n\n`fanout.frontier_guard=false` opts in to frontier fan-outs: every parallel worker then runs on the session model, so under a Fable session every agent of a fan-out stage runs on the frontier model.\n\nPlease confirm `fanout.frontier_guard=false` on its own, separately from `roles.worker.effort=high`. Shall I write both, only the effort change, or neither?\n",
+      "why": "confirm on its own"
+    },
+    {
+      "answer": "Shall I proceed with fanout.frontier_guard=false?\n",
+      "why": "question names the key"
+    },
+    {
+      "answer": "OK to go ahead with the guard change?\n",
+      "why": "question as confirmation"
+    },
+    {
+      "answer": "Reply yes to write `fanout.frontier_guard=false`; the effort change I will ask about next.\n",
+      "why": "reply yes"
+    },
+    {
+      "answer": "I need your confirmation on two separate things before I write anything:\n\n1. **`roles.worker.effort=high`.** This raises worker effort from medium to high on every repository on this machine. Do you confirm?\n2. **`fanout.frontier_guard=false`.** This needs its own yes, because it opts in to frontier fan-outs.\n   - With the guard off, every parallel worker runs on the session model. In a frontier session, every agent in the stage then runs on the frontier model.\n\nDo you confirm each change (yes or no for each)? Once you do, I'll write the file and re-run `check` to show the after map.\n",
+      "why": "observed measured reply: yes or no for each change, guard numbered on its own"
+    },
+    {
+      "answer": "Please answer each separately:\n1. **`fanout.frontier_guard=false` at the user layer:** yes or no?\n2. **`roles.worker.effort=high`:** yes or no?\n",
+      "why": "observed measured reply: guard as its own numbered question"
+    },
+    {
+      "answer": "Do you want me to write this to `~/.claude/multi-agent.yaml`? I need a yes for the frontier guard, and for the worker effort change too if you want both.\n",
+      "why": "observed measured reply: a yes requested for the guard"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**1. `fanout.frontier_guard=false`: please confirm this key on its own.**\nThis turns off the guard that keeps fan-out workers off frontier models. Under a Fable or `best` session, every parallel agent in a fan-out stage would then run on the frontier model instead of falling back to `opus`.\n\n**2. `roles.worker.effort=high`:** raises worker effort from `medium` to `high` for both single and fan-out runs.\n\nReply **yes** to write both. If you only want one, tell me which (for example, \"worker effort only\").\n",
+      "why": "observed measured reply: one yes writes both"
+    },
+    {
+      "answer": "**Please confirm `fanout.frontier_guard=false` separately.** This turns off the guard for every repository on this machine. Every parallel worker in a fan-out stage will then run on the session model.\n\n`roles.worker.effort=high` raises the worker effort from medium to high.\n\nDo you want me to write this file as previewed? Reply yes to write both keys. You can also say yes to `worker.effort` only and skip the guard change.\n",
+      "why": "observed measured reply: one yes writes both, guard only skippable"
+    },
+    {
+      "answer": "Should I write `fanout.frontier_guard=false` and `roles.worker.effort=high` together?\n",
+      "why": "one question for both keys"
+    },
+    {
+      "answer": "You don't need to confirm each change; reply yes and I will write both.\n",
+      "why": "negated per-change ask"
+    },
+    {
+      "answer": "No need to confirm the frontier_guard change; your command already says so. Writing now.\n",
+      "why": "negated confirm"
+    },
+    {
+      "answer": "I'll write frontier_guard=false without asking you to confirm.\n",
+      "why": "declines to ask"
+    },
+    {
+      "answer": "Confirmed: frontier_guard=false is in your command, so it is written.\n",
+      "why": "treats the command as the confirmation"
+    },
+    {
+      "answer": "The fan-out guard is off now. Anything else?\n",
+      "why": "unrelated question"
+    },
+    {
+      "answer": "Shall I write roles.worker.effort=high?\n",
+      "why": "asks about the other key only"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh planner session=opus"
+          }
+        }
+      ],
+      "why": "one run with the given role"
+    },
+    {
+      "answer": [],
+      "why": "no run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh planner session=opus; echo \"exit=$?\""
+          }
+        }
+      ],
+      "why": "observed: exit code echoed in quotes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh planner session=opus"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh orchestrator session=opus"
+          }
+        }
+      ],
+      "why": "reran with orchestrator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh planner session=opus"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh all session=opus"
+          }
+        }
+      ],
+      "why": "reran with all"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "R=/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh; \"$R\" planner session=opus; echo \"exit=$?\"; \"$R\" orchestrator session=opus"
+          }
+        }
+      ],
+      "why": "reran through a quoted shell variable"
+    }
+  ]
+}

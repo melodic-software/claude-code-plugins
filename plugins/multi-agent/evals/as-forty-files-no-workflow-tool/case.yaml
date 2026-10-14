@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: as-forty-files-no-workflow-tool
+graders:
+  - name: 'verdict-subagent'
+    type: 'regex'
+    pattern: '^verdict:[ \t]*`?subagent`?[ \t]*$'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'reason-names-missing-workflow-tool'
+    type: 'regex'
+    pattern: '^reason:[^\n]*(?:(?:`?\bWorkflow`?(?:[ \t]+tool)?`?[^\n.;?]{0,30}?\b(?:(?:is|was|are)[ \t]+not|(?:is|was|are)n[''’]?t|not)[ \t]+(?:callable|available|present|listed|loaded|exposed|(?:in|among|part[ \t]+of)[ \t]+(?:this|the|my)[ \t]+(?:[\w''’]+[ \t]+)?(?:session|toolset|tools?)\b|(?:one|a[ \t]+tool|something|anything)[ \t]+I[ \t]+(?:can|could)[ \t]+(?:call|use|load|invoke)|a[ \t]+callable[ \t]+tool)|`?\bWorkflow`?(?:[ \t]+tool)?`?[^\n.;?]{0,30}?\b(?:can(?:not|[''’]?t)|can[ \t]+not|could(?:n[''’]?t|[ \t]+not))[ \t]+be[ \t]+(?:called|used|loaded|invoked)|`?\bWorkflow`?(?:[ \t]+tool)?`?[^\n.;?]{0,30}?(?<!not )(?<!n''t )(?<!n’t )\b(?:unavailable|missing|absent)\b|\b(?:(?:no|without|lacks?|lacking|missing|absent)[ \t]+(?:(?:the|a|an|any)[ \t]+)?(?:(?:callable|usable|loaded)[ \t]+)?|(?:do(?:es)?n[''’]?t|do(?:es)?[ \t]+not|did(?:n[''’]?t|[ \t]+not))[ \t]+have[ \t]+(?:(?:the|a|an|any)[ \t]+)?(?:(?:callable|usable|loaded)[ \t]+)?|(?:(?:can(?:not|[''’]?t)|can[ \t]+not|could(?:n[''’]?t|[ \t]+not))|unable[ \t]+to)[ \t]+(?:call|use|load|invoke)[ \t]+(?:(?:the|a|an|any)[ \t]+)?(?:(?:callable|usable|loaded)[ \t]+)?)`?Workflow\b(?!`?(?:[ \t]+tool)?`?[ \t]+(?:is[ \t]+)?(?:needed|required|necessary)\b)|(?<!turn )(?<!turning )(?<!switch )\bworkflows?[ \t]+(?:(?:are|is)[ \t]+)?(?:unavailable|not[ \t]+available|not[ \t]+callable|(?<!not-)off\b)|\bworkflows?[ \t]+(?:are|is)n[''’]?t[ \t]+(?:available|callable))(?![^\n.!?]*\?))'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'shape-sections'
+    type: 'regex'
+    pattern: '^shape:[ \t]*`?sections\b'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'only-three-line-block'
+    type: 'regex'
+    pattern: '^\s*(?:```[a-z]*[ \t]*\n)?verdict:[ \t]*`?subagent`?[ \t]*\nreason:[ \t]*[^\n]+\nshape:[ \t]*`?sections`?\.?[ \t]*\n?(?:```)?\s*$'
+    target: 'last_message'
+  - name: 'no-agent-spawned'
+    type: 'tool_used'
+    tool: 'Agent'
+    min: 0
+    max: 0

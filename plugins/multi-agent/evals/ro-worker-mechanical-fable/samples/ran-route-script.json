@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh worker mechanical session=fable"
+          }
+        }
+      ],
+      "why": "ran the resolver"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call; JSON invented"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /home/<user>/.claude/plugins/multi-agent/reference/defaults.yaml"
+          }
+        }
+      ],
+      "why": "read the defaults instead"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: ad-repo-no-workflow-stops
+graders:
+  - name: 'says-workflows-unavailable'
+    type: 'regex'
+    pattern: '(?:`?\bWorkflow`?(?:[ \t]+tool)?`?[^\n.;?]{0,30}?\b(?:(?:is|was|are)[ \t]+not|(?:is|was|are)n[''’]?t|not)[ \t]+(?:callable|available|present|listed|loaded|exposed|(?:in|among|part[ \t]+of)[ \t]+(?:this|the|my)[ \t]+(?:[\w''’]+[ \t]+)?(?:session|toolset|tools?)\b|(?:one|a[ \t]+tool|something|anything)[ \t]+I[ \t]+(?:can|could)[ \t]+(?:call|use|load|invoke)|a[ \t]+callable[ \t]+tool)|`?\bWorkflow`?(?:[ \t]+tool)?`?[^\n.;?]{0,30}?\b(?:can(?:not|[''’]?t)|can[ \t]+not|could(?:n[''’]?t|[ \t]+not))[ \t]+be[ \t]+(?:called|used|loaded|invoked)|`?\bWorkflow`?(?:[ \t]+tool)?`?[^\n.;?]{0,30}?(?<!not )(?<!n''t )(?<!n’t )\b(?:unavailable|missing|absent)\b|\b(?:(?:no|without|lacks?|lacking|missing|absent)[ \t]+(?:(?:the|a|an|any)[ \t]+)?(?:(?:callable|usable|loaded)[ \t]+)?|(?:do(?:es)?n[''’]?t|do(?:es)?[ \t]+not|did(?:n[''’]?t|[ \t]+not))[ \t]+have[ \t]+(?:(?:the|a|an|any)[ \t]+)?(?:(?:callable|usable|loaded)[ \t]+)?|(?:(?:can(?:not|[''’]?t)|can[ \t]+not|could(?:n[''’]?t|[ \t]+not))|unable[ \t]+to)[ \t]+(?:call|use|load|invoke)[ \t]+(?:(?:the|a|an|any)[ \t]+)?(?:(?:callable|usable|loaded)[ \t]+)?)`?Workflow\b(?!`?(?:[ \t]+tool)?`?[ \t]+(?:is[ \t]+)?(?:needed|required|necessary)\b)|(?<!turn )(?<!turning )(?<!switch )\bworkflows?[ \t]+(?:(?:are|is)[ \t]+)?(?:unavailable|not[ \t]+available|not[ \t]+callable|(?<!not-)off\b)|\bworkflows?[ \t]+(?:are|is)n[''’]?t[ \t]+(?:available|callable))(?![^\n.!?]*\?)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-findings-table'
+    type: 'regex'
+    pattern: '^\|[^\n]*\b[\w./-]+\.md:\d+'
+    flags: 'm'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'no-grep'
+    type: 'tool_used'
+    tool: 'Grep'
+    min: 0
+    max: 0
+  - name: 'no-glob'
+    type: 'tool_used'
+    tool: 'Glob'
+    min: 0
+    max: 0
+  - name: 'no-webfetch'
+    type: 'tool_used'
+    tool: 'WebFetch'
+    min: 0
+    max: 0
+  - name: 'no-shell-sweep'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:grep|rg|ag|ack|find)\b|\bgit\s+(?:grep|ls-files)\b|list-targets\.sh)'
+    min: 0
+    max: 0

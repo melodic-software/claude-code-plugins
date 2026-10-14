@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: subagent\nreason: three delegated fix attempts fit one turn; no selection rule is stated, so the race must not start until one is stated\nshape: race (no selection rule stated)\n",
+      "why": "must not start until"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 3 agents fit the turn; do not spawn them before a selection rule is chosen\nshape: race (no selection rule stated)\n",
+      "why": "do not spawn before"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 3 attempts; hold the race until you state a selection rule\nshape: race (no selection rule stated)\n",
+      "why": "hold until"
+    },
+    {
+      "answer": "verdict: subagent\nreason: Three agents each write a fix for one test file, so the work fits a few delegated tasks in one turn. \"Keep one of the fixes\" doesn't say how to choose the winner. Don't start the race until a rule is stated, such as \"the first fix where the test passes 50 runs in a row.\" Choosing after reading the fixes would let the fixes decide the rule.\nshape: race (no selection rule stated)\n",
+      "why": "observed measured reply: a later sentence ends in a period, not a question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: subagent\nreason: three agents fit one turn; pick the best fix after reading them\nshape: race (no selection rule stated)\n",
+      "why": "picks after reading"
+    },
+    {
+      "answer": "verdict: subagent\nreason: three agents; don't wait until a selection rule is stated, start now\nshape: race (no selection rule stated)\n",
+      "why": "negated wait"
+    },
+    {
+      "answer": "verdict: subagent\nreason: three agents; no rule needed\nshape: race (no selection rule stated)\n",
+      "why": "no wait stated"
+    },
+    {
+      "answer": "verdict: subagent\nreason: three agents; start the race now, before a selection rule exists\nshape: race (no selection rule stated)\n",
+      "why": "starts before a rule"
+    },
+    {
+      "answer": "verdict: subagent\nreason: three agents must not run in sequence; start them before lunch\nshape: race (no selection rule stated)\n",
+      "why": "negation about something else, no rule"
+    },
+    {
+      "answer": "verdict: subagent\nreason: three agents fit one turn\nshape: race (no selection rule stated)\nThe race must not start until a rule is stated.\n",
+      "why": "outside the reason line"
+    },
+    {
+      "answer": "verdict: subagent\nreason: three agents; should the race wait until a selection rule is stated?\nshape: race (no selection rule stated)\n",
+      "why": "asked, not stated"
+    }
+  ]
+}
