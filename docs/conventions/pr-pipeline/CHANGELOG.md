@@ -1,9 +1,15 @@
 # Changelog for the PR pipeline convention
 
-## 1.11.1 - 2026-10-14
+## 1.11.2 - 2026-10-14
 
 The live config gains the `pr-merge` lane with one `merge-pr` activity (effect `merge`, the babysit
 wrapper under `--authority pr-merge`), run by `.github/workflows/pr-merge.yml`. `version` stays 1.
+
+## 1.11.1 - 2026-10-14
+
+`pr-run-activity.md` "The lane token broker": the request body gains `issue_number`, which the
+broker requires on an `issues` event, sent by `request-lane-token`'s new `issue-number` input.
+`version` stays 1.
 
 ## 1.11.0 - 2026-10-14
 
