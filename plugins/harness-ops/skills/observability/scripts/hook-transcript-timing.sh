@@ -7,8 +7,9 @@
 #   bash hook-transcript-timing.sh [--enabled FILE] <transcript.jsonl>...
 #   bash hook-transcript-timing.sh --latency [--budget EVENT=MS]... <transcript.jsonl>...
 #
-#   --enabled FILE    enabled hooks, one `EVENT<TAB>COMMAND` per line (`#` comments), COMMAND as
-#                     the transcript records it; each with no sample is listed as unsampled
+#   --enabled FILE    enabled hooks, one `EVENT<TAB>HOOK` per line (`#` comments), HOOK as the
+#                     transcript records it (statusMessage if set, else the unexpanded command);
+#                     each with no sample is listed as unsampled
 #   --latency         per-event p50/p95 instead of per-hook rows (the `latency` fallback)
 #   --budget EVENT=MS Stop p95 budget for --latency; repeatable, last wins
 #
@@ -22,7 +23,7 @@
 
 set -uo pipefail
 
-usage() { sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 die() {
   printf 'hook-transcript-timing: %s\n' "$1" >&2
   exit 2
@@ -33,7 +34,7 @@ while (($#)); do
   case "$1" in
     --enabled)
       [[ -r "${2:-}" ]] || die "--enabled needs a readable file"
-      enabled="$(cat "$2")"
+      enabled="$(tr -d '\r' <"$2")"
       shift 2
       ;;
     --latency)
@@ -63,16 +64,20 @@ jq -nrR --arg mode "$mode" --arg enabled "$enabled" --arg budgets "$budgets" '
 def q($p): sort as $s | ($s | length) as $n | (($n - 1) * $p) as $h | ($h | floor) as $lo
   | if $lo + 1 < $n then $s[$lo] + ($h - $lo) * ($s[$lo + 1] - $s[$lo]) else $s[$lo] end;
 def r: . + 0.5 | floor;
+# Output only: strip control bytes and redact credential shapes (context/privacy.md).
+def clean: tostring | gsub("[\u0000-\u001f\u007f]"; "")
+  | gsub("(?<k>[A-Za-z0-9_]*(TOKEN|KEY|SECRET|PASSWORD)[A-Za-z0-9_]*)=[^\\s\"]*"; "\(.k)=[redacted]"; "i")
+  | gsub("[A-Za-z0-9+_-]{32,}={0,2}"; "[redacted-token]");
 [inputs | fromjson? | objects] as $recs
 # One entry per firing: {event, coverage, hooks: [{command, ms}]}. Only these fields are read.
 | [ ($recs[] | select(.subtype? == "stop_hook_summary")
       | {event: "Stop", coverage: "complete",
-         hooks: [.hookInfos[]? | select(.durationMs | type == "number")
+         hooks: [.hookInfos[]? | objects | select(.durationMs | type == "number")
                  | {command: (.command // "?"), ms: .durationMs}]}),
-    ($recs | [to_entries[] | .key as $i | .value | select(.type? == "attachment") | .attachment
+    ($recs | [to_entries[] | .key as $i | .value | select(.type? == "attachment") | .attachment | objects
        | select(.type? == "hook_success" or .type? == "hook_non_blocking_error")
        | select(.durationMs | type == "number")
-       | {event: (.hookEvent // (.hookName // "?" | split(":")[0])),
+       | {event: (.hookEvent // (.hookName // "?" | tostring | split(":")[0])),
           command: (.command // .hookName // "?"), ms: .durationMs,
           key: (.toolUseID // "line \($i)")}
        | select(.event != "Stop")]
@@ -90,7 +95,7 @@ def r: . + 0.5 | floor;
         | .reason = (if .budget != null and .p95 > .budget then "p95>budget"
                      elif .coverage == "sampled" then "sampled" else "" end))) as $rows
     | (["lane", "hook_event", "fires", "p50", "p95", "budget", "reason"] | @tsv),
-      ($rows[] | ["unknown", .event, .n, .p50, .p95, (.budget // "n/a"), .reason] | @tsv),
+      ($rows[] | ["unknown", (.event | clean), .n, .p50, .p95, (.budget // "n/a"), .reason] | @tsv),
       (if any($rows[]; .reason == "p95>budget") then "" | halt_error(1) else empty end)
   else
     ($firings | map(.event as $e | .coverage as $c | .hooks[] | .event = $e | .coverage = $c)
@@ -98,17 +103,17 @@ def r: . + 0.5 | floor;
       | map({event: .[0].event, command: .[0].command, coverage: .[0].coverage,
              n: length, median: (map(.ms) | q(0.5) | r)})) as $rows
     | "event\tsamples\tmedian_ms\tcoverage\thook",
-      ($rows[] | [.event, .n, .median, .coverage, .command] | @tsv),
+      ($rows[] | [(.event | clean), .n, .median, .coverage, (.command | clean)] | @tsv),
       "",
       "slowest hook per event (hooks on one event run in parallel: never sum them)",
       "event\tmedian_ms\thook",
-      ($rows | group_by(.event)[] | max_by(.median) | [.event, .median, .command] | @tsv),
+      ($rows | group_by(.event)[] | max_by(.median) | [(.event | clean), .median, (.command | clean)] | @tsv),
       "",
       "unsampled enabled hooks (attachment records likely skip silent successful hooks)",
       "event\thook",
       ($enabled | split("\n")[] | select(test("^[[:space:]]*(#|$)") | not) | split("\t")
         | select(length >= 2) | {event: .[0], command: (.[1:] | join("\t"))}
         | select(. as $h | $rows | any(.event == $h.event and .command == $h.command) | not)
-        | [.event, .command] | @tsv)
+        | [(.event | clean), (.command | clean)] | @tsv)
   end
 ' "$@"

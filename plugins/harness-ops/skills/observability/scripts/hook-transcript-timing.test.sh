@@ -87,6 +87,21 @@ run "$TMP/missing.jsonl"
 assert_eq "a missing transcript exits 2" 2 "$rc"
 run --enabled
 assert_eq "--enabled without a file exits 2" 2 "$rc"
+
+printf 'PreToolUse\tbash guard.sh\r\n' >"$TMP/crlf.tsv"
+run --enabled "$TMP/crlf.tsv" "$FIXTURE"
+assert_not_contains "a CRLF enabled list still matches a sampled hook" "$(sed -n '/^unsampled enabled hooks/,$p' <<<"$out")" "bash guard.sh"
+
+cat >"$TMP/hostile.jsonl" <<'EOF'
+{"type":"attachment","attachment":{"type":"hook_success","hookEvent":"PreToolUse","durationMs":5,"command":"GITHUB_TOKEN=ghp_secretvalue bash x.sh \u001b[31mHI","toolUseID":"t1"}}
+{"type":"system","subtype":"stop_hook_summary","hookInfos":[3,{"durationMs":4,"command":"bash y.sh"}]}
+{"type":"attachment","attachment":{"type":"hook_success","hookName":7,"durationMs":2}}
+EOF
+run "$TMP/hostile.jsonl"
+assert_eq "malformed hookInfos and hookName still read" 0 "$rc"
+assert_contains "token assignment redacted" "$out" "GITHUB_TOKEN=[redacted] bash x.sh"
+assert_not_contains "token value never printed" "$out" "ghp_secretvalue"
+assert_not_contains "control bytes stripped" "$out" $'\e'
 run
 assert_eq "no transcript exits 2" 2 "$rc"
 

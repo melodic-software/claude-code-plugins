@@ -342,18 +342,12 @@ If /doctor is available in your session (claim: `/doctor` is reserved for the pe
   `stop_hook_summary` nor `durationMs`; verified 2026-09-27; recheck when the hooks page
   documents a per-hook timing record, or when a filtered transcript returns no
   `stop_hook_summary` record in a session whose Stop hooks ran.
-  Every other event's hooks leave `attachment` records of type `hook_success` or
-  `hook_non_blocking_error` carrying a per-hook `durationMs`, but only for some firings (likely
-  not a silent successful hook), so a duration from them is a sample, not a census. They also
-  carry the hook's `stdout` and `stderr`: keep the filter to the timing fields, for example
+  Other events' hooks leave `attachment` records of type `hook_success` or
+  `hook_non_blocking_error`; keep a filter to the timing fields, since they also carry hook
+  output:
   `jq -c 'select(.type == "attachment") | .attachment | select(.type == "hook_success" or .type == "hook_non_blocking_error") | {hookEvent, hookName, command, durationMs}' <session>.jsonl`.
-  `/harness-ops:observability hooks <session>.jsonl` reads both shapes into per-hook medians
-  and the slowest hook per event. Claim: the attachment record and its keys (`command`,
-  `durationMs`, `exitCode`, `hookEvent`, `hookName`, `toolUseID`) are observed harness behavior,
-  not documented, so treat the shape as unstable; basis: transcripts from Claude Code 2.1.288,
-  and the hooks page above names neither record type; as of 2026-10-13; recheck when the hooks
-  page documents a per-hook timing record, or when that filter returns nothing for a session
-  whose non-Stop hooks failed.
+  `/harness-ops:observability hooks <session>.jsonl` reads both shapes and owns the record of
+  their keys and stability.
 - **A single spawn number, unlabeled by machine state, is worse than no number.** The floor
   itself moves with load, so a reading taken under a storm looks like a permanent property of the
   machine and is not one. Every quoted timing carries its `concurrent_processes_at_sample`, and a
