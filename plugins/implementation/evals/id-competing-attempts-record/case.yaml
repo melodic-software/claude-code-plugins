@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: id-competing-attempts-record
+graders:
+  - name: chosen-line
+    type: regex
+    pattern: '^[ \t>*`-]*attempt 3: chosen by\b[^\n]*\bno new dependency\b'
+    flags: 'mi'
+    target: last_message
+  - name: set-aside-line
+    type: regex
+    pattern: '^[ \t>*`-]*attempt 1: set aside by\b[^\n]*\bno new dependency\b'
+    flags: 'mi'
+    target: last_message
+  - name: no-failed-record
+    type: regex
+    pattern: '^[ \t>*`-]*attempt (?:2|two)[ \t]*:'
+    flags: 'mi'
+    match: not_contains
+    target: last_message

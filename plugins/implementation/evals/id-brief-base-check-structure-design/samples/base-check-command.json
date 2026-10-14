@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "## Brief: phase 1, half-even invoice rounding\n\n1. Provision: `git -C /srv/dev/billing fetch origin`, then `git -C /srv/dev/billing worktree add -b feat/invoice-rounding /srv/dev/wt/invoice-rounding origin/integration/rounding`.\n2. Before your first edit, confirm the base: `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding` must equal `git -C /srv/dev/wt/invoice-rounding rev-parse origin/integration/rounding`.\n   On a mismatch, STOP and report. Do not edit.\n3. ALLOWED: billing/invoice.py, new cases in tests/test_invoice.py. FORBIDDEN: CHANGELOG.md, every other path.\n\nStructure: `decimal.Decimal` amounts quantized to the cent with `ROUND_HALF_EVEN`\nDesign: none\n"
+    },
+    {
+      "answer": "**Base check (STOP on a mismatch):**\n\n```\ngit -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding\n```\n\nThe output must equal origin/integration/rounding's commit.\n\n- **Structure:** none\n- **Design:** none\n",
+      "why": "command in a fence"
+    },
+    {
+      "answer": "Run `git -C \"/srv/dev/wt/invoice-rounding\" merge-base HEAD origin/integration/rounding` before any edit; if it differs from the base, STOP and report.\n\n**Structure**: a lookup from rounding mode to quantize rule\n**Design excerpt**: `none`\n",
+      "why": "quoted path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Before your first edit: `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/main` must equal origin/main; otherwise STOP.",
+      "why": "default branch, not the passed base"
+    },
+    {
+      "answer": "Before your first edit: `git merge-base HEAD origin/integration/rounding` must equal the base; otherwise STOP.",
+      "why": "not anchored with git -C"
+    },
+    {
+      "answer": "Create the worktree with `git worktree add -b feat/invoice-rounding /srv/dev/wt/invoice-rounding origin/integration/rounding` and merge origin/integration/rounding before returning.",
+      "why": "base named only at creation"
+    },
+    {
+      "answer": "Check `git -C /srv/dev/wt/invoice-rounding merge-base HEAD integration/rounding`.",
+      "why": "local ref, not the passed remote-tracking ref"
+    }
+  ]
+}

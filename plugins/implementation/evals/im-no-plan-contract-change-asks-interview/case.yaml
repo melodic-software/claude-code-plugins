@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: im-no-plan-contract-change-asks-interview
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: suggests-interview
+    type: regex
+    pattern: '^(?![^\n]*\b(?:won[''’]t|will not|no need|not needed|needn[''’]t|don[''’]t need|do not need|doesn[''’]t need|does not need|skip(?:s|ped|ping)?|unnecessary|isn[''’]t needed|is not needed)\b)[^\n]*?(?:/planning:(?:interview|plan)\b|\binterview\b|\block(?:ing)? (?:in )?(?:the |a )?(?:contract|brief|scope)\b|\bplan (?:it |this )?(?:first|before)\b)'
+    flags: 'mi'
+    target: last_message

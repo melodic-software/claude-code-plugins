@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/.work/late-fee/PLAN.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/docs/conventions/implementation.yaml"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "implementation:implement-dispatch",
+            "args": ".work/late-fee/PLAN.md"
+          }
+        }
+      ],
+      "why": "qualified skill name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "implement-dispatch"
+          }
+        }
+      ],
+      "why": "bare skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/.work/late-fee/PLAN.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/docs/conventions/implementation.yaml"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "ledger/fees.py",
+            "old_string": "return 0",
+            "new_string": "return min(2 * days_overdue, 30)"
+          }
+        }
+      ],
+      "why": "inline edit, setting ignored"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/docs/conventions/implementation.yaml"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "toolchain:check"
+          }
+        }
+      ],
+      "why": "another skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/.work/late-fee/PLAN.md"
+          }
+        }
+      ],
+      "why": "no chain"
+    }
+  ]
+}

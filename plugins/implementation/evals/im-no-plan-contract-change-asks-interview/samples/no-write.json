@@ -1,0 +1,63 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/service/orders.py"
+          }
+        },
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/*.py"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [],
+      "why": "no tools"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/service/orders.py"
+          }
+        },
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/*.py"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/service/notifications/sender.py",
+            "content": "class NotificationSender: ..."
+          }
+        }
+      ],
+      "why": "wrote a module file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/.work/notifications/PLAN.md",
+            "content": "# Plan"
+          }
+        }
+      ],
+      "why": "wrote a plan file instead of suggesting the interview"
+    }
+  ]
+}

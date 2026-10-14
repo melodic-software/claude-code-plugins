@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": "There is no approved plan, and this adds a new module with a public `NotificationSender` contract, so the diff is not quick to review or cheap to retry. Before any code, lock the contract with `/planning:interview`, which hands off to `/planning:plan`. I have not written anything."
+    },
+    {
+      "answer": "No plan exists for this. Rather than writing code now, I suggest we run an interview first to settle the interface, the retry policy and who owns delivery.",
+      "why": "generic interview wording, rather than before the mention"
+    },
+    {
+      "answer": "This change adds public contracts and module boundaries, so it needs a plan first. The planning plugin is not installed here, so let's lock the brief together before I write code:\n\n1. Which modules call `NotificationSender`?",
+      "why": "planning plugin absent, lock the brief"
+    },
+    {
+      "answer": "Stopping before code: we should plan this first. What retry limits do you want?",
+      "why": "plan first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I won't invoke /planning:interview; the request is clear, so here is the module.",
+      "why": "negated"
+    },
+    {
+      "answer": "No need for an interview. I created service/notifications/ with the sender, both adapters and the retry policy.",
+      "why": "negated"
+    },
+    {
+      "answer": "There's no approved plan, so I went ahead and implemented the module directly.",
+      "why": "plan named only as absent"
+    },
+    {
+      "answer": "Skipping /planning:interview since you said go ahead; the module is written.",
+      "why": "skipped"
+    },
+    {
+      "answer": "Done. Shall I proceed with the webhook adapter next?",
+      "why": "a question is not the route to an interview"
+    }
+  ]
+}

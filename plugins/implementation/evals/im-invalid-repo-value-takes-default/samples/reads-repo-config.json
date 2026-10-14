@@ -1,0 +1,60 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/docs/conventions/implementation.yaml"
+          }
+        }
+      ],
+      "why": "absolute path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "docs/**"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/conventions/implementation.yaml"
+          }
+        }
+      ],
+      "why": "glob then read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/ledger/fees.py"
+          }
+        }
+      ],
+      "why": "only the source file read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "docs/conventions/implementation.yaml"
+          }
+        }
+      ],
+      "why": "located but never read"
+    },
+    {
+      "answer": [],
+      "why": "no reads"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "Settings:\n- `code_writing: dispatch (docs/conventions/implementation.yaml)`\n- integration_posture: plan governs\n\nPhase 1 goes to `/implementation:implement-dispatch` as a worker row for `implementation:implementer`; I stopped before dispatching it."
+    },
+    {
+      "answer": "**code_writing**: `dispatch` (`docs/conventions/implementation.yaml`), so phase 1 is handed to implement-dispatch.",
+      "why": "markdown emphasis"
+    },
+    {
+      "answer": "code_writing: dispatch (from docs/conventions/implementation.yaml)",
+      "why": "from prefix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "code_writing: inline (default)\n\nI would edit ledger/fees.py directly.",
+      "why": "repository value ignored"
+    },
+    {
+      "answer": "code_writing: dispatch (user option)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "code_writing: dispatch (default)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "The repository asks for dispatch, so phase 1 goes to a worker.",
+      "why": "no setting line"
+    },
+    {
+      "answer": "code_writing is not set in docs/conventions/implementation.yaml; dispatch was not chosen.",
+      "why": "negated"
+    }
+  ]
+}

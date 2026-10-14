@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Settings resolved before the first edit:\n\n- `code_writing: inline (default)`. `docs/conventions/implementation.yaml` sets `code_writing: parallel`, which is not one of `inline` or `dispatch`, so that layer is dropped.\n- `integration_posture: minimal (docs/conventions/implementation.yaml)`\n\nMode: fix. Stopping before any edit.",
+      "why": "file, key, value and 'not one of' on one line"
+    },
+    {
+      "answer": "Invalid value: docs/conventions/implementation.yaml, key code_writing, value parallel. Dropped.\ncode_writing: inline (default; no approved plan, so the inline cadence runs)\nintegration_posture: minimal (docs/conventions/implementation.yaml)",
+      "why": "terse invalid-value line"
+    },
+    {
+      "answer": "**code_writing**: `inline` (default)\n  The repository file docs/conventions/implementation.yaml has\n  code_writing = parallel, an invalid value; I ignored that layer.\n**integration_posture**: `minimal` (`docs/conventions/implementation.yaml`)",
+      "why": "split across lines inside a three-line window"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Settings read from docs/conventions/implementation.yaml:\n- code_writing: parallel\n- integration_posture: minimal",
+      "why": "invalid value taken as valid"
+    },
+    {
+      "answer": "code_writing: `parallel` is invalid, so I used the default inline.\nintegration_posture: minimal",
+      "why": "file not named"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets code_writing: parallel, which is not invalid here; dispatching in parallel.",
+      "why": "negated invalid"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml has an unknown key.\ncode_writing: inline (default)",
+      "why": "value not named"
+    },
+    {
+      "answer": "code_writing: inline (default)\nintegration_posture: minimal (docs/conventions/implementation.yaml)",
+      "why": "the invalid value is never named"
+    }
+  ]
+}

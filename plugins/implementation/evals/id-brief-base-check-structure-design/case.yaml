@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: id-brief-base-check-structure-design
+graders:
+  - name: base-check-command
+    type: regex
+    pattern: 'git -C [`''"]?/srv/dev/wt/invoice-rounding/?[`''"]? merge-base HEAD [`''"]?origin/integration/rounding\b'
+    target: last_message
+  - name: stop-on-mismatch
+    type: regex
+    pattern: '^(?=(?:[^\n]*\n){0,4}[^\n]*merge-base HEAD [`''"]?origin/integration/rounding)(?=(?:[^\n]*\n){0,4}[^\n]*\bSTOP\b)(?=(?:[^\n]*\n){0,4}[^\n]*\b(?:mismatch(?:es|ed)?|differs?|different|does(?: not|n[''’]t) (?:equal|match)|not equal|otherwise|if not)\b)(?!(?:[^\n]*\n){0,4}[^\n]*\b(?:don[''’]t|do not|never|no need to) stop\b)'
+    flags: 'mi'
+    target: last_message
+  - name: structure-line
+    type: regex
+    pattern: '^[ \t>*_-]*(?:\d+[.)][ \t]*)?[*_`]*Structure[*_`]*[ \t]*:[*_`]*[ \t]*[*_`]*[^ \t\n*_`]'
+    flags: 'm'
+    target: last_message
+  - name: design-none
+    type: regex
+    pattern: '^[ \t>*_-]*(?:\d+[.)][ \t]*)?[*_`]*Design(?: excerpt)?[*_`]*[ \t]*:[*_`]*[ \t]*[`*_]*none\b'
+    flags: 'mi'
+    target: last_message

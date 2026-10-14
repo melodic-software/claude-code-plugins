@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/service/orders.py"
+          }
+        },
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/*.py"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/service/orders.py"
+          }
+        },
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/*.py"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/service/notifications/sender.py",
+            "content": "class NotificationSender: ..."
+          }
+        }
+      ],
+      "why": "Write is the other grader's concern"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/service/orders.py"
+          }
+        },
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/*.py"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/ws/service/orders.py",
+            "old_string": "pass",
+            "new_string": "sender.send(order)"
+          }
+        }
+      ],
+      "why": "edited a caller"
+    }
+  ]
+}
