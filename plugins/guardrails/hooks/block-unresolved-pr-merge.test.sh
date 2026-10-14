@@ -122,9 +122,16 @@ J
   # first, as the endpoint returned them there.
   superseded-failure | superseded-cancelled)
     local old="${3#superseded-}"
-    echo '{"total_count":2,"check_runs":[{"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T16:55:30Z","completed_at":"2026-10-14T16:55:43Z"},{"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"'"$old"'","started_at":"2026-10-14T15:29:01Z","completed_at":"2026-10-14T15:29:16Z"}]}' >"$FIX/checks.json"
+    echo '{"total_count":2,"check_runs":[{"id":902,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T16:55:30Z","completed_at":"2026-10-14T16:55:43Z"},{"id":901,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"'"$old"'","started_at":"2026-10-14T15:29:01Z","completed_at":"2026-10-14T15:29:16Z"}]}' >"$FIX/checks.json"
     ;;
-  regressed) echo '{"total_count":2,"check_runs":[{"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T15:29:01Z","completed_at":"2026-10-14T15:29:16Z"},{"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T16:55:30Z","completed_at":"2026-10-14T16:55:43Z"}]}' >"$FIX/checks.json" ;;
+  regressed) echo '{"total_count":2,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T15:29:01Z","completed_at":"2026-10-14T15:29:16Z"},{"id":902,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T16:55:30Z","completed_at":"2026-10-14T16:55:43Z"}]}' >"$FIX/checks.json" ;;
+  # The newer run (higher id) failed but finished before the older success did,
+  # or carries a caller-set future completed_at on the older success.
+  regressed-early) echo '{"total_count":2,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T10:00:00Z","completed_at":"2099-01-01T00:00:00Z"},{"id":902,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T10:05:00Z","completed_at":"2026-10-14T10:10:00Z"}]}' >"$FIX/checks.json" ;;
+  # A newer run still in progress, started before the older one completed.
+  newer-pending) echo '{"total_count":2,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:10:00Z"},{"id":902,"name":"ci-status","app":{"id":15368},"status":"in_progress","conclusion":null,"started_at":"2026-10-14T10:05:00Z","completed_at":null}]}' >"$FIX/checks.json" ;;
+  # A later event skipped the job that had failed.
+  failed-then-skipped) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:10:00Z"},{"id":902,"name":"test","app":{"id":15368},"status":"completed","conclusion":"skipped","started_at":"2026-10-14T10:20:00Z","completed_at":"2026-10-14T10:20:00Z"}]}' >"$FIX/checks.json" ;;
   *) return 1 ;;
   esac
   case "$4" in
@@ -244,6 +251,15 @@ done
 scenario none none regressed green
 run "older success, newer failure" 'gh pr merge 42 --squash' 2
 assert_contains "names the regressed check" "$ERR" "Failing checks: ci-status"
+scenario none none regressed-early green
+run "newer failure that finished before the older success" 'gh pr merge 42 --squash' 2
+assert_contains "names the early-finishing failure" "$ERR" "Failing checks: ci-status"
+scenario none none newer-pending green
+run "newer pending run over an older success" 'gh pr merge 42 --squash' 2
+assert_contains "names the newer pending run" "$ERR" "Pending checks (use --auto to merge once they pass): ci-status"
+scenario none none failed-then-skipped green
+run "a later skipped run does not clear a failure" 'gh pr merge 42 --squash' 2
+assert_contains "names the skipped-over failure" "$ERR" "Failing checks: test"
 
 # --- 4. REST, GraphQL and curl merge paths -------------------------------------
 scenario unresolved none green green

@@ -524,12 +524,16 @@ _bupm_changes="$BUPM_OUT"
 
 # Check runs on the head commit. The endpoint can return several runs of one
 # check (a draft run and the run after the ready flip, #7473), so only the
-# newest per name and app counts, as in GitHub's merge state: newest by
-# completion time, else start time; a run with neither sorts newest.
+# newest per name and app counts. Newest is the highest id, the order runs were
+# created in; timestamps are not used, because a run that started earlier can
+# finish later and a caller can set them. A skipped or neutral run never
+# supersedes a run with a real conclusion, so a later event that skips a job
+# cannot clear its failure.
 # shellcheck disable=SC2016
 _bupm_api "repos/$BUPM_REPO/commits/$_bupm_sha/check-runs?per_page=100" --jq '
   [.check_runs | group_by([.name, (.app.id // 0)])[]
-    | max_by(.completed_at // .started_at // "9999")] as $runs
+    | . as $g | (map(select(.conclusion | IN("skipped","neutral") | not)) | if length > 0 then . else $g end)
+    | max_by(.id)] as $runs
   | [$runs[] | select(.status == "completed" and (.conclusion | IN("failure","timed_out","cancelled","action_required","startup_failure","stale"))) | .name] as $f
   | [$runs[] | select(.status != "completed") | .name] as $p
   | "\($f | join(", "))\u001f\($p | join(", "))"' ||
