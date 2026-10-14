@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-10-14
+
+### Added
+
+- `audit` allows one batched research pass in place of one call per finding when two or more findings qualify. Sources save under one packet directory, and each finding keeps its own `research:` record, graded unchanged by `collect-categories.sh`.
+
 ## [0.14.10] - 2026-10-13
 
 ### Changed

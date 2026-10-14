@@ -3,6 +3,12 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2] - 2026-10-14
+
+### Changed
+
+- `plugins/performance/lib/transcript_reader.py` is now generated from the repository canonical `lib/transcript_reader.py` instead of from session-flow's copy; only its generated-file header changed.
+
 ## [0.9.1] - 2026-10-13
 
 ### Fixed
