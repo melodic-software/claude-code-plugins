@@ -54,7 +54,7 @@ activities:
       # labeled earlier starts nothing.
       labeled-after: "2026-10-14T19:21:59Z"
   report-outcome:
-    # Opens a draft pull request from the branch, or comments on the issue
+    # Opens a ready pull request from the branch, or comments on the issue
     # and labels it needs-human. A script, no model.
     script: .github/scripts/work-resolve-issue/report-outcome.mjs
     effect: publish-artifact

@@ -2,7 +2,7 @@
 // report-outcome.mjs: the work-resolve-issue lane's report-outcome leaf. Reads
 // what the resolve-issue run left and acts on the issue, with no model:
 //
-//   done      opens a draft PR from the run's branch: the body starts
+//   done      opens a ready PR from the run's branch: the body starts
 //             `Closes #<issue>`, the title is the run's when it is Conventional
 //             Commits (else `chore: work on #<issue>`), the PR gets the issue's
 //             `work-class:` labels, and the body carries the hold line when a
@@ -53,7 +53,7 @@ const MAX_ITEM = 300;
 // hide a hold path.
 const COMPARE_FILES_CAP = 300;
 
-const stopped = (reason) => ({ exit: "stopped", reason, title: "", summary: "", changes: [], verification: [], notDone: [] });
+const stopped = (reason) => ({ exit: "stopped", reason, title: "", summary: "", changes: [], verification: [], notDone: [], steps: [] });
 const text = (value) => (typeof value === "string" ? value.slice(0, MAX_TEXT) : "");
 const list = (value) =>
   Array.isArray(value) ? value.filter((item) => typeof item === "string").slice(0, MAX_ITEMS).map((item) => item.slice(0, MAX_ITEM)) : [];
@@ -73,6 +73,14 @@ const notDoneList = (value) =>
     .filter(Boolean)
     .slice(0, MAX_ITEMS)
     .map(({ what, required }) => ({ what: what.slice(0, MAX_ITEM), required }));
+
+// The prep steps the run reports, each {activity, result}, both strings;
+// post-statuses.mjs decides which of them it posts.
+const stepList = (value) =>
+  (Array.isArray(value) ? value : [])
+    .filter((item) => typeof item?.activity === "string" && typeof item?.result === "string")
+    .slice(0, MAX_ITEMS)
+    .map(({ activity, result }) => ({ activity: activity.slice(0, 40), result: result.slice(0, 20) }));
 
 // The merge lane's denied-path globs from the resolved config, or null when
 // they cannot be read, which holds every PR.
@@ -104,6 +112,7 @@ export function readOutcome(path) {
     changes: list(parsed.changes),
     verification: list(parsed.verification),
     notDone: notDoneList(parsed.not_done),
+    steps: stepList(parsed.steps),
   };
 }
 
@@ -290,7 +299,7 @@ function humanLabelFrom(path) {
   return label;
 }
 
-function readBranch(dir, issueNumber) {
+export function readBranch(dir, issueNumber) {
   try {
     const { branch } = JSON.parse(readFileSync(join(dir, "lane.json"), "utf8"));
     return new RegExp(`^work-resolve-issue/issue-${issueNumber}-[1-9][0-9]*-[1-9][0-9]*$`).test(branch ?? "") ? branch : "";
@@ -370,12 +379,12 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
           body: plan.body,
           head: plan.branch,
           base,
-          draft: true,
+          draft: false,
         }));
       if (plan.labels.length) {
         await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: plan.labels });
       }
-      console.log(`report-outcome: opened draft PR #${pull.number} for issue #${issueNumber}`);
+      console.log(`report-outcome: opened PR #${pull.number} for issue #${issueNumber}`);
       return 0;
     }
     // The label first, so a failed comment still leaves the issue with a person.

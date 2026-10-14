@@ -36,6 +36,13 @@ dispatch, PR or babysit step. It works in place:
    required, and so is any other check the repository's rules require for the files you touched.
    A required check you could not run or could not pass goes in `not_done` with
    `"required": true`, and the lane then reports the run `stopped`, whatever `exit` says.
+   Then run the prep `/source-control:pull-request prep` defines, since the lane opens the PR
+   ready: only this plugin is loaded here, so use its stated fallback for each step. Review your
+   whole diff in one fresh-context subagent and fix each finding you confirm, then build, test and
+   lint the touched files, and run the audit each touched file class owes. Commit the fixes.
+   Record each step in `steps`: `review` (the review), `verify` (build and tests) and `checks`
+   (lint and the class audits), each `pass`, `fail` or `skipped`. The lane posts them as
+   `pipeline/<step>` commit statuses.
 5. Last, write `work-outcome.json` to the same scratchpad directory:
 
    ```json
@@ -46,7 +53,8 @@ dispatch, PR or babysit step. It works in place:
      "summary": "What changed and why, in two or three sentences.",
      "changes": ["path/to/file.md: what changed in it"],
      "verification": ["the check you ran: what it showed"],
-     "not_done": [{"what": "what you skipped or could not check, and why", "required": false}]
+     "not_done": [{"what": "what you skipped or could not check, and why", "required": false}],
+     "steps": [{"activity": "review", "result": "pass"}]
    }
    ```
 

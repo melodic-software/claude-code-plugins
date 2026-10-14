@@ -1,5 +1,5 @@
 // Expected values come from the lane's plan: a missing or invalid outcome file
-// means `stopped`; `done` opens a draft PR whose body starts `Closes #<issue>`,
+// means `stopped`; `done` opens a ready PR whose body starts `Closes #<issue>`,
 // with a Conventional Commits title (else `chore: work on #<issue>`), the
 // issue's `work-class:` label, and the hold line for scoped, structural and
 // untrusted-provenance work or a trust or lane-power diff; `pushback` and
@@ -68,7 +68,7 @@ test("a valid done outcome reads as done", () => {
   });
 });
 
-test("done opens a draft PR whose body starts with Closes #N", () => {
+test("done opens a PR whose body starts with Closes #N", () => {
   const plan = decideDone();
   assert.equal(plan.action, "open-pr");
   assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
@@ -400,7 +400,7 @@ test("main with no outcome files comments stopped and adds needs-human", async (
   });
 });
 
-test("main on done opens a draft PR from the branch and labels it", async () => {
+test("main on done opens a ready PR from the branch and labels it", async () => {
   await withDir(
     { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
     async (dir) => {
@@ -414,7 +414,7 @@ test("main on done opens a draft PR from the branch and labels it", async () => 
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
-      assert.equal(pull.draft, true);
+      assert.equal(pull.draft, false);
       assert.equal(pull.head, BRANCH);
       assert.equal(pull.base, "main");
       assert.ok(pull.body.startsWith("Closes #77\n"));
