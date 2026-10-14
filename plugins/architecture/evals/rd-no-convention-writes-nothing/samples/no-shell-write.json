@@ -63,6 +63,30 @@
         }
       ],
       "why": "read-only readlink"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"s='x y'; k='x'; v='z'; print(s.replace(k, v))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "two-argument replace"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; s='xyz'; print(s.replace(Path('x').name, 'q'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "two-argument replace"
     }
   ],
   "fail": [
@@ -231,6 +255,30 @@
         }
       ],
       "why": "pathlib replace"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; Path('/tmp/x.md').replace(Path('docs/adr/0001-postgres.md'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib replace with Path argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; dst='docs/adr/0001-postgres.md'; p=Path('/tmp/x.md'); p.replace(dst)\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib replace with variable target"
     }
   ]
 }
