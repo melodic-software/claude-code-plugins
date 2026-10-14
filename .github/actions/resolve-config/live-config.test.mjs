@@ -98,19 +98,24 @@ test("live config: report-escalation applies and is granted publish-artifact onl
   );
 });
 
-// An agent-ready label event on a read-only issue. The shipped cutover is the
-// far future, so the lane stays off until the owner sets the go-live time.
+// An agent-ready label event on a read-only issue. The
+// lane went live at 2026-10-14T19:21:59Z, the labeled-after time in the live config.
 const ISSUE = { event: "labeled", labels: ["agent-ready", "work-class: read-only"], labeledAt: "2026-10-20T00:00:00Z" };
 
-test("live config: resolve-issue starts nothing before the owner sets the go-live time", () => {
-  assert.equal(skipReason("work-resolve-issue", "resolve-issue", ISSUE), "not-applicable");
+test("live config: resolve-issue starts for a read-only issue labeled after the go-live time", () => {
+  assert.equal(selected("work-resolve-issue", "resolve-issue", ISSUE).applies, true);
 });
 
-test("live config: after the go-live time resolve-issue admits read-only issues only", () => {
-  const after = { ...ISSUE, labeledAt: "2099-01-01T00:00:01Z" };
-  assert.equal(selected("work-resolve-issue", "resolve-issue", after).applies, true);
+test("live config: resolve-issue starts nothing for an issue labeled before the go-live time", () => {
   assert.equal(
-    skipReason("work-resolve-issue", "resolve-issue", { ...after, labels: ["agent-ready", "work-class: scoped"] }),
+    skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labeledAt: "2026-10-14T19:21:58Z" }),
+    "not-applicable",
+  );
+});
+
+test("live config: resolve-issue admits read-only issues only", () => {
+  assert.equal(
+    skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["agent-ready", "work-class: scoped"] }),
     "not-applicable",
   );
 });

@@ -42,11 +42,11 @@ activities:
     inputs: [issue]
     applies-when:
       events: [labeled]
-      # Only issues triaged as read-only work start the lane for now.
+      # Only issues with the label "work-class: read-only" are admitted for now.
       labels: ["work-class: read-only"]
-      # The go-live time: a label applied before it starts nothing. The far
-      # future keeps the lane off; the owner sets the real time to turn it on.
-      labeled-after: "2099-01-01T00:00:00Z"
+      # Only issues labeled agent-ready after this time start a run; an issue
+      # labeled earlier starts nothing.
+      labeled-after: "2026-10-14T19:21:59Z"
   report-outcome:
     # Opens a draft pull request from the branch, or comments on the issue
     # and labels it needs-human. A script, no model.
