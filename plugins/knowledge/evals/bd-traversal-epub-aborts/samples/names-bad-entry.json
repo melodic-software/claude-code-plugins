@@ -22,6 +22,10 @@
     },
     {
       "answer": "Extracted the EPUB and wrote the first reference file."
+    },
+    {
+      "answer": "No suspicious entry like evil.txt was found; extracted.",
+      "why": "review finding"
     }
   ]
 }

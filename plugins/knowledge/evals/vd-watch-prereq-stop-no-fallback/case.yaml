@@ -21,7 +21,7 @@ graders:
   - name: no-improvised-download
     type: tool_used
     tool: Bash
-    input_match: '\b(?:yt-dlp|youtube-dl|curl|wget)\b(?:[^\x22\\]|\\.)*?(?:youtube\.com|youtu\.be)'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|({`]|\\n|-c[ \t]+(?:''|\\")))?[ \t]*(?:\w+=(?:[^\s"\\;&|]|\\.)*[ \t]+)*(?:(?:sudo|exec|env|time|nohup|uvx|npx|pipx[ \t]+run|python3?(?:[ \t]+-[a-zA-Z]+)*?[ \t]+-m)[ \t]+)*(?:[\w./~${}-]*/)?(?:yt[-_]dlp|youtube[-_]dl|curl|wget)\b(?!-)(?![ \t]+(?:--version|--help|-[Vh])\b)'
     min: 0
     max: 0
     arm: both

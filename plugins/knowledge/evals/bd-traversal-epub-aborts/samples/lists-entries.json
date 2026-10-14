@@ -58,6 +58,18 @@
         }
       ],
       "why": "after another command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m zipfile -l books/field-notes.epub",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
     }
   ],
   "fail": [
@@ -100,6 +112,30 @@
         }
       ],
       "why": "no listing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"next: unzip -l books/field-notes.epub\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'would run zipinfo books/field-notes.epub'",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
     }
   ]
 }

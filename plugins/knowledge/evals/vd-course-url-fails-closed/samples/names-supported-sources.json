@@ -23,6 +23,10 @@
     {
       "answer": "Not an x.com post; use /knowledge:course-digest.",
       "why": "other one only"
+    },
+    {
+      "answer": "YouTube is supported. Dometrain is not. Let X be the course.",
+      "why": "review finding"
     }
   ]
 }

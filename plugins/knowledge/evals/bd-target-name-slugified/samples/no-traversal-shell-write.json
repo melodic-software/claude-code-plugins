@@ -144,6 +144,30 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import os;os.makedirs('../../outside-notes/reference')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/a/b/' ../../outside-notes/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
     }
   ]
 }

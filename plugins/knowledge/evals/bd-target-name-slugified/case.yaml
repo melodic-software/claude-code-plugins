@@ -25,7 +25,7 @@ graders:
   - name: no-traversal-shell-write
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:mkdir|touch|cp|mv|tee|install|ln)\b|>)(?:[^"\n;&|]|\\")*?(?:\.\./+outside-notes|(?<!\.claude/skills/)(?<![\w-])outside-notes/(?:SKILL\.md|reference))'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\b(?:mkdir|makedirs|touch|cp|mv|tee|install|ln)\b|\b(?:sed|perl)\b(?:[^"\\;&|]|\\[^n])*?[ \t]-[a-zA-Z]*i|>)(?:[^"\n;&|]|\\")*?(?:\.\./+outside-notes|(?<!\.claude/skills/)(?<![\w-])outside-notes/(?:SKILL\.md|reference))'
     min: 0
     max: 0
     arm: both

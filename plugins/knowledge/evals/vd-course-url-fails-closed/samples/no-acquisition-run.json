@@ -26,6 +26,30 @@
     },
     {
       "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v yt-dlp",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v yt-dlp || echo missing; python3 -c \"import yt_dlp\" 2>&1 | tail -1",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
     }
   ],
   "fail": [
@@ -83,6 +107,78 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m yt_dlp --skip-download --write-auto-subs 7zZy1QTvokM",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yt-dlp --skip-download --write-auto-subs 7zZy1QTvokM",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pipx run yt-dlp 7zZy1QTvokM",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m yt_dlp https://dometrain.com/course/x",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "u=https://dometrain.com/x; yt-dlp \"$u\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "pipx run yt-dlp https://dometrain.com/course/x",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
     }
   ]
 }

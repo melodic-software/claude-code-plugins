@@ -3,12 +3,12 @@ name: cd-udemy-no-adapter-stops
 graders:
   - name: reports-no-adapter
     type: regex
-    pattern: '(?:\bno\s+(?!need\b)(?:[\w-]+\s+){0,2}adapter\b|\bdoes(?:n[’'']t| not)\s+(?:have|ship|include)\s+(?:an?\s+|any\s+)?(?:[\w-]+\s+){0,2}adapter\b|\badapter\s+(?:for\s+\w+\s+)?(?:does(?:n[’'']t| not)\s+exist|is(?:n[’'']t| not)\s+(?:available|implemented|present))|\bnot\s+(?:yet\s+)?supported\b|\bunsupported\b)(?![^\n.!]*\?)'
+    pattern: '(?<![\s\S])(?![\s\S]*?(?:\bproceed(?:ed|ing)?[ \t]+anyway\b|\bI(?:[’'']ve| have)?[ \t]+(?:wrote|written|created|built|added|scaffolded|implemented|generated)\b[^\n]{0,60}?(?:\badapters/|\budemy\.m?js\b)))[\s\S]*?(?:\bno\s+(?!need\b)(?:[\w-]+\s+){0,2}adapter\b|\bdoes(?:n[’'']t| not)\s+(?:have|ship|include)\s+(?:an?\s+|any\s+)?(?:[\w-]+\s+){0,2}adapter\b|\badapter\s+(?:for\s+\w+\s+)?(?:does(?:n[’'']t| not)\s+exist|is(?:n[’'']t| not)\s+(?:available|implemented|present))|\bnot\s+(?:yet\s+)?supported\b|\bunsupported\b)(?![^\n.!]*\?)'
     flags: 'mi'
     target: last_message
   - name: names-discovery-checklist
     type: regex
-    pattern: '(?:^|[.;:!?,—(]|\b(?:so|but|because|since)\b)[ \t*_`]*(?:(?![.;:!?,—(\n])(?!\b(?:not|never|no|nothing|without|rather|instead of|skip(?:ping)?)\b)(?!\w+n[’'']t\b)[^\n])*?discovery[- ]checklist\b(?![^.;!?,\n]*\b(?:not needed|unnecessary|is(?:n[’'']t| not) (?:needed|required))\b)'
+    pattern: '(?:^|[.;:!?,—(]|\b(?:so|but|because|since)\b)[ \t*_`]*(?:(?![.;:!?,—(\n])(?!\b(?:not|never|no|nothing|without|rather|instead of|skip(?:ping)?|ignore|ignoring|disregard(?:ing)?|forget|avoid(?:ing)?|bypass(?:ing)?)\b)(?!\w+n[’'']t\b)[^\n])*?discovery[- ]checklist\b(?![^.;!?,\n]*\b(?:not (?:be )?(?:needed|required|necessary|relevant)|unnecessary|irrelevant|is(?:n[’'']t| not) (?:needed|required)|won[’'']t be (?:needed|required|necessary))\b)'
     flags: 'mi'
     target: last_message
   - name: no-course-extraction
@@ -29,6 +29,13 @@ graders:
     type: tool_used
     tool: Edit
     input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-adapter-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>(?!>?[ \t]*(?:&|/dev/null))|(?:\b|(?<=\\n))(?:tee|cp|mv|touch)\b|<<)(?:[^"\\;&|]|\\[^n])*?adapters/[\w./-]*udemy'
     min: 0
     max: 0
     arm: both

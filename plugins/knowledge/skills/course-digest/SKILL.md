@@ -35,13 +35,13 @@ This skill's `.work/` root resolves through the knowledge plugin's own `library_
 
 ## Prerequisites (verify before starting)
 
-1. **course-extraction deps**. Run `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`. It installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin updates) and Playwright's Chromium into `${CLAUDE_PLUGIN_DATA}/ms-playwright`. It is idempotent; re-run it after a plugin update.
-2. **Platform auth**. The user sets `COURSE_EMAIL`/`COURSE_PASSWORD` (Dometrain → Clerk) or `TEACHABLE_EMAIL`/`TEACHABLE_PASSWORD` (Teachable) in the shell before invoking; the pipeline's node subprocess inherits them. `platformConfig.authEnvPrefix` in the course config sets the prefix. Session cookies persist under `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` and are reused across runs. With no credentials set, **interactive manual login is the fallback**: it opens a browser window for the user to log in. The prompt (`node:readline` plus a headed browser) may not work under headless plugin execution; that is a known limitation, not a blocker. Keep credentials in shell environment variables, never in plugin `userConfig`, whose options are non-secret scalars and no secret store.
-3. **ffmpeg** 7.1+, required for video frame extraction (scene detection, interval capture); below 7.1, newer codecs (AV1, Opus) degrade or fail. Check: `ffmpeg -version`. Install: `winget install Gyan.FFmpeg` (Windows), `brew install ffmpeg` (macOS), `sudo apt install ffmpeg` (Linux).
-4. **ImageMagick 7**, required by `classify-frames.js` for contact sheets (`magick montage`). Check: `magick -version`. Install: `winget install ImageMagick.ImageMagick` (Windows), `brew install imagemagick` (macOS), `sudo apt install imagemagick` (Linux). Ubuntu <26.04 ships v6; v7 may need a source build.
-5. **claude-in-chrome MCP**, for Phase 1 (course discovery) and HLS URL retrieval during frame extraction. Preflight: run `tabs_context_mcp`.
+1. **course-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`. Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin updates) and provisions Playwright's Chromium into `${CLAUDE_PLUGIN_DATA}/ms-playwright`. Idempotent. Safe to re-run, and re-run after a plugin update.
+2. **Platform auth**. Set `COURSE_EMAIL`/`COURSE_PASSWORD` (Dometrain → Clerk) or `TEACHABLE_EMAIL`/`TEACHABLE_PASSWORD` (Teachable) in your shell before invoking; they inherit into the pipeline's node subprocess. The env-var prefix is course-config-driven via `platformConfig.authEnvPrefix`. Session cookies persist under `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` and are reused across runs. **Interactive manual login is the fallback** when no credentials are set. It opens a browser window for you to log in. NOTE: the manual-login prompt (`node:readline` + headed browser) may not function under headless plugin execution; env-var + cookie-reuse carry the skill regardless, and manual login is a known limitation there, not a blocker. These credentials live in shell environment variables, not in plugin `userConfig`: this plugin's `userConfig` options are non-secret scalars, and a stored option value is not a secret store.
+3. **ffmpeg**, required for video frame extraction (scene detection, interval capture). Check: `ffmpeg -version`. Install: `winget install Gyan.FFmpeg` (Windows), `brew install ffmpeg` (macOS), `sudo apt install ffmpeg` (Linux). Floor 7.1+ (newer codecs, AV1, Opus, degrade or fail below this).
+4. **ImageMagick 7**, required by `classify-frames.js` for contact sheet generation (`magick montage`). Check: `magick -version`. Install: `winget install ImageMagick.ImageMagick` (Windows), `brew install imagemagick` (macOS), `sudo apt install imagemagick` (Linux). Ubuntu <26.04 ships v6. V7 may require building from source.
+5. **claude-in-chrome MCP**. Needed for Phase 1 (course discovery) and frame extraction HLS URL retrieval. Run `tabs_context_mcp` as preflight.
 
-If any prerequisite fails, stop and tell the user. `setup-deps.mjs` fixes the node dependencies and Chromium; ffmpeg and ImageMagick are OS-level installs with the commands above.
+If any prerequisite fails, stop and inform the user. Re-run `setup-deps.mjs` for the node dependencies + Chromium; the media binaries (ffmpeg, ImageMagick) are OS-level installs via your platform's package manager per the commands above.
 
 ## Running the pipeline scripts
 
@@ -100,7 +100,9 @@ cat <course-dir>/run-report.json
 
 ## Platform detection and adapter architecture
 
-Platform-specific code lives only in adapter modules (`extraction/adapters/{platform}.js`); the orchestrator (`extract-course.js`) delegates to them through the adapter contract and holds none.
+Extraction pipeline uses a **provider adapter pattern**. Platform-specific code lives in adapter modules (`extraction/adapters/{platform}.js`). The orchestrator (`extract-course.js`) delegates to adapters via a contract. Zero platform-specific code in the orchestrator.
+
+**Architecture:**
 
 ```text
 extraction/
@@ -129,9 +131,9 @@ extraction/
   utils.js                    # Provider-agnostic utilities only
 ```
 
-Keep adapters thin: delegate reusable player and auth concerns to `lib/players/` and `lib/auth/`, and keep only platform-specific DOM selectors, URL patterns, and orchestration logic in the adapter.
+Adapters are thin composition layers. Delegate to shared `lib/players/` and `lib/auth/` modules for reusable tech-layer concerns, keeping only platform-specific DOM selectors, URL patterns, and orchestration logic.
 
-**Every adapter method returns `Result`** (`ok`/`fail` from `@melodic/video-digestion/shared/result`) with timing, operation name, and context. No silent catches, no null returns.
+**Every adapter method returns `Result`** (`ok`/`fail` from `@melodic/video-digestion/shared/result`). Explicit success/failure with timing, operation name, context. No silent catches, no null returns.
 
 | URL pattern | Platform | Adapter | Reference |
 |---|---|---|---|
@@ -141,7 +143,7 @@ Keep adapters thin: delegate reusable player and auth concerns to `lib/players/`
 | `pluralsight.com` | Pluralsight | no adapter | Report that no adapter exists and stop; adding one starts at [reference/adapters/discovery-checklist.md](reference/adapters/discovery-checklist.md) |
 | `udemy.com` | Udemy | no adapter | Report that no adapter exists and stop; adding one starts at [reference/adapters/discovery-checklist.md](reference/adapters/discovery-checklist.md) |
 
-**To add a platform adapter:** walk the [Provider Discovery Checklist](reference/adapters/discovery-checklist.md), then create `adapters/{platform}.js` implementing the 5 required methods (`extractTranscript`, `extractHlsUrl`, `detectResources`, `deriveLandingUrl`, `buildLessonUrl`). Compose from shared modules where the stack matches: a platform with Hotmart video and Clerk auth would `import * as hotmart from "../lib/players/hotmart.js"` and `import * as clerk from "../lib/auth/clerk.js"` and delegate its player and auth methods. Set the platform in the `course.json` `platform` field; the factory discovers the adapter by dynamic import. When an existing adapter breaks, use the same checklist as the regression guide.
+**To add a new platform adapter:** follow [Provider Discovery Checklist](reference/adapters/discovery-checklist.md) to explore the platform systematically, then create `adapters/{platform}.js` implementing the 5 required methods (`extractTranscript`, `extractHlsUrl`, `detectResources`, `deriveLandingUrl`, `buildLessonUrl`). Compose from shared modules where the tech stack matches, e.g., a new platform using Hotmart video + Clerk auth would `import * as hotmart from "../lib/players/hotmart.js"` and `import * as clerk from "../lib/auth/clerk.js"`, then delegate player/auth methods while implementing only platform-specific DOM selectors and URL patterns. Add the platform to `course.json` `platform` field; the factory auto-discovers it via dynamic import. The discovery checklist also serves as regression guide when existing adapters break.
 
 ## The pipeline
 

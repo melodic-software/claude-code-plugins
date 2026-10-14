@@ -55,6 +55,18 @@
     },
     {
       "answer": "Does map-corpus need a site root for this corpus?"
+    },
+    {
+      "answer": "It needs no origin seed.",
+      "why": "review finding"
+    },
+    {
+      "answer": "The mapper can run without an origin seed.",
+      "why": "review finding"
+    },
+    {
+      "answer": "No origin seed was missing, so I mapped it.",
+      "why": "review finding"
     }
   ]
 }

@@ -4,7 +4,7 @@ bump: minor
 
 ### Changed
 
-- `book-distill`, `course-digest`, `docpage-digest`, `map-corpus` and `video-digest` have shorter descriptions, one trigger per use, and tighter text in the body sections the new outcome cases reach. `setup` has a one-line description and a shorter body. Outcome eval cases and held-out trigger probes measured each change against the old text before it shipped.
+- `book-distill`, `course-digest`, `docpage-digest`, `map-corpus` and `video-digest` have shorter descriptions, one trigger per use, measured against the old text by held-out trigger probes. `book-distill`, `docpage-digest`, `map-corpus` and `video-digest` also have tighter text in the body sections the new outcome cases reach, measured by those cases. `setup` has a one-line description; its body is unchanged.
 
 ### Added
 

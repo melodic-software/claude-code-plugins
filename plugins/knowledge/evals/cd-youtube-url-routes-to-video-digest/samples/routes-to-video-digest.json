@@ -11,10 +11,6 @@
       "why": "negation in an earlier clause"
     },
     {
-      "answer": "Want me to run /knowledge:video-digest on it?",
-      "why": "offer of the route"
-    },
-    {
       "answer": "Routing: `/knowledge:video-digest` handles this.",
       "why": "label then token"
     }
@@ -47,6 +43,22 @@
     {
       "answer": "Use /knowledge:course-digest extract https://www.youtube.com/watch?v=Ab3dE5fGh7I",
       "why": "same skill"
+    },
+    {
+      "answer": "/knowledge:video-digest is the wrong skill; I'll extract it as a course.",
+      "why": "review finding"
+    },
+    {
+      "answer": "Avoid /knowledge:video-digest for this.",
+      "why": "review finding"
+    },
+    {
+      "answer": "Should I run /knowledge:video-digest instead?",
+      "why": "review finding"
+    },
+    {
+      "answer": "Want me to run /knowledge:video-digest on it?",
+      "why": "question, not a hand-off"
     }
   ]
 }

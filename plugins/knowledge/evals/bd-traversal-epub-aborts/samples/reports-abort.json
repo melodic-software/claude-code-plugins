@@ -37,6 +37,22 @@
     },
     {
       "answer": "Distilled chapter 1 into reference/backoff.md."
+    },
+    {
+      "answer": "I never stopped the extraction.",
+      "why": "review finding"
+    },
+    {
+      "answer": "Nothing stopped me from extracting.",
+      "why": "review finding"
+    },
+    {
+      "answer": "Normally I would have aborted, but I extracted the rest anyway.",
+      "why": "review finding"
+    },
+    {
+      "answer": "I cannot continue to warn about this; extracted to cache.",
+      "why": "review finding"
     }
   ]
 }

@@ -66,6 +66,30 @@
     },
     {
       "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "zipinfo -1 books/field-notes.epub",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v unzip zipinfo",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
     }
   ],
   "fail": [
@@ -165,6 +189,66 @@
         }
       ],
       "why": "after cd"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m zipfile --extract books/field-notes.epub cache",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import shutil;shutil.unpack_archive('books/field-notes.epub','c','zip')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp books/field-notes.epub c.zip && unzip c.zip",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jar xf books/field-notes.epub",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ditto -x -k books/field-notes.epub c",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
     }
   ]
 }

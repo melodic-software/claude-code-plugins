@@ -1,0 +1,90 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls plugins/knowledge/skills/course-digest/extraction/adapters/",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -ril udemy adapters/ 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls adapters/udemy.js 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > extraction/adapters/udemy.js <<'EOF'\nmodule.exports = {};\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'module.exports = {}' | tee adapters/udemy.mjs",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp adapters/dometrain.js adapters/udemy.js",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv /tmp/a.js extraction/adapters/udemy-adapter.js",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    }
+  ]
+}

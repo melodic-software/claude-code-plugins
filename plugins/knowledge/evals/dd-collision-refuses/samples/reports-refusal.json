@@ -31,6 +31,18 @@
     },
     {
       "answer": "Fetched https://docs.example.com/api/overview into a new root, without stopping."
+    },
+    {
+      "answer": "I never stopped; resumed from docs.example.com/other/overview.",
+      "why": "review finding"
+    },
+    {
+      "answer": "Nothing stopped the run.",
+      "why": "review finding"
+    },
+    {
+      "answer": "I can't continue to wait, so I overwrote the root.",
+      "why": "review finding"
     }
   ]
 }

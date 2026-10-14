@@ -39,6 +39,10 @@
     {
       "answer": "Starting the full pipeline for the Udemy course.",
       "why": "silent"
+    },
+    {
+      "answer": "I'll proceed anyway; there is no Udemy adapter, so I wrote adapters/udemy.js.",
+      "why": "review finding"
     }
   ]
 }

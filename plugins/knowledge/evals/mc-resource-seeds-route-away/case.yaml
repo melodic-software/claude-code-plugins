@@ -8,7 +8,7 @@ graders:
     target: last_message
   - name: names-origin-requirement
     type: regex
-    pattern: '^(?![^\n]*(?:\b(?:isn[’'']t|aren[’'']t|wasn[’'']t|not|never)[ \t]+(?:needed|required|necessary)\b|\b(?:not|never)[ \t]+(?:need|require)s?\b|n[’'']t[ \t]+(?:need|require)s?\b|\bno (?:origin seed|site[- ]root|site url) (?:is |was )?(?:needed|required)\b|\bno need\b|\boptional\b))[^\n]*?(?:\b(?:requires?|required|needs?|must (?:have|include|give)|at least one|missing|lacks?|without an?|no)\b[^\n.]{0,40}?(?:\borigin(?:[- ](?:seed|url|site|root))s?\b|\bsite[- ](?:root|url)s?\b|\bdiscovery basis\b)|(?:\borigin[- ]seeds?|\bsite[- ](?:root|url)s?)\b[^\n.]{0,30}?\b(?:is |are )?(?:required|missing|needed)\b)(?![^\n.!]*\?)'
+    pattern: '^(?![^\n]*(?:\b(?:isn[’'']t|aren[’'']t|wasn[’'']t|not|never)[ \t]+(?:needed|required|necessary)\b|\b(?:not|never)[ \t]+(?:need|require)s?\b|n[’'']t[ \t]+(?:need|require)s?\b|\b(?:needs?|requires?)[ \t]+no\b|\bcan(?:[ \t]+\w+){1,2}[ \t]+without\b|\bno (?:origin seed|site[- ]root|site url)s? (?:is |was |were )?(?:needed|required|missing)\b|\bno need\b|\boptional\b))[^\n]*?(?:\b(?:requires?|required|needs?|must (?:have|include|give)|at least one|missing|lacks?|without an?|no)\b[^\n.]{0,40}?(?:\borigin(?:[- ](?:seed|url|site|root))s?\b|\bsite[- ](?:root|url)s?\b|\bdiscovery basis\b)|(?:\borigin[- ]seeds?|\bsite[- ](?:root|url)s?)\b[^\n.]{0,30}?\b(?:is |are )?(?:required|missing|needed)\b)(?![^\n.!]*\?)'
     flags: 'mi'
     target: last_message
   - name: no-discovery-fetch
@@ -22,6 +22,13 @@ graders:
     type: tool_used
     tool: Write
     input_match: '"file_path":"[^"]*(?:link-map|queue|manifest|inventory)\.json"|"file_path":"[^"]*mapper-handoff\.md"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-slice-artifacts-shell
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:>(?!>?[ \t]*(?:&|/dev/null))|(?:\b|(?<=\\n))(?:tee|cp|mv|touch)\b|<<)(?:[^"\\;&|]|\\[^n])*?(?:\b(?:link-map|queue|manifest|inventory)\.json|\bmapper-handoff\.md)\b'
     min: 0
     max: 0
     arm: both

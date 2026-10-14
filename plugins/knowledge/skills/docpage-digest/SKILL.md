@@ -37,12 +37,12 @@ option table owns the value forms):
   - **As of**: 2026-10-11
   - **Recheck trigger**: either section changes where `CLAUDE_PROJECT_DIR` points inside a
     worktree session or which writes the isolation checks refuse.
-- **Absolute**: use verbatim, with no project-directory prefix.
-- **Leading `~`**: the home directory, with no project-directory prefix.
-- **`${NAME}` / `%NAME%` env-var reference**: read the variable yourself (`printenv NAME` in
+- **Absolute**. Use verbatim, with no project-directory prefix.
+- **Leading `~`**, the home directory, with no project-directory prefix.
+- **`${NAME}` / `%NAME%` env-var reference**. Read the variable yourself (`printenv NAME` in
   bash, `$env:NAME` in PowerShell) and use its value with no project-directory prefix. **An unset
-  variable fails the run**: report it and stop. Never hand the reference to a shell for
-  expansion; an unset variable expands to the empty string there and silently writes the slice to
+  variable fails the run loudly**. Report it and stop. Never hand the reference to a shell for
+  expansion: an unset variable expands to the empty string there, silently writing the slice to
   the wrong root.
 
 The slice lands at `<resolved-root>/.work/<slug>/`. The root self-ignores (a `.gitignore`
@@ -53,7 +53,7 @@ human-gated act.
 final path segment alone: docs sites repeat `overview`, `settings`, and `index` across pages, and
 two pages sharing one work root let a later run overwrite an immutable `source.*` or resume from
 another page's checklist. The canonical URL is the post-redirect page URL with no fragment and no
-trailing slash, taken BEFORE any channel suffix like `.md` is appended. Drop only tracking-only
+trailing slash, taken BEFORE any channel suffix like `.md` is appended. Drop only known tracking-only
 query parameters (`utm_*`, `gclid`, `fbclid`); KEEP content-selecting ones (`?version=v2` is a
 different document). Keep `ref`, which often selects a branch or revision, unless the matched
 publisher profile marks it tracking-only for that host. Equivalent spellings then resume the same
@@ -63,10 +63,11 @@ root, and different resources never share one:
 2. Slugify to lowercase alphanumerics and hyphens only. Strip `/`, `\`, and `..`, and collapse
    hyphen runs.
 3. Append `-<hash8>`: the first 8 lowercase hex characters of the canonical URL's SHA-256
-   (`printf '%s' '<canonical-url>' | { sha256sum 2>/dev/null || shasum -a 256; }`; the fallback
-   covers stock macOS, which lacks `sha256sum`). Keep the whole slug ≤ 40 chars by truncating the
-   host+path prefix, never the hash: the hash keeps truncated slugs distinct and recomputes
-   identically on resume. It also rules out a Windows-reserved base name.
+   (`printf '%s' '<canonical-url>' | { sha256sum 2>/dev/null || shasum -a 256; }`, the fallback
+   covers stock macOS, where `sha256sum` is absent). Truncate the host+path prefix, never the hash,
+   so the whole slug is ≤ 40 chars. Truncation is what reintroduces collisions; the hash is the
+   part a truncated prefix cannot lose, and it recomputes identically on resume. (The hash suffix
+   also makes a Windows-reserved base name impossible, so no reserved-name escape is needed.)
 
 Never build a path from raw URL text (a crafted URL could steer a filename toward path
 traversal), and confirm the resolved work root is still inside `<resolved-root>/.work/` before

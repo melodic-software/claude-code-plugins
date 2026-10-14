@@ -27,6 +27,14 @@
     {
       "answer": "The discovery checklist is not needed for this.",
       "why": "negated after"
+    },
+    {
+      "answer": "The discovery checklist won't be needed here.",
+      "why": "review finding"
+    },
+    {
+      "answer": "Ignore the discovery checklist.",
+      "why": "review finding"
     }
   ]
 }

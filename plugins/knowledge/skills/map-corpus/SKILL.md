@@ -98,34 +98,34 @@ pipeline. Every dispatched brief carries this rule verbatim.
 
 ## Phase 1. Discovery (ladder rungs 1–2 only)
 
-Tell the two seed kinds apart by normalized path:
+Seeds come in two kinds, told apart by their normalized path:
 
 - **Origin seed** (root path, e.g. `https://agent-plugins.org`), a site to discover. Fetch and
   snapshot into `discovery/`: **rung 1** `<origin>/llms.txt`; **rung 2** the sitemap
   (`sitemap.xml`, a markdown variant such as `sitemap.md` when the site serves one, or the
-  location robots.txt declares). When **neither rung resolves, stop loudly**: rung 3 (in-page
-  link extraction) is absent on purpose, and its design is a **user-reserved** decision that this
-  stop triggers: a presence-gated `/firecrawl:firecrawl map` seam with a documented in-skill
-  fallback, versus a recorded reason this skill reimplements in-page extraction (a bare
-  unguarded cross-plugin reference is barred, and `dependencies` are reserved for hard requires). Report it and ask; never crawl unasked. Deferred-with-trigger record:
-  `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §1.
-- **Resource seed** (non-root path, e.g. a raw repo file URL): itself a corpus resource, a
-  link-map row with rung `seed` and no discovery at its origin. Repository files enter V1 only as
-  human-enumerated resource seeds; a repo-tree enumeration rung (`git ls-tree` / tree API) is
-  deferred until a corpus's repository half is too large to enumerate by hand (record:
-  `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §2).
+  location robots.txt declares). An origin seed where **neither rung resolves → stop loudly**:
+  rung 3 (in-page link extraction) is deliberately absent. Its design is a **user-reserved**
+  decision, a presence-gated `/firecrawl:firecrawl map` seam with a documented in-skill fallback,
+  versus a recorded reason this skill reimplements in-page extraction (a bare unguarded
+  cross-plugin reference is barred, and `dependencies` are reserved for hard requires). This stop
+  IS that decision's trigger: report it and ask, never crawl unasked. Full deferred-with-trigger
+  record: `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §1.
+- **Resource seed** (non-root path, e.g. a raw repo file URL). Itself a corpus resource: a
+  link-map row with rung `seed`, no discovery at its origin. Human-enumerated resource seeds are
+  the V1 ingress for repository files; a repo-tree enumeration rung (`git ls-tree` / tree API) is
+  deferred, and its trigger is the first corpus whose repository half is too large to enumerate by
+  hand (full record: `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §2).
   **V1 requires at least one origin seed**, because the link-map gate needs a discovery basis.
   Route a resource-seeds-ONLY corpus to direct `/knowledge:docpage-digest` runs, one per URL, each
   invoked via the Skill tool (deferral recorded in `discovery/link-map-format.md`).
-  **GitHub blob URLs:** seed the `raw.githubusercontent.com` form, since a `blob` URL snapshots
-  the HTML chrome; translate blob→raw before normalization and record the translation.
+  **GitHub blob URLs:** seed the `raw.githubusercontent.com` form, a `blob` URL snapshots the
+  HTML chrome; translate blob→raw before normalization, recording the translation.
 
 Record fetch channel and date in the checklist.
 
-**Sitemap index files:** a `<sitemapindex>`'s `<loc>` entries are child sitemaps, not pages.
-Fetch and parse each child as an additional rung-2 snapshot, and classify the child `.xml` URLs
-`ignore` (sitemap index member). Skipping the child fetch under-discovers behind a clean-looking
-gate.
+**Sitemap index files:** a `<sitemapindex>`'s `<loc>` entries are child sitemaps, not pages. Fetch each child as an additional rung-2 snapshot and parse it too; classify the child `.xml`
+URLs `ignore` (sitemap index member). Skipping the child fetch under-discovers behind a
+clean-looking gate.
 
 ## Phase 2. Parse discovery (script)
 

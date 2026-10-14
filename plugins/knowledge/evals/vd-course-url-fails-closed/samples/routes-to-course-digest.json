@@ -27,6 +27,18 @@
     {
       "answer": "Unsupported host. Supported sources: YouTube and X.",
       "why": "no route"
+    },
+    {
+      "answer": "Shall I run /knowledge:course-digest?",
+      "why": "review finding"
+    },
+    {
+      "answer": "/knowledge:course-digest is the wrong skill; I'll fetch it as a video.",
+      "why": "review finding"
+    },
+    {
+      "answer": "Avoid /knowledge:course-digest for this.",
+      "why": "review finding"
     }
   ]
 }

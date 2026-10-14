@@ -19,20 +19,21 @@ printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && magick -version 2>/
 
 # Video digest. YouTube and X
 
-Absorb one public video (transcript + visual frames), harvest its reference links, fact-check its
+Absorb a single public video (transcript + visual frames), harvest reference links, fact-check
 claims through deeper external research, and produce a prioritized repo-applicability menu.
 Supported sources: YouTube (`youtube.com`, `youtu.be`) and X/Twitter status posts (`x.com`,
 `twitter.com`). Fail closed on any other host, naming the supported sources; never guess.
 
 Durable artifacts live under `.work/<watch-epic>/<video-slug>/`; the video, bulk frames, working
-contact sheets, and shallow clones stay in the OS temp directory. For "deeper research," use the
-project's external-research capability, such as `/discovery:research` (its `deep` token for a
-broad pass) when installed; it is not a hard dependency.
+contact sheets, and shallow clones stay in the OS temp directory. Where this skill says "deeper
+research," use whatever external-research capability your project provides, for example the
+discovery plugin's `/discovery:research` (with its `deep` token for a broad pass) when installed. Treat those
+as the reference implementation, not a hard dependency.
 
 ## Routing
 
-Read a spoke **only when its condition holds**; never pre-read the set. A `transcript` run loads
-no watch spoke, and a YouTube run loads no X file.
+Read a spoke **only when its condition holds**. These are mutually exclusive by design: a
+`transcript` run loads no watch spoke, and a YouTube run loads no X file. Do not pre-read the set.
 
 | Read | Condition |
 | --- | --- |
@@ -50,8 +51,8 @@ no watch spoke, and a YouTube run loads no X file.
 
 **Optional, agent-lane:** when an X status heads a thread whose replies carry material the digest
 needs, invoke `/x:read` via the Skill tool to unroll the reply chain and fold it in as companion
-source material. This is a per-watch judgment call, never a pipeline stage. See
-`reference/sources/x.md`.
+source material. This is
+a per-watch judgment call, never a pipeline stage. See `reference/sources/x.md`.
 
 ## Source discipline
 
@@ -73,15 +74,15 @@ repository). Writes stay in the slice and temp directories; subagent briefs carr
 | (empty) | Name the actions below and ask which to run. |
 | `queue <url> [url...]` | Append URLs to epic `.work/<watch-epic>/QUEUE.md`; dedupe by slice key. |
 | `queue list` | Show `QUEUE.md` table + active `claims/*.json` stubs. |
-| `transcript <url>` | Captions only, no video download: acquisition + transcript pipeline. |
-| `watch` | Dequeue the first `pending` queue row (FIFO): claim stub → bootstrap → full pipeline. |
-| `watch <n>` | Dequeue queue row `#n` only (for parallel terminals). |
+| `transcript <url>` | Captions only. No video download. Runs acquisition + transcript pipeline. |
+| `watch` | Dequeue first `pending` queue row (FIFO). Claim stub → bootstrap → full pipeline. |
+| `watch <n>` | Dequeue queue row `#n` only (parallel path across terminals). |
 | `watch <url>` | Full pipeline: download → frame selection → vision absorption → link harvest → research agenda → repo-applicability synthesis. |
 | `<url>` | A bare URL, with no action word, means `watch <url>`. |
-| `resume <slice-slug>` | Continue an interrupted watch from the `watch.json` phase map in the named slice under `.work/<watch-epic>/` (the slice slug is the `<video-slug>` used elsewhere). |
+| `resume <slice-slug>` | Continue an interrupted watch from `watch.json` phase-map state in the named slice under `.work/<watch-epic>/` (the same directory documented elsewhere in this skill as `<video-slug>`). |
 
-`--target <repo>` is an optional modifier on any `watch` form, not an action of its own;
-resolution rungs in `context/watch-pipeline.md`.
+`--target <repo>` is an optional modifier on any `watch` form (not a dispatchable action of its
+own). Resolution rungs in `context/watch-pipeline.md`.
 
 ## Transcript action
 
@@ -118,8 +119,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "
 
 ## Watch action
 
-Read `context/watch-pipeline.md` before starting: it holds each phase's procedure, inputs, and
-outputs. Diagram: `context/workflow.md`.
+Ordered phase spine. Each phase's procedure, inputs, and outputs: `context/watch-pipeline.md`. Read it before starting. Diagram: `context/workflow.md`.
 
 **Bootstrap contract**
 
@@ -139,12 +139,12 @@ outputs. Diagram: `context/workflow.md`.
    `--max-frame-gap-sec` sets the longest stretch between timed frames before a gap-fill frame is
    extracted (default `MAX_FRAME_GAP_SEC`, `${CLAUDE_PLUGIN_ROOT}/vendor/video-digestion/TUNING.md`).
 
-4. **Watch checklist**. Materialize with `init-watch-checklist.js`; tick `[ ]` → `[x]` only with
+4. **Watch checklist**. Materialize via `init-watch-checklist.js`; tick `[ ]` → `[x]` only with
    verification evidence. Ordered checkboxes: `templates/watch-checklist.md`.
 
-**Skill-session phases** (numbered as in the checklist, `context/watch-pipeline.md` and
-`context/quality-gates.md`; Phase 1 is the CLI bootstrap above; fan out per the execution model in
-`context/watch-pipeline.md`)
+**Skill-session phases** (numbers are the checklist's, which `context/watch-pipeline.md` and
+`context/quality-gates.md` also use; Phase 1 is the CLI bootstrap above; fan out per the execution
+model in `context/watch-pipeline.md`)
 
 - **Phase 2. Vision planning**. `key-frames/vision-plan.md`: content class, segments, triage scope
 - **Phase 3. Claim inventory**. `research/claim-inventory.md` before any research agenda
@@ -161,16 +161,17 @@ outputs. Diagram: `context/workflow.md`.
 
 **Phase markers.** `run-watch.js` marks `acquire`, `transcript`, `watching` and `harvest`. Mark
 the rest with `watch/watch-state.js mark-phase <slice-dir> <marker>` (idempotent): `companion`
-after the optional companion digest, once the CLI bootstrap has written `watch.json`; `vision`
-after vision planning through the high-volume advisory; `research` after the research stage.
-Never `mark-phase` while that phase's verify script fails. `close` ends synthesis through outcome
-verification and is the only path to `status: complete`: it marks synthesis, re-runs the outcome
-checks (blocking checklist included), and writes `complete` only on a pass.
-`mark-phase <slice-dir> synthesis` delegates to it.
+after the optional companion digest, once the CLI bootstrap has written `watch.json`, `vision`
+after vision planning through the high-volume advisory, and `research` after the research stage;
+`close` ends synthesis through outcome
+verification. Never `mark-phase` while that phase's verify script fails. `close` is the only path
+to `status: complete`: it marks synthesis, re-runs the outcome checks (blocking checklist
+included), and writes `complete` only on a pass. `mark-phase <slice-dir> synthesis` delegates to
+it.
 
 **A 0-video source result** (an X post with no video) is well-formed, not a failure: it enqueues
-at preflight, skips the vision phases (2, 3b, 4, 4b, 5 and 6), and produces a text-only digest.
-Its provenance depends on which 0-case it is; see `reference/sources/x.md`.
+at preflight, skips the vision phases (2, 3b, 4, 4b, 5 and 6), and produces a text-only
+digest. How much provenance it carries depends on which 0-case it is. See `reference/sources/x.md`.
 
 ## Resume action
 
@@ -245,38 +246,38 @@ as of 2026-10-10; recheck when either section changes.
 
 Verify before starting (stop and route to the fix path on failure):
 
-1. **video-extraction deps**. Run `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`.
-   It installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across
-   plugin updates) and is idempotent;
-   re-run it after a plugin update.
+1. **video-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`.
+   Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin
+   updates); idempotent. Safe to re-run, and re-run after a plugin update.
 2. **yt-dlp**, required for all actions. Floor **2026.6**. Install: `winget install yt-dlp.yt-dlp`
    (Windows), `brew install yt-dlp` (macOS), `pip install -U "yt-dlp[default,curl-cffi]"` or
-   distro package (Linux). X acquisition tracks yt-dlp closely; see `reference/sources/x.md`.
+   distro package (Linux). X acquisition in particular tracks yt-dlp closely. See
+   `reference/sources/x.md`.
 3. **ffmpeg**, required for `watch` only (scene-detect frame extraction). Floor 7.1+.
 4. **ImageMagick 7**, required for `watch` only (contact sheets). `magick -version`
 
 If any prerequisite is missing or below its floor, stop and tell the user. `setup-deps.mjs` fixes
-the node dependencies; install the media binaries with the platform's package manager or a
-fallback below.
+the node dependencies; the media binaries are OS-level installs via the platform's package
+manager, or one of the fallbacks below.
 
-**When the usual install falls short** (options to try, not rules for any one machine):
+**When the usual install falls short.** These are pointers to try, not rules for any one machine:
 
-- **Distro package below the floor** (common for ffmpeg and ImageMagick on long-term-support
-  distros): use the project's own prebuilt release from its download page, or conda-forge through
+- **Distro package below the floor** (ffmpeg and ImageMagick on long-term-support distros often
+  are): use the project's own prebuilt release from its download page, or conda-forge through
   micromamba, which installs into a user directory without root. Prefer a release build to a
-  nightly: a nightly ffmpeg prints a git revision instead of a version, which no floor check can
-  read.
+  nightly: a nightly ffmpeg prints a git revision instead of a version, so no floor check can read
+  it.
 - **yt-dlp from pip**: install the `default` and `curl-cffi` extras, not bare `yt-dlp`; a run
-  without them met the bot check where one with them did not. The skill already passes a JavaScript runtime
-  (`--js-runtimes node`). What each extra provides and which runtime YouTube
+  without them met the bot check where one with them did not. The skill already passes a
+  JavaScript runtime (`--js-runtimes node`). What each extra provides and which runtime YouTube
   needs: the yt-dlp README's [Dependencies](https://github.com/yt-dlp/yt-dlp#dependencies)
   section and the [EJS wiki page](https://github.com/yt-dlp/yt-dlp/wiki/EJS), as of 2026-10-06;
   recheck when a yt-dlp release renames those extras or changes the JavaScript runtime it needs.
 - A tool installed outside the system path must be on `PATH` for the shell that runs `run.mjs`.
 
 **Use the newest safe release.** The floors are minimums, not targets. Before a run, compare each
-tool with its latest stable release and upgrade when a newer one exists, yt-dlp above all
-(YouTube changes break older releases quickly). Upgrade only when both hold: the release comes from
+tool with its latest stable release and upgrade when a newer one exists, yt-dlp above all, because
+YouTube changes break older releases quickly. Upgrade only when both hold: the release comes from
 the project's own channel or a well-known distribution (PyPI, conda-forge, the OS package manager,
 the project's releases page) over verified TLS, checked against a published checksum where one
 exists; and its release notes and security advisories (the project's GitHub Security Advisories,
@@ -291,15 +292,15 @@ path from `context/gotchas.md`. Do not continue without frames, and do not switc
 that action. A source with no video at all (the 0-video X result above) is not a failed download
 and keeps its text-only path.
 
-**Optional. Faster-whisper** (`large-v3`, `batch_size=8`) powers the `asr` transcript rung,
-selected automatically for caption-absent entries or on request with `--transcript-strategy asr`
-even when captions exist. It runs under `watch` only: ASR needs the media file, and the
-`transcript` action never downloads media. It is detected at runtime through the machine's Python
-(`python`, `python3`, or `py`, whichever imports `faster_whisper`) and **never auto-installed**.
-When it is absent the pipeline degrades instead of failing: it falls back to a caption strategy
-where a caption exists, otherwise completes the digest without a transcript, and either way
-records the reason in the `transcriptDegradation` field (`watch.json` phase metrics and the CLI's
-stdout JSON), never silently.
+**Optional. Faster-whisper** (`large-v3`, `batch_size=8`): powers the `asr` transcript rung,
+selected automatically for caption-absent entries and available on request via
+`--transcript-strategy asr` even when captions exist. Either way it runs under `watch` only. ASR
+needs the media file and the `transcript` action never downloads media. Detected at runtime
+through the machine's Python (`python`, `python3`, or `py`. Whichever imports `faster_whisper`)
+and **never auto-installed**. When it is absent the pipeline degrades explicitly rather than
+failing: it falls back to a caption strategy where a caption exists, otherwise completes the
+digest without a transcript, and either way records the reason in the `transcriptDegradation`
+field (`watch.json` phase metrics and the CLI's stdout JSON), never silently.
 
 ## Eval fixtures
 
