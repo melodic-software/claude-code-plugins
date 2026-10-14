@@ -48,7 +48,12 @@ export function plan({ outcome, branch, resolveResult, reportResult }) {
     const reported = new Map();
     for (const step of Array.isArray(outcome.steps) ? outcome.steps : []) {
       if (PREP_STEPS.has(step?.activity) && (STEP_STATES[step?.result] || step?.result === "skipped")) {
-        reported.set(step.activity, STEP_STATES[step.result] ?? null);
+        // A step reported twice keeps its strictest result: fail over pass over skipped.
+        const state = STEP_STATES[step.result] ?? null;
+        const rank = (value) => ["failure", "success", null].indexOf(value);
+        if (!reported.has(step.activity) || rank(state) < rank(reported.get(step.activity))) {
+          reported.set(step.activity, state);
+        }
       }
     }
     for (const activity of PREP_STEPS) {

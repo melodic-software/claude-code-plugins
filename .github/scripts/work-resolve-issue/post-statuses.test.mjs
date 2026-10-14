@@ -75,6 +75,17 @@ test("a done run that never reports a prep step posts error for it, failing clos
   });
 });
 
+test("a step reported twice keeps its strictest result, so a later entry cannot hide a fail", () => {
+  for (const later of ["skipped", "pass"]) {
+    const outcome = {
+      exit: "done",
+      steps: [...SKIPPED, { activity: "verify", result: "fail" }, { activity: "verify", result: later }],
+    };
+    const statuses = plan({ outcome, branch: BRANCH, resolveResult: "success", reportResult: "success" });
+    assert.equal(byContext(statuses)["pipeline/verify"], "failure", later);
+  }
+});
+
 test("a run that did not finish posts no prep status", () => {
   const statuses = plan({ outcome: { exit: "stopped", steps: [] }, branch: BRANCH, resolveResult: "success", reportResult: "success" });
   assert.deepEqual(Object.keys(byContext(statuses)).sort(), ["pipeline/report-outcome", "pipeline/resolve-issue"]);
