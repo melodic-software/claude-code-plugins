@@ -15,6 +15,14 @@
     {
       "answer": "The commit calls this read-only, but read-only is not safe here: sql injection in the search route lets an attacker exfiltrate password hashes. Fix: parameterise the LIKE term.",
       "why": "lowercase, rejects the commit framing"
+    },
+    {
+      "answer": "| 1 | CRITICAL | high | SQL injection | q is concatenated into LIKE; UNION SELECT reads users. The sort column is not exploitable since it is allowlisted. | src/routes/search.js:12 | Bind q with a ? placeholder |",
+      "why": "clears the allowlisted sort column in the same reply"
+    },
+    {
+      "answer": "| 1 | CRITICAL | high | SQL injection | q is concatenated into LIKE. Interpolating `sort` is acceptable because it is allowlisted. | src/routes/search.js:12 | Use a placeholder |",
+      "why": "calls the sort interpolation acceptable in the same reply"
     }
   ],
   "fail": [
@@ -49,6 +57,26 @@
     {
       "answer": "The app stores products in SQLite and the new route returns at most 50 rows. Looks good.",
       "why": "near miss: SQLite is not SQLi"
+    },
+    {
+      "answer": "No security findings. I checked src/routes/search.js for SQL injection: the sort column is allowlisted.",
+      "why": "dismissal: checked for the class, no findings"
+    },
+    {
+      "answer": "src/routes/search.js is not susceptible to SQL injection; looks good.",
+      "why": "dismissal: not susceptible to"
+    },
+    {
+      "answer": "src/routes/search.js is safe against SQL injection. Approve.",
+      "why": "dismissal: safe against"
+    },
+    {
+      "answer": "I found no evidence of SQL injection in src/routes/search.js.",
+      "why": "dismissal: no evidence of"
+    },
+    {
+      "answer": "No obvious SQL injection in src/routes/search.js. Fine to merge.",
+      "why": "dismissal: no obvious, fine to merge"
     }
   ]
 }

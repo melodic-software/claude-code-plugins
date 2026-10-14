@@ -14,12 +14,12 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined (a worktree-isolated session refuses a compound command that contains git):
+Collect these with **individual** Bash calls, one command per call, never combined into a single invocation:
 
 - Current branch, `git branch --show-current`
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 
-Keep the pipe in the command; it is the bound. Treat a failure (not a repository, git unavailable) as an unknown value and carry on.
+Keep the pipe in the command; it is the bound. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as separate body Bash calls, not pre-compute lines. Pointer: the worktree skill's [reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md), "The pre-compute block runs as one shell invocation", which holds the dated record and its recheck trigger.
 
 ## Purpose
 

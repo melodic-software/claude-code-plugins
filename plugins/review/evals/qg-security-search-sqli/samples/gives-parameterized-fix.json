@@ -49,6 +49,26 @@
     {
       "answer": "CRITICAL: SQL injection in src/routes/search.js:12. The term is not passed as a parameter; escape quotes in it before concatenating.",
       "why": "negated parameter phrase with an escaping fix"
+    },
+    {
+      "answer": "SQL injection in src/routes/search.js:12, the query isn't parameterized, so anyone can dump the users table.",
+      "why": "the term describes the bug; no fix given"
+    },
+    {
+      "answer": "SQL injection: search.js runs a non-parameterized query. Fix: strip quotes.",
+      "why": "non-parameterized describes the bug; the fix strips quotes"
+    },
+    {
+      "answer": "SQL injection: the query is built without placeholders. Fix: validate q against a character blocklist.",
+      "why": "without placeholders describes the bug; the fix is a blocklist"
+    },
+    {
+      "answer": "SQL injection: the term is never parameterized; escape it.",
+      "why": "never parameterized describes the bug; the fix is escaping"
+    },
+    {
+      "answer": "SQL injection: unlike products.js, which uses a placeholder, this concatenates q. Fix: escape single quotes in q.",
+      "why": "the placeholder describes products.js; the fix is escaping"
     }
   ]
 }
