@@ -229,16 +229,35 @@ test("main on done opens a draft PR from the branch and labels it", async () => 
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
         ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
         ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+        ["GET", /\/pulls$/, 200, []],
         ["POST", /\/pulls$/, 201, { number: 90, html_url: "https://example/o/r/pull/90" }],
         ["POST", /\/issues\/90\/labels$/, 200, []],
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
-      const pull = calls.find((c) => c.path.endsWith("/pulls")).body;
+      const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
       assert.equal(pull.draft, true);
       assert.equal(pull.head, BRANCH);
       assert.equal(pull.base, "main");
       assert.ok(pull.body.startsWith("Closes #77\n"));
       assert.deepEqual(calls.find((c) => c.path.endsWith("/issues/90/labels")).body, { labels: ["work-class: read-only"] });
+    },
+  );
+});
+
+test("main on a rerun reuses the open PR from the branch and still labels it", async () => {
+  await withDir(
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+        ["GET", /\/pulls$/, 200, [{ number: 90 }]],
+        ["POST", /\/issues\/90\/labels$/, 200, []],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0);
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
+      assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/issues/90/labels")));
     },
   );
 });

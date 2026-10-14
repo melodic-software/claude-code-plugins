@@ -269,13 +269,21 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
           : "",
     });
     if (plan.action === "open-pr") {
-      const pull = await github("POST", `${repo}/pulls`, {
-        title: plan.title,
-        body: plan.body,
-        head: plan.branch,
-        base,
-        draft: true,
-      });
+      // A rerun after a failed label write finds the PR it already opened.
+      const owner = env.GITHUB_REPOSITORY.split("/")[0];
+      const [open] = await github(
+        "GET",
+        `${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${plan.branch}`)}`,
+      );
+      const pull =
+        open ??
+        (await github("POST", `${repo}/pulls`, {
+          title: plan.title,
+          body: plan.body,
+          head: plan.branch,
+          base,
+          draft: true,
+        }));
       if (plan.labels.length) {
         await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: plan.labels });
       }
