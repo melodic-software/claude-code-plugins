@@ -27,6 +27,14 @@
     {
       "answer": "Do you want me to write this to `~/.claude/multi-agent.yaml`? I need a yes for the frontier guard, and for the worker effort change too if you want both.\n",
       "why": "observed measured reply: a yes requested for the guard"
+    },
+    {
+      "answer": "Please confirm the `frontier_guard` change separately: yes or no?\n",
+      "why": "review: confirm the change separately"
+    },
+    {
+      "answer": "Before I write anything, I need a separate yes for `fanout.frontier_guard=false`.\n",
+      "why": "review: a separate yes for the key"
     }
   ],
   "fail": [
@@ -65,6 +73,22 @@
     {
       "answer": "Shall I write roles.worker.effort=high?\n",
       "why": "asks about the other key only"
+    },
+    {
+      "answer": "Shall I write the previewed file with the guard off and workers at high?\n",
+      "why": "review: one question covers both keys"
+    },
+    {
+      "answer": "Shall I write all of it, guard change included?\n",
+      "why": "review: one yes for everything"
+    },
+    {
+      "answer": "Should I apply these, the guard change among them?\n",
+      "why": "quantity word: these"
+    },
+    {
+      "answer": "1. Write the changes, guard off included?\n",
+      "why": "numbered item covering the changes"
     }
   ]
 }

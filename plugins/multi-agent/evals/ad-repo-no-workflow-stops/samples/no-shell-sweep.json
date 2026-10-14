@@ -14,6 +14,17 @@
         }
       ],
       "why": "listing the plugin's own workflows dir"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la /home/<user>/.claude/plugins/multi-agent/skills/audit-defaults"
+          }
+        }
+      ],
+      "why": "non-recursive long listing"
     }
   ],
   "fail": [
@@ -71,6 +82,61 @@
         }
       ],
       "why": "grep after a quoted string"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "egrep -rn 'opus|sonnet' docs/"
+          }
+        }
+      ],
+      "why": "review: egrep bypass"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git ls-tree -r --name-only HEAD | xargs cat"
+          }
+        }
+      ],
+      "why": "review: git ls-tree piped to cat"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "fd -e md . docs"
+          }
+        }
+      ],
+      "why": "review: fd bypass"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -R docs"
+          }
+        }
+      ],
+      "why": "review: recursive ls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls docs --recursive"
+          }
+        }
+      ],
+      "why": "recursive ls, long flag after the path"
     }
   ]
 }

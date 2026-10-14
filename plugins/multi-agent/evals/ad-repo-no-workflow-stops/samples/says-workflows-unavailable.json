@@ -19,6 +19,10 @@
     {
       "answer": "I don't have the Workflow tool in this session, so `repo` mode stops without sweeping the repository.\n",
       "why": "I don't have the Workflow tool"
+    },
+    {
+      "answer": "**Nothing ran: neither the workflow nor the fallback.** `repo` mode needs workflows, and they aren't available in this session.\n",
+      "why": "observed measured reply: needs workflows, and they aren't available"
     }
   ],
   "fail": [
@@ -45,6 +49,22 @@
     {
       "answer": "Is the Workflow tool unavailable here? I launched drift-audit in repo mode anyway.\n",
       "why": "asked, not stated"
+    },
+    {
+      "answer": "Repo mode can run without workflow support, so I swept the docs by reading them directly.\n",
+      "why": "review: without workflow support"
+    },
+    {
+      "answer": "No switch has workflows off, so I launched drift-audit in repo mode.\n",
+      "why": "review: workflows not switched off"
+    },
+    {
+      "answer": "I swept the docs without workflow overhead.\n",
+      "why": "review: without workflow overhead"
+    },
+    {
+      "answer": "Repo mode needs workflows, and they aren't optional, so I launched drift-audit.\n",
+      "why": "pronoun form, not about availability"
     }
   ]
 }

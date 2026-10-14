@@ -10,6 +10,17 @@
         }
       ],
       "why": "ran the resolver"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh\" worker mechanical session=fable"
+          }
+        }
+      ],
+      "why": "review: quoted script path"
     }
   ],
   "fail": [

@@ -85,6 +85,26 @@
     {
       "answer": "verdict: subagent\nreason: I don't have a reason to avoid the Workflow tool; 42 items\nshape: sections\n",
       "why": "don't have, about something else"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 independent files; batch across a few subagents without workflow overhead.\nshape: sections\n",
+      "why": "review: without workflow overhead, no tool named"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 same-step files, so no workflow script is worth writing for this.\nshape: sections\n",
+      "why": "review: no workflow script, no tool named"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 files; no switch has workflows off, so size alone decides\nshape: sections\n",
+      "why": "review: workflows not switched off"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 files; workflows are unavailable here, so subagents\nshape: sections\n",
+      "why": "workflows unavailable without naming the tool"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 files; no `Workflow` overhead is worth it here\nshape: sections\n",
+      "why": "backticked name used as a modifier"
     }
   ]
 }

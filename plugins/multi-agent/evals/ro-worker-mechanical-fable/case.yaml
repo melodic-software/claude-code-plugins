@@ -4,7 +4,7 @@ graders:
   - name: 'ran-route-script'
     type: 'tool_used'
     tool: 'Bash'
-    input_match: 'route\.sh[^"]*\bworker\b'
+    input_match: '"command":"(?:[^"\\]|\\.)*?route\.sh(?:[^"\\]|\\.)*?\bworker\b'
     min: 1
   - name: 'fenced-json-block'
     type: 'regex'

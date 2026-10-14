@@ -3,9 +3,17 @@
     {
       "answer": "Unknown role `planner`. resolve-roles: unknown role planner; valid roles: orchestrator worker verifier retrieval, or all\n",
       "why": "error only"
+    },
+    {
+      "answer": "Unknown role `planner`.\n\n| valid role |\n|---|\n| orchestrator |\n| worker |\n| verifier |\n| retrieval |\n",
+      "why": "valid roles as a table, no routing"
     }
   ],
   "fail": [
+    {
+      "answer": "Unknown role planner; here is the whole map instead:\n\n| role | single | fanout |\n|---|---|---|\n| orchestrator | opus @ high | opus @ high |\n",
+      "why": "routing table row"
+    },
     {
       "answer": "Unknown role planner; here is the map for all instead:\n```json\n{\"session_model\":\"opus\",\"roles\":{}}\n```\n",
       "why": "printed a map"

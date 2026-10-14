@@ -15,6 +15,18 @@
     {
       "answer": "verdict: subagent\nreason: Three agents each write a fix for one test file, so the work fits a few delegated tasks in one turn. \"Keep one of the fixes\" doesn't say how to choose the winner. Don't start the race until a rule is stated, such as \"the first fix where the test passes 50 runs in a row.\" Choosing after reading the fixes would let the fixes decide the rule.\nshape: race (no selection rule stated)\n",
       "why": "observed measured reply: a later sentence ends in a period, not a question"
+    },
+    {
+      "answer": "verdict: subagent\nreason: three fixes for one test; the agents must not start until the selection criteria are stated.\nshape: race (no selection rule stated)\n",
+      "why": "review: selection criteria"
+    },
+    {
+      "answer": "verdict: subagent\nreason: three agents in one turn, a race that mustn’t start until a selection rule is stated.\nshape: race (no selection rule stated)\n",
+      "why": "review: curly-apostrophe mustn’t"
+    },
+    {
+      "answer": "verdict: subagent\nreason: three agents fit one turn; the race is on hold pending a stated selection rule.\nshape: race (no selection rule stated)\n",
+      "why": "review: on hold pending a rule"
     }
   ],
   "fail": [
@@ -45,6 +57,18 @@
     {
       "answer": "verdict: subagent\nreason: three agents; should the race wait until a selection rule is stated?\nshape: race (no selection rule stated)\n",
       "why": "asked, not stated"
+    },
+    {
+      "answer": "verdict: subagent\nreason: three agents; no need to wait until a rule is stated before starting.\nshape: race (no selection rule stated)\n",
+      "why": "review: no need to wait"
+    },
+    {
+      "answer": "verdict: subagent\nreason: three agents; start now rather than wait until a rule is chosen.\nshape: race (no selection rule stated)\n",
+      "why": "review: rather than wait"
+    },
+    {
+      "answer": "verdict: subagent\nreason: three agents; don’t wait until a rule is stated, just start.\nshape: race (no selection rule stated)\n",
+      "why": "review: curly-apostrophe negated wait"
     }
   ]
 }

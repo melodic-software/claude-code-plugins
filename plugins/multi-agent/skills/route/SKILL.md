@@ -105,11 +105,10 @@ Rechecks a default that looks wrong for the current models.
   an Opus session both say `inherit`, and `opus` would name the same model.
 - The map never routes a named agent (`agentType`, or an Agent dispatch by
   subagent type), so the fan-out guard does not reach it on its own. Its
-  dispatcher may pass
-  `model` or `effort` on the call; for which source wins over the definition's
-  pins, see the pointer record under Output. Keeping a named agent such as
-  `scoped-implementer` off a frontier session model is that dispatcher's rule
-  to keep.
+  dispatcher may pass `model` or `effort` on the call; for which source wins
+  over the definition's pins, see the pointer record under Output. Keeping a
+  named agent such as `scoped-implementer` off a frontier session model is
+  that dispatcher's rule to keep.
 - The route output never reflects `maxEffortLevel`; the cap applies at run
   time.
 - The bundled defaults set only the `mechanical` workload, which runs the

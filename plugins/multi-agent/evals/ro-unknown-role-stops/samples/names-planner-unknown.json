@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Unknown role `planner`. resolve-roles: unknown role planner; valid roles: orchestrator worker verifier retrieval, or all\n",
+      "why": "unknown role planner"
+    },
+    {
+      "answer": "`planner` isn't a role, so the resolver exited with code 2.\n",
+      "why": "observed measured reply: isn't a role"
+    },
+    {
+      "answer": "There's no `planner` role, so the route command stopped with exit 2.\n",
+      "why": "observed measured reply: no planner role"
+    },
+    {
+      "answer": "The resolver doesn't know a `planner` role. It exited with code 2.\n",
+      "why": "observed measured reply: doesn't know a planner role"
+    },
+    {
+      "answer": "I couldn't route `planner` because it isn't a valid role.\n",
+      "why": "observed measured reply: it isn't a valid role"
+    },
+    {
+      "answer": "`planner` is invalid here; use one of the valid roles.\n",
+      "why": "invalid"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The valid roles are `orchestrator`, `worker`, `verifier` and `retrieval`, or `all`.\n",
+      "why": "planner never named"
+    },
+    {
+      "answer": "Routing for `planner`: single opus @ high.\n",
+      "why": "routed planner as if valid"
+    },
+    {
+      "answer": "Is `planner` not a valid role? Here are the valid ones: orchestrator, worker, verifier, retrieval.\n",
+      "why": "asked, not stated"
+    },
+    {
+      "answer": "`planner` isn't routed yet; the resolver exited with code 2.\n",
+      "why": "negation about something else"
+    }
+  ]
+}
