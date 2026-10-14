@@ -21,7 +21,14 @@
       { "name": "triage", "status": "in-use" }
     ],
     "plan": [],
-    "work": [{ "name": "respond-mention", "status": "in-use" }],
+    "work": [
+      {
+        "name": "resolve-issue",
+        "status": "reserved",
+        "purpose": "Work one labeled issue to a draft pull request, or push it back to a human."
+      },
+      { "name": "respond-mention", "status": "in-use" }
+    ],
     "pr": [
       { "name": "audit-workflows", "status": "in-use" },
       { "name": "automerge", "status": "in-use" },

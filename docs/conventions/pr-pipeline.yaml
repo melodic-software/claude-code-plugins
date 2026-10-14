@@ -49,3 +49,26 @@ lanes:
       - activity: resolve-conflicts
       - activity: report-escalation
         needs: [resolve-conflicts]
+
+merge:
+  # The lane auto-merges only PRs labeled `work-class: mechanical` (C2):
+  # dependency bumps, lint and format fixes, syncs. The classes C1-C5 (read-only,
+  # mechanical, scoped, structural, untrusted-provenance) are defined in
+  # plugins/autonomy/reference/guardrails/work-classes.md.
+  rung: C2
+  authority: pr-merge
+  agent-identity: melodic-automation-lanes[bot]
+  # Reports each decision and writes nothing until the owner sets false.
+  report-only: true
+  diff-check:
+    denied-paths:
+      - ".github/**"
+      - "docs/conventions/**"
+      - "plugins/source-control/skills/babysit-prs/**"
+      - ".claude/**"
+      - "plugins/*/skills/**"
+      - "plugins/*/agents/**"
+      - "plugins/*/hooks/**"
+      - "plugins/*/.claude-plugin/**"
+      - "scripts/**"
+    max-changed-lines: 400

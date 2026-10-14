@@ -2215,6 +2215,359 @@ class EnabledSince(unittest.TestCase):
             policy.enabled_since(REPO, SHA)
 
 
+LANE_PIPELINE = PIPELINE.replace("local-babysit", "pr-merge").replace(
+    "  diff-check:", "  report-only: true\n  diff-check:"
+)
+MECHANICAL = "work-class: mechanical"
+LANE_DENIED = (
+    ".github/**",
+    "docs/conventions/**",
+    "plugins/source-control/skills/babysit-prs/**",
+    ".claude/**",
+    "plugins/*/skills/**",
+    "plugins/*/agents/**",
+)
+
+
+def label_event(
+    event: str, label: str, actor: dict[str, str], at: str
+) -> dict[str, Any]:
+    return {
+        "event": event,
+        "label": {"name": label},
+        "actor": actor,
+        "created_at": at,
+    }
+
+
+CI_LABELED = label_event(
+    "labeled",
+    MECHANICAL,
+    {"login": "agent-lanes[bot]", "type": "Bot"},
+    "2026-10-12T12:01:00Z",
+)
+
+
+class LaneConfig(unittest.TestCase):
+    """`merge.report-only` (plan Phase 1): the lane starts report-only and the
+    owner flips it live (D16); anything but true or false keeps it report-only."""
+
+    def test_report_only_is_read(self) -> None:
+        config_fake(self, LANE_PIPELINE)
+        config = policy.read_config_at(REPO, SHA)
+        self.assertEqual((config.authority, config.report_only), ("pr-merge", True))
+
+    def test_absent_is_live_and_an_unknown_value_is_report_only(self) -> None:
+        config_fake(self, PIPELINE)
+        self.assertIs(policy.read_config_at(REPO, SHA).report_only, False)
+        config_fake(
+            self, LANE_PIPELINE.replace("report-only: true", "report-only: yes")
+        )
+        self.assertIs(policy.read_config_at(REPO, SHA).report_only, True)
+
+
+class LaneEligibility(unittest.TestCase):
+    """The pr-merge lane's eligibility (plan Design "Eligibility", D14, D17): a
+    `work-class: mechanical` label a CI identity applied, on a diff that
+    touches no denied path. Labels the owner account applies are ignored."""
+
+    TIMELINE = f"repos/{REPO}/issues/7/timeline?per_page=100"
+    FILES = f"repos/{REPO}/pulls/7/files?per_page=100"
+
+    def fake(
+        self,
+        *,
+        labels: list[str] | None = None,
+        events: list[dict[str, Any]] | None = None,
+        files: list[str] | None = None,
+    ) -> GhFake:
+        names = [MECHANICAL] if labels is None else labels
+        gh = GhFake().install(self)
+        gh.graphql["PolicyEligibility"] = {
+            "repository": {
+                "pullRequest": {
+                    "number": 7,
+                    "createdAt": PR_CREATED,
+                    "lastEditedAt": "2026-10-12T13:00:00Z",
+                    "isCrossRepository": False,
+                    "author": user(OPERATOR),
+                    "headRepositoryOwner": {"login": "owner"},
+                    "labels": {
+                        "totalCount": len(names),
+                        "nodes": [{"name": n} for n in names],
+                    },
+                    "closingIssuesReferences": {"totalCount": 0, "nodes": []},
+                }
+            }
+        }
+        gh.rest[self.TIMELINE] = [CI_LABELED] if events is None else events
+        self.paths = ["docs/guide.md"] if files is None else files
+        gh.rest[self.FILES] = [{"filename": p} for p in self.paths]
+        return gh
+
+    def eligibility(self, changed: int | None = None) -> Any:
+        pr = {
+            "number": 7,
+            "changed_files": len(self.paths) if changed is None else changed,
+        }
+        return policy.lane_eligibility(
+            REPO, 7, pr=pr, denied_paths=LANE_DENIED, agent_identity=IDENTITY
+        )
+
+    def test_a_ci_applied_mechanical_label_on_an_allowed_diff_is_eligible(
+        self,
+    ) -> None:
+        # No linked issue, a human author and a body edited after the label:
+        # none of them is a lane rule.
+        self.fake()
+        result = self.eligibility()
+        self.assertTrue(result.eligible, result.reason)
+        self.assertEqual(result.work_class, "C2")
+
+    def test_an_owner_account_label_is_ignored(self) -> None:
+        owner = {"login": OPERATOR, "type": "User"}
+        self.fake(
+            events=[label_event("labeled", MECHANICAL, owner, "2026-10-12T12:01:00Z")]
+        )
+        result = self.eligibility()
+        self.assertFalse(result.eligible)
+        self.assertEqual(result.reason, "class-label-not-ci-applied")
+
+    def test_another_bot_label_is_ignored(self) -> None:
+        # A workflow on a branch an agent pushed can label as github-actions.
+        for login in ("github-actions[bot]", "other-app[bot]"):
+            with self.subTest(login):
+                actor = {"login": login, "type": "Bot"}
+                self.fake(
+                    events=[
+                        label_event(
+                            "labeled", MECHANICAL, actor, "2026-10-12T12:01:00Z"
+                        )
+                    ]
+                )
+                self.assertEqual(
+                    self.eligibility().reason, "class-label-not-ci-applied"
+                )
+
+    def test_an_owner_account_removal_of_a_stricter_ci_label_is_ignored(self) -> None:
+        lanes = {"login": "agent-lanes[bot]", "type": "Bot"}
+        owner = {"login": OPERATOR, "type": "User"}
+        self.fake(
+            events=[
+                label_event(
+                    "labeled", "work-class: scoped", lanes, "2026-10-12T12:00:00Z"
+                ),
+                CI_LABELED,
+                label_event(
+                    "unlabeled", "work-class: scoped", owner, "2026-10-12T12:02:00Z"
+                ),
+            ]
+        )
+        self.assertEqual(self.eligibility().reason, "class-not-mechanical:C3")
+
+    def test_no_class_or_another_class_is_ineligible(self) -> None:
+        self.fake(labels=[], events=[])
+        self.assertEqual(self.eligibility().reason, "class-missing")
+        self.fake(labels=["work-class: scoped"], events=[])
+        self.assertEqual(self.eligibility().reason, "class-not-mechanical:C3")
+        # A person's stricter label is not trusted to grant, but it restricts.
+        self.fake(labels=[MECHANICAL, "work-class: scoped"])
+        self.assertEqual(self.eligibility().reason, "class-not-mechanical:C3")
+        # GitHub label names are case-insensitive: another case is the same label.
+        self.fake(labels=[MECHANICAL, "Work-Class: Structural"])
+        self.assertEqual(self.eligibility().reason, "class-not-mechanical:C4")
+
+    def test_a_denied_path_pr_refuses(self) -> None:
+        for path in (
+            ".github/workflows/x.yml",
+            "docs/conventions/pr-pipeline.yaml",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+            ".claude/rules/x.md",
+            "plugins/foo/skills/bar/SKILL.md",
+            "plugins/foo/agents/baz.md",
+        ):
+            with self.subTest(path):
+                self.fake(files=["docs/guide.md", path])
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(result.reason, f"denied-path:{path}")
+
+    def test_the_live_config_denies_each_owner_approved_path(self) -> None:
+        # Plan D17 plus the owner's three additions on #7467.
+        live = pathlib.Path(__file__).resolve().parents[6] / policy.CONFIG_PATH
+        values = policy._concern_values(
+            live.read_text(encoding="utf-8"),
+            [("merge.diff-check.denied-paths", True)],
+        )
+        denied = tuple((values or {}).get("merge.diff-check.denied-paths", ()))
+        for path in (
+            ".github/workflows/x.yml",
+            "docs/conventions/pr-pipeline.yaml",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+            ".claude/rules/x.md",
+            "plugins/foo/skills/bar/SKILL.md",
+            "plugins/foo/agents/baz.md",
+            "plugins/foo/hooks/hooks.json",
+            "plugins/foo/.claude-plugin/plugin.json",
+            "scripts/check-convention-yaml.sh",
+        ):
+            with self.subTest(path):
+                self.fake(files=["docs/guide.md", path])
+                result = policy.lane_eligibility(
+                    REPO,
+                    7,
+                    pr={"number": 7, "changed_files": 2},
+                    denied_paths=denied,
+                    agent_identity=IDENTITY,
+                )
+                self.assertEqual(result.reason, f"denied-path:{path}")
+
+    def test_a_renamed_file_from_a_denied_path_refuses(self) -> None:
+        gh = self.fake()
+        gh.rest[self.FILES] = [
+            {"filename": "docs/moved.md", "previous_filename": ".claude/old.md"}
+        ]
+        self.assertEqual(self.eligibility().reason, "denied-path:.claude/old.md")
+
+    def test_a_file_listing_short_of_the_changed_count_refuses(self) -> None:
+        self.fake()
+        self.assertEqual(
+            self.eligibility(changed=3001).reason, "changed-files-incomplete"
+        )
+
+    def test_no_denied_paths_configured_refuses(self) -> None:
+        self.fake()
+        result = policy.lane_eligibility(
+            REPO,
+            7,
+            pr={"number": 7, "changed_files": 1},
+            denied_paths=(),
+            agent_identity=IDENTITY,
+        )
+        self.assertEqual(result.reason, "denied-paths-unset")
+
+    def test_no_identity_trusts_no_label(self) -> None:
+        self.fake()
+        result = policy.lane_eligibility(
+            REPO,
+            7,
+            pr={"number": 7, "changed_files": 1},
+            denied_paths=LANE_DENIED,
+            agent_identity=None,
+        )
+        self.assertEqual(result.reason, "class-label-not-ci-applied")
+
+    def test_the_enqueue_recheck_reads_the_class_again(self) -> None:
+        self.fake()
+        self.assertIsNone(policy.recheck_lane_class(REPO, 7, agent_identity=IDENTITY))
+        self.fake(labels=[])
+        self.assertEqual(
+            policy.recheck_lane_class(REPO, 7, agent_identity=IDENTITY),
+            "class-label-removed",
+        )
+
+
+class LaneEnabledSince(unittest.TestCase):
+    """Authority pr-merge reads its own enabled run (plan Design "Lane mode")."""
+
+    HISTORY = EnabledSince.HISTORY
+    commit = EnabledSince.commit
+    fake = EnabledSince.fake
+
+    def test_authority_pr_merge_reads_its_own_enabled_since(self) -> None:
+        older, oldest = "b" * 40, "c" * 40
+        self.fake(
+            [
+                self.commit(SHA, "2026-10-12T00:00:00Z"),
+                self.commit(older, "2026-10-11T00:00:00Z"),
+                self.commit(oldest, "2026-10-01T00:00:00Z"),
+            ],
+            {SHA: LANE_PIPELINE, older: LANE_PIPELINE, oldest: PIPELINE},
+        )
+        expected = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
+        self.assertEqual(policy.enabled_since(REPO, SHA, "pr-merge"), expected)
+        self.assertEqual(policy.enabled_since(REPO, SHA), expected)
+        with self.assertRaises(policy.PolicyReadError):
+            policy.enabled_since(REPO, SHA, "local-babysit")
+
+    def test_pr_merge_without_an_identity_does_not_enable(self) -> None:
+        inert = "merge:\n  rung: C2\n  authority: pr-merge\n"
+        self.fake([self.commit(SHA, "2026-10-12T00:00:00Z")], {SHA: inert})
+        with self.assertRaises(policy.PolicyReadError):
+            policy.enabled_since(REPO, SHA, "pr-merge")
+
+
+class LaneAssess(unittest.TestCase):
+    """`assess(authority="pr-merge")`: the lane's own authority, floor,
+    eligibility, and no local promotion read (D16)."""
+
+    fake = Assess.fake
+    assess = Assess.assess
+
+    def readable(self) -> GhFake:
+        gh = Assess.readable(self)
+        gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = file_payload(
+            LANE_PIPELINE
+        )
+        return gh
+
+    def lane_clear(self) -> mock.Mock:
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(
+            mock.patch.object(
+                policy, "in_flight", return_value=policy.InFlight(True, None)
+            )
+        )
+        lane = stack.enter_context(
+            mock.patch.object(
+                policy,
+                "lane_eligibility",
+                return_value=policy.Eligibility(True, None, "C2"),
+            )
+        )
+        stack.enter_context(
+            mock.patch.object(policy, "eligibility", side_effect=AssertionError)
+        )
+        return lane
+
+    def lane_assess(self, **kwargs: Any) -> policy.UnattendedPolicy:
+        return self.assess(authority="pr-merge", **kwargs)
+
+    def test_the_lane_permits_without_a_promotion_read(self) -> None:
+        self.readable()
+        lane = self.lane_clear()
+        result = self.lane_assess(
+            post_merge=lambda floor, who: gate(),
+            promotion=mock.Mock(side_effect=AssertionError("no local promotion")),
+        )
+        self.assertIsNone(result.reason)
+        self.assertIs(result.promoted, True)
+        self.assertIs(result.report()["reportOnly"], True)
+        self.assertEqual(
+            lane.call_args.kwargs["denied_paths"],
+            (".github/**", "docs/conventions/pr-pipeline.yaml"),
+        )
+
+    def test_authority_pr_merge_reads_its_own_enabled_since(self) -> None:
+        self.readable()
+        self.lane_clear()
+        seen: list[Any] = []
+        self.lane_assess(post_merge=lambda floor, who: seen.append(floor) or gate())
+        self.assertEqual(seen, [policy.datetime.fromisoformat(ENABLED_AT)])
+
+    def test_the_lane_refuses_a_local_babysit_config(self) -> None:
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"] = file_payload(
+            PIPELINE
+        )
+        self.assertEqual(self.lane_assess().reason, "authority-unconfigured")
+
+    def test_local_babysit_refuses_a_pr_merge_config(self) -> None:
+        self.readable()
+        self.assertEqual(self.assess().reason, "authority-unconfigured")
+
+
 class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
     """`babysit_merge.py --merge` with the token acting as the configured
     `merge.agent-identity`, read from a real pipeline file through the config

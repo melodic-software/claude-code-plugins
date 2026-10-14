@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.75.0] - 2026-10-14
+
+### Added
+
+- Five outcome eval cases (`au-`, `de-`, `dg-`, `dh-`, `qu-`) for `audit-answers`, `design`, `draft-goal-condition`, `design-handoff` and `questionnaire`, grader fixes with must-pass and must-fail samples across the existing cases, and frozen trigger-probe sets for the eleven model-invoked skills under `probes/`.
+
+### Changed
+
+- Tighter bodies for ten model-invoked skills, with every gate, route, stop and report line kept; shorter descriptions for `audit-answers`, `brainstorm`, `design` and `plan`, with every quoted trigger phrase kept. `interview` and `setup` are unchanged.
+
 ## [0.74.0] - 2026-10-14
 
 ### Added

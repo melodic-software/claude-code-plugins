@@ -295,8 +295,10 @@ the reply; human threads stay open for the human.
 
 `merge.authority` names the repository's one merge authority: `local-babysit`, the babysit wrapper
 run by the local babysit lane (loop-lane), or `pr-merge`. When it is absent the authority is
-`pr-merge`, the meaning a rung had before this key existed, so the babysit wrapper merges only when
-it reads `local-babysit`. `merge.rung` is the highest work class that authority merges without a
+`pr-merge`, the meaning a rung had before this key existed. The babysit wrapper merges only when it
+reads the authority the wrapper runs as: `local-babysit` by default, `pr-merge` under
+`--authority pr-merge` (below). `merge.report-only: true` makes that authority report each
+decision and write nothing. `merge.rung` is the highest work class that authority merges without a
 human. Work classes are defined in
 [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md).
 
@@ -321,8 +323,8 @@ human. Work classes are defined in
 
 ### The local babysit lane
 
-The babysit wrapper does not enforce these reads yet; until it does, the live config has no
-`merge:` block and the rung stays `off`.
+The babysit wrapper does not enforce these reads yet; until it does, the live config does not set
+`local-babysit`.
 
 The babysit wrapper (`babysit_merge.py` in the source-control plugin) may merge without a human
 only when every read below allows it. Each read happens at one captured base SHA, and any read
@@ -369,6 +371,22 @@ that fails counts as a refusal.
 
 A human here is a GitHub user, not the agent identity and not an automation login, with write or
 admin permission on the repository.
+
+### The pr-merge lane
+
+The same wrapper run with `--unattended --authority pr-merge` is the pr-merge lane's gate. It needs
+`merge.authority: pr-merge` and `merge.agent-identity` at the base, and keeps every read above
+except three:
+
+- **Eligibility.** Not a fork or a dependency manager's pull request, a `work-class: mechanical`
+  label on the pull request, and a diff where no path, either side of a rename, matches
+  `merge.diff-check.denied-paths`. No linked issue, opt-in label or lane claim is read.
+- **Who labels.** Until agents act as their own App, a person's token may be an agent's, so only
+  label events by `merge.agent-identity` (the lanes App) count. The owner account's label events
+  and body edits are ignored, and so are another bot's, since a workflow on a pushed branch labels
+  as `github-actions[bot]`. A class label anyone adds can still only make the class stricter.
+- **Promotion.** No promotion evidence is read. The lane starts with `merge.report-only: true`;
+  the owner reads its reports and sets `false` to let it merge.
 
 ## Trust-root paths
 
