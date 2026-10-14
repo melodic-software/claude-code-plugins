@@ -352,15 +352,16 @@ function checkDispatchedRerunner({ ids }, deniedIds, own) {
   }
 }
 
-// require-pr: false. A workflow_dispatch checks its sender and the triggering
-// actor, a push only the triggering actor; no PR is read. require-kind human
-// narrows both to actors listed as human.
+// require-pr: false. A workflow_dispatch or issues event checks its sender
+// (on issues, the account that applied the label) and the triggering actor, a
+// push only the triggering actor; no PR is read. require-kind human narrows
+// both to actors listed as human.
 function evaluateActors({ eventName, event, list, deniedIds, triggeringActor, requireKind }) {
-  if (eventName !== "workflow_dispatch" && eventName !== "push") {
+  if (eventName !== "workflow_dispatch" && eventName !== "issues" && eventName !== "push") {
     throw new Stop("no-pr");
   }
   const pool = requireKind === "human" ? list.humans : list.ids;
-  if (eventName === "workflow_dispatch") {
+  if (eventName !== "push") {
     if (Number.isInteger(event.sender?.id) && deniedIds.has(event.sender.id)) {
       throw new Stop("bot-actor");
     }

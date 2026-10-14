@@ -77,9 +77,9 @@ inputs:
   require-pr:
     description: >
       `true` gates a PR as described above. `false` checks only the actors
-      of a push or workflow_dispatch: the sender on workflow_dispatch and the
-      triggering actor on both; any other event stops; no PR is read and the
-      PR outputs stay empty.
+      of a push, workflow_dispatch or issues event: the sender on
+      workflow_dispatch and issues, and the triggering actor on all three;
+      any other event stops; no PR is read and the PR outputs stay empty.
     required: false
     default: "true"
 

@@ -1,0 +1,63 @@
+name: work-resolve-issue
+
+# Lane caller for work-resolve-issue: the agent-ready label on an issue starts
+# one agent run on it. Its file stem is the lane, so the lanes token broker
+# accepts its write activities. No App key; each run job's OIDC token is
+# exchanged at LANES_BROKER_URL for audience LANES_BROKER_AUDIENCE.
+# Job contract: docs/conventions/pr-pipeline/pr-run-activity.md, Issue mode.
+#
+# resolve-issue runs /work-items:work on the issue and commits to a new branch,
+# or stops and says why. report-outcome then opens a draft PR from that branch,
+# or comments on the issue and labels it needs-human. Which issues are admitted
+# (their work class, and the go-live time) is in docs/conventions/pr-pipeline.yaml.
+# The kill switch, the labeler check (a listed human) and the token broker run
+# inside pr-run-activity-write.yml.
+
+on:
+  issues:
+    types: [labeled]
+
+permissions: {}
+
+# One run per issue at a time. A newer label event replaces one still waiting;
+# a running one finishes.
+concurrency:
+  group: work-resolve-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  resolve-issue:
+    if: >-
+      github.event.label.name == 'agent-ready'
+      && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: work-resolve-issue
+      activity: resolve-issue
+      issue-number: ${{ format('{0}', github.event.issue.number) }}
+      trusted-base: default-tip
+      timeout-minutes: 50
+    secrets:
+      claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+  report-outcome:
+    needs: resolve-issue
+    # issue-run-started is set only by the write runner's own steps, once the
+    # run got its token; a run that failed after that still reports.
+    if: ${{ !cancelled() && needs.resolve-issue.outputs.issue-run-started == 'true' }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+      id-token: write
+    uses: ./.github/workflows/pr-run-activity-write.yml # zizmor: ignore[self-repository]
+    with:
+      lane: work-resolve-issue
+      activity: report-outcome
+      issue-number: ${{ format('{0}', github.event.issue.number) }}
+      trusted-base: default-tip

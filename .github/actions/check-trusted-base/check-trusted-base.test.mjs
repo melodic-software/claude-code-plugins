@@ -135,6 +135,20 @@ test("default-tip reads the PR's base branch on a workflow_dispatch", () => {
   assert.equal(bad.output, "");
 });
 
+test("an issues event in default-tip mode trusts the default branch tip with no PR", () => {
+  const r = run({ MODE: "default-tip", EVENT_NAME: "issues", EVENT_BASE_REF: "", PR_NUMBER: "", BASE_SHA: "", FAKE_BASE_REF: "side" });
+  assert.equal(r.status, 0, r.log);
+  assert.equal(r.output, `commit=${sha.C}\n`);
+  assert.equal(r.head, sha.C);
+});
+
+test("an issues event in pr-base mode fails: an issue has no PR base", () => {
+  const r = run({ MODE: "pr-base", EVENT_NAME: "issues", EVENT_BASE_REF: "", PR_NUMBER: "", BASE_SHA: "" });
+  assert.equal(r.status, 1);
+  assert.match(r.log, /default-tip/);
+  assert.equal(r.output, "");
+});
+
 for (const mode of ["", "tip", "PR-BASE"]) {
   test(`an unknown mode ${JSON.stringify(mode)} fails before any checkout`, () => {
     const r = run({ MODE: mode, BASE_SHA: sha.A });

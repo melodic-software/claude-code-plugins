@@ -600,6 +600,69 @@ test("on workflow_dispatch, labels come from the PR and the event maps to dispat
   assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
 });
 
+// An issues lane: the event payload is the issue, and there is no PR.
+function issueEvent(env, issue) {
+  writeFileSync(env.EVENT_PATH, JSON.stringify({ action: "labeled", issue }));
+  env.EVENT_NAME = "issues";
+  env.PR_NUMBER = "";
+}
+
+test("on an issues event, labels come from the issue payload and the event maps to labeled", async () => {
+  const { env } = workspace();
+  issueEvent(env, { number: 7, labels: [{ name: "work-class: read-only" }], updated_at: "2026-10-20T00:00:00Z" });
+  withPredicate(env, { labels: ["work-class: read-only"], events: ["labeled"] });
+  const { github, calls } = fakeGitHub({});
+  assert.equal(await main({ env, github }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
+  assert.deepEqual(calls, []);
+});
+
+test("on an issues event, a missing label skips with not-applicable", async () => {
+  const { env } = workspace();
+  issueEvent(env, { number: 7, labels: [{ name: "work-class: scoped" }], updated_at: "2026-10-20T00:00:00Z" });
+  withPredicate(env, { labels: ["work-class: read-only"] });
+  assert.equal(await main({ env, github: noApi }), 0);
+  const outputs = readOutputs(env.GITHUB_OUTPUT);
+  assert.equal(outputs.applies, "false");
+  assert.equal(outputs["skip-reason"], "not-applicable");
+});
+
+test("labeled-after applies to an issue labeled after the cutover", async () => {
+  const { env } = workspace();
+  issueEvent(env, { number: 7, labels: [], updated_at: "2026-10-20T00:00:01Z" });
+  withPredicate(env, { "labeled-after": "2026-10-20T00:00:00Z" });
+  assert.equal(await main({ env, github: noApi }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
+});
+
+test("labeled-after skips an issue labeled before the cutover with not-applicable", async () => {
+  const { env } = workspace();
+  issueEvent(env, { number: 7, labels: [], updated_at: "2026-10-19T23:59:59Z" });
+  withPredicate(env, { "labeled-after": "2026-10-20T00:00:00Z" });
+  assert.equal(await main({ env, github: noApi }), 0);
+  const outputs = readOutputs(env.GITHUB_OUTPUT);
+  assert.equal(outputs.applies, "false");
+  assert.equal(outputs["skip-reason"], "not-applicable");
+});
+
+test("labeled-after fails red off an issues event, which carries no label time", async (t) => {
+  const { env } = workspace();
+  withPredicate(env, { "labeled-after": "2026-10-20T00:00:00Z" });
+  await assertFailsRed(t, env, /needs labeledAt/);
+});
+
+test("on an issues event, labels-absent reads the issue's labels now", async () => {
+  const { env } = workspace();
+  issueEvent(env, { number: 7, labels: [], updated_at: "2026-10-20T00:00:00Z" });
+  withPredicate(env, { "labels-absent": ["needs-human"] });
+  const { github, calls } = fakeGitHub({
+    "/repos/melodic-software/claude-code-plugins/issues/7": () => ({ number: 7, labels: [{ name: "needs-human" }] }),
+  });
+  assert.equal(await main({ env, github }), 0);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT)["skip-reason"], "awaiting-human");
+  assert.deepEqual(calls, ["GET /repos/melodic-software/claude-code-plugins/issues/7"]);
+});
+
 test("a work-classes predicate fails red: no run supplies work classes yet", async (t) => {
   const { env } = workspace();
   withPredicate(env, { "work-classes": ["C2"] });

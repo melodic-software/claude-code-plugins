@@ -36,6 +36,14 @@ on:
         required: false
         type: string
         default: ""
+      issue-number:
+        description: >-
+          Issue mode: the issue an issues lane works, on an issues event only.
+          There is no PR: the trusted base is the default branch tip, a skill
+          commits to a new branch, and no check run is posted.
+        required: false
+        type: string
+        default: ""
       default-model:
         description: The model when the activity sets none; empty omits --model.
         required: false
@@ -83,6 +91,12 @@ on:
           protected-path-conflict, workflow-staged, repeat-cap or
           unresolved-conflict; empty otherwise. Set only by runner steps.
         value: ${{ jobs.run.outputs.escalation-reason }}
+      issue-run-started:
+        description: >-
+          Issue mode: `true` once the run got its lane token, so its outcome
+          must be reported even when a later step failed. Set only by runner
+          steps.
+        value: ${{ jobs.run.outputs.issue-run-started }}
 
 permissions: {}
 
@@ -126,6 +140,7 @@ jobs:
       can-commit: ${{ steps.config.outputs.can-commit }}
       merge-state: ${{ steps.prepare.outputs.merge-state }}
       escalation-reason: ${{ steps.prepare.outputs.escalation-reason || steps.post.outputs.escalation-reason }}
+      issue-run-started: ${{ inputs.issue-number != '' && steps.lane-token.outcome == 'success' }}
       # A gate skill succeeds only on a `pass` verdict, a skill that took no
       # model turn fails, and a skill whose commits could not be moved onto
       # the PR branch fails. In merge-base mode a clean merge skips the skill
@@ -155,7 +170,23 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           ESCALATION_REASON: ${{ inputs.escalation-reason }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ISSUE: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ inputs.pr-number }}
+          DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
+          TRUSTED_BASE: ${{ inputs.trusted-base }}
         run: |
+          # Issue mode runs only on the issues event that names that issue,
+          # trusting the default branch tip, with none of the PR inputs.
+          if [ -n "$ISSUE_NUMBER" ] || [ "$EVENT_NAME" = issues ]; then
+            if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || [ "$EVENT_NAME" != issues ] ||
+              [ "$ISSUE_NUMBER" != "$EVENT_ISSUE" ] || [ "$TRUSTED_BASE" != default-tip ] ||
+              [ -n "$PR_NUMBER$DISPATCHER_RUN_ID" ]; then
+              echo "::error::issue mode needs an issues event, the event's issue number, trusted-base default-tip, and no pr-number or dispatcher-run-id"
+              exit 1
+            fi
+          fi
           if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
             exit 1
@@ -215,6 +246,10 @@ jobs:
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
           dispatcher-workflow: .github/workflows/pr-unblock-dispatch.yml
           dispatched-workflow: .github/workflows/pr-unblock.yml
+          # Issue mode reads no PR: the account that applied the label, and
+          # any re-runner, must be listed as a human.
+          require-pr: ${{ inputs.issue-number == '' }}
+          require-kind: ${{ inputs.issue-number != '' && 'human' || '' }}
 
       # The trusted base is the config, actions and trusted-actor source and,
       # in prepare: merge-base mode, the merge's second parent.
@@ -264,11 +299,13 @@ jobs:
           EFFECT: ${{ steps.config.outputs.effect }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           HEAD_REF: ${{ steps.gate.outputs.head-ref }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
         with:
           retries: 0
           script: |
-            const { EFFECT, HEAD_SHA, HEAD_REF } = process.env;
-            if (EFFECT !== 'mutate-branch') {
+            const { EFFECT, HEAD_SHA, HEAD_REF, ISSUE_NUMBER } = process.env;
+            // Issue mode has no PR branch: the skill commits to a new one.
+            if (EFFECT !== 'mutate-branch' || ISSUE_NUMBER) {
               core.setOutput('proceed', 'true');
               return;
             }
@@ -298,6 +335,7 @@ jobs:
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
           pr-number: ${{ steps.gate.outputs.pr-number }}
+          issue-number: ${{ inputs.issue-number }}
           dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
@@ -305,7 +343,9 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
 
       - name: Select the trusted PR text
-        if: steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.reads-untrusted == 'true'
+        if: >-
+          steps.head-recheck.outputs.proceed == 'true' && steps.config.outputs.reads-untrusted == 'true'
+          && inputs.issue-number == ''
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.gate.outputs.pr-number }}
@@ -330,6 +370,33 @@ jobs:
           can-commit: ${{ steps.config.outputs.can-commit }}
           prepare: ${{ steps.config.outputs.prepare }}
           resolved-path: ${{ runner.temp }}/resolved-config.json
+          issue-number: ${{ inputs.issue-number }}
+
+      # Issue mode: the skill reads the issue from its scratch directory, so it
+      # needs no shell or API access. Title, body and labels only: comments
+      # are left out. The text is untrusted data the skill evaluates.
+      - name: Write the issue for the skill
+        if: >-
+          steps.head-recheck.outputs.proceed == 'true' && inputs.issue-number != ''
+          && steps.config.outputs.kind == 'skill'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          ISSUE_FILE: ${{ runner.temp }}/lane-scratch/issue.json
+        with:
+          github-token: ${{ steps.lane-token.outputs.token }}
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const { ISSUE_NUMBER, ISSUE_FILE } = process.env;
+            const { data } = await github.rest.issues.get({ ...context.repo, issue_number: Number(ISSUE_NUMBER) });
+            const issue = {
+              number: data.number,
+              title: data.title,
+              body: data.body ?? '',
+              labels: (data.labels ?? []).map((label) => (typeof label === 'string' ? label : label.name)),
+            };
+            fs.writeFileSync(ISSUE_FILE, `${JSON.stringify(issue, null, 2)}\n`);
 
       # A script reads the base's work-item tracker config (report-escalation's
       # human-gated role label), which the head checkout would replace. Its
@@ -399,11 +466,12 @@ jobs:
         with:
           install-subprocess-isolation: ${{ steps.config.outputs.kind == 'skill' }}
 
+      # Issue mode checks out the trusted base, the default branch tip.
       - name: Check out the PR head
         if: steps.head-recheck.outputs.proceed == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ steps.gate.outputs.head-sha }}
+          ref: ${{ steps.gate.outputs.head-sha || steps.trusted-base.outputs.commit }}
           token: ${{ steps.lane-token.outputs.token }}
           persist-credentials: false
           # The merge needs the history back to the merge base and the trusted
@@ -414,7 +482,7 @@ jobs:
       - name: Assert the head is the gated SHA
         if: steps.head-recheck.outputs.proceed == 'true'
         env:
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha || steps.trusted-base.outputs.commit }}
         run: |
           if [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
             echo "::error::the checked-out head is not the gated head SHA"
@@ -509,8 +577,12 @@ jobs:
           && steps.prepare.outputs.merge-state != 'escalate'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          LANE_BRANCH: lane-commits/${{ inputs.lane }}/${{ inputs.activity }}/${{ github.run_id }}-${{ github.run_attempt }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha || steps.trusted-base.outputs.commit }}
+          # Issue mode: this branch becomes the PR's head.
+          LANE_BRANCH: >-
+            ${{ inputs.issue-number != ''
+            && format('{0}/issue-{1}-{2}-{3}', inputs.lane, inputs.issue-number, github.run_id, github.run_attempt)
+            || format('lane-commits/{0}/{1}/{2}-{3}', inputs.lane, inputs.activity, github.run_id, github.run_attempt) }}
         with:
           github-token: ${{ steps.lane-token.outputs.token }}
           retries: 0
@@ -897,7 +969,7 @@ jobs:
       # branch is deleted either way.
       - name: Move the PR branch to the lane's commits
         id: promote
-        if: always() && steps.lane-branch.outputs.branch != ''
+        if: always() && steps.lane-branch.outputs.branch != '' && inputs.issue-number == ''
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
@@ -948,6 +1020,74 @@ jobs:
                 .catch((error) => core.warning(`Could not delete ${LANE_BRANCH}: ${error.message}`));
             }
 
+      # Issue mode: the lane branch is kept only when the skill committed to
+      # it, and the report-outcome run reads its name from lane.json, written
+      # here after the skill ended.
+      - name: Keep the issue branch only when it holds commits
+        id: issue-branch
+        if: always() && inputs.issue-number != '' && steps.lane-branch.outputs.branch != ''
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
+          LANE_BRANCH: ${{ steps.lane-branch.outputs.branch }}
+          OUT_DIR: ${{ runner.temp }}/work-outcome
+        with:
+          github-token: ${{ steps.lane-token.outputs.token }}
+          retries: 0
+          script: |
+            const fs = require('fs');
+            const { BASE_SHA, LANE_BRANCH, OUT_DIR } = process.env;
+            const ref = `heads/${LANE_BRANCH}`;
+            const tip = (await github.request('GET /repos/{owner}/{repo}/git/ref/{ref}', { ...context.repo, ref })).data.object.sha;
+            let branch = LANE_BRANCH;
+            if (tip === BASE_SHA) {
+              await github.rest.git.deleteRef({ ...context.repo, ref });
+              branch = '';
+              core.info('The skill made no commits; the branch is deleted');
+            } else {
+              core.info(`The skill's commits are on ${LANE_BRANCH} at ${tip}`);
+            }
+            fs.mkdirSync(OUT_DIR, { recursive: true });
+            fs.writeFileSync(`${OUT_DIR}/lane.json`, `${JSON.stringify({ branch })}\n`);
+
+      # The skill's outcome file is model output, copied as data and capped.
+      - name: Collect the issue outcome
+        if: always() && inputs.issue-number != '' && steps.lane-token.outcome == 'success'
+        env:
+          SCRATCH_OUTCOME: ${{ runner.temp }}/lane-scratch/work-outcome.json
+          OUT_DIR: ${{ runner.temp }}/work-outcome
+        run: |
+          mkdir -p "$OUT_DIR"
+          rm -f "$OUT_DIR/work-outcome.json"
+          if [ -f "$SCRATCH_OUTCOME" ] && [ ! -L "$SCRATCH_OUTCOME" ]; then
+            head -c 65536 "$SCRATCH_OUTCOME" >"$OUT_DIR/work-outcome.json"
+          fi
+          [ -f "$OUT_DIR/lane.json" ] || echo '{"branch":""}' >"$OUT_DIR/lane.json"
+
+      - name: Upload the issue outcome
+        if: always() && inputs.issue-number != '' && steps.lane-token.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: work-outcome-${{ inputs.issue-number }}
+          path: |
+            ${{ runner.temp }}/work-outcome/lane.json
+            ${{ runner.temp }}/work-outcome/work-outcome.json
+          retention-days: 7
+          if-no-files-found: error
+          overwrite: true
+
+      # Issue mode, script activity: what the resolve-issue run left. A
+      # missing artifact leaves the directory empty, which reads as stopped.
+      - name: Download the issue outcome
+        if: >-
+          steps.head-recheck.outputs.proceed == 'true' && inputs.issue-number != ''
+          && steps.config.outputs.kind == 'script'
+        continue-on-error: true
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: work-outcome-${{ inputs.issue-number }}
+          path: ${{ runner.temp }}/work-outcome
+
       # A script that gets GH_TOKEN must not execute code from the PR head.
       - name: Run the script activity
         id: act-script
@@ -964,6 +1104,8 @@ jobs:
           TRACKER_CONFIG: ${{ runner.temp }}/base-script/.work-item-tracker.json
           TRACKER_SHA256: ${{ steps.tracker-config.outputs.sha256 }}
           SKIP_REASON_FILE: ${{ runner.temp }}/skip-reason
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          WORK_OUTCOME_DIR: ${{ runner.temp }}/work-outcome
         run: |
           if [ "$TRACKER_SHA256" = absent ]; then
             if [ -e "$TRACKER_CONFIG" ]; then
@@ -1094,9 +1236,10 @@ jobs:
   report:
     needs: run
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
-    # lanes App's own pull_request events skip the run job.
+    # lanes App's own pull_request events skip the run job. Issue mode has no
+    # PR head to post a check on.
     if: >-
-      always()
+      always() && inputs.issue-number == ''
       && !(github.event_name == 'pull_request'
       && github.event.pull_request.head.repo.full_name != github.repository)
       && !(github.event_name == 'pull_request'

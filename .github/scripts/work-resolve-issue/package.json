@@ -1,0 +1,7 @@
+{
+  "name": "work-resolve-issue",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

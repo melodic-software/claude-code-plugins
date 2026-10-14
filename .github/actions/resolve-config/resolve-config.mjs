@@ -97,7 +97,20 @@ async function gatherFacts(
   if (needed.includes("draft")) {
     facts.draft = event.pull_request?.draft ?? (await fetchPull()).draft;
   }
-  if (needed.includes("labels")) {
+  // An issues event has no PR: labels come from the issue (the payload's, or
+  // read now for labels-absent), and its update time is when it was labeled.
+  const issue = eventName === "issues" ? event.issue : undefined;
+  if (issue !== undefined) {
+    if (needed.includes("labeledAt") && typeof issue.updated_at === "string") {
+      facts.labeledAt = issue.updated_at;
+    }
+    if (needed.includes("labels")) {
+      const labels = needed.includes("freshLabels")
+        ? (await github("GET", `/repos/${repository}/issues/${Number(issue.number)}`)).labels
+        : issue.labels;
+      facts.labels = labels.map((label) => label.name);
+    }
+  } else if (needed.includes("labels")) {
     const labels = needed.includes("freshLabels")
       ? (await fetchPull()).labels
       : (event.pull_request?.labels ?? (await fetchPull()).labels);
