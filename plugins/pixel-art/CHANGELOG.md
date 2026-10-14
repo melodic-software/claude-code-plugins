@@ -3,6 +3,16 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-10-14
+
+### Added
+
+- Seven outcome eval cases under `evals/` and frozen trigger-probe sets under `probes/`.
+
+### Changed
+
+- All six skill descriptions are shorter and keep their quoted trigger phrases. The `sprite`, `scene`, `ui` and `vfx` bodies are tighter: `sprite` asks for an output location before rendering when none is named, and `vfx` states the native fallback when Aseprite is missing. The `animate` and `tileset` bodies are unchanged.
+
 ## [0.6.10] - 2026-10-13
 
 ### Changed
