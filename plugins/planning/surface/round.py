@@ -2,7 +2,8 @@
 
 python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also follow the command)
   add             add a question (from --file JSON or flags)
-  add-round       add several groups, questions and visuals from one JSON file, in one write
+  add-round       add several groups, questions and visuals from one JSON file, in one write;
+                  --sync-ledger F then syncs F's register rows, --check writes nothing
   group           add or update a question group
   group-order     reorder the groups (every group id once, in the new order)
   reply           append a Claude line to a question's thread; optional revised recommendation
@@ -36,16 +37,17 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
 Every write validates questions.json against schema/questions.schema.json and holds the sidecar
 lock questions.json.lock (ROUND_LOCK_TIMEOUT seconds, default 10).
 New questions need a `commits` key (an explicit empty list is allowed; `--commit none` on the
-flags) and at least two alternatives.
+flags) and at least two alternatives (one for a yes/no question flagged `"binary": true`, whose
+alternative may not repeat or contain the recommendation).
 reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a live
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
 unhandled user event on it), unless --force. A recommendation change also sets aside the
 question's counted `own` answer; record-terminal --decision own records the resolved decision.
 reply --rec and revise --rec need --alt (the revised alternatives) or --keep-alternatives (the
 current ones were checked against the new recommendation) and refuse with neither (R-I); --alt
-keeps at least two alternatives. reply --rec and revise --rec or --alt refuse when an alternative,
-case and trailing punctuation folded, equals or contains (as whole words) the recommendation or is
-contained by it; pass revised alternatives in the same op (--alt).
+keeps at least two alternatives (one on a binary question). reply --rec and revise --rec or --alt
+refuse when an alternative, case and trailing punctuation folded, equals or contains (as whole
+words) the recommendation or is contained by it; pass revised alternatives in the same op (--alt).
 revise --commit replaces the commitment list (`--commit none` alone clears it); when the list
 changes, the recorded confirmations are dropped and confirm events at or below the question's
 commitsSinceSeq no longer count.
@@ -104,6 +106,11 @@ ACTIVITY_CAP = 200
 # basis, a revision reason, a group summary, a thread reply, a note, a terminal answer, a
 # restatement section).
 TEXT_CAP = 20000
+REQUIRED_FIELDS = (
+    ("id", "the Q<N> id on the session's one counter"),
+    ("short", "the one-line label the page lists"),
+    ("title", "the full question the card shows"),
+)
 QUESTION_CAPS = (
     ("title", LINE_CAP),
     ("short", LINE_CAP),
@@ -187,6 +194,12 @@ def plugin_version():
 
 def save(d, doc, touched=()):
     """Bump rev, stamp the schema version and, on a file's first write, the plugin version that wrote it, validate, then write; a schema failure writes nothing."""
+    prepare(doc, touched)
+    save_json(d / "questions.json", doc)
+
+
+def prepare(doc, touched=()):
+    """Everything `save` does but the write: stamp, bump rev, and refuse a schema failure."""
     doc["schemaVersion"] = SCHEMA_VERSION
     if not doc.get("rev") and plugin_version():
         doc["meta"]["pluginVersion"] = plugin_version()
@@ -196,7 +209,6 @@ def save(d, doc, touched=()):
     err = schema.first_error(doc, schema.load("questions"))
     if err:
         sys.exit(f"refused: questions.json would not match its schema: {err}")
-    save_json(d / "questions.json", doc)
 
 
 def capped(field, text, cap):
@@ -315,16 +327,29 @@ def require_alt_review(qid, alts, keep):
         )
 
 
-def checked_alts(qid, alts):
-    """`alts` parsed and capped, or a refusal when fewer than two remain (R-I)."""
+def min_alts(q):
+    """2, or 1 for a yes/no question flagged `binary: true` (R-I)."""
+    return 1 if q.get("binary") is True else 2
+
+
+def too_few_alts(qid, n, q):
+    """The R-I refusal for a question left with `n` alternatives."""
+    sys.exit(
+        f"refused: {qid} has {n} alternatives; every question needs at least 2 genuine "
+        "alternatives besides the recommendation, or 1 when it is a yes/no question flagged "
+        '"binary": true (R-I)'
+        if min_alts(q) == 2
+        else f"refused: {qid} has {n} alternatives; a binary question needs 1 (R-I)"
+    )
+
+
+def checked_alts(q, alts):
+    """`alts` parsed and capped, or a refusal when fewer remain than question `q` needs (R-I)."""
     alts = [split_alt(s) for s in alts]
     for alt in alts:
-        capped(f"{qid} alternative {alt['key']}", alt["text"], LINE_CAP)
-    if len(alts) < 2:
-        sys.exit(
-            f"refused: {qid} would have {len(alts)} alternatives; every question needs at "
-            "least 2 genuine alternatives besides the recommendation (R-I)"
-        )
+        capped(f"{q['id']} alternative {alt['key']}", alt["text"], LINE_CAP)
+    if len(alts) < min_alts(q):
+        too_few_alts(q["id"], len(alts), q)
     return alts
 
 
@@ -341,19 +366,28 @@ def set_aside_own(r, doc, q):
 def add_question(doc, q, repoint=False):
     """Validate and append one question; returns (the questions whose rev must bump, notes about
     the dependents of a question it supersedes). Exits before any write."""
-    for req in ("id", "short", "title"):
+    for req, gloss in REQUIRED_FIELDS:
         if not q.get(req):
-            sys.exit(f"missing {req}")
+            name = q.get("id") or (
+                f"the question titled {q.get('title') or q.get('short')!r}"
+                if q.get("title") or q.get("short")
+                else "a question"
+            )
+            sys.exit(f"refused: {name} missing {req} ({gloss})")
     if "commits" not in q:
         sys.exit(
             f"refused: {q['id']} declares no commits; list what accepting commits the user to, "
             'or pass an explicit empty list ("commits": [] or --commit none) (R1)'
         )
     alts = q.get("alternatives") or []
-    if len(alts) < 2:
-        sys.exit(
-            f"refused: {q['id']} has {len(alts)} alternatives; every question needs at least 2 "
-            "genuine alternatives besides the recommendation (R-I)"
+    if len(alts) < min_alts(q):
+        too_few_alts(q["id"], len(alts), q)
+    if q.get("binary") is True:
+        check_rec_alts(
+            q["id"],
+            q.get("recommendation"),
+            alts,
+            "a binary question's one alternative is the other answer",
         )
     for field, cap in QUESTION_CAPS:
         capped(f"{q['id']} {field}", q.get(field), cap)
@@ -387,6 +421,10 @@ def add_question(doc, q, repoint=False):
             or [1]
         ),
     )
+    q.pop("addedInRound", None)
+    if newest_round(doc) > q["round"]:
+        # Asked after a later round was posted: the round label alone would misdate it.
+        q["addedInRound"] = newest_round(doc)
     if defaulted and doc["questions"]:
         warn(
             f"{q['id']} named no stage; used stage {q['stage']!r}, round {q['round']}, "
@@ -847,7 +885,7 @@ def op_reply(d, doc, a):
         affects = parse_affects(a.affects)
         require_affects(a.id, affects)
         require_alt_review(a.id, a.alt, a.keepAlternatives)
-        alts = None if a.alt is None else checked_alts(a.id, a.alt)
+        alts = None if a.alt is None else checked_alts(q, a.alt)
         check_rec_alts(
             a.id,
             a.rec,
@@ -929,7 +967,7 @@ def op_revise(d, doc, a):
     deps = None if a.dependsOn is None else checked_depends(doc, a.id, a.dependsOn)
     if a.group is not None and a.group not in {g["id"] for g in doc["groups"]}:
         sys.exit(f"refused: unknown group {a.group!r} for {a.id}")
-    alts = None if a.alt is None else checked_alts(a.id, a.alt)
+    alts = None if a.alt is None else checked_alts(q, a.alt)
     if a.rec is not None or alts is not None:
         check_rec_alts(
             a.id,
@@ -1381,7 +1419,17 @@ def cmd_add_round(d, a):
         spec.get("questions"),
         spec.get("visuals"),
     )
+    if a.check:
+        doc = load(d)
+        touched, msg = op_add_round_linted(d, doc, a)
+        prepare(doc, touched)
+        print(f"check passed, nothing written: {msg}")
+        return
+    if a.sync_ledger:
+        read_input(a.sync_ledger, "ledger")
     write_op(op_add_round_linted, "add-round")(d, a)
+    if a.sync_ledger:
+        cmd_sync_ledger(d, argparse.Namespace(ledger=a.sync_ledger))
 
 
 # Per-op argument defaults for `apply`: the op file's keys map onto the same namespace the CLI builds.
@@ -2119,6 +2167,18 @@ def main(argv=None):
         "--repoint",
         action="store_true",
         help="for a question that supersedes another: move the live questions that depend on the superseded one to it",
+    )
+    x = s.add_mutually_exclusive_group()
+    x.add_argument(
+        "--check",
+        action="store_true",
+        help="run every refusal and warning on the round and write nothing",
+    )
+    x.add_argument(
+        "--sync-ledger",
+        dest="sync_ledger",
+        metavar="LEDGER",
+        help="after the write, run sync-ledger on LEDGER, so the round step is one command",
     )
     s.set_defaults(fn=cmd_add_round)
 

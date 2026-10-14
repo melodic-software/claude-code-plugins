@@ -595,10 +595,13 @@ def row_line(r):
     return line
 
 
-def round_cell(rnd, cell):
+def round_cell(rnd, cell, added=None):
     """A row's round cell: `cell` (a ledger's own text, label and all) while it still names round
-    `rnd`, else `round <rnd>`."""
-    return cell if cell and round_of(cell)[0] == rnd else f"round {rnd}"
+    `rnd`, else `round <rnd>`, followed by `(added in round <added>)` for a question asked after
+    a later round was posted."""
+    if cell and round_of(cell)[0] == rnd:
+        return cell
+    return f"round {rnd}" + (f" (added in round {added})" if added else "")
 
 
 def ledger_register(text):
@@ -648,17 +651,17 @@ def merged_register(d, text=None):
     rows = []
     for r in register(doc, resp, extra):
         q = r["q"]
-        rnd = q.get("round") or 1
+        rnd, added = q.get("round") or 1, q.get("addedInRound")
         page = {
             "status": r["status"],
-            "round": round_cell(rnd, cells.get(q["id"])),
+            "round": round_cell(rnd, cells.get(q["id"]), added),
             "title": clean(q.get("title")),
             "resolution": r["resolution"],
         }
         row = dict(page, n=r["n"], id=q["id"], short=clean(q.get("short")), page=page)
         if q["id"] in old:
             status, cell, title, res = old[q["id"]]
-            row.update(round=round_cell(rnd, cell), title=title or page["title"])
+            row.update(round=round_cell(rnd, cell, added), title=title or page["title"])
             if (
                 status not in UNSETTLED
                 and status != page["status"]
