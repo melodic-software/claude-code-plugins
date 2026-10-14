@@ -1,9 +1,17 @@
 # Changelog for the PR pipeline convention
 
-## 1.11.2 - 2026-10-14
+## 1.12.1 - 2026-10-14
 
 The live config gains the `pr-merge` lane with one `merge-pr` activity (effect `merge`, the babysit
 wrapper under `--authority pr-merge`), run by `.github/workflows/pr-merge.yml`. `version` stays 1.
+
+## 1.12.0 - 2026-10-14
+
+Issue mode. Schema: stage `work`, and the `labeled-after` predicate, an issues lane's go-live time.
+`pr-run-activity.md` gains "Issue mode": the write runner's `issue-number` input runs a lane on an
+`issues` event with no PR. The live config gains the `work-resolve-issue` lane (`resolve-issue`,
+then `report-outcome`), admitting `work-class: read-only` issues labeled after a go-live time that
+ships in the far future, so the lane starts nothing until the owner sets it. `version` stays 1.
 
 ## 1.11.1 - 2026-10-14
 

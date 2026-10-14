@@ -98,6 +98,36 @@ test("live config: report-escalation applies and is granted publish-artifact onl
   );
 });
 
+// An agent-ready label event on a read-only issue. The shipped cutover is the
+// far future, so the lane stays off until the owner sets the go-live time.
+const ISSUE = { event: "labeled", labels: ["agent-ready", "work-class: read-only"], labeledAt: "2026-10-20T00:00:00Z" };
+
+test("live config: resolve-issue starts nothing before the owner sets the go-live time", () => {
+  assert.equal(skipReason("work-resolve-issue", "resolve-issue", ISSUE), "not-applicable");
+});
+
+test("live config: after the go-live time resolve-issue admits read-only issues only", () => {
+  const after = { ...ISSUE, labeledAt: "2099-01-01T00:00:01Z" };
+  assert.equal(selected("work-resolve-issue", "resolve-issue", after).applies, true);
+  assert.equal(
+    skipReason("work-resolve-issue", "resolve-issue", { ...after, labels: ["agent-ready", "work-class: scoped"] }),
+    "not-applicable",
+  );
+});
+
+test("live config: resolve-issue may only write its branch; report-outcome may only write PRs and issues", () => {
+  const grant = (activity) =>
+    resolveGrant(FILES, { lane: "work-resolve-issue", activity, configPath: CONFIG_PATH });
+  assert.deepEqual(grant("resolve-issue"), {
+    effect: "mutate-branch",
+    grant: { contents: "write", "pull-requests": "read", issues: "read" },
+  });
+  assert.deepEqual(grant("report-outcome"), {
+    effect: "publish-artifact",
+    grant: { contents: "read", "pull-requests": "write", issues: "write" },
+  });
+});
+
 test("live config: fix-docs applies to a Markdown change and waits on needs-human", () => {
   assert.equal(selected("pr-refine", "fix-docs").applies, true);
   assert.equal(

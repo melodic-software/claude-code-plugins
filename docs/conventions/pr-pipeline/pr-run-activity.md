@@ -639,7 +639,40 @@ Step 14 revokes the token as soon as the activity is done. Residuals:
 - The job runs trusted actions from the base SHA while the grant comes from the tip; the effect
   check fails a skewed job red rather than running it.
 
+## Issue mode
+
+The write file's `issue-number` input runs a lane on an issue instead of a PR. Its one caller is
+[`work-resolve-issue.yml`](../../../.github/workflows/work-resolve-issue.yml): the `agent-ready`
+label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), then
+`report-outcome` (a script) in a second run job. What changes from the PR flow:
+
+- Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
+  `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty.
+- The trigger gate runs with `require-pr: false` and `require-kind: human`: the account that
+  applied the label, and any re-runner, must be listed as a human. `check-trusted-base` trusts the
+  default branch tip, and that commit is the head the job checks out.
+- `resolve-config` decides the issue's labels from the event payload and `labeled-after`, the
+  lane's go-live time, from the issue's update time. The token request sends `issue_number`.
+- Before the skill, the runner writes the issue's number, title, body and labels (no comments) to
+  `issue.json` in the skill's scratch directory. The skill commits to a new branch,
+  `<lane>/issue-<n>-<run id>-<attempt>`, which is kept only when it holds commits. The skill's
+  `work-outcome.json` and the runner's `lane.json` (the kept branch, or empty) are uploaded as the
+  `work-outcome-<n>` artifact, and the job output `issue-run-started` is `true` once the token
+  was minted.
+- `report-outcome` downloads that artifact. On `done` it opens a draft PR from the branch whose
+  body starts `Closes #<n>`, copies the issue's `work-class:` labels, and adds
+  `Hold: a human merges this` for scoped, structural or untrusted-provenance work, for a diff that
+  touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
+  resolved config; unreadable holds every PR), or for one too large for the compare listing to
+  show whole. The run's own summary is quoted with issue references broken, so
+  squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
+  or invalid, it labels the issue with the human-gated role label and comments why; pushback also
+  removes `agent-ready`.
+- No check run is posted: there is no PR head. The run's own result is the record.
+
 ## Runs that post no check
+
+- An issue-mode run (above): the report job's `if:` skips it.
 
 - A fork PR, whose read-only `GITHUB_TOKEN` cannot write checks: the report job's `if:` skips it.
 - A `pull_request` event sent by the lanes App (`AUTOMATION_LANES_APP_SENDER_ID`): both jobs skip.

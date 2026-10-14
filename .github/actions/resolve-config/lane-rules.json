@@ -1,4 +1,9 @@
 {
+  "work-resolve-issue": {
+    "stage": "work",
+    "forbidden-effects": ["merge"],
+    "never": "Merges, or marks its pull request ready"
+  },
   "pr-refine": {
     "stage": "refine",
     "forbidden-effects": ["merge"],
