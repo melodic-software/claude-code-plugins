@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '%s\\n' https://raw.githubusercontent.com/example-org/retry-spec/main/SPEC.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 parse_discovery.py --normalize-url https://raw.githubusercontent.com/example-org/retry-spec/main/SPEC.md",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -sL https://raw.githubusercontent.com/llms.txt -o discovery/llms.txt",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -s https://raw.githubusercontent.com/sitemap.xml",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -s \"https://raw.githubusercontent.com/robots.txt\"",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

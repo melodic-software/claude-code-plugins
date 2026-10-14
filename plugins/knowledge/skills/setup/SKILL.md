@@ -1,5 +1,5 @@
 ---
-description: "Verify the knowledge artifact-root configuration and extraction prerequisites, or provision the video-pipeline dependencies. Use when: 'set up knowledge', 'configure knowledge', 'is knowledge ready', or 'where do knowledge artifacts land'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-deps (provision the extraction node deps + Chromium)."
+description: "Report (check, the default) or resolve (apply) the knowledge plugin's library_dir against the repository's artifact convention and its extraction prerequisites; apply install-deps provisions the extraction node deps and Chromium."
 argument-hint: "[check|apply] [install-deps]"
 user-invocable: true
 disable-model-invocation: true

@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": "Unsupported host. Supported sources are YouTube (youtube.com, youtu.be) and X/Twitter status posts (x.com, twitter.com)."
+    },
+    {
+      "answer": "video-digest only takes YouTube or X videos; use /knowledge:course-digest for Dometrain."
+    },
+    {
+      "answer": "This skill accepts youtu.be links and twitter.com posts.",
+      "why": "host names"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Unsupported host; use /knowledge:course-digest.",
+      "why": "no list"
+    },
+    {
+      "answer": "Only YouTube is supported; use /knowledge:course-digest.",
+      "why": "one of two"
+    },
+    {
+      "answer": "Not an x.com post; use /knowledge:course-digest.",
+      "why": "other one only"
+    },
+    {
+      "answer": "YouTube is supported. Dometrain is not. Let X be the course.",
+      "why": "review finding"
+    }
+  ]
+}

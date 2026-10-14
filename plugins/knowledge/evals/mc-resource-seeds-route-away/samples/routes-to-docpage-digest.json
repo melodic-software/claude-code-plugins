@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": "Both seeds are resource seeds (raw repository files), and the mapper's V1 requires at least one origin seed for discovery. Run each one through `/knowledge:docpage-digest` instead:\n\n1. `/knowledge:docpage-digest https://raw.githubusercontent.com/example-org/retry-spec/main/SPEC.md`\n2. `/knowledge:docpage-digest https://raw.githubusercontent.com/example-org/retry-spec/main/README.md`"
+    },
+    {
+      "answer": "No origin seed was given, so there is nothing to discover. Route these URLs to /knowledge:docpage-digest, one run per URL."
+    },
+    {
+      "answer": "This needs an origin seed (a site root such as `https://example.org`); a resource-seeds-only corpus is outside the mapper's V1 scope.\n\nNext: `/knowledge:docpage-digest <url>` for each file."
+    },
+    {
+      "answer": "An origin seed is required for map-corpus. Instead, digest each file with /knowledge:docpage-digest."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I won't hand these to /knowledge:docpage-digest; mapping them now."
+    },
+    {
+      "answer": "Should I run /knowledge:docpage-digest on each URL?"
+    },
+    {
+      "answer": "No need to use /knowledge:docpage-digest here; fetching llms.txt."
+    },
+    {
+      "answer": "Rather than /knowledge:docpage-digest, I mapped them directly."
+    },
+    {
+      "answer": "Mapped 2 resources into link-map.json."
+    }
+  ]
+}

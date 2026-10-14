@@ -1,0 +1,63 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/knowledge/skills/course-digest/extraction/setup-deps.mjs\" --data-dir \"/data/knowledge\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/adapters/*.js"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node run.mjs --data-dir /d extract-course.js --course-dir .work/clean-architecture-in-dotnet --metadata-only",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "npx playwright open https://www.udemy.com/course/clean-architecture-in-dotnet/",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node run.mjs --data-dir /d discover-resources.js --course-dir x",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

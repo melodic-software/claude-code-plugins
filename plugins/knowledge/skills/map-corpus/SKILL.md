@@ -1,5 +1,5 @@
 ---
-description: "Map a multi-resource documentation corpus into a verified, classified slice before any digesting, then an approved queue for /knowledge:docpage-digest. Use when: 'map this corpus', 'map this docs site', 'digest this whole site', 'ingest these docs and the spec repo', 'multiple pages/URLs to digest', 'corpus mapper', or a topic plus seed URLs covering more than one page. One page routes to /knowledge:docpage-digest; books, courses, and videos to their digest skills."
+description: "Verified, classified map of a multi-resource documentation corpus (a docs site, several URLs, a spec repository), ending in an approved queue for /knowledge:docpage-digest. Use when the user gives a topic with seed URLs spanning more than one page, or asks to map or digest a whole docs site. One page goes to /knowledge:docpage-digest."
 argument-hint: "<topic> <seed-url> [more-seed-urls...] [--epic <slug>] [--max-resources N]"
 user-invocable: true
 disable-model-invocation: false
@@ -115,10 +115,9 @@ Seeds come in two kinds, told apart by their normalized path:
   the V1 ingress for repository files; a repo-tree enumeration rung (`git ls-tree` / tree API) is
   deferred, and its trigger is the first corpus whose repository half is too large to enumerate by
   hand (full record: `${CLAUDE_PLUGIN_ROOT}/reference/ingest-deferred-decisions.md` §2).
-  **V1 requires at least one origin seed**, the link-map gate needs a discovery basis;
-  a resource-seeds-ONLY corpus is outside V1 mapper scope (recorded deferral in
-  `discovery/link-map-format.md`): route those URLs to direct `/knowledge:docpage-digest` runs,
-  each invoked via the Skill tool.
+  **V1 requires at least one origin seed**, because the link-map gate needs a discovery basis.
+  Route a resource-seeds-ONLY corpus to direct `/knowledge:docpage-digest` runs, one per URL, each
+  invoked via the Skill tool (deferral recorded in `discovery/link-map-format.md`).
   **GitHub blob URLs:** seed the `raw.githubusercontent.com` form, a `blob` URL snapshots the
   HTML chrome; translate blob→raw before normalization, recording the translation.
 

@@ -1,0 +1,48 @@
+{
+  "pass": [
+    {
+      "answer": "Re-run `node .../video-digest/extraction/setup-deps.mjs --data-dir <plugin-data>` with network access, then run the watch again."
+    },
+    {
+      "answer": "Install yt-dlp (`pip install -U \"yt-dlp[default,curl-cffi]\"`), then re-run the watch."
+    },
+    {
+      "answer": "ffmpeg is missing; install ffmpeg 7.1 or newer from your package manager.",
+      "why": "install ffmpeg"
+    },
+    {
+      "answer": "Not runnable here: setup-deps.mjs failed during npm install.",
+      "why": "label then token"
+    },
+    {
+      "answer": "The setup-deps step failed; re-run it with network access.",
+      "why": "no extension"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No need to run setup-deps.mjs; the deps are fine.",
+      "why": "no need"
+    },
+    {
+      "answer": "setup-deps.mjs is not needed here.",
+      "why": "negated after"
+    },
+    {
+      "answer": "setup-deps is unnecessary.",
+      "why": "negated after, no extension"
+    },
+    {
+      "answer": "Skipping setup-deps.mjs and downloading the video directly.",
+      "why": "skipping"
+    },
+    {
+      "answer": "The watch stopped. Try again later.",
+      "why": "no fix path"
+    },
+    {
+      "answer": "I won't install yt-dlp for you.",
+      "why": "negated install"
+    }
+  ]
+}
