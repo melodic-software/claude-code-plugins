@@ -12,12 +12,14 @@ name: pr-merge
 # It runs no AI model and never checks out a PR's own code: every script it
 # runs comes from the main branch. The rules live in
 # docs/conventions/pr-pipeline.yaml (`merge:` and `lanes.pr-merge`); while
-# `merge.report-only` is true there, the gate only reports what it would do
-# and changes nothing.
+# `merge.report-only` is true there, the lane only reports what it would do
+# and changes nothing: it adds no PR to the queue and starts no CI run.
 #
 # How to stop it: set the CLAUDE_LANES_DISABLED (organization) or
 # CLAUDE_LANES_REPO_DISABLED (repository) Actions variable to anything but
-# "false". The first steps check that switch and stop the run.
+# "false". The first steps check that switch and stop the run. The merge gate
+# cannot read those variables with its own token, so this workflow hands it
+# the answer; if the answer is missing, the gate stops too.
 #
 # How to keep one PR from merging: put the line `Hold: a human merges this`
 # in its body, or add the `do-not-merge` label. The gate refuses both.
@@ -85,10 +87,12 @@ jobs:
       pull-requests: read # list the open PRs
       id-token: write # prove to the token broker which workflow this is
     outputs:
-      # `true` when a PR merged during this run and the gate could not start
-      # the follow-up full CI run itself (its token cannot start workflows),
-      # or the post-merge check says an earlier merge still needs one.
-      dispatch: ${{ steps.gate.outputs.dispatch == 'true' || steps.post-merge.outputs.needs-dispatch == 'true' }}
+      # `true` when the lane is live (not report-only) and either a PR merged
+      # during this run and the gate could not start the follow-up full CI
+      # run itself (its token cannot start workflows), or the post-merge
+      # check says an earlier lane merge still needs one. In report-only mode
+      # it is never true; the summary says what would have been started.
+      dispatch: ${{ steps.mode.outputs.report-only == 'false' && (steps.gate.outputs.dispatch == 'true' || steps.post-merge.outputs.needs-dispatch == 'true') }}
     steps:
       # Everything below runs from main as it is right now, never from a PR.
       - name: Check out the default branch tip
@@ -156,6 +160,20 @@ jobs:
           base-path: .base
           output-path: ${{ runner.temp }}/resolved-config.json
 
+      # Report-only or live, read the same way the gate reads it: only
+      # `false` (or no setting at all) is live. Anything else is report-only,
+      # and then this run starts no CI run either.
+      - name: Read report-only
+        id: mode
+        if: steps.config.outcome == 'success'
+        run: |
+          set -euo pipefail
+          value=$(yq '.merge."report-only"' .base/docs/conventions/pr-pipeline.yaml)
+          case "$value" in
+            false | null) echo "report-only=false" >>"$GITHUB_OUTPUT" ;;
+            *) echo "report-only=true" >>"$GITHUB_OUTPUT" ;;
+          esac
+
       # Swaps this job's GitHub identity proof for a short-lived token of the
       # lanes App, with exactly the permissions resolved above. The broker
       # re-checks everything itself (main only, this file unchanged from main,
@@ -198,6 +216,12 @@ jobs:
       # a changed file on the denied list, or a head that moved since listing.
       # When it passes (and report-only is off) it posts the checked commit as
       # a pin comment and adds the PR to the merge queue at that commit.
+      # The gate's token cannot read the kill switch, so it gets this run's
+      # own answer from the first step: the word `proceed`, or nothing. It
+      # stops on anything but `proceed`. For the same reason it gets the
+      # CLAUDE_LANES_MERGE_RUNG_CAP variable from here: a person can set it to
+      # `off` (or `C2`) to lower how far the lane may go; left unset, there is
+      # no extra limit.
       - name: Run the merge gate on each candidate
         id: gate
         if: steps.candidates.outcome == 'success'
@@ -206,6 +230,8 @@ jobs:
           REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
           SCRIPT: ${{ steps.config.outputs.script }}
+          KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
         run: |
           set -euo pipefail
           # The script and its flags come from the merge-pr activity on main.
@@ -216,6 +242,7 @@ jobs:
             out="$RUNNER_TEMP/gate-$number.json"
             code=0
             ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
+              --lane-kill-switch "$KILL_SWITCH" --lane-rung-cap "$RUNG_CAP" \
               --expected-head "$head" "$REPO#$number" </dev/null >"$out" || code=$?
             echo "::group::PR #$number at $head: exit $code"
             cat "$out"
@@ -236,7 +263,9 @@ jobs:
 
       # The post-merge check, read-only, on every run whether or not any PR is
       # a candidate: after the queue lands the last lane PR there is none, yet
-      # that merge still needs its full CI run to be verified.
+      # that merge still needs its full CI run to be verified. It looks only
+      # at PRs this lane put in the merge queue itself; merges by a person or
+      # by another App (a release PR, say) are not the lane's to check.
       - name: Check earlier lane merges
         id: post-merge
         if: steps.lane-token.outputs.token != ''
@@ -248,19 +277,24 @@ jobs:
           identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           code=0
           python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
-            --repo "$REPO" --agent-identity "$identity" </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+            --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
+            </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
           echo "::group::post-merge check: exit $code"
           cat "$RUNNER_TEMP/post-merge.json"
           echo "::endgroup::"
           needs=$(jq '.needsDispatch == true' "$RUNNER_TEMP/post-merge.json" 2>/dev/null || echo false)
           echo "needs-dispatch=$needs" >>"$GITHUB_OUTPUT"
 
-      # The run's report: every candidate with its verdict, then the ones that
-      # are blocked and untouched for over 24 hours, which need a person.
+      # The run's report: every candidate with its verdict, whether a full CI
+      # run is started (or, in report-only mode, would have been), then the
+      # ones that are blocked and untouched for over 24 hours, which need a
+      # person.
       - name: Write the summary
         if: always() && steps.gate.outcome != 'skipped'
         env:
           EVENT: ${{ github.event_name }}
+          REPORT_ONLY: ${{ steps.mode.outputs.report-only }}
+          WANTS_DISPATCH: ${{ steps.gate.outputs.dispatch == 'true' || steps.post-merge.outputs.needs-dispatch == 'true' }}
         run: |
           set -euo pipefail
           summary="$RUNNER_TEMP/pr-merge-summary.json"
@@ -273,6 +307,14 @@ jobs:
             echo '```json'
             jq '[.[] | .blockers |= map(gsub("[\r\n`]"; " ") | .[0:300])]' "$summary"
             echo '```'
+            echo
+            if [ "$WANTS_DISPATCH" != true ]; then
+              echo "Full CI run on main: not needed."
+            elif [ "$REPORT_ONLY" = false ]; then
+              echo "Full CI run on main: started by the next job."
+            else
+              echo "Full CI run on main: would be started; report-only, so none was."
+            fi
             echo
             echo "#### Blocked for over 24 hours"
             echo
@@ -301,10 +343,11 @@ jobs:
             echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
           fi
 
-  # After a merge, the post-merge check wants a full CI run of main. Starting
-  # a workflow needs `actions: write`, which the lane App token does not have,
-  # so this separate job does it with the job's own GitHub token. It runs when
-  # the merge job says a full run is needed. A run woken by pull_request_target
+  # After a lane merge, the post-merge check wants a full CI run of main.
+  # Starting a workflow needs `actions: write`, which the lane App token does
+  # not have, so this separate job does it with the job's own GitHub token. It
+  # runs when the merge job says a full run is needed, which it never does in
+  # report-only mode. A run woken by pull_request_target
   # leaves it to the next run: the post-merge check does not trust a dispatch
   # from that event, which runs the PR base branch's copy of this file.
   dispatch-full-run:

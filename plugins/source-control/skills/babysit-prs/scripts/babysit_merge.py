@@ -93,8 +93,11 @@ Contract enforced here (encoded as code, not convention):
   while one is configured. `--authority pr-merge` runs it as the CI pr-merge
   lane: `merge.authority` must read pr-merge, eligibility is a C2 class label
   the identity's App applied on a diff off `merge.diff-check.denied-paths`, no
-  promotion evidence is read, and while `merge.report-only` is true `--merge`
-  runs as a check that writes nothing.
+  promotion evidence is read, the kill switch is the workflow's own check
+  passed as `--lane-kill-switch proceed` (missing or any other value stops),
+  the rung cap is the workflow's `--lane-rung-cap` (empty is no cap),
+  only merges the identity enqueued are judged after the fact, and while
+  `merge.report-only` is true `--merge` runs as a check that writes nothing.
 
 Readiness is gated on GitHub's own `mergeStateStatus == CLEAN` (which integrates
 required checks, approvals, conversation resolution, and up-to-date where the
@@ -2761,6 +2764,8 @@ def assess_unattended(
     *,
     self_logins: frozenset[str],
     authority: str = merge_policy.LOCAL_BABYSIT,
+    lane_kill_switch: str | None = None,
+    lane_rung_cap: str | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -2775,6 +2780,7 @@ def assess_unattended(
             is_human=postmerge._default_is_human(repo, identity, self_logins),
             merged_since=floor,
             pinned_sha=postmerge.pin_reader(repo, identity),
+            lane_merges_only=authority == merge_policy.PR_MERGE,
         )
         refusal = None
         if not verdict.ok:
@@ -2798,6 +2804,8 @@ def assess_unattended(
         post_merge=post_merge,
         promotion=promotion,
         authority=authority,
+        lane_kill_switch=lane_kill_switch,
+        lane_rung_cap=lane_rung_cap,
     )
     return score_unattended(repo, number, policy, self_logins)
 
@@ -2999,7 +3007,9 @@ def unattended_enqueue(
     posted before the enqueue and the enqueue goes nowhere without it; after
     the enqueue the queue is
     re-read and, when another identity entry was enqueued earlier, this one
-    dequeues itself."""
+    dequeues itself. In the pr-merge lane the kill switch "read again" is the
+    value the workflow passed at the start of its run, so a flip during the
+    run does not stop this enqueue."""
     inputs = policy.inputs or {}
     identity, branch = str(inputs["identity"]), str(inputs["branch"])
     pin = str(result.get("headRefOid") or "")
@@ -3027,7 +3037,11 @@ def unattended_enqueue(
         return hold("auto-merge is armed on this pull request; disarmed, not enqueued")
     if queue["inQueue"] or queue["merged"]:
         return hold("the pull request is already queued or merged")
-    kill = merge_policy.read_kill_switch(repo)
+    kill = merge_policy.kill_switch(
+        repo,
+        authority=str(inputs.get("authority")),
+        lane_value=inputs.get("lane_kill_switch"),
+    )
     step["killSwitch"] = {"proceed": kill.proceed, "reason": kill.reason}
     if not kill.proceed:
         try:
@@ -3327,6 +3341,25 @@ def main() -> int:
             "merge.report-only is true"
         ),
     )
+    parser.add_argument(
+        "--lane-kill-switch",
+        default=None,
+        help=(
+            "with --authority pr-merge, the result of the workflow's own "
+            "kill-switch check (the lane token cannot read Actions variables): "
+            "only the exact value 'proceed' proceeds; missing or any other "
+            "value stops the lane"
+        ),
+    )
+    parser.add_argument(
+        "--lane-rung-cap",
+        default=None,
+        help=(
+            "with --authority pr-merge, the CLAUDE_LANES_MERGE_RUNG_CAP value the "
+            "workflow read: empty is no cap, a rung name caps the rung; missing "
+            "or any other value holds the rung at off"
+        ),
+    )
     args = parser.parse_args()
 
     def _refuse(message: str, code: int, **envelope: object) -> int:
@@ -3451,6 +3484,14 @@ def main() -> int:
         return _refuse("--auto requires --merge and --expected-head", 2)
     if args.authority is not None and not args.unattended:
         return _refuse("--authority is only meaningful with --unattended", 2)
+    if args.authority != merge_policy.PR_MERGE and (
+        args.lane_kill_switch is not None or args.lane_rung_cap is not None
+    ):
+        return _refuse(
+            "--lane-kill-switch and --lane-rung-cap are only meaningful with "
+            "--authority pr-merge",
+            2,
+        )
 
     pending_path: Path | None = None
     if args.state_dir is not None:
@@ -3503,6 +3544,8 @@ def main() -> int:
                 number,
                 self_logins=bot_selves,
                 authority=args.authority or merge_policy.LOCAL_BABYSIT,
+                lane_kill_switch=args.lane_kill_switch,
+                lane_rung_cap=args.lane_rung_cap,
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)

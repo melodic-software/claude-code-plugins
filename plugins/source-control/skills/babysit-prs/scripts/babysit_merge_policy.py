@@ -622,6 +622,26 @@ def read_kill_switch(repo: str) -> KillSwitch:
     return KillSwitch(True, "proceed")
 
 
+LANE_KILL_SWITCH_PROCEED = "proceed"
+
+
+def kill_switch(
+    repo: str, *, authority: str, lane_value: str | None = None
+) -> KillSwitch:
+    """The kill switch for `authority`. The pr-merge lane's token cannot read
+    Actions variables, so its workflow checks the switch and passes the result
+    as `lane_value`: only the exact `proceed` proceeds, and a missing or empty
+    value refuses. Local babysit reads the variables (`read_kill_switch`) and
+    ignores `lane_value`."""
+    if authority != PR_MERGE:
+        return read_kill_switch(repo)
+    if not lane_value:
+        return KillSwitch(False, "lane-value-missing")
+    if lane_value != LANE_KILL_SWITCH_PROCEED:
+        return KillSwitch(False, "lane-value-not-proceed")
+    return KillSwitch(True, LANE_KILL_SWITCH_PROCEED)
+
+
 @dataclass(frozen=True)
 class RungCap:
     value: str | None
@@ -641,6 +661,23 @@ def read_rung_cap(repo: str) -> RungCap:
     if status == 200 and value in RUNG_RANK:
         return RungCap(value, "cap-set")
     return RungCap("off", "cap-unreadable" if status != 200 else "cap-invalid")
+
+
+def rung_cap(repo: str, *, authority: str, lane_value: str | None = None) -> RungCap:
+    """The rung cap for `authority`. The pr-merge lane's token cannot read
+    Actions variables, so its workflow passes `vars.CLAUDE_LANES_MERGE_RUNG_CAP`
+    as `lane_value`: empty (the variable unset) is no cap, a rung name is the
+    cap, and a missing or any other value is off. Local babysit reads the
+    variable (`read_rung_cap`) and ignores `lane_value`."""
+    if authority != PR_MERGE:
+        return read_rung_cap(repo)
+    if lane_value is None:
+        return RungCap("off", "lane-value-missing")
+    if lane_value == "":
+        return RungCap(None, "no-cap")
+    if lane_value in RUNG_RANK:
+        return RungCap(lane_value, "cap-set")
+    return RungCap("off", "cap-invalid")
 
 
 # --- Human ----------------------------------------------------------------------------
@@ -1475,7 +1512,11 @@ def actor_key(actor: Any) -> str:
 
 
 def derive_auto_merge(
-    pr: Mapping[str, Any], human: Callable[[Any], bool], identity: str
+    pr: Mapping[str, Any],
+    human: Callable[[Any], bool],
+    identity: str,
+    *,
+    lane_merges_only: bool = False,
 ) -> AutoMerge | str | None:
     """The one derivation `in_flight` and the post-merge check share.
 
@@ -1483,7 +1524,9 @@ def derive_auto_merge(
     `actor` or `enqueuer` is an AutoMerge. A merge with no queue event bypassed
     the queue: it is the warning `unqueued-merge:#N` when its `mergedBy` is
     human, and an AutoMerge (`queued` False) when that is null or non-human.
-    A human enqueue is None."""
+    A human enqueue is None. With `lane_merges_only` (the pr-merge lane), an
+    AutoMerge the identity did not land is None too: another App's own
+    enqueue, such as a release PR, is not the lane's to judge."""
     number = pr.get("number")
     events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
     if events:
@@ -1497,13 +1540,16 @@ def derive_auto_merge(
             return f"unqueued-merge:#{number}"
     if not isinstance(number, int) or isinstance(number, bool):
         raise PolicyReadError(f"merged pull request: no number {number!r}")
+    by_identity = identity.strip().casefold() in {actor_key(a) for a in actors}
+    if lane_merges_only and not by_identity:
+        return None
     return AutoMerge(
         number=number,
         merge_commit=json_object(pr.get("mergeCommit")).get("oid"),
         head_ref_oid=pr.get("headRefOid"),
         merged_at=pr.get("mergedAt"),
         url=pr.get("url"),
-        by_identity=identity.strip().casefold() in {actor_key(a) for a in actors},
+        by_identity=by_identity,
         queued=bool(events),
     )
 
@@ -1523,10 +1569,12 @@ def in_flight(
     verified: Callable[[AutoMerge], bool] | None = None,
     branch: str = "main",
     merged_since: datetime | None = None,
+    lane_merges_only: bool = False,
 ) -> InFlight:
     """Clear only when no merge-queue entry is the agent identity's and every
     auto-merge (`derive_auto_merge`: a non-human enqueue, or a queue-bypassing
-    merge by a non-human) merged into `branch` since `merged_since` is verified. With no
+    merge by a non-human; with `lane_merges_only`, only the identity's)
+    merged into `branch` since `merged_since` is verified. With no
     floor it is not clear and reads nothing; a history the read cannot reach
     the floor or end of is not clear. `verified` judges one auto-merge;
     without it none is, so any auto-merge keeps the path not clear."""
@@ -1563,7 +1611,9 @@ def in_flight(
         if merges is None:
             return InFlight(False, "merged-history-truncated")
         for pr in merges:
-            merge = derive_auto_merge(pr, human, agent_identity)
+            merge = derive_auto_merge(
+                pr, human, agent_identity, lane_merges_only=lane_merges_only
+            )
             if not isinstance(merge, AutoMerge):
                 continue
             if verified is None or not verified(merge):
@@ -2071,12 +2121,17 @@ def assess(
     post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
     promotion: Callable[[datetime | None], Promotion] | None = None,
     authority: str = LOCAL_BABYSIT,
+    lane_kill_switch: str | None = None,
+    lane_rung_cap: str | None = None,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
     `authority` is the caller's: the local babysit lane, or the pr-merge CI
-    lane, which reads `lane_eligibility` in place of `eligibility` and no
-    promotion evidence (D16: report-only, then the owner's live flip). The
+    lane, which reads `lane_eligibility` in place of `eligibility`, no
+    promotion evidence (D16: report-only, then the owner's live flip), the
+    kill switch from `lane_kill_switch` (`kill_switch`), the rung cap from
+    `lane_rung_cap` (`rung_cap`), and only its own
+    merges in flight. The
     config at the base must enable that authority (`enabled_authority`).
 
     Config at the pull request's base SHA, then authority, identity, the
@@ -2132,7 +2187,8 @@ def assess(
     # From here the session holds only the identity: a refusal below may still
     # dequeue the identity's own entries (`inputs["identity"]`).
     inputs["identity"] = resolved.login
-    kill = read_kill_switch(repo)
+    inputs["lane_kill_switch"] = lane_kill_switch
+    kill = kill_switch(repo, authority=authority, lane_value=lane_kill_switch)
     details["killSwitch"] = {"proceed": kill.proceed, "reason": kill.reason}
     if not kill.proceed:
         return replace(stopped, reason=f"kill-switch:{kill.reason}")
@@ -2176,7 +2232,7 @@ def assess(
     if gate.refusal:
         return replace(stopped, reason=f"post-merge:{gate.refusal}")
 
-    cap = read_rung_cap(repo)
+    cap = rung_cap(repo, authority=authority, lane_value=lane_rung_cap)
     rung = effective_rung(
         config_rung=config.rung,
         loop_merge=config.loop_merge,
@@ -2184,7 +2240,12 @@ def assess(
         demoted=demotion.active,
     )
     flight = in_flight(
-        repo, **readers, verified=gate.verified, branch=base_ref, merged_since=floor
+        repo,
+        **readers,
+        verified=gate.verified,
+        branch=base_ref,
+        merged_since=floor,
+        lane_merges_only=lane,
     )
     if lane:
         promo = Promotion(None, "not-read-in-pr-merge-lane")

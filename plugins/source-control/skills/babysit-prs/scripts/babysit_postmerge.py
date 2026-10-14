@@ -710,9 +710,12 @@ def check(
     now: datetime | None = None,
     pinned_sha: Callable[[AutoMerge], str | None] | None = None,
     branch: str | None = None,
+    lane_merges_only: bool = False,
 ) -> PostMergeVerdict:
     """Judge every auto-merge into `branch` since `merged_since`; with no
     `branch`, the repository's default branch, read once from the repos API.
+    With `lane_merges_only` (the pr-merge lane), only merges the agent
+    identity enqueued are judged.
 
     `is_human` is the Design's human test for one GraphQL actor (null included).
     `pinned_sha` returns the head SHA the wrapper pinned for a merge, or None when
@@ -732,7 +735,9 @@ def check(
         warnings: list[str] = []
         identity = _login_key(agent_identity)
         for pr in _merged_since(owner, name, branch, merged_since):
-            derived = policy.derive_auto_merge(pr, is_human, identity)
+            derived = policy.derive_auto_merge(
+                pr, is_human, identity, lane_merges_only=lane_merges_only
+            )
             if isinstance(derived, str):
                 warnings.append(derived)
             elif derived is not None:
@@ -1342,6 +1347,14 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="a lane or bot self login (repeatable)",
     )
+    parser.add_argument(
+        "--lane-merges-only",
+        action="store_true",
+        help=(
+            "judge only merges the agent identity enqueued (the pr-merge lane); "
+            "another App's or a person's merge is not the lane's"
+        ),
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--remediate",
@@ -1399,6 +1412,7 @@ def main(argv: list[str] | None = None) -> int:
         merged_since=since,
         branch=args.branch,
         pinned_sha=pin_reader(args.repo, args.agent_identity),
+        lane_merges_only=args.lane_merges_only,
     )
     report = verdict.report()
     report["since"] = since.isoformat()

@@ -2534,7 +2534,117 @@ class LaneAssess(unittest.TestCase):
         return lane
 
     def lane_assess(self, **kwargs: Any) -> policy.UnattendedPolicy:
+        kwargs.setdefault("lane_kill_switch", "proceed")
+        kwargs.setdefault("lane_rung_cap", "")
         return self.assess(authority="pr-merge", **kwargs)
+
+    def unreadable_variables(self) -> GhFake:
+        gh = self.readable()
+        for path in (
+            "actions/variables?per_page=1",
+            "actions/organization-variables?per_page=100",
+            "actions/variables/CLAUDE_LANES_MERGE_RUNG_CAP",
+        ):
+            gh.rest[f"repos/{REPO}/{path}"] = 403
+        return gh
+
+    def test_an_empty_workflow_cap_allows_the_configured_rung(self) -> None:
+        # The variable's own rule: unset (empty in `vars`) is no cap.
+        gh = self.unreadable_variables()
+        self.lane_clear()
+        result = self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertIsNone(result.reason)
+        self.assertEqual(result.report()["rung"], "C2")
+        self.assertEqual(
+            result.report()["rungCap"], {"value": None, "reason": "no-cap"}
+        )
+        self.assertFalse(any("actions/" in " ".join(c) for c in gh.calls))
+
+    def test_a_workflow_cap_below_the_rung_refuses(self) -> None:
+        for cap in ("off", None, "C9", " C2"):
+            with self.subTest(cap=cap):
+                self.unreadable_variables()
+                self.lane_clear()
+                result = self.lane_assess(
+                    post_merge=lambda floor, who: gate(), lane_rung_cap=cap
+                )
+                self.assertEqual(result.reason, "rung-off:rungCap")
+
+    def test_a_workflow_cap_at_the_rung_allows_it(self) -> None:
+        self.unreadable_variables()
+        self.lane_clear()
+        result = self.lane_assess(
+            post_merge=lambda floor, who: gate(), lane_rung_cap="C3"
+        )
+        self.assertIsNone(result.reason)
+
+    def test_local_babysit_reads_the_cap_from_the_variables(self) -> None:
+        gh = Assess.readable(self)
+        gh.rest[f"repos/{REPO}/actions/variables/CLAUDE_LANES_MERGE_RUNG_CAP"] = {
+            "value": "off"
+        }
+        Assess.all_clear(self)
+        result = self.assess(
+            post_merge=lambda floor, who: gate(),
+            promotion=lambda s: PROMOTED,
+            lane_rung_cap="",
+        )
+        self.assertEqual(result.reason, "rung-off:rungCap")
+
+    def test_the_lane_takes_the_kill_switch_from_the_workflow(self) -> None:
+        # Owner decision 2026-10-14: the lane token cannot read Actions
+        # variables, so the workflow's own kill-switch check is passed in.
+        gh = self.readable()
+        gh.rest[f"repos/{REPO}/actions/variables?per_page=1"] = 403
+        gh.rest[f"repos/{REPO}/actions/organization-variables?per_page=100"] = 403
+        self.lane_clear()
+        result = self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertEqual(
+            result.report()["killSwitch"], {"proceed": True, "reason": "proceed"}
+        )
+        self.assertFalse(str(result.reason).startswith("kill-switch:"))
+        read = " ".join(" ".join(c) for c in gh.calls)
+        self.assertNotIn("organization-variables", read)
+        self.assertNotIn("CLAUDE_LANES_REPO_DISABLED", read)
+
+    def test_the_lane_refuses_without_the_workflow_kill_switch(self) -> None:
+        for value, reason in (
+            (None, "kill-switch:lane-value-missing"),
+            ("", "kill-switch:lane-value-missing"),
+            ("true", "kill-switch:lane-value-not-proceed"),
+            ("Proceed", "kill-switch:lane-value-not-proceed"),
+            (" proceed", "kill-switch:lane-value-not-proceed"),
+        ):
+            with self.subTest(value=value):
+                self.readable()
+                never = mock.Mock(side_effect=AssertionError("must not run"))
+                result = self.lane_assess(post_merge=never, lane_kill_switch=value)
+                self.assertEqual(result.reason, reason)
+                self.assertIs(result.enabled, False)
+
+    def test_local_babysit_ignores_a_passed_kill_switch_value(self) -> None:
+        gh = Assess.readable(self)
+        gh.rest[f"repos/{REPO}/actions/variables/CLAUDE_LANES_REPO_DISABLED"] = {
+            "value": "true"
+        }
+        result = self.assess(
+            post_merge=mock.Mock(side_effect=AssertionError),
+            lane_kill_switch="proceed",
+        )
+        self.assertEqual(result.reason, "kill-switch:repo-switch-not-false")
+
+    def test_the_lane_counts_only_its_own_merges_in_flight(self) -> None:
+        # #7481: another App's merge on main is not the lane's.
+        self.readable()
+        self.lane_clear()
+        self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertIs(policy.in_flight.call_args.kwargs["lane_merges_only"], True)
+
+    def test_local_babysit_counts_every_auto_merge_in_flight(self) -> None:
+        Assess.readable(self)
+        Assess.all_clear(self)
+        self.assess(post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED)
+        self.assertIs(policy.in_flight.call_args.kwargs["lane_merges_only"], False)
 
     def test_the_lane_permits_without_a_promotion_read(self) -> None:
         self.readable()
