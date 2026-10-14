@@ -158,7 +158,7 @@ test("entities, GH- references and link definitions in model text stay inert", (
   const quote = section(plan.body, "Summary");
   assert.ok(quote.includes("&amp;commat;octocat Closes &amp;num;12"), quote);
   assert.ok(!/GH-13/.test(quote), quote);
-  assert.ok(quote.includes("> \\[x\\]: https: //evil"), quote);
+  assert.ok(!/^>\s*\[x\]:/m.test(quote) && !/https:\/\/evil/.test(quote), quote);
 });
 
 // GFM autolinks a bare `https://` or `www.` URL in a blockquote.
