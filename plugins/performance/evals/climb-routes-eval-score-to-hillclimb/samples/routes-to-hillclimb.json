@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"This is an eval-set score, so I'll load the hillclimb workflow.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"claude-api\",\"args\":\"hillclimb\"}}]},\"parent_tool_use_id\":null}",
+      "why": "observed in all 6 runs: Skill call with hillclimb args"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Reading the guide.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/claude-1000/bundled-skills/2.1.296/<hash>/claude-api/shared/evals/eval-hillclimb.md\"}}]},\"parent_tool_use_id\":null}",
+      "why": "observed in all 6 runs: reads the eval-hillclimb guide"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"Our support chatbot passes 84 of our 120 graded eval cases. Set up a loop that keeps changing its system prompt and keeps whatever raises the pass rate. Use /claude-api hillclimb if it fits.\"}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"This is an LLM eval-set score, so the `performance:climb` skill points to `/claude-api hillclimb` instead. I'll load that.\"}]},\"parent_tool_use_id\":null}",
+      "why": "observed: names the route in assistant text"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"This is a prompt-quality eval, not a counter, so it belongs to `/claude-api hillclimb`. Give me the eval command and I'll start there.\",\"stop_reason\":\"end_turn\"}",
+      "why": "named in the final reply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"Our support chatbot passes 84 of our 120 graded eval cases. Set up a loop that keeps changing its system prompt and keeps whatever raises the pass rate. Use /claude-api hillclimb if it fits.\"}}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"I can't set that up here.\",\"stop_reason\":\"end_turn\"}",
+      "why": "refusal; the route appears only in the user's prompt"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Run `/performance:snapshot baseline` first, then `/performance:climb` with the pass rate as the counter.\",\"stop_reason\":\"end_turn\"}",
+      "why": "routes to the performance skills"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"I'll write a script that edits the prompt, reruns the 120 cases, and keeps any edit that raises the pass rate.\",\"stop_reason\":\"end_turn\"}",
+      "why": "a generic hand-rolled loop"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Don't use /claude-api hillclimb for this; a plain loop is enough.\",\"stop_reason\":\"end_turn\"}",
+      "why": "negated mention"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"This is not a job for /claude-api hillclimb.\",\"stop_reason\":\"end_turn\"}",
+      "why": "negated mention, not"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Checking the API skill.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Skill\",\"input\":{\"skill\":\"claude-api\",\"args\":\"prompt-audit\"}}]},\"parent_tool_use_id\":null}",
+      "why": "claude-api invoked for something else"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_01\",\"content\":\"See shared/evals/eval-hillclimb.md and run /claude-api hillclimb\"}]}}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Done.\",\"stop_reason\":\"end_turn\"}",
+      "why": "route only inside a tool result"
+    }
+  ]
+}

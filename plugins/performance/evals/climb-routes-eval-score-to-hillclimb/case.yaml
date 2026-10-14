@@ -1,9 +1,9 @@
 schema_version: "1.1"
 name: climb-routes-eval-score-to-hillclimb
-description: 'A request to raise an LLM app''s pass rate on a graded eval set by iterating on its system prompt is not a climb: the climb skill does not fire and no climb worktree, branch, keep rule or log is created. The model may start the bundled /claude-api hillclimb workflow itself, so the case grades only that climb stays out.'
+description: 'A request to raise an LLM app''s pass rate on a graded eval set by iterating on its system prompt is not a climb: the climb skill does not fire and no climb worktree, branch, keep rule or log is created. The run routes to the bundled /claude-api hillclimb workflow instead, by invoking it, reading its eval-hillclimb guide, or naming it in the reply.'
 tags: [climb, routing]
 plugins: ["../.."]
-expected_outcome: 'The climb skill does not fire, and the run creates no climb worktree, branch, keep rule or log.'
+expected_outcome: 'The climb skill does not fire, and the run creates no climb worktree, branch, keep rule or log. The run routes to /claude-api hillclimb: it invokes the claude-api skill with hillclimb, reads the eval-hillclimb workflow file, or names /claude-api hillclimb in its reply.'
 execution:
   prompt: 'Our support chatbot passes 84 of our 120 graded eval cases. Set up a loop that keeps changing its system prompt and keeps whatever raises the pass rate.'
   allowed_tools: [Bash, Read, Grep, Glob, Skill]
@@ -23,4 +23,10 @@ graders:
     input_match: 'worktree\s+add|climb_log\.py'
     min: 0
     max: 0
+    arm: both
+  - name: routes-to-hillclimb
+    type: regex
+    target: trace
+    pattern: '^(?=[^\n]*"type":"(?:assistant|result)")[^\n]*?(?:"name":"Skill","input":\{(?=[^}]*"skill":"claude-api")(?=[^}]*"args":"[^"]*\bhillclimb\b)|"name":"Read","input":\{"file_path":"[^"]*/eval-hillclimb\.md"|(?:"text":"|"result":"|\\n|[.,;:!?])(?:(?!\\n|\b(?:not|never|no|avoid|skip|instead of|rather than)\b|\w+n[''’]t\b)[^\n.,;:!?])*?/claude-api[ \t]+hillclimb\b)'
+    flags: 'mi'
     arm: both
