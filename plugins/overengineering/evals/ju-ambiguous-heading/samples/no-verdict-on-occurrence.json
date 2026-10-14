@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Declining `docs/runbook.md#Notes`: `## Notes` appears twice. Point me at the whole file or rename one heading. Nothing was persisted."},
+    {"answer": "No verdict: the target is ambiguous.", "why": "lowercase word verdict is fine"}
+  ],
+  "fail": [
+    {"answer": "Judging the first Notes section. Verdict: KEEP (measured).", "why": "judged the first occurrence"},
+    {"answer": "The first `## Notes` is UNPROVEN; tier 1 is unavailable.", "why": "verdict token"},
+    {"answer": "Both Notes sections: RETIRE.", "why": "verdict on both"}
+  ]
+}

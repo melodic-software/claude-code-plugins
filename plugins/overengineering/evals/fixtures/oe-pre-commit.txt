@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Blocks commits that add trailing whitespace.
+set -euo pipefail
+if git diff --cached --check; then
+  exit 0
+fi
+echo "pre-commit: trailing whitespace in staged changes" >&2
+exit 1

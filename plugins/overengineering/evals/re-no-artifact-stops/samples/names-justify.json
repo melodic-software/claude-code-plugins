@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Run `/overengineering:audit` to walk the enforcement surface, or `/overengineering:justify <path>` for one artifact."},
+    {"answer": "For a single file, overengineering:justify produces the artifact."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "No findings artifact exists. Run `/overengineering:audit` first.", "why": "names only audit"},
+    {"answer": "You could justify each workflow by hand.", "why": "no skill name"}
+  ]
+}

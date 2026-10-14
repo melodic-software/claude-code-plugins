@@ -1,0 +1,134 @@
+{
+  "skill": "overengineering:audit",
+  "plugin": "overengineering",
+  "skill_dir": "plugins/overengineering/skills/audit",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings and nearby model-invoked skills, as near-miss targets.",
+  "competitors": [
+    "overengineering:delta",
+    "overengineering:justify",
+    "overengineering:realign",
+    "harness-config:audit-automation-gaps",
+    "harness-config:audit-instructions",
+    "code-tidying:audit-dead-code",
+    "improvement:find"
+  ],
+  "competitor_dirs": {
+    "overengineering:delta": "plugins/overengineering/skills/delta",
+    "overengineering:justify": "plugins/overengineering/skills/justify",
+    "overengineering:realign": "plugins/overengineering/skills/realign",
+    "harness-config:audit-automation-gaps": "plugins/harness-config/skills/audit-automation-gaps",
+    "harness-config:audit-instructions": "plugins/harness-config/skills/audit-instructions",
+    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code",
+    "improvement:find": "plugins/improvement/skills/find"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We have way too many CI workflows for a repo this size. Tell me which ones aren't worth running anymore."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Walk every pre-commit hook and PreToolUse hook we have and say which still pay for themselves. Don't modify any of them."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our branch ruleset requires six checks. Do all six actually catch anything, or is some of it clutter?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is the merge-blocking script in scripts/gates/ still needed, along with the other gates around it?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a keep-or-retire verdict for each piece of automation that blocks or nags contributors here."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I think we've overbuilt our checks. Inventory the hooks, CI jobs and installed GitHub apps and rate each one."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which of the guardrails in this repository have stopped earning their place? Report only."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before we add anything else, look at the checks we already run on every PR and flag the ones that are just noise."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Our lefthook and Actions setup feels heavy. Which pieces could we drop?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Review the agent hooks and the CLAUDE.md rules that block actions and tell me which have outlived their purpose."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which hooks or MCP servers should we add so Claude stops making the same mistake?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Scan the TypeScript sources for exports that nothing imports."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Our CLAUDE.md contradicts itself in places. Find the stale or conflicting instructions."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What are the highest-value improvements we could make to this codebase overall?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Disable the commitlint job the review flagged and observe it for a week."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What's new since we last reviewed our CI checks? Just the differences."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Should this one helper module under src/util exist at all?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Set up a GitHub Action that lints Markdown on every push."
+    }
+  ]
+}

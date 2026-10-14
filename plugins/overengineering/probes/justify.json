@@ -1,0 +1,132 @@
+{
+  "skill": "overengineering:justify",
+  "plugin": "overengineering",
+  "skill_dir": "plugins/overengineering/skills/justify",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings and nearby model-invoked skills, as near-miss targets.",
+  "competitors": [
+    "overengineering:audit",
+    "overengineering:delta",
+    "overengineering:realign",
+    "discovery:trace-intent",
+    "docs-hygiene:audit-derivability",
+    "code-tidying:audit-dead-code"
+  ],
+  "competitor_dirs": {
+    "overengineering:audit": "plugins/overengineering/skills/audit",
+    "overengineering:delta": "plugins/overengineering/skills/delta",
+    "overengineering:realign": "plugins/overengineering/skills/realign",
+    "discovery:trace-intent": "plugins/discovery/skills/trace-intent",
+    "docs-hygiene:audit-derivability": "plugins/docs-hygiene/skills/audit-derivability",
+    "code-tidying:audit-dead-code": "plugins/code-tidying/skills/audit-dead-code"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Why do we have packages/shared-types? Was it ever needed and is it still?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is the CONTRIBUTING section on release branches still valid, or can it go?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make the case for keeping the redis dependency, or tell me it has no reason anymore."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Does scripts/bootstrap.sh still have a reason to be in the repo?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This adapter layer around the HTTP client: did it have a purpose when someone added it, and does that still hold?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Should the docs/runbooks/oncall.md page exist? Weigh it, don't edit it."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Does the event bus abstraction in src/core need to be here?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is the 'Environment variables' heading in the README earning its place?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Was the vendored copy of yaml-parser ever justified, and is it still?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "That plugin config we just touched: is there still a reason for it?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Reconstruct the design rationale for choosing gRPC over REST from the old PRs and tickets."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review every hook and CI job in this repo and tell me which to retire."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Could a fresh agent re-derive everything in our docs folder? Go file by file."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find all the dead code in the Python package."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Delete the shared-types package and update its imports."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Retire the flagged CI gate per the review findings, with my sign-off on each."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Summarize what the adapter layer does and how requests flow through it."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What new automation should we add to catch this class of bug?"
+    }
+  ]
+}

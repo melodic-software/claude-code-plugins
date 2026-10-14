@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "No findings artifact exists at `.work/overengineering/feat-ci-cleanup/findings.md`."},
+    {"answer": "Resolved home: .work/overengineering/feat-ci-cleanup."},
+    {"answer": "Nothing at `.work/overengineering/feat-ci-cleanup`; this branch was never audited."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "No findings artifact exists at `.work/overengineering/feat/ci-cleanup/findings.md`.", "why": "unslugged branch"},
+    {"answer": "No findings artifact exists at `.work/overengineering/main/findings.md`.", "why": "wrong branch"},
+    {"answer": "No findings artifact exists at `.work/overengineering/feat-ci-cleanup-2/findings.md`.", "why": "different slug"},
+    {"answer": "No findings artifact exists for this branch.", "why": "home not named"}
+  ]
+}
