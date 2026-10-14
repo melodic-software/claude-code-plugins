@@ -22,9 +22,11 @@
 //   WORK_OUTCOME_DIR    holds work-outcome.json (written by the skill, so
 //                       untrusted) and lane.json (written by the runner)
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
+//   RESOLVED_CONFIG     resolve-config's output for this run (default
+//                       $RUNNER_TEMP/resolved-config.json), for the denied paths
 //   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -36,18 +38,9 @@ const CONVENTIONAL =
   /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: [A-Za-z0-9][A-Za-z0-9 ,.:()'_-]{0,98}$/;
 const WORK_CLASS = /^work-class: /;
 // Work a human merges: the classes past mechanical, and any diff that touches
-// what the lanes or their trust rest on.
+// a path the merge lane refuses (merge.diff-check.denied-paths in the base
+// pr-pipeline.yaml), so the two lists cannot drift apart.
 const HOLD_CLASSES = new Set(["work-class: scoped", "work-class: structural", "work-class: untrusted-provenance"]);
-const HOLD_PATHS = [
-  /^\.github\//,
-  /^\.claude\//,
-  /^\.claude-plugin\//,
-  /(^|\/)(AGENTS|CLAUDE|REVIEW)\.md$/,
-  /^docs\/conventions\//,
-  /^plugins\/[^/]+\/hooks\//,
-  /^plugins\/[^/]+\/\.claude-plugin\//,
-  /^scripts\//,
-];
 const MAX_TEXT = 3000;
 // GET /compare lists at most this many files, so a listing this long may
 // hide a hold path.
@@ -55,6 +48,17 @@ const COMPARE_FILES_CAP = 300;
 
 const stopped = (reason) => ({ exit: "stopped", reason, title: "", summary: "" });
 const text = (value) => (typeof value === "string" ? value.slice(0, MAX_TEXT) : "");
+
+// The merge lane's denied-path globs from the resolved config, or null when
+// they cannot be read, which holds every PR.
+export function readHoldPaths(path) {
+  try {
+    const paths = JSON.parse(readFileSync(path, "utf8"))?.merge?.["diff-check"]?.["denied-paths"];
+    return Array.isArray(paths) && paths.length && paths.every((glob) => typeof glob === "string") ? paths : null;
+  } catch {
+    return null;
+  }
+}
 
 // The skill's outcome file, checked as data. Anything unreadable is stopped.
 export function readOutcome(path) {
@@ -119,7 +123,16 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl }) {
 }
 
 // What to do on the issue, from the outcome and what the run left.
-export function decide({ outcome, issueNumber, issueLabels, branch, changedFiles, humanLabel = "needs-human", runUrl = "" }) {
+export function decide({
+  outcome,
+  issueNumber,
+  issueLabels,
+  branch,
+  changedFiles,
+  holdPaths = null,
+  humanLabel = "needs-human",
+  runUrl = "",
+}) {
   if (outcome.exit === "done" && !branch) {
     return handBack({
       outcome: stopped("The run reported done but committed nothing."),
@@ -136,7 +149,8 @@ export function decide({ outcome, issueNumber, issueLabels, branch, changedFiles
   const hold =
     labels.some((name) => HOLD_CLASSES.has(name)) ||
     changedFiles.length >= COMPARE_FILES_CAP ||
-    changedFiles.some((path) => HOLD_PATHS.some((pattern) => pattern.test(path)));
+    holdPaths === null ||
+    changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob)));
   const body = [
     `Closes #${issueNumber}`,
     ...(hold ? ["", HOLD_LINE] : []),
@@ -247,6 +261,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
       issueLabels: (issue.labels ?? []).map((label) => label.name),
       branch,
       changedFiles,
+      holdPaths: readHoldPaths(env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json")),
       humanLabel: humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json"),
       runUrl:
         env.GITHUB_SERVER_URL && env.GITHUB_RUN_ID

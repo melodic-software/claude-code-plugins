@@ -103,4 +103,9 @@ merge:
       - "plugins/*/hooks/**"
       - "plugins/*/.claude-plugin/**"
       - "scripts/**"
+      # Agent instructions and the marketplace manifest the lanes load.
+      - ".claude-plugin/**"
+      - "**/AGENTS.md"
+      - "**/CLAUDE.md"
+      - "**/REVIEW.md"
     max-changed-lines: 400

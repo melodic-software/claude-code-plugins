@@ -661,10 +661,10 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   was minted.
 - `report-outcome` downloads that artifact. On `done` it opens a draft PR from the branch whose
   body starts `Closes #<n>`, copies the issue's `work-class:` labels, and adds
-  `Hold: a human merges this` for scoped, structural or untrusted-provenance work or a diff under
-  `.github/`, `.claude/`, `.claude-plugin/`, `docs/conventions/`, `scripts/`, a plugin's `hooks/`
-  or `.claude-plugin/`, or an `AGENTS.md`, `CLAUDE.md` or `REVIEW.md`, or one too large for the
-  compare listing to show whole. The run's own summary is quoted with issue references broken, so
+  `Hold: a human merges this` for scoped, structural or untrusted-provenance work, for a diff that
+  touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
+  resolved config; unreadable holds every PR), or for one too large for the compare listing to
+  show whole. The run's own summary is quoted with issue references broken, so
   squash-merging the PR closes only `#<n>`. On `pushback` or `stopped`, and when the outcome file is missing
   or invalid, it labels the issue with the human-gated role label and comments why; pushback also
   removes `agent-ready`.

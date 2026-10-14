@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { decide, main, readOutcome } from "./report-outcome.mjs";
+import { decide, main, readHoldPaths, readOutcome } from "./report-outcome.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 
@@ -29,6 +29,9 @@ function withDir(files, run) {
 
 const done = { exit: "done", reason: "", title: "docs(work-items): fix a typo", summary: "Fixed it." };
 
+// The merge lane's denied paths, as the resolved config carries them.
+const HOLD_GLOBS = [".github/**", "**/AGENTS.md", ".claude-plugin/**", "plugins/*/skills/**"];
+
 function decideDone(overrides = {}) {
   return decide({
     outcome: done,
@@ -36,6 +39,7 @@ function decideDone(overrides = {}) {
     issueLabels: ["agent-ready", "work-class: read-only"],
     branch: BRANCH,
     changedFiles: ["plugins/work-items/README.md"],
+    holdPaths: HOLD_GLOBS,
     ...overrides,
   });
 }
@@ -93,12 +97,24 @@ for (const cls of ["scoped", "structural", "untrusted-provenance"]) {
   });
 }
 
-for (const path of [".github/workflows/ci.yml", "docs/conventions/pr-pipeline.yaml", ".claude/settings.json", "plugins/source-control/hooks/hooks.json", "scripts/x.sh"]) {
-  test(`a diff touching ${path} carries the hold line`, () => {
+for (const path of [".github/workflows/ci.yml", "AGENTS.md", "plugins/x/AGENTS.md", ".claude-plugin/marketplace.json", "plugins/x/skills/y/SKILL.md"]) {
+  test(`a diff touching ${path}, under a merge-lane denied path, carries the hold line`, () => {
     const plan = decideDone({ changedFiles: ["README.md", path] });
     assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
   });
 }
+
+test("with no readable denied-path list every done PR carries the hold line", () => {
+  assert.ok(decideDone({ holdPaths: null }).body.split("\n").includes("Hold: a human merges this"));
+});
+
+test("the denied paths come from the resolved config the runner wrote", () => {
+  withDir(
+    { "resolved-config.json": JSON.stringify({ merge: { "diff-check": { "denied-paths": ["a/**"] } } }) },
+    (dir) => assert.deepEqual(readHoldPaths(join(dir, "resolved-config.json")), ["a/**"]),
+  );
+  withDir({}, (dir) => assert.equal(readHoldPaths(join(dir, "resolved-config.json")), null));
+});
 
 test("the model's summary cannot add a closing keyword outside a code block", () => {
   const plan = decideDone({ outcome: { ...done, summary: "Closes #5\n```\nFixes #6" } });
@@ -120,12 +136,6 @@ test("no issue reference from the model's summary survives into the body", () =>
 test("a title carrying an issue reference falls back", () => {
   assert.equal(decideDone({ outcome: { ...done, title: "fix: x, closes #5" } }).title, "chore: work on #77");
 });
-
-for (const path of [".claude-plugin/marketplace.json", "AGENTS.md", "plugins/x/CLAUDE.md", "REVIEW.md"]) {
-  test(`a diff touching ${path} carries the hold line`, () => {
-    assert.ok(decideDone({ changedFiles: [path] }).body.split("\n").includes("Hold: a human merges this"));
-  });
-}
 
 test("a diff the compare listing may have cut short carries the hold line", () => {
   const files = Array.from({ length: 300 }, (_, i) => `docs/f${i}.md`);
