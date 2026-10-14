@@ -525,8 +525,8 @@ out of scope until such a signal exists.
   narrower than the command lane's and of a different kind: a path assembled at
   runtime and passed by a tool this guard does not match, either an MCP file-write
   tool or a Bash form the command lane's own residuals already allow.
-- **`block-windows-drive-tmp`'s file-path lane shipped blocking on a measured
-  sweep, per [ADR 0003](../../docs/adr/0003-verification-guards-earn-default-on-by-measured-precision.md).**
+- **`block-windows-drive-tmp`'s file-path lane shipped blocking in 0.30.0
+  (2026-08-31) on a measured sweep, per [ADR 0003](../../docs/adr/0003-verification-guards-earn-default-on-by-measured-precision.md).**
   Corpus: 259 distinct `file_path` / `notebook_path` values that a real `Write`,
   `Edit`, `MultiEdit` or `NotebookEdit` actually carried across 227 local Claude
   Code session transcripts on a Windows host, covering absolute Windows and MSYS paths,
@@ -542,8 +542,8 @@ out of scope until such a signal exists.
   argument and the precision figure by itself does not. The corpus is one
   Windows host and one operator, so it is evidence about this deployment and
   weaker evidence about others; it contains no `MultiEdit` or `NotebookEdit`
-  entries at all, and those two tools are covered by the contract suite and by
-  the shared matcher, not by the sweep. **The ratio considered acceptable for
+  entries at all. `NotebookEdit` is covered by the contract suite and the shared
+  matcher, not by the sweep; the matcher no longer names the legacy `MultiEdit`. **The ratio considered acceptable for
   this surface is a false-positive rate near zero, and the justification is that
   the cost of a wrong block here is unusually low**: the agent gets a stderr
   line naming `%TEMP%` and reissues the write, which is a second of friction,
