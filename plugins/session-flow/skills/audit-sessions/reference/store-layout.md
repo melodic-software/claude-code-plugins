@@ -91,6 +91,10 @@ D/audit-sessions/
   constant in `scripts/sweep.py`), `status` (`pass`, `warning` or `error`), `summary`, and `data`,
   which `build_data` in `scripts/sweep.py` builds. Every session over a threshold stays in `data`;
   the markdown report is a rendering of it and is not a contract.
+- A finding's `evidence` entries name a session (`session_id`), except the `edits.churn_per_pr`
+  finding, whose entries name one path within one linked PR: `repo`, `number`, `path`, `edits`
+  and the `sessions` that edited it. Only sessions linking exactly one PR count toward churn, and
+  no PR review outcome is read.
 - New fields are added within v1, and a consumer treats a missing field as null and ignores one it
   does not know. Removing or renaming a field, or changing what one means, moves the schema to
   `audit-sessions.sweep/v2`.
