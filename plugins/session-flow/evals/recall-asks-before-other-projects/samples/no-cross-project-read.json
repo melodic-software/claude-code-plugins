@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/skills/recall/scripts/recall_scan.py --dir \"/h/.claude/projects/-tmp-w\" pagination"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls ~/.claude/projects"
+          }
+        }
+      ],
+      "why": "this project dir and a listing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rl cursor ~/.claude/projects/"
+          }
+        }
+      ],
+      "why": "grep over every project"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat ~/.claude/projects/*/*.jsonl | grep -c cursor"
+          }
+        }
+      ],
+      "why": "glob star read"
+    }
+  ]
+}

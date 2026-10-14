@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| Lesson | Route | Rung | Hand-off file |\n|---|---|---|---|\n| billing HTTP calls go through withRetry() | findings hand-off | lint rule | `.work/codify/feat-billing-retry/20261013T120000Z-codify.md` |",
+      "why": "table row"
+    },
+    {
+      "answer": "Hand-off file (not written until you approve): .work/codify/feat-billing-retry/<UTC-timestamp>-codify.md",
+      "why": "placeholder name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Hand-off file: .work/codify/feat/Billing-Retry/20261013T120000Z-codify.md",
+      "why": "branch not slugged"
+    },
+    {
+      "answer": "Hand-off file: .work/codify/feat-Billing-Retry/20261013T120000Z-codify.md",
+      "why": "branch not lowercased"
+    },
+    {
+      "answer": "Added to CLAUDE.md: outbound HTTP calls in src/billing must use withRetry().",
+      "why": "pasted into CLAUDE.md, no hand-off"
+    },
+    {
+      "answer": "Hand-off file: .work/codify/main/20261013T120000Z-codify.md",
+      "why": "wrong branch"
+    }
+  ]
+}

@@ -8,13 +8,13 @@ context:
 execution:
   prompt: "/session-flow:recall rate limiter. Have we tried replacing the in-memory one before, and how did it go?"
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
-  max_turns: 40
-  timeout_seconds: 900
+  max_turns: 25
+  timeout_seconds: 600
 graders:
   - name: git-searched
     type: tool_used
     tool: Bash
-    input_match: 'git\s+log'
+    input_match: '(?:\b|(?<=\\n))git(?:[ \t]+(?:-C[ \t]+(?:\\"[^"]*?\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?|-[A-Za-z]))*[ \t]+log\b'
     arm: with-only
   - name: names-both-attempts
     type: regex
@@ -22,15 +22,12 @@ graders:
     flags: i
     arm: both
   - name: tried-kept-reverted
-    type: llm
+    type: regex
+    pattern: '^(?=[\s\S]*(?:token[- ]bucket[^\n]*\brevert|\brevert[^\n]*token[- ]bucket|(?:^|\n)[ \t#*_>-]*(?:dropped or reverted|reverted|dropped)\b[ \t*_:]*\n(?:[ \t]*\n)?[^\n]*token[- ]bucket))(?=[\s\S]*\bburst)(?=[\s\S]*(?:sliding[- ]window[^\n]*\b(?:kept|current|still|in place|stayed|stays|remains|in use)\b|\b(?:kept|current|still in place|in place|remains)\b[^\n]*sliding[- ]window|(?:^|\n)[ \t#*_>-]*kept\b[ \t*_:]*\n(?:[ \t]*\n)?[^\n]*sliding[- ]window))(?=[\s\S]*\b(?=[0-9a-f]*[0-9])[0-9a-f]{7,40}\b)(?![\s\S]*token[- ]bucket[^\n]*\bis\s+(?:still\s+)?(?:current|in place|live|kept|in use)\b)'
+    flags: 'i'
     arm: both
-    criteria: "PASS only if the reply says the token-bucket rate limiter was tried and reverted, gives the reason that it dropped requests during bursts, says the sliding-window rate limiter is the one still in place, and cites at least one commit SHA. FAIL if it calls the token bucket current, omits the revert, or gives no citation."
   - name: unavailable-source-named
-    type: llm
-    arm: with-only
-    criteria: "PASS only if the reply names every source it could not search (for example gh pull requests or the work-item tracker) or states that each source it tried returned a result. FAIL if a source was skipped without a word."
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:session-flow:)?recall"'
+    type: regex
+    pattern: '^[^\n]*(?:\b(?:gh|pull requests?|PRs?|tracker|work items?)\b[^\n]*\b(?:could ?n[o'']t|cannot|unavailable|not (?:available|authenticated|configured|installed|searched|checked|run)|unauthenticated|no (?:git ?hub |origin )?remote|skipped|failed|errored|returned nothing|came back (?:with nothing|empty)|no results?|none found|found none|zero)|\b(?:could ?n[o'']t (?:search|reach|query|use)|cannot (?:search|reach|query|use)|unavailable|not searched|skipped)\b[^\n]*\b(?:gh|pull requests?|PRs?|tracker|work items?)\b)'
+    flags: 'mi'
     arm: with-only

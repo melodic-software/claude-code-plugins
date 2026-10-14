@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/<user>/w/.work/.gitignore",
+            "content": "*\n"
+          }
+        }
+      ],
+      "why": "the self-ignore guard"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/<user>/w/.work/handoffs/20261013T090000Z-handoff-retry-backoff.slots.json",
+            "content": "{\"next\": \"Run ./test.sh\"}\n"
+          }
+        }
+      ],
+      "why": "the slots file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/<user>/w/src/retry.ts",
+            "content": "export {}\n"
+          }
+        }
+      ],
+      "why": "rewrites the source"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/retry.test.ts",
+            "content": "test\n"
+          }
+        }
+      ],
+      "why": "adds a test file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/<user>/w/test.sh",
+            "content": "exit 0\n"
+          }
+        }
+      ],
+      "why": "rewrites the test script"
+    }
+  ]
+}

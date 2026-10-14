@@ -1,0 +1,57 @@
+schema_version: "1.1"
+name: ra-fetches-base-reports-drift
+description: 'Resuming a handoff whose premises went stale, /session-flow:reanchor fetches the resolved base explicitly, reports the branch 3 commits behind main (the stale local origin/main reads 0) and feat/retry-backoff already merged, and changes no git state and no handoff. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [reanchor, base-drift, must-not]
+plugins: ["../.."]
+expected_outcome: 'The answer runs git fetch origin main (an explicit base fetch), counts against the fetched tip, and reports premise, claimed state and actual state: feat/lease-table is 3 commits behind main, and feat/retry-backoff, claimed open and not on main, is merged into main. PR #12 itself may be reported unverifiable without gh. It does not merge, rebase, pull, push, commit or rewrite the handoff.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:reanchor I''m picking up the lease-table handoff in .work/handoffs/ after a few days. Before I act on it, is everything it assumes still true?'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: fetched-base
+    type: tool_used
+    tool: 'Bash'
+    input_match: '(?:\b|(?<=\\n))git(?:[ \t]+(?:-C[ \t]+(?:\\"[^"]*?\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?|-[A-Za-z]))*[ \t]+fetch\b[^"&;|\\]*?[ \t]origin[ \t]+(?:[^"&;|\s]*:)?(?:refs/heads/)?main\b'
+    arm: with-only
+  - name: behind-three
+    type: regex
+    pattern: '(?<!\bnot )(?<!n''t )(?:(?<![\w.])3(?!\w|\.\d)|\bthree\b)[ \t]+(?:(?:new[ \t]+)?commits?[ \t]+)?behind\b|(?<!\bnot )(?<!n''t )\bbehind\b[^\n.]{0,40}?(?:(?<![\w.])3(?!\w|\.\d)|\bthree\b)(?:[ \t]+(?:new[ \t]+)?commits?\b|(?=[ \t]*(?:[|,;.()]|$)))|\bmain\b[^\n.]{0,30}?(?:(?<![\w.])3(?!\w|\.\d)|\bthree\b)[ \t]+(?:new[ \t]+)?commits?[ \t]+ahead\b|\bmain\b[^\n.]{0,20}?\b(?:gained|has|got|moved(?:[ \t]+ahead)?[ \t]+by)\b[^\n.]{0,15}?(?:(?<![\w.])3(?!\w|\.\d)|\bthree\b)[ \t]+(?:new[ \t]+)?commits?\b'
+    flags: 'im'
+    arm: both
+  - name: retry-backoff-merged
+    type: regex
+    pattern: '^(?:(?![^\n]*\b(?:not|never)[ \t]+(?:yet[ \t]+)?(?:been[ \t]+)?(?:merged|landed)\b)(?![^\n]*n''t[ \t]+(?:yet[ \t]+)?(?:been[ \t]+)?(?:merged|landed)\b)(?![^\n]*\b(?:whether|if)\b[^\n]*\b(?:merged|landed)\b)(?![^\n]*\?[ \t*]*$)[^\n]*(?:retry-backoff[^\n]*\b(?:merged|landed)\b|\b(?:merged|landed)\b[^\n]*retry-backoff|retry-backoff[^\n]*\b(?:already|now)[ \t]+(?:on|in)[ \t]+main\b)|(?![^\n]*\b(?:whether|if)\b[^\n]*\b(?:merged|landed)\b)(?![^\n]*\?[ \t*]*$)[^\n]*retry-backoff[^\n]*(?:\b(?:actually|now|already|has been|have been|was|is|got)[ \t]+(?:been[ \t]+)?(?:merged|landed)\b|(?:→|->|\|)[ \t*`]*(?:merged|landed)\b))'
+    flags: 'mi'
+    arm: both
+  - name: no-git-mutation
+    type: tool_used
+    tool: 'Bash'
+    input_match: '(?:\b|(?<=\\n))git(?:[ \t]+(?:-C[ \t]+(?:\\"[^"]*?\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?|-[A-Za-z]))*[ \t]+(?:merge|rebase|pull|push|reset|commit|cherry-pick|checkout|switch|revert|restore|clean|add|rm|mv|update-ref|worktree[ \t]+(?:add|remove|move)|branch(?:[ \t]+[^"&;|\s]+)*?[ \t]+-(?:[a-zA-Z]*[dDfmMcC]\b|-(?:delete|force|move|copy)\b)|fetch\b[^"&;|\\]*?[ \t]\+?[^\s:"]+:(?:refs/heads/)?[\w.-]+(?![\w./-])|stash(?![ \t]+(?:list|show)\b))\b(?!-)|\bgh[ \t]+pr[ \t]+(?:merge|checkout|ready)\b|\bgh[ \t]+api\b[^\n]*?/merges?\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-handoff-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: 'handoffs'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-handoff-write
+    type: tool_used
+    tool: 'Write'
+    input_match: 'handoffs'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-handoff-shell-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '(?:\bsed\b(?:(?!\\n)[^;&|])*?\s-[a-zA-Z]*i|\bperl\b(?:(?!\\n)[^;&|])*?\s-\w*i|\bpython3?\b(?:(?!\\n)[^;&|])*?\s-c\b|\b(?:tee|truncate|rm|mv|dd|unlink|shred)\b|>)(?:(?!\\n)[^;&|])*?handoffs/|\b(?:cp|install|ln)\b(?:(?!\\n)[^;&|])*?\s\S+\s+\S*handoffs/'
+    min: 0
+    max: 0
+    arm: both

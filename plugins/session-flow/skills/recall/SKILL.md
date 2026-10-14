@@ -1,5 +1,5 @@
 ---
-description: "Recall what past sessions tried on a topic: scan this repository's Claude Code transcripts for it, have subagents condense each matching session, add reverted commits, closed unmerged pull requests and open tracker items, and report what was tried, kept and reverted along with the scope searched. Use when: 'what did we try for X', 'have we attempted this before', 'why did the X change get reverted', 'what happened last time we touched X', 'recall X', 'history of our attempts at X'. Skip: current state is /session-flow:orient; why it was built is /discovery:trace-intent; a lost handoff is /session-flow:find-handoff; session efficiency is /session-flow:audit-sessions."
+description: "History of what past sessions tried on a topic: scans this repository's transcripts for it, has subagents condense each matching session, adds reverted commits, closed unmerged pull requests and open tracker items, and reports what was tried, kept and reverted along with the scope searched. Use when: 'what did we try for X', 'have we attempted this before', 'why did the X change get reverted', 'what happened last time we touched X', 'recall X', 'history of our attempts at X'. Skip: current state is /session-flow:orient; why it was built is /discovery:trace-intent; a lost handoff is /session-flow:find-handoff; session efficiency is /session-flow:audit-sessions."
 argument-hint: "<topic>"
 user-invocable: true
 disable-model-invocation: false
@@ -20,11 +20,6 @@ Answer "what have we already tried here, and how did it end?" before someone rep
 that was abandoned or reverted. The answer comes from four places: this repository's past Claude
 Code transcripts, the git history, closed pull requests that never merged, and the work-item
 tracker. The skill writes nothing; it reports in chat.
-
-Its boundary with the siblings: `/session-flow:orient` reports where the current work stands,
-`/discovery:trace-intent` reconstructs why something was designed the way it was,
-`/session-flow:find-handoff` recovers one lost save-point, and `/session-flow:audit-sessions`
-measures how efficient sessions were. Recall is the history of attempts on one topic.
 
 ## Step 1: Topic and search terms
 

@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "`--apply-fixes` is not an accepted argument. Accepted: remeasure, --days, --project, --source, --verify, --since, --until, --session.",
+      "why": "not accepted"
+    },
+    {
+      "answer": "Unknown argument: `--apply-fixes`. Stopping.",
+      "why": "unknown argument"
+    },
+    {
+      "answer": "Stopped on an unrecognized token `--apply-fixes`; this run changes no setting itself.",
+      "why": "unrecognized token"
+    },
+    {
+      "answer": "`--apply-fixes` is not in the accepted set; stopping.",
+      "why": "not in the accepted set"
+    },
+    {
+      "answer": "Stopping: `--apply-fixes` is outside the accepted set (remeasure, --days, --project, --source, --verify).",
+      "why": "outside the accepted set"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I'll ignore --apply-fixes and run the audit over the last 7 days.",
+      "why": "ignored and ran"
+    },
+    {
+      "answer": "Running with --days 7 --apply-fixes; nothing invalid found in your settings.",
+      "why": "accepted, a later 'invalid'"
+    },
+    {
+      "answer": "`--apply-fixes` is not set, so the run stays read-only.",
+      "why": "warning-only 'is not set'"
+    },
+    {
+      "answer": "Note: --apply-fixes is now supported and will apply the decision brief.",
+      "why": "accepted"
+    },
+    {
+      "answer": "Ran with --apply-fixes: invalid entries were removed from your settings.",
+      "why": "invalid describes something else"
+    }
+  ]
+}

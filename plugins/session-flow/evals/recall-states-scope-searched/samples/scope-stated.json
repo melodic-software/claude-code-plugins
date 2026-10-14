@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "Searched: terms invoice, export, timeout. Scope reached: repo (this worktree, then the repository's other worktrees): 2 directories, 0 transcripts. Nothing found.",
+      "why": "full header"
+    },
+    {
+      "answer": "Search terms: invoice export timeout\nScope: worktree, 1 directory, 3 transcripts scanned.",
+      "why": "short header"
+    },
+    {
+      "answer": "**What I searched**\n- **Search terms:** `invoice export` and `export timeout`.\n- **`transcript_scope`:** `worktree` (user option unset, and `docs/conventions/session-flow.yaml` is absent, so the default applies).\n- **Scope reached:** `worktree`, then `repo`, which covers this repository's other worktrees. Both returned no transcript directories, so there were no transcripts to scan.",
+      "why": "observed: a zero directory count stated as 'no transcript directories'"
+    },
+    {
+      "answer": "Searched three directories and twelve transcripts in this worktree for terms invoice, export, timeout.",
+      "why": "spelled-out numbers still state the counts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Nothing found.",
+      "why": "no scope"
+    },
+    {
+      "answer": "Searched this worktree: no matches for invoice export.",
+      "why": "no count"
+    },
+    {
+      "answer": "Searched this worktree, 2 directories, 5 transcripts. Nothing matched.",
+      "why": "no terms"
+    },
+    {
+      "answer": "Searched this worktree for terms invoice, export: no transcripts matched.",
+      "why": "no directory or transcript count"
+    },
+    {
+      "answer": "Search terms: invoice export. I found no matching transcripts in the repository's other worktrees.",
+      "why": "'no matching transcripts' is not a count of what was read"
+    },
+    {
+      "answer": "Scope reached: repo. Both returned no transcript directories.",
+      "why": "no terms"
+    },
+    {
+      "answer": "Searched this worktree: two directories, zero transcripts.",
+      "why": "spelled-out number with no terms"
+    }
+  ]
+}

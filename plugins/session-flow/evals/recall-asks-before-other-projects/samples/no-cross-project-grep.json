@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "cursor",
+            "path": "/h/.claude/projects/-tmp-w"
+          }
+        }
+      ],
+      "why": "grep in this project dir"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "cursor",
+            "path": "/h/.claude/projects"
+          }
+        }
+      ],
+      "why": "grep the whole store"
+    }
+  ]
+}

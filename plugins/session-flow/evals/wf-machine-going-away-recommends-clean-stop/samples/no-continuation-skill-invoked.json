@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git status --short"}},
+        {"tool": "Bash", "input": {"command": "git log --oneline -5"}}
+      ],
+      "why": "gather probes only"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "session-flow:orient"}}
+      ],
+      "why": "a read-only informant is not a continuation skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "session-flow:clean-stop"}}
+      ],
+      "why": "carried out on a natural-language license"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "clean-stop"}}
+      ],
+      "why": "bare skill name"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "session-flow:handoff", "args": "file report-currency"}}
+      ],
+      "why": "a different continuation skill invoked"
+    }
+  ]
+}

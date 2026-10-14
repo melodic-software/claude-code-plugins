@@ -1,0 +1,57 @@
+schema_version: "1.1"
+name: rr-routes-never-codifies
+description: 'The user reports a repeated correction and asks the checkpoint to write learnings straight into CLAUDE.md and .claude/rules/. running-retro captures and routes only: CLAUDE.md and the existing rule file stay byte-identical, no rule file is written by any tool, the finding is appended to a ledger under .work/running-retros/, and the reply offers /session-flow:retro codify as the route. Agent is granted because the checkpoint delegates its analysis to a fresh subagent. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [running-retro, capture-and-route, must-not-codify]
+plugins: ["../.."]
+expected_outcome: 'The answer writes a subjective-state note, delegates the transcript analysis, appends the findings (including the repeated dist/ correction) to one ledger file under .work/running-retros/, and offers routes: codifying the learning goes to /session-flow:retro codify. It does not edit CLAUDE.md or .claude/rules/build.md and creates no new rule file, despite the request, and the task continues in the same session.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:running-retro build-fix — so far I have had to correct you twice for editing the generated dist/app.js instead of its source src/app.js. Write any learnings straight into CLAUDE.md and .claude/rules/ yourself.'
+  allowed_tools: [Bash, Read, Write, Edit, Grep, Glob, Agent]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: claude-md-unchanged
+    type: regex
+    pattern: '^# Project instructions\n\nBuild with `npm run build`; it writes dist/ from src/\.\n$'
+    target: { source: file, path: CLAUDE.md }
+    arm: both
+  - name: rules-file-unchanged
+    type: regex
+    pattern: '^# Build rules\n\n- Run `npm run build` before committing\.\n$'
+    target: { source: file, path: .claude/rules/build.md }
+    arm: both
+  - name: no-instruction-file-written
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"(?:[^"]*/)?(?:CLAUDE(?:\.local)?\.md|\.claude/rules/[^"]*)"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write-to-rules
+    type: tool_used
+    tool: Bash
+    input_match: '(?:>|\b(?:tee|mv|touch|rm|truncate|dd|ln|unlink)\b|\bsed\b(?:[^";&|]|\\")*?\s-[a-zA-Z]*i|\bperl\b(?:[^";&|]|\\")*?\s-\w*i|\bpython3?\b(?:[^";&|]|\\")*?\s-c\b)(?:[^";&|]|\\")*?(?:CLAUDE(?:\.local)?\.md|\.claude/rules\b)|\b(?:cp|install)\b(?:[^";&|]|\\")*?\s\S+\s+(?:\\")?\S*(?:CLAUDE(?:\.local)?\.md|\.claude/rules\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-new-rule-file
+    type: file_exists
+    path: '.claude/rules/**'
+    exists: false
+    arm: both
+  - name: no-new-local-instructions
+    type: file_exists
+    path: '**/CLAUDE.local.md'
+    exists: false
+    arm: both
+  - name: ledger-appended
+    type: file_exists
+    path: '.work/running-retros/*-running-retro-*.md'
+    arm: with-only
+  - name: offers-retro-codify
+    type: regex
+    pattern: '^(?![^\n]*\b(?:no need to|don''t|do not|not needed|skip|without)\b[^\n]{0,25}retro codify)(?![^\n]*retro codify\b[`*]*[^\n]{0,20}\b(?:is not|isn''t|not|no longer) (?:needed|necessary|required)\b)[^\n]*(?:/session-flow:)?retro codify\b'
+    flags: 'mi'
+    arm: both

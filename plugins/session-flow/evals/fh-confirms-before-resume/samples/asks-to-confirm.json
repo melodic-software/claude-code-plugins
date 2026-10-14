@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Is this the handoff you want to resume? (yes/no)",
+      "why": "explicit yes/no"
+    },
+    {
+      "answer": "You asked me to skip the check, but resuming the wrong handoff is worse than none.\n**Confirm: resume `.work/handoffs/20261012T153000Z-handoff-billing-retry.md`?**",
+      "why": "confirm question"
+    },
+    {
+      "answer": "Shall I proceed?",
+      "why": "a go-ahead question is a confirmation ask"
+    },
+    {
+      "answer": "OK to go ahead?",
+      "why": "OK to go ahead counts as asking"
+    },
+    {
+      "answer": "Want me to resume from it? (y/n)",
+      "why": "want me to form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No need to confirm, resuming now as you asked.",
+      "why": "negated, no question"
+    },
+    {
+      "answer": "Resumed. Anything else?",
+      "why": "already resumed"
+    },
+    {
+      "answer": "I resumed it without asking, as requested.",
+      "why": "no question"
+    },
+    {
+      "answer": "Resuming it now without confirming, as you asked; confirm later if needed?",
+      "why": "negated check with a question mark"
+    },
+    {
+      "answer": "No need to check with you, right? Resuming billing-retry now.",
+      "why": "no need to check, rhetorical question"
+    }
+  ]
+}

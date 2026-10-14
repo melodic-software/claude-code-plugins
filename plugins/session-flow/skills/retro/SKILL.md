@@ -1,5 +1,5 @@
 ---
-description: "Run a structured session retrospective: extract transcript metrics, assess quality across five dimensions, check feedback-memory regressions, and codify learnings durably. Use when: 'retro', 'retrospective', 'what did we learn', 'how did I do', 'codify learnings', 'show trends', or at end of session; modes: session (default), codify, trends, quick."
+description: "Structured session retrospective: transcript metrics, quality across five dimensions, feedback-memory regression check, and durable codification of learnings. Use when: 'retro', 'retrospective', 'what did we learn', 'how did I do', 'codify learnings', 'show trends', or at end of session; modes: session (default), codify, trends, quick."
 argument-hint: "[unattended] [session|codify [reviews]|trends|quick]"
 user-invocable: true
 disable-model-invocation: false
@@ -13,8 +13,7 @@ metadata:
 
 ## Context. Gather first
 
-Take `session-id`, `branch`, `status`, `recent-commits` at `-5`, and `changed-files`, the only
-consumer taking that last one, since a retrospective reasons over what the session actually touched.
+Take `session-id`, `branch`, `status`, `recent-commits` at `-5`, and `changed-files`.
 Probe commands, the one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion
 rationale for gathering at run time rather than pre-computing:
 [`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
@@ -22,8 +21,7 @@ rationale for gathering at run time rather than pre-computing:
 ## Purpose
 
 The self-improvement loop. Answers: "What happened, what did we learn, and how do we prevent the
-same mistakes next time?" Every other workflow stage is about the current task; this skill is about
-the next task, and every task after that.
+same mistakes next time?"
 
 **Three concepts this skill enforces:**
 
@@ -135,20 +133,20 @@ one. Offer each `fork_candidates` entry the same way: a fork shares records with
 handoff points at it, so the walk never reaches it.
 
 **Offer a durable copy when the session was worth retrospecting.** The transcripts this retro reads
-are retention-swept (`cleanupPeriodDays`, default 30 days), and the conversation itself has no
-durable artifact; a session interesting enough to retrospect is the one worth keeping. The default
-is verified 2026-09-06 against Claude Code 2.1.263 and
-[Data usage](https://code.claude.com/docs/en/data-usage#data-retention), which states that clients
-store session transcripts locally under `~/.claude/projects/` for 30 days by default and that
-`cleanupPeriodDays` adjusts the period. Recheck when that page names a different default, or when a
-release note names `cleanupPeriodDays`.
+are retention-swept (`cleanupPeriodDays`), and the conversation itself has no durable artifact.
+
+- **Pointer**: [Data usage § Data retention](https://code.claude.com/docs/en/data-usage#data-retention),
+  for the retention period and what `cleanupPeriodDays` adjusts.
+- **As of**: 2026-09-06
+- **Recheck trigger**: that page names a different default, or a release note names
+  `cleanupPeriodDays`.
 
 If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`unattended`:** record the suggestion in output; do not ask.
 
 ## Verification record: `/export`
 
-- **Claim.** `/export` is a built-in interactive command (local-jsx, not a prompt): the Skill tool never lists it and it is unavailable headless, so this skill suggests it to the person and never runs it. It has no documented disable switch: a command that is not available to the person is left out of the menu.
-- **Basis.** The `/export [filename]` row on <https://code.claude.com/docs/en/commands>, fetched 2026-09-29: "Export the current conversation as plain text. With a filename, writes directly to that file. Without, opens a dialog to copy to clipboard or save to a file". Probed 2026-08-24 on Claude Code 2.1.241: `claude --bare -p "/export <path>"` returned "/export isn't available in this environment."; invocation mode local-jsx on 2.1.263 (2026-09-11).
+- **Decision.** Suggest `/export` to the person and never run it: it is a built-in interactive command the Skill tool does not list and headless runs refuse. A command that is not available to the person is left out of the menu.
+- **Pointer.** The `/export [filename]` row of [Commands § All commands](https://code.claude.com/docs/en/commands#all-commands). Probe: `claude --bare -p "/export <path>"` refused on Claude Code 2.1.241 (2026-08-24); invocation mode local-jsx on 2.1.263 (2026-09-11).
 - **As of.** 2026-09-29.
 - **Recheck when.** A Claude Code release note or the commands page adds an `/export` format or redaction flag, a headless or programmatic form, or an official conversation-sharing surface.
 
@@ -156,10 +154,8 @@ If /export is available in your session (gate basis: **Verification record: `/ex
 
 Both look back at how sessions went, so "how did I do" can land on either.
 
-- **`/insights` (built-in command)**: generates an HTML report across your recent sessions on this
-  machine: projects, usage patterns, where things go wrong, features to try, and an auto mode
-  recommendation. It writes that report and nothing else. It is reserved for the person to run; the
-  model does not invoke it.
+- **`/insights` (built-in command)**: a cross-session usage report on this machine. It is reserved
+  for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** A structured retrospective of one session or handoff chain:
   transcript metrics, five quality dimensions, feedback-memory regressions, and codification into
   rules or memory behind approval.
@@ -173,9 +169,9 @@ asking.
 **Mutation gate.** This skill writes only approved codifications. It never runs `/insights` on the
 person's behalf.
 
-**Availability is never assumed.** `/insights` is not available in cloud sessions; this section
-states what to do when the person can run it, never that it is present. The four-part records
-live in [reference/native-insights.md](reference/native-insights.md).
+**Availability is never assumed.** This section states what to do when the person can run
+`/insights`, never that it is present. What the report covers and where it is unavailable are read
+live from the records in [reference/native-insights.md](reference/native-insights.md).
 
 ## What this skill does NOT do
 
@@ -193,11 +189,11 @@ live in [reference/native-insights.md](reference/native-insights.md).
 
 The `context/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+writing it into a brief: a `${…}` token in a spoke reaches the Bash tool unsubstituted.
+
+- **Pointer**: <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>
+- **As of**: 2026-10-07
+- **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 

@@ -1,5 +1,5 @@
 ---
-description: "Verify a session's working assumptions still hold: PRs, issues and branches a handoff or plan cites, base-branch drift, renamed or drifted skills and plugins, memory files whose subjects landed. Reports drift on facts, not rules; does not resume. Use when: 'reanchor', 're-anchor', 'is this still current', 'verify my assumptions', 'has main moved since', 'are these premises still valid', 'is the handoff stale', 'resuming an old plan', 'check freshness'. To resume, use /session-flow:keep-going."
+description: "Freshness check of a session's working assumptions: PRs, issues and branches a handoff or plan cites, base-branch drift, renamed or drifted skills and plugins, memory files whose subjects landed. Reports drift on facts, not rules. Use when: 'reanchor', 're-anchor', 'is this still current', 'verify my assumptions', 'has main moved since', 'are these premises still valid', 'is the handoff stale', 'resuming an old plan', 'check freshness'. To resume, use /session-flow:keep-going."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -14,10 +14,9 @@ metadata:
 Long-lived and resumed sessions act on stale premises: main has moved, a
 referenced PR merged or changed shape, a cited skill was renamed, an installed
 plugin shipped a new version, a locked plan references work that has since
-landed. Nothing re-verifies those assumptions against live reality before the
-session builds on them. This skill re-anchors a session's working assumptions,
-checks each premise its inputs depend on against the current state, reports what
-drifted, and hands back a corrected picture to plan from.
+landed. This skill checks each premise the session's inputs depend on against
+the current state, reports what drifted, and hands back a corrected picture to
+plan from.
 
 It verifies premises; it does not resume the work. Run it before continuing on
 old inputs, then hand off by invoking `/session-flow:keep-going` via the Skill tool to actually pick the work
@@ -43,11 +42,7 @@ back up.
    cannot run, report the check as unverifiable rather than assuming none. Unless the inputs record a base-tip
    or merge-base baseline, report the *current* divergence rather than claiming
    it all accrued since the inputs were written, the branch may already have
-   been behind. This is reanchor's own check. `/source-control:worktree`, when
-   installed, is a related but distinct capability, a cross-worktree inventory
-   by path / branch / PR / commit-age staleness, that does not report
-   behind-base or dirty-tree signal; cite it for that inventory, not for the
-   drift evidence here.
+   been behind.
 3. **Renamed / retired / version-drifted surfaces.** For the skills, plugins,
    and commands the session's inputs name, confirm they still exist under that
    name and, when the session is working inside a plugin's source tree, that
@@ -96,12 +91,11 @@ back up.
 
 ## What this skill does NOT do
 
-- **Does not resume or continue the work.** It verifies premises; picking the
-  work back up is `/session-flow:keep-going`.
 - **Does not inventory worktrees.** Enumerating every worktree by
   path / branch / PR / commit-age staleness is `/source-control:worktree`
-  status's job when that plugin is installed; reanchor does its own base-drift
-  check (a `git` behind-count on the working branch) and never reimplements that
+  status's job when that plugin is installed (it reports no behind-base or
+  dirty-tree signal); reanchor does its own base-drift check (a `git`
+  behind-count on the working branch) and never reimplements that
   cross-worktree inventory.
 - **Does not classify PR feedback or run the PR loop.** Per-PR fresh-evidence
   discipline and feedback triage are `/source-control:babysit-prs`'s job when
@@ -129,7 +123,3 @@ back up.
   live source, never the input's own claim.
 - Scope to what the session's inputs actually reference. Re-anchoring is bounded
   by the premises in play, not a full-repo audit.
-- It composes with, not replaces, its neighbors: reanchor to learn what drifted,
-  then `keep-going` (same plugin) to resume; and, when they are installed,
-  `/source-control:worktree` status for the worktree inventory and
-  `/source-control:babysit-prs` for PR work.

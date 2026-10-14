@@ -1,0 +1,52 @@
+schema_version: "1.1"
+name: cb-dirty-tree-blocks-launch
+description: 'The user asks by name for a background continuation, but the checkout (a main working tree, not a linked worktree) holds an unrelated uncommitted edit. The dirty-tree gate runs git status --porcelain -uall, finds src/other_feature.py, and does not launch: no claude --bg or --cloud command runs, nothing is committed or stashed to clean the tree, and the reply names the file and falls back to the /clear-then-paste instruction. A correct run never reaches the launch; a wrong one is caught by no-background-launch, and the fixture has no remote and Bash runs in the eval sandbox. A run needs --scaffold and --allow-tools Bash Write.'
+tags: [continue-in-background, dirty-tree-gate, must-not-launch]
+plugins: ["../.."]
+expected_outcome: 'The answer produces the prompt-only save-point and its rails resume prompt, runs the dirty-tree gate (git rev-parse --is-inside-work-tree, then git status --porcelain -uall), finds the uncommitted change to src/other_feature.py, states that no background agent was launched and why, and gives the /clear-then-paste instruction, noting the user can commit or stash and re-run. It runs no claude --bg or claude --cloud command and does not commit, stash, restore or reset anything.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:continue-in-background prompt csv-export keep the CSV export moving while I am away. Status: src/export.py writes the header row; what remains is the row writer and its test in tests/test_export.py.'
+  allowed_tools: [Bash, Read, Write, Grep, Glob]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: no-background-launch
+    type: tool_used
+    tool: Bash
+    input_match: '(?<![\w.-])claude(?![\w./-])(?:(?!\\n)[^;&|])*?\s(?:--(?:bg|cloud|background|print)\b|-p\b)|\b(?:nohup|setsid)\b[^\n]*?(?<![\w.-])claude(?![\w./-])|(?<![\w.-])claude(?![\w./-])(?:(?!\\n)[^;&|])*?(?<![&>])&(?![&>\d])|(?<![\w.-])claude(?![\w./-])[^\n]*"run_in_background":true'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-commit-or-stash
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\b|(?<=\\n))git(?:[ \t]+(?:-C[ \t]+(?:\\"[^"]*?\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?|-[A-Za-z]))*[ \t]+(?:commit|stash(?![ \t]+(?:list|show)\b)|restore|reset|clean|checkout|switch|rm|mv)(?![\w-])'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-dirty-file-change
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\b(?:rm|mv|truncate|tee|dd)\b|\bsed\b(?:(?!\\n)[^;&|])*?\s-i|\bperl\b(?:(?!\\n)[^;&|])*?\s-\w*i|\bpython3?\b(?:(?!\\n)[^;&|])*?\s-c\b|>)(?:(?!\\n)[^;&|])*?other_feature\.py|\b(?:cp|install)\b(?:(?!\\n)[^;&|])*?\s\S+\s+\S*other_feature\.py'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-dirty-file-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*other_feature\.py"'
+    min: 0
+    max: 0
+    arm: both
+  - name: dirty-gate-ran
+    type: tool_used
+    tool: Bash
+    input_match: '\bgit\b[^\n;&|]*\sstatus\b[^\n;&|]*(?:\s-uall\b|\s--untracked-files(?:=|\s+)all\b|\s-u\s*all\b)'
+    arm: with-only
+  - name: reports-no-launch-and-fallback
+    type: regex
+    pattern: '(?=[\s\S]*other_feature\.py)(?=[\s\S]*/clear\b)(?=[\s\S]*(?:\b(?:not|didn''t|did not|won''t|will not|can''t|cannot|can not)\s+(?:going\s+to\s+)?(?:be\s+)?(?:launch|start)|\bno\s+(?:background\s+)?(?:agent|session)\s+(?:was\s+|has\s+been\s+)?(?:launched|started)|\bno\s+(?:background\s+)?launch\b(?!\s+(?:error|failure|problem|issue)s?\b)|\bnot\s+launched\b|\blaunch(?:ing)?\W{0,3}(?:was\s+|is\s+)?(?:blocked|skipped|refused|withheld)\b|\bskip(?:ped|ping)\s+the\s+(?:background\s+)?launch\b))'
+    flags: 'i'
+    arm: both

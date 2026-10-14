@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Decisions made: lease TTL 90 s, renewed every 30 s; cron lock stays as fallback.",
+      "why": "short unit"
+    },
+    {
+      "answer": "- The handoff says the lease TTL is 90 seconds (chosen over 300 so failover fits in two minutes).",
+      "why": "long unit"
+    },
+    {
+      "answer": "Decisions made: a lease TTL of ninety seconds.",
+      "why": "spelled-out number states the decision"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Decisions made: lease TTL 900 seconds.",
+      "why": "wrong number"
+    },
+    {
+      "answer": "Decisions made: lease TTL 300 s, renewed every 30 s.",
+      "why": "the rejected value"
+    },
+    {
+      "answer": "The handoff records a TTL decision.",
+      "why": "no value"
+    },
+    {
+      "answer": "Decisions made: a lease TTL of ninety minutes.",
+      "why": "ninety minutes is a different value"
+    }
+  ]
+}

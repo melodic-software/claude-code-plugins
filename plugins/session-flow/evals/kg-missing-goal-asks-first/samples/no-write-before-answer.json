@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/retry.ts"
+          }
+        }
+      ],
+      "why": "reads only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "./test.sh; echo $?"
+          }
+        }
+      ],
+      "why": "runs the check, writes nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/retry.ts",
+            "content": "export {}\n"
+          }
+        }
+      ],
+      "why": "rewrites the source"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/handoffs/20261013T090000Z-handoff-retry-backoff.md",
+            "content": "## Original goal\nBack off retries\n"
+          }
+        }
+      ],
+      "why": "new save-point with an inferred goal"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "notes.md",
+            "content": "x\n"
+          }
+        }
+      ],
+      "why": "any write"
+    }
+  ]
+}

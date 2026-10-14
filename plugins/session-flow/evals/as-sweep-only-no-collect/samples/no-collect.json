@@ -1,0 +1,73 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/skills/audit-sessions/scripts/sweep.py\" --data-dir \"/d\" --format json --min-count 20 --versions 3 --since 2026-09-01"
+          }
+        }
+      ],
+      "why": "sweep only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 --version"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/skills/audit-sessions/scripts/sweep.py\" --data-dir \"/d\" --format json --min-count 20 --versions 3 --since 2026-09-01"
+          }
+        }
+      ],
+      "why": "interpreter probe then sweep"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/skills/audit-sessions/scripts/collect.py\" collect --data-dir \"/d\" --retention-days 180"
+          }
+        }
+      ],
+      "why": "collect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/scripts/collect.py collect --data-dir /d && python3 \"/p/skills/audit-sessions/scripts/sweep.py\" --data-dir \"/d\" --format json --min-count 20 --versions 3 --since 2026-09-01"
+          }
+        }
+      ],
+      "why": "collect chained before sweep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/skills/audit-sessions/scripts/sweep.py\" --data-dir \"/d\" --format json --min-count 20 --versions 3 --since 2026-09-01"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command python3 \"/p/collect.py\" collect --data-dir /d"
+          }
+        }
+      ],
+      "why": "collect after the sweep"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -1t .work/handoffs/*-handoff-*.md"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "head -6 .work/handoffs/20261012T153000Z-handoff-billing-retry.md"
+          }
+        }
+      ],
+      "why": "reads only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".work/handoffs/20261012T153000Z-handoff-billing-retry.md",
+            "limit": 6
+          }
+        }
+      ],
+      "why": "frontmatter read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/billing.ts",
+            "old_string": "= 1",
+            "new_string": "= 3"
+          }
+        }
+      ],
+      "why": "resumed the next action"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".work/handoffs/20261012T153000Z-handoff-billing-retry.md"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".work/handoffs/20261012T153000Z-handoff-billing-retry.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "edits the handoff"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "notes.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "any edit"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Accepted arguments: `remeasure`, `--days <n>`, `--project <text>`, `--source <dir>`, `--verify consequential|full|probes`, plus `--since`, `--until` and `--session`.",
+      "why": "full set"
+    },
+    {
+      "answer": "Usage: [remeasure] [--days <n>] [--project <text>] [--source <dir>] [--verify consequential|full|probes]",
+      "why": "usage line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Unknown argument `--apply-fixes`. Try --days or --verify.",
+      "why": "two of five"
+    },
+    {
+      "answer": "Accepted: remeasure, --days, --project, --verify.",
+      "why": "four of five, --source missing"
+    },
+    {
+      "answer": "`--apply-fixes` is not accepted; stopping.",
+      "why": "no accepted set"
+    }
+  ]
+}

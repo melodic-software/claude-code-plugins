@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Pool source: the in-context listing (rung 3); harness-ops is not enabled, so manual-only skills are not visible and the listing may be truncated.",
+      "why": "rung and disclosure"
+    },
+    {
+      "answer": "Degraded pool: drawn from the truncated skill listing, not the full catalog.",
+      "why": "keyword first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Catalog: complete; the listing was not truncated.",
+      "why": "negated"
+    },
+    {
+      "answer": "Pool: the full installed catalog.",
+      "why": "claims completeness"
+    },
+    {
+      "answer": "No skills were dropped from the listing.",
+      "why": "negated with no"
+    },
+    {
+      "answer": "Here are your options.",
+      "why": "no disclosure"
+    }
+  ]
+}

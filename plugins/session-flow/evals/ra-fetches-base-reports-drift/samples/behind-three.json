@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "- Base drift: feat/lease-table is 3 commits behind main (counted against FETCH_HEAD).",
+      "why": "count first"
+    },
+    {
+      "answer": "| Base | up to date with main | behind main by 3 commits |",
+      "why": "table row"
+    },
+    {
+      "answer": "feat/lease-table is three commits behind main.",
+      "why": "spelled-out number states the count"
+    },
+    {
+      "answer": "Base drift: main is 3 commits ahead of feat/lease-table since the handoff.",
+      "why": "main ahead by 3"
+    },
+    {
+      "answer": "feat/lease-table: behind main by 3 (ahead 1).",
+      "why": "behind by 3, git shorthand"
+    },
+    {
+      "answer": "feat/lease-table is behind main by 3.",
+      "why": "sentence-final count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "feat/lease-table is 0 commits behind origin/main.",
+      "why": "the stale tracking ref"
+    },
+    {
+      "answer": "feat/lease-table is 30 commits behind main.",
+      "why": "wrong number"
+    },
+    {
+      "answer": "It is not 3 commits behind main; it is current.",
+      "why": "negated"
+    },
+    {
+      "answer": "feat/lease-table is 3 commits ahead of main.",
+      "why": "ahead, not behind"
+    },
+    {
+      "answer": "feat/lease-table isn't 3 commits behind main; it is current.",
+      "why": "contraction negation"
+    },
+    {
+      "answer": "feat/lease-table is behind main by 30.",
+      "why": "behind by thirty"
+    },
+    {
+      "answer": "feat/lease-table is behind by 3.5 days of work.",
+      "why": "decimal is not the count"
+    }
+  ]
+}

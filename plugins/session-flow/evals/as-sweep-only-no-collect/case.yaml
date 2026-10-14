@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: as-sweep-only-no-collect
+description: 'Consumer mode: /session-flow:audit-sessions sweep-only reads the store as it is. It runs no collect, runs sweep.py with --format json and the given --since and without --write-report, and returns the JSON envelope verbatim with its exit code (exit 3 when no store exists, followed by one line naming /session-flow:audit-sessions as the step that creates it). A run needs --allow-tools Bash.'
+tags: [audit-sessions, sweep-only, read-only, must-not]
+plugins: ["../.."]
+expected_outcome: 'The run never calls collect.py and never passes --write-report. It runs sweep.py --format json --since 2026-09-01 and returns the envelope whose schema is audit-sessions.sweep/v1, verbatim, with the exit code it got.'
+execution:
+  prompt: '/session-flow:audit-sessions sweep-only --since 2026-09-01'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: no-collect
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'collect\.py'
+    min: 0
+    max: 0
+    arm: both
+  - name: sweep-json-ran
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'sweep\.py\b(?=[^;&|]*--format[ =]json\b)(?=[^;&|]*--since[ =]2026-09-01\b)(?![^;&|]*--write-report)'
+    min: 1
+    arm: with-only
+  - name: no-write-report
+    type: tool_used
+    tool: 'Bash'
+    input_match: '--write-report'
+    min: 0
+    max: 0
+    arm: both
+  - name: envelope-returned
+    type: regex
+    pattern: '"schema"\s*:\s*"audit-sessions\.sweep/v1"'
+    arm: with-only
+  - name: exit-code-stated
+    type: regex
+    pattern: '\b(?:exit(?:ed)?(?:[ \t]+with)?(?:[ \t]+(?:code|status))?|return(?:ed)?[ \t]+(?:code|status))(?:[ \t]+(?:with|of|was|is))?[ \t]*[(:=]?[ \t]*`?(?:[0-3]|zero|one|two|three)\b'
+    flags: 'i'
+    arm: with-only

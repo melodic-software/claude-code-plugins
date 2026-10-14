@@ -1,0 +1,130 @@
+{
+  "skill": "session-flow:reanchor",
+  "plugin": "session-flow",
+  "skill_dir": "plugins/session-flow/skills/reanchor",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are orient, keep-going, find-handoff and recall, plus the upstream-recheck discipline skill.",
+  "competitors": [
+    "session-flow:orient",
+    "session-flow:keep-going",
+    "session-flow:find-handoff",
+    "session-flow:recall",
+    "discipline:recheck-against-upstream"
+  ],
+  "competitor_dirs": {
+    "session-flow:orient": "plugins/session-flow/skills/orient",
+    "session-flow:keep-going": "plugins/session-flow/skills/keep-going",
+    "session-flow:find-handoff": "plugins/session-flow/skills/find-handoff",
+    "session-flow:recall": "plugins/session-flow/skills/recall",
+    "discipline:recheck-against-upstream": "plugins/discipline/skills/recheck-against-upstream"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm resuming a plan from two weeks ago. Is it still valid against what's on main?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Check the PRs and branches named in this handoff are still open and unchanged."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Has main moved since I wrote this plan? What drifted?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I pick this back up, verify the assumptions in the notes still hold."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The handoff mentions three skills; confirm they weren't renamed since."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is this handoff stale? Compare what it says to the current repo state."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Re-validate the premises of this plan against reality before we continue."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Some of the issues this plan cites may have been closed. Check which."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I haven't touched this branch in a while. Tell me what changed underneath it."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Verify my saved memory notes aren't about work that already landed."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "reanchor this session"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Just resume the work from the handoff and keep going."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where does this session stand right now?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What did we try before on this problem?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Recheck our config against the current upstream docs."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I lost the handoff file. Find it."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a new handoff for this session."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which skill should I use next?"
+    }
+  ]
+}

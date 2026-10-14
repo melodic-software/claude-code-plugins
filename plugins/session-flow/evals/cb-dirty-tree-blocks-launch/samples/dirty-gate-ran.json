@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git rev-parse --is-inside-work-tree"}},
+        {"tool": "Bash", "input": {"command": "git status --porcelain -uall"}}
+      ],
+      "why": "the documented gate"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git -C /tmp/eval status --porcelain --untracked-files=all"}}
+      ],
+      "why": "long form of -uall"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git status --porcelain"}}
+      ],
+      "why": "untracked directories collapse without -uall"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git status --short"}}
+      ],
+      "why": "gather probe, not the gate"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git status; ls -uall"}}
+      ],
+      "why": "-uall belongs to another command"
+    }
+  ]
+}

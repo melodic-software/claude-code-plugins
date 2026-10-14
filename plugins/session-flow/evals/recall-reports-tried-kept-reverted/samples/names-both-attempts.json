@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Searched: terms rate limiter, token bucket; transcript_scope: worktree (default); 1 directory, 0 transcripts.\n\n**Tried**\n- 2026-10-01 token-bucket rate limiter replacing the in-memory map (a1b2c3d)\n- 2026-10-01 sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter, still in place in src/limiter.ts (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: the bucket dropped legitimate requests during traffic bursts.\n\nPull requests: not searched, no GitHub remote. Tracker: not searched, /work-items:track not available.",
+      "why": "full report"
+    },
+    {
+      "answer": "Token bucket was reverted; the sliding window stayed.",
+      "why": "both named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The token-bucket limiter was reverted.",
+      "why": "sliding window missing"
+    },
+    {
+      "answer": "The sliding-window limiter is current.",
+      "why": "token bucket missing"
+    },
+    {
+      "answer": "Nothing found for rate limiter.",
+      "why": "neither"
+    }
+  ]
+}

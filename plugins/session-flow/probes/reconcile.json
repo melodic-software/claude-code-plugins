@@ -1,0 +1,130 @@
+{
+  "skill": "session-flow:reconcile",
+  "plugin": "session-flow",
+  "skill_dir": "plugins/session-flow/skills/reconcile",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are keep-going, orient, clean-stop, running-retro and handoff.",
+  "competitors": [
+    "session-flow:keep-going",
+    "session-flow:orient",
+    "session-flow:clean-stop",
+    "session-flow:running-retro",
+    "session-flow:handoff"
+  ],
+  "competitor_dirs": {
+    "session-flow:keep-going": "plugins/session-flow/skills/keep-going",
+    "session-flow:orient": "plugins/session-flow/skills/orient",
+    "session-flow:clean-stop": "plugins/session-flow/skills/clean-stop",
+    "session-flow:running-retro": "plugins/session-flow/skills/running-retro",
+    "session-flow:handoff": "plugins/session-flow/skills/handoff"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go through the spawned agents and close out the ones that are actually done."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My task list is full of items that finished long ago. Square it up."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is anything still running that I should retire?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Reconcile the ledger with what the background workers really did."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Check each off-thread task's real state and mark the finished ones complete."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Prune the finished work from this session's task list."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Some subagents are done and some aren't; sort out which is which and close the done ones."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The task ledger says seven things are in progress but I think most are finished. Verify."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Retire everything that's provably complete and just report the rest."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Close out the completed background tasks."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "reconcile the session"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "That agent looks stuck. Inspect it and restart it if needed."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Resume after the rate limit."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where does the session stand overall?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make sure all my work is pushed before shutdown."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Take a mid-session retro checkpoint."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a handoff for tomorrow."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Kill all running processes in this session."
+    }
+  ]
+}

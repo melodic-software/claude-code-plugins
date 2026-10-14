@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "The handoff has no `Original goal` section, which is a defect: I will not infer the goal from its phases.",
+      "why": "states the defect"
+    },
+    {
+      "answer": "**Original goal: missing.** The file lists remaining actions and completion criteria only.",
+      "why": "label form"
+    },
+    {
+      "answer": "This handoff lacks an Original goal, so the drift check cannot run.",
+      "why": "lacks"
+    },
+    {
+      "answer": "The handoff does not have an `Original goal` section, so I will not infer one from the phases.",
+      "why": "does not have"
+    },
+    {
+      "answer": "Its Original goal section is missing; that is a defect in the handoff.",
+      "why": "section is missing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Original goal: make retries back off exponentially with jitter. Continuing with phase 2.",
+      "why": "goal reconstructed from the process"
+    },
+    {
+      "answer": "The handoff has an Original goal section, so I continued from phase 2.",
+      "why": "claims the section is present"
+    },
+    {
+      "answer": "Resumed from the handoff; the goal is to finish the backoff change.",
+      "why": "never names the missing section"
+    },
+    {
+      "answer": "Missing pieces: jitter and the cap.\nOriginal goal is clear from the phases.",
+      "why": "missing on a different line"
+    },
+    {
+      "answer": "No problem here: Original goal is to back off retries. Continuing with phase 2.",
+      "why": "a stray no on the line"
+    },
+    {
+      "answer": "Original goal inferred from the phases; blockers: none.",
+      "why": "none describes something else"
+    }
+  ]
+}

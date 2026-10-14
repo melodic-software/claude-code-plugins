@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "{\"/session-flow:recall\": \"2026-10-13T09:00:00Z\", \"/session-flow:audit-sessions\": \"2026-10-13T09:00:00Z\", \"/session-flow:running-retro\": \"2026-10-13T09:00:00Z\"}\n",
+      "why": "one line"
+    },
+    {
+      "answer": "{\n  \"/session-flow:recall\": \"2026-10-13T09:00:00.123Z\",\n  \"/loop\": \"2026-10-13T09:00:00Z\",\n  \"/session-flow:retro\": \"2026-10-13T09:00:00Z\"\n}\n",
+      "why": "pretty, a built-in, fractional seconds"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"/session-flow:recall\": \"2026-10-13T09:00:00Z\", \"/session-flow:retro\": \"2026-10-13T09:00:00Z\"}\n",
+      "why": "two entries"
+    },
+    {
+      "answer": "{\"/session-flow:recall\": {\"ts\": \"2026-10-13T09:00:00Z\", \"rank\": 1}, \"/a:b\": \"2026-10-13T09:00:00Z\", \"/c:d\": \"2026-10-13T09:00:00Z\"}\n",
+      "why": "extra fields"
+    },
+    {
+      "answer": "[\"/session-flow:recall\", \"/session-flow:retro\", \"/session-flow:handoff\"]\n",
+      "why": "array, no timestamps"
+    },
+    {
+      "answer": "{\"/session-flow:recall\": \"2026-10-13\", \"/session-flow:retro\": \"2026-10-13\", \"/session-flow:handoff\": \"2026-10-13\"}\n",
+      "why": "dates only"
+    },
+    {
+      "answer": "{\"/a:b\": \"2026-10-13T09:00:00Z\", \"/c:d\": \"2026-10-13T09:00:00Z\", \"/e:f\": \"2026-10-13T09:00:00Z\", \"/g:h\": \"2026-10-13T09:00:00Z\"}\n",
+      "why": "four entries"
+    }
+  ]
+}

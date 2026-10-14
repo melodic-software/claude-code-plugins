@@ -1,0 +1,69 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "TaskList",
+          "input": {}
+        }
+      ],
+      "why": "list only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ps -ef"
+          }
+        }
+      ],
+      "why": "process read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "TaskStop",
+          "input": {
+            "task_id": "b1"
+          }
+        }
+      ],
+      "why": "stop"
+    },
+    {
+      "answer": [
+        {
+          "tool": "TaskList",
+          "input": {}
+        },
+        {
+          "tool": "TaskStop",
+          "input": {
+            "task_id": "b2"
+          }
+        }
+      ],
+      "why": "stop after list"
+    },
+    {
+      "answer": [
+        {
+          "tool": "TaskStop",
+          "input": {
+            "shell_id": "s1"
+          }
+        },
+        {
+          "tool": "TaskStop",
+          "input": {
+            "shell_id": "s2"
+          }
+        }
+      ],
+      "why": "two stops"
+    }
+  ]
+}

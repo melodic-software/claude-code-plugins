@@ -1,0 +1,69 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/<user>/w/.work/handoffs/20261013T090000Z-handoff-retry-backoff.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "repairs the save-point after a failed validate"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/<user>/w/src/retry.ts"
+          }
+        }
+      ],
+      "why": "reads the source"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/<user>/w/src/retry.ts",
+            "old_string": "// TODO cap at 30 seconds\n",
+            "new_string": ""
+          }
+        }
+      ],
+      "why": "keeps working on the source"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/retry.ts",
+            "old_string": "1000 * 2 ** attempt",
+            "new_string": "Math.min(30000, 1000 * 2 ** attempt)"
+          }
+        }
+      ],
+      "why": "relative path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/<user>/w/test.sh",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "edits the test"
+    }
+  ]
+}

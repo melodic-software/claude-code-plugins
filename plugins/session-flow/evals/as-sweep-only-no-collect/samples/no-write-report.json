@@ -1,0 +1,67 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/skills/audit-sessions/scripts/sweep.py\" --data-dir \"/d\" --format json --min-count 20 --versions 3 --since 2026-09-01"
+          }
+        }
+      ],
+      "why": "no report"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /d/audit-sessions"
+          }
+        }
+      ],
+      "why": "a listing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/skills/audit-sessions/scripts/sweep.py\" --data-dir \"/d\" --format json --min-count 20 --versions 3 --since 2026-09-01 --write-report"
+          }
+        }
+      ],
+      "why": "report written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/sweep.py\" --data-dir /d --write-report --format md"
+          }
+        }
+      ],
+      "why": "report with md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /d"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/sweep.py --data-dir /d --format json --write-report"
+          }
+        }
+      ],
+      "why": "second call writes"
+    }
+  ]
+}
