@@ -6,7 +6,7 @@ mkdir -p "${root}/hooks" "${root}/debug"
 cat >"${root}/hooks/slow-hook.sh" <<'SH'
 #!/usr/bin/env bash
 sleep 3
-date >>"${HOME}/hook-ran.log"
+date >>"$(dirname "$0")/../hook-ran.log"
 SH
 chmod +x "${root}/hooks/slow-hook.sh"
 hook="bash ${PWD}/${root}/hooks/slow-hook.sh"
