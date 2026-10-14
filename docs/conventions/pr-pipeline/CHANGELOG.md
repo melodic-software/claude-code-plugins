@@ -1,5 +1,10 @@
 # Changelog for the PR pipeline convention
 
+## 1.11.1 - 2026-10-14
+
+The live config gains the `pr-merge` lane with one `merge-pr` activity (effect `merge`, the babysit
+wrapper under `--authority pr-merge`), run by `.github/workflows/pr-merge.yml`. `version` stays 1.
+
 ## 1.11.0 - 2026-10-14
 
 Schema: `merge.report-only` (boolean, default false). README "Merge authority" describes it and

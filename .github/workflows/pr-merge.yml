@@ -1,0 +1,291 @@
+name: pr-merge
+
+# What this does, in plain words:
+#
+# Some pull requests are low-risk chores (labeled `work-class: mechanical`,
+# also called C2). Instead of the owner merging each one by hand, this
+# workflow asks the existing merge gate (the babysit merge script) about each
+# such PR and, when the gate says yes, adds the PR to GitHub's merge queue at
+# the exact commit the gate checked. The merge queue then runs CI one last
+# time and merges.
+#
+# It runs no AI model and never checks out a PR's own code: every script it
+# runs comes from the main branch. The rules live in
+# docs/conventions/pr-pipeline.yaml (`merge:` and `lanes.pr-merge`); while
+# `merge.report-only` is true there, the gate only reports what it would do
+# and changes nothing.
+#
+# How to stop it: set the CLAUDE_LANES_DISABLED (organization) or
+# CLAUDE_LANES_REPO_DISABLED (repository) Actions variable to anything but
+# "false". The first steps check that switch and stop the run.
+#
+# How to keep one PR from merging: put the line `Hold: a human merges this`
+# in its body, or add the `do-not-merge` label. The gate refuses both.
+
+on:
+  # Every trigger below is only a wake-up call. The run never trusts the event
+  # to say which PR to look at: it lists the open PRs from the GitHub API and
+  # checks each one, so any trigger leads to the same decisions.
+
+  # A check or a review finished, so a PR may have just become ready. These
+  # are the workflows behind `ci-status` and the two AI review lanes. Nothing
+  # from the finished run is downloaded or executed here.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [pr-require-checks, pr-review-hosted, pr-review-security-hosted]
+    types: [completed]
+
+  # A label or the PR body changed, or a draft became ready. pull_request_target
+  # runs this file as it is on main, not the PR's copy, so a PR cannot change
+  # what this lane does; the job below never checks out the PR's code.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
+    types: [labeled, unlabeled, edited, ready_for_review]
+
+  # A person can start a run by hand (Actions tab, "Run workflow") to retry a
+  # PR that looks stuck. Only a run on main does anything.
+  workflow_dispatch: {}
+
+  # Hourly backstop. Some changes start no workflow (a review thread resolved,
+  # a PR dropped from the merge queue, a missed webhook), so once an hour the
+  # lane looks at every candidate anyway. Its summary also lists candidates
+  # that are still blocked and have not changed for over 24 hours.
+  schedule:
+    - cron: "41 * * * *"
+
+permissions: {}
+
+# One run at a time, and a running one is never cancelled: a cancelled run
+# could stop between the gate's check and its merge-queue write. While one
+# runs, GitHub keeps at most one more waiting, which is enough because every
+# run re-reads every PR.
+concurrency:
+  group: pr-merge
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  merge:
+    # A run started on any other branch would use that branch's copy of this
+    # file, so it does nothing. pull_request_target runs carry the PR's base
+    # branch here, so PRs that do not target main are skipped too.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read # check out main
+      pull-requests: read # list the open PRs
+      id-token: write # prove to the token broker which workflow this is
+    outputs:
+      # `true` when a PR merged during this run and the gate could not start
+      # the follow-up full CI run itself (its token cannot start workflows).
+      dispatch: ${{ steps.gate.outputs.dispatch }}
+    steps:
+      # Everything below runs from main as it is right now, never from a PR.
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .base/.node-version
+          package-manager-cache: false
+
+      # The off switch, checked before anything else.
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+          repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      - name: Report the kill switch
+        if: steps.kill.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.kill.outputs.reason }}
+        run: echo "::notice::the lanes kill switch stops this run (reason ${REASON:-unreadable}); nothing checked or merged"
+
+      # The token broker gives this lane its merge token only when the person
+      # behind the run is a listed human (trusted-actors.json on main). Runs
+      # started by a bot, such as the lanes App pushing or labeling, or by an
+      # unlisted account, stop here quietly instead of failing; the hourly
+      # run picks up whatever they changed.
+      - name: Check who started the run
+        id: who
+        if: steps.kill.outputs.proceed == 'true'
+        env:
+          ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
+          LIST: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: |
+          set -euo pipefail
+          if [[ $ACTOR_ID =~ ^[1-9][0-9]*$ ]] &&
+            jq -e --argjson id "$ACTOR_ID" --arg login "$TRIGGERING_ACTOR" '
+              [.actors[] | select(.kind == "human")] as $humans
+              | ($humans | any(.id == $id))
+                and ($humans | any((.login | ascii_downcase) == ($login | ascii_downcase)))
+            ' "$LIST" >/dev/null; then
+            echo "proceed=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::started by ${TRIGGERING_ACTOR:-an unknown account}, who is not a listed human; nothing checked, the hourly run will look"
+            echo "proceed=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      # Reads the lane's rules from main and works out which token
+      # permissions its `merge-pr` activity gets.
+      - name: Resolve the config
+        id: config
+        if: steps.who.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: pr-merge
+          activity: merge-pr
+          base-path: .base
+          output-path: ${{ runner.temp }}/resolved-config.json
+
+      # Swaps this job's GitHub identity proof for a short-lived token of the
+      # lanes App, with exactly the permissions resolved above. The broker
+      # re-checks everything itself (main only, this file unchanged from main,
+      # kill switch, a listed human) and hands out one token per job.
+      - name: Request the lane token
+        id: lane-token
+        if: steps.config.outcome == 'success'
+        uses: ./.base/.github/actions/request-lane-token # zizmor: ignore[self-repository]
+        with:
+          broker-url: ${{ vars.LANES_BROKER_URL }}
+          audience: ${{ vars.LANES_BROKER_AUDIENCE }}
+          lane: pr-merge
+          activity: merge-pr
+          effect: ${{ steps.config.outputs.effect }}
+          contents: ${{ steps.config.outputs.contents }}
+          pull-requests: ${{ steps.config.outputs.pull-requests }}
+          issues: ${{ steps.config.outputs.issues }}
+
+      # Candidates: open, non-draft PRs into main that carry the C2 label.
+      # This is only a shortlist; the gate checks the label's origin and every
+      # other rule again. Read with the job's own read-only token.
+      - name: List the candidate PRs
+        id: candidates
+        if: steps.lane-token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh pr list --repo "$REPO" --base main --state open --limit 500 \
+            --json number,headRefOid,isDraft,updatedAt,labels |
+            jq -c '[.[] | select((.isDraft | not)
+              and any(.labels[]; (.name | ascii_downcase) == "work-class: mechanical"))
+              | {number, head: .headRefOid, updatedAt}]' >"$RUNNER_TEMP/candidates.json"
+          echo "count=$(jq length "$RUNNER_TEMP/candidates.json")" >>"$GITHUB_OUTPUT"
+
+      # The gate itself, once per candidate, using the lane App's token. It is
+      # the same script the local babysit loop uses, run as the pr-merge lane:
+      # it refuses on any hold, missing review, failing check, risk above LOW,
+      # a changed file on the denied list, or a head that moved since listing.
+      # When it passes (and report-only is off) it posts the checked commit as
+      # a pin comment and adds the PR to the merge queue at that commit.
+      - name: Run the merge gate on each candidate
+        id: gate
+        if: steps.candidates.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          SCRIPT: ${{ steps.config.outputs.script }}
+        run: |
+          set -euo pipefail
+          # The script and its flags come from the merge-pr activity on main.
+          read -ra args < <(jq -r '.selected.args // ""' "$RUNNER_TEMP/resolved-config.json")
+          results="$RUNNER_TEMP/results.jsonl"
+          : >"$results"
+          while read -r number head updated; do
+            out="$RUNNER_TEMP/gate-$number.json"
+            code=0
+            ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
+              --expected-head "$head" "$REPO#$number" </dev/null >"$out" || code=$?
+            echo "::group::PR #$number at $head: exit $code"
+            cat "$out"
+            echo "::endgroup::"
+            # Keep only the verdict fields; a gate that printed no JSON object
+            # is recorded as an error with its exit code.
+            jq -e 'type == "object"' "$out" >/dev/null 2>&1 || echo '{"error": "gate printed no JSON"}' >"$out"
+            jq -c --argjson n "$number" --arg head "$head" --arg updated "$updated" --argjson code "$code" '
+              {pr: $n, head: $head, updatedAt: $updated, exit: $code,
+               ready: (.ready == true), enqueued: (.enqueued == true), merged: (.merged == true),
+               reportOnly: .unattended.reportOnly, reason: (.unattended.reason // .error),
+               dispatched: .unattended.dispatched, blockers: (.blockers // [])}
+            ' "$out" >>"$results"
+          done < <(jq -r '.[] | "\(.number) \(.head) \(.updatedAt)"' "$RUNNER_TEMP/candidates.json")
+          jq -s . "$results" >"$RUNNER_TEMP/pr-merge-summary.json"
+          dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$RUNNER_TEMP/pr-merge-summary.json")
+          echo "dispatch=$dispatch" >>"$GITHUB_OUTPUT"
+
+      # The run's report: every candidate with its verdict, then the ones that
+      # are blocked and untouched for over 24 hours, which need a person.
+      - name: Write the summary
+        if: always() && steps.gate.outcome != 'skipped'
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          summary="$RUNNER_TEMP/pr-merge-summary.json"
+          [ -f "$summary" ] || echo '[]' >"$summary"
+          cutoff=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          # Backticks are dropped so PR-supplied text cannot end the code block.
+          {
+            echo "### pr-merge ($EVENT)"
+            echo
+            echo '```json'
+            jq '[.[] | .blockers |= map(gsub("`"; "") | .[0:300])]' "$summary"
+            echo '```'
+            echo
+            echo "#### Blocked for over 24 hours"
+            echo
+            jq -r --arg cutoff "$cutoff" '
+              [.[] | select(((.enqueued or .merged) | not) and .updatedAt < $cutoff)]
+              | if length == 0 then "None." else .[] | "- #\(.pr): \((.reason // "not ready") | tostring | gsub("`"; "") | .[0:200])" end
+            ' "$summary"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      # The token is cancelled as soon as the job is done; it would otherwise
+      # expire within the hour. This never fails the job.
+      - name: Revoke the lane token
+        if: always() && steps.lane-token.outputs.token != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.lane-token.outputs.token }}
+        run: |
+          # The header goes through stdin so the token never appears in a
+          # process listing.
+          status=$(printf 'Authorization: Bearer %s\n' "$GH_TOKEN" |
+            curl -sS -o /dev/null -w '%{http_code}' --max-time 30 -X DELETE -H @- \
+              -H 'Accept: application/vnd.github+json' "$GITHUB_API_URL/installation/token" || true)
+          if [ "$status" = 204 ]; then
+            echo "the lane token is revoked"
+          else
+            echo "::warning::the lane token was not revoked (DELETE $status); it expires within the hour"
+          fi
+
+  # After a merge, the post-merge check wants a full CI run of main. Starting
+  # a workflow needs `actions: write`, which the lane App token does not have,
+  # so this separate job does it with the job's own GitHub token. It runs only
+  # when a PR merged in this run and the gate could not start the run itself.
+  dispatch-full-run:
+    needs: merge
+    if: needs.merge.outputs.dispatch == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write # start pr-require-checks.yml on main
+    steps:
+      - name: Start the full CI run on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: gh workflow run pr-require-checks.yml --repo "$REPO" --ref main
