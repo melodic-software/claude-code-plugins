@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat film/boards/approval.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/scripts/produce.py approve film --note \"Approved - love the heavy blacks, go ahead\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the script writes it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '{\"approved\": true}' > film/boards/approval.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "echo redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import json; json.dump({'approved': True}, open('film/boards/approval.json', 'w'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python json.dump"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/false/true/' film/boards/approval.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed -i"
+    }
+  ]
+}

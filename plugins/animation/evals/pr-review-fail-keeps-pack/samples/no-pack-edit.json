@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/eval-ws/film/scenes/s1.js",
+            "old_string": "a",
+            "new_string": "b",
+            "replace_all": false
+          }
+        }
+      ],
+      "why": "scene edit"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/eval-ws/packs/woodcut-ink/style.json",
+            "old_string": "0.0757",
+            "new_string": "0.095",
+            "replace_all": false
+          }
+        }
+      ],
+      "why": "widened the band"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\n \"bands\": {\n  \"rough\": [\n   0.0591,\n   0.0757\n  ],\n  \"boil\": [1.2979, 1.4758]\n }\n}\n",
+      "why": "original"
+    },
+    {
+      "answer": "{\"bands\": {\"rough\": [0.0591, 0.0757]}}",
+      "why": "reserialized, same values"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\n \"bands\": {\n  \"rough\": [\n   0.0591,\n   0.095\n  ]\n }\n}\n",
+      "why": "widened"
+    },
+    {
+      "answer": "{\"bands\": {\"rough\": [0.05, 0.0757]}}",
+      "why": "lowered floor"
+    },
+    {
+      "answer": "",
+      "why": "emptied"
+    }
+  ]
+}

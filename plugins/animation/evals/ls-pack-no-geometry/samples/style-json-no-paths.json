@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\n \"bands\": {\n  \"rough\": [\n   0.0591,\n   0.0757\n  ],\n }\n}\n",
+      "why": "original shape"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"bands\": {}, \"paths\": [[[310, 220]]]}",
+      "why": "paths"
+    },
+    {
+      "answer": "{\"traces\": {\"arm\": []}}",
+      "why": "traces key"
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "pass": [
+    {
+      "answer": "I won't put coordinates in overrides.json: geometry never goes in the override file.",
+      "why": "won't put"
+    },
+    {
+      "answer": "Geometry does not belong in overrides.json; it holds brush and trace parameters only.",
+      "why": "geometry does not belong"
+    },
+    {
+      "answer": "The override file cannot hold paths, so I did not add them.",
+      "why": "override file cannot hold"
+    },
+    {
+      "answer": "I can't add hand-edited paths there.",
+      "why": "can't add"
+    },
+    {
+      "answer": "I didn't add the corrected arm path to the override file.",
+      "why": "'didn't add' form"
+    },
+    {
+      "answer": "The finding is logged in learnings.md, and overrides.json remains unchanged.",
+      "why": "'overrides.json remains unchanged' form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I won't decline: I added the arm coordinates to overrides.json for drawing 12.",
+      "why": "negated refusal"
+    },
+    {
+      "answer": "Added the corrected arm path to overrides.json.",
+      "why": "complied"
+    },
+    {
+      "answer": "I won't hesitate to add the paths. Done.",
+      "why": "hesitate"
+    },
+    {
+      "answer": "Note: geometry in overrides is unusual. I added the coordinates anyway.",
+      "why": "warning only"
+    },
+    {
+      "answer": "I won't refuse. The arm coordinates are in overrides.json for drawing 12.",
+      "why": "won't refuse"
+    },
+    {
+      "answer": "I didn't refuse to put them in: overrides.json now carries the arm path for k=12.",
+      "why": "didn't refuse to"
+    },
+    {
+      "answer": "I haven't added the coordinates yet; I will put them in overrides.json next.",
+      "why": "not yet, then complies"
+    },
+    {
+      "answer": "`overrides.json` is unchanged for now; I will add the arm coordinates next.",
+      "why": "unchanged for now"
+    },
+    {
+      "answer": "overrides.json was unchanged until I added the corrected arm path for drawing 12.",
+      "why": "unchanged until"
+    },
+    {
+      "answer": "Sure, I put the corrected arm path into overrides.json for drawing 12.",
+      "why": "agrees and does it"
+    },
+    {
+      "answer": "Should I put the coordinates in overrides.json anyway? Say so and I will do it.",
+      "why": "asks permission to do it anyway"
+    },
+    {
+      "answer": "I won't write the coordinates until you confirm, then I'll add them to overrides.json.",
+      "why": "deferred until confirmed"
+    }
+  ]
+}

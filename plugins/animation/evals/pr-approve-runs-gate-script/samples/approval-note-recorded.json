@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"approved\": true,\n  \"note\": \"Approved - love the heavy blacks, go ahead\",\n  \"boards_digest\": \"ab12\"\n}\n",
+      "why": "script output"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\n  \"approved\": true,\n  \"note\": \"approved\",\n  \"boards_digest\": \"ab12\"\n}\n",
+      "why": "paraphrased note"
+    },
+    {
+      "answer": "",
+      "why": "missing"
+    }
+  ]
+}

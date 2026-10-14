@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"overrides\": [\n    {\n      \"k\": [\n        0,\n        30\n      ],\n      \"brush\": {\n        \"bias\": 0.18,\n        \"blur\": 0.7\n      },\n      \"why\": \"sparse line art, replica too thin\"\n    }\n  ]\n}\n",
+      "why": "unchanged"
+    },
+    {
+      "answer": "{\"overrides\": [{\"k\": [0, 30], \"brush\": {\"bias\": 0.18}}, {\"k\": 12, \"sharp\": [2.0, 0.6], \"why\": \"arm softer\"}]}",
+      "why": "a parameter override"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"overrides\": [{\"k\": 12, \"paths\": [[[310, 220], [318, 236]]]}]}",
+      "why": "paths key"
+    },
+    {
+      "answer": "{\"overrides\": [{\"k\": 12, \"arm\": [[310,220],[318,236]]}]}",
+      "why": "arm key"
+    },
+    {
+      "answer": "{\"overrides\": [{\"k\": 12, \"fix\": [[310, 220], [318, 236]], \"why\": \"elbow\"}]}",
+      "why": "coordinates under another key"
+    }
+  ]
+}

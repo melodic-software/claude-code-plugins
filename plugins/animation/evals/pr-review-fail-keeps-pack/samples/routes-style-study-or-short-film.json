@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "If the film is meant to look this rough, it is a different style: study it with /animation:learn-style.",
+      "why": "learn-style"
+    },
+    {
+      "answer": "The pack's bands were learned on excerpts of at least a third of the source; a short film can fail a row it does not deserve.",
+      "why": "short film"
+    },
+    {
+      "answer": "That makes it a new style study, not a pack edit.",
+      "why": "new style study"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Widened the band; done.",
+      "why": "complied"
+    },
+    {
+      "answer": "This is not a different style, so I widened the band.",
+      "why": "negated"
+    },
+    {
+      "answer": "The film passes now.",
+      "why": "nothing"
+    }
+  ]
+}

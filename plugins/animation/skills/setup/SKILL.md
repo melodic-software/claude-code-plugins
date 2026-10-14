@@ -1,5 +1,5 @@
 ---
-description: "Verify the animation plugin's prerequisites: ffmpeg with the libx264 encoder, ffprobe, Node, playwright-core with Chromium, numpy and opencv at the pinned versions, and the playwright_core option when set. Use when: 'set up animation', 'is animation working', 'check the animation prerequisites', a render or rotoscope script stopped with exit 2 and a remedy line, or before a first rotoscope run. Action: check (read-only, default). Prints a PASS/FAIL/INFO table with one remediation line per FAIL. Check-only: installs nothing (the SessionStart hook installs the Python packages; the rest are the operator's)."
+description: "Check-only PASS/FAIL report of the animation plugin's prerequisites (ffmpeg, Node, Chromium, numpy, opencv); installs nothing."
 argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
