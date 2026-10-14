@@ -27,9 +27,12 @@ the listing budget), with the full body loading only when the skill is invoked
 recheck when that page stops describing the listing as name-plus-description
 with the body loaded on invocation, or when a release note changes what the
 skill listing carries).
-A skill set to `disable-model-invocation: true` is **manual-only** and absent
-from the model's listing (the inverse, `user-invocable: false`, stays in the
-model's listing but is hidden from the `/` menu). This corrector therefore audits only what the model
+A **manual-only** skill never reaches the model's listing; which frontmatter
+makes a skill manual-only, and which only hides it from the `/` menu while
+leaving it model-visible:
+[Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill),
+as of 2026-10-14; recheck when that section changes which flag removes a skill
+from the model's listing. This corrector therefore audits only what the model
 could actually have reached: a **model-visible** skill that sat in the listing
 and went unused, its procedure reinvented or skipped instead of invoked. It
 does not fault the model for not auto-firing a manual-only skill.
