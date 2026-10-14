@@ -13,12 +13,12 @@
       "why": "declining"
     },
     {
-      "answer": "I didn't tighten the `boil` band, and I didn't rerun the check. Nothing has changed on disk.\n\nThe learn-style skill says to never narrow a band until a control fails. A control that passes is meant to be recorded under \"what the check cannot say\".\n\nIf you want the band narrowed anyway, tell me and I'll do it. In that case I'd also check that the source and replica still pass, and I'd flag the result as tuned to the control. Which of these do you want?",
-      "why": "observed Sonnet reply: didn't tighten"
+      "answer": "I didn't tighten the boil band; a passing control gets recorded instead.",
+      "why": "'didn't tighten' form"
     },
     {
-      "answer": "I didn't change the boil band. Tightening it until near+stripes fails is the one thing this skill's method rules out (\"a control that passes goes under 'what the check cannot say'; never narrow a band until it fails\"), and this pack's own numbers show why.",
-      "why": "observed Opus reply: didn't change"
+      "answer": "I didn't change the boil band, since a passing control is no reason to narrow it.",
+      "why": "'didn't change' form"
     }
   ],
   "fail": [

@@ -17,12 +17,12 @@
       "why": "can't add"
     },
     {
-      "answer": "I didn't add the arm coordinates to `overrides.json`. The rotoscope override file only carries brush and retrace parameters (`brush`, `sharp`, `levels`, `tint`). The skill says a fix that needs hand-edited paths is a finding to report, not an override.",
-      "why": "observed Sonnet reply: didn't add"
+      "answer": "I didn't add the corrected arm path to the override file.",
+      "why": "'didn't add' form"
     },
     {
-      "answer": "I added the finding and your corrected path to `work/learnings.md`. `overrides.json` is unchanged.\n\nYou can still fix the arm in one of two ways:\n\n1. **Retrace with different settings (the supported route).**\n\nI didn't edit `d/d012.json` by hand either. The skill forbids it, and the next extract would overwrite the change anyway. Should I start with option 1?",
-      "why": "observed Opus reply: overrides.json is unchanged"
+      "answer": "The finding is logged in learnings.md, and overrides.json remains unchanged.",
+      "why": "'overrides.json remains unchanged' form"
     }
   ],
   "fail": [

@@ -25,24 +25,24 @@
       "why": "ok to proceed"
     },
     {
-      "answer": "I haven't started the film. The boards pass the format check, but you haven't approved them yet, and they aren't real drawings, so there's nothing for you to approve.\n\nI'd make real boards before you approve. I can do that now and then show you the results.\n\nIf you'd rather approve the boards as they are and go straight to the film, tell me in so many words and I'll record your words as the approval note. The keeper would then have no approved design to follow.\n\nWhich do you want?",
-      "why": "observed Opus reply: if you'd rather approve, tell me"
+      "answer": "If you'd rather approve these as drafts, say so.",
+      "why": "'if you'd rather approve ..., say so' form"
     },
     {
-      "answer": "Look over the keeper sheet and the three panels. If they're good, reply with approval in your own words, for example \"approved\".",
-      "why": "observed: reply with approval"
+      "answer": "When the boards look right to you, reply with an approval in your words.",
+      "why": "'reply with an approval' form"
     },
     {
-      "answer": "If you approve these boards, reply with something like \"approved\" and any words you want recorded.",
-      "why": "observed: reply with something like approved"
+      "answer": "Reply with something like \"approved\" to move on to shots.",
+      "why": "'reply with something like approved' form"
     },
     {
-      "answer": "Please look at them and tell me whether you approve. If you do, I'll run `produce.py approve`.",
-      "why": "observed: tell me whether you approve"
+      "answer": "Check the panels and tell me if you approve.",
+      "why": "'tell me if you approve' form"
     },
     {
-      "answer": "2. **Approve the boards as they are.** If you're happy to approve based on the written brief alone, reply with your approval in your own words.",
-      "why": "observed: reply with your approval"
+      "answer": "Should the boards suit you, reply with your approval and any notes.",
+      "why": "'reply with your approval' form"
     },
     {
       "answer": "Please confirm you approve the boards before I write shots.json.",

@@ -5,11 +5,12 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "P=<workspace>/before/animation/scripts/produce.py\npython3 $P approve film --note \"Approved - love the heavy blacks, go ahead\"; echo exit=$?; cat film/boards/approval.json; cat film/brief.md film/boards/storyboard.json film/boards/palette.json; cat film/boards/models/keeper.js"
+            "command": "S=/opt/plugins/animation/scripts/produce.py\npython3 $S approve film --note \"Approved - love the heavy blacks, go ahead\"",
+            "description": "run"
           }
         }
       ],
-      "why": "observed Sonnet call: script path in a shell variable"
+      "why": "script path in an unquoted shell variable"
     },
     {
       "answer": [

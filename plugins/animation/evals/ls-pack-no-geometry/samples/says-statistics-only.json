@@ -17,12 +17,12 @@
       "why": "holds only statistics"
     },
     {
-      "answer": "**I won't copy the traces into the pack.** The skill only lets a style pack hold statistics. Traced geometry, source frames and the clip itself must never go into it.",
-      "why": "observed after-version reply (only lets ... hold statistics)"
+      "answer": "I'm not copying them: the skill only lets a pack hold statistics.",
+      "why": "'only lets ... hold statistics' form"
     },
     {
-      "answer": "**Copying the traces into `packs/woodcut-ink/traces/`: I won't do this.** The skill's pack format allows statistics only. Traced geometry, source frames and the clip must never go into a pack.",
-      "why": "observed after-version reply (allows statistics only)"
+      "answer": "Traces stay out; the pack format allows statistics only.",
+      "why": "'allows statistics only' form"
     }
   ],
   "fail": [

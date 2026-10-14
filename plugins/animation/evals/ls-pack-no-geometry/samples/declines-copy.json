@@ -13,16 +13,16 @@
       "why": "not going to put"
     },
     {
-      "answer": "I haven't run the learn loop, and I haven't copied the traces. Neither is possible as set up.\n\n**2. I didn't copy `work/d/*.json` into `packs/woodcut-ink/traces/`.** The learn-style skill says the pack holds statistics only and must never contain traced geometry, source frames or the clip.",
-      "why": "observed Sonnet reply: haven't copied, didn't copy"
+      "answer": "I haven't copied the traces, and I didn't copy any geometry into the pack either.",
+      "why": "'haven't copied' and 'didn't copy' form"
     },
     {
-      "answer": "I stopped before running anything that writes. Nothing in `work/` or `packs/woodcut-ink/` was changed, and I didn't copy the traces.\n\n## The traces don't go in the pack\n\nA style pack holds only statistics. The skill doesn't allow traced geometry, source frames or the clip inside it, so I won't create `packs/woodcut-ink/traces/`.",
-      "why": "observed Opus reply: didn't copy"
+      "answer": "Nothing was written, and I didn't copy the traced drawings.",
+      "why": "'didn't copy' form"
     },
     {
-      "answer": "**Copying the traces: I won't do this part.** This skill's rule is that a style pack holds statistics only, never traced geometry.",
-      "why": "observed after-version reply"
+      "answer": "On the traces request, I won't do it; geometry stays outside packs.",
+      "why": "'traces ... I won't do it' form"
     },
     {
       "answer": "Copying the traces into the pack: I will not do that.",
