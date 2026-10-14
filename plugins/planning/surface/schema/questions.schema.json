@@ -248,6 +248,14 @@
         "id": {"type": "string"},
         "group": {"type": "string"},
         "round": {"type": "integer"},
+        "addedInRound": {
+          "type": "integer",
+          "description": "The newest round when this question was added, written only when that is above its own round: it was asked after a later round was posted."
+        },
+        "binary": {
+          "type": "boolean",
+          "description": "A yes/no question: true lets it carry one alternative instead of two."
+        },
         "stage": {"type": "string"},
         "short": {"type": "string"},
         "title": {"type": "string"},
