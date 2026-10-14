@@ -1,0 +1,126 @@
+{
+  "skill": "architecture:improve",
+  "plugin": "architecture",
+  "skill_dir": "plugins/architecture/skills/improve",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are map-dependencies and map-components, which also answer which module references which, and map-landscape for repo-level questions. improve owns module-design friction and boundary checks that lead to a redesign interview; the map skills only chart cited edges.",
+  "competitors": [
+    "architecture:map-dependencies",
+    "architecture:map-components",
+    "architecture:map-landscape"
+  ],
+  "competitor_dirs": {
+    "architecture:map-dependencies": "plugins/architecture/skills/map-dependencies",
+    "architecture:map-components": "plugins/architecture/skills/map-components",
+    "architecture:map-landscape": "plugins/architecture/skills/map-landscape"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our service layer is full of thin wrappers that just forward calls. Can you find where the modules are too shallow?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I think the code is hard to test because logic is scattered everywhere. Where would deepening a module help most?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Let's design this module interface twice and compare the alternatives before we pick one."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go through the repo and tell me which classes leak their internals across seams."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Where does one change force edits in five different files? I want locality candidates."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check that our domain layer never reaches into infrastructure and list the offenders."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me an HTML report of architectural friction in this codebase, then walk me through the worst one."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which references cross our layering rules? I want to know before the next refactor."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Help me restructure this tangle of helpers into fewer, deeper modules."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Interview me about the most promising refactoring candidate in the billing code."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw the project reference graph for the solution with the csproj line for every edge."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Chart the modules inside the Orders API as a component diagram."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What are all the systems and repos we own, and who owns each?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Give me a ranked list of everything we should improve across code, config and performance."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which projects reference the shared Contracts library?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Draw a C4 context diagram of what this system talks to."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write an ADR for why we chose Postgres over Mongo."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find unused code in the repo and delete it."
+    }
+  ]
+}

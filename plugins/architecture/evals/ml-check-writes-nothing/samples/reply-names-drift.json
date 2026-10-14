@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Drift against docs/architecture/landscape.json (exit 3):\n  removed edge: acme-labs/legacy-reports cites\n  added edge: acme-labs/pricing-engine cites\n  moved on storefront: last_touched (non-gating)\n\n- **Artifacts**: none written (--check)"
+    },
+    {
+      "answer": "The committed record drifted: the edge to acme-labs/pricing-engine is new and acme-labs/legacy-reports is gone. Outcome: exit 3."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No drift: the committed landscape.json matches. Only last_touched moved on storefront."
+    },
+    {
+      "answer": "Drift found: removed edge acme-labs/legacy-reports. I refreshed the record."
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: md-prisma-sql-mismatch
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: prisma-tier-wins
+    type: regex
+    pattern: '"source_tool"\s*:\s*"prisma"[\s\S]*"cardinality"\s*:\s*"\|\|--o\{"'
+    target: { source: file, path: docs/architecture/data-model.json }
+  - name: mismatch-recorded
+    type: regex
+    pattern: '"kind"\s*:\s*"cardinality"[^\n]*\|\|--o\{ in prisma and \|\|--o\| in sql-migration'
+    target: { source: file, path: docs/architecture/data-model.json }
+  - name: diagram-stays-one-to-many
+    type: regex
+    pattern: '^(?![\s\S]*\|\|--o\|)(?![\s\S]*\|\|--\|\{)[\s\S]*\bUser \|\|--o\{ Post\b'
+    target: { source: file, path: docs/architecture/data-model.md }
+  - name: reply-reports-mismatch
+    type: regex
+    pattern: '\bmismatch(?:es)?\b(?:[*`_ \t]*(?:=|:)[*`_ \t]*|\s+(?:count\s+)?(?:is\s+)?)(?:1|one)\b|(?<!\bnot\s)(?<!\bnot even\s)\b(?:1|one)\s+(?:cardinality\s+)?mismatch'
+    flags: 'i'
+    target: last_message

@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: ml-check-writes-nothing
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: record-unchanged
+    type: regex
+    pattern: '^(?![\s\S]*pricing-engine)[\s\S]*"to"\s*:\s*"acme-labs/legacy-reports"'
+    target: { source: file, path: docs/architecture/landscape.json }
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-render
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'render-landscape'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\bcp\b|\bmv\b|\binstall\b|\bdd\b(?:[^"\\]|\\.)*?\bof=|\bsed\s+-i|\bperl\s+-\S*i|\btee\b|\bmkdir\b|\btouch\b|\brm\s|(?:>\||>>?)\s*(?:\\")?(?!/dev/null|/tmp/)[\w./~-]*\.(?:json|md|svg|html|puml|c4|mmd|txt)\b|\b(?:python3?\s+-c|node\s+-e)\b(?:[^"\\]|\\.)*?(?:write|dump|shutil\.(?:move|copy\w*)|os\.(?:rename|replace)|\.rename\(|\.replace\((?=\s*[^,()]*(?:\([^()]*\)[^,()]*)?\))|copyFile(?:Sync)?|rename(?:Sync)?|cp(?:Sync)?\(|(?:os|fs)\.(?:sym)?link(?:Sync)?|''[wa]\+?''|\\"[wa]\+?\\")|\|\s*(?:bash|zsh|dash|sh)\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: reply-names-drift
+    type: regex
+    pattern: '^(?=[\s\S]*\blegacy-reports\b)(?=[\s\S]*\bpricing-engine\b)'
+    target: last_message

@@ -1,0 +1,287 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <plugin>/skills/map-landscape/scripts/collect-landscape.sh --drift-against \"docs/architecture/landscape.json\" --edges-from . . 2>&1 | head -50",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.edges | map(select(.weight > 1)) | length' docs/architecture/landscape.json",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read-only check"
+    },
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import json; print(len(json.load(open('docs/architecture/landscape.json'))['edges']))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"print('a-b'.replace('-','_'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read-only str.replace"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import os; print(os.readlink('docs'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read-only readlink"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"s='x y'; k='x'; v='z'; print(s.replace(k, v))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "two-argument replace"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; s='xyz'; print(s.replace(Path('x').name, 'q'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "two-argument replace"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/new.json docs/architecture/landscape.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cp"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash collect-landscape.sh --edges-from . . > docs/architecture/landscape.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv landscape.new docs/architecture/landscape.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "mv"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/legacy-reports/pricing-engine/' docs/architecture/landscape.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed -i"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'bash render-it.sh' | bash",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pipe to shell"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "install -m 644 /tmp/l.json docs/architecture/landscape.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "install"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf x > \"docs/architecture/landscape.md\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo x >| docs/architecture/landscape.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": ">| clobber"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "perl -pi -e s/a/b/ docs/architecture/landscape.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "perl in-place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"open('docs/architecture/landscape.md','w').write('x')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; Path('docs/architecture/landscape.md').write_text('x')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import shutil; shutil.move('/tmp/x.md','docs/architecture/landscape.md')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter move"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"require('fs').copyFileSync('/tmp/x.md','docs/architecture/landscape.md')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; Path('/tmp/x.md').replace('docs/architecture/landscape.md')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib replace"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; Path('/tmp/x.md').replace(Path('/tmp/landscape.md'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib replace with Path argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; dst='docs/architecture/landscape.md'; p=Path('/tmp/x.md'); p.replace(dst)\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib replace with variable target"
+    }
+  ]
+}

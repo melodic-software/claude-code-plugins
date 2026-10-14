@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: mf-interface-hop-unresolved
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: interface-hop-unresolved
+    type: regex
+    pattern: '"call"\s*:\s*"Place"[^\n]*"resolution"\s*:\s*"unresolved"[^\n]*"mechanism"\s*:\s*"interface"'
+    target: { source: file, path: docs/architecture/flow.json }
+  - name: no-bound-implementation
+    type: regex
+    pattern: 'OrderService\.cs|OrderRepository\.cs|"call"\s*:\s*"Save"'
+    match: 'not_contains'
+    target: { source: file, path: docs/architecture/flow.json }
+  - name: publish-is-handoff
+    type: regex
+    pattern: '"call"\s*:\s*"Publish<OrderPlaced>"[^\n]*"sync"\s*:\s*"asynchronous"[^\n]*"handoff"\s*:\s*"yes"'
+    target: { source: file, path: docs/architecture/flow.json }
+  - name: view-hands-off-to-map-events
+    type: regex
+    pattern: '-->>[^\n]*Publish<OrderPlaced>[^\n]*/architecture:map-events'
+    target: { source: file, path: docs/architecture/flow.md }
+  - name: reply-reports-di-hop
+    type: regex
+    pattern: '\bdi\b[*`_ \t]*(?:=|:)[*`_ \t]*1\b|(?<!\bnot\s)(?<!\bnot even\s)\b(?:1|one)\s+(?:interface|DI|dependency[- ]injection)(?:[- ]|\s+or\s+service[- ]locator\s+)?hops?\b'
+    flags: 'i'
+    target: last_message

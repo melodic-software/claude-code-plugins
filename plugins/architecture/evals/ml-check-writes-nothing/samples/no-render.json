@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <plugin>/skills/map-landscape/scripts/landscape-record.sh --drift-against docs/architecture/landscape.json --edges-from . .",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <plugin>/skills/map-landscape/scripts/render-landscape.sh --record docs/architecture/landscape.json --out docs/architecture --dialect mermaid",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <plugin>/skills/map-landscape/scripts/landscape-record.sh --edges-from . . | tee docs/architecture/landscape.json",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <plugin>/skills/map-landscape/scripts/render-landscape.sh --record docs/architecture/landscape.json --out docs/architecture",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}
