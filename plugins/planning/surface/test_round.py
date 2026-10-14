@@ -3019,6 +3019,99 @@ class TestRoundTooling(DirCase):
         self.assertIn("- Q5 | open | round 1 (added in round 2) | Question Q5? |", text)
         self.assertIn("- Q4 | open | round 2 | Question Q4? |", text)
 
+    def test_a_binary_question_with_two_alternatives_is_refused(self):
+        q = question("Q4", binary=True)
+        out = self.assert_refused("add-round", "--file", self.round_file(q))
+        self.assertIn("Q4 has 2 alternatives; a binary question has exactly 1", out)
+
+    def test_revise_refuses_two_alternatives_on_a_binary_question(self):
+        q = question("Q4", binary=True, alternatives=[{"key": "a", "text": "No"}])
+        self.rp("add-round", "--file", self.round_file(q))
+        out = self.assert_refused("revise", "Q4", "--alt", "a:No", "--alt", "b:Later")
+        self.assertIn("a binary question has exactly 1", out)
+
+    def test_check_says_what_it_would_add(self):
+        rc, out, err = self.rp(
+            "add-round",
+            "--file",
+            self.round_file(question("Q4")),
+            "--round",
+            "2",
+            "--check",
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("check passed, nothing written: round 2 would add Q4", out)
+        self.assertNotIn("added", out)
+
+    def test_sync_ledger_refuses_a_ledger_without_one_register_heading(self):
+        two = (
+            self.LEDGER
+            + "\n## Open-question register\n\n- Q2 | open | round 1 | Two? |\n"
+        )
+        for name, text, heads in (
+            ("none.md", "# Interview ledger\n\n- Q1 | open | round 1 | One? |\n", 0),
+            ("two.md", two, 2),
+        ):
+            ledger = self.tmp / name
+            ledger.write_text(text, encoding="utf-8")
+            out = self.assert_refused(
+                "add-round",
+                "--file",
+                self.round_file(question("Q4")),
+                "--sync-ledger",
+                str(ledger),
+            )
+            self.assertIn(f"{heads} open-question register headings, not one", out)
+            self.assertEqual(ledger.read_text(encoding="utf-8"), text)
+
+    def test_questions_in_one_file_date_against_the_round_before_the_write(self):
+        # The page's newest round is 1; Q4 opens round 2 and Q5 is a round 1 question in the
+        # same file, so neither was asked after a later round was posted.
+        rc, out, err = self.rp(
+            "add-round",
+            "--file",
+            self.round_file(question("Q4", round=2), question("Q5", round=1)),
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("addedInRound", self.q("Q4"))
+        self.assertNotIn("addedInRound", self.q("Q5"))
+
+    def test_sync_appends_the_added_note_to_a_ledger_cell_that_names_the_round(self):
+        doc = base_doc()
+        doc["questions"].append(question("Q4", round=2))
+        doc["questions"].append(question("Q5", round=1, addedInRound=2))
+        self.write_doc(doc)
+        ledger = self.tmp / "interview-checklist.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q5 | open | round 1 (sweep) | Question Q5? |\n",
+            encoding="utf-8",
+        )
+        rc, out, err = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out + err)
+        row = "- Q5 | open | round 1 (sweep) (added in round 2) | Question Q5? |"
+        self.assertIn(row, ledger.read_text(encoding="utf-8").splitlines())
+        # A second sync leaves the note it wrote alone.
+        rc, out, err = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(row, ledger.read_text(encoding="utf-8").splitlines())
+
+    def test_import_ledger_restores_added_in_round(self):
+        fresh = self.tmp / "fresh"
+        fresh.mkdir()
+        ledger = self.tmp / "seed.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | open | round 3 | One? |\n"
+            "- Q2 | open | round 1 (added in round 3) | Two? |\n",
+            encoding="utf-8",
+        )
+        rc, out, err = run_round(fresh, "import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out + err)
+        qs = json.loads((fresh / "questions.json").read_text(encoding="utf-8"))
+        added = {q["id"]: q.get("addedInRound") for q in qs["questions"]}
+        self.assertEqual(added, {"Q1": None, "Q2": 3})
+
 
 if __name__ == "__main__":
     unittest.main()

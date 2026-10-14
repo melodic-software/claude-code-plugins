@@ -98,6 +98,7 @@ FENCE = re.compile(r"^\s*(```|~~~)")
 MID_SENTENCE = re.compile(r"[.!?)\"'`\]]$")
 QN = re.compile(r"^Q[1-9][0-9]*$")
 ROUND_CELL = re.compile(r"^\s*round\s+([0-9]+)", re.IGNORECASE)
+ADDED = re.compile(r"\(added in round\s+([0-9]+)\)", re.IGNORECASE)
 # Register statuses that leave a question unresolved; superseded-by-plan is a plan's
 # displacement of a user answer, waiting on the user's explicit reply.
 UNSETTLED = ("open", "superseded-by-plan")
@@ -598,10 +599,11 @@ def row_line(r):
 def round_cell(rnd, cell, added=None):
     """A row's round cell: `cell` (a ledger's own text, label and all) while it still names round
     `rnd`, else `round <rnd>`, followed by `(added in round <added>)` for a question asked after
-    a later round was posted."""
+    a later round was posted, unless the cell already carries that note."""
+    note = f" (added in round {added})" if added else ""
     if cell and round_of(cell)[0] == rnd:
-        return cell
-    return f"round {rnd}" + (f" (added in round {added})" if added else "")
+        return cell if not note or ADDED.search(cell) else cell + note
+    return f"round {rnd}{note}"
 
 
 def ledger_register(text):
@@ -730,13 +732,20 @@ def export_ledger(d, text=None):
     return "\n".join(out) + "\n"
 
 
+def check_ledger(text, where):
+    """(heads, rows) of scan_register over the ledger's lines, or the refusal sync_ledger makes
+    on the ledger text: a register heading count other than one."""
+    heads, found = scan_register([line.rstrip("\r\n") for line in text.splitlines()])
+    if len(heads) != 1:
+        refuse(f"{len(heads)} open-question register headings, not one", where)
+    return heads, found
+
+
 def sync_ledger(d, text, where):
     """(text, notes): the ledger's text with its live register rows, and nothing else, replaced
     by merged_register's rows, written where the first row stood."""
     lines = text.splitlines(keepends=True)
-    heads, found = scan_register([line.rstrip("\r\n") for line in lines])
-    if len(heads) != 1:
-        refuse(f"{len(heads)} open-question register headings, not one", where)
+    heads, found = check_ledger(text, where)
     _, rows, notes = merged_register(d, text)
     drop = {i for i, _ in found}
     at = min(drop) if drop else heads[0] + 1
@@ -1458,7 +1467,7 @@ def import_ledger(doc, text, ledger, at):
     rows = parse_register(text)
     if not rows:
         raise SystemExit(f"refused: no open-question register rows in {ledger}")
-    seeded, seen, cells = {}, set(), {}
+    seeded, seen, cells, added_in = {}, set(), {}, {}
     for n, status, rnd, title, res, cell in rows:
         lead = LEAD.match(res)
         qid, res = (lead.group(1), lead.group(2)) if lead else (f"Q{n}", res)
@@ -1473,6 +1482,9 @@ def import_ledger(doc, text, ledger, at):
             )
         if cell != f"round {rnd}":
             cells[qid] = cell
+        added = ADDED.search(cell)
+        if added and int(added.group(1)) > rnd:
+            added_in[qid] = int(added.group(1))
         if status not in (*UNSETTLED, "answered", "deferred", "withdrawn", "blocked"):
             raise SystemExit(f"refused: unknown status {status!r} for Q{n} in {ledger}")
         named = parse_named(res, ledger)
@@ -1569,6 +1581,9 @@ def import_ledger(doc, text, ledger, at):
             note += f" {res}"
         q["history"] = [{"at": at, "by": by, "kind": "seed", "text": note}]
         doc["questions"].append(q)
+    for q in doc["questions"]:
+        if q["id"] in added_in:
+            q["addedInRound"] = added_in[q["id"]]
     meta = doc.setdefault("meta", {})
     meta.setdefault("title", f"Seeded from {Path(ledger).name}")
     meta["seededFrom"] = {"ledger": ledger, "at": at, "rows": seeded}

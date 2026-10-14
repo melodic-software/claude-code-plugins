@@ -37,15 +37,15 @@ python round.py --dir DATA_DIR <command> ...   (--dir is required; it may also f
 Every write validates questions.json against schema/questions.schema.json and holds the sidecar
 lock questions.json.lock (ROUND_LOCK_TIMEOUT seconds, default 10).
 New questions need a `commits` key (an explicit empty list is allowed; `--commit none` on the
-flags) and at least two alternatives (one for a yes/no question flagged `"binary": true`, whose
-alternative may not repeat or contain the recommendation).
+flags) and at least two alternatives (exactly one for a yes/no question flagged `"binary": true`,
+whose alternative may not repeat or contain the recommendation).
 reply --rec and revise --rec need --affects <id,...>|none, and refuse when the question has a live
 user event newer than --seq (an undo or a withdrawn event does not count; without --seq: any
 unhandled user event on it), unless --force. A recommendation change also sets aside the
 question's counted `own` answer; record-terminal --decision own records the resolved decision.
 reply --rec and revise --rec need --alt (the revised alternatives) or --keep-alternatives (the
 current ones were checked against the new recommendation) and refuse with neither (R-I); --alt
-keeps at least two alternatives (one on a binary question). reply --rec and revise --rec or --alt
+keeps at least two alternatives (exactly one on a binary question). reply --rec and revise --rec or --alt
 refuse when an alternative, case and trailing punctuation folded, equals or contains (as whole
 words) the recommendation or is contained by it; pass revised alternatives in the same op (--alt).
 revise --commit replaces the commitment list (`--commit none` alone clears it); when the list
@@ -332,24 +332,28 @@ def min_alts(q):
     return 1 if q.get("binary") is True else 2
 
 
-def too_few_alts(qid, n, q):
-    """The R-I refusal for a question left with `n` alternatives."""
-    sys.exit(
-        f"refused: {qid} has {n} alternatives; every question needs at least 2 genuine "
-        "alternatives besides the recommendation, or 1 when it is a yes/no question flagged "
-        '"binary": true (R-I)'
-        if min_alts(q) == 2
-        else f"refused: {qid} has {n} alternatives; a binary question needs 1 (R-I)"
-    )
+def check_alt_count(qid, n, q):
+    """The R-I refusal for a question left with `n` alternatives: fewer than it needs, or more
+    than one on a binary question."""
+    if min_alts(q) == 2 and n < 2:
+        sys.exit(
+            f"refused: {qid} has {n} alternatives; every question needs at least 2 genuine "
+            "alternatives besides the recommendation, or 1 when it is a yes/no question flagged "
+            '"binary": true (R-I)'
+        )
+    if min_alts(q) == 1 and n != 1:
+        sys.exit(
+            f"refused: {qid} has {n} alternatives; a binary question has exactly 1, "
+            "the other answer (R-I)"
+        )
 
 
 def checked_alts(q, alts):
-    """`alts` parsed and capped, or a refusal when fewer remain than question `q` needs (R-I)."""
+    """`alts` parsed and capped, or a refusal when their count does not fit question `q` (R-I)."""
     alts = [split_alt(s) for s in alts]
     for alt in alts:
         capped(f"{q['id']} alternative {alt['key']}", alt["text"], LINE_CAP)
-    if len(alts) < min_alts(q):
-        too_few_alts(q["id"], len(alts), q)
+    check_alt_count(q["id"], len(alts), q)
     return alts
 
 
@@ -363,9 +367,11 @@ def set_aside_own(r, doc, q):
         )
 
 
-def add_question(doc, q, repoint=False):
+def add_question(doc, q, repoint=False, latest=None):
     """Validate and append one question; returns (the questions whose rev must bump, notes about
-    the dependents of a question it supersedes). Exits before any write."""
+    the dependents of a question it supersedes). `latest` is the newest round before the write
+    began (default: now), so questions added in one write date against the same round. Exits
+    before any write."""
     for req, gloss in REQUIRED_FIELDS:
         if not q.get(req):
             name = q.get("id") or (
@@ -380,8 +386,7 @@ def add_question(doc, q, repoint=False):
             'or pass an explicit empty list ("commits": [] or --commit none) (R1)'
         )
     alts = q.get("alternatives") or []
-    if len(alts) < min_alts(q):
-        too_few_alts(q["id"], len(alts), q)
+    check_alt_count(q["id"], len(alts), q)
     if q.get("binary") is True:
         check_rec_alts(
             q["id"],
@@ -422,9 +427,10 @@ def add_question(doc, q, repoint=False):
         ),
     )
     q.pop("addedInRound", None)
-    if newest_round(doc) > q["round"]:
+    latest = newest_round(doc) if latest is None else latest
+    if latest > q["round"]:
         # Asked after a later round was posted: the round label alone would misdate it.
-        q["addedInRound"] = newest_round(doc)
+        q["addedInRound"] = latest
     if defaulted and doc["questions"]:
         warn(
             f"{q['id']} named no stage; used stage {q['stage']!r}, round {q['round']}, "
@@ -700,7 +706,7 @@ def op_add_round(d, doc, a):
     for q in a.questions or []:
         if a.round is not None:
             q.setdefault("round", a.round)
-        t, n = add_question(doc, q, a.repoint)
+        t, n = add_question(doc, q, a.repoint, before)
         touched += t
         notes += n
     for g in a.groups or []:
@@ -728,7 +734,10 @@ def op_add_round(d, doc, a):
             touched,
             f"added {len(a.groups or [])} groups, {len(a.visuals or [])} visuals",
         )
-    head = (f"round {a.round} added: " if a.round else "added ") + ids
+    if getattr(a, "check", False):
+        head = (f"round {a.round} " if a.round else "") + f"would add {ids}"
+    else:
+        head = (f"round {a.round} added: " if a.round else "added ") + ids
     return touched, "; ".join([head, *notes])
 
 
@@ -1426,7 +1435,10 @@ def cmd_add_round(d, a):
         print(f"check passed, nothing written: {msg}")
         return
     if a.sync_ledger:
-        read_input(a.sync_ledger, "ledger")
+        # Every refusal sync-ledger makes on the ledger text itself, before the round is posted.
+        exporters.check_ledger(
+            read_input(a.sync_ledger, "ledger", newline=""), a.sync_ledger
+        )
     write_op(op_add_round_linted, "add-round")(d, a)
     if a.sync_ledger:
         cmd_sync_ledger(d, argparse.Namespace(ledger=a.sync_ledger))
