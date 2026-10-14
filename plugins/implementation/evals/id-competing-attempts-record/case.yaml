@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: id-competing-attempts-record
+graders:
+  - name: chosen-line
+    type: regex
+    pattern: '^[ \t>*_`-]*attempt 3:[*_`]*[ \t]*chosen by[ \t]+(?:the rule[''’]s (?:first )?clause[ \t]*[:,—–-]?[ \t]*)?[*_"“''`]*(?:the )?(?:prefer the attempt that |that )?(?:adds? |it adds )?no[ -]new[ -]dependenc(?:y|ies)'
+    flags: 'mi'
+    target: last_message
+  - name: set-aside-line
+    type: regex
+    pattern: '^[ \t>*_`-]*attempt 1:[*_`]*[ \t]*set aside by[ \t]+(?:the rule[''’]s (?:first )?clause[ \t]*[:,—–-]?[ \t]*)?[*_"“''`]*(?:the )?(?:prefer the attempt that |that )?(?:adds? |it adds )?no[ -]new[ -]dependenc(?:y|ies)'
+    flags: 'mi'
+    target: last_message
+  - name: no-failed-record
+    type: regex
+    pattern: '^[ \t>*_-]*(?:\d+[.)][ \t]*)?[*_`]*attempt[ *_`]*(?:2|two)\b[^\n:]{0,15}?[*_`]*[ \t]*(?::|[-–—][ \t])[ \t]*[*_`]*(?:chosen|set aside) by\b'
+    flags: 'mi'
+    match: not_contains
+    target: last_message

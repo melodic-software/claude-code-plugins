@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/.work/invoice-rounding/PLAN.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/docs/conventions/implementation.yaml"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/.work/invoice-rounding/PLAN.md"
+          }
+        }
+      ],
+      "why": "plan only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "competing",
+            "path": "docs/conventions/implementation.yaml"
+          }
+        }
+      ],
+      "why": "grepped, never read"
+    }
+  ]
+}

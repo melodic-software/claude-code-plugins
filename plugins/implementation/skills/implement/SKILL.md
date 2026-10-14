@@ -1,5 +1,5 @@
 ---
-description: "Execute approved plans, fix bugs, and make code changes inline with incremental validation. TDD by default, build+test after each logical block, commit at green checkpoints, and divergence detection that routes back to planning instead of pushing through a broken approach. Use when: 'implement this', 'execute the plan', 'fix this bug', 'refactor', 'build this', 'write the code', 'make this change', 'apply the plan', or whenever code is about to be written; modes: feature, fix, refactor, replace (rewrite, migrate, port), config."
+description: "Inline code changes with incremental validation: TDD by default, a build and test check after each logical block, commits at green checkpoints, and a route back to planning when the approach breaks. Use when executing an approved plan, fixing a bug, refactoring, rewriting, migrating or porting code, changing config, or whenever code is about to be written: 'implement this', 'execute the plan', 'fix this bug', 'refactor', 'build this', 'write the code', 'make this change', 'apply the plan'."
 argument-hint: "[feature|fix|refactor|replace|config] [task]"
 user-invocable: true
 disable-model-invocation: false

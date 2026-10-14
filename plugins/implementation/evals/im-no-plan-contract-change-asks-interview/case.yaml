@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: im-no-plan-contract-change-asks-interview
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: suggests-interview
+    type: regex
+    pattern: '(?:^|[.;?!,]|(?<!planning):)(?:(?!\b(?:no|not|never|without|instead of|skip(?:s|ped|ping)?|didn[''’]t|did not|don[''’]t|do not|won[''’]t|will not|let[''’]s not)\b)[^\n.;:?!,])*?(?:\b(?:no|not|never|without|instead of|skip(?:s|ped|ping)?|didn[''’]t|did not|don[''’]t|do not|won[''’]t|will not|let[''’]s not)\b(?:(?!\buntil\b)[^\n.;:?!,])*?\buntil\b(?:(?!\b(?:no|not|never|without|instead of|skip(?:s|ped|ping)?|didn[''’]t|did not|don[''’]t|do not|won[''’]t|will not|let[''’]s not)\b)[^\n.;:?!,])*?)?(?:/planning:(?:interview|plan)\b|\binterview\b|\block(?:ing)? (?:in )?(?:the |a |that |this |its )?(?:contract|brief|scope|interface|shape)\b|\bplan (?:it |this )?(?:first|before)\b|\b(?:agree(?:ing)?|settl(?:e|ing))(?: on)? (?:the |its |that |this |a )?(?:contract|shape|interface)\b|\b(?:contract|shape|interface) needs (?:to be )?(?:agreed|settl(?:ed|ing)|locked)\b)(?![^\n.;:?!]{0,40}?\b(?:overkill|unnecessary|not (?:needed|necessary|required)|(?:is|are)n[''’]t (?:needed|necessary|required)|can be skipped)\b)(?![^\n.!;:]*\?)(?![^\n]*\b(?:I went ahead|went ahead and|I built|I wrote|I implemented)\b)'
+    flags: 'mi'
+    target: last_message

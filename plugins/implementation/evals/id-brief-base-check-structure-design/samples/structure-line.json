@@ -1,0 +1,77 @@
+{
+  "pass": [
+    {
+      "answer": "## Brief: phase 1, half-even invoice rounding\n\n1. Provision: `git -C /srv/dev/billing fetch origin`, then `git -C /srv/dev/billing worktree add -b feat/invoice-rounding /srv/dev/wt/invoice-rounding origin/integration/rounding`.\n2. Before your first edit, confirm the base: `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding` must equal `git -C /srv/dev/wt/invoice-rounding rev-parse origin/integration/rounding`.\n   On a mismatch, STOP and report. Do not edit.\n3. ALLOWED: billing/invoice.py, new cases in tests/test_invoice.py. FORBIDDEN: CHANGELOG.md, every other path.\n\nStructure: `decimal.Decimal` amounts quantized to the cent with `ROUND_HALF_EVEN`\nDesign: none\n"
+    },
+    {
+      "answer": "Run `git -C \"/srv/dev/wt/invoice-rounding\" merge-base HEAD origin/integration/rounding` before any edit; if it differs from the base, STOP and report.\n\n**Structure**: a lookup from rounding mode to quantize rule\n**Design excerpt**: `none`\n",
+      "why": "bold label with colon outside"
+    },
+    {
+      "answer": "14. Structure: integer cents in a `dict` keyed by line id",
+      "why": "numbered item"
+    },
+    {
+      "answer": "11. DESIGN: none\n\n14. STRUCTURE\n    decimal.Decimal built from the value's decimal string, then\n    .quantize(Decimal(\"0.01\"), rounding=ROUND_HALF_EVEN).",
+      "why": "upper-case section heading, value on the next indented line"
+    },
+    {
+      "answer": "### Structure\n\nA `decimal.Decimal` quantized to the cent with `ROUND_HALF_EVEN`.",
+      "why": "heading form"
+    },
+    {
+      "answer": "| Field | Value |\n|---|---|\n| Structure | `decimal.Decimal` quantized with `ROUND_HALF_EVEN` |",
+      "why": "table form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Organize the logic around a Decimal and its quantize call.",
+      "why": "no Structure line"
+    },
+    {
+      "answer": "**Structure:**\n\nDesign: none",
+      "why": "empty label"
+    },
+    {
+      "answer": "The structure of the change: one function.",
+      "why": "prose mention, not a Structure: line"
+    },
+    {
+      "answer": "14. STRUCTURE\n\n15. DESIGN: none",
+      "why": "empty upper-case heading"
+    },
+    {
+      "answer": "**Base check (STOP on a mismatch):**\n\n```\ngit -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding\n```\n\nThe output must equal origin/integration/rounding's commit.\n\n- **Structure:** none\n- **Design:** none\n",
+      "why": "Structure: none names no data structure"
+    },
+    {
+      "answer": "Structure: none",
+      "why": "none names no data structure"
+    },
+    {
+      "answer": "**Structure:** none. This phase adds no new logic structure.",
+      "why": "none with a note"
+    },
+    {
+      "answer": "Structure: N/A",
+      "why": "n/a"
+    },
+    {
+      "answer": "Structure: TBD",
+      "why": "placeholder"
+    },
+    {
+      "answer": "Structure: -",
+      "why": "dash placeholder"
+    },
+    {
+      "answer": "### Structure\nnone",
+      "why": "heading form, value none"
+    },
+    {
+      "answer": "| Structure | none |",
+      "why": "table form, value none"
+    }
+  ]
+}

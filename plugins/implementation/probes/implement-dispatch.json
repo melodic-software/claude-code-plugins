@@ -1,0 +1,122 @@
+{
+  "skill": "implementation:implement-dispatch",
+  "plugin": "implementation",
+  "skill_dir": "plugins/implementation/skills/implement-dispatch",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c6a99df142a1b24c5ce30c74fc7a7a6, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitor is the sibling skill that executes plans inline in the main window.",
+  "competitors": [
+    "implementation:implement"
+  ],
+  "competitor_dirs": {
+    "implementation:implement": "plugins/implementation/skills/implement"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Farm out the phases of the approved plan to separate agents and make sure each one's output holds up."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I've got eight spec'd tickets; have subagents work them and report back to you."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Don't edit anything yourself, delegate each step of the plan to workers."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Kick off workers for the plan's phases while I'm away, and verify what they claim."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run the plan through the implementer agents, one brief per phase, with tight scope limits."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Orchestrate this: workers write the code, you check their diffs against the acceptance criteria."
+    },
+    {
+      "id": "pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Take these tickets and parallelize them across subagents."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Send the plan out to worker agents and don't believe their summaries until you've seen the evidence."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Execute the whole plan autonomously using delegated workers, then confirm each phase landed."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Split the plan across subagents, give each a fenced scope, and gather their results."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Have a team of subagents build the phases in the plan; you coordinate and verify."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Fix this off-by-one in the pagination helper directly, in this session."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Let's go through the plan together step by step in this window, you edit and I watch."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Come up with a plan for adding multi-tenant support."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review the diff on my PR and flag any problems."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why does the integration suite keep failing on the second run?"
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write tests for the invoice calculator; leave the production code alone."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Refactor this one function to use early returns."
+    }
+  ]
+}
