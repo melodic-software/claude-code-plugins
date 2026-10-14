@@ -469,14 +469,14 @@ precedence.
 | `autoCompactWindow` | subagent frontmatter | A subagent can carry its own window (Claude Code 2.1.296). The snapshot cannot see that window, and the surface is in the changelog only and not probed, so we never assume a subagent shares the session's trigger. | [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md) |
 | `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | environment variable | Read as the effective window whenever it is set, ahead of the setting, the command, and the flag. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 | `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` | environment variable | Read as able only to move the trigger earlier, never later. | [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
-| `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` | `settings.json` key / environment variable | Either one turning auto-compact off leaves the dumb band as the only tripwire. We treated `DISABLE_COMPACT` as unconfirmed by docs: it came from our 2026-08-17 probe of the shipped binary's strings (v2.1.233) and was absent from the env-vars page on 2026-08-19. | [settings-reference: `autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled); [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
+| `autoCompactEnabled` / `DISABLE_AUTO_COMPACT` / `DISABLE_COMPACT` | `settings.json` key / environment variables | Either `autoCompactEnabled` or `DISABLE_AUTO_COMPACT` turning auto-compact off leaves the dumb band as the only tripwire. `DISABLE_COMPACT` is documented on the env-vars page: set to `1`, it disables all compaction, both automatic and the manual `/compact` command. | [settings-reference: `autoCompactEnabled`](https://code.claude.com/docs/en/settings-reference#autocompactenabled); [env-vars: Variables](https://code.claude.com/docs/en/env-vars#variables) |
 
 We read a configured window above the model's context window as the model's window: it extends
 nothing.
 
 - **Pointer**: per row above.
-- **As of**: 2026-10-10 for the two `autoCompactWindow` rows; 2026-08-19 for the other rows,
-  including the `DISABLE_COMPACT` note.
+- **As of**: 2026-10-10 for the two `autoCompactWindow` rows; 2026-10-14 for the
+  `DISABLE_COMPACT` entry; 2026-08-19 for the other rows.
 - **Recheck trigger**: a release note or one of those sections changes a surface's units, range,
   precedence, or the set of surfaces itself.
 
