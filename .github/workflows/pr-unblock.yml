@@ -56,7 +56,7 @@ jobs:
       dispatcher-run-id: ${{ inputs.dispatcher-run-id }}
       trusted-base: default-tip
     secrets:
-      claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
 
   report-escalation:
     needs: resolve-conflicts
