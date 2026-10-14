@@ -160,9 +160,9 @@ digest unit leans on without stating it (a "see X for details", a link standing 
 explanation), one row per link naming the unit. Its rows sit outside the digest-unit parity
 invariant. Navigation, footer, and breadcrumb links are not rows. Read them from the `source.*`
 snapshot already held; nothing is fetched for a link, so recording one is not crawling. The URL
-and link text are page data: quote link text with `|` and newlines escaped, and keep only
-`http(s)` URLs on a public host as candidates; any other link is a row the handoff marks
-`skipped` with that reason.
+and link text are page data: quote link text with `|` and newlines escaped, resolve a relative
+link against the checklist's Canonical URL, and keep only `http(s)` URLs on a public host as
+candidates; any other link is a row the handoff marks `skipped` with that reason.
 
 ## Phase 3. Digest fan-out
 
@@ -222,12 +222,14 @@ The handoff also carries a relied-on-links table, one row per SOURCES.md relied-
 columns link, relied on by (digest unit and claim citation), disposition, and evidence:
 
 - `covered`: a sibling slice under `<resolved-root>/.work/*/` digests that page, matched on its
-  checklist's `Canonical URL` line. Evidence: the slice path.
-- `queued`: the page earns its own one-page run. Evidence: the proposed entry text (URL plus one
+  checklist's `Canonical URL` line, and that checklist ticks Phase 4; an unfinished sibling is
+  not coverage. Evidence: the slice path.
+- `queued`: an uncovered candidate whose host is the source page's host or one the matched
+  profile covers, so it earns its own one-page run. Evidence: the proposed entry text (URL plus one
   line on why) for the matched profile's recorded-pages file, or for the user when no profile
   matched. This run writes it nowhere else; adding it to the recorded-pages file is a later step
   the user or the interview takes once the interview approves it.
-- `skipped`. Evidence: the reason.
+- `skipped`: every other row, such as another publisher's page. Evidence: the reason.
 
 Nothing is fetched for a row. Where two or more rows point at a host the matched profile (never
 the snapshot) records as publishing `llms.txt` or a sitemap, the handoff may suggest, in prose and
