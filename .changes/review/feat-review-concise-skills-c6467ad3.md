@@ -4,8 +4,8 @@ bump: minor
 
 ### Changed
 
-- The `code-reviewer` and `security-reviewer` agents are shorter: the model-pin explanation shrinks to its pointer record, the Fowler smell definitions go (the smell names and house extensions stay), and rationale beside kept rules is cut. Every review rule, gate and output field stays.
-- `quality-gate`'s body is shorter (harness rationale and purpose prose cut), and `fanout`'s hub drops its spoke-path rationale.
+- The `security-reviewer` agent is shorter: the model-pin explanation shrinks to its pointer record, and rationale beside kept rules is cut. Every review rule, gate and output field stays.
+- `fanout`'s hub drops its spoke-path rationale.
 - The `quality-gate`, `ratchet` and `explain-change` descriptions are shorter, with one trigger per use. `quality-gate`'s no longer routes plan-reach and rename questions to other plugins, and `explain-change`'s drops the "explain this change" and "PR explainer" phrases. `fanout` and `audit-enforceability` get a shorter lead and keep their trigger phrases. `setup`'s description is a one-line summary, since it is user-invoked.
 
 ### Added
