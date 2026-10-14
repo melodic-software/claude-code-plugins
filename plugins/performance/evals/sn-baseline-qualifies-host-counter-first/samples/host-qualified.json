@@ -2,23 +2,115 @@
   "pass": [
     {
       "answer": [
-        {"tool": "Bash", "input": {"command": "python3 - <<'EOF'\nimport sys\nsys.path.insert(0, r\"/plugins/performance/lib\")\nfrom spawn_noise import spawn_probe, is_measurable  # noqa: E402\nsummary = spawn_probe()\nmeasurable, why = is_measurable(summary)\nprint(measurable, why)\nEOF"}}
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<'EOF'\nimport sys\nsys.path.insert(0, r\"/plugins/performance/lib\")\nfrom spawn_noise import spawn_probe, is_measurable  # noqa: E402\nsummary = spawn_probe()\nmeasurable, why = is_measurable(summary)\nprint(measurable, why)\nEOF"
+          }
+        }
       ],
       "why": "the skill's own snippet"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /plugins/performance/lib && python3 -I -c \"\nimport spawn_noise as s\nr=s.spawn_probe(); print(r); print(s.is_measurable(r))\""
+          }
+        }
+      ],
+      "why": "module-qualified calls in python -c"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sha256sum scripts/ab.sh lib/spawn_noise.py\ncd - >/dev/null\npython3 -I - <<EOF\nimport sys\nsys.path.insert(0, r\"/plugins/performance/lib\")\nfrom spawn_noise import spawn_probe, is_measurable\ns=spawn_probe(); print(s); print(is_measurable(s))\nEOF"
+          }
+        }
+      ],
+      "why": "heredoc after other commands, python3 at a line start"
     }
   ],
   "fail": [
     {
       "answer": [
-        {"tool": "Bash", "input": {"command": "grep -n 'def is_measurable' /plugins/performance/lib/spawn_noise.py"}}
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'def is_measurable' /plugins/performance/lib/spawn_noise.py"
+          }
+        }
       ],
       "why": "reading the verdict function is not running it"
     },
     {
       "answer": [
-        {"tool": "Bash", "input": {"command": "uptime; nproc"}}
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "uptime; nproc"
+          }
+        }
       ],
       "why": "a load glance is not host qualification"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 'def spawn_probe(' /plugins/performance/lib/spawn_noise.py"
+          }
+        }
+      ],
+      "why": "grep of the definition with its parenthesis"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"def spawn_probe(\\|def is_measurable(\" -A25 /plugins/performance/lib/spawn_noise.py"
+          }
+        }
+      ],
+      "why": "grep of both definitions"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c 'import sys; sys.path.insert(0, \"/plugins/performance/lib\"); from spawn_noise import spawn_probe; print(spawn_probe())'"
+          }
+        }
+      ],
+      "why": "spawn_probe alone, no verdict"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c 'import sys; sys.path.insert(0, \"/plugins/performance/lib\"); from spawn_noise import is_measurable; print(is_measurable({\"min_ms\": 0.4}))'"
+          }
+        }
+      ],
+      "why": "is_measurable alone on a made-up summary"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n '/def spawn_probe(/,/def is_measurable(/p' /plugins/performance/lib/spawn_noise.py"
+          }
+        }
+      ],
+      "why": "reading both functions without python"
     }
   ]
 }

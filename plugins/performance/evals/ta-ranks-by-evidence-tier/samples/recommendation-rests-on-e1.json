@@ -7,6 +7,14 @@
     {
       "answer": "**Recommendation:** guard.sh (E1); not guard_body.py, whose size is not a cost model.",
       "why": "a later negation about another candidate"
+    },
+    {
+      "answer": "**Recommended target:** the `guard.sh` wrapper, resting on E1 for spawn count. It is not yet E2 for time. Your guess that `guard_body.py` is the bottleneck is not supported.",
+      "why": "observed: names the body only to reject it"
+    },
+    {
+      "answer": "**The target I recommend is the `guard.sh` wrapper, at E1.** It owns most of the spawns per call.",
+      "why": "observed: bold"
     }
   ],
   "fail": [
@@ -25,6 +33,18 @@
     {
       "answer": "Recommended next step: instrument guard_body.py, then compare with the E1 census.",
       "why": "an instrument recommendation"
+    },
+    {
+      "answer": "I recommend guard_body.py over the E1 wrapper.",
+      "why": "recommends the body"
+    },
+    {
+      "answer": "Recommendation: guard_body.py; the wrapper is E1 but the body's size makes it the better bet.",
+      "why": "recommends the body, cites E1 for the other candidate"
+    },
+    {
+      "answer": "Recommended target: WDAC, which the census rates E1.",
+      "why": "recommends neither guard.sh nor the wrapper"
     }
   ]
 }

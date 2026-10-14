@@ -3,6 +3,14 @@
     {
       "answer": "Stopped before timing. The goal asks for p50, p95 over N>=20; no duration was taken and none is reported.",
       "why": "restates the goal's percentile list without numbers"
+    },
+    {
+      "answer": "The spawn-cost check reports a 2.89x spread with a 0.4 ms floor, which is within the measurable band. No numbers reported for the subject.",
+      "why": "observed: host floor, not a subject duration"
+    },
+    {
+      "answer": "spawn_probe(): median 0.5 ms over 7 no-op spawns; is_measurable True. The harness stopped before timing.",
+      "why": "host qualification numbers"
     }
   ],
   "fail": [
@@ -13,6 +21,22 @@
     {
       "answer": "**p95:** 7 ms over 20 calls (without --json).",
       "why": "bold partial number"
+    },
+    {
+      "answer": "For reference, the median 12 ms came from a quick run.",
+      "why": "median"
+    },
+    {
+      "answer": "p50 = 1.2 s on the quick run.",
+      "why": "seconds"
+    },
+    {
+      "answer": "Before: 12.4 ms per call (p50)",
+      "why": "number before the percentile"
+    },
+    {
+      "answer": "A two-call dry run gave mean 6.5 ms.",
+      "why": "mean"
     }
   ]
 }

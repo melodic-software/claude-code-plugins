@@ -15,7 +15,7 @@ graders:
   - name: host-qualified
     type: tool_used
     tool: Bash
-    input_match: 'spawn_probe\s*\(|is_measurable\s*\('
+    input_match: '^(?=.*(?:\b|(?<=\\n))python3?\b)(?=.*(?<!def )(?:\b|(?<=\\n))spawn_probe\s*\()(?=.*(?<!def )(?:\b|(?<=\\n))is_measurable\s*\()'
     min: 1
     arm: with-only
   - name: bundled-census-ran

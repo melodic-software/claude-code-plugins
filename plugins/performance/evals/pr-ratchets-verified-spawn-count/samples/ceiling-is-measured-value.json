@@ -3,6 +3,14 @@
     {
       "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"guard-spawns\",\n      \"command\": \"bash bench/count-spawns.sh\",\n      \"field\": \"spawns\",\n      \"ceiling\": 1,\n      \"goal\": \"guard 4->1. Correlation: unproven: no duration rig run yet\"\n    }\n  ]\n}\n",
       "why": "what ratchet.py add writes"
+    },
+    {
+      "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"lint-suppressions\",\n      \"command\": \"bash bench/count-spawns.sh\",\n      \"field\": \"spawns\",\n      \"ceiling\": 12,\n      \"goal\": \"guard 4->1. Correlation: unproven: no duration rig run yet\"\n    },\n    {\n      \"name\": \"guard-spawns\",\n      \"command\": \"bash bench/other.sh\",\n      \"field\": \"n\",\n      \"ceiling\": 1,\n      \"goal\": \"g\"\n    }\n  ]\n}\n",
+      "why": "guard-spawns is the second counter"
+    },
+    {
+      "answer": "{\"counters\": [{\"ceiling\": 1, \"name\": \"guard-spawns\", \"field\": \"spawns\"}]}\n",
+      "why": "ceiling before name"
     }
   ],
   "fail": [
@@ -17,6 +25,14 @@
     {
       "answer": "{\"counters\": [{\"name\": \"guard-spawns\", \"field\": \"spawns\", \"ceiling\": 1.5, \"goal\": \"g\"}]}\n",
       "why": "fractional headroom"
+    },
+    {
+      "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"guard-spawns\",\n      \"command\": \"bash bench/count-spawns.sh\",\n      \"field\": \"spawns\",\n      \"ceiling\": 2,\n      \"goal\": \"guard 4->1. Correlation: unproven: no duration rig run yet\"\n    },\n    {\n      \"name\": \"lint-suppressions\",\n      \"command\": \"bash bench/other.sh\",\n      \"field\": \"n\",\n      \"ceiling\": 1,\n      \"goal\": \"g\"\n    }\n  ]\n}\n",
+      "why": "another counter has ceiling 1; guard-spawns has headroom"
+    },
+    {
+      "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"hook-spawns\",\n      \"command\": \"bash bench/count-spawns.sh\",\n      \"field\": \"spawns\",\n      \"ceiling\": 1,\n      \"goal\": \"guard 4->1. Correlation: unproven: no duration rig run yet\"\n    }\n  ]\n}\n",
+      "why": "ceiling 1 under a different counter name"
     }
   ]
 }

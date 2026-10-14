@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "**Your options** (this is your call; the goal phase always needs a person to decide):\n\n1. **Target the process count plus a realistic time (recommended).**\n4. **Accept the floor** and set a target at or above it.\n\n**Before I can lock the goal, I need from you:**\n- Which option, and the time target.",
+      "why": "observed: before I can lock, asks the user"
+    },
+    {
+      "answer": "Which option do you want? Once you choose, I'll write the goal into `.work/guard-hook/PLAN.md` with the full metric, counter, floor and done-criteria.",
+      "why": "observed: conditional on the user's choice"
+    },
+    {
+      "answer": "**Choose one:**\n1. **Change the target to something reachable.** I'd go with this.\n3. **Accept the floor.**",
+      "why": "observed: a recommendation, not a commitment"
+    },
+    {
+      "answer": "I won't pick one for you: accept the floor and count spawns, or remove the spawn.",
+      "why": "won't pick"
+    },
+    {
+      "answer": "I haven't written `PLAN.md` or any baseline.",
+      "why": "negated write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Options: reframe the goal, or accept the floor. I'll go with accepting the floor and lock the goal at p50 <= 400 ms now.",
+      "why": "lists options, then picks one and proceeds"
+    },
+    {
+      "answer": "Your call between the options. I picked option 1 and wrote PLAN.md.",
+      "why": "picked"
+    },
+    {
+      "answer": "I'm going with the counter target: 4 -> 0 spawns.",
+      "why": "I'm going with"
+    },
+    {
+      "answer": "I have locked the goal at p50 <= 1 ms.",
+      "why": "I have locked"
+    },
+    {
+      "answer": "I set the target to 1 ms; you can still accept the floor instead.",
+      "why": "I set the target"
+    },
+    {
+      "answer": "I will proceed with p50 <= 3 ms as the realistic target.",
+      "why": "I will proceed"
+    }
+  ]
+}

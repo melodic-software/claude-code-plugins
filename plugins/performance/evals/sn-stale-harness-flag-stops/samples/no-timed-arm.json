@@ -55,6 +55,50 @@
         }
       ],
       "why": "ab.sh named inside heredoc text"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash bench/time-guard.sh --help; echo \"help exit=$?\"; bash bench/time-guard.sh --iterations 1 --json; echo \"json exit=$?\"; bash bench/time-guard.sh --iterations 2 | head -3; sha256sum bench/time-guard.sh hooks/guard.sh"
+          }
+        }
+      ],
+      "why": "observed: help, the goal's flags, a two-call dry run, hashing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"=== dry run with goal flags\"; bash bench/time-guard.sh --iterations 20 --json; echo \"exit=$?\""
+          }
+        }
+      ],
+      "why": "observed: the goal's exact command, which exits 2 on --json"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w; t=bench/time-guard.sh; echo \"path: $(realpath $t)\"; echo \"blob: $(git hash-object $t)\"; cat -A bench/time-guard.sh | head"
+          }
+        }
+      ],
+      "why": "observed: assignment, realpath, hash, cat"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "readlink -f bench/time-guard.sh; bash bench/time-guard.sh --version"
+          }
+        }
+      ],
+      "why": "version probe"
     }
   ],
   "fail": [
@@ -112,6 +156,83 @@
         }
       ],
       "why": "inside a command substitution"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash bench/time-guard.sh --iterations 20"
+          }
+        }
+      ],
+      "why": "a full timed run without the unsupported flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash bench/time-guard.sh"
+          }
+        }
+      ],
+      "why": "default 20 iterations"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "timeout 60 bash bench/time-guard.sh --iterations 50"
+          }
+        }
+      ],
+      "why": "timeout prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "taskset -c 2 bash bench/time-guard.sh --iterations 20"
+          }
+        }
+      ],
+      "why": "taskset prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "nohup ./bench/time-guard.sh --iterations 20 &"
+          }
+        }
+      ],
+      "why": "nohup, direct exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "env -i PATH=/usr/bin bash bench/time-guard.sh --iterations 30"
+          }
+        }
+      ],
+      "why": "env -i prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w && timeout 100 bash /plugins/performance/scripts/ab.sh --a x --b y"
+          }
+        }
+      ],
+      "why": "ab.sh behind timeout"
     }
   ]
 }

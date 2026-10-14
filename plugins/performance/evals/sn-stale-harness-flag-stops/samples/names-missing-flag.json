@@ -11,6 +11,18 @@
     {
       "answer": "The harness rejects --json as an unknown option, so the goal's metric cannot be produced.",
       "why": "unknown option"
+    },
+    {
+      "answer": "- **`--json` isn't supported.** `--help` lists only `--iterations` and `--help`. A dry run with `--json` fails with `unknown option --json` and exit code 2.",
+      "why": "observed: contraction negation as the finding"
+    },
+    {
+      "answer": "Tool: bench/time-guard.sh @ 0bd5c39 (sha256 70a805e1…; no --version) flags-ok: no — missing --json behind-upstream: not determinable column-ok: no — missing p50_ms",
+      "why": "observed: Tool line with a no --version note before flags-ok"
+    },
+    {
+      "answer": "- `time-guard.sh` has no `--json` flag. Running it with `--json` exits 2 with `unknown option --json`.",
+      "why": "observed: no --json flag"
     }
   ],
   "fail": [
@@ -25,6 +37,18 @@
     {
       "answer": "The --json flag works; flags-ok: yes.",
       "why": "claims support"
+    },
+    {
+      "answer": "--json is supported; nothing is missing.",
+      "why": "claims support, negated missing"
+    },
+    {
+      "answer": "Tool: bench/time-guard.sh @ 0bd5c39 flags-ok: yes behind-upstream: not determinable column-ok: yes. The dry run with --json gave no unknown option errors.",
+      "why": "flags fine, negated unknown option"
+    },
+    {
+      "answer": "--json works and nothing is unsupported.",
+      "why": "negated unsupported"
     }
   ]
 }

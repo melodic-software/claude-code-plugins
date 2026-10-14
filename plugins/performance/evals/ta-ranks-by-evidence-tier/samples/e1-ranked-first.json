@@ -7,6 +7,14 @@
     {
       "answer": "| Rank | Candidate | Tier | What is known | Counter | Next |\n|---|---|---|---|---|---|\n| **1** | `guard.sh` (wrapper layer) | **E1, attributed measurement** | 4 of 7 spawns | spawns | none |\n",
       "why": "bold rank and tier"
+    },
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter that would settle it | Cheapest next instrument |\n|---|---|---|---|---|---|\n| 1 | `hooks/guard.sh` wrapper (7 lines, not big) | **E1** (spawns) | 4 of 7 spawns per call come from it | Spawns per call | none |\n",
+      "why": "observed: path and a note in the cell"
+    },
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter that would settle it | Cheapest next instrument |\n|---|---|---|---|---|---|\n| 1 | **`guard.sh` wrapper** | **E1** | The census puts 4 of the 7 spawns per call in this layer | Process spawns per call | none |\n",
+      "why": "observed: bold cell"
     }
   ],
   "fail": [
@@ -17,6 +25,18 @@
     {
       "answer": "| Rank | Candidate | Tier | What is known | Counter | Next |\n|---|---|---|---|---|---|\n| 1 | WDAC | E4 | suspicion | none | spawn_probe |\n| 2 | guard.sh | E1 | census | spawns | none |\n",
       "why": "suspicion at rank 1"
+    },
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter that would settle it | Cheapest next instrument |\n|---|---|---|---|---|---|\n| 1 | guard_body.py | E1 | 1 python3 spawn per call | spawns | none |\n| 2 | guard.sh | E1 | 4 of 7 spawns | spawns | none |\n",
+      "why": "the body ranked first with E1"
+    },
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter that would settle it | Cheapest next instrument |\n|---|---|---|---|---|---|\n| 1 | WDAC code-integrity | E1 | suspicion only | spawn spread | spawn_probe |\n",
+      "why": "rank 1 is not guard.sh"
+    },
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter that would settle it | Cheapest next instrument |\n|---|---|---|---|---|---|\n| 1 | guard.sh calling guard_body.py | E1 | census | spawns | none |\n",
+      "why": "the rank-1 cell names the body"
     }
   ]
 }

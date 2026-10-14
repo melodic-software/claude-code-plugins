@@ -41,3 +41,9 @@ graders:
     pattern: '^(?=[^\n]*"type":"result")[^\n]*?(?:"result":"|\\n)[^\w<\\]*Deployed:[^\w<\\]*n/a\b'
     flags: 'mi'
     arm: both
+  - name: differential-ran
+    type: tool_used
+    tool: Bash
+    input_match: '^(?=.*differential\.py)(?=.*--baseline\b.*?--candidate\b)(?=.*\bstrict\b.*\blenient\b|.*\blenient\b.*\bstrict\b)'
+    min: 1
+    arm: with-only

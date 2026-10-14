@@ -19,7 +19,7 @@ graders:
     arm: both
   - name: e1-ranked-first
     type: regex
-    pattern: '^\|[ \t]*(?:\*\*)?#?1(?:\*\*)?[ \t]*\|(?:[^|\n]*\|)?[^|\n]*\|[ \t]*(?:\*\*)?E1\b'
+    pattern: '^\|[ \t]*(?:\*\*)?#?1(?:\*\*)?[ \t]*\|(?:[^|\n]*\|)?(?![^|\n]*guard_body)[^|\n]*\bguard\.sh\b[^|\n]*\|[ \t]*(?:\*\*)?E1\b'
     flags: 'm'
     arm: both
   - name: wdac-at-e4
@@ -29,6 +29,6 @@ graders:
     arm: both
   - name: recommendation-rests-on-e1
     type: regex
-    pattern: '^(?=[^\n]*\brecommend)(?![^\n]*\brecommend\w*\b[^\n]{0,30}\binstrument)(?![^\n]*\b(?:no|not|nothing|never|none)\b[^\n]{0,25}\bE1\b)[^\n]*\bE1\b'
+    pattern: '^(?=[^\n]*\brecommend)(?![^\n]*\brecommend\w*\b[^\n]{0,30}\binstrument)(?![^\n]*\b(?:no|not|nothing|never|none)\b[^\n]{0,25}\bE1\b)(?![^\n]*\brecommend\w*\b(?:(?!guard\.sh|wrapper)[^\n]){0,60}?guard_body)(?=[^\n]*(?:\bguard\.sh\b|\bwrapper\b))[^\n]*\bE1\b'
     flags: 'mi'
     arm: both

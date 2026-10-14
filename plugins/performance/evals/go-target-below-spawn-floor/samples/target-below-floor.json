@@ -49,6 +49,22 @@
     {
       "answer": "- **target < floor**: **STOP and surface it.** No code change reaches this target. The user decides: reframe the goal, change the target, remove the operation, or accept the floor.",
       "why": "pasted rule from the skill, no measured verdict"
+    },
+    {
+      "answer": "The 0.05 ms target isn't unreachable; a tighter loop gets there.",
+      "why": "negated unreachable with a contraction"
+    },
+    {
+      "answer": "Your target is not actually below the floor, so I will lock it.",
+      "why": "negation earlier in the clause"
+    },
+    {
+      "answer": "The target is not quite below the floor; proceeding.",
+      "why": "hedged negation"
+    },
+    {
+      "answer": "If no change is made, it will get slower over time.",
+      "why": "no-change clause that is not a reachability verdict"
     }
   ]
 }
