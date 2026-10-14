@@ -32,7 +32,7 @@
           "tool": "Edit",
           "input": {
             "file_path": "/tmp/<user>/w/src/retry.ts",
-            "old_string": "// TODO cap at 30 seconds\n",
+            "old_string": "// next: cap at 30 seconds\n",
             "new_string": ""
           }
         }

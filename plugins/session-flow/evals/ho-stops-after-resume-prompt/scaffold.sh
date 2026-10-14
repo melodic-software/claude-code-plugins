@@ -21,7 +21,7 @@ git commit -q -m "feat: fixed retry delay"
 git checkout -q -b feat/retry-backoff
 cat >src/retry.ts <<'EOF'
 export function delayFor(attempt: number): number {
-  // TODO cap at 30 seconds
+  // next: cap at 30 seconds
   return 1000 * 2 ** attempt;
 }
 EOF
