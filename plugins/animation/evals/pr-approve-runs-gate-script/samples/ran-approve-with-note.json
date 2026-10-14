@@ -1,0 +1,201 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=<workspace>/before/animation/scripts/produce.py\npython3 $P approve film --note \"Approved - love the heavy blacks, go ahead\"; echo exit=$?; cat film/boards/approval.json; cat film/brief.md film/boards/storyboard.json film/boards/palette.json; cat film/boards/models/keeper.js"
+          }
+        }
+      ],
+      "why": "observed Sonnet call: script path in a shell variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "PRODUCE=\"/opt/plugins/animation/scripts/produce.py\"; python3 \"${PRODUCE}\" approve film --note 'Approved - love the heavy blacks, go ahead'",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted braced variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/scripts/pydeps.py run --data-dir \"/opt/plugin-data/animation\" -- /opt/plugins/animation/scripts/produce.py approve film --note \"Approved - love the heavy blacks, go ahead\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pydeps launch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/scripts/produce.py approve /tmp/eval-ws/film --note 'Approved - love the heavy blacks, go ahead'",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "direct python3"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/eval-ws && python3 \"/opt/plugins/animation/scripts/produce.py\" approve film --note=\"Approved - love the heavy blacks, go ahead\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cd chain, quoted path, --note="
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "PYTHONDONTWRITEBYTECODE=1 /opt/plugins/animation/scripts/produce.py approve film --note \"Approved - love the Heavy Blacks, go ahead\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "env prefix, direct exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -c \"python3 /opt/plugins/animation/scripts/produce.py approve film --note 'Approved - love the heavy blacks, go ahead'\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "bash -c"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n \"produce.py approve\" /opt/plugins/animation/skills/produce/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "grep for the usage line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /opt/plugins/animation/scripts/produce.py | grep approve",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads the script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/scripts/produce.py boards film",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "boards only"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/scripts/produce.py approve film --note \"approved by user\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "note is not their words"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"produce.py approve film --note 'heavy blacks'\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "echo of the command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/opt/plugins/animation/scripts/render.py\npython3 $P approve film --note \"Approved - love the heavy blacks, go ahead\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "variable holds another script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 $P approve film --note \"Approved - love the heavy blacks, go ahead\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "variable never assigned to produce.py"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/opt/plugins/animation/scripts/produce.py\npython3 $Q approve film --note \"Approved - love the heavy blacks, go ahead\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "runs a different variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/opt/plugins/animation/scripts/produce.py\necho $P approve film --note \"Approved - love the heavy blacks, go ahead\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "echo of the variable form"
+    }
+  ]
+}

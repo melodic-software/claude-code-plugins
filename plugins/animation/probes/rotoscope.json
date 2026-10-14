@@ -1,0 +1,124 @@
+{
+  "skill": "animation:rotoscope",
+  "plugin": "animation",
+  "skill_dir": "plugins/animation/skills/rotoscope",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement.",
+  "competitors": [
+    "animation:learn-style",
+    "animation:produce"
+  ],
+  "competitor_dirs": {
+    "animation:learn-style": "plugins/animation/skills/learn-style",
+    "animation:produce": "plugins/animation/skills/produce"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Trace this reference video drawing by drawing and rebuild it with the brush engine."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need an exact replica of this animated clip, with the same drawings and the same timing."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Copy this cartoon one for one into vector paths and see how close each frame is to the original."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Decode the clip into its unique drawings and vectorize each of them."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How close is my replica to the source? Compare ink coverage and SSIM per drawing."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Some drawings in the copy still fail the match, so tune the brush settings for that shot."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Look at 1:1 crops of the render against the reference and fix whatever is off."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Reproduce this animation exactly in the headless browser renderer, frame by frame."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Match the paper color and edge sharpness of the source clip in my reproduction."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Take this short mp4 and make a faithful vector duplicate of every drawing."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The codec noise makes my diffs look bad. Score my replica with the codec noise floor subtracted."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Learn the style of my traced clip and save it as a pack with statistic bands."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check my new scene against the woodcut pack and tell me which bands it misses."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make an original short film from this brief with boards for approval first."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a shot list for my story and render it in the pack's style."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Convert this mov to H.264 with ffmpeg at a lower bitrate."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Vectorize my logo PNG into an SVG."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Stabilize this handheld footage and cut it together in a video editor."
+    }
+  ]
+}

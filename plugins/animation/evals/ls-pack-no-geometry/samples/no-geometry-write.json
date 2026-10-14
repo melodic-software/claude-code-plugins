@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/packs/woodcut-ink/STYLE.md",
+            "content": "# Woodcut ink\n"
+          }
+        }
+      ],
+      "why": "prose"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/scene.js",
+            "content": "{\"paths\": []}"
+          }
+        }
+      ],
+      "why": "outside the pack"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/packs/woodcut-ink/style.json",
+            "content": "{\"bands\": {}, \"paths\": [[[1, 2]]]}"
+          }
+        }
+      ],
+      "why": "paths in style.json"
+    }
+  ]
+}

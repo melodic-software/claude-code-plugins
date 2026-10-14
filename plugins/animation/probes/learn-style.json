@@ -1,0 +1,124 @@
+{
+  "skill": "animation:learn-style",
+  "plugin": "animation",
+  "skill_dir": "plugins/animation/skills/learn-style",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement.",
+  "competitors": [
+    "animation:produce",
+    "animation:rotoscope"
+  ],
+  "competitor_dirs": {
+    "animation:produce": "plugins/animation/skills/produce",
+    "animation:rotoscope": "plugins/animation/skills/rotoscope"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I have the traced output of my rotoscope run in a work folder. Turn it into a reusable pack of numbers describing how the line work looks."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Measure how wobbly the outlines are and how often drawings get held in this traced clip, so I can reuse the look."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How black are the solid areas and what is the palette of the woodcut reference? Capture those stats for later films."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Does the short I just finished stay inside the statistical range of our woodcut look? Check it against the pack."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want to bottle the hand-inked look of this reference as parameters I can reuse on new scenes."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which measurements actually separate the woodcut look from the pencil-test look? Run the adversarial controls."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Compute the hold mix across 1s, 2s and 3s from the rotoscoped work dir and save it with the pack."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Build a look profile from the traced drawings, credit the original artist, and split it at these cut times."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you check whether my new scene's boil and edge roughness fall within the pack's bands?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Use the summaries from the other styles as negatives and prove the thresholds can reject them."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Distill the visual personality of this traced animation into numbers, then author a fresh scene and confirm it matches."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Trace this clip drawing by drawing and replicate it exactly, then compare each drawing to the source."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a short film from this brief, with a storyboard I approve before anything renders."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a shot list and render the scenes for my fox story using the pack we already have."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Convert this mp4 to a gif at 12 fps with ffmpeg."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a CSS keyframe animation for a bouncing button."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Trim the first ten seconds off my video and add a fade between two clips."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Export my Lottie animation as a dotLottie file and shrink its size."
+    }
+  ]
+}

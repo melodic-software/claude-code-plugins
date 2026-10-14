@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/packs/woodcut-ink/STYLE.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "STYLE.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/notes.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "outside the pack"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/packs/woodcut-ink/traces/d012.json",
+            "content": "{\"paths\": []}"
+          }
+        }
+      ],
+      "why": "trace copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/packs/woodcut-ink/arm.json",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "new file in the pack"
+    }
+  ]
+}

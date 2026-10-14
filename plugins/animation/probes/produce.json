@@ -1,0 +1,124 @@
+{
+  "skill": "animation:produce",
+  "plugin": "animation",
+  "skill_dir": "plugins/animation/skills/produce",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement.",
+  "competitors": [
+    "animation:learn-style",
+    "animation:rotoscope"
+  ],
+  "competitor_dirs": {
+    "animation:learn-style": "plugins/animation/skills/learn-style",
+    "animation:rotoscope": "plugins/animation/skills/rotoscope"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I have a one-page brief for a 40-second short. Start the pre-production boards so I can sign off."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Take this concept and the woodcut pack and make the whole film, but show me the storyboard first."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Draft a shot list for my animated short about a fox crossing a river."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Render the approved scenes into a final file and review the result against the style."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Storyboard this story idea for my approval before anything gets animated."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want to animate a short from scratch in the hand-drawn look we already measured. Where do we begin?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Set up the production folder for my film: boards, shots, scenes, and the delivered video."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The boards are approved, so go ahead and render the frames and deliver the file."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Use two style packs for a mixed film from this brief, with sketch boards up front."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write a scene-by-scene breakdown for my 30 second animated ad and generate the frames once I approve."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you check the finished film against the pack and tell me what drifts?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Copy this reference cartoon one for one, tracing every drawing to vectors."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Measure my traced clip into a style pack with edge roughness and hold statistics."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check whether this scene's palette sits inside the woodcut pack's bands."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Merge these three mp4 files into one with ffmpeg and normalize the audio."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Animate a loading spinner with CSS and a reduced motion fallback."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Cut my interview footage down and color grade it in a video editor."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a screenplay for a live-action short film."
+    }
+  ]
+}

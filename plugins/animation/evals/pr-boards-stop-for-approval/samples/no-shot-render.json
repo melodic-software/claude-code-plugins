@@ -1,0 +1,78 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/scripts/pydeps.py run --data-dir \"/opt/plugin-data/animation\" -- /opt/plugins/animation/scripts/render.py film/boards/models/keeper.js film/boards/models/out --drawings 0",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "model sheet render"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n render.py /opt/plugins/animation/skills/produce/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/scripts/produce.py boards film",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "gate only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/scripts/pydeps.py run --data-dir \"/opt/plugin-data/animation\" -- /opt/plugins/animation/scripts/render.py film/scenes/film.js film/frames --fps 12 --encode mp4",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "film render"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd film && python3 /opt/plugins/animation/scripts/render.py scenes/s1.js frames",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "shot render in chain"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/scripts/render.py film/boards/models/keeper.js out --drawings 0 && python3 /opt/plugins/animation/scripts/render.py film/scenes/film.js film/frames",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sheet then film"
+    }
+  ]
+}

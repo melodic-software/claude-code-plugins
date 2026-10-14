@@ -1,0 +1,90 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls work/d packs/woodcut-ink",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "listing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp packs/woodcut-ink/style.json /tmp/style.backup.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "backup of the pack"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "head -c 200 work/d/d012.json; grep -c paths packs/woodcut-ink/style.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p packs/woodcut-ink/traces && cp work/d/*.json packs/woodcut-ink/traces/",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cp glob"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rsync -a work/d/ packs/woodcut-ink/traces/",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "rsync"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import shutil; shutil.copytree('work/d', 'packs/woodcut-ink/traces')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python copytree"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for f in work/d/d0*.json; do cp \"$f\" packs/woodcut-ink/traces/; done",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "loop"
+    }
+  ]
+}

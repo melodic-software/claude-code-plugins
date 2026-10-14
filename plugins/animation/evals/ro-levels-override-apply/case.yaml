@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: ro-levels-override-apply
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: levels-entry-added
+    type: regex
+    pattern: '\{[^{}]*"k"\s*:\s*\[\s*40\s*,\s*50\s*\][^{}]*"levels"\s*:\s*\[\s*40\s*,\s*80\s*,\s*170\s*,\s*215\s*\]|"levels"\s*:\s*\[\s*40\s*,\s*80\s*,\s*170\s*,\s*215\s*\][^{}]*"k"\s*:\s*\[\s*40\s*,\s*50\s*\]'
+    target: { source: file, path: work/overrides.json }
+  - name: ran-extract-apply
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|else)\s))?\s*(?:(?:\w+=\S*|(?:\S*/)?(?:env|nohup|time|exec|sudo|command)|timeout\s+\S+|(?:\S*/)?(?:bash|zsh|dash|sh)\s+(?:-\S+\s+)*-c)\s+\\?["'']?)*(?:(?:\S*/)?python(?:3(?:\.\d+)?)?\s+(?:-\S+\s+)*(?:\\?["'']?\S*pydeps\.py\\?["'']?\s+run\s+(?:(?!--\s)\S+\s+)*--\s+(?:(?:\S*/)?python(?:3(?:\.\d+)?)?\s+(?:-\S+\s+)*)?)?)?\\?["'']?(?:[^\s"''\\]*/)?extract\.py\\?["'']?\s+(?:[^"\\]|\\.)*?--apply\b'
+    min: 1
+  - name: no-trace-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?/d/d\d{3}\.json"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-trace-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?/d/d\d{3}\.json"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-shell-trace-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*d/d(?:\d{3}|\*)\.json)(?:[^"\\]|\\.)*?(?:\bsed\s+(?:-\S+\s+)*-[a-zA-Z]*i|\bperl\s+-\S*i|>>?\s*\\?["'']?\S*d/d(?:\d{3}|\*)\.json|\btee\s+(?:-\S+\s+)*\\?["'']?\S*d/d(?:\d{3}|\*)\.json|\b(?:cp|mv|install|rsync)\s+(?:[^"\\]|\\.)*?\S*d/d(?:\d{3}|\*)\.json\\?["'']?(?=\s*(?:[;&|)]|\\n|"))|json\.dump\(|\.write_text\(|\.write\()'
+    min: 0
+    max: 0
+    arm: 'both'

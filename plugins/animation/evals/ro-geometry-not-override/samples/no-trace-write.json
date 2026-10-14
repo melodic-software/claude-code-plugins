@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/work/overrides.json",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "override file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/work/learnings.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "learnings"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/work/d/d012.json",
+            "content": "{\"paths\": []}"
+          }
+        }
+      ],
+      "why": "rewrote a trace"
+    }
+  ]
+}
