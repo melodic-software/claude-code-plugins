@@ -5,8 +5,8 @@
       "why": "property"
     },
     {
-      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/template.html\",\"content\":\"function seek(t) { clock = t; }\"}}]}}",
-      "why": "function"
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/template.html\",\"content\":\"function seek(t) { clock = t; }\\nwindow.__pixelScene = {\\n  duration: 2,\\n  seek,\\n  play,\\n};\"}}]}}",
+      "why": "shorthand property inside the object"
     },
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/template.html\",\"content\":\"window.__pixelScene = {\\nseek: (t) => { clock = t; draw(); }\\n};\"}}]}}",
@@ -17,15 +17,31 @@
       "why": "observed: template written by a Bash heredoc"
     },
     {
-      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Edit\",\"input\":{\"file_path\":\"out/star/star.template.html\",\"old_string\":\"play,\",\"new_string\":\"play,\\nseek(t) { clock = t; draw(); },\",\"replace_all\":false}}]}}",
-      "why": "seek added by Edit on a new line"
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Edit\",\"input\":{\"file_path\":\"out/star/star.template.html\",\"old_string\":\"// api\",\"new_string\":\"window.__pixelScene.seek = (t) => { clock = t; draw(); };\",\"replace_all\":false}}]}}",
+      "why": "seek assigned onto __pixelScene by Edit"
     },
     {
-      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat <<\\\"EOF\\\" > out/star/template.html\\n<script>\\nfunction seek(t) { clock = t; }\\n</script>\\nEOF\"}}]}}",
-      "why": "heredoc with the redirect after the delimiter"
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat <<\\\"EOF\\\" > out/star/template.html\\n<script>\\nfunction seek(t) { clock = t; }\\nwindow.__pixelScene.seek = seek;\\n</script>\\nEOF\"}}]}}",
+      "why": "heredoc with the redirect after the delimiter, seek attached to __pixelScene"
     }
   ],
   "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/template.html\",\"content\":\"function seek(t) { clock = t; }\"}}]}}",
+      "why": "standalone seek never tied to __pixelScene"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Edit\",\"input\":{\"file_path\":\"out/star/star.template.html\",\"old_string\":\"play,\",\"new_string\":\"play,\\nseek(t) { clock = t; draw(); },\",\"replace_all\":false}}]}}",
+      "why": "Edit adds seek with no __pixelScene in view"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/template.html\",\"content\":\"window.__pixelScene = { duration: 2, play };\\nconst api = { seek(t) { clock = t; } };\"}}]}}",
+      "why": "seek in a different object after __pixelScene closes"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/template.html\",\"content\":\"if (window.__pixelScene == null) init();\\nfunction seek(t) { clock = t; }\"}}]}}",
+      "why": "comparison, not assignment"
+    },
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/template.html\",\"content\":\"window.__pixelScene = { duration: 2, play };\"}}]}}",
       "why": "no seek"

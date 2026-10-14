@@ -33,6 +33,14 @@
     {
       "answer": "**Deliverable**: `out/potion/preview.png`",
       "why": "bold deliverable"
+    },
+    {
+      "answer": "The engine asset is preview.png; sheet.png is only a 1x reference.",
+      "why": "asset is preview.png"
+    },
+    {
+      "answer": "Import preview.png into Godot as your icon.",
+      "why": "import instruction into an engine by name"
     }
   ]
 }

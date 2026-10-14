@@ -27,6 +27,14 @@
       "why": "comment only"
     },
     {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/template.html\",\"content\":\"if (window.__pixelScene === undefined) init();\"}}]}}",
+      "why": "strict comparison, not assignment"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/template.html\",\"content\":\"if (window.__pixelScene == null) init();\"}}]}}",
+      "why": "loose comparison, not assignment"
+    },
+    {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/star/notes.md\",\"content\":\"window.__pixelScene = {}\"}}]}}",
       "why": "not html"
     },

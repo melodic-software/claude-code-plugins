@@ -71,6 +71,18 @@
         }
       ],
       "why": "observed: a generator script runs backends.py passed as its argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > gen.py <<'EOF'\nimport subprocess, sys\nsubprocess.run([sys.executable, \"/plugin/scripts/backends.py\", \"spec.json\", \"--out\", \".\"], check=True)\nEOF\npython3 gen.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "observed shape: a generator runs backends.py through subprocess with --out"
     }
   ],
   "fail": [
@@ -157,6 +169,42 @@
         }
       ],
       "why": "backends.py only listed on a later line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugin/scripts/backends.py --help",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "help only, no render"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > probe.py <<'EOF'\nimport subprocess, sys\nsubprocess.run([sys.executable, \"/plugin/scripts/backends.py\", \"--help\"])\nEOF\npython3 probe.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "subprocess asks for help, no --out"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/scripts/backends.py --help; ls --out",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "direct exec for help; --out belongs to a later command"
     }
   ]
 }

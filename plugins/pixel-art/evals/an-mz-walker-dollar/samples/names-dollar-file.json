@@ -7,6 +7,10 @@
     {
       "answer": "Copied sheet.png to out/mage/$mage.png so MZ reads one character.",
       "why": "prose"
+    },
+    {
+      "answer": "MZ's walk sheets have no extra files to set up. The character file is `out/mage/$mage.png`.",
+      "why": "a negation in an earlier sentence does not count"
     }
   ],
   "fail": [
@@ -21,6 +25,10 @@
     {
       "answer": "I did not create $.png",
       "why": "no name after $"
+    },
+    {
+      "answer": "I could not write `$mage.png`; the sheet is out/mage/sheet.png.",
+      "why": "backticked negation"
     }
   ]
 }

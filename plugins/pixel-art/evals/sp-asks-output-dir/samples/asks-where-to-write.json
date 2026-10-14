@@ -41,6 +41,14 @@
     {
       "answer": "Saved to ./out/chest/. Shall I proceed?",
       "why": "confirmation without location"
+    },
+    {
+      "answer": "Brief is set. What size should the output be?",
+      "why": "asks about output size, not location"
+    },
+    {
+      "answer": "Which palette should the output use?",
+      "why": "asks about output palette, not location"
     }
   ]
 }

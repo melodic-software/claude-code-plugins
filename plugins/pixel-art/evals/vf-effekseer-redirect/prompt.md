@@ -1,5 +1,5 @@
 ---
-description: "A request for an Effekseer .efkefc file is redirected: the reply says .efkefc is not a pixel sheet, offers the cell sheet, and no .efkefc is written"
+description: "A request for an Effekseer .efkefc file is redirected: the reply offers the cell sheet and no .efkefc is written"
 tags: [pixel-art, vfx, outcome, scope]
 max_turns: 40
 timeout_seconds: 900

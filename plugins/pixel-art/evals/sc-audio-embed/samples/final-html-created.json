@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ["out/star/star.template.html", "out/star/star.html", "out/star/index.html"],
+      "why": "final file written"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["out/star/star.template.html", "out/star/index.html"],
+      "why": "template only"
+    },
+    {
+      "answer": ["out/star/scene.html"],
+      "why": "final file under another name"
+    }
+  ]
+}

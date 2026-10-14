@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ["out/spark/spec.json", "out/spark/sheet.png", "out/spark/spark.gif"],
+      "why": "sheet rendered"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["out/spark/spec.json", "out/spark/brief.md"],
+      "why": "render never ran"
+    },
+    {
+      "answer": ["out/sheet.png"],
+      "why": "sheet outside out/spark/"
+    }
+  ]
+}

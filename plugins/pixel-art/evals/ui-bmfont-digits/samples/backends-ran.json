@@ -5,6 +5,18 @@
         {
           "tool": "Bash",
           "input": {
+            "command": "mkdir -p out/digits && cd out/digits && cat > gen_digits.py <<'EOF'\nimport pathlib, subprocess, sys\nHERE = pathlib.Path(__file__).resolve().parent\nRENDER = pathlib.Path(\"/home/<user>/.claude/plugins/pixel-art/scripts/backends.py\")\nsubprocess.run([sys.executable, str(RENDER), str(HERE / \"spec.json\"), \"--out\", str(HERE), \"--scale\", \"4\"], check=True)\nEOF\npython3 gen_digits.py && ls",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "observed: a generator runs backends.py through subprocess with --out"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/backends.py\" out/digits/digits.json --out out/digits --scale 4",
             "description": "run"
           }
@@ -109,6 +121,30 @@
         }
       ],
       "why": "backends.py only listed on a later line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugin/scripts/backends.py --help",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "help only, no render"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > probe.py <<'EOF'\nimport subprocess, sys\nsubprocess.run([sys.executable, \"/plugin/scripts/backends.py\", \"--help\"])\nEOF\npython3 probe.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "subprocess asks for help, no --out"
     }
   ]
 }

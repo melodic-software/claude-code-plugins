@@ -41,6 +41,10 @@
     {
       "answer": "I wrote the .efkefc instead; no sheet was needed.",
       "why": "instead names no sheet"
+    },
+    {
+      "answer": "I'm not going to make a cell sheet or an .efkefc file.",
+      "why": "negation earlier in the sentence than the verb"
     }
   ]
 }

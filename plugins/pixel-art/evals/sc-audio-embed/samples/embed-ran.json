@@ -73,6 +73,30 @@
         }
       ],
       "why": "new line, but reads the script instead of running it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugin/scripts/embed.py --help",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "help only, no template and output"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugin/scripts/embed.py out/star/template.html && ls out/star",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "one positional argument; embed.py needs a template and an output"
     }
   ]
 }

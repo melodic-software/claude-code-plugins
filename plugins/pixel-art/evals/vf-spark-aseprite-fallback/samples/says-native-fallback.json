@@ -25,6 +25,10 @@
     {
       "answer": "It did not fall back to native.",
       "why": "negated"
+    },
+    {
+      "answer": "Rendered with the native backend. sheet.png and spark.gif are in out/spark/.",
+      "why": "native named with no fallback wording"
     }
   ]
 }

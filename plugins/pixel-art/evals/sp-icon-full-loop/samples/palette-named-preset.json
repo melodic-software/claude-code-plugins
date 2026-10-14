@@ -19,6 +19,14 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"mkdir -p out/potion && cd out/potion && cat > potion.json <<'EOF'\\n{\\n  \\\"palette\\\": \\\"pico-8\\\",\\n  \\\"frames\\\": {\\n    \\\"potion\\\": [\\\"....1111....\\\"]\\n  }\\n}\\nEOF\",\"description\":\"run\"}}]}}",
       "why": "observed: spec written by a Bash heredoc"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > gen.py <<'EOF'\\nspec = {\\\"palette\\\": \\\"pico-8\\\", \\\"frames\\\": frames}\\nEOF\\npython3 gen.py\",\"description\":\"run\"}}]}}",
+      "why": "generator written by a heredoc"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"echo '{\\\"palette\\\": \\\"pico-8\\\", \\\"frames\\\": {}}' > out/potion/potion.json\",\"description\":\"run\"}}]}}",
+      "why": "spec written by an echo redirect"
     }
   ],
   "fail": [
@@ -37,6 +45,14 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"grep pico-8 palettes/README.md\",\"description\":\"run\"}}]}}",
       "why": "no Write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"grep '\\\"palette\\\": \\\"pico-8\\\"' out/potion/potion.json\",\"description\":\"run\"}}]}}",
+      "why": "grep for the preset; nothing written"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > notes.md <<'EOF'\\n\\\"palette\\\": \\\"pico-8\\\"\\nEOF\",\"description\":\"run\"}}]}}",
+      "why": "heredoc into a markdown file, not a spec"
     },
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -n 1,20p /plugin/palettes/README.md\",\"description\":\"run\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_x\",\"content\":\"{\\\"palette\\\": \\\"pico-8\\\", \\\"frames\\\": {\\\"icon\\\": [\\\"8.\\\"]}}\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_x\",\"name\":\"Write\",\"input\":{\"file_path\":\"out/potion/potion.json\",\"content\":\"{\\\"palette\\\": {\\\"8\\\": \\\"#ff004d\\\", \\\"1\\\": \\\"#1d2b53\\\"}, \\\"frames\\\": {}}\"}}]}}",

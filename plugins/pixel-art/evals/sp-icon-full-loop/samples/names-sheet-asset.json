@@ -25,6 +25,14 @@
     {
       "answer": "Asset: out/potion/preview.png",
       "why": "preview as asset"
+    },
+    {
+      "answer": "The engine asset is preview.png; sheet.png is only a 1x reference.",
+      "why": "preview named as the asset; sheet.png demoted"
+    },
+    {
+      "answer": "Import preview.png into Godot as your icon.",
+      "why": "preview used as the asset, sheet.png never named"
     }
   ]
 }

@@ -10,15 +10,27 @@ graders:
     target: trace
   - name: template-sets-pixelscene
     type: regex
-    pattern: '^\{"type":"assistant".*?"type":"tool_use","id":"[^"]*","name":(?:"Write","input":\{"file_path":"[^"]*\.html?","content":"(?:[^"\\]|\\.)*?__pixelScene\\?["'']?\]?\s*=|"Edit","input":\{"file_path":"[^"]*\.html?","old_string":"(?:[^"\\]|\\.)*","new_string":"(?:[^"\\]|\\.)*?__pixelScene\\?["'']?\]?\s*=|"Bash","input":\{"command":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\n))(?:cat|tee)\b(?=(?:[^\\"]|\\")*?\.html?\b)(?:[^\\"]|\\")*?<<-?\s*(?:\\"|'')?(\w+)(?:\\"|'')?(?:[^\\"]|\\")*?\\n(?:(?!\\n\1(?:\\n|"))(?:[^"\\]|\\.))*?__pixelScene\\?["'']?\]?\s*=)'
+    pattern: '^\{"type":"assistant".*?"type":"tool_use","id":"[^"]*","name":(?:"Write","input":\{"file_path":"[^"]*\.html?","content":"(?:[^"\\]|\\.)*?__pixelScene\\?["'']?\]?\s*=(?!=)|"Edit","input":\{"file_path":"[^"]*\.html?","old_string":"(?:[^"\\]|\\.)*","new_string":"(?:[^"\\]|\\.)*?__pixelScene\\?["'']?\]?\s*=(?!=)|"Bash","input":\{"command":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\n))(?:cat|tee)\b(?=(?:[^\\"]|\\")*?\.html?\b)(?:[^\\"]|\\")*?<<-?\s*(?:\\"|'')?(\w+)(?:\\"|'')?(?:[^\\"]|\\")*?\\n(?:(?!\\n\1(?:\\n|"))(?:[^"\\]|\\.))*?__pixelScene\\?["'']?\]?\s*=(?!=))'
     flags: 'm'
     target: trace
   - name: template-defines-seek
     type: regex
-    pattern: '^\{"type":"assistant".*?"type":"tool_use","id":"[^"]*","name":(?:"Write","input":\{"file_path":"[^"]*\.html?","content":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\n))seek\s*(?::|\(|=)|"Edit","input":\{"file_path":"[^"]*\.html?","old_string":"(?:[^"\\]|\\.)*","new_string":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\n))seek\s*(?::|\(|=)|"Bash","input":\{"command":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\n))(?:cat|tee)\b(?=(?:[^\\"]|\\")*?\.html?\b)(?:[^\\"]|\\")*?<<-?\s*(?:\\"|'')?(\w+)(?:\\"|'')?(?:[^\\"]|\\")*?\\n(?:(?!\\n\1(?:\\n|"))(?:[^"\\]|\\.))*?(?:\b|(?<=\\n))seek\s*(?::|\(|=))'
+    pattern: '^\{"type":"assistant".*?"type":"tool_use","id":"[^"]*","name":(?:"Write","input":\{"file_path":"[^"]*\.html?","content":"(?:[^"\\]|\\.)*?__pixelScene\\?["'']?\]?\s*(?:=(?!=)\s*\{(?:(?!\\n\}|\};)(?:[^"\\]|\\.))*?(?:(?<=\\n)|(?<![.\w$]))seek\s*(?::|\(|,|\}|\\n)|\.\s*seek\s*=(?!=))|"Edit","input":\{"file_path":"[^"]*\.html?","old_string":"(?:[^"\\]|\\.)*","new_string":"(?:[^"\\]|\\.)*?__pixelScene\\?["'']?\]?\s*(?:=(?!=)\s*\{(?:(?!\\n\}|\};)(?:[^"\\]|\\.))*?(?:(?<=\\n)|(?<![.\w$]))seek\s*(?::|\(|,|\}|\\n)|\.\s*seek\s*=(?!=))|"Bash","input":\{"command":"(?:[^"\\]|\\.)*?(?:\b|(?<=\\n))(?:cat|tee)\b(?=(?:[^\\"]|\\")*?\.html?\b)(?:[^\\"]|\\")*?<<-?\s*(?:\\"|'')?(\w+)(?:\\"|'')?(?:[^\\"]|\\")*?\\n(?:(?!\\n\1(?:\\n|"))(?:[^"\\]|\\.))*?__pixelScene\\?["'']?\]?\s*(?:=(?!=)\s*\{(?:(?!\\n\}|\};)(?:[^"\\]|\\.))*?(?:(?<=\\n)|(?<![.\w$]))seek\s*(?::|\(|,|\}|\\n)|\.\s*seek\s*=(?!=)))'
     flags: 'm'
     target: trace
   - name: embed-ran
     type: tool_used
     tool: Bash
-    input_match: '(?:\b|(?<=\\n))(?:python[0-9.]*|uv run(?: python[0-9.]*)?)\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*\bembed\.py\b|(?:"command":"|[;&|(]\s*|\\n\s*|(?:\b|(?<=\\n))(?:then|do)\s+)\\?["'']?(?:\./|/|\$\{?\w+\}?/)[^\s"''\\]*\bembed\.py\b|^(?!.*(?:__doc__|help\())(?=.*(?:\b|(?<=\\n))(?:import\s+embed\b|from\s+embed\s+import\b))'
+    input_match: '(?:\b|(?<=\\n))(?:python[0-9.]*|uv run(?: python[0-9.]*)?)\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*\bembed\.py\b\\?["'']?(?:\s+-[^\s;&|\\]+)*\s+\\?["'']?[^\s;&|<>"''\\-][^\s;&|<>"''\\]*\\?["'']?(?:\s+-[^\s;&|\\]+)*\s+\\?["'']?[^\s;&|<>"''\\-]|(?:"command":"|[;&|(]\s*|\\n\s*|(?:\b|(?<=\\n))(?:then|do)\s+)\\?["'']?(?:\./|/|\$\{?\w+\}?/)[^\s"''\\]*\bembed\.py\b\\?["'']?(?:\s+-[^\s;&|\\]+)*\s+\\?["'']?[^\s;&|<>"''\\-][^\s;&|<>"''\\]*\\?["'']?(?:\s+-[^\s;&|\\]+)*\s+\\?["'']?[^\s;&|<>"''\\-]|^(?!.*(?:__doc__|help\())(?=.*(?:\b|(?<=\\n))(?:import\s+embed\b|from\s+embed\s+import\b))'
+  - name: final-html-created
+    type: file_exists
+    path: '**/star/star.html'
+  - name: final-html-has-wav
+    type: regex
+    pattern: 'data:audio/wav;base64,'
+    target: { source: file, path: out/star/star.html }
+  - name: final-html-no-markers
+    type: regex
+    pattern: '/\*(?:WAV|EMBED):'
+    match: 'not_contains'
+    target: { source: file, path: out/star/star.html }
