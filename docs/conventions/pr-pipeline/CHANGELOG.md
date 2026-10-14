@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## 1.12.2 - 2026-10-14
+
+The `work-resolve-issue` lane goes live: its `labeled-after` is now 2026-10-14T19:21:59Z, so issues
+labeled `agent-ready` after that time start a run. The allowlist stays `work-class: read-only`
+only. `version` stays 1.
+
 ## 1.12.1 - 2026-10-14
 
 The live config gains the `pr-merge` lane with one `merge-pr` activity (effect `merge`, the babysit
