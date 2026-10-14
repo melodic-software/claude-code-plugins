@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\nlegacy_greeting() { echo \"hello\"; }\nlegacy_greeting\n# format: applied\n",
+      "why": "format only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\ngreet() { echo \"hello\"; }\ngreet\n# format: applied\n# code-fix applied\n",
+      "why": "renamed"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail  \ngreet() { echo \"hello\"; }\ngreet\n# code-fix applied\n",
+      "why": "renamed"
+    }
+  ]
+}

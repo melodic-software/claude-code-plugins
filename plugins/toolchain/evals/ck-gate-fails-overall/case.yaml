@@ -1,0 +1,47 @@
+schema_version: "1.1"
+name: ck-gate-fails-overall
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: gate-reported-fail
+    type: regex
+    pattern: 'fixture-drift[`*\s|:—–-]{1,12}FAIL\b'
+    target: last_message
+  - name: gate-remediation-shown
+    type: regex
+    pattern: 'regen-fixtures'
+    target: last_message
+  - name: overall-fail
+    type: regex
+    pattern: 'Overall\W{0,8}FAIL\b'
+    target: last_message
+  - name: overall-counts-gate
+    type: regex
+    pattern: 'Overall\W{0,8}FAIL\b[^\n]*?(?:\b(?:1|one)\s+(?:of\s+1\s+)?gates?\s+failed|gates?\s+failed:?\s*1\b)'
+    flags: i
+    target: last_message
+  - name: overall-no-ecosystem-failed
+    type: regex
+    pattern: 'Overall\W{0,8}FAIL\b[^\n]*?\b(?:0|no|zero)\s+(?:of\s+1\s+)?ecosystems?\s+failed'
+    flags: i
+    target: last_message
+  - name: ran-build
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*tools/build\.sh'
+    arm: both
+  - name: ran-test
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*tools/test\.sh'
+    arm: both
+  - name: ran-lint
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*tools/lint\.sh'
+    arm: both
+  - name: ran-gate
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*tools/fixture-drift\.sh'
+    arm: both

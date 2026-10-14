@@ -1,0 +1,124 @@
+{
+  "skill": "toolchain:check",
+  "plugin": "toolchain",
+  "skill_dir": "plugins/toolchain/skills/check",
+  "ranking_note": "Authored from the before descriptions at commit 1e8ff6f8bbc232b84b12f6888a85dafc502d5f8b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other model-invoked toolchain skills.",
+  "competitors": [
+    "toolchain:lint",
+    "toolchain:check-prerequisites"
+  ],
+  "competitor_dirs": {
+    "toolchain:lint": "plugins/toolchain/skills/lint",
+    "toolchain:check-prerequisites": "plugins/toolchain/skills/check-prerequisites"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I just rewired the service layer in three C# files. Make sure the solution still compiles and the unit tests pass."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Finished my edits to the Python module and the TypeScript client. Can you verify nothing is broken before I move on?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Kick off a full verification pass on what I touched: compile, tests, the whole thing."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I changed a Go handler and a bash script. Please confirm they both still work."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is my working tree green? Exercise whatever the repo uses to validate changes."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Just patched the PowerShell helper and a markdown doc. Validate those changes end to end with the project's usual commands."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Something in my last commit might have broken the build. Figure out which toolchains are affected and try them."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Please make sure the .NET project builds cleanly and its tests succeed after that refactor."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before I open the PR, execute the compile and test steps for every language I changed."
+    },
+    {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Does the TypeScript package still pass its test suite after my dependency bump?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Just check formatting on my staged files, I don't care about compiling or tests."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is shellcheck installed on this machine, and which version?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which commands should this plugin use for building and testing in my repo? Help me configure them."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a function that parses ISO 8601 durations in Python."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Auto-format my Python files with ruff and fix whatever style issues it finds, nothing else."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Verify that the missing-tool error from the hook is because dotnet isn't on my PATH."
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Set up the toolchain settings for this project so it knows our test command."
+    },
+    {
+      "id": "neg-validation-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Explain the difference between a mutex and a semaphore."
+    }
+  ]
+}

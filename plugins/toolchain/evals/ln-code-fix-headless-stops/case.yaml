@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: ln-code-fix-headless-stops
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: plan-names-command
+    type: regex
+    pattern: 'semantic-fix\.sh'
+    target: last_message
+  - name: plan-names-file
+    type: regex
+    pattern: '\bapp\.sh\b'
+    target: last_message
+  - name: says-rerun-with-yes
+    type: regex
+    pattern: '(?<!\bnot\s)(?<!n''t\s)(?<!\bnever\s)(?:re-?run|(?<!-)\brun\b(?:[^.\n]{0,20}?\bagain\b|\s+[`*]?/toolchain:lint\b)|to apply)(?:(?!without|\bnot?\b|n''t\b|\bnever\b)[\s\S]){0,60}?--yes|(?<!\bnot\s)(?<!n''t\s)(?<!\bnever\s)\b(?:pass|add|use|with)\s+[`*]?--yes[`*]?\W{0,4}to apply'
+    flags: i
+    target: last_message
+  - name: app-still-legacy
+    type: regex
+    pattern: 'legacy_greeting'
+    match: "count:2"
+    target: { source: file, path: app.sh }
+  - name: no-code-fix-marker
+    type: regex
+    pattern: 'code-fix applied'
+    match: not_contains
+    target: { source: file, path: app.sh }
+  - name: never-ran-code-fix
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*\S*semantic-fix\.sh'
+    min: 0
+    max: 0
+    arm: both

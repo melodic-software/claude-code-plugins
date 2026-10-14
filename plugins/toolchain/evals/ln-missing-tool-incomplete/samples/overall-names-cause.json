@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Build Results\n\n| Ecosystem | Lint | Format | Status |\n|---|---|---|---|\n| bash | skip (tool missing: qqfmt-absent) | — | INCOMPLETE |\n\nInstall hint: ask the platform team for the qqfmt-absent package.\n\nOverall: INCOMPLETE (0 of 1 ecosystems passed; bash: skip (tool missing: qqfmt-absent))",
+      "why": "cause in parenthetical"
+    },
+    {
+      "answer": "**bash**: Lint `skip (tool missing: `qqfmt-absent`)`\n\n**Overall:** **INCOMPLETE** — bash lint did not run because `qqfmt-absent` is not on PATH.",
+      "why": "cause after the verdict"
+    },
+    {
+      "answer": "- bash → Lint: Skip (tool missing: qqfmt-absent)\n\nOverall: `INCOMPLETE`\nCause: bash: skip (tool missing: qqfmt-absent)",
+      "why": "cause on the next line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| bash | — | — | skip (tool missing: shellcheck) | INCOMPLETE |\n\nOverall: INCOMPLETE (bash: skip (tool missing: shellcheck))",
+      "why": "names a different cause"
+    },
+    {
+      "answer": "| bash | — | — | — | PASS |\n\nOverall: PASS (nothing to run; not INCOMPLETE, and no skip (tool missing) applies)",
+      "why": "PASS"
+    },
+    {
+      "answer": "| bash | — | — | skip (tool missing: qqfmt-absent) | INCOMPLETE |\n\nOverall: INCOMPLETE",
+      "why": "cause only before the Overall line, verdict names none"
+    }
+  ]
+}

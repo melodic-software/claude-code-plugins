@@ -7,6 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.12.0] - 2026-10-13
+
+### Added
+
+- Seven outcome eval cases (`au-`, `ck-`, `su-`) and frozen trigger-probe sets for `audit` and `check`.
+
+### Changed
+
+- `setup` has a one-line description and a shorter body (148 to 132 lines) with the same checks and remediation. The `audit` and `check` skills are unchanged.
+
 ## [0.11.1] - 2026-10-13
 
 ### Changed

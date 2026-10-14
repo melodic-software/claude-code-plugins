@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Working tree clean; using the branch diff against origin/trunk: greet.sh.\n\n| Ecosystem | Build | Test | Lint | Status |\n|---|---|---|---|---|\n| bash | pass | pass | pass | PASS |\n\nOverall: PASS (1 of 1 ecosystems passed)",
+      "why": "table row"
+    },
+    {
+      "answer": "**bash** \u2014 build pass, test pass, lint pass \u2192 **PASS**\n\n**Overall:** **PASS**",
+      "why": "bold prose row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:check all` to verify the full repo.",
+      "why": "no changes"
+    },
+    {
+      "answer": "| bash | pass | FAIL | \u2014 | FAIL |\n\nOverall: FAIL (1 of 1 ecosystems failed)",
+      "why": "row failed"
+    },
+    {
+      "answer": "Overall: INCOMPLETE (not PASS); bash could not be detected",
+      "why": "no bash PASS"
+    },
+    {
+      "answer": "bash: FAIL (lint did not PASS)\n\nOverall: FAIL",
+      "why": "bash row failed, PASS named later"
+    },
+    {
+      "answer": "bash is not PASS yet: the test step is still running.",
+      "why": "PASS negated"
+    }
+  ]
+}

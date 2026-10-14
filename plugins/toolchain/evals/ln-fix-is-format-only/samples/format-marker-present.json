@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\nlegacy_greeting() { echo \"hello\"; }\nlegacy_greeting\n# format: applied\n",
+      "why": "format ran"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail\ngreet() { echo \"hello\"; }\ngreet\n# format: applied\n# code-fix applied\n",
+      "why": "format ran (both ran)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail  \nlegacy_greeting() { echo \"hello\"; }\nlegacy_greeting\n",
+      "why": "nothing ran"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset -euo pipefail  \ngreet() { echo \"hello\"; }\ngreet\n# code-fix applied\n",
+      "why": "only code-fix ran"
+    }
+  ]
+}
