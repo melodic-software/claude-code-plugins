@@ -18,7 +18,7 @@ following those changes.
 
 ## Decision
 
-1. **`lib/transcript_reader.py` is the only code that parses transcript JSONL.** It is vendored
+1. **`lib/transcript_reader.py` is the source of the only code in session-flow that parses transcript JSONL.** It is vendored
    per [ADR 0019](0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md), and
    session-flow's code imports its generated copy, `plugins/session-flow/scripts/transcript_reader.py`.
    It owns record iteration, usage dedup by `message.id` (last record
