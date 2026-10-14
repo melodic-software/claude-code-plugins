@@ -460,9 +460,9 @@ def edited(session_id: str, prs: list[tuple[str, int]] | None, paths: dict | Non
 
 
 def test_churn_sums_one_paths_edits_across_the_sessions_of_one_pr(data_dir):
-    # The rule's threshold is 5: a.py is edited 4 + 3 = 7 times within o/r#12, so it is over;
-    # b.py's 2 + 3 = 5 is not, and o/r#13's a.py (6) is its own ticket. The placeholders collect.py
-    # stores in place of a path name no file, so o/r#14 has no pair. Ties order by repo, then PR number.
+    # The rule's threshold is 5: a.py is edited 4 + 3 = 7 times within PR 12, so it is over;
+    # b.py's 2 + 3 = 5 is not, and PR 13's a.py (6) is its own ticket. The placeholders collect.py
+    # stores in place of a path name no file, so PR 14 has no pair. Ties order by repo, then PR number.
     write_store(
         data_dir,
         edited("s1", [("o/r", 12)], {"a.py": 4, "b.py": 2}),
