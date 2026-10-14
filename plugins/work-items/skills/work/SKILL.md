@@ -1,6 +1,6 @@
 ---
 description: "Pick exactly one work item from the tracker frontier by priority tier (due recurring, guardrails, highest impact, then not-yet-due recurring), claim it race-safe, and execute it end-to-end through the project's workflow. Use when the user asks to pick, grab, or work the next item, ticket, or issue, or asks what to work on next. Backlog CRUD is /work-items:track; draining the backlog in a loop is /work-items:work-loop."
-argument-hint: "[<item-id> | --issue <n> --ci]"
+argument-hint: "[<item-id>|--issue <n> --ci]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -10,7 +10,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. `[<item-id> | --issue <n> --ci]`. Empty auto-selects and claims one frontier item; an admitted item id from a loop lane binds the selection (see Autonomous invocation). `--issue <n> --ci` is the CI lane's mode: follow the CI mode section below and skip every other section.
+Arguments: `$ARGUMENTS`. `[<item-id>|--issue <n> --ci]`. Empty auto-selects and claims one frontier item; an admitted item id from a loop lane binds the selection (see Autonomous invocation). `--issue <n> --ci` is the CI lane's mode: follow the CI mode section below and skip every other section.
 
 ## CI mode (`--issue <n> --ci`)
 
