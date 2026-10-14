@@ -10,6 +10,10 @@
     {
       "answer": "**code_writing**: `inline` (default)\n  The repository file docs/conventions/implementation.yaml has\n  code_writing = parallel, an invalid value; I ignored that layer.\n**integration_posture**: `minimal` (`docs/conventions/implementation.yaml`)",
       "why": "bold key, backticked value"
+    },
+    {
+      "answer": "- **`code_writing`:** `inline` (default). `docs/conventions/implementation.yaml` sets `parallel`, which is not `inline` or `dispatch`.",
+      "why": "bold backticked key, colon inside the emphasis"
     }
   ],
   "fail": [
@@ -32,6 +36,10 @@
     {
       "answer": "code_writing: is not set; inline (default) applies to integration_posture.",
       "why": "value not on the key"
+    },
+    {
+      "answer": "**`code_writing`:** `parallel` (docs/conventions/implementation.yaml)",
+      "why": "invalid value resolved from the repository layer"
     }
   ]
 }

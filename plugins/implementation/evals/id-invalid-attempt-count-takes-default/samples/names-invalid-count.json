@@ -10,6 +10,10 @@
     {
       "answer": "**competing_attempts**: auto (from docs/conventions/implementation.yaml)\n**competing_attempt_count**: 3 (default)\n  docs/conventions/implementation.yaml has a value of 7 for competing_attempt_count,\n  which is out of range; the repository layer is dropped for that key.\n",
       "why": "split across lines"
+    },
+    {
+      "answer": "- **`competing_attempts`:** `auto` (`docs/conventions/implementation.yaml`).\n- **`competing_attempt_count`:** `3` (default). The repo file sets it to `7`, but the allowed range is 2 to 5, so the repo value is dropped.",
+      "why": "value is dropped"
     }
   ],
   "fail": [
@@ -32,6 +36,10 @@
     {
       "answer": "docs/conventions/implementation.yaml sets competing_attempt_count: 7, which is not invalid.",
       "why": "negated"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets competing_attempt_count: 7. The allowed range is 2 to 5, but the repo value is not dropped; phase 2 gets 7 attempts.",
+      "why": "range stated, invalid value kept"
     }
   ]
 }

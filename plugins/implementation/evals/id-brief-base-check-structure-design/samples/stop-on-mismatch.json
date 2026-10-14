@@ -11,6 +11,10 @@
     {
       "answer": "Run `git -C \"/srv/dev/wt/invoice-rounding\" merge-base HEAD origin/integration/rounding` before any edit; if it differs from the base, STOP and report.\n\n**Structure**: a lookup from rounding mode to quantize rule\n**Design excerpt**: `none`\n",
       "why": "same line"
+    },
+    {
+      "answer": "3. Before your first edit, confirm the base. `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding` must equal `git -C /srv/dev/wt/invoice-rounding rev-parse origin/integration/rounding`. If it does not, STOP and report.",
+      "why": "if it does not"
     }
   ],
   "fail": [
@@ -25,6 +29,10 @@
     {
       "answer": "Run `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding`.\n\nAcceptance: pytest passes.\n\nALLOWED: billing/invoice.py.\n\nFORBIDDEN: CHANGELOG.md.\n\nNotes: keep commits small.\n\nIf a test fails for a mismatch in rounding, STOP and report.",
       "why": "STOP far from the base check"
+    },
+    {
+      "answer": "Run `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding`. If the worktree does not exist, STOP and report.",
+      "why": "STOP on a missing worktree, not a base mismatch"
     }
   ]
 }

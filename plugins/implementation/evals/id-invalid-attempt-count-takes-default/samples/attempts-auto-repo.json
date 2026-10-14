@@ -9,6 +9,10 @@
     {
       "answer": "**competing_attempts**: auto (from docs/conventions/implementation.yaml)\n**competing_attempt_count**: 3 (default)\n  docs/conventions/implementation.yaml has a value of 7 for competing_attempt_count,\n  which is out of range; the repository layer is dropped for that key.\n",
       "why": "from prefix"
+    },
+    {
+      "answer": "- **`competing_attempts`:** `auto` (`docs/conventions/implementation.yaml`).",
+      "why": "bold backticked key, colon inside the emphasis"
     }
   ],
   "fail": [
@@ -27,6 +31,10 @@
     {
       "answer": "Should I run competing attempts for phase 2? Shall I proceed?",
       "why": "a question, no setting line"
+    },
+    {
+      "answer": "**`competing_attempts`:** `auto` (default)",
+      "why": "wrong layer"
     }
   ]
 }

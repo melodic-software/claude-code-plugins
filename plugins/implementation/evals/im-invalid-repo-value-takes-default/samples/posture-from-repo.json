@@ -9,6 +9,10 @@
     {
       "answer": "**code_writing**: `inline` (default)\n  The repository file docs/conventions/implementation.yaml has\n  code_writing = parallel, an invalid value; I ignored that layer.\n**integration_posture**: `minimal` (`docs/conventions/implementation.yaml`)",
       "why": "backticked value and layer"
+    },
+    {
+      "answer": "- **`integration_posture`:** `minimal` (`docs/conventions/implementation.yaml`).",
+      "why": "bold backticked key, colon inside the emphasis"
     }
   ],
   "fail": [
@@ -26,6 +30,10 @@
     },
     {
       "answer": "integration_posture: minimal (user option)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "**`integration_posture`:** `minimal` (default)",
       "why": "wrong layer"
     }
   ]

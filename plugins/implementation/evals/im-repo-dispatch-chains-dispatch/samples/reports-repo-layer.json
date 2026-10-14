@@ -10,6 +10,14 @@
     {
       "answer": "code_writing: dispatch (from docs/conventions/implementation.yaml)",
       "why": "from prefix"
+    },
+    {
+      "answer": "| Key | Value | Layer |\n|---|---|---|\n| `code_writing` | `dispatch` | `docs/conventions/implementation.yaml` |",
+      "why": "settings table row"
+    },
+    {
+      "answer": "| Setting | Value | Layer that supplied it |\n|---|---|---|\n| `code_writing` | **dispatch** | `docs/conventions/implementation.yaml`. The user option is unset. |",
+      "why": "table row, bold value, trailing note"
     }
   ],
   "fail": [
@@ -32,6 +40,10 @@
     {
       "answer": "code_writing is not set in docs/conventions/implementation.yaml; dispatch was not chosen.",
       "why": "negated"
+    },
+    {
+      "answer": "| `code_writing` | `dispatch` | default (docs/conventions/implementation.yaml not read) |",
+      "why": "table row with the default layer"
     }
   ]
 }

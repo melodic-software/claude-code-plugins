@@ -9,16 +9,16 @@ graders:
     input_match: 'docs/conventions/implementation\.yaml'
   - name: names-invalid-count
     type: regex
-    pattern: '^(?=(?:[^\n]*\n){0,2}[^\n]*implementation\.yaml)(?=(?:[^\n]*\n){0,2}[^\n]*\bcompeting_attempt_count\b)(?=(?:[^\n]*\n){0,2}[^\n]*(?:[:=`(][ \t]*|\bvalue[ \t]+|\bsets?[ \t]+|\bof[ \t]+|\bto[ \t]+)7\b)(?=(?:[^\n]*\n){0,2}[^\n]*\b(?:invalid|not (?:a )?valid|isn[''’]t (?:a )?valid|out of range|outside|not (?:a whole number )?(?:from|between|in) 2|above (?:the )?(?:maximum|max|5)|exceeds|unsupported|not allowed)\b)(?!(?:[^\n]*\n){0,2}[^\n]*\b(?:not|isn[''’]t) (?:an? )?invalid\b)'
+    pattern: '^(?=(?:[^\n]*\n){0,2}[^\n]*implementation\.yaml)(?=(?:[^\n]*\n){0,2}[^\n]*\bcompeting_attempt_count\b)(?=(?:[^\n]*\n){0,2}[^\n]*(?:[:=`(][ \t]*|\bvalue[ \t]+|\bsets?[ \t]+|\bof[ \t]+|\bto[ \t]+)7\b)(?=(?:[^\n]*\n){0,2}[^\n]*\b(?:invalid|not (?:a )?valid|isn[''’]t (?:a )?valid|out of range|outside|not (?:a whole number )?(?:from|between|in) 2|above (?:the )?(?:maximum|max|5)|exceeds|unsupported|not allowed|value (?:is|was) (?:dropped|ignored))\b)(?!(?:[^\n]*\n){0,2}[^\n]*\b(?:not|isn[''’]t) (?:an? )?invalid\b)'
     flags: 'mi'
     target: last_message
   - name: count-default
     type: regex
-    pattern: '\bcompeting_attempt_count\b[`*]*[ \t]*[:=][ \t]*[`*]*3\b[`*]*[ \t]*\([ \t]*default\b'
+    pattern: '\bcompeting_attempt_count\b[`*]*[ \t]*[:=][`* \t]*3\b[`*]*[ \t]*\([ \t]*default\b'
     flags: 'i'
     target: last_message
   - name: attempts-auto-repo
     type: regex
-    pattern: '\bcompeting_attempts\b[`*]*[ \t]*[:=][ \t]*[`*]*auto\b[`*]*[ \t]*\([ \t]*(?:from )?`?(?:docs/conventions/)?implementation\.yaml'
+    pattern: '\bcompeting_attempts\b[`*]*[ \t]*[:=][`* \t]*auto\b[`*]*[ \t]*\([ \t]*(?:from )?`?(?:docs/conventions/)?implementation\.yaml'
     flags: 'i'
     target: last_message

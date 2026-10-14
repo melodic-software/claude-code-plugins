@@ -7,12 +7,12 @@ graders:
     target: last_message
   - name: stop-on-mismatch
     type: regex
-    pattern: '^(?=(?:[^\n]*\n){0,4}[^\n]*merge-base HEAD [`''"]?origin/integration/rounding)(?=(?:[^\n]*\n){0,4}[^\n]*\bSTOP\b)(?=(?:[^\n]*\n){0,4}[^\n]*\b(?:mismatch(?:es|ed)?|differs?|different|does(?: not|n[''’]t) (?:equal|match)|not equal|otherwise|if not)\b)(?!(?:[^\n]*\n){0,4}[^\n]*\b(?:don[''’]t|do not|never|no need to) stop\b)'
+    pattern: '^(?=(?:[^\n]*\n){0,4}[^\n]*merge-base HEAD [`''"]?origin/integration/rounding)(?=(?:[^\n]*\n){0,4}[^\n]*\bSTOP\b)(?=(?:[^\n]*\n){0,4}[^\n]*\b(?:mismatch(?:es|ed)?|differs?|different|does(?: not|n[''’]t) (?:equal|match)|not equal|otherwise|if not|if (?:it|they|that|this) (?:does|do)(?: not|n[''’]t))\b)(?!(?:[^\n]*\n){0,4}[^\n]*\b(?:don[''’]t|do not|never|no need to) stop\b)'
     flags: 'mi'
     target: last_message
   - name: structure-line
     type: regex
-    pattern: '^[ \t>*_-]*(?:\d+[.)][ \t]*)?[*_`]*Structure[*_`]*[ \t]*:[*_`]*[ \t]*[*_`]*[^ \t\n*_`]'
+    pattern: '^[ \t>*_-]*(?:\d+[.)][ \t]*)?[*_`]*(?:Structure[*_`]*[ \t]*:[*_`]*[ \t]*[*_`]*[^ \t\n*_`]|STRUCTURE[*_`]*[ \t]*\n[ \t]+[^ \t\n])'
     flags: 'm'
     target: last_message
   - name: design-none

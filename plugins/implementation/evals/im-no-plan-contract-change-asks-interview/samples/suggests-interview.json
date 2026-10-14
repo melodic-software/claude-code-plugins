@@ -14,6 +14,14 @@
     {
       "answer": "Stopping before code: we should plan this first. What retry limits do you want?",
       "why": "plan first"
+    },
+    {
+      "answer": "I've stopped at the prerequisite check without writing code. This change adds a public contract (`NotificationSender`), a new module boundary and new types, and there's no approved plan for it. Those are the cases where the skill says to agree the contract before building. No planning skill is installed in this setup, so the questions are below instead.",
+      "why": "agree the contract, planning plugin absent"
+    },
+    {
+      "answer": "I stopped before writing any code. This change adds a public interface (`NotificationSender`) that two modules will depend on. So the shape needs to be agreed first. No planning skill is installed here, so I've listed the open questions below for you to answer directly.",
+      "why": "shape needs to be agreed"
     }
   ],
   "fail": [
@@ -36,6 +44,10 @@
     {
       "answer": "Done. Shall I proceed with the webhook adapter next?",
       "why": "a question is not the route to an interview"
+    },
+    {
+      "answer": "There's no need to agree the contract first; I wrote service/notifications/ with both adapters.",
+      "why": "negated, code written"
     }
   ]
 }

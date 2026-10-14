@@ -14,6 +14,10 @@
     {
       "answer": "14. Structure: integer cents in a `dict` keyed by line id",
       "why": "numbered item"
+    },
+    {
+      "answer": "11. DESIGN: none\n\n14. STRUCTURE\n    decimal.Decimal built from the value's decimal string, then\n    .quantize(Decimal(\"0.01\"), rounding=ROUND_HALF_EVEN).",
+      "why": "upper-case section heading, value on the next indented line"
     }
   ],
   "fail": [
@@ -28,6 +32,10 @@
     {
       "answer": "The structure of the change: one function.",
       "why": "prose mention, not a Structure: line"
+    },
+    {
+      "answer": "14. STRUCTURE\n\n15. DESIGN: none",
+      "why": "empty upper-case heading"
     }
   ]
 }

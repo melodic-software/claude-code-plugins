@@ -18,6 +18,6 @@ graders:
       input_match: 'implement-dispatch'
   - name: reports-repo-layer
     type: regex
-    pattern: '\bcode_writing\b[`*]*[ \t]*[:=][ \t]*[`*]*dispatch\b[`*]*[ \t]*\([ \t]*(?:from )?`?(?:docs/conventions/)?implementation\.yaml'
+    pattern: '(?:\bcode_writing\b[`*]*[ \t]*[:=][ \t]*[`*]*dispatch\b[`*]*[ \t]*\([ \t]*(?:from )?`?(?:docs/conventions/)?implementation\.yaml)|\|[ \t]*[`*]*code_writing[`*]*[ \t]*\|[ \t]*[`*]*dispatch[`*]*[ \t]*\|[ \t]*`?(?:docs/conventions/)?implementation\.yaml'
     flags: 'i'
     target: last_message
