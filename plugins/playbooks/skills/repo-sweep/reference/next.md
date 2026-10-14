@@ -154,8 +154,10 @@ never combined with `&&` or other commands in one call. The record for these sha
 5. Report what the step changed, then tell the user: run `/playbooks:repo-sweep review` now if
    anything in the step went wrong, then `/clear` and `/playbooks:repo-sweep next`.
 
-A step that cannot finish in this session: leave `[~]` and invoke `/session-flow:handoff` via
-the Skill tool.
+A step that cannot finish in this session: leave `[~]` and route the next step with
+`/session-flow:workflow` (if installed), handing it the `[~]` step and the PR checklist; without
+session-flow, see
+[when your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up).
 
 ## 5. After the last step
 
