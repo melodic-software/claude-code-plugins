@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --name-only \"$(git merge-base refs/remotes/origin/trunk HEAD)..HEAD\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "skill block"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /tmp/ws merge-base HEAD refs/remotes/origin/trunk",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "git -C form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --name-only origin/trunk...HEAD",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "three-dot without merge-base"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo merge-base",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "named merge-base without running it"
+    }
+  ]
+}

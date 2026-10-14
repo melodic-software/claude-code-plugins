@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v qqfmt-absent",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "PATH probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "qqfmt-absent app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran the command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which qqfmt-absent",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "which probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "shellcheck app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran a different linter"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep qqfmt-absent .claude/ecosystems/bash.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "only read the config"
+    }
+  ]
+}

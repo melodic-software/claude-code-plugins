@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash tools/fixture-drift.sh app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "relative"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /tmp/ws/tools/fixture-drift.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "absolute"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/ws && bash tools/fixture-drift.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran it after cd"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tools/fixture-drift.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "only read the script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "shellcheck app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran a bundled default instead"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n tools/fixture-drift.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "syntax check only"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Build Results\n\n| Ecosystem | Lint | Format | Status |\n|---|---|---|---|\n| bash | skip (tool missing: qqfmt-absent) | — | INCOMPLETE |\n\nInstall hint: ask the platform team for the qqfmt-absent package.\n\nOverall: INCOMPLETE (0 of 1 ecosystems passed; bash: skip (tool missing: qqfmt-absent))",
+      "why": "contract table"
+    },
+    {
+      "answer": "**bash**: Lint `skip (tool missing: `qqfmt-absent`)`\n\n**Overall:** **INCOMPLETE** — bash lint did not run because `qqfmt-absent` is not on PATH.",
+      "why": "bold and backticks"
+    },
+    {
+      "answer": "- bash → Lint: Skip (tool missing: qqfmt-absent)\n\nOverall: `INCOMPLETE`\nCause: bash: skip (tool missing: qqfmt-absent)",
+      "why": "bullets, capital Skip"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| bash | — | — | FAIL | FAIL |\n\nqqfmt-absent: command not found (exit 127)\n\nOverall: FAIL (1 of 1 ecosystems failed)",
+      "why": "reported FAIL"
+    },
+    {
+      "answer": "| bash | — | — | skip (tool missing: shellcheck) | INCOMPLETE |\n\nOverall: INCOMPLETE (bash: skip (tool missing: shellcheck))",
+      "why": "names a different tool"
+    },
+    {
+      "answer": "Lint skipped for bash; qqfmt-absent could not be found.",
+      "why": "no named skip class"
+    }
+  ]
+}
