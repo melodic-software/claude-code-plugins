@@ -82,7 +82,9 @@ any run with no human to answer, STOP before any claim and report that `run` is 
      through `/work-items:track done` with a summary naming the branch: the checkpoint. No
      per-item PR.
    - **`per-item PRs`.** Each accepted item has a pull request against the default branch; open a
-     missing one with `/source-control:pull-request create --pushed --worktree <path>`. **Then ready
+     missing one with `/source-control:pull-request create --pushed --worktree <path>`. Before
+     `ready`, carry the item's human-merge hold into the PR body exactly as `/work-items:work`'s
+     open-the-PR step does with `${CLAUDE_PLUGIN_ROOT}/scripts/merge-hold.sh`. **Then ready
      it:** right after `create --pushed`, unless the consuming project's instructions reserve the
      ready flip for a person, dispatch `/source-control:pull-request ready` into the item's worktree,
      at the strong tier's current alias resolved per the loop-lane convention's capability tiers,

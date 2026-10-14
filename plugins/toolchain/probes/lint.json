@@ -1,0 +1,124 @@
+{
+  "skill": "toolchain:lint",
+  "plugin": "toolchain",
+  "skill_dir": "plugins/toolchain/skills/lint",
+  "ranking_note": "Authored from the before descriptions at commit 1e8ff6f8bbc232b84b12f6888a85dafc502d5f8b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other model-invoked toolchain skills.",
+  "competitors": [
+    "toolchain:check",
+    "toolchain:check-prerequisites"
+  ],
+  "competitor_dirs": {
+    "toolchain:check": "plugins/toolchain/skills/check",
+    "toolchain:check-prerequisites": "plugins/toolchain/skills/check-prerequisites"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Take a quick look at the style problems in the files I changed, no need to compile anything."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you tidy up the formatting across my modified Python and TypeScript files automatically?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Are my markdown and shell edits conforming to the repo's style rules?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Apply the safe autofixes for style violations on my branch's changes, but leave logic alone."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run ruff and eslint over what I touched and tell me what they complain about."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want fast style feedback on this C# change and skip compiling."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Preview what a semantic autofix would change in my Go files, without writing anything."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check every file in the repo against the formatters, not just the ones I edited."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Does my PowerShell script pass the analyzer and the formatter?"
+    },
+    {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Clean up whitespace and import order in the files in my diff."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Build the solution and run the unit tests for the files I changed."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Do you have prettier installed here? I need to know before anything else."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Configure which lint commands this project should use by default."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a regular expression that matches semantic version strings."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make sure the project compiles and the test suite is green."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "The hook says biome is missing. Report which required tools aren't found."
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Help me define the build and test commands my repo documents for the plugin."
+    },
+    {
+      "id": "neg-validation-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What is the time complexity of quicksort in the worst case?"
+    }
+  ]
+}

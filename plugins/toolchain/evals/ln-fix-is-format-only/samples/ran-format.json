@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash tools/format.sh app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /tmp/ws/tools/format.sh /tmp/ws/app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "absolute"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "./tools/format.sh app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran it directly"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat tools/format.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "only read it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash tools/semantic-fix.sh app.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ran the wrong one"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat ./tools/format.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "only read the script"
+    }
+  ]
+}

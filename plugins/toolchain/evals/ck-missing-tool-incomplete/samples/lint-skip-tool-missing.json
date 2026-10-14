@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Build Results\n\n| Ecosystem | Build | Test | Lint | Status |\n|---|---|---|---|---|\n| bash | — | — | skip (tool missing: zzlint-not-installed) | INCOMPLETE |\n\nInstall hint: ask the platform team for the zzlint-not-installed package.\n\nOverall: INCOMPLETE (0 of 1 ecosystems passed; bash: skip (tool missing: zzlint-not-installed))",
+      "why": "contract table"
+    },
+    {
+      "answer": "**bash**: Lint `skip (tool missing: `zzlint-not-installed`)`\n\n**Overall:** **INCOMPLETE** — bash lint did not run because `zzlint-not-installed` is not on PATH.",
+      "why": "bold and backticks"
+    },
+    {
+      "answer": "- bash → Lint: Skip (tool missing: zzlint-not-installed)\n\nOverall: `INCOMPLETE`\nCause: bash: skip (tool missing: zzlint-not-installed)",
+      "why": "bullets, capital Skip"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| bash | — | — | FAIL | FAIL |\n\nzzlint-not-installed: command not found (exit 127)\n\nOverall: FAIL (1 of 1 ecosystems failed)",
+      "why": "reported FAIL"
+    },
+    {
+      "answer": "| bash | — | — | skip (tool missing: shellcheck) | INCOMPLETE |\n\nOverall: INCOMPLETE (bash: skip (tool missing: shellcheck))",
+      "why": "names a different tool"
+    },
+    {
+      "answer": "Lint skipped for bash; zzlint-not-installed could not be found.",
+      "why": "no named skip class"
+    }
+  ]
+}
