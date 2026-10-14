@@ -3,6 +3,35 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.0] - 2026-10-14
+
+### Added
+
+- **`babysit_merge.py --unattended --authority pr-merge`, the pr-merge lane's gate.** It needs
+  `merge.authority: pr-merge` and `merge.agent-identity` at the base, reads its own enabling
+  commit for the post-merge floor, and replaces local eligibility with the lane's: a
+  `work-class: mechanical` label the lane identity's App applied (the owner account's and other
+  bots' label events are ignored; any class label can only make the class stricter) on a diff off
+  `merge.diff-check.denied-paths`. No promotion evidence is read; the class is read again before
+  the enqueue. While `merge.report-only` is true, `--merge` runs as a check that writes nothing.
+
+- **The post-merge check counts the pr-merge lane's full-run dispatch.** A `pr-require-checks`
+  dispatch by `github-actions[bot]` counts as the identity's when a run of
+  `.github/workflows/pr-merge.yml` on the branch (not a `pull_request_target` run) uploaded the
+  artifact `pr-merge-dispatched-<run id>`. A dispatch by another workflow, branch or actor still
+  does not.
+
+### Fixed
+
+- **The pr-merge lane no longer refuses every PR on the kill switch.** `--authority pr-merge` takes
+  the kill switch from the workflow as `--lane-kill-switch proceed` instead of reading Actions
+  variables its token cannot read. A missing value or any other value stops the lane. Local babysit
+  still reads the variables and refuses `--lane-kill-switch`. The rung cap comes the same way, as
+  `--lane-rung-cap` (empty is no cap; a missing or unknown value holds the rung at off).
+- **The pr-merge lane judges only its own merges (#7481).** In lane mode the post-merge check and
+  the in-flight rule count only merges the agent identity enqueued; `babysit_postmerge.py
+  --lane-merges-only` does the same. A release App's merge on main no longer counts as a lane merge.
+
 ## [1.2.1] - 2026-10-14
 
 ### Changed

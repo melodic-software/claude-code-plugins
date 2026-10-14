@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.0] - 2026-10-14
+
+### Added
+
+- `/work-items:work --issue <n> --ci`: the mode the `work-resolve-issue` CI lane runs on one issue
+  labeled `agent-ready`. It reads the issue the runner wrote, pushes back on an unclear issue,
+  otherwise commits the change, and writes `work-outcome.json` (`done`, `pushback` or `stopped`)
+  for the lane to open a draft PR or hand the issue back.
+
 ## [2.3.0] - 2026-10-14
 
 ### Added
