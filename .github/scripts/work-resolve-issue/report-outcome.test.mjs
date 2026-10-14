@@ -252,12 +252,32 @@ test("main on a rerun reuses the open PR from the branch and still labels it", a
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
         ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
         ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
-        ["GET", /\/pulls$/, 200, [{ number: 90 }]],
+        ["GET", /\/pulls$/, 200, [{ number: 90, user: { login: "melodic-automation-lanes[bot]" } }]],
         ["POST", /\/issues\/90\/labels$/, 200, []],
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
       assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/issues/90/labels")));
+    },
+  );
+});
+
+// Anyone can open a PR between two branches of a public repository, so an
+// open PR from the lane branch that the lanes App did not open is not reused.
+test("main does not adopt an open PR from the branch that someone else opened", async () => {
+  await withDir(
+    { "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }) },
+    async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["GET", /\/repos\/o\/r$/, 200, { default_branch: "main" }],
+        ["GET", /\/compare\//, 200, { files: [{ filename: "README.md" }] }],
+        ["GET", /\/pulls$/, 200, [{ number: 91, user: { login: "stranger" } }]],
+        ["POST", /\/pulls$/, 422, { message: "A pull request already exists" }],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 1);
+      assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
+      assert.ok(!calls.some((c) => c.path.endsWith("/issues/91/labels")));
     },
   );
 });

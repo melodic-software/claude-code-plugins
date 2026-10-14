@@ -24,6 +24,8 @@
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
 //   RESOLVED_CONFIG     resolve-config's output for this run (default
 //                       $RUNNER_TEMP/resolved-config.json), for the denied paths
+//   LANES_BOT_LOGIN     the lanes App bot login, the only author of an open PR
+//                       a rerun reuses (default melodic-automation-lanes[bot])
 //   GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID
 import { readFileSync } from "node:fs";
 import { join, posix } from "node:path";
@@ -270,11 +272,13 @@ export async function main({ env = process.env, fetch = globalThis.fetch } = {})
     });
     if (plan.action === "open-pr") {
       // A rerun after a failed label write finds the PR it already opened.
+      // Anyone can open a PR between two branches of a public repository, so
+      // only one the lanes App opened is reused; otherwise the create fails.
       const owner = env.GITHUB_REPOSITORY.split("/")[0];
-      const [open] = await github(
-        "GET",
-        `${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${plan.branch}`)}`,
-      );
+      const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+      const open = (
+        await github("GET", `${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${plan.branch}`)}`)
+      ).find((candidate) => candidate.user?.login === bot);
       const pull =
         open ??
         (await github("POST", `${repo}/pulls`, {
