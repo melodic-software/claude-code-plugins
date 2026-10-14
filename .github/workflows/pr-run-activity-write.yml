@@ -471,7 +471,7 @@ jobs:
         if: steps.head-recheck.outputs.proceed == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ steps.gate.outputs.head-sha || steps.trusted-base.outputs.commit }}
+          ref: ${{ inputs.issue-number != '' && steps.trusted-base.outputs.commit || steps.gate.outputs.head-sha }}
           token: ${{ steps.lane-token.outputs.token }}
           persist-credentials: false
           # The merge needs the history back to the merge base and the trusted
@@ -482,7 +482,7 @@ jobs:
       - name: Assert the head is the gated SHA
         if: steps.head-recheck.outputs.proceed == 'true'
         env:
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha || steps.trusted-base.outputs.commit }}
+          HEAD_SHA: ${{ inputs.issue-number != '' && steps.trusted-base.outputs.commit || steps.gate.outputs.head-sha }}
         run: |
           if [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
             echo "::error::the checked-out head is not the gated head SHA"
@@ -577,7 +577,7 @@ jobs:
           && steps.prepare.outputs.merge-state != 'escalate'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha || steps.trusted-base.outputs.commit }}
+          HEAD_SHA: ${{ inputs.issue-number != '' && steps.trusted-base.outputs.commit || steps.gate.outputs.head-sha }}
           # Issue mode: this branch becomes the PR's head.
           LANE_BRANCH: >-
             ${{ inputs.issue-number != ''
@@ -609,7 +609,7 @@ jobs:
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           CLAUDE_BRANCH: ${{ steps.lane-branch.outputs.branch || steps.gate.outputs.head-ref }}
           TRUSTED_CONTEXT_FILE: >-
-            ${{ steps.config.outputs.reads-untrusted == 'true'
+            ${{ steps.config.outputs.reads-untrusted == 'true' && inputs.issue-number == ''
             && format('{0}/trusted-context.json', runner.temp) || '' }}
         with:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
@@ -1048,6 +1048,7 @@ jobs:
               core.info(`The skill's commits are on ${LANE_BRANCH} at ${tip}`);
             }
             fs.mkdirSync(OUT_DIR, { recursive: true });
+            fs.rmSync(`${OUT_DIR}/lane.json`, { force: true });
             fs.writeFileSync(`${OUT_DIR}/lane.json`, `${JSON.stringify({ branch })}\n`);
 
       # The skill's outcome file is model output, copied as data and capped.
@@ -1060,13 +1061,19 @@ jobs:
         env:
           SCRATCH_OUTCOME: ${{ runner.temp }}/lane-scratch/work-outcome.json
           OUT_DIR: ${{ runner.temp }}/work-outcome
+          KEEP_OUTCOME: ${{ steps.issue-branch.outcome }}
         run: |
           mkdir -p "$OUT_DIR"
           rm -f "$OUT_DIR/work-outcome.json"
           if [ -f "$SCRATCH_OUTCOME" ] && [ ! -L "$SCRATCH_OUTCOME" ]; then
             head -c 65536 "$SCRATCH_OUTCOME" >"$OUT_DIR/work-outcome.json"
           fi
-          [ -f "$OUT_DIR/lane.json" ] || echo '{"branch":""}' >"$OUT_DIR/lane.json"
+          # Only the keep step's own write names a branch; anything else in
+          # the directory could have been planted during the run.
+          if [ "$KEEP_OUTCOME" != success ]; then
+            rm -f "$OUT_DIR/lane.json"
+            echo '{"branch":""}' >"$OUT_DIR/lane.json"
+          fi
 
       - name: Upload the issue outcome
         if: >-

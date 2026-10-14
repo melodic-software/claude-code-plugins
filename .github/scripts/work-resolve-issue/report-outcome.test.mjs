@@ -107,6 +107,31 @@ test("the model's summary cannot add a closing keyword outside a code block", ()
   assert.ok(!plan.body.includes("```\nFixes #6"));
 });
 
+// Squash merge copies the body into the commit message as plain text, where a
+// closing keyword closes an issue whatever fence it sat in.
+test("no issue reference from the model's summary survives into the body", () => {
+  const plan = decideDone({
+    outcome: { ...done, summary: "Fixes #5, closes o/r#6, resolves https://github.com/o/r/issues/7" },
+  });
+  const tail = plan.body.slice("Closes #77".length);
+  assert.ok(!/#\d|\/issues\/\d/.test(tail.replace(/^#77$/m, "")), plan.body);
+});
+
+test("a title carrying an issue reference falls back", () => {
+  assert.equal(decideDone({ outcome: { ...done, title: "fix: x, closes #5" } }).title, "chore: work on #77");
+});
+
+for (const path of [".claude-plugin/marketplace.json", "AGENTS.md", "plugins/x/CLAUDE.md", "REVIEW.md"]) {
+  test(`a diff touching ${path} carries the hold line`, () => {
+    assert.ok(decideDone({ changedFiles: [path] }).body.split("\n").includes("Hold: a human merges this"));
+  });
+}
+
+test("a diff the compare listing may have cut short carries the hold line", () => {
+  const files = Array.from({ length: 300 }, (_, i) => `docs/f${i}.md`);
+  assert.ok(decideDone({ changedFiles: files }).body.split("\n").includes("Hold: a human merges this"));
+});
+
 test("done with no branch is stopped, since nothing was committed", () => {
   const plan = decideDone({ branch: "" });
   assert.equal(plan.action, "hand-back");

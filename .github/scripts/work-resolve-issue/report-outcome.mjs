@@ -30,8 +30,10 @@ import { pathToFileURL } from "node:url";
 
 export const HOLD_LINE = "Hold: a human merges this";
 const EXITS = new Set(["done", "pushback", "stopped"]);
+// The subject allows no `#` or `/`, so the squash commit title cannot name an
+// issue to close.
 const CONVENTIONAL =
-  /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: \S.{0,98}$/;
+  /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: [A-Za-z0-9][A-Za-z0-9 ,.:()'_-]{0,98}$/;
 const WORK_CLASS = /^work-class: /;
 // Work a human merges: the classes past mechanical, and any diff that touches
 // what the lanes or their trust rest on.
@@ -39,12 +41,17 @@ const HOLD_CLASSES = new Set(["work-class: scoped", "work-class: structural", "w
 const HOLD_PATHS = [
   /^\.github\//,
   /^\.claude\//,
+  /^\.claude-plugin\//,
+  /(^|\/)(AGENTS|CLAUDE|REVIEW)\.md$/,
   /^docs\/conventions\//,
   /^plugins\/[^/]+\/hooks\//,
   /^plugins\/[^/]+\/\.claude-plugin\//,
   /^scripts\//,
 ];
 const MAX_TEXT = 3000;
+// GET /compare lists at most this many files, so a listing this long may
+// hide a hold path.
+const COMPARE_FILES_CAP = 300;
 
 const stopped = (reason) => ({ exit: "stopped", reason, title: "", summary: "" });
 const text = (value) => (typeof value === "string" ? value.slice(0, MAX_TEXT) : "");
@@ -63,9 +70,19 @@ export function readOutcome(path) {
   return { exit: parsed.exit, reason: text(parsed.reason), title: text(parsed.title), summary: text(parsed.summary) };
 }
 
-// Model text goes inside a fenced block, so it cannot add a closing keyword,
-// a mention or markup to the body.
-const quoted = (value) => ["```text", (value || "(none)").replaceAll("`", "'"), "```"].join("\n");
+// Model text goes inside a fenced block, so it adds no mention or markup when
+// rendered. Squash merge copies the body as plain text, so issue references
+// are broken too: `#` becomes a full-width ＃ and `/issues/` or `/pull/` gains
+// a space, so no closing keyword in it can close an issue.
+const quoted = (value) =>
+  [
+    "```text",
+    (value || "(none)")
+      .replaceAll("`", "'")
+      .replaceAll("#", "＃")
+      .replaceAll(/\/(issues|pull)\//gi, "/$1 /"),
+    "```",
+  ].join("\n");
 
 function handBack({ outcome, issueNumber, branch, humanLabel, runUrl }) {
   const pushback = outcome.exit === "pushback";
@@ -118,6 +135,7 @@ export function decide({ outcome, issueNumber, issueLabels, branch, changedFiles
   const labels = issueLabels.filter((name) => WORK_CLASS.test(name));
   const hold =
     labels.some((name) => HOLD_CLASSES.has(name)) ||
+    changedFiles.length >= COMPARE_FILES_CAP ||
     changedFiles.some((path) => HOLD_PATHS.some((pattern) => pattern.test(path)));
   const body = [
     `Closes #${issueNumber}`,
