@@ -496,6 +496,27 @@ def test_churn_sums_one_paths_edits_across_the_sessions_of_one_pr(data_dir):
     )
 
 
+def test_churn_joins_each_path_onto_its_sessions_working_directory(data_dir):
+    # One file edited from the checkout root and from a subdirectory is one path (3 + 3 = 6, over 5);
+    # same-named files in two subdirectories stay two paths (3 each, not over).
+    def at(session_id, cwd, paths):
+        rec = edited(session_id, [("o/r", 12)], paths)
+        rec["cwd"] = cwd
+        return rec
+
+    write_store(
+        data_dir,
+        at("s1", "/w", {"sub/a.py": 3}),
+        at("s2", "/w/sub", {"a.py": 3}),
+        at("s3", "/w/front", {"package.json": 3}),
+        at("s4", "/w/back", {"package.json": 3}),
+    )
+    env = envelope(sweep(data_dir))
+    assert findings_by_metric(env)["edits.churn_per_pr"]["evidence"] == [
+        {"repo": "o/r", "number": 12, "path": "/w/sub/a.py", "edits": 6, "sessions": ["s1", "s2"]},
+    ]
+
+
 def test_records_without_prs_or_edits_sweep_cleanly(data_dir):
     write_store(
         data_dir,

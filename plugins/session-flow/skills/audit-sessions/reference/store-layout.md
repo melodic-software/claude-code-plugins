@@ -95,8 +95,9 @@ D/audit-sessions/
   finding, whose entries name one path within one linked PR: `repo`, `number`, `path`, `edits`
   and the `sessions` that edited it. Only sessions linking exactly one PR count toward churn, the
   `<suppressed>` and `<too-long>` placeholders count as no path, and no PR review outcome is read.
-  A path outside the session's working directory is stored absolute, home directory included, so
-  a consumer keeps churn evidence on the machine.
+  Each stored path is joined onto its session's `cwd`, so one file edited from different
+  directories counts once and same-named files in different directories stay apart; the evidence
+  `path` is therefore the full path, and a consumer keeps churn evidence on the machine.
 - New fields are added within v1, and a consumer treats a missing field as null and ignores one it
   does not know. Removing or renaming a field, or changing what one means, moves the schema to
   `audit-sessions.sweep/v2`.

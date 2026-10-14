@@ -87,11 +87,12 @@ MACHINE_WIDE = {"cache.write_5m_share": _write_5m_share}
 def _churn(records: list[dict]) -> list[tuple[int, dict]]:
     """Edits to one path within one linked PR, summed over the sessions that link only that PR.
 
-    A session linking several PRs is left out: its edits cannot be split between them.
+    A session linking several PRs is left out: its edits cannot be split between them. Stored paths
+    are relative to each session's own working directory, so each is joined back onto it first.
     """
     tickets: dict[tuple[str, int], tuple[Counter, dict]] = {}
     for r in records:
-        edits, prs = r.get("edits"), r.get("prs")
+        edits, prs, cwd = r.get("edits"), r.get("prs"), r.get("cwd")
         paths = edits.get("by_relpath") if isinstance(edits, dict) else None
         if not isinstance(paths, dict) or not isinstance(prs, list) or len(prs) != 1 or not isinstance(prs[0], dict):
             continue
@@ -101,6 +102,7 @@ def _churn(records: list[dict]) -> list[tuple[int, dict]]:
         counts, sessions = tickets.setdefault((repo, number), (Counter(), {}))
         for path, n in paths.items():
             if path not in PLACEHOLDERS and isinstance(n, int) and n > 0:
+                path = Path(cwd, path).as_posix() if isinstance(cwd, str) and cwd else path
                 counts[path] += n
                 sessions.setdefault(path, set()).add(r["session_id"])
     return [
