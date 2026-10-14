@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing written"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/.work/.gitignore", "content": "*\n"}}], "why": "the sanctioned self-ignore guard"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/w/.work/overengineering/main/findings.md"}}], "why": "reading the prior artifact"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/.work/overengineering/main/findings.md", "content": "---\ntype: overengineering-findings\n"}}], "why": "wrote an artifact"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "C:\\w\\.work\\overengineering\\main\\findings.md", "content": "x"}}], "why": "Windows path"}
+  ]
+}

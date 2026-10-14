@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Run `/overengineering:audit` to walk the enforcement surface, or `/overengineering:justify <path>` for one artifact."},
+    {"answer": "The producers are overengineering:audit and overengineering:justify."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "I did not find an audit. Run `/overengineering:justify` on the workflow you care about.", "why": "names only justify"},
+    {"answer": "The audit is not set up here; run an audit first.", "why": "no skill name"},
+    {"answer": "Run `/overengineering:auditor` first.", "why": "different name"}
+  ]
+}

@@ -73,6 +73,12 @@ COLLECTOR_INPUTS = (
 HEAD_BYTES = 4096
 
 COMMAND_RE = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
+# MultiEdit stays listed on purpose: transcripts recorded by older Claude Code
+# versions carry MultiEdit calls, and they must still count as edits.
+# Pointer: for where the permissions page names the legacy MultiEdit tool, see
+# https://code.claude.com/docs/en/permissions#read-and-edit
+# As of: 2026-10-13
+# Recheck trigger: that section stops naming MultiEdit, or moves.
 EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 # System subtypes seen on current versions; any other is counted in `unknown.system_subtypes`.
 SYSTEM_SUBTYPES = frozenset(
