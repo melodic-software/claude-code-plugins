@@ -75,9 +75,9 @@ def q($p): sort as $s | ($s | length) as $n | (($n - 1) * $p) as $h | ($h | floo
 def r: . + 0.5 | floor;
 # Output only: strip control bytes and redact credential shapes (context/privacy.md).
 # The token rule needs a digit and excludes `/`, so hook file names and paths stay readable.
-# A flag is redacted when it names a secret (`--auth-token=`, `--api-key=`), never for `-key` alone.
+# Every flag ending in a credential word is redacted, except the named non-secret `-key` flags.
 def clean: tostring | gsub("[\\p{Cc}\\p{Cf}]"; "")
-  | gsub("(?<![A-Za-z0-9_-])(?<k>DATABASE_URL|CONNECTION_STRING|(AWS|GITHUB|GH)_[A-Za-z0-9_]*|([A-Za-z0-9_]*_)?(TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIALS?|AUTH)|--?([A-Za-z0-9]+[_-])*(TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIALS?|(API|ACCESS|PRIVATE|CLIENT|SECRET)[_-]?KEY))=(\"[^\"]*\"|\\x27[^\\x27]*\\x27|[^[:space:]\"\\x27]*)"; "\(.k)=[redacted]"; "i")
+  | gsub("(?<![A-Za-z0-9_-])(?<k>DATABASE_URL|CONNECTION_STRING|(AWS|GITHUB|GH)_[A-Za-z0-9_]*|([A-Za-z0-9_]*_)?(TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIALS?|AUTH)|--?(?!(SORT|CACHE|PRIMARY|PARTITION|FOREIGN|IDEMPOTENCY|GROUP|HASH)-KEY=)([A-Za-z0-9]+[_-])*(TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIALS?|AUTH))=(\"[^\"]*\"|\\x27[^\\x27]*\\x27|[^[:space:]\"\\x27]*)"; "\(.k)=[redacted]"; "i")
   | gsub("(?<s>[A-Za-z][A-Za-z0-9+.-]*://)[^/[:space:]@]+@"; "\(.s)[redacted]@")
   | gsub("(?=[A-Za-z+_-]*[0-9])[A-Za-z0-9+_-]{32,}={0,2}"; "[redacted-token]");
 [inputs | fromjson? | objects] as $recs
