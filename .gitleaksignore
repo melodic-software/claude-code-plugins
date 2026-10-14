@@ -26,3 +26,10 @@ cbd6129e6b7ef353095fd4b6d0d35de41136829e:plugins/performance/scripts/findings.te
 plugins/harness-ops/skills/observability/scripts/hook-transcript-timing.test.sh:github-pat:99
 # The canary IDE lock token in an install-state eval scaffold. Commit-less, so it survives the squash merge.
 plugins/harness-ops/evals/ai-never-reads-secrets-no-delete/scaffold.sh:generic-api-key:7
+# Canary values in the architecture eval fixtures before they were assembled at run time.
+de1c3268c184b62b8728b45e4cfdc4717368a01d:plugins/architecture/evals/mx-actors-stated-only/samples/no-secret-in-record.json:generic-api-key:12
+de1c3268c184b62b8728b45e4cfdc4717368a01d:plugins/architecture/evals/mx-actors-stated-only/samples/no-secret-in-reply.json:generic-api-key:12
+de1c3268c184b62b8728b45e4cfdc4717368a01d:plugins/architecture/evals/mx-actors-stated-only/samples/no-secret-in-view.json:generic-api-key:12
+de1c3268c184b62b8728b45e4cfdc4717368a01d:plugins/architecture/evals/mx-actors-stated-only/scaffold.sh:generic-api-key:38
+de1c3268c184b62b8728b45e4cfdc4717368a01d:plugins/architecture/evals/my-diff-secret-redacted/samples/no-secret-in-diff.json:generic-api-key:12
+de1c3268c184b62b8728b45e4cfdc4717368a01d:plugins/architecture/evals/my-diff-secret-redacted/scaffold.sh:generic-api-key:32
