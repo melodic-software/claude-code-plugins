@@ -31,7 +31,7 @@ graders:
   - name: no-components-shell-write
     type: tool_used
     tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?:\bcp\b|\bmv\b|\binstall\b|\bdd\b|\bsed\s+-i|\bperl\s+-\S*i|\btee\b|>\||>>?)(?:[^"\\|;&]|\\.)*?components\.md|\b(?:python3?\s+-c|node\s+-e)\b(?:[^"\\]|\\.)*?components\.md|\|\s*(?:bash|zsh|dash|sh)\b)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?:\bcp\b|\bmv\b|\binstall\b|\bdd\b|\bsed\s+-i|\bperl\s+-\S*i|\btee\b|>\||>>?)(?:[^"\\|;&]|\\.)*?components\.md|\b(?:python3?\s+-c|node\s+-e)\b(?:[^"\\]|\\.)*?(?:(?:write|dump|''[wa]\+?''|\\"[wa]\+?\\")(?:[^"\\]|\\.)*?components\.md|components\.md(?:[^"\\]|\\.)*?(?:write|dump|''[wa]\+?''|\\"[wa]\+?\\"))|\|\s*(?:bash|zsh|dash|sh)\b)'
     min: 0
     max: 0
     arm: both
