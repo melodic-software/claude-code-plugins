@@ -20,6 +20,7 @@ run, and mints nothing ([Check mode](#check-mode)).
 | `audience` | The OIDC audience, `${{ vars.LANES_BROKER_AUDIENCE }}`. Empty fails red |
 | `lane`, `activity` | Sent to the broker; the lane must be the caller workflow's file stem |
 | `pr-number` | `token` mode: the gated PR; sent as `pr_number` when set, which the broker needs off `pull_request` |
+| `issue-number` | `token` mode: the issue an `issues` lane works; sent as `issue_number` when set, which the broker needs on an `issues` event. Never with `pr-number` or `dispatcher-run-id` |
 | `dispatcher-run-id` | `token` mode: the `pr-unblock-dispatch.yml` run that dispatched this one; sent as `dispatcher_run_id` when set. The broker needs it to trust a run sent by `github-actions[bot]` |
 | `effect`, `contents`, `pull-requests`, `issues` | `token` mode: this job's own `resolve-config` outputs, compared with the broker's answer |
 
@@ -37,7 +38,7 @@ run, and mints nothing ([Check mode](#check-mode)).
    each of `contents`, `pull-requests` and `issues`, or when the job lacks `id-token: write`.
 2. Requests an OIDC token for `audience` and masks it.
 3. Sends one `POST` to `broker-url` with `Authorization: Bearer <OIDC token>` and the body
-   `{"lane", "activity", "pr_number"?, "dispatcher_run_id"?}`. It never retries: the broker spends the job's one mint
+   `{"lane", "activity", "pr_number"?, "issue_number"?, "dispatcher_run_id"?}`. It never retries: the broker spends the job's one mint
    when it answers, so a second request could only be denied `already-minted` or issue a token
    nobody revokes. No response at all fails red with `broker-unreachable`.
 4. Any status but 200 fails red with `lane-token-denied`, the HTTP status, and the broker's

@@ -1,6 +1,6 @@
 // Runs the action's `run:` script with a curl stand-in that answers the OIDC
 // request and the broker, and records the broker request body. The expected
-// body is the broker contract: `{lane, activity, pr_number?, dispatcher_run_id?}`,
+// body is the broker contract: `{lane, activity, pr_number?, issue_number?, dispatcher_run_id?}`,
 // numbers as JSON integers (pr-run-activity.md, run job step 6; the broker's
 // parseBody).
 import assert from "node:assert/strict";
@@ -81,6 +81,7 @@ function request(inputs) {
     LANE: "pr-unblock",
     ACTIVITY: "resolve-conflicts",
     PR_NUMBER: "42",
+    ISSUE_NUMBER: "",
     DISPATCHER_RUN_ID: "",
     EFFECT: "mutate-branch",
     CONTENTS: "write",
@@ -152,3 +153,38 @@ for (const value of ["0", "0123", "12a", "-5", "1 2", "1234567890123456"]) {
     assert.equal(run.body, null);
   });
 }
+
+test("an issue number is sent as issue_number, an integer, with no pr_number", () => {
+  const run = request({ LANE: "work-resolve-issue", ACTIVITY: "resolve-issue", PR_NUMBER: "", ISSUE_NUMBER: "77" });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(JSON.parse(run.body), { lane: "work-resolve-issue", activity: "resolve-issue", issue_number: 77 });
+  assert.match(run.output, /^mint-id=5550001-1$/m);
+});
+
+for (const value of ["0", "0123", "12a", "-5", "1 2", "12345678901"]) {
+  test(`a malformed issue number (${JSON.stringify(value)}) fails red before the broker request`, () => {
+    const run = request({ PR_NUMBER: "", ISSUE_NUMBER: value });
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /::error::the issue number is malformed/);
+    assert.equal(run.body, null);
+  });
+}
+
+for (const [name, inputs] of [
+  ["a PR number", { PR_NUMBER: "42" }],
+  ["a dispatcher run id", { PR_NUMBER: "", DISPATCHER_RUN_ID: "38155572048" }],
+]) {
+  test(`an issue number with ${name} fails red before the broker request`, () => {
+    const run = request({ ISSUE_NUMBER: "77", ...inputs });
+    assert.equal(run.status, 1);
+    assert.match(run.stdout, /::error::an issue number goes without a PR number or dispatcher run id/);
+    assert.equal(run.body, null);
+  });
+}
+
+test("check mode refuses an issue number before the broker request", () => {
+  const run = request({ MODE: "check", EFFECT: "", CONTENTS: "", PULL_REQUESTS: "", ISSUES: "", PR_NUMBER: "", ISSUE_NUMBER: "77" });
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /::error::check mode takes no effect, grant, PR or issue number, or dispatcher run id/);
+  assert.equal(run.body, null);
+});

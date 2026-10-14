@@ -561,7 +561,9 @@ Both are organization variables declared in github-iac
 
 The request is `POST <LANES_BROKER_URL>` with `Authorization: Bearer <OIDC token>` and the JSON
 body `{"lane": "<lane>", "activity": "<activity>", "pr_number": <n>, "dispatcher_run_id": <id>}`;
-`pr_number` is the gate's PR and is required off `pull_request`. `dispatcher_run_id`, a positive
+`pr_number` is the gate's PR and is required on `workflow_dispatch` and `workflow_run`. An `issues` request,
+allowed only from `work-resolve-issue.yml`, sends `issue_number` (the `issue-number` input)
+instead, and neither of the other two; its actor, the labeler, must be a listed human. `dispatcher_run_id`, a positive
 JSON integer, is the `dispatcher-run-id` input, sent only when set. The broker reads it only when
 the OIDC actor is `github-actions[bot]`: such a run mints only when the `pr-unblock-dispatch.yml`
 run it names passes the checks the trusted-trigger gate applies. That run must be on `main`,
@@ -588,10 +590,10 @@ reason; no response at all is `broker-unreachable`. Broker reasons:
 
 | Status | Reason | Meaning |
 |---|---|---|
-| 400 | (none) | The body is not `{lane, activity, pr_number?, dispatcher_run_id?}` with valid names and positive integers |
+| 400 | (none) | The body is not `{lane, activity, pr_number?, issue_number?, dispatcher_run_id?}` with valid names and positive integers, or `issue_number` is missing on `issues` or present off it |
 | 403 | `invalid-token`, `wrong-audience` | The OIDC token does not verify, or is for another audience |
 | 403 | `wrong-owner`, `repo-not-allowed`, `self-hosted-runner` | Not a melodic-software repository on the broker's allowlist, or not a GitHub-hosted runner |
-| 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main` |
+| 403 | `event-not-allowed` | Not `pull_request` on `refs/pull/<n>/merge`, or `workflow_dispatch` or `workflow_run` on `refs/heads/main`, or `issues` on `refs/heads/main` from `work-resolve-issue.yml` |
 | 403 | `workflow-not-allowed` | The job is not this repository's `pr-run-activity-write.yml`, or the caller is not a lane under `lanes:` in the tip's `pr-pipeline.yaml` |
 | 403 | `workflow-modified` | The caller or `pr-run-activity-write.yml` differs from the default-branch tip |
 | 403 | `workflow-modified` | With `dispatcher_run_id`: `pr-unblock-dispatch.yml` at the dispatcher run's head differs from the tip |
