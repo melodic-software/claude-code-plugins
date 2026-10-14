@@ -3,6 +3,17 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-10-13
+
+### Added
+
+- Five outcome eval cases for `write` and two for `scan` under `evals/`, and frozen trigger-probe sets for `write` and `scan` under `probes/`.
+
+### Changed
+
+- `write` and `scan` have shorter descriptions and bodies, and `setup` has a one-line description and a shorter body. Outcome eval cases and held-out trigger probes measured each change against the old text before it shipped.
+- The `!` pre-computed commands in `write` and `scan` fall back to a notice when the consumer-gotchas script fails.
+
 ## [0.12.0] - 2026-10-13
 
 ### Added

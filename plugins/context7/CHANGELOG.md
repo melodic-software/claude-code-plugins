@@ -3,6 +3,16 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-10-13
+
+### Added
+
+- Seven outcome eval cases for `lookup`, `check` and `setup` under `evals/`, and a frozen trigger-probe set for `lookup` under `probes/`.
+
+### Changed
+
+- `lookup` and `setup` have shorter bodies and descriptions; `check` keeps its text. Eval cases and trigger probes measured each change against the old text before it shipped. The vendored upstream baselines and the sync metadata are unchanged.
+
 ## [0.6.10] - 2026-10-13
 
 ### Changed
