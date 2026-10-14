@@ -216,7 +216,8 @@ comparison:
   status transitions, nothing written.
 - **The artifact carries no branch identity** (`branch:` absent, empty or `HEAD`). Refuse it by name,
   and say that `overengineering:audit` writes no artifact without an identity, so one carrying
-  `HEAD` did not come from this plugin's audit as it stands. Do not repair the field or fall back to its directory.
+  `HEAD` did not come from this plugin's audit as it stands. Do not repair the field or fall back
+  to its directory.
 
 Never fall back to `HEAD`, the commit sha, or the home's slug to make up either side.
 

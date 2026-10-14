@@ -8,4 +8,4 @@ bump: minor
 
 ### Added
 
-- Seven outcome eval cases (`au-`, `de-`, `ju-`, `re-`) with deterministic graders and a shared seed script, and frozen trigger-probe sets for all four skills.
+- Eight outcome eval cases (`au-`, `de-`, `ju-`, `re-`) with deterministic graders and a shared seed script, and frozen trigger-probe sets for all four skills.
