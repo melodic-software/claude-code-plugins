@@ -3,6 +3,16 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-10-14
+
+### Added
+
+- Eleven outcome eval cases under `evals/` (`ex-`, `il-`, `qz-`, `te-`, `su-`), and frozen trigger-probe sets for `explain`, `illustrate` and `quiz-me` under `probes/`.
+
+### Changed
+
+- `explain`, `illustrate` and `quiz-me` have shorter descriptions and bodies, `teach` has a one-line description and a shorter body, and `setup` has a one-line description. Outcome eval cases, and trigger probes held out from the rewriter, measured each change against the old text before it shipped.
+
 ## [0.16.1] - 2026-10-13
 
 ### Changed
