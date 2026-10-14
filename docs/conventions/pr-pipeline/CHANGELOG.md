@@ -1,5 +1,12 @@
 # Changelog for the PR pipeline convention
 
+## 1.13.1 - 2026-10-14
+
+"The pr-merge lane" considers only pull requests the lanes App opened, and reads the work class from the pull request's single closing issue, never from a
+label on the pull request, and counts a class label the lanes App or a human in person applied.
+`report-outcome` no longer copies `work-class:` labels onto the PR. The live config's comment on
+`merge` says so, and each `denied-paths` entry carries a one-line reason. `version` stays 1.
+
 ## 1.13.0 - 2026-10-14
 
 Schema: a skill leaf's optional `checks`, repository check scripts with fixed flags that a write
