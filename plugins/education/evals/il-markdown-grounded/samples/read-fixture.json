@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/retry.js"
+          }
+        }
+      ],
+      "why": "relative path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "src/**"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/run/src/retry.js"
+          }
+        }
+      ],
+      "why": "absolute path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "src/retry.js"
+          }
+        }
+      ],
+      "why": "globbed, never read"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| Mode | Topic | Records | Frontier | Last touched | Due for review |\n|---|---|---|---|---|---|\n| topic | sql-joins | 2 | LEFT JOIN | 2026-10-13 | none due |",
+      "why": "status line only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Mode | Topic | Records | Frontier | Last touched | Due for review |\n|---|---|---|---|---|---|\n| topic | sql-joins | 2 | LEFT JOIN | 2026-10-13 | none due |\n\nRecord 0002: Wrote `SELECT c.name, o.total FROM orders o JOIN customers c ON c.id = o.customer_id` from a blank editor without hints.",
+      "why": "quotes a record body"
+    }
+  ]
+}

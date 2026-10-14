@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "| Mode | Topic | Records | Frontier | Last touched | Due for review |\n|---|---|---|---|---|---|\n| topic | sql-joins | 2 | LEFT JOIN | 2026-10-13 | none due |",
+      "why": "count column"
+    },
+    {
+      "answer": "topic/sql-joins: 2 learning records, frontier LEFT JOIN, last touched 2026-10-13, nothing due for review.",
+      "why": "2 learning records"
+    },
+    {
+      "answer": "topic / sql-joins: two records; next up LEFT JOIN; touched today; due: INNER JOIN retrieval.",
+      "why": "spelled-out two"
+    },
+    {
+      "answer": "topic/sql-joins: 2 active records (the superseded one excluded), frontier LEFT JOIN, nothing due for review.",
+      "why": "active count with the superseded record excluded"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Mode | Topic | Records | Frontier | Last touched | Due for review |\n|---|---|---|---|---|---|\n| topic | sql-joins | 3 | LEFT JOIN | 2026-10-13 | none due |",
+      "why": "wrong count"
+    },
+    {
+      "answer": "sql-joins: 3 learning records",
+      "why": "wrong count in prose"
+    },
+    {
+      "answer": "topic/sql-joins: three learning records, frontier LEFT JOIN, last touched 2026-10-13, nothing due for review.",
+      "why": "counts the superseded record the scaffold seeds"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    }
+  ]
+}

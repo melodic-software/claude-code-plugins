@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Color grading has a small working vocabulary. Here is the ladder from the words you have to the words a colorist acts on.\n\n## Core terms\n\n| Term | Plain meaning | Vague word it replaces |\n|---|---|---|\n| White balance (color temperature) | How orange or blue neutral whites look | \"warmer\" → \"shift white balance toward amber in the skin tones\" |\n| Contrast | The gap between the darkest and brightest parts | \"punchier\" → \"crush the blacks slightly, keep the highlights\" |\n| Saturation | How intense the colors are | \"cinematic\" → \"lower saturation in the greens, keep skin natural\" |\n\n## What good looks like\n\nColorists judge skin tones, continuity from shot to shot, and whether the look serves the scene.\n\nBad brief: \"make it more cinematic\". Good brief: \"teal shadows, warm skin, contrast like the reference frame\".\n\n## How to ask for what you want\n\nTemplate: \"For scene ___, the mood is ___. Keep skin ___. Shadows ___, highlights ___. Reference: ___.\"\n\nNo MISSION.md or learning-records/ are created for a primer. For depth or practice, /education:teach topic color-grading starts a full workspace.\n",
+      "why": "good and bad brief"
+    },
+    {
+      "answer": "## Good vs bad briefs\n\n| ❌ Vague | ✅ Precise |\n|---|---|\n| \"Make it warmer\" | \"Warm the highlights toward amber, keep shadows neutral\" |\n",
+      "why": "observed shape: labeled table columns"
+    },
+    {
+      "answer": "## Good vs. bad examples\n\n- **Bad brief:** \"Make it warmer and more cinematic.\"\n- **Better brief:** \"Scenes 1 to 4: warm and soft, gentle contrast, low saturation.\"\n",
+      "why": "observed shape: labeled list items"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Color grading is the process of altering the color of a motion picture. It is an art and a science. Best of luck with your film!",
+      "why": "no contrast"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    },
+    {
+      "answer": "A better grade keeps skin tones natural; poor lighting hurts.",
+      "why": "evaluative words, no labeled example pair"
+    }
+  ]
+}

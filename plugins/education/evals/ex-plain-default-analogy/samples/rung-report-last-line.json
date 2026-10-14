@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "A database index is like the index at the back of a cookbook. Without it, finding every recipe that uses basil means turning every page. With it, you look up \"basil\", read the page numbers, and go straight to those pages.\n\nWhat it's actually doing: the database keeps a separate, sorted list of the values in one column (say, customer email), and next to each value it writes where that row is kept. A search for one email checks the short sorted list instead of reading the whole table.\n\nThe cost: every new recipe means updating the cookbook's index too, so adding rows gets a little slower in exchange for much faster lookups.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic database-indexes` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (default)",
+      "why": "bare last line"
+    },
+    {
+      "answer": "Imagine a library with no catalog: to find one book you walk every shelf. A card catalog (an alphabetical box of cards, each saying which shelf a book is on) lets you go straight to the right shelf.\n\nWhat it's actually doing: a database index is that card box for one column of a table.\n\nWant the high school version next?\n\nWant to actually learn this, not just get past it? `/education:teach topic database-indexes` runs a multi-session coached deep-dive.\n\n`explain_starting_rung: plain (default)`\n",
+      "why": "backticked last line with trailing newline"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A database index is like the index at the back of a cookbook. Without it, finding every recipe that uses basil means turning every page. With it, you look up \"basil\", read the page numbers, and go straight to those pages.\n\nWhat it's actually doing: the database keeps a separate, sorted list of the values in one column (say, customer email), and next to each value it writes where that row is kept. A search for one email checks the short sorted list instead of reading the whole table.\n\nThe cost: every new recipe means updating the cookbook's index too, so adding rows gets a little slower in exchange for much faster lookups.\n\nThat's the plain version, want the high-school one?\n\nexplain_starting_rung: plain (default)\n\nWant to actually learn this, not just get past it? `/education:teach topic database-indexes` runs a multi-session coached deep-dive.",
+      "why": "report is not the last line"
+    },
+    {
+      "answer": "A database index is like the index at the back of a cookbook. Without it, finding every recipe that uses basil means turning every page. With it, you look up \"basil\", read the page numbers, and go straight to those pages.\n\nWhat it's actually doing: the database keeps a separate, sorted list of the values in one column (say, customer email), and next to each value it writes where that row is kept. A search for one email checks the short sorted list instead of reading the whole table.\n\nThe cost: every new recipe means updating the cookbook's index too, so adding rows gets a little slower in exchange for much faster lookups.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic database-indexes` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (userConfig)",
+      "why": "wrong supplying layer"
+    },
+    {
+      "answer": "A database index is like the index at the back of a cookbook. Without it, finding every recipe that uses basil means turning every page. With it, you look up \"basil\", read the page numbers, and go straight to those pages.\n\nWhat it's actually doing: the database keeps a separate, sorted list of the values in one column (say, customer email), and next to each value it writes where that row is kept. A search for one email checks the short sorted list instead of reading the whole table.\n\nThe cost: every new recipe means updating the cookbook's index too, so adding rows gets a little slower in exchange for much faster lookups.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic database-indexes` runs a multi-session coached deep-dive.\nexplain_starting_rung: peer (default)",
+      "why": "wrong value"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "What would you like explained? Nothing has been said in this conversation yet, so there is no earlier message for me to put in plain words. Name the concept, code, error or text.",
+      "why": "the documented question"
+    },
+    {
+      "answer": "There's no previous response to work from. Which concept or message should I explain?",
+      "why": "which ... should I explain?"
+    },
+    {
+      "answer": "What do you want me to explain?",
+      "why": "plain question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A database index is like the index at the back of a cookbook: it lets you jump to the right page.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic database-indexes` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (default)",
+      "why": "explains an invented topic"
+    },
+    {
+      "answer": "No need to ask what you'd like explained; here is the previous response in plain words. It said the cache is a fast shelf.",
+      "why": "negated ask, no question"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    }
+  ]
+}

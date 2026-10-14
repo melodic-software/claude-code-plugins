@@ -1,0 +1,124 @@
+{
+  "skill": "education:illustrate",
+  "plugin": "education",
+  "skill_dir": "plugins/education/skills/illustrate",
+  "ranking_note": "Authored blind from the before descriptions at commit c67216035c6a99df142a1b24c5ce30c74fc7a7a6, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the two other model-invoked education skills.",
+  "competitors": [
+    "education:explain",
+    "education:quiz-me"
+  ],
+  "competitor_dirs": {
+    "education:explain": "plugins/education/skills/explain",
+    "education:quiz-me": "plugins/education/skills/quiz-me"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "ELI5 how DNS works."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you draw a diagram showing how requests flow through this codebase's auth layer?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Explain Kubernetes pods to me visually, one picture per idea."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make an interactive explainer page for the event sourcing pattern we use here."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Illustrate how garbage collection works, assume I know zero programming."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want an explainer video of how the build pipeline in this repo runs."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Show me a picture of how the cache invalidation works in this module, newcomer level."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Pretend I am a five year old and show me what a mutex is."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me a visual walkthrough of the payment flow, simple language, with a diagram per step."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Produce a markdown-only illustrated explainer on OAuth for someone brand new to it."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I don't get what this function does. Say it in plain words."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Just rephrase your last answer more simply, text only."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Create a Mermaid sequence diagram of the login endpoint for the design doc."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a chart of our test coverage by module."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Quiz me on what we changed today."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Break that wall of text into one decision at a time without losing any exact terms."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Teach me SQL over the next few weeks with exercises and check-ins."
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What is the difference between TCP and UDP? A couple of sentences is fine."
+    }
+  ]
+}

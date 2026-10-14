@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Exercise: Customers who have never ordered\n\n**Concept:** LEFT JOIN keeps unmatched rows\n**Difficulty:** beginner\n**Prerequisites:** [[0002-inner-join-demonstrated]]\n\n## Setup\n\nYour weekly sales report joins `orders` and `customers`. Marketing wants every customer, including those with no orders yet.\n\n## Task\n\nWrite a query with LEFT JOIN that lists every customer's name and order total. Before running it, predict which columns are NULL for a customer with no orders.\n\n## Hints (progressive)\n\n1. Which table must keep all of its rows?\n2. What does an INNER JOIN drop that you now need to keep?\n3. Put `customers` on the left and join `orders` on `o.customer_id = c.id`.\n\n## Solution\n\n```sql\nSELECT c.name, o.total FROM customers c LEFT JOIN orders o ON o.customer_id = c.id;\n```\n\nEvery `o` column is NULL for a customer with no orders.\n",
+      "why": "LEFT JOIN task"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Exercise: Customers who have never ordered\n\n**Concept:** INNER JOIN keeps unmatched rows\n**Difficulty:** beginner\n**Prerequisites:** [[0002-inner-join-demonstrated]]\n\n## Setup\n\nYour weekly sales report joins `orders` and `customers`. Marketing wants every customer, including those with no orders yet.\n\n## Task\n\nWrite a query with INNER JOIN that lists every customer's name and order total. Before running it, predict which columns are NULL for a customer with no orders.\n\n## Hints (progressive)\n\n1. Which table must keep all of its rows?\n2. What does an INNER JOIN drop that you now need to keep?\n3. Put `customers` on the left and join `orders` on `o.customer_id = c.id`.\n\n## Solution\n\n```sql\nSELECT c.name, o.total FROM customers c INNER JOIN orders o ON o.customer_id = c.id;\n```\n\nEvery `o` column is NULL for a customer with no orders.\n",
+      "why": "wrong concept"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    }
+  ]
+}

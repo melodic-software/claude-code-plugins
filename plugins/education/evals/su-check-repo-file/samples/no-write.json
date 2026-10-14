@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/education/skills/setup/scripts/setup-apply.mjs\" --check",
+            "description": "Check the repository file"
+          }
+        }
+      ],
+      "why": "no write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/conventions/education.yaml",
+            "content": "explain_starting_rung: plain\n"
+          }
+        }
+      ],
+      "why": "wrote the file"
+    }
+  ]
+}

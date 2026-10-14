@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: ex-cold-start-asks
+graders:
+  - name: asks-what-to-explain
+    type: regex
+    pattern: '\bwhat (?:would|do|should|shall) (?:you|I)\b[^\n?]{0,40}\bexplain\w*\b[^\n?]*\?|\bwhich\b[^\n?]{0,60}\bexplain\w*\b[^\n?]*\?|\bwhat\b[^\n?]{0,40}\b(?:topic|concept|thing|message)\b[^\n?]*\?'
+    flags: 'i'
+    target: last_message
+  - name: no-invented-explanation
+    type: regex
+    pattern: '/education:teach topic\b|\b(?:is|are|works)\s+(?:(?:a lot|much|just|kind of|sort of|a bit|rather|something)\s+)?like\b|\b(?:it|that)[''’]s like\b|\bimagine\b|what it[''’]s actually doing'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: short-ask
+    type: regex
+    pattern: '^[\s\S]{1,1200}$'
+    target: last_message
