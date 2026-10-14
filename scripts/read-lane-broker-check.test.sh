@@ -67,7 +67,7 @@ gate_case "no broker-check outputs at all fails" 1 "" "" 1
 url_case() {
   local out
   out="$(MODE=check BROKER_URL="$2" AUDIENCE=aud LANE=pr-review ACTIVITY=claude \
-    EFFECT='' CONTENTS='' PULL_REQUESTS='' ISSUES='' PR_NUMBER='' DISPATCHER_RUN_ID="${4:-}" \
+    EFFECT='' CONTENTS='' PULL_REQUESTS='' ISSUES='' PR_NUMBER='' ISSUE_NUMBER='' DISPATCHER_RUN_ID="${4:-}" \
     ACTIONS_ID_TOKEN_REQUEST_URL='' ACTIONS_ID_TOKEN_REQUEST_TOKEN='' \
     GITHUB_STEP_SUMMARY="$WORK/summary" RUNNER_TEMP="$WORK" bash "$ACTION" 2>&1)"
   if [[ $out == *"$3"* ]]; then
@@ -85,6 +85,6 @@ url_case "check mode refuses a last segment that only ends in token" "https://h.
 url_case "check mode accepts https://<host>/api/token" "https://h.example/api/token" "$ACCEPTED"
 url_case "check mode accepts https://<host>/token" "https://h.example/token" "$ACCEPTED"
 url_case "check mode refuses a dispatcher run id" "https://h.example/api/token" \
-  "check mode takes no effect, grant, PR number or dispatcher run id" 123
+  "check mode takes no effect, grant, PR or issue number, or dispatcher run id" 123
 
 test_harness::report
