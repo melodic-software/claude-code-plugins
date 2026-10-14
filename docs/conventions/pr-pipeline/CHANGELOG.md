@@ -4,7 +4,8 @@
 
 "The pr-merge lane" considers only pull requests the lanes App opened, and reads the work class from the pull request's single closing issue, never from a
 label on the pull request, and counts a class label the lanes App or a human in person applied.
-`report-outcome` no longer copies `work-class:` labels onto the PR. The live config's comment on
+`report-outcome` no longer copies `work-class:` labels onto the PR, and `pr-merge.yml` shortlists
+the lanes App's open PRs instead of PRs carrying the label. The live config's comment on
 `merge` says so, and each `denied-paths` entry carries a one-line reason. `version` stays 1.
 
 ## 1.13.0 - 2026-10-14
