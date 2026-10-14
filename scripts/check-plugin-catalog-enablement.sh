@@ -39,6 +39,8 @@
 #      hides.
 #   3. IDENTITY          -- the bootstrap's `marketplace_name` must equal the
 #      `name` in marketplace.json (see the check below).
+#   4. SHADOWING         -- settings must not declare extraKnownMarketplaces
+#      under that same name.
 #
 # A key's value is not judged: `true` and `false` are both recorded deltas.
 #
@@ -170,6 +172,18 @@ elif [[ "$bootstrap_name" != "$MARKET" ]]; then
     "$bootstrap_name" >&2
   printf "  '%s' catalog this gate just checked. Update both, or the parity below certifies a set nobody installs.\n" \
     "$MARKET" >&2
+  errors=$((errors + 1))
+fi
+
+# 4. SHADOWING -- settings must not redeclare this marketplace. A declared
+# source that differs from the user's registration makes Claude Code refetch
+# from it, so a project entry under this name replaces the marketplace local
+# sessions resolve. Other marketplaces are allowed.
+if jq -e --arg m "$MARKET" '(.extraKnownMarketplaces // {}) | has($m)' "$SETTINGS" >/dev/null; then
+  printf "SHADOWED MARKETPLACE: %s declares extraKnownMarketplaces.'%s', the marketplace %s names.\n" \
+    "$SETTINGS" "$MARKET" "$MARKETPLACE" >&2
+  printf '  Local sessions resolve it from the user registration and the cloud bootstrap registers it;\n' >&2
+  printf '  a project entry overrides both. Remove it.\n' >&2
   errors=$((errors + 1))
 fi
 

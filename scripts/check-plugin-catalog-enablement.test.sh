@@ -8,8 +8,9 @@
 #
 # A green run on the current repo tree proves nothing about the gate -- the
 # tree is green by construction once the drift is fixed. These fixtures prove
-# it goes RED on an enabled id no catalog entry backs, on unsorted keys and on
-# a bootstrap naming another marketplace; and that an explicit `false` and a
+# it goes RED on an enabled id no catalog entry backs, on unsorted keys, on
+# a bootstrap naming another marketplace and on settings redeclaring the
+# catalog's marketplace; and that an explicit `false` and a
 # catalogued plugin with no key both pass, because the settings block carries
 # deltas only.
 set -uo pipefail
@@ -258,6 +259,28 @@ if [[ $rc -eq 0 ]] && grep -q "for 'fixture'" <<<"$out"; then
   ok "the marketplace name is read from marketplace.json, not extraKnownMarketplaces"
 else
   fail "settings marketplaces should not decide the name (rc=$rc): $out"
+fi
+
+# --- 7b. Settings must not redeclare the catalog's own marketplace. --------
+# A declared source that differs from the user's registration makes Claude
+# Code refetch from it, so a project entry under this name shadows the
+# marketplace local sessions resolve.
+write_marketplace alpha
+{
+  echo '{'
+  echo '  "enabledPlugins": {"alpha@fixture": true},'
+  echo '  "extraKnownMarketplaces": {'
+  echo '    "fixture": {"source": {"source": "directory", "path": "./"}},'
+  echo '    "other": {"source": {"source": "github", "repo": "o/r"}}'
+  echo '  }'
+  echo '}'
+} >"$SETTINGS"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'SHADOWED MARKETPLACE' <<<"$out" && grep -q "'fixture'" <<<"$out"; then
+  ok "settings redeclaring the catalog's marketplace in extraKnownMarketplaces fails the gate"
+else
+  fail "extraKnownMarketplaces naming the catalog's marketplace should fail (rc=$rc): $out"
 fi
 
 # A catalog with no name leaves nothing to hold the keys against: fatal.
