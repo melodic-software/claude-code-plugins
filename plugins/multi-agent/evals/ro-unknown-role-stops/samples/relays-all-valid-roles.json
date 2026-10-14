@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "`planner` is not a role. resolve-roles: unknown role planner; valid roles: orchestrator worker verifier retrieval, or all\n",
+      "why": "error relayed"
+    },
+    {
+      "answer": "Unknown role `planner`. Valid roles: `orchestrator`, `worker`, `verifier`, `retrieval`, or `all`.\n",
+      "why": "listed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Unknown role `planner`. Try `worker` or `orchestrator`.\n",
+      "why": "two of four"
+    },
+    {
+      "answer": "Unknown role `planner`; valid roles are orchestrator, worker and verifier.\n",
+      "why": "retrieval missing"
+    },
+    {
+      "answer": "route.sh exited 2: unknown role planner.\n",
+      "why": "no roles listed"
+    }
+  ]
+}
