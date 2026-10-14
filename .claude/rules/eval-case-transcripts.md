@@ -11,6 +11,10 @@ This repository is public. No eval case here holds a raw Claude Code session tra
 product transcript (a chat log, support ticket, or log line from a real user), in a prompt, an
 expected output, a grader, or a fixture.
 
+Output an eval run captures from a model answering a synthetic case prompt, such as a grader
+sample, is not a transcript under this rule, as long as it holds no machine-specific path or
+identifying detail.
+
 A one-to-one rewrite of a transcript is allowed: one case per original, with every sensitive or
 identifying detail changed. Before it lands, a person approves it through the input approval in
 `/evals:design`, which carries the identifying-details checklist. That approval is the review; there
