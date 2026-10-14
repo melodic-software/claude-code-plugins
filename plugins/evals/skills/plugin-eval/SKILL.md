@@ -1,5 +1,5 @@
 ---
-description: "Guided practice around the `claude plugin eval` CLI, which runs and scores a plugin's eval suite: preflight (version floor, sandbox backend, target type), static validation with no model call, a cost estimate under the configured ceiling, the run, and the with-versus-without delta read correctly. Use when: 'run my plugin evals', 'plugin eval', 'evaluate this plugin', 'eval my skill', 'does my skill actually fire', 'what is the delta', 'read my eval results', 'compare two eval runs', 'did my change make the skill better', 'is this gain real', 'aggregate-result.json', 'eval CI gate', 'can this machine run evals', 'how much will this eval cost', 'Bash refuses claude plugin eval', 'plugin eval blocked in a worktree', 'plugin eval refuses: too many worktrees', 'can plugin eval measure CLAUDE.md or rules' (it names the route that can). Not for designing success criteria (use /evals:design) or the skill-creator evals.json format (use /skill-quality:check validate-evals when installed)."
+description: "Guided practice around the `claude plugin eval` CLI, which runs and scores a plugin's eval suite: preflight, no-spend validation, a cost estimate under the ceiling, the run, and reading the with-versus-without delta. Use when: 'run my plugin evals', 'plugin eval', 'evaluate this plugin', 'eval my skill', 'does my skill actually fire', 'what is the delta', 'read my eval results', 'compare two eval runs', 'did my change make the skill better', 'is this gain real', 'aggregate-result.json', 'eval CI gate', 'can this machine run evals', 'how much will this eval cost', 'Bash refuses claude plugin eval', 'plugin eval blocked in a worktree', 'plugin eval refuses: too many worktrees', 'can plugin eval measure CLAUDE.md or rules'. Not for designing success criteria (/evals:design) or the skill-creator evals.json format."
 argument-hint: "[preflight|validate|run|read <json>|ci|init] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -10,10 +10,10 @@ metadata:
 
 # Run a plugin eval suite
 
-`claude plugin eval` loads one plugin, runs each case twice (with the plugin and without it), grades
-each run, and writes `aggregate-result.json`. It does not check whether this machine can run the
-suite, price the run, route a target that is not already a plugin, or teach what the delta means.
-That is this skill's job, and every part of it happens before money is spent.
+`claude plugin eval` runs each case with the plugin and without it, grades each run, and writes
+`aggregate-result.json`. This skill does what the CLI does not, all before money is spent: checks
+that this machine can run the suite, prices the run, routes a target that is not a plugin, and
+reads the delta. It never re-implements grading and never simulates a run or a score.
 
 ## Actions
 
@@ -23,13 +23,14 @@ That is this skill's job, and every part of it happens before money is spent.
 | `validate [<eval-dir>]` | Run the static case validator only. No model call |
 | `run <target>` (default) | Preflight, validate, print the estimate, then invoke the CLI |
 | `read <json>` | Read a written `aggregate-result.json` in the order that keeps a delta honest |
-| `ci` | Give the CI command and its rules from the CI section below, which answers a CI question by itself; [reference/ci.md](reference/ci.md) holds the full workflow file as background |
+| `ci` | Answer from the CI section below |
 | `init [<name>]` | Scaffold a suite: `claude plugin eval init --bare <name>` where there is no terminal |
 
-This page states the rules the run and read steps use; answer from it.
-[reference/case-authoring.md](reference/case-authoring.md) (writing cases) and
-[reference/reading-results.md](reference/reading-results.md) (the full JSON field list) are
-background for a human reader.
+This page holds every rule the actions use; answer from it. Each upstream specific it states has a
+row under [Sources](#sources). Background for a human reader:
+[case-authoring.md](reference/case-authoring.md), [reading-results.md](reference/reading-results.md)
+(JSON fields), [ci.md](reference/ci.md) (workflow file, exit codes, parser), and
+[records.md](reference/records.md) (the observations behind each source row).
 
 ## Preflight
 
@@ -47,14 +48,16 @@ estimate_usd:    roughly <n> (cases x runs x arms, plus judge calls)
 ceiling:         <n> USD | unlimited
 ```
 
-| Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
-|---|---|---|
-| Version floor: the command needs Claude Code 2.1.269 or later; an older binary answers `plugin eval is currently in early access`, which updating Claude Code fixes with no sign-up; `plugin eval is currently unavailable` means Anthropic has the command switched off for now, which can change at any time and may depend on the account or context. Nothing local fixes it and there is no access to request: wait and retry | `claude plugin eval --help` on the floor release plus <https://code.claude.com/docs/en/plugin-evals> troubleshooting, verified 2026-09-12 | Recheck trigger: a Claude Code release note touches `plugin eval`, or the floor error string changes. Then re-run `--help`, re-read the page, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
-| Git floor: preflight also reads `git --version` so a git too old for the CLI is caught before any spend. A git below the floor sets `floor_met: false` and names the git version; no git at all reports `git: none` and does not block | **Pointer**: when comparing `git --version` against the floor, fetch <https://code.claude.com/docs/en/plugin-evals#requirements> live for the git floor, and <https://code.claude.com/docs/en/plugin-evals#git-is-too-old-for-claude-plugin-eval> for the refusal. **As of**: 2026-10-10 | Recheck trigger: the requirements section changes the git floor or its no-git exemption. Then re-read it and refresh this row with the outcome |
+**Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read
+`claude --version` and let the number decide. `floor_met: false` stops the run and reports the
+floor; nothing else is worth doing on a binary that cannot execute a case. `plugin eval is
+currently in early access` means an older binary: updating fixes it, no sign-up. `plugin eval is
+currently unavailable` means Anthropic has switched the command off for now, possibly by account
+or context: nothing local fixes it and there is no access to request, so wait and retry.
 
-`floor_met: false` stops the run and reports the floor; nothing else in this skill is worth doing on
-a binary that cannot execute a case. Never assert that the command is installed: read
-`claude --version` and let the number decide.
+**Git floor:** fetch <https://code.claude.com/docs/en/plugin-evals#requirements> live for it. A
+git below it sets `floor_met: false` and names the version; no git reports `git: none` and does
+not block.
 
 ### Sandbox backend
 
@@ -70,62 +73,68 @@ this session's own host, which may not be the machine that will run the eval.
 | macOS | `present` |
 | Anything else | `unknown`, treated as `absent` for the refusal below |
 
-Then, when the rows above give `present`, a case requests `Bash` or `PowerShell`, and
+Then, when the table gives `present`, a case requests `Bash` or `PowerShell`, and
 `find "${DOCKER_CONFIG:-$HOME/.docker}/" -mindepth 1 -type l` (read-only) prints a path, override
-to `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliably exclude a store with a link inside it. On `platform: darwin` with `cli_version` 2.1.293 or later, ignore links under `~/.docker/bin` (Docker Desktop's own); an older client, or a `$DOCKER_CONFIG` store elsewhere, keeps them `not-ready`. `Write` and `Edit` run outside the shell sandbox and do not trigger it.
+to `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliably exclude a store
+with a link inside it (the store's root may itself be a link), so the CLI refuses the whole `Bash`-granting pass, read-only cases included
+(every run ends at 0 turns with a run error naming the credential store). On `platform: darwin`
+with `cli_version` 2.1.293 or later, ignore links under `~/.docker/bin` (Docker Desktop's own); an
+older client, or a `$DOCKER_CONFIG` store elsewhere, keeps them `not-ready`. `Write` and `Edit` run
+outside the shell sandbox and do not trigger it.
 
-| Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
-|---|---|---|
-| Granting `Bash` puts every command under Claude Code's OS-level sandbox; on a machine with no backend each run is refused rather than run unconfined, so the case reports a run error and usually scores 0. Native Windows has no backend; macOS is supported. The Linux and WSL2 packages, and WSL1's lack of support, are what [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2) lists; read them there | <https://code.claude.com/docs/en/plugin-evals> platform notes, verified 2026-09-12; that sandboxing section, fetched 2026-10-04 | Recheck trigger: either page names a Windows backend, or the section adds or drops a package or changes its WSL notes. Then re-read it, re-derive the table above, and refresh this row with the outcome |
-| The CLI refuses a whole `Bash`-granting pass when the Docker credential store (`$DOCKER_CONFIG`, else `~/.docker`) holds a symbolic link inside it; the store's root may itself be a link. Every run, read-only cases included, ends at 0 turns with a run error naming the credential store. Docker Desktop's WSL integration links `contexts` and `features.json` into `/mnt/c`. Our gate decision: on macOS from Claude Code 2.1.293, preflight exempts links under `~/.docker/bin` | Our observation: the refusal on all 60 runs of one pass at Claude Code 2.1.289 under WSL2, observed 2026-10-04. **Pointer**: when the refusal's current wording or which store paths are exempt matters, fetch <https://code.claude.com/docs/en/changelog> live (2.1.293). **As of**: 2026-10-10. **Docs lag**: the Docker credential-store refusal is not covered by <https://code.claude.com/docs/en/plugin-evals> or <https://code.claude.com/docs/en/sandboxing> as of 2026-10-10. The current refusal wording is not captured here: it needs a macOS or WSL2 host | Recheck trigger: either page documents the check, or a release note touches sandbox credential exclusion or the exempt paths. Then re-read both pages, re-run one `Bash`-granting case on a host with such a link, and refresh this row with the outcome |
+**Refuse before any spend** when `sandbox_backend` is not `present` and any case requests `Bash`,
+`PowerShell`, `Write`, or `Edit`. Name both halves in the refusal: why each granting run would be
+refused by the CLI (with no backend a run is refused rather than run unconfined) and score 0
+rather than measuring anything, and the route.
 
-**Refuse before any spend** when `sandbox_backend` is not `present` and any case requests `Bash`, `PowerShell`, `Write`, or `Edit`. Name both halves in the refusal: why each granting run would be refused by the CLI and score 0 rather than measuring anything, and the route. For `absent` or `unknown`, the backend is missing; the route on Linux or WSL2 is to install each missing package, restart Claude Code, and confirm with `/sandbox`, and otherwise WSL2, a Linux host with `bubblewrap` and `socat`, macOS, or a Claude cloud session, whose host and missing packages the route takes from the session's documented tool inventory at run time (**Pointer**: when choosing the cloud route, fetch [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) live and apply the matching row of the table above; **As of**: 2026-10-11; **Recheck trigger**: that section changes its host description or its package list). For `not-ready`, the backend is present and the packages resolve; the cause is the named links, and the route is to resolve them or run on a host without them. Never suggest repointing `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check. Read-only suites (`Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `AskUserQuestion`, `Agent`, `TodoWrite`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `TaskStop`: the set the validator's `READ_ONLY_TOOLS` mirrors from <https://code.claude.com/docs/en/plugin-evals#grant-tools>, as of 2026-10-10, recheck when that section's allowed-tools sentence changes) are unaffected and run anywhere.
+- `absent` or `unknown`: the backend is missing. On Linux or WSL2, install each missing package,
+  restart Claude Code, and confirm with `/sandbox`. Otherwise: WSL2, a Linux host with
+  `bubblewrap` and `socat`, macOS, or a Claude cloud session, whose host and missing packages come
+  from fetching [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools)
+  live and applying the matching table row.
+- `not-ready`: the backend is present and the packages resolve; the cause is the named links, and
+  the route is to resolve them or run on a host without them. Never suggest repointing
+  `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check.
 
-`suite_tools` is `read-only` when every case's `allowed_tools` sits inside that set; otherwise it
-lists the gated tools, which are exactly the ones needing an `--allow-tools` grant. A case cannot
-widen the operator grant, and neither can a skill's own `allowed-tools`; an ungranted tool is
-removed from the session and reported on stderr as `not granted`.
+Read-only suites run anywhere: `Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `AskUserQuestion`,
+`Agent`, `TodoWrite`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `TaskStop` (the
+validator's `READ_ONLY_TOOLS`). `suite_tools` is `read-only` when every case's `allowed_tools` sits
+inside that set; otherwise it lists the gated tools, which are exactly the ones needing an
+`--allow-tools` grant. Neither a case nor a skill's own `allowed-tools` can widen that grant; an
+ungranted tool is removed and reported on stderr as `not granted`.
 
 ### Worktree isolation
 
-When the session runs isolated in a git worktree, the Bash guard refuses any command containing the
-word `eval`, `claude plugin eval --help` included, and refuses the user's own `!` command in that
-session the same way. This applies only when `run` or `init` is about to invoke `claude plugin eval`;
-`preflight`, `validate`, `read`, and `ci` never invoke it and proceed as usual. Do not retry, wrap
-the command in a script, route it through another tool, or bypass the guard in any other way. Stop,
-print the exact command this skill would have run and tell the user to paste it into a terminal
-outside Claude Code. For `run` that is `claude plugin eval <target> ...` with an absolute
-`<target>` and an absolute `--json` path inside the isolated worktree, so the command gives the same
-result from any directory; for `init` it is `claude plugin eval init --bare <name>`, which takes no
-`--json`. After a `run`, read the `--json` file back with the `read` action. The table also records
-the CLI's own linked-worktree refusal.
+In a session isolated in a git worktree, the Bash guard refuses any command containing the word
+`eval`, `claude plugin eval --help` included, and the user's own `!` command the same way. This
+applies only when `run` or `init` is about to invoke the CLI; `preflight`, `validate`, `read`, and
+`ci` proceed as usual. Do not retry, wrap the command in a script, route it through another tool,
+or bypass the guard in any other way: it matches the word, so no flag or rewording clears it.
+Stop, print the exact command this skill would have run, and tell the user to paste it into a
+terminal outside Claude Code. For `run` that is `claude plugin eval <target> ...` with an absolute
+`<target>` and an absolute `--json` path inside the isolated worktree, so the command gives the
+same result from any directory; for `init` it is `claude plugin eval init --bare <name>`, which
+takes no `--json` and reaches no model call. After a `run`, read the `--json` file back with the `read` action.
 
-| Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
-|---|---|---|
-| In a worktree-isolated session the built-in Bash guard refuses any command containing `eval`, including `claude plugin eval --help`, with `this command runs a string through eval, which can't be verified to stay inside the worktree`; the user's own `!` command is refused the same way | melodic-software/claude-code-plugins#5696 repro on Claude Code 2.1.285, Linux/WSL2, verified 2026-10-01 | Recheck trigger: a Claude Code release note touches worktree isolation or `plugin eval`. Then re-run `claude plugin eval --help` from an isolated worktree session and refresh this row with the outcome |
-| `claude plugin eval` refuses a plugin inside a git repository with many linked worktrees (`registers more linked worktrees than can be screened`). This is the CLI's own check, not the Bash guard. Workaround: copy the plugin into a newly created empty directory outside any git repository, leaving out git metadata and results, e.g. `rsync -a --exclude .git --exclude 'evals/results' <plugin-dir>/ <new empty dir>/`; run against the copy with an absolute target; point `--json` at the original plugin's gitignored results directory | Our own observation: melodic-software/claude-code-plugins#6374, Claude Code 2.1.289, Linux/WSL2, observed 2026-10-04 | Recheck trigger: a Claude Code release note changes the linked-worktree limit or `plugin eval`'s repository screening. Then re-run on a plugin in a repository with many linked worktrees and refresh this row with the outcome |
+Separately, the CLI refuses a plugin inside a repository with many linked worktrees (`registers
+more linked worktrees than can be screened`). Copy the plugin into a new empty directory outside
+any git repository without git metadata or results (`rsync -a --exclude .git --exclude
+'evals/results' <plugin-dir>/ <new empty dir>/`), run against the copy with an absolute target,
+and point `--json` at the original's gitignored results directory.
 
 ### Tested model and judge
 
-`same_model` compares the model under test with the judge model. Resolve each from the planned
-invocation, the cases' `model` keys, and the environment, by the `--model` and `--judge-model`
-rows of the command options table; an alias and a full model ID that name the same model count as
-the same. Report `unknown` when either cannot be resolved before a run.
-
-Setting: `${user_config.same_model_warning}`. If it renders empty or as the literal placeholder
-text, use `true`, the manifest default, and say which you used. When it is `false`, print
-`same_model: off` and compare nothing.
-
-When `same_model` is `yes`, print this line under the report. It is advice: the run goes ahead.
+Resolve the model under test and the judge from the planned invocation, the cases' `model` keys,
+and the environment, by the `--model` and `--judge-model` rows of the command options table; an
+alias and a full model ID naming the same model are the same. Report `unknown` when either cannot
+be resolved before a run. Setting: `${user_config.same_model_warning}`; if it renders empty or as
+the literal placeholder text, use `true`, the manifest default, and say which you used. When it is
+`false`, print `same_model: off` and compare nothing. When `same_model` is `yes`, print this line
+under the report. It is advice: the run goes ahead.
 
 ```text
 warning: the judge is the model under test; pass a different --judge-model
 ```
-
-- **Pointer**: for how each model is chosen, see
-  <https://code.claude.com/docs/en/plugin-evals#command-options>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: the command options table changes its `--model` or `--judge-model` row.
 
 ## Target routing
 
@@ -145,50 +154,42 @@ A skill or agent that is not yet wrapped is not a target: report the wrap route,
 The next preflight sees `wrapped-skill` or `wrapped-agent` and proceeds.
 
 For a `rules` target, invoke `/harness-config:unhobble` through the Skill tool when the
-`harness-config` plugin is installed: it owns measuring standing instructions by stripping them and
+`harness-config` plugin is installed: it measures standing instructions by stripping them and
 watching what the model stumbles over. When that plugin is absent, say so and describe the
 experiment in one sentence (strip the instructions on a branch, log observed stumbles, restore only
 what repeated evidence earns) so the user can run it by hand.
 
 ## Cost
 
-Every run and every judge grader is a real model call on the operator's account. There is no free
-mode and no dry run.
+Every run and every judge grader is a real model call on the operator's account; there is no dry
+run.
 
 ```text
 agent runs  = cases x runs x arms          (arms = 2 under the default ablation, 1 under --ablation none)
 judge calls = 3 per llm or baseline grader per run   (the 2-of-3 vote)
 ```
 
-Four grader types are free (`regex`, `tool_used`, `tool_order`, `file_exists`); `llm` and `baseline`
-are billed. Carry the estimate as "roughly": the reported `costUsd` is a list-price estimate, and
-arm costs are not symmetric.
-
-Sizing anchors, list-price estimates measured on this plugin's own read-only suite with no `--model` (it served opus-5-5): at Claude Code
-2.1.287 on 2026-10-02, 24 runs (four cases, three runs, two arms, sonnet judge) cost 1.67 USD, 16 runs (two runs, haiku judge, then Haiku 4.5)
-0.98 USD, and 42 short single-arm calibration runs 1.79 USD; at 2.1.296 on 2026-10-11, 16 runs (four cases, two runs, two arms, haiku judge,
-then Haiku 5.5) 1.98 USD. That is 0.04 to 0.125 USD per run on average, judge calls included, 0.03 to 0.2 USD for one run. An opus-judged run costs more; size it from its own first run.
+Four grader types are free (`regex`, `tool_used`, `tool_order`, `file_exists`); `llm` and
+`baseline` are billed. Carry the estimate as "roughly": the reported `costUsd` is a list-price
+estimate, and arm costs are not symmetric.
 
 **A fresh suite is priced at 0.2 USD per run in either arm, judge calls included, and the figure is
-called headroom.** It has no pass of its own to scale, while cases x runs x arms is known before any
-spend. 0.2 USD is 1.6 to 4.7 times the per-run cost of each pass above, and prices four cases at
-three runs and two arms at 4.8 USD. Once a suite has run, scale from its own last `costUsd` instead.
-
-The older anchor of 0.8 USD per without-run, which prices the same four cases at about 12 USD, comes
-from passes at 2.1.270 (2026-09-12 and 2026-09-13) whose without-arm loaded the bundled `claude-api`
-skill and cost five to seven times the with-arm. At 2.1.287 no without-run loaded a skill, and that
-arm cost less than the with-arm. Estimate each arm from its own runs, and use 0.8 for a case only
-when a kept trace shows its without-arm loading a large skill. A suite with no such trace is priced
-at 0.2 alone, and the older anchor is no caveat or risk to that estimate. Re-derive these anchors
-from the last three passes when a Claude Code release note touches `plugin eval`, the model a run
-serves changes, or a pass averages more than 0.2 USD per run.
+called headroom.** It has no pass of its own to scale, while cases x runs x arms is known before
+any spend: four cases at three runs and two arms is 4.8 USD. Once a suite has run, scale from its
+own last `costUsd` instead, estimating each arm from its own runs. Use 0.8 USD for a case's
+without-arm only when a kept trace shows that arm loading a large skill; a suite with no such trace
+is priced at 0.2 alone, and the older anchor is no caveat or risk to that estimate. An opus-judged
+run costs more; size it from its own first run. Re-derive the anchors in
+[records.md](reference/records.md#cost-anchors) from the last three passes when a Claude Code
+release note touches `plugin eval`, the model a run serves changes, or a pass averages more than
+0.2 USD per run.
 
 Ceiling: `${user_config.max_cost_usd}` USD, unlimited: `${user_config.unlimited_cost}`. If either
 renders empty or as the literal placeholder text, use 5 USD and `false`, the manifest defaults, and
 state the ceiling you used without commenting on the setting's state.
 
 1. Print the estimate. This happens on every invocation, including unlimited, and the print is the
-   step that must appear in the transcript before any CLI call.
+   step that must appear in the transcript before any CLI call, not only in the final answer.
 2. Unlimited: drop `--max-cost-usd` from the command and start. Never prompt; the estimate already
    printed is the whole disclosure.
 3. Ceiling set and estimate under it: the pass goes through. Pass `--max-cost-usd <ceiling>` and
@@ -201,9 +202,9 @@ state the ceiling you used without commenting on the setting's state.
 
 The ceiling bounds a list-price estimate, not subscription usage, and it is checked before each run
 launches, so an overrun is bounded by the runs already in flight (one, or up to `--concurrency`).
-Cheapest levers first: deterministic graders only, then `--ablation none` (halves the runs and loses
-the delta), then `--case` or `--tag`, then `--runs 1` for iteration with a confirm at 3, then a
-committed `mocks/.replay/` so agent mocks replay without a model call.
+Cheapest levers first: deterministic graders only, then `--ablation none` (halves the runs and
+loses the delta), then `--case` or `--tag`, then `--runs 1` for iteration with a confirm at 3, then
+a committed `mocks/.replay/` so agent mocks replay without a model call.
 
 ## Run
 
@@ -213,37 +214,38 @@ committed `mocks/.replay/` so agent mocks replay without a model call.
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/validate/scripts/validate-cases.py" <eval-dir>
    ```
 
-   Use `python` where `python3` does not resolve. In this repository's own checkout that script is
-   `plugins/evals/skills/validate/scripts/validate-cases.py`. Exit 0 means proceed (WARN lines are
-   advice, not a stop); exit 1 means at least one FAIL, so stop and fix the cases before spending,
-   invoking the `evals:validate` skill through the Skill tool for the finding detail; exit 2 means
-   the eval dir is unreadable or the arguments are wrong, which is also a stop.
+   Use `python` where `python3` does not resolve. In this repository's own checkout
+   `${CLAUDE_PLUGIN_ROOT}` is `plugins/evals`, here and below. Exit 0 means proceed (WARN lines
+   are advice, not a stop); exit 1 means at least one FAIL, so stop and fix the cases before
+   spending, invoking the `evals:validate` skill through the Skill tool for the finding detail;
+   exit 2 means the eval dir is unreadable or the arguments are wrong, which is also a stop.
 
 2. Run "Calibrating a judge" first unless every `llm` grader it can reproduce has passed with this
    run's judge model. On a miss, fix the rubric or calibrate a stronger `--judge-model` and use it.
 
-3. Invoke the CLI. Confirm the target comes first, before any list-taking flag:
+3. Invoke the CLI. The target comes first: placed after `--tag`, `--allow-tools`, or `--json` it
+   is swallowed as their value (`--json output path must end in .json`).
 
    ```bash
    claude plugin eval <target> --trust-plugin --keep-temp --judge-model opus --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
    ```
 
-   `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta"; a run that feeds a decision keeps `--judge-model opus`, since the CLI's default judge is uncalibrated for decisions; only an exploratory run drops it.
-   Run it in the foreground with a tool timeout that covers the estimate (a three-case pass took
-   about six minutes here) and wait. **Stay attached until every run exits:** a headless (`-p`)
-   session never backgrounds the CLI (the run ends with the session), runs suites one after another
-   (`-j` adds concurrency inside one), and answers only after all exit; an interactive session
-   backgrounds a run only as a harness-tracked task it waits for. A run is finished when the process
-   exits and `results.json` exists; read the exit code and the JSON together, never one alone. Write
-   the file where git ignores it (the CLI's own copy lands under `<eval dir>/results/<timestamp>/`,
-   which can take `--json` too when ignored); a run result is evidence to distill, not a file to commit.
+   Without `--trust-plugin` a non-TTY run against an untrusted directory is refused with exit 1.
+   `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta". A run
+   that feeds a decision keeps `--judge-model opus`, since the CLI's default judge is uncalibrated
+   for decisions; only an exploratory run drops it. Run it in the foreground with a tool timeout
+   that covers the estimate (a three-case pass took about six minutes here) and wait. **Stay
+   attached until every run exits:** a headless (`-p`) session never backgrounds the CLI (the run
+   ends with the session: it says "the run started", exits, and leaves an empty `out/` and no
+   JSON), runs suites one after another (`-j` adds concurrency inside one), and
+   answers only after all exit; an interactive session backgrounds a run only as a harness-tracked
+   task it waits for. A run is finished when the process exits and `results.json` exists; read the
+   exit code and the JSON together, never one alone. Write the file where git ignores it (the
+   CLI's own copy lands under `<eval dir>/results/<timestamp>/`, which can take `--json` too when
+   ignored); a run result is evidence to distill, not a file to commit.
 
 4. Read the JSON with the `read` action below. With `--json <file>` there is no terminal table, so
    the JSON is the only record of what happened.
-
-| Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
-|---|---|---|
-| The target must precede `--tag`, `--allow-tools`, and `--json` or it is swallowed as their value (`--json output path must end in .json`). `--trust-plugin` asserts trust and skips the first-run prompt, and a non-TTY run against an untrusted directory is refused exit 1 without it. `--keep-temp` preserves the per-run trace directories the runner otherwise deletes. `--judge-model` defaults to a small fast model (haiku); `--model` pins the agent under test; `-j/--concurrency` takes 1 to 8 and cuts wall-clock only; `--threshold` defaults to 1.0 | `claude plugin eval --help` plus <https://code.claude.com/docs/en/plugin-evals>, verified 2026-09-12, with the arg-order and trust behavior reproduced against this repository's suite | Recheck trigger: `--help` no longer matches a row, or a release note touches the flag set. Then re-run `--help`, re-derive the row, refresh this record with the outcome, and land a drift outcome in this plugin's CHANGELOG |
 
 Where a harness guard other than the worktree refusal above blocks a Bash command containing the
 bare word `eval`, run the same command through the PowerShell tool instead. The command text is
@@ -259,24 +261,26 @@ Read in this order. Stopping early at any step is the finding.
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/run-validity.py" results.json --runs <the run count the eval used>
    ```
 
-   The run count is the run's `--runs`, else the cases' `runs`, else 3. In this repository's checkout the script is
-   `plugins/evals/skills/plugin-eval/scripts/run-validity.py`. It needs the traces `--keep-temp` kept; without them it reports
-   the trace checks unchecked and the run INVALID. Report a score, delta, or interval only from `verdict: VALID` (exit 0),
-   naming any warnings it printed. On `verdict: INVALID` (exit 1), report INVALID with every reason on that line and no number,
-   then fix the cause and rerun. Tell the user to post that INVALID line and its reasons in place of the number; "post nothing"
-   is not the instruction. Exit 2 means the file could not be read or an argument was wrong: say which. The steps below still
-   apply to a VALID run.
+   The run count is the run's `--runs`, else the cases' `runs`, else 3. Without the traces
+   `--keep-temp` kept it reports the trace checks unchecked and the run INVALID. Report a score,
+   delta, or interval only from `verdict: VALID` (exit 0), naming any warnings it printed. On
+   `verdict: INVALID` (exit 1), report INVALID with every reason on that line and no number, then
+   fix the cause and rerun. Tell the user to post that INVALID line and its reasons in place of
+   the number; "post nothing" is not the instruction. Exit 2 means the file could not be read or
+   an argument was wrong: say which. The steps below still apply to a VALID run.
 
-   A with-arm denial aimed at or under the plugin's own directory, at a directory above it (which covers its files), or with no
-   absolute path or no known plugin directory, is a FAIL: the agent reached for a plugin file it could not read, so the fact
-   belongs in the hub. Any other denial, in either arm, is a warning only when that run scored the same as every denial-free run
-   of its case in the same arm, so it left the score unchanged; with a different score, or no denial-free run to compare, it is
-   a FAIL.
+   A with-arm denial aimed at or under the plugin's own directory, at a directory above it (which
+   covers its files), or with no absolute path or no known plugin directory, is a FAIL: the agent
+   reached for a plugin file it could not read, so the fact belongs in the hub. Any other denial,
+   in either arm, is a warning only when that run scored the same as every denial-free run of its
+   case in the same arm, so it left the score unchanged; with a different score, or no
+   denial-free run to compare, it is a FAIL.
 2. `partial`. `true` (with `partialReason` of `cost_ceiling`, `interrupted`, or `auth_failed`) means
    the suite did not finish: report that and keep the document out of any trend.
-3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still scored, as a failure with
-   `explanation: "skipped: cost ceiling"`, so it silently depresses the arm. A non-null `error` does not imply score 0, because
-   the run is graded on what it produced. Either makes the case not comparable; say so instead of reporting its number.
+3. Per run, `skippedPaidGraders: true` or a non-null `error`. A skipped judge grader is still
+   scored, as a failure with `explanation: "skipped: cost ceiling"`, so it silently depresses the
+   arm. A non-null `error` does not imply score 0, because the run is graded on what it produced.
+   Either makes the case not comparable; say so instead of reporting its number.
 4. `cases[].aggregates.delta`. It is **omitted** when the arms are not comparable. An omitted delta
    is never zero, and neither is a missing `scoreWithout`.
 5. Only now read the delta: with-arm score minus without-arm score. A case the gate's `ceiling`
@@ -289,11 +293,11 @@ Read in this order. Stopping early at any step is the finding.
    ```
 
    `<method>` is `${user_config.interval_method}`, and an empty or unfilled value there means the
-   default, `normal`, applies; do not mention the setting's state to the user. Pass `--grader-agreement` unless `${user_config.grader_run_twice}`
-   is `false`. Any other method value is passed as is, and the script falls back to `normal`. These values set the command this
-   skill runs; they say nothing about a user's own run. In this repository's checkout the script is
-   `plugins/evals/skills/plugin-eval/scripts/noise-report.py`. Exit 2 means the file could not be read or an argument was
-   malformed: say which, and report no interval.
+   default, `normal`, applies; do not mention the setting's state to the user. Pass
+   `--grader-agreement` unless `${user_config.grader_run_twice}` is `false`. Any other method
+   value is passed as is, and the script falls back to `normal`. These values set the command this
+   skill runs; they say nothing about a user's own run. Exit 2 means the file could not be read or
+   an argument was malformed: say which, and report no interval.
 
 Read the noise report's lines this way:
 
@@ -308,7 +312,8 @@ Read the noise report's lines this way:
   verdict is trusted. The line saying the file holds no judge votes means agreement is unknown,
   not perfect.
 - `cost`: report it beside the scores, in the same answer as the delta.
-- Two versions: `--baseline <before.json> --margin <m>`; read `compare verdict` with each `case drop`.
+- Two versions: `--baseline <before.json> --margin <m>`; read `compare verdict` with each
+  `case drop`.
 - `pass count`: the interval method (the `interval_method` setting, the `--interval-method` flag)
   changes only this line, the count of cases at or above the threshold. Every score interval, the
   delta line included, uses the normal method paired over cases whatever the setting, because a
@@ -317,7 +322,12 @@ Read the noise report's lines this way:
   [local-decisions.md, Interval method](../methodology/reference/local-decisions.md#interval-method)
   records the decision for a human reader.
 
-Spot-read outputs against verdicts before trusting any delta. For each case whose delta you report, open a few runs from each arm (the grader explanations in `results.json`, and the kept trace from `--keep-temp`), at least one its graders passed and one they failed where both exist, and check each verdict against what the output does. A pass on a wrong output, or a fail on a correct one, makes the grader or its rubric the finding: fix it and rerun before quoting the number, and say which run showed it.
+Spot-read outputs against verdicts before trusting any delta. For each case whose delta you
+report, open a few runs from each arm (the grader explanations in `results.json`, and the kept
+trace from `--keep-temp`), at least one its graders passed and one they failed where both exist,
+and check each verdict against what the output does. A pass on a wrong output, or a fail on a
+correct one, makes the grader or its rubric the finding: fix it and rerun before quoting the
+number, and say which run showed it.
 
 What the number means:
 
@@ -331,42 +341,35 @@ What the number means:
   `max: 0`) needs.
 - Hold the ablation mode fixed. Under `--ablation none` nothing is excluded, so absolute scores are
   not comparable across modes and mixing them silently breaks a trend line.
-- Spoke reach is version-bound (record below): at 2.1.270 and 2.1.287 every with-arm `Read` under
-  the plugin directory was denied; at 2.1.289 `context/`, `reference/`, `actions/` and `templates/`
-  reads succeeded. Check the trace for a denied `Read` before crediting a spoke.
+- Spoke reach is version-bound: at 2.1.270 and 2.1.287 every with-arm `Read` under the plugin
+  directory was denied, so only the hub reached the model; at 2.1.289 `context/`, `reference/`,
+  `actions/` and `templates/` reads succeeded.
+  Check the trace for a denied `Read` before crediting a spoke.
 
-End the reading with one line on the change under test: `promote` only when the run is VALID, the noise report's verdict is that the interval excludes 0 with the with-arm ahead, and the spot-read found no verdict it disagrees with; otherwise `do not promote`, followed by the first of those conditions that failed.
-
-| Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
-|---|---|---|
-| At Claude Code 2.1.270 and 2.1.287 the injected skill body named the plugin's real on-disk directory, and in the with-arm a `Read` of any file under it was refused with `File is in a directory that is denied by your permission settings`; only the hub `SKILL.md` text reached the model, and a path-scoped `--allow-tools "Read(//<plugin>/skills/**)"` grant was accepted but did not lift the denial. At 2.1.289 with-arm `Read` calls of a skill's `context/`, `reference/`, `actions/` and `templates/` files, and of a plugin-level `reference/` file, all succeeded with no grant | Kept traces (`--keep-temp`) of this plugin's own suite: at 2.1.270, six with-arm runs, every spoke `Read` denied, verified 2026-09-13; at 2.1.287 under `--runs 2`, all three spoke `Read` calls in six with-arm runs denied with that text and listed in each trace's `permission_denials`, verified 2026-10-01; at 2.1.287 with that grant on one case, both with-arm runs still denied a spoke `Read` and the run's settings held no deny rule, verified 2026-10-02. At 2.1.289, kept traces of the `debugging` plugin's read-only suite: in all three with-arm runs of one case, a `Read` of `skills/debug/reference/rendered-view.md` returned the file, with `is_error` unset and `permission_denials: []`, verified 2026-10-04. At 2.1.289, kept traces of the `architecture` and `planning` suites (12 with-arm runs each): every spoke `Read` succeeded, including `skills/interview/context/loop.md` and `skills/interview/context/relentless-mode.md` (10 of 12 `planning` runs read a `context/` file) and the plugin-level `plugins/planning/reference/artifact-protocol.md`, and no `Read` was denied, verified 2026-10-04. For what a grant covers, see <https://code.claude.com/docs/en/plugin-evals#grant-tools>, as of 2026-10-02 | Recheck trigger: a Claude Code release note touches `plugin eval` or sandbox permissions, or a kept trace on 2.1.289 or later shows a spoke `Read` denied. Then re-run one case with `--keep-temp`, read the with-arm trace, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
+End the reading with one line on the change under test: `promote` only when the run is VALID, the
+noise report's verdict is that the interval excludes 0 with the with-arm ahead, and the spot-read
+found no verdict it disagrees with; otherwise `do not promote`, followed by the first of those
+conditions that failed.
 
 ## Iterating
 
-1. Read the delta column first, never the absolute score. The read is done when each case is either
-   a number or an explicit "not comparable".
-2. The usual first finding is a delta near zero with the case's `tool_used: Skill` grader failing:
-   the model is not choosing the skill on natural phrasing. Fix the skill's `description`, not the
-   case, and confirm by re-running that one case until the grader passes. A passing fired grader
-   shows the trigger works; it is not evidence that the skill improved, and any claim of a gain
-   still needs a VALID run and its noise report.
-3. If that grader passes and the delta is negative, suspect the judge before the plugin: a small
-   judge marks a correct answer wrong on formatting. Re-run with a larger `--judge-model` and tighten
-   the rubric so formatting cannot decide the verdict; settled when it survives a rubric silent on form.
-4. Iterate on one case with `--case <name> --runs 1 --ablation none`, which reports `SCORE` and
-   `PASS%` instead of `WITH`, `W/OUT`, and delta. One run is noisy, so confirm any change at 3
-   runs per case and read the confirm's noise report before trusting it.
+1. Read the delta column first, never the absolute score. The read is done when each case is
+  either a number or an explicit "not comparable".
+2. The usual first finding: a delta near zero with the case's `tool_used: Skill` grader failing means the model is not
+  choosing the skill on natural phrasing. Fix the skill's `description`, not the case, and re-run
+  that one case until the grader passes. A passing fired grader shows the trigger works; it is not
+  evidence that the skill improved, and any claim of a gain still needs a VALID run and its noise
+  report.
+3. That grader passing and a negative delta: suspect the judge before the plugin, since a small
+  judge marks a correct answer wrong on formatting. Re-run with a larger `--judge-model` and
+  tighten the rubric until it survives a rubric silent on form.
+4. Iterate on one case with `--case <name> --runs 1 --ablation none` (it reports `SCORE` and
+  `PASS%`, no delta). One run is noisy, so confirm any change at 3 runs per case, the only repeat
+  count this repository sets
+  ([local-decisions.md, Repeat count](../methodology/reference/local-decisions.md#repeat-count)),
+  and read the confirm's noise report before trusting it.
 5. Give each case one grader on the result and one on how the model got there (`tool_used` or
-   `tool_order`). That pairing is what separates "the answer was right" from "the plugin is why".
-
-3 runs per case is the confirm level; this repository sets no other repeat count.
-
-- **Pointer**: for how runs make up a case score, see
-  <https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored>; for this repository's
-  repeat-count decision, see
-  [local-decisions.md, Repeat count](../methodology/reference/local-decisions.md#repeat-count).
-- **As of**: 2026-10-01
-- **Recheck trigger**: the plugin-evals page changes its default run count.
+  `tool_order`). That pairing separates "the answer was right" from "the plugin is why".
 
 ## Calibrating a judge
 
@@ -374,8 +377,9 @@ Trust an `llm` grader's scores only after its judge, the model the suite uses, a
 answers on at least 90% of runs; a pass says nothing about another model. Before the first full
 run, calibrate every LLM-judge grader the harness can reproduce (one with labeled samples, judging
 text); the default judge is uncalibrated until it passes. Report any other judge grader as
-uncalibrated, never trusted silently. Labels are the must-pass and must-fail answers in
-the case's `samples/<grader>.json`, set by three agents independently with the user settling every disagreement:
+uncalibrated, never trusted silently. Labels are the must-pass and must-fail answers in the case's
+`samples/<grader>.json`, set by three agents independently with the user settling every
+disagreement:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" build --suite <eval-dir> --out <empty dir outside the repo>
@@ -385,13 +389,14 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/calibrate-judge.py" sc
 
 `build` writes one case per sample into an empty plugin: the source case's prompt goes out
 unchanged, and an appended system prompt presents the sample as fixed test material for the agent
-to output byte for byte, even when wrong or incomplete, with no commentary, so the judge grades that
-sample as the answer to that question. No generated file carries the label; a must-pass and a
+to output byte for byte, even when wrong or incomplete, with no commentary, so the judge grades
+that sample as the answer to that question. No generated file carries the label; a must-pass and a
 must-fail case differ only in the sample text. `build` skips a grader that judges a file or mock
-calls, and prints one line for each empty or whitespace-only sample it skips: Claude Code answers an
-empty reply with an injected user turn, so it cannot be reproduced, and an empty answer is a
-deterministic failure that needs no judge. `--threshold 0` keeps the CLI's exit code about errors,
-since must-fail cases are meant to score 0.
+calls, and prints one line for each empty or whitespace-only sample it skips: Claude Code answers
+an empty reply with an injected user turn, so it cannot be reproduced, and an empty answer is a
+deterministic failure that needs no judge. The appended prompt does not reach a `focus: trace`
+judge. `--threshold 0` keeps the CLI's exit
+code about errors, since must-fail cases are meant to score 0.
 
 `score` prints a `FAIL grader` line for each grader under 90% and exits 1; fix that rubric, or move
 the whole suite to a stronger judge, and calibrate again before reading its scores. Its false
@@ -400,52 +405,22 @@ not the sample, and one with neither a kept trace nor judge evidence (also repor
 sample with no reproduced run is listed `untested`, counts toward no agreement, and shows in the
 verdict line; raise `--runs` or tighten the prompt before reading the grader's score.
 
-- **Pointer**: what a judge reads for each `focus`, see
-  <https://code.claude.com/docs/en/plugin-evals#what-a-grader-can-look-at>; the 90% bar, see
-  "When the grader is an LLM judge" in
-  [eval-audit.md](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-audit.md).
-  A kept trace of a Claude Code 2.1.287 run held neither the case prompt nor any system prompt
-  text, so the appended instruction does not reach a `focus: trace` judge.
-- **As of**: 2026-10-02
-- **Recheck trigger**: the focus table changes, a kept trace starts carrying the prompt or system
-  prompt, or eval-audit.md moves its agreement bar.
-
 ## CI
 
-A CI job runs the command under Run with `--model <full model ID>` and
-`--judge-model <full model ID>` added, under these three rules: pin both `--model` and `--judge-model` so a model rollout
-is not read as a plugin regression, pass `--trust-plugin` because a non-TTY job is otherwise refused,
-and read the JSON in addition to the exit code. The CLI's own exit 1 still fails the job on a
-below-threshold case, but it is overloaded across six causes and exit 2 means partial, so the JSON
-is what tells a reader which one happened and whether the arms were comparable at all.
+A CI job runs the command under Run with `--model` and `--judge-model` added, under three rules:
+pin both, each to a full model ID and never an alias such as `sonnet`, so a model rollout is not
+read as a plugin regression; pass `--trust-plugin` because a non-TTY job is otherwise refused; and
+read the JSON in addition to the exit code. Exit 1 still fails the job on a below-threshold case,
+but it is overloaded across six causes and exit 2 means partial, so the JSON is what tells a
+reader which one happened and whether the arms were comparable at all. This section's pointer
+record is the CI pins row under [Sources](#sources).
 
-A CI pin is a full model ID for each of the two, never an alias such as `sonnet`.
+## Boundary
 
-Answer a CI question from this section. [reference/ci.md](reference/ci.md) has the full workflow
-file, the exit-code table, and the parser rules as background for a human reader.
-
-- **Pointer**: for the CI invocation and its model pins, see
-  <https://code.claude.com/docs/en/plugin-evals#run-evals-in-ci>; for what an alias resolves to,
-  see <https://code.claude.com/docs/en/model-config#model-aliases>.
-- **As of**: 2026-10-02
-- **Recheck trigger**: either section changes how it pins or resolves a model, or the command
-  options table changes its `--model` or `--judge-model` row.
-
-## Boundary, the built-in `plugin eval` command
-
-- The **CLI** (`plugin eval`, a built-in command) owns execution, grading, the ablation arms, the
-  JSON, and the HTML report. It is gated: below the version floor recorded in the preflight
-  section it refuses to run, so this skill reads the version and never assumes the command is
-  available. This skill
-  owns what surrounds a spend: the preflight, the no-spend validation, the estimate and ceiling,
-  target routing, and the reading discipline. It never re-implements grading and never simulates a
-  run or a score.
-- **Success criteria and case design** belong to `/evals:design`, which interviews for measurable
-  criteria before any case exists. Come here once a suite exists.
-- **`evals/evals.json`**, the skill-creator format, is a different and non-interchangeable format:
-  validate it with `/skill-quality:check validate-evals` when the `skill-quality` plugin is
-  installed; otherwise state that the file follows that format and validation was skipped.
-- **`CLAUDE.md` and rules** are out of scope by construction, per the routing table above.
+Success criteria and case design belong to `/evals:design`; come here once a suite exists.
+`evals/evals.json`, the skill-creator format, is a different, non-interchangeable format: validate
+it with `/skill-quality:check validate-evals` when the `skill-quality` plugin is installed;
+otherwise state that the file follows that format and validation was skipped.
 
 ## Next
 
@@ -455,45 +430,53 @@ file, the exit-code table, and the parser rules as background for a human reader
 
 ## Gotchas
 
-- The worktree refusal says the command runs a string through eval, but `claude plugin eval` does
-  not; the guard matches the word `eval`, so no flag or rewording of the command clears it.
-- A pass that crosses the ceiling can still end `partial: false` with exit 0 and one case missing
-  its `delta`: the ceiling skips judge calls, not runs. A pass that crosses it earlier skips whole
-  cases and reports `partial: true` with exit 2. Only the JSON distinguishes them.
-- The without-arm is not the with-arm minus the plugin. At Claude Code 2.1.270, on a knowledge case
-  it cost four to seven times as much (at 2.1.287 it cost less; see Cost): the kept traces show
-  the model without the plugin invoking the bundled `claude-api` skill on every run, and that
-  skill's injected body is about fourteen times the size of this plugin's hub.
+- A pass that crosses the ceiling late can still end `partial: false` with exit 0 and one case
+  missing its `delta`: the ceiling skips judge calls, not runs. A pass that crosses it earlier
+  skips whole cases and reports `partial: true` with exit 2. Only the JSON distinguishes them.
+- The without-arm is not the with-arm minus the plugin: the model without the plugin may load a
+  bundled skill such as `claude-api` and cost several times the with-arm. Estimate each arm from
+  its own runs.
 - `--trust-plugin` persists. Answering the trust prompt yes inside a git repository trusts the whole
   repository, and later non-TTY runs launch instead of being refused.
-- `--json <file>` suppresses the terminal summary table. Without `--keep-temp` the per-run
-  `tracePath` points at a directory the runner has already deleted, so decide on `--keep-temp`
-  before the run, not after reading a surprising score.
-- A `-p` session that backgrounds the CLI call says "the run started", exits, and kills the run
-  (empty `out/`, no JSON; seen 2026-09-13 and 2026-10-04, #6333). Recheck when headless tools change.
-- A headless `-p` session tends to go from the reads straight to the CLI call and print the
-  estimate in its final answer. The estimate step above says before; when the transcript is the
-  evidence, read it for the order, not only for the number.
+- Without `--keep-temp` the per-run `tracePath` points at a directory the runner has already
+  deleted, so decide on `--keep-temp` before the run, not after reading a surprising score.
 - A typo in `--case` exits 1 and no exit code separates it from a real failure, so read the CLI's
-  message before treating an exit 1 as a failing case. [reference/ci.md](reference/ci.md#exit-codes)
-  records the message for a human reader.
+  message before treating an exit 1 as a failing case.
 - A usage or rate limit mid-suite is **not** marked partial, so `partial: false` does not show the
   runs ended normally. Later runs end with the error, are graded on what they produced, and usually
   score 0 in both arms, so the suite reads as a regression. Check each affected run's `error`
-  (`cases[].arms.with[].error` and `cases[].arms.without[].error`) before believing a drop; when it
-  names the limit, rerun those cases with `--case` once the limit resets. It is neither a regression
-  nor flaky cases, and leaving the cases out of the trend is not enough on its own. When `error` is
-  null, run the validity gate and the noise report under "Reading the delta" before drawing any
-  conclusion, and say nothing yet about the cases themselves.
+  (`cases[].arms.with[].error`, `cases[].arms.without[].error`) before believing a drop; when it
+  names the limit, rerun those cases with `--case` once the limit resets. It is neither a
+  regression nor flaky cases, and leaving the cases out of the trend is not enough on its own.
+  When `error` is null, run the validity gate and the noise report before drawing any conclusion,
+  and say nothing yet about the cases themselves.
 - A run from inside a Claude Code session keeps its report local and says `kept local`; from a
   terminal it may publish to claude.ai unless `--no-publish` is passed.
-- The sandbox limits what the agent under test can reach. It is not a boundary against the plugin's
-  own code: hooks, `--scaffold` scripts, and real MCP servers run as you, outside it, with network
-  access. A passing suite is a behavior measurement, never a security vetting.
-- `claude plugin eval init` needs a terminal. Use `init --bare <name>` anywhere there is none; it
-  reaches no model call.
+- The sandbox limits what the agent under test can reach. It is not a boundary against the
+  plugin's own code: hooks, `--scaffold` scripts, and real MCP servers run as you, outside it, with
+  network access. A passing suite is a behavior measurement, never a security vetting.
 
-| Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
-|---|---|---|
-| The ceiling's two shapes (`partial: false` with exit 0 and a missing `delta` when it is crossed late, `partial: true` with exit 2 when it is crossed early), `--trust-plugin` persisting across later runs in the same repository, and `--json <file>` suppressing the terminal summary table | Reproduced across this pilot's five passes at Claude Code 2.1.269 and 2.1.270 and recorded in [`docs/specs/plugin-evals-pilot-measurement.md`](https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/plugin-evals-pilot-measurement.md), "Observations for the runner skill", verified 2026-09-12, against the `--max-cost-usd` and exit-code rows of <https://code.claude.com/docs/en/plugin-evals> | Recheck trigger: a release note touches `plugin eval`, or a pass reports a ceiling shape this row does not name. Then re-read the page, re-run one ceilinged pass, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
-| A usage or rate limit mid-suite is not marked partial; a run a Claude Code session started keeps its report local and says `kept local`, while a terminal run publishes unless `--no-publish` is passed; `init` needs a terminal and `init --bare <name>` runs nothing | <https://code.claude.com/docs/en/plugin-evals>, its troubleshooting entry for a usage or rate limit, its HTML-report section, and its "Write a case manually" and CI sections, verified 2026-09-13 | Recheck trigger: a release note touches report publishing, `init`, or limit handling, or one of these sections no longer reads this way. Then re-read the page, re-derive this row, and refresh this record with the outcome |
+## Sources
+
+Each row: the rule it backs, the pointer to read live, as-of date, recheck trigger. When a trigger
+fires, re-read the pointer, refresh the rule and its [records.md](reference/records.md) entry, and
+record a drift outcome in this plugin's CHANGELOG.
+
+| Rule | Pointer | As of | Recheck when |
+|---|---|---|---|
+| Version floor and its two error strings | `claude plugin eval --help`; troubleshooting in <https://code.claude.com/docs/en/plugin-evals> | 2026-09-12 | A release note touches `plugin eval`, or the floor error string changes |
+| Git floor | <https://code.claude.com/docs/en/plugin-evals#requirements>; refusal at <https://code.claude.com/docs/en/plugin-evals#git-is-too-old-for-claude-plugin-eval> | 2026-10-10 | That section changes the floor or its no-git exemption |
+| Sandbox backend table and the no-backend refusal | [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2); plugin-evals platform notes | 2026-10-04 | Either names a Windows backend, or adds or drops a package or WSL note |
+| Docker credential-store refusal and the `~/.docker/bin` exemption | <https://code.claude.com/docs/en/changelog> (2.1.293); no docs page covers it | 2026-10-10 | A docs page documents the check, or a release note touches sandbox credential exclusion or exempt paths |
+| Cloud route host and packages | [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) | 2026-10-11 | That section changes its host description or package list |
+| Read-only tool set | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-10-10 | That section's allowed-tools sentence changes |
+| Worktree Bash guard refusal | Observed on Claude Code 2.1.285 ([records.md](reference/records.md#worktrees)) | 2026-10-01 | A release note touches worktree isolation or `plugin eval` |
+| CLI linked-worktree refusal | Observed on Claude Code 2.1.289 ([records.md](reference/records.md#worktrees)) | 2026-10-04 | A release note changes the limit or the CLI's repository screening |
+| Model and judge resolution | <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-10-01 | The table changes its `--model` or `--judge-model` row |
+| Flag order, trust refusal, flag defaults | `claude plugin eval --help`; <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-09-12 | `--help` no longer matches, or a release note touches the flag set |
+| Cost anchors (list-price estimates, this plugin's read-only suite, Claude Code 2.1.287 and 2.1.296) | [records.md, Cost anchors](reference/records.md#cost-anchors) | 2026-10-11 | A release note touches `plugin eval`, the served model changes, or a pass averages more than 0.2 USD per run |
+| Spoke reach | <https://code.claude.com/docs/en/plugin-evals#grant-tools>; kept traces in [records.md](reference/records.md#spoke-reach) | 2026-10-04 | A release note touches `plugin eval` or sandbox permissions, or a kept trace on 2.1.289 or later shows a spoke `Read` denied |
+| Repeat count | <https://code.claude.com/docs/en/plugin-evals#how-a-case-is-scored> | 2026-10-01 | The page changes its default run count |
+| Judge calibration: what a judge reads, the 90% bar, trace judges not seeing the prompt | <https://code.claude.com/docs/en/plugin-evals#what-a-grader-can-look-at>; "When the grader is an LLM judge" in [eval-audit.md](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-audit.md); a kept 2.1.287 trace | 2026-10-02 | The focus table changes, a kept trace starts carrying the prompt or system prompt, or eval-audit.md moves its bar |
+| CI pins | <https://code.claude.com/docs/en/plugin-evals#run-evals-in-ci>; <https://code.claude.com/docs/en/model-config#model-aliases> | 2026-10-02 | Either section changes how it pins or resolves a model |
+| Ceiling shapes, trust persistence, the unmarked limit, `kept local`, `init` needing a terminal | <https://code.claude.com/docs/en/plugin-evals> (`--max-cost-usd` and exit-code rows, rate-limit troubleshooting, HTML report, "Write a case manually", CI); [records.md](reference/records.md#ceiling-trust-and-report-behavior) | 2026-09-13 | A release note touches `plugin eval`, publishing, `init` or limit handling, or a pass shows a ceiling shape not named here |

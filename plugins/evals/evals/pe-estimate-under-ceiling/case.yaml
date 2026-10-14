@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: pe-estimate-under-ceiling
+graders:
+  - name: 'estimate-usd'
+    type: 'regex'
+    pattern: '(?<![\d.])(?:\$[ \t]?[34](?:\.\d{1,2})?(?![\d.]*\d)|[34](?:\.\d{1,2})?[ \t]?(?:USD|US dollars|dollars)\b|[34](?:\.\d{1,2})?[ \t]?(?:-|–|to)[ \t]?\$?[3-5](?:\.\d{1,2})?[ \t]?(?:USD|dollars)\b)'
+    flags: 'i'
+  - name: 'passes-ceiling'
+    type: 'regex'
+    pattern: '--max-cost-usd(?:[ \t]+|=)5(?:\.0+)?(?![\d.])'
+  - name: 'no-confirmation-ask'
+    type: 'regex'
+    pattern: '\b(?:shall|should) I\b[^\n]*\?|\bwant me to\b[^\n]*\?|\bwould you like\b|\bdo you want\b[^\n]*\?|\b(?:ok|okay|alright|fine)\b[^\n?]{0,40}\?|\bsound (?:good|ok|okay|right)[ \t]*\?|\bconfirm\b[^\n.]{0,40}\b(?:before (?:I|we)|and I(?:[''’]ll)?|so I|then I)\b|\bplease confirm\b|\bgo[- ]ahead[ \t]*\?|\b(?:proceed|start|run(?: it)?|launch|kick (?:it )?off)[ \t]*\?|\bready(?: to (?:go|run|start|launch))?[ \t]*\?|\blet me know\b[^\n.]{0,40}\b(?:proceed|go ahead|start|run|launch|kick)\b|\bgive me (?:the|a) (?:go[- ]ahead|green light|thumbs up)\b|\bsay (?:the word|go|yes)\b'
+    flags: 'i'
+    match: 'not_contains'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:evals:)?(?:plugin-eval)"'

@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: de-criteria-first
+graders:
+  - name: 'no-write'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'asks-criteria-question'
+    type: 'regex'
+    pattern: '[^\n?]*\b(?:success|succeed\w*|criteri(?:on|a)|good (?:summary|summaries|enough|look)|measur\w*|target|baseline|threshold|accura\w*|metric|matters? most|counts? as|acceptable|correct|faithful\w*|hallucinat\w*)\b[^\n?]*\?|\b(?:how|what) (?:will|would|do|should) (?:you|we)\b[^\n?]*\b(?:know|judge|tell|decide|grade)\b[^\n?]*\?'
+    flags: 'i'
+  - name: 'no-cases-yet'
+    type: 'regex'
+    pattern: '^[ \t]*(?:#{1,6}[ \t]*|[-*+][ \t]*|\d+[.)][ \t]*)?[*_]{0,2}(?:test[ \t]+)?case[ \t]*#?\d+\b|^[ \t]*(?:[-*+][ \t]*)?[*_]{0,2}expected(?:[ \t]+(?:output|summary|result|behavior))?[*_]{0,2}[ \t]*:|\bdef test_\w+|\b(?:it|test|describe)\([\"'']'
+    flags: 'mi'
+    match: 'not_contains'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:evals:)?(?:design)"'

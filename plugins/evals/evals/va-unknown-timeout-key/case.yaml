@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: va-unknown-timeout-key
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'wont-load'
+    type: 'regex'
+    pattern: '\b(?:[Ww]on[''’]t|[Ww]ill not|[Dd]oesn[''’]t|[Dd]oes not|[Cc]an[''’]t|[Cc]annot|not going to|[Ff]ails? to|failing to)\b[^\n.]{0,20}\bload|(?<![Nn]o )(?<![Zz]ero )(?<!0 )\bFAIL\b|^[ \t*_#>]*No[,.!—:]'
+    flags: 'm'
+  - name: 'names-unknown-timeout'
+    type: 'regex'
+    pattern: '\btimeout\b[^\n]{0,80}?\b(?:unknown|not (?:a )?(?:valid|recogni[sz]ed|supported|allowed|known)|invalid|unrecogni[sz]ed|unsupported|isn[''’]t (?:a )?(?:valid|recogni[sz]ed|known|supported))\b|\b(?:unknown|invalid|unrecogni[sz]ed|unsupported)\b[^\n]{0,40}?\btimeout\b|(?<!nothing will )(?<!nothing )(?<!not )\b(?:fails? to load|will fail to load|is rejected|gets rejected)\b[^\n]{0,80}?\btimeout\b'
+    flags: 'i'
+  - name: 'names-timeout-seconds'
+    type: 'regex'
+    pattern: '\btimeout_seconds\b'
+  - name: 'skill-fired'
+    type: 'tool_used'
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:evals:)?(?:validate|plugin-eval)"'

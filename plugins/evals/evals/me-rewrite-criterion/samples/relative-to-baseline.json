@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "Rewritten: \"Across 500 refund conversations, the rate of replies stating a refund amount that differs from the order record is at most half the current baseline rate, measured by an exact-match check against the order system.\" I replaced 'rarely' with a ratio to a baseline you measure first, and stated the trial set."
+    },
+    {
+      "answer": "\"On a fixed set of 1,000 refund questions, wrong refund amounts drop by 50% relative to the measured baseline.\" Measure the baseline before setting the absolute number."
+    },
+    {
+      "answer": "Target: a 3x reduction from the current rate over 500 chats."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Wrong refund amounts must be lower than the baseline.",
+      "why": "direction only"
+    },
+    {
+      "answer": "Fewer than 1% of 500 refund conversations give a wrong amount.",
+      "why": "absolute only"
+    },
+    {
+      "answer": "Improve on current behavior across many chats.",
+      "why": "no quantity"
+    }
+  ]
+}

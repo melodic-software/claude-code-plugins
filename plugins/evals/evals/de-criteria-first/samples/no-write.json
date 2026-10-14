@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:design"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/repo/src/summarize.py"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/repo/evals/summarizer.yaml",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "one call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/repo/src/summarize.py"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/repo/evals/summarizer.yaml",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "after a read"
+    }
+  ]
+}
