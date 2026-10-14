@@ -61,6 +61,12 @@ from babysit_util import is_json_array, is_json_object, json_array, json_object
 
 FULL_RUN_WORKFLOW = "pr-require-checks.yml"
 CANARY_WORKFLOW = "post-merge-detect-silent-revert.yml"
+# The pr-merge lane dispatches the full run with its own GITHUB_TOKEN (the
+# lanes App holds no actions: write) and records the dispatched run's id in an
+# artifact named with this prefix; `_Context.lane_dispatched` reads it.
+LANE_DISPATCH_WORKFLOW = ".github/workflows/pr-merge.yml"
+LANE_DISPATCH_ARTIFACT = "pr-merge-dispatched-"
+LANE_DISPATCH_ACTOR = "github-actions[bot]"
 DISPATCH_DEADLINE = timedelta(hours=6)
 DEMOTION_FILERS = ("github-actions[bot]",)
 DEFAULT_ROLE_LABEL = "needs-human"
@@ -455,6 +461,49 @@ class _Context:
     outcome_cache: dict[tuple[int, str], tuple[str, str]] = field(default_factory=dict)
     # Full runs whose red verdict came from the wrapper's re-run (attempt 2).
     red_on_rerun: set[int] = field(default_factory=set)
+    branch: str = ""
+    lane_cache: dict[int, bool] = field(default_factory=dict)
+
+    def lane_dispatched(self, run: Run) -> bool:
+        """Whether the pr-merge lane sent this github-actions[bot] dispatch:
+        its `pr-merge-dispatched-<id>` artifact was uploaded by a run of
+        pr-merge.yml in this repository on the branch. Only steps of a run can
+        upload its artifacts, and a pull_request_target run is not counted, as
+        it runs the PR base branch's copy of the file."""
+        if run.actor != LANE_DISPATCH_ACTOR:
+            return False
+        if run.id not in self.lane_cache:
+            repo = f"{self.owner}/{self.name}"
+            listing = _read(
+                [
+                    "api",
+                    f"repos/{repo}/actions/artifacts?name="
+                    f"{LANE_DISPATCH_ARTIFACT}{run.id}&per_page=100",
+                ],
+                f"dispatch record of run {run.id}",
+            )
+            senders = {
+                json_object(a.get("workflow_run")).get("id")
+                for a in map(
+                    json_object, json_array(json_object(listing).get("artifacts"))
+                )
+                if a.get("name") == f"{LANE_DISPATCH_ARTIFACT}{run.id}"
+            }
+            self.lane_cache[run.id] = any(
+                isinstance(sender, int)
+                and _lane_run(
+                    json_object(
+                        _read(
+                            ["api", f"repos/{repo}/actions/runs/{sender}"],
+                            f"run {sender}",
+                        )
+                    ),
+                    repo,
+                    self.branch,
+                )
+                for sender in senders
+            )
+        return self.lane_cache[run.id]
 
     def contains(self, ancestor: str, sha: str) -> bool:
         """Whether `sha` is `ancestor` or has it in its history."""
@@ -519,6 +568,15 @@ class _Context:
         return f"{run.url}/attempts/{2 if run.id in self.red_on_rerun else 1}"
 
 
+def _lane_run(record: dict[str, Any], repo: str, branch: str) -> bool:
+    return (
+        record.get("path") == LANE_DISPATCH_WORKFLOW
+        and record.get("event") != "pull_request_target"
+        and record.get("head_branch") == branch
+        and json_object(record.get("repository")).get("full_name") == repo
+    )
+
+
 @dataclass
 class _Tally:
     failures: list[Failure] = field(default_factory=list)
@@ -552,7 +610,8 @@ def _judge(
     own = [
         run
         for signal, run in fulls
-        if signal == SIGNAL_DISPATCH and run.actor == ctx.identity
+        if signal == SIGNAL_DISPATCH
+        and (run.actor == ctx.identity or ctx.lane_dispatched(run))
     ]
     green_dispatch = [
         r for r in own if ctx.outcome(r, attributable=True)[0] in (GREEN, FLAKE)
@@ -700,7 +759,7 @@ def check(
             _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor),
             key=lambda r: r.created_at,
         )
-        ctx = _Context(owner, name, identity)
+        ctx = _Context(owner, name, identity, branch=branch)
         tally = _Tally()
         states = tuple(
             _judge(

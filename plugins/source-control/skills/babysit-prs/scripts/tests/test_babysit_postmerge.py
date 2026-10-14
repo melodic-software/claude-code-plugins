@@ -166,6 +166,9 @@ class FakeGh:
         self.pin_comments: list[dict[str, Any]] = []
         # Comment pages served in order, one per pin read, when set.
         self.pin_pages: list[dict[str, Any]] = []
+        # Artifacts by name, and single workflow runs by id (GET .../runs/<id>).
+        self.artifacts: dict[str, list[dict[str, Any]]] = {}
+        self.run_records: dict[int, dict[str, Any]] = {}
 
     def add_runs(self, workflow: str, event: str, *runs: dict[str, Any]) -> None:
         self.runs.setdefault((workflow, event), []).extend(runs)
@@ -226,6 +229,15 @@ class FakeGh:
             )
         if "/actions/runs/" in endpoint and endpoint.endswith("/rerun-failed-jobs"):
             return completed()
+        if "/actions/artifacts?" in endpoint:
+            name = endpoint.split("name=")[1].split("&")[0]
+            artifacts = self.artifacts.get(name, [])
+            return completed({"total_count": len(artifacts), "artifacts": artifacts})
+        if endpoint.split("/actions/runs/")[-1].isdigit():
+            record = self.run_records.get(int(endpoint.rsplit("/", 1)[1]))
+            if record is None:
+                return completed(returncode=1, stderr="gh: Not Found (HTTP 404)")
+            return completed(record)
         if endpoint.endswith("/dispatches"):
             return completed()
         if "/issues/" in endpoint and endpoint.split("?")[0].endswith("/comments"):
@@ -597,6 +609,77 @@ class Verification(CheckCase):
         verdict = self.check(now=datetime(2026, 10, 12, 17, 0, tzinfo=UTC))
         self.assertTrue(verdict.merges[0].verified)
         self.assertEqual(verdict.reruns, ())
+
+
+class LaneDispatch(CheckCase):
+    """The owner's rule (pr-merge lane plan, Phase 2): a full-run dispatch by
+    github-actions[bot] counts as the identity's when pr-merge.yml on main sent
+    it, proven by that run's `pr-merge-dispatched-<id>` artifact. One from
+    another workflow, another branch or another actor does not."""
+
+    LANE_RUN = 500
+
+    def lane_dispatch(self, **sender: Any) -> None:
+        bot = by("github-actions[bot]")
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(11, actor=bot, triggering_actor=bot),
+        )
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.artifacts["pr-merge-dispatched-11"] = [
+            {
+                "id": 9,
+                "name": "pr-merge-dispatched-11",
+                "workflow_run": {"id": self.LANE_RUN},
+            }
+        ]
+        record = {
+            "id": self.LANE_RUN,
+            "path": ".github/workflows/pr-merge.yml",
+            "event": "schedule",
+            "head_branch": "main",
+            "repository": {"full_name": REPO},
+        }
+        record.update(sender)
+        self.gh.run_records[self.LANE_RUN] = record
+
+    def test_dispatch_from_pr_merge_on_main_verifies(self) -> None:
+        self.lane_dispatch()
+        verdict = self.check(pinned=None)
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertFalse(verdict.needs_dispatch)
+
+    def test_dispatch_from_another_workflow_does_not_verify(self) -> None:
+        self.lane_dispatch(path=".github/workflows/pr-unblock-dispatch.yml")
+        self.assertFalse(self.check(pinned=None).merges[0].verified)
+
+    def test_dispatch_from_pr_merge_on_another_branch_does_not_verify(self) -> None:
+        self.lane_dispatch(head_branch="feature")
+        self.assertFalse(self.check(pinned=None).merges[0].verified)
+
+    def test_dispatch_from_a_pull_request_target_run_does_not_verify(self) -> None:
+        # That event runs the PR base branch's copy of the file, whatever the base.
+        self.lane_dispatch(event="pull_request_target")
+        self.assertFalse(self.check(pinned=None).merges[0].verified)
+
+    def test_dispatch_from_another_repository_does_not_verify(self) -> None:
+        self.lane_dispatch(repository={"full_name": "example-org/other"})
+        self.assertFalse(self.check(pinned=None).merges[0].verified)
+
+    def test_github_actions_dispatch_without_the_record_does_not_verify(self) -> None:
+        self.lane_dispatch()
+        self.gh.artifacts.clear()
+        verdict = self.check(pinned=None)
+        self.assertFalse(verdict.merges[0].verified)
+        self.assertTrue(verdict.needs_dispatch)
+
+    def test_record_for_another_actors_dispatch_does_not_verify(self) -> None:
+        self.lane_dispatch()
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(11, actor=by("maintainer"), triggering_actor=by("maintainer"))
+        ]
+        self.assertFalse(self.check(pinned=None).merges[0].verified)
 
 
 class Attribution(CheckCase):

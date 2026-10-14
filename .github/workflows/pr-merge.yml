@@ -86,7 +86,8 @@ jobs:
       id-token: write # prove to the token broker which workflow this is
     outputs:
       # `true` when a PR merged during this run and the gate could not start
-      # the follow-up full CI run itself (its token cannot start workflows).
+      # the follow-up full CI run itself (its token cannot start workflows),
+      # or the gate's post-merge check says an earlier merge still needs one.
       dispatch: ${{ steps.gate.outputs.dispatch }}
     steps:
       # Everything below runs from main as it is right now, never from a PR.
@@ -226,11 +227,12 @@ jobs:
               {pr: $n, head: $head, updatedAt: $updated, exit: $code,
                ready: (.ready == true), enqueued: (.enqueued == true), merged: (.merged == true),
                reportOnly: .unattended.reportOnly, reason: (.unattended.reason // .error),
-               dispatched: .unattended.dispatched, blockers: (.blockers // [])}
+               dispatched: .unattended.dispatched,
+               needsDispatch: (.unattended.postMerge.needsDispatch == true), blockers: (.blockers // [])}
             ' "$out" >>"$results"
           done < <(jq -r '.[] | "\(.number) \(.head) \(.updatedAt)"' "$RUNNER_TEMP/candidates.json")
           jq -s . "$results" >"$RUNNER_TEMP/pr-merge-summary.json"
-          dispatch=$(jq 'any(.[]; .merged and .dispatched != true)' "$RUNNER_TEMP/pr-merge-summary.json")
+          dispatch=$(jq 'any(.[]; .merged and .dispatched != true or .needsDispatch)' "$RUNNER_TEMP/pr-merge-summary.json")
           echo "dispatch=$dispatch" >>"$GITHUB_OUTPUT"
 
       # The run's report: every candidate with its verdict, then the ones that
@@ -281,18 +283,42 @@ jobs:
 
   # After a merge, the post-merge check wants a full CI run of main. Starting
   # a workflow needs `actions: write`, which the lane App token does not have,
-  # so this separate job does it with the job's own GitHub token. It runs only
-  # when a PR merged in this run and the gate could not start the run itself.
+  # so this separate job does it with the job's own GitHub token. It runs when
+  # the merge job says a full run is needed. A run woken by pull_request_target
+  # leaves it to the next run: the post-merge check does not trust a dispatch
+  # from that event, which runs the PR base branch's copy of this file.
   dispatch-full-run:
     needs: merge
-    if: needs.merge.outputs.dispatch == 'true'
+    if: needs.merge.outputs.dispatch == 'true' && github.event_name != 'pull_request_target'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       actions: write # start pr-require-checks.yml on main
     steps:
       - name: Start the full CI run on main
+        id: dispatch
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-        run: gh workflow run pr-require-checks.yml --repo "$REPO" --ref main
+        run: |
+          set -euo pipefail
+          id=$(gh api -X POST "repos/$REPO/actions/workflows/pr-require-checks.yml/dispatches" \
+            -f ref=main -F return_run_details=true --jq '.workflow_run_id')
+          if [[ ! $id =~ ^[1-9][0-9]{0,14}$ ]]; then
+            echo "::error::the dispatch returned no run id"
+            exit 1
+          fi
+          echo "started run $id"
+          echo "{\"dispatcher_run_id\":$GITHUB_RUN_ID,\"run_id\":$id}" >"$RUNNER_TEMP/dispatched.json"
+          echo "run-id=$id" >>"$GITHUB_OUTPUT"
+
+      # The post-merge check counts a full run started by github-actions[bot]
+      # only when a pr-merge.yml run on main uploaded an artifact naming it.
+      # Only this run's own steps can upload this run's artifacts.
+      - name: Record the dispatched run
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}
+          path: ${{ runner.temp }}/dispatched.json
+          retention-days: 90
+          if-no-files-found: error
