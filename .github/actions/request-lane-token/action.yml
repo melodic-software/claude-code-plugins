@@ -34,6 +34,13 @@ inputs:
     description: The gated PR number; sent as `pr_number` when set. `token` mode only.
     required: false
     default: ""
+  issue-number:
+    description: >-
+      The issue an `issues` lane works; sent as `issue_number` when set, which
+      the broker needs on an `issues` event. Never with `pr-number` or
+      `dispatcher-run-id`. `token` mode only.
+    required: false
+    default: ""
   dispatcher-run-id:
     description: >-
       The pr-unblock-dispatch.yml run that dispatched this run; sent as
@@ -82,6 +89,7 @@ runs:
         LANE: ${{ inputs.lane }}
         ACTIVITY: ${{ inputs.activity }}
         PR_NUMBER: ${{ inputs.pr-number }}
+        ISSUE_NUMBER: ${{ inputs.issue-number }}
         DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
         EFFECT: ${{ inputs.effect }}
         CONTENTS: ${{ inputs.contents }}
@@ -114,6 +122,9 @@ runs:
               fail "the resolved grant must be read or write for contents, pull-requests and issues"
           done
           [[ -z ${PR_NUMBER:-} || $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || fail "the PR number is malformed"
+          [[ -z ${ISSUE_NUMBER:-} || $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || fail "the issue number is malformed"
+          [[ -z ${ISSUE_NUMBER:-} || -z $PR_NUMBER$DISPATCHER_RUN_ID ]] ||
+            fail "an issue number goes without a PR number or dispatcher run id"
           # At most 15 digits keeps it a safe JSON integer for the broker.
           [[ -z ${DISPATCHER_RUN_ID:-} || $DISPATCHER_RUN_ID =~ ^[1-9][0-9]{0,14}$ ]] ||
             fail "the dispatcher run id is malformed"
@@ -121,8 +132,8 @@ runs:
         check)
           # The check job resolves no grant and gates no PR, and the broker's
           # check endpoint answers 400 to any body field but lane and activity.
-          [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES$PR_NUMBER$DISPATCHER_RUN_ID ]] ||
-            fail "check mode takes no effect, grant, PR number or dispatcher run id"
+          [[ -z $EFFECT$CONTENTS$PULL_REQUESTS$ISSUES$PR_NUMBER$ISSUE_NUMBER$DISPATCHER_RUN_ID ]] ||
+            fail "check mode takes no effect, grant, PR or issue number, or dispatcher run id"
           [[ $BROKER_URL =~ ^https://[^/]+/(.+/)?token$ ]] ||
             fail "lane-token-unconfigured: LANES_BROKER_URL does not end in a /token path segment, so it names no check endpoint"
           BROKER_URL="${BROKER_URL%/token}/check"
@@ -159,9 +170,10 @@ runs:
         echo "::add-mask::$oidc"
 
         body=$(jq -cn --arg lane "$LANE" --arg activity "$ACTIVITY" --arg pr "$PR_NUMBER" \
-          --arg dispatcher "$DISPATCHER_RUN_ID" \
+          --arg issue "$ISSUE_NUMBER" --arg dispatcher "$DISPATCHER_RUN_ID" \
           '{lane: $lane, activity: $activity}
             + (if $pr == "" then {} else {pr_number: ($pr | tonumber)} end)
+            + (if $issue == "" then {} else {issue_number: ($issue | tonumber)} end)
             + (if $dispatcher == "" then {} else {dispatcher_run_id: ($dispatcher | tonumber)} end)')
 
         # Exactly one request, with no retry: the broker spends this job's one

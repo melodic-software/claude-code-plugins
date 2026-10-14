@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## 1.11.1 - 2026-10-14
+
+`pr-run-activity.md` "The lane token broker": the request body gains `issue_number`, which the
+broker requires on an `issues` event, sent by `request-lane-token`'s new `issue-number` input.
+`version` stays 1.
+
 ## 1.11.0 - 2026-10-14
 
 Schema: `merge.report-only` (boolean, default false). README "Merge authority" describes it and
