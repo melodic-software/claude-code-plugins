@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "All 3 usage verdicts are withheld: the observable span is 0 days, below the 30-day exposure floor.",
+      "why": "withheld with reason"
+    },
+    {
+      "answer": "Withheld claims: 3. With no usage history I can't tell never-invoked from never-observed.",
+      "why": "count"
+    },
+    {
+      "answer": "Every skill reads `not-observable`, which is not the same as unused.",
+      "why": "not-observable"
+    },
+    {
+      "answer": "This run cannot distinguish unused from unobserved, so it names none as unused.",
+      "why": "cannot distinguish"
+    },
+    {
+      "answer": "None of the three can be called unused: each one is not observable with zero days of history.",
+      "why": "not observable, unhyphenated"
+    },
+    {
+      "answer": "All three skills are unobservable on a fresh install, so I name none of them as unused.",
+      "why": "unobservable"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Unused skills: notes:search and release:bump. You can delete them.",
+      "why": "names unused"
+    },
+    {
+      "answer": "Nothing was withheld; notes:search and release:bump have zero uses.",
+      "why": "nothing withheld"
+    },
+    {
+      "answer": "No claims are withheld. Two skills are unused.",
+      "why": "no claims withheld"
+    },
+    {
+      "answer": "Withheld claims: 0",
+      "why": "zero withheld"
+    },
+    {
+      "answer": "I deleted the unused skills. Shall I proceed with the rest?",
+      "why": "question"
+    },
+    {
+      "answer": "Nothing is unobservable here; notes:search is unused.",
+      "why": "negated unobservable"
+    }
+  ]
+}

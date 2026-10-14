@@ -1,0 +1,158 @@
+{
+  "skill": "harness-ops:changelog",
+  "plugin": "harness-ops",
+  "skill_dir": "plugins/harness-ops/skills/changelog",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling harness-ops skills and nearby skills in other plugins a request borders.",
+  "competitors": [
+    "harness-ops:audit-install-state",
+    "harness-ops:audit-native-overlap",
+    "harness-ops:audit-performance",
+    "harness-ops:audit-skill-visibility",
+    "harness-ops:behavior-probes",
+    "harness-ops:check",
+    "harness-ops:inventory",
+    "harness-ops:known-issues",
+    "harness-ops:lanes",
+    "harness-ops:machine-profile",
+    "harness-ops:morning-brief",
+    "harness-ops:observability",
+    "harness-ops:plugins",
+    "harness-ops:prerequisites",
+    "harness-ops:setup",
+    "disk-hygiene:clean",
+    "harness-config:audit",
+    "discovery:read-docs",
+    "discovery:research"
+  ],
+  "competitor_dirs": {
+    "harness-ops:audit-install-state": "plugins/harness-ops/skills/audit-install-state",
+    "harness-ops:audit-native-overlap": "plugins/harness-ops/skills/audit-native-overlap",
+    "harness-ops:audit-performance": "plugins/harness-ops/skills/audit-performance",
+    "harness-ops:audit-skill-visibility": "plugins/harness-ops/skills/audit-skill-visibility",
+    "harness-ops:behavior-probes": "plugins/harness-ops/skills/behavior-probes",
+    "harness-ops:check": "plugins/harness-ops/skills/check",
+    "harness-ops:inventory": "plugins/harness-ops/skills/inventory",
+    "harness-ops:known-issues": "plugins/harness-ops/skills/known-issues",
+    "harness-ops:lanes": "plugins/harness-ops/skills/lanes",
+    "harness-ops:machine-profile": "plugins/harness-ops/skills/machine-profile",
+    "harness-ops:morning-brief": "plugins/harness-ops/skills/morning-brief",
+    "harness-ops:observability": "plugins/harness-ops/skills/observability",
+    "harness-ops:plugins": "plugins/harness-ops/skills/plugins",
+    "harness-ops:prerequisites": "plugins/harness-ops/skills/prerequisites",
+    "harness-ops:setup": "plugins/harness-ops/skills/setup",
+    "disk-hygiene:clean": "plugins/disk-hygiene/skills/clean",
+    "harness-config:audit": "plugins/harness-config/skills/audit",
+    "discovery:read-docs": "plugins/discovery/skills/read-docs",
+    "discovery:research": "plugins/discovery/skills/research"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Claude Code just went up a version. What is different and does it affect us?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Pull the release notes for the last five versions and show them to me, no edits."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Work out the impact on this repo of everything between 2.1.200 and the current build."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here are the release notes I copied; figure out what we should change."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which changelog entries have we not yet integrated?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Apply the decisions from the last version diff, one PR per owning plugin."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What was the last CC release I processed and how many are queued?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "A new CLI build is out. Summarize what shipped."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Go through what Anthropic released this week for Claude Code and adjust our guidance."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Show where the changelog marker sits and the default review range."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a CHANGELOG.md entry for my own library's next release."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which Anthropic API models were released recently?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "List the commands available in my current install."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check our settings against the current official docs for drift."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run the behavior probes against the new version."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is there a known regression in the latest release?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Read the hooks documentation page and summarize it."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Generate release notes from my git log."
+    }
+  ]
+}

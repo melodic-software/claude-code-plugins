@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "bare"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.py --plugins-root ./plugins --render json > /tmp/v.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "explicit root"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n plugins-root /opt/plugins/harness-ops/skills/audit-skill-visibility/SKILL.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.py --help",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "help only"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

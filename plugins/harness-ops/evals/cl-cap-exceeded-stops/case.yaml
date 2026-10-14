@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: cl-cap-exceeded-stops
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-status-with-range
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?changelog-status\.sh(?:[^"\\]|\\.)*?--range'
+    min: 1
+  - name: names-cap-exceeded
+    type: regex
+    pattern: '(?<!\bnot )(?<!n[''’]t )(?<!\bnever )\bexceed(?:s|ed|ing)?\b[^.;,\n]*?\b(?:replay )?cap\b|\bcap\b[^.;\n]{0,40}?(?<!\bnot )(?<!n[''’]t )(?<!\bnever )\bexceeded\b|(?<!\bnot )(?<!n[''’]t )\b(?:over|past|beyond|above|more than|larger than|wider than|bigger than) (?:the|its) (?:(?:ten|10)[- ]release )?(?:replay )?cap\b'
+    flags: 'mi'
+    target: last_message
+  - name: recommends-conformance-recheck
+    type: regex
+    pattern: '(?:^|[.;!?][ \t]+)(?:(?![.;!?][ \t])(?!\b(?:not|never|skip|without|instead of|rather than|no need)\b)(?!n[''’]t\b)[^\n])*?(?:\b(?:docs?[- ])?conformance[ \t-]+(?:re-?check|check|audit|pass|review)\b|\brecheck(?:ing)?\b[^.;\n]{0,60}?\bagainst the (?:current )?docs\b)'
+    flags: 'mi'
+    target: last_message
+  - name: recommends-marker-reset
+    type: regex
+    pattern: '(?:^|[.;!?][ \t]+)(?![^.;!?\n]*\?)(?:(?![.;!?][ \t])(?!\b(?:not|never|leave|keep|without|no need)\b)(?!n[''’]t\b)[^\n])*?(?:\b(?:set|reset|move|advance|bump|update|point|record|write|place|establish)\b[^.;\n]{0,60}?\bmarker\b|\bmarker\b[^.;\n]{0,60}?\b(?:to|at|be|becomes?)\b[ \t`*]*(?:v?2\.1\.261\b|the (?:newest|latest)\b)|\bmark(?:ing)?\b[ \t`*]*(?:v?2\.1\.261\b|the (?:newest|latest)\b)[^.;\n]{0,40}?\bas read\b)'
+    flags: 'mi'
+    target: last_message
+  - name: no-decision-rows
+    type: regex
+    pattern: '^[ \t]*\|[^\n]*\|[ \t]*\**(?:Lens|Owner surface|Required sentence)\**[ \t]*\||^[ \t]*\|[^\n]*\|[ \t]*\**(?:correct|replace|adopt)\**[ \t]*\|'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+  - name: no-research-agents
+    type: tool_used
+    tool: 'Agent'
+    min: 0
+    max: 0
+    arm: 'both'

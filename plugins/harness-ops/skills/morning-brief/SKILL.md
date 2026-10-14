@@ -1,5 +1,5 @@
 ---
-description: "Prints the operator's read-only morning view of the current GitHub repo in one pass: open counts per queue label, merge-ready PRs, parked decisions with their RECOMMENDED lines, and loop-lane telemetry freshness. Use when: 'morning brief', 'morning view', 'ops dashboard', 'what needs attention', 'daily standup view', 'operator morning pass', 'queues and merge-ready'. Never mutates issues, PRs, labels, or comments."
+description: "Operator's read-only morning view of the current GitHub repo in one pass: open counts per queue label, merge-ready PRs, parked decisions with their RECOMMENDED lines, and loop-lane telemetry freshness; never mutates issues, PRs, labels, or comments. Use when: 'morning brief', 'ops dashboard', 'what needs attention', 'daily standup view'."
 argument-hint: "[--repo owner/name] [--telemetry-issue N] [--queue-labels A,B,C] [--stale-hours N] [--pr-limit N]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh\":*)"]
 user-invocable: true
@@ -41,26 +41,24 @@ hardcoded), so it is reusable across repos.
 "${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh" --data-dir "${CLAUDE_PLUGIN_DATA}" $ARGUMENTS
 ```
 
-Print the script's output verbatim. It is already the deliverable. Do not
-re-query the sections by hand.
+Print the script's output verbatim; do not re-query the sections by hand.
 
-The data dir is passed on the command line because the script cannot read it from
-its environment when the Bash tool runs it.
+Pass the data dir on the command line: the script cannot read it from its
+environment under the Bash tool.
 
 - **Pointer**: <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>
 - **As of**: 2026-10-11
 - **Recheck trigger**: that section starts exporting the plugin path variables to commands run
   through the Bash tool.
 
-When the header reports unreadable sections, say which sections were lost and why
-(each `UNREADABLE:` line carries the cause), name the remedy the cause calls for, and
-stop. The remedy follows the cause, never a fixed line: a repo that could not be
-resolved (exit 4) wants a checkout with a GitHub `origin` remote or `--repo`; a
-GraphQL refusal from the cloud GitHub proxy wants a run from a host that serves
-`gh`'s GraphQL, and the REST-served sections already carry what this host can read;
-an authentication error wants `gh auth status`; a rate limit or a 5xx wants a re-run
-after the window the error names. A section rebuilt from other tools is not the
-brief: it costs a slow, unverified pass and its shape differs run to run.
+When the header reports unreadable sections, say which were lost and why (each
+`UNREADABLE:` line carries the cause), name the remedy the cause calls for, and
+stop. A repo that could not be resolved (exit 4) wants a checkout with a GitHub
+`origin` remote or `--repo`; a GraphQL refusal from the cloud GitHub proxy wants a
+run from a host that serves `gh`'s GraphQL (the REST-served sections already carry
+what this host can read); an authentication error wants `gh auth status`; a rate
+limit or a 5xx wants a re-run after the window the error names. Never rebuild a
+section from other tools.
 
 ## Status report page
 
@@ -80,23 +78,20 @@ Every section is in one of three states: data, empty, or `UNREADABLE`. A section
 whose data source failed (a non-zero `gh` exit, or an error document in the body)
 renders as `UNREADABLE` with the error's first line, never as "none", "not found",
 or "clear"; so does a response the script cannot parse. The header counts the
-unreadable sections, so "nothing to report" and "could not read" are never
-confused. Exit code 5 means every section was unreadable and the brief carries no
-data; 6 means the brief rendered with at least one section unreadable; 0 means every
-section was read.
+unreadable sections. Exit 5: every section unreadable, no data; 6: rendered with at
+least one section unreadable; 0: every section read.
 
-A list read that reaches its result cap prints a `PARTIAL` line in its section, so a
-truncated list never reads as the whole set: the label inventory (and then the queue
-rows are not filtered to labels that exist), a queue count (shown as `N+`), the
-open-PR list, the decision list, and the telemetry issue search.
+A list read that reaches its result cap prints a `PARTIAL` line in its section: the
+label inventory (and then the queue rows are not filtered to labels that exist), a
+queue count (shown as `N+`), the open-PR list, the decision list, and the telemetry
+issue search.
 
-The `gh` subcommands ride GraphQL. When a GraphQL read is refused (the cloud
-GitHub proxy's HTTP 403), sections 1-4 are re-read from repository-scoped REST endpoints and the
-header names the transport. Two consequences: the merge-ready list reports
-`review=n/a` and reads merge state for at most `--pr-limit` open PRs (default 50),
-saying so when capped or when GitHub has not finished computing a PR's mergeability;
-and the stranded-findings section renders `UNREADABLE`, because review threads have
-no REST read. That section never renders an all-clear it did not read.
+When a GraphQL read is refused (the cloud GitHub proxy's HTTP 403), sections 1-4 are
+re-read from repository-scoped REST endpoints and the header names the transport.
+Then the merge-ready list reports `review=n/a` and reads merge state for at most
+`--pr-limit` open PRs (default 50), saying so when capped or when GitHub has not
+finished computing a PR's mergeability; and the stranded-findings section renders
+`UNREADABLE`, because review threads have no REST read.
 
 The brief treats a clean PR as verified only when its head contains its base branch's tip. It
 reads one comparison per clean PR, up to `--pr-limit`, and prints an `UNVERIFIED` line under a PR

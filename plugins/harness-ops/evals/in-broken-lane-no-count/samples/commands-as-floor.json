@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": "Built-in commands: at least 12. The builtin_commands lane is `degraded` (2 registrar-shaped exports unaccounted for), so 12 is a floor.\n\nBundled skills: not reported. The bundled_skills lane is `broken`: canary skill `simplify` was not resolved, so that lane's count cannot be trusted."
+    },
+    {
+      "answer": "**Built-in commands:** 12+ (degraded lane, floor)\n**Bundled skills:** no count, because that lane is broken (canary `simplify` missing)."
+    },
+    {
+      "answer": "The command list gives 12, a lower bound because the lane is degraded. I am withholding the bundled skill count: the inventory marks bundled_skills broken."
+    },
+    {
+      "answer": "Counts are floors for degraded lanes: built-in commands 12.",
+      "why": "floor first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "12 built-in commands.",
+      "why": "plain total"
+    },
+    {
+      "answer": "Exactly 12 built-in commands; the lane is ok.",
+      "why": "exact"
+    },
+    {
+      "answer": "12 commands, and that is not a floor.",
+      "why": "negated floor"
+    },
+    {
+      "answer": "It's not at least 12, it's 12 exactly.",
+      "why": "negated at least"
+    },
+    {
+      "answer": "Floors don't apply here: 12 commands.",
+      "why": "negated floor first"
+    }
+  ]
+}

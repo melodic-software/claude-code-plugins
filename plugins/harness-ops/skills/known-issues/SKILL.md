@@ -1,5 +1,5 @@
 ---
-description: "Looks up and tracks known Claude product issues. Searches known GitHub bugs, checks service health and model quality, and maintains a persistent registry of tracked issues. Use when: 'is this broken', 'known CC bugs', 'troubleshoot Claude Code', 'any workarounds', 'feature behaves unexpectedly', 'scan repo for issues', 'file a bug'. Actions: status (default), search FEATURE, check-all, scan, list, quality, create."
+description: "Lookup and tracking of known Claude product issues: GitHub bug search, service health and model quality checks, and a persistent registry of tracked issues. Use when: 'is this broken', 'any workarounds', 'troubleshoot Claude Code', 'feature behaves unexpectedly', 'scan repo for issues', 'file a bug'. Actions: status (default), search FEATURE, check-all, scan, list, quality, create."
 argument-hint: "<status|search|check-all|scan|list|quality|create> [args]"
 user-invocable: true
 disable-model-invocation: false
@@ -58,23 +58,19 @@ Read `context/registry-schema.md` for the full `registry.json` schema and field 
 
 ## Action Router
 
-Parse `$ARGUMENTS` to extract action (first token) and remaining arguments.
+The first token of `$ARGUMENTS` is the action:
 
 | Action | Description |
 | --- | --- |
-| `status` | Quick health summary. Registry stats + quality snapshot (DEFAULT when no args) |
-| `search` | Search GitHub Issues for bugs on a specific feature (default when args look like a feature name) |
-| `check-all` | Check ALL tracked registry issues. Find newly resolved ones, create follow-up TODOs |
+| `status` | Registry stats + quality snapshot. Default with no args |
+| `search` | Search GitHub Issues for bugs on one feature |
+| `check-all` | Check every tracked registry issue; find newly resolved ones, create follow-up TODOs |
 | `scan` | Grep the current repo for GitHub issue references and report untracked ones (read-only); `scan --add` also registers them |
-| `list` | Show all tracked issues grouped by status and category |
-| `quality` | Full quality check. Benchmarks + status page + recent GitHub degradation reports |
-| `create` | Draft and file GitHub issue on anthropics/claude-code using their template format |
+| `list` | All tracked issues grouped by status and category |
+| `quality` | Benchmarks + status page + recent GitHub degradation reports |
+| `create` | Draft and file a GitHub issue on anthropics/claude-code in its template format |
 
-**Smart routing:**
-
-- No `$ARGUMENTS` → `status`
-- `$ARGUMENTS` starts with action keyword → that action
-- `$ARGUMENTS` doesn't start with action keyword → `search` with entire argument as feature name
+When the first token is not an action, run `search` with the whole argument as the feature name.
 
 ---
 

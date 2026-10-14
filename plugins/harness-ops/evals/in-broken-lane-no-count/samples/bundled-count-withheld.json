@@ -1,0 +1,67 @@
+{
+  "pass": [
+    {
+      "answer": "Built-in commands: at least 12. The builtin_commands lane is `degraded` (2 registrar-shaped exports unaccounted for), so 12 is a floor.\n\nBundled skills: not reported. The bundled_skills lane is `broken`: canary skill `simplify` was not resolved, so that lane's count cannot be trusted."
+    },
+    {
+      "answer": "**Built-in commands:** 12+ (degraded lane, floor)\n**Bundled skills:** no count, because that lane is broken (canary `simplify` missing)."
+    },
+    {
+      "answer": "The command list gives 12, a lower bound because the lane is degraded. I am withholding the bundled skill count: the inventory marks bundled_skills broken."
+    },
+    {
+      "answer": "Claude Code 2.1.293 build; bundled skills lane broken.",
+      "why": "version digits"
+    },
+    {
+      "answer": "Built-in commands: at least 12; bundled skills withheld because the lane is broken (0 of 3 canaries found).",
+      "why": "canary tally"
+    },
+    {
+      "answer": "At least 12 built-in commands, and the bundled skills count is withheld.",
+      "why": "command count nearby"
+    },
+    {
+      "answer": "Bundled skills: no number. The lane is broken: canary `simplify` not resolved, 0 of 3 canaries found.",
+      "why": "of 3 canaries"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "4 bundled skills.",
+      "why": "count"
+    },
+    {
+      "answer": "Bundled skills: 4",
+      "why": "label"
+    },
+    {
+      "answer": "bundled skills (four)",
+      "why": "spelled"
+    },
+    {
+      "answer": "| Bundled skills | 4 |",
+      "why": "table"
+    },
+    {
+      "answer": "Bundled skills: 4 (the lane is broken, so treat with care).",
+      "why": "count with caveat"
+    },
+    {
+      "answer": "Bundled skills: 3 (loop, schedule, run).",
+      "why": "other number"
+    },
+    {
+      "answer": "There are four bundled skills.",
+      "why": "spelled out"
+    },
+    {
+      "answer": "**4** bundled skills, but the lane is broken.",
+      "why": "bold number"
+    },
+    {
+      "answer": "The bundled_skills lane lists 4 entries.",
+      "why": "entries"
+    }
+  ]
+}

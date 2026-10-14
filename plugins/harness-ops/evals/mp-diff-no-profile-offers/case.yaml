@@ -1,0 +1,46 @@
+schema_version: "1.1"
+name: mp-diff-no-profile-offers
+graders:
+  - name: ran-diff
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?profile\.sh\\?["'']?\s+diff\b'
+    min: 1
+    arm: both
+  - name: reports-no-profile
+    type: regex
+    pattern: '(?<!\bnot )\bno (?:stored |saved |machine )?profile\b(?! (?:issue|problem))|\bprofile(?:\.json)?\b[^\n.]{0,40}?\b(?:is |was )?(?:absent|missing|not (?:yet )?(?:found|stored|recorded|present)|does(?: not|n[''’]t) exist)'
+    flags: i
+    target: last_message
+  - name: offers-profile-action
+    type: regex
+    pattern: '(?:^|[.!?;:\n])(?![^\n.!?;]*\b(?:no need|needn[''’]t|don[''’]t need|do not need|doesn[''’]t need|does not need|not needed|unnecessary)\b)[^\n.!?;]*?(?:(?<!\bnot )(?<!n[''’]t )(?<!never )\b(?:run|produce|create|record|build|generate|make|take)\b[^\n.?]{0,30}?\b(?:the )?(?:`?profile`? action|machine-profile profile|profile\.sh\\?["''`]?[ \t]+profile\b|a (?:machine )?profile|one now|the first profile)|(?<!\bnot )(?<!n[''’]t )(?<!never )\b(?:create|record|take|make)\b[ \t]+one\b[^\n.?]{0,20}\?|/harness-ops:machine-profile profile\b|\bprofile\.sh\\?["''`]?[ \t]+profile\b)'
+    flags: i
+    target: last_message
+  - name: no-unchanged-claim
+    type: regex
+    pattern: '\bnothing (?:has )?changed\b|\bno (?:drift|differences|changes) (?:found|detected)\b|\b(?:is|are|remains?) unchanged\b|\bmatches the stored profile\b|\bin sync with\b'
+    flags: i
+    match: not_contains
+    target: last_message
+  - name: no-confirm-write
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?--confirm\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write-profile-json
+    type: tool_used
+    tool: Write
+    input_match: 'profile\.json'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write-profile-json
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*profile\.json)(?:[^"\\]|\\.)*?(?:\btouch\b|(?<![0-9&])>|\btee\b|\b(?:cp|mv|install|ln|dd|truncate)\s|\bsed\s+(?:-\S+\s+)*-[a-zA-Z]*i|\.write|\bopen\(|\bwrite_text\b)'
+    min: 0
+    max: 0
+    arm: both

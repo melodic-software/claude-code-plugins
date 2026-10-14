@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/harness-ops/skills/morning-brief/scripts/morning-brief.sh\" --data-dir /tmp/data --now 2026-07-20T08:00Z --counts-json brief/counts.json --pr-json brief/prs.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the script reads it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls brief",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "listing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.[] | select(.mergeStateStatus==\"CLEAN\")' brief/prs.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "jq rebuild"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat brief/prs.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cat"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import json; print(json.load(open('brief/prs.json')))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python"
+    }
+  ]
+}

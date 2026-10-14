@@ -1,0 +1,41 @@
+schema_version: "1.1"
+name: av-young-store-withholds
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-engine
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?\bpython3?(?:\.\d+)?\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*audit_skill_visibility\.py)(?!(?:[^"\\]|\\.)*?\s--help\b)'
+    min: 1
+  - name: no-shell-mutation
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?(?:\bplugins\b))(?:[^"\\]|\\.)*?(?:\brm\b|\brmdir\b|\bunlink\b|-delete\b|\bshred\b|\btruncate\b|\bmv\s|\bgit\s+(?:-\S+\s+(?:[^-\s]\S*\s+)?)*(?:clean|rm)\b|rmtree|os\.remove|\.unlink\(|\bsed\s+(?:-\S+\s+)*-[a-zA-Z]*i|\bperl\s+-\S*i|\btee\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*(?:\bplugins\b)|>>?\s*\\?["'']?[^\s"''\\]*(?:\bplugins\b)|\bclaude\s+purge\b|write_text|write_bytes|writeFileSync|\.write\(|open\([^)]*,\s*\\?["'']?[wa]|\bcp\s+(?:-\S+\s+)*\S+\s+\\?["'']?[^\s"''\\]*(?:\bplugins\b))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-write-skills
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:plugins/(?:notes|release)/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-edit-skills
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:plugins/(?:notes|release)/)'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: reports-withheld
+    type: 'regex'
+    pattern: '^(?![^\n]*\b(?:no|nothing|none|zero|0|not)\s+(?:\w+\s+){0,3}(?:withheld|withhold|not[- ]observable|unobservable|no-observation-in-horizon))(?![^\n]*(?:withheld|withhold)[^\n]{0,20}:\s*0\b)[^\n]*(?:\b(?:withheld|withhold|withholding|withholds)\b|\bnot[- ]observable\b|\bunobservable\b|\bno-observation-in-horizon\b|\bcan(?:not|[''’]t) (?:tell|distinguish|separate)\b)'
+    flags: 'im'
+    target: 'last_message'
+  - name: relays-skill-doctor
+    type: 'regex'
+    pattern: '^(?![^\n]*\b(?:not available|isn[''’]t available|unavailable|does(?: not|n[''’]t) (?:exist|resolve)|won[''’]t resolve|no such)\b)(?![^\n]*\bI(?:\s+have|[''’]ve)?\s+(?:ran|run|invoked|called)\b)[^\n]*/skill-doctor\b'
+    flags: 'im'
+    target: 'last_message'

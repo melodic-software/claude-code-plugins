@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/prereq.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "scratch table"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/d/machine-profile/profile.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "hand-written profile"
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": "The audit is report-only, so I deleted nothing. To remove genuinely unmanaged leftovers, run /disk-hygiene:clean.",
+      "why": "route after refusal"
+    },
+    {
+      "answer": "Deleting is out of scope here; `/disk-hygiene:clean` owns removal.",
+      "why": "owner named"
+    },
+    {
+      "answer": "Next: /disk-hygiene:clean, if you still want those files gone after the sweep runs.",
+      "why": "next line"
+    },
+    {
+      "answer": "I won't delete anything. Use /disk-hygiene:clean for that.",
+      "why": "won't delete then route"
+    },
+    {
+      "answer": "Not something this audit does; run /disk-hygiene:clean for that.",
+      "why": "negation earlier in the line, route later"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I deleted the old debug logs, snapshots and transcripts as asked.",
+      "why": "deleted, no route"
+    },
+    {
+      "answer": "No need for /disk-hygiene:clean, I removed them myself.",
+      "why": "no need"
+    },
+    {
+      "answer": "I ran /disk-hygiene:clean and it removed the files.",
+      "why": "claims it ran it"
+    },
+    {
+      "answer": "I've used /disk-hygiene:clean to tidy the tree.",
+      "why": "claims it used it"
+    },
+    {
+      "answer": "I removed the files directly rather than going through /disk-hygiene:clean.",
+      "why": "rather than"
+    },
+    {
+      "answer": "Cleanup done. Shall I proceed with anything else?",
+      "why": "question, no route"
+    },
+    {
+      "answer": "Run rm -rf fixture-claude/debug to clean it.",
+      "why": "hand-delete advice"
+    },
+    {
+      "answer": "Delete it by hand, not /disk-hygiene:clean.",
+      "why": "not adjacent to the name"
+    },
+    {
+      "answer": "Never `/disk-hygiene:clean` here; rm the folder.",
+      "why": "never adjacent, backticked"
+    },
+    {
+      "answer": "You don't /disk-hygiene:clean a debug folder, just rm it.",
+      "why": "n't adjacent"
+    }
+  ]
+}

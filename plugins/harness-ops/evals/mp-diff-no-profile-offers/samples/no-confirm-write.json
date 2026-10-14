@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/profile.sh diff --data-dir /d",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "diff"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/profile.sh record --data-dir /d /tmp/discover.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "validate-only record"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/profile.sh record --data-dir /d --confirm /tmp/discover.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "record confirm"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/profile.sh discover > /tmp/x.json && bash /p/scripts/profile.sh record --data-dir /d --confirm /tmp/x.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "chained"
+    }
+  ]
+}

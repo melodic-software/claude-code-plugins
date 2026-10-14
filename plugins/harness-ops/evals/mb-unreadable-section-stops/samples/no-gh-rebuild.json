@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/harness-ops/skills/morning-brief/scripts/morning-brief.sh\" --data-dir /tmp/data --now 2026-07-20T08:00Z --counts-json brief/counts.json --pr-json brief/prs.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "only the script"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v gh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "presence probe, no query"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr list --state open --json number,mergeStateStatus",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pr list"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api repos/acme/widgets/pulls",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "gh api"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w && gh -R acme/widgets pr list",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "flag before subcommand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -s https://api.github.com/repos/acme/widgets/pulls",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "curl"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh search prs --repo acme/widgets --state open",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "search"
+    }
+  ]
+}

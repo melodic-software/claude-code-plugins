@@ -1,0 +1,250 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat fixture-claude/hooks/slow-hook.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n sleep fixture-claude/hooks/slow-hook.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.hooks' fixture-claude/settings.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "manifest"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la fixture-claude/hooks && wc -l fixture-claude/hooks/slow-hook.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "listing then wc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/harness-ops/skills/audit-performance/scripts/audit_performance.py --root fixture-claude --note 'x'",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "engine"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat fixture-claude/hooks/slow-hook.sh | sha256sum",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pipe to a non-shell"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "wc -l < fixture-claude/hooks/slow-hook.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "stdin to a non-shell"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash fixture-claude/hooks/slow-hook.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "bash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "time bash /tmp/eval-ws/fixture-claude/hooks/slow-hook.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "time bash"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd fixture-claude/hooks && ./slow-hook.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "direct exec in chain"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '{}' | sh \"fixture-claude/hooks/slow-hook.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "piped stdin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "timeout 10 bash fixture-claude/hooks/slow-hook.sh; echo $?",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "timeout runner"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import subprocess,time; t=time.time(); subprocess.run(['bash','fixture-claude/hooks/slow-hook.sh']); print(time.time()-t)\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "subprocess"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "find fixture-claude/hooks -name slow-hook.sh -exec bash {} \\;",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "find -exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "hyperfine 'bash fixture-claude/hooks/slow-hook.sh'",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hyperfine"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "source fixture-claude/hooks/slow-hook.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "source"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat fixture-claude/hooks/slow-hook.sh | bash",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pipe to shell"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat fixture-claude/hooks/slow-hook.sh | /usr/bin/env -i sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pipe to env shell"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash < fixture-claude/hooks/slow-hook.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "stdin redirect to shell"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "time sh -x < \"fixture-claude/hooks/slow-hook.sh\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "stdin redirect with flag"
+    }
+  ]
+}

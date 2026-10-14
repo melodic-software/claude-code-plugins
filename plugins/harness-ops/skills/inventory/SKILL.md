@@ -1,5 +1,5 @@
 ---
-description: "List every Claude Code surface this machine can invoke: built-in commands, subagents, tools, bundled skills and workflows, and installed plugin components. Use when: 'what slash commands do I have', 'list all my skills', 'what agents are available', 'show me every plugin component', 'what does Claude Code ship built-in', 'is /foo a real command', 'what changed after the update', 'what does marketplace X give me'. On-disk audit: /harness-ops:audit-install-state."
+description: "List of every Claude Code surface this machine can invoke: built-in commands, subagents, tools, bundled skills and workflows, and installed plugin components. Use when: 'what slash commands do I have', 'what agents are available', 'is /foo a real command', 'what changed after the update', 'what does marketplace X give me'. On-disk audit: /harness-ops:audit-install-state."
 argument-hint: "[--builtin|--plugins|--bundled|--agents|--tools|--hooks|--docs] [--marketplace <m>] [--diff <f>]"
 user-invocable: true
 disable-model-invocation: false
@@ -335,8 +335,8 @@ command rather than asserting it changed.
 
 ## Staying current as Claude Code ships
 
-Claude Code updates constantly, and this skill reads its internals. The design assumption is not
-that the build holds still. It is that **drift must never be silent**.
+This skill reads Claude Code internals that change every release, so **drift must never be
+silent**.
 
 **Read the integrity block before quoting any number, lane by lane.** Every run carries one, and it
 states per lane (`builtin_commands`, `bundled_skills`, `plugin_backed`, `bundled_workflows`,
@@ -350,16 +350,14 @@ changes the integrity status or the self-check exit code:
 | `degraded` | Extraction worked, but something is unaccounted for | Report that lane's counts as **floors**, and say what is unaccounted for |
 | `broken` | A canary is missing or nothing resolved in that lane | Do not report that lane's counts at all; name the lane and its cause; the other lanes' counts stand |
 
-A single broken lane makes the top level `degraded`, not `broken`, so a healthy command list is
-never withheld because the bundled-skill lane failed. Top-level `broken` means every lane is broken
-or the binary could not be read.
+A single broken lane makes the top level `degraded`, not `broken`, so the other lanes' counts are
+never withheld. Top-level `broken` means every lane is broken or the binary could not be read.
 
-The distinction earns its keep because the dangerous failure is not a crash. A renamed export throws
-and is obvious. A *new registration path* returns a clean, confident, short list, so the checks are
-built to catch shortfall rather than error: canary commands, a canary workflow, canary subagents
-and tools, a minimum ratio of resolved commands to registration tokens present, a sweep for
-registrar-shaped exports the script does not know about, the resolved-versus-seen gap on bundled
-skills, and unresolved subagent and tool names.
+The dangerous failure is a clean, confident, short list from a new registration path, not a crash,
+so the checks catch shortfall: canary commands, a canary workflow, canary subagents and tools, a
+minimum ratio of resolved commands to registration tokens present, a sweep for registrar-shaped
+exports the script does not know about, the resolved-versus-seen gap on bundled skills, and
+unresolved subagent and tool names.
 
 **Run the drift check on a schedule, not on incident:**
 
@@ -367,25 +365,21 @@ skills, and unresolved subagent and tool names.
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --deps-dir "${CLAUDE_PLUGIN_DATA}" --self-check
 ```
 
-It prints one verdict line and exits `0` ok, `1` broken, `3` degraded, so it works as a CI gate, a
-loop-lane step, or a post-update check without parsing JSON. `2` is left to argparse for a usage
-error, so a mistyped flag can never be mistaken for a degraded run. The natural trigger is a CLI release:
-`/harness-ops:changelog apply` runs it after integrating one, with a `--docs` extraction it diffs
-against the previous run's, and files a work item when the verdict is not `ok`.
+It prints one verdict line and exits `0` ok, `1` broken, `3` degraded; `2` is argparse's usage
+error, never a degraded run. `/harness-ops:changelog apply` runs it after integrating a CLI
+release, with a `--docs` extraction it diffs against the previous run's, and files a work item when
+the verdict is not `ok`.
 
-**What a maintainer actually updates.** Most releases need no change. Registrar names are
-discovered, not hardcoded, and the bundle is found by export name rather than layout. When a run
-does go `degraded` or `broken`, each verdict maps to one edit in `scripts/inventory.py`; the verdict
-table in [reference/extraction.md](reference/extraction.md) carries the mapping. After revalidating
-against the new build, bump `VALIDATED_AGAINST` to that version. It is the one constant that turns
-"believed" back into "verified".
+**What a maintainer updates.** Most releases need no change: registrar names are discovered and the
+bundle is found by export name. When a run goes `degraded` or `broken`, each verdict maps to one
+edit in `scripts/inventory.py`, per the verdict table in
+[reference/extraction.md](reference/extraction.md). After revalidating against the new build, bump
+`VALIDATED_AGAINST` to that version; it is the one constant that turns "believed" back into
+"verified".
 
-**For downstream consumers.** A consumer on an older plugin version against a newer CLI gets a
-`degraded` or `broken` verdict rather than a wrong answer, the report tells on itself, which is the
-property that makes shipping this safe. Fixes reach them the ordinary way: a new plugin version
-(bumped in the pull request, or by the release pull request where the repo uses changelog
-fragments), which `/harness-ops:plugins sync` carries. Never quietly widen a count to make a status look better;
-the stale-but-honest report is the one a consumer can act on.
+**For downstream consumers.** An older plugin version against a newer CLI reports `degraded` or
+`broken` rather than a wrong answer; fixes ship as a new plugin version, which
+`/harness-ops:plugins sync` carries. Never quietly widen a count to make a status look better.
 
 ## Next
 

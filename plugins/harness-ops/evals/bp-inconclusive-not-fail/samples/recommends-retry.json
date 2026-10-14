@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "No. `inconclusive` is not a fail: the note says the model never attempted the target call, so the platform was never asked. Rerun that case with `--retries 1`:\n\n`probe.py run --live --case auto-mode/subagent-ask-rule-denies --retries 1`\n\nI ran nothing live; say if you want that run."
+    },
+    {
+      "answer": "I'd hold off on records.md. Never read an inconclusive verdict as pass or fail. Rerun it with --retries 1 when you want a live run."
+    },
+    {
+      "answer": "Don't record it as a fail. The table shows the call was never attempted, which says nothing about the ask rule; a rerun with `--retries=1` is the next step."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No need to rerun with --retries 1; log it as a fail.",
+      "why": "no need"
+    },
+    {
+      "answer": "Don't bother with --retries 1, it's a fail.",
+      "why": "don't bother"
+    },
+    {
+      "answer": "I won't suggest --retries 1 here.",
+      "why": "won't"
+    },
+    {
+      "answer": "Agreed, log it as a fail.",
+      "why": "absent"
+    },
+    {
+      "answer": "Rerun it with --retries 2.",
+      "why": "wrong count"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "pass": [
+    {
+      "answer": "Built-in commands: at least 12. The builtin_commands lane is `degraded` (2 registrar-shaped exports unaccounted for), so 12 is a floor.\n\nBundled skills: not reported. The bundled_skills lane is `broken`: canary skill `simplify` was not resolved, so that lane's count cannot be trusted."
+    },
+    {
+      "answer": "**Built-in commands:** 12+ (degraded lane, floor)\n**Bundled skills:** no count, because that lane is broken (canary `simplify` missing)."
+    },
+    {
+      "answer": "The command list gives 12, a lower bound because the lane is degraded. I am withholding the bundled skill count: the inventory marks bundled_skills broken."
+    },
+    {
+      "answer": "**Bundled skills:** no number given.** The lane is `broken`: its canary `simplify` did not resolve.",
+      "why": "lane named in the next sentence"
+    },
+    {
+      "answer": "Bundled skills: withheld. That lane went broken when the canary failed to resolve.",
+      "why": "that lane, next sentence"
+    },
+    {
+      "answer": "Bundled skills: withheld. The canary `simplify` was not resolved (0 of 3 found).",
+      "why": "cause, next sentence"
+    },
+    {
+      "answer": "Bundled skills: no count. I can't trust that lane. Its integrity status is broken.",
+      "why": "two sentences later"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The bundled_skills lane is not broken.",
+      "why": "negated"
+    },
+    {
+      "answer": "4 bundled skills; nothing is broken.",
+      "why": "other clause"
+    },
+    {
+      "answer": "The bundled skills lane isn't broken; 4 skills.",
+      "why": "contraction"
+    },
+    {
+      "answer": "Bundled skills: 4, lane ok.",
+      "why": "absent"
+    },
+    {
+      "answer": "Bundled skills: 4. That lane is not broken.",
+      "why": "next sentence negated"
+    },
+    {
+      "answer": "Bundled skills: 4. The builtin_commands lane is broken.",
+      "why": "other lane broken"
+    },
+    {
+      "answer": "Bundled skills: 4; nothing is broken.",
+      "why": "nothing is broken"
+    },
+    {
+      "answer": "Bundled skills: 4 (all 3 canaries found).",
+      "why": "canaries found"
+    }
+  ]
+}

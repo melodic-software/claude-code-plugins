@@ -1,0 +1,90 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /d/machine-profile/profile.json 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "existence check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/profile.sh diff --data-dir /d",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "diff"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/profile.sh discover > /d/machine-profile/profile.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/profile.sh discover | tee /d/machine-profile/profile.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/x.json /d/machine-profile/profile.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cp"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"open('/d/machine-profile/profile.json','w').write('{}')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "touch /d/machine-profile/profile.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "touch"
+    }
+  ]
+}

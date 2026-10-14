@@ -1,5 +1,5 @@
 ---
-description: "Ingest Claude Code changelog entries and integrate them into the current repo. Fetch (read-only display), diff (impact analysis over a release range, no edits), status (read marker, default range, replay cap), and apply (executes the decisions in scope one PR per owner plugin and hands larger ones off as work items, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', 'apply changelog', a new CC release is mentioned, or the user pastes changelog text."
+description: "Claude Code changelog ingestion into the current repo: fetch (read-only display), diff (impact analysis over a release range, no edits), status (read marker, default range, replay cap), and apply (one PR per owner plugin, larger decisions handed off as work items, explicit user intent only). Use when: 'new cc version', 'what changed in claude code', a new CC release is mentioned, or the user pastes changelog text."
 argument-hint: "<fetch|diff|status|apply> [vA..vB|vX|text]"
 user-invocable: true
 disable-model-invocation: false
