@@ -310,7 +310,12 @@
         "authority": {
           "enum": ["local-babysit", "pr-merge"],
           "default": "pr-merge",
-          "description": "The one lane that merges for this repository: the local babysit wrapper or the pr-merge lane. Absent means pr-merge, the meaning a rung had before this key existed; the babysit wrapper merges only when this reads local-babysit (README.md, Merge authority)."
+          "description": "The one lane that merges for this repository: the local babysit wrapper or the pr-merge lane. Absent means pr-merge, the meaning a rung had before this key existed; the babysit wrapper merges only when this names the authority it runs as (README.md, Merge authority)."
+        },
+        "report-only": {
+          "type": "boolean",
+          "default": false,
+          "description": "true: the merge authority reports each decision and writes nothing (no enqueue, dequeue or comment). The pr-merge lane starts true; the owner sets false to let it merge (README.md, Merge authority)."
         },
         "agent-identity": {
           "type": "string",
