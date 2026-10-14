@@ -134,7 +134,7 @@ cp "$REPO/src/sum.test.ts" "$REPO/scratch/ignored.test.ts"
 TPATH="$TMP/transcripts/-repo/main.jsonl"
 PCWD="$REPO"
 payload() {
-  jq -cn --arg t "$1" --arg f "$2" --arg s "$3" --arg a "$4" --arg u "$5" --argjson r "$6" \
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg t "$1" --arg f "$2" --arg s "$3" --arg a "$4" --arg u "$5" --argjson r "$6" \
     --arg tp "$TPATH" --arg c "$PCWD" \
     '{hook_event_name: "PostToolUse", tool_name: $t, session_id: $s, tool_use_id: $u,
       cwd: $c, transcript_path: $tp, tool_input: {file_path: $f}, tool_response: $r}
@@ -472,14 +472,14 @@ if [[ -d "$S/newkey/newsid" ]]; then ok "prune: a fresh empty directory stays fo
 BASH_HOOK="$HOOK_DIR/test-scan-bash.sh"
 # bash_payload <tool_use_id> <bashEditDiff json, or "" for none>
 bash_payload() {
-  jq -cn --arg u "$1" --arg d "$2" --arg tp "$TPATH" --arg c "$PCWD" '{hook_event_name: "PostToolUse", tool_name: "Bash",
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg u "$1" --arg d "$2" --arg tp "$TPATH" --arg c "$PCWD" '{hook_event_name: "PostToolUse", tool_name: "Bash",
     session_id: "sb", tool_use_id: $u, transcript_path: $tp, cwd: $c, tool_input: {command: "true"},
     tool_response: {stdout: "", stderr: "", interrupted: false}}
     | if $d == "" then . else .tool_response.bashEditDiff = ($d | fromjson) end'
 }
 # diff_of <created|edit> <file> [hunks json]: a one-file bashEditDiff
 diff_of() {
-  jq -cn --arg k "$1" --arg f "$2" --argjson h "${3:-[]}" '{changedFiles: [$f], moreFiles: 0,
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg k "$1" --arg f "$2" --argjson h "${3:-[]}" '{changedFiles: [$f], moreFiles: 0,
     files: [{filePath: $f, hunks: $h} + (if $k == "created" then {created: true} else {} end)]}'
 }
 ADD_ALL='[{"oldStart":0,"oldLines":0,"newStart":1,"newLines":1,"lines":["+x"]}]'
@@ -514,13 +514,13 @@ bash_run bash-6 "$(diff_of edit "$REPO/src/mixed.test.ts" "$(jq -c .structuredPa
 assert_not_contains "(h) a Bash edit inside the good block leaves the bad block quiet" "$out" "rule-zero-assertion"
 bash_run bash-7 "$(diff_of edit "$REPO/src/mixed.test.ts" "$(jq -c .structuredPatch <<<"$EDIT_BAD")")"
 assert_contains "(h) a Bash edit inside the bad block reports it" "$out" "rule-zero-assertion"
-bash_run bash-8 "$(jq -cn --arg f "$REPO/src/mixed.test.ts" '{changedFiles: [$f], moreFiles: 0, files: []}')"
+bash_run bash-8 "$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$REPO/src/mixed.test.ts" '{changedFiles: [$f], moreFiles: 0, files: []}')"
 assert_empty "(h) a changed file past the hunk list reports nothing" "$out"
 bash_run bash-9 "$(diff_of created "$REPO/scratch/ignored.test.ts" "$ADD_ALL")"
 assert_empty "(h) a gitignored test file is skipped" "$out"
 
 # Two test files in one call each report, in one document.
-two="$(jq -cn --arg a "$REPO/src/sum.test.ts" --arg b "$REPO/src/again.test.ts" --argjson h "$ADD_ALL" \
+two="$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg a "$REPO/src/sum.test.ts" --arg b "$REPO/src/again.test.ts" --argjson h "$ADD_ALL" \
   '{changedFiles: [$a, $b], moreFiles: 0,
     files: [{filePath: $a, created: true, hunks: $h}, {filePath: $b, created: true, hunks: $h}]}')"
 bash_run bash-10 "$two"
@@ -546,7 +546,7 @@ assert_jq "Bash state: a created file records every block, as a create" "$(rec s
 bash_run bs-2 "$(diff_of edit "$REPO/src/mixed.test.ts" "$(jq -c .structuredPatch <<<"$EDIT_GOOD")")"
 assert_jq "Bash state: an edit records the block its hunk touched and the lines it wrote" "$(rec sb bs-2-1)" \
   '.create == false and .lines == [9] and .blocks == [{name: "adds two", ordinal: 1, start: 8, end: 10}]'
-bash_run bs-3 "$(jq -cn --arg f "$REPO/src/mixed.test.ts" '{changedFiles: [$f], moreFiles: 0, files: []}')"
+bash_run bs-3 "$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$REPO/src/mixed.test.ts" '{changedFiles: [$f], moreFiles: 0, files: []}')"
 assert_jq "Bash state: a changed file with no hunks records blocks:null, the whole file" "$(rec sb bs-3-1)" '.blocks == null'
 bash_run bs-4 "$two"
 check_two="$(rec sb bs-4-1) $(rec sb bs-4-2)"
@@ -605,7 +605,7 @@ bash_run hd-7 "$(diff_of edit "$HR/src/p1.test.ts" "$BODY")"
 assert_empty "Bash HEAD: a test file a merge brought in gives no output" "$out"
 assert_empty "Bash HEAD: a test file a merge brought in leaves no record" "$(rec sb hd-7-1)"
 cp "$REPO/src/sum.test.ts" "$HR/src/new.test.ts"
-five="$(jq -cn --arg d "$HR/src" --argjson h "$ADD_ALL" '[range(1; 5) | "\($d)/p\(.).test.ts"] + ["\($d)/new.test.ts"]
+five="$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg d "$HR/src" --argjson h "$ADD_ALL" '[range(1; 5) | "\($d)/p\(.).test.ts"] + ["\($d)/new.test.ts"]
   | {changedFiles: ., moreFiles: 0, files: map({filePath: ., hunks: $h})}')"
 bash_run hd-8 "$five"
 assert_jq "Bash HEAD: a new test file after four merged ones is still recorded" "$(rec sb hd-8-1)" '.file == "'"$HR"'/src/new.test.ts"'
