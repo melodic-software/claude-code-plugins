@@ -13,48 +13,33 @@ metadata:
 ## Repository context. Gather first
 
 Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation (a worktree-isolated session refuses a compound command that contains git):
+invocation:
 
 - Current branch, `git branch --show-current`
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Recent commits, `git log --oneline -5`
 - Uncommitted changes, `git diff --stat HEAD | tail -1`
 
-Keep the pipe in the command: the Bash tool returns the full output before anything can be cut.
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on.
+The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
+bounds nothing: the Bash tool returns the command's complete output into context before there is
+anything to decide about.
+
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
+separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
+block as one shell invocation, and a worktree-isolated session refuses a compound command that
+contains git.
 
 ## Purpose
 
-Execute an approved plan, a fix or a change incrementally: validate after each block, commit at
-green checkpoints, and route back to planning the moment the approach stops working rather than
-discovering it at PR review. Planning comes before this skill; `/testing:plan`, `/testing:write`,
-`/testing:diagnose` and `/verification:confirm` validate the result when installed.
+Implementation is where plans become code. This skill structures the execution phase so changes are made incrementally, validated continuously, and abandoned early when the approach isn't working, rather than pushing through a broken implementation and discovering problems at PR time.
 
-Track Steps 0–5 in the session task list. Durable progress lives in the plan artifact (phase tags,
-`- [ ]` step boxes) and the handoff notes Step 4 writes; keep no second checklist file. Placement
-follows the lifecycle artifact protocol
-([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)):
-the plan is `<memory_dir>/<slug>/PLAN.md` (default `.work/`), never committed; handoff notes go
-under `<memory_dir>/handoffs/` (default `.work/handoffs/`).
+It sits between planning and verification: exploration and external research provide understanding, a planning pass produces an approved plan, this skill executes it with discipline, and the companion skills in the `testing` and `verification` plugins (`/testing:plan`, `/testing:write`, `/testing:diagnose`, `/verification:confirm`) validate the result when those plugins are installed.
 
-## Settings
+**Philosophy**: cost of a mid-implementation replan is minutes; cost of discovering a flawed approach at PR review is hours. Validate incrementally, commit at checkpoints, and route back to planning the moment something feels wrong.
 
-Each key below resolves once per run from three layers, lowest first: the default; the user's
-option (a literal, unexpanded placeholder means unset); and the key in the repository's
-`docs/conventions/implementation.yaml`, which wins when set, read under the root rule in
-[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md). A value
-outside the key's values is named with its file or option, the key and the value, and that layer is
-dropped: the repository's valid value still wins over an invalid user value, and an invalid
-repository value resolves the default, never the user's value. Report one line per key with the
-layer that supplied it, for example `per_unit_check: every (docs/conventions/implementation.yaml)`.
+## Progress tracking
 
-| Key | User option | Values (default first) | Resolved |
-|---|---|---|---|
-| `code_writing` | `${user_config.code_writing}` | `inline`, `dispatch` | Step 0 |
-| `integration_posture` | `${user_config.integration_posture}` | `by-kind`, `day-one`, `minimal` | Step 0, only with no approved plan |
-| `refactor_compat` | `${user_config.refactor_compat}` | `same-wave`, `deprecate` | refactor mode, in [context/refactor.md](context/refactor.md) |
-| `per_unit_check` | `${user_config.per_unit_check}` | `pilot`, `every` | the first multi-site block (Step 2) |
-| `verify_mechanical_phases` | `${user_config.verify_mechanical_phases}` | `false`, `true` | before the first phase boundary (Step 4); a floor, per config.md: `true` in any layer wins, and an invalid value counts as unset |
+Track skill Steps 0–5 in-session via the task list. Durable progress lives in the plan artifact itself (phase tags, `- [ ]` step boxes) plus the handoff notes written at phase boundaries (Step 4). Do not mirror progress into a second checklist file. Placement per the lifecycle artifact protocol ([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)): the plan artifact is `<memory_dir>/<slug>/PLAN.md` (default `.work/`), never committed; handoff notes are under `<memory_dir>/handoffs/` (default `.work/handoffs/`).
 
 ## Arguments
 
@@ -66,7 +51,7 @@ In fix and config modes, hold to the scope discipline: do the simplest thing tha
 
 **Data boundaries.** Check and narrow values where they enter the system (request bodies, files read, other services' responses) into the types the code works with, and past that point rely on those types instead of checking them again. Pointer: the "Overeagerness" section of Anthropic's prompting best practices ([claude-prompting-best-practices#overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness); as of 2026-10-04; recheck when that section drops or moves its boundary-validation advice).
 
-Pick the mode, then read its context file before proceeding:
+Parse conversation context to determine execution mode. Mode shapes which context file to consult and how to structure the work.
 
 | Signal in conversation | Mode | Context file |
 |----------------------|------|-------------|
@@ -74,17 +59,15 @@ Pick the mode, then read its context file before proceeding:
 | Bug report, error diagnosis, or "fix" in conversation | **Bugfix** | [context/bugfix.md](context/bugfix.md) |
 | Structural change, "refactor", "rename", "reorganize" | **Refactor** | [context/refactor.md](context/refactor.md) |
 | A new implementation takes over from an old one that must behave the same: "rewrite", "migrate", "port", "replace X with Y" | **Replace** | [context/replace.md](context/replace.md) |
-| Non-code changes (docs, config, YAML, markdown) | **Config** | Lighter workflow, no context file needed. Verification is not lighter: non-code changes still break builds (`.editorconfig`, project files, markdown lint), so invoke `/verification:confirm` via the Skill tool for these too |
+| Non-code changes (docs, config, YAML, markdown) | **Config** | Lighter workflow, no context file needed. Verification is not lighter: even non-code changes break builds (`.editorconfig` changes, project-file modifications, markdown lint), so invoke `/verification:confirm` via the Skill tool for these too |
 
-**`refactor_compat`.** In refactor mode, [context/refactor.md](context/refactor.md) resolves it (user option in Settings) against the repository file and states what each value does with the old shape.
+If `$ARGUMENTS` specifies a mode (`feature`, `fix`, `refactor`, `replace`, `config`), use that. Otherwise infer from context. If ambiguous, ask.
 
-A mode named in `$ARGUMENTS` (`feature`, `fix`, `refactor`, `replace`, `config`) wins; otherwise infer it, and ask when ambiguous.
+**Detect orchestration mode** (distinct from implement execution mode above). Signals for orchestrated execution: the session runs autonomously (a goal/loop harness with no human in the turn cycle), the approved plan routes phases to worker subagents, or `code_writing` resolves `dispatch`. When any holds, after Step 1's prerequisite check passes, invoke `/implementation:implement-dispatch` via the Skill tool and follow its dispatch cadence for those phases instead of the Step 2 inline cadence; under `dispatch` that is every phase, since implement-dispatch writes worker rows for the phases the plan leaves to the main session. Interactive sessions with no worker routing and `code_writing` resolved `inline` use the classic inline cadence below. Step 1 runs in every mode; orchestrated dispatch does not skip the branch / plan / dirty-tree preflight.
 
-**Orchestration mode.** Dispatch instead of editing inline when the session runs autonomously (a goal/loop harness with no human in the turn cycle), the approved plan routes phases to worker subagents, or `code_writing` resolves `dispatch`. Then, after Step 1 passes, invoke `/implementation:implement-dispatch` via the Skill tool and follow its cadence for those phases instead of Step 2's; under `dispatch` that is every phase. Otherwise (interactive, no worker routing, `code_writing: inline`) use the inline cadence below. Step 1 runs in every mode.
+**`code_writing`.** Resolve it once per run, here, from three layers, lowest first: the default `inline`; the user's option, `${user_config.code_writing}` (a literal, unexpanded placeholder means unset); and the `code_writing` key of the repository's `docs/conventions/implementation.yaml`, which wins when set, read under the root rule in [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md). A value other than `inline` or `dispatch` is named with its file or option, the key and the value, and that layer is dropped: the repository's valid value still wins over an invalid user value, and an invalid repository value resolves the default `inline`, never the user's value. Report one line, for example `code_writing: dispatch (docs/conventions/implementation.yaml)`. With no approved plan (a trivial change Step 1 lets through without one), there are no phases to hand out, so the inline cadence runs and the report line says so.
 
-**`code_writing`.** Resolve it here (Settings). With no approved plan (a trivial change Step 1 lets through without one) there are no phases to hand out, so the inline cadence runs and the report line says so.
-
-**`integration_posture`.** How far the change reshapes the code around it. With an approved plan, follow the plan's scope and do not resolve the key (`/planning:plan` already wrote any redesign into the plan); report `integration_posture: plan governs`. With no approved plan, resolve it (Settings) once the mode is known, report e.g. `integration_posture: minimal (docs/conventions/implementation.yaml)`, and apply it by mode:
+**`integration_posture`.** This decides how far the change reshapes the code around it. With an approved plan, follow the plan's scope and do not resolve the key: `/planning:plan` already read it and wrote any redesign into the plan as work items, so report `integration_posture: plan governs`. With no approved plan, resolve it once the mode is known, from three layers, lowest first: the default `by-kind`; the user's option, `${user_config.integration_posture}` (a literal, unexpanded placeholder means unset); and the `integration_posture` key of the repository's `docs/conventions/implementation.yaml`, which wins when set, read under the root rule in [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md). A value other than `by-kind`, `day-one` or `minimal` is named with its file or option, the key and the value, and that layer is dropped: the repository's valid value still wins over an invalid user value, and an invalid repository value resolves the default `by-kind`, never the user's value. Report one line, for example `integration_posture: minimal (docs/conventions/implementation.yaml)`. Then apply it by mode:
 
 | Mode | `by-kind` | `day-one` | `minimal` |
 |---|---|---|---|
@@ -94,67 +77,70 @@ A mode named in `$ARGUMENTS` (`feature`, `fix`, `refactor`, `replace`, `config`)
 
 A day-one redesign changes the code the work lands in until it reads as though the new behavior had been part of the original design: move, rename, merge or split what that code already has, instead of adding a branch or a flag beside it. It stays inside the files the change already touches and leaves behavior outside the task unchanged. Minimal is the scope discipline at the top of this step.
 
-When the mode signals conflict (a "fix" that adds a capability, a config edit that changes code paths) and no argument names the mode, an interactive run asks. A non-interactive run (no human in the turn cycle) takes `minimal`, whatever the resolved value, and appends a deviation entry to `DEVIATIONS.md` in this work's memory slice (`<memory_dir>/<slug>/`, default `.work/`), typed per `/implementation:implement-dispatch` "Divergence in non-interactive runs": plan said nothing (no approved plan), found the conflicting signals, chose `minimal`, revisit at PR review.
+When the mode signals conflict (a "fix" that adds a capability, a config edit that changes code paths) and no argument names the mode, an interactive run asks. A non-interactive run (no human in the turn cycle) takes `minimal` for the change, whatever the resolved value, and appends a deviation entry to `DEVIATIONS.md` in this work's memory slice (`<memory_dir>/<slug>/`, default `.work/`), typed per `/implementation:implement-dispatch` "Divergence in non-interactive runs": plan said nothing (no approved plan), found the conflicting signals, chose `minimal`, revisit at PR review.
+
+**`refactor_compat`.** In refactor mode the user's option is `${user_config.refactor_compat}` (a literal, unexpanded placeholder means unset); [context/refactor.md](context/refactor.md) resolves it against the repository file and states what each value does with the old shape.
+
+**Read the relevant context file** for mode-specific guidance before proceeding.
 
 ## Step 1: Prerequisite Check
 
-Before writing code:
+Before writing code, verify the knowledge base:
 
-- **Approved plan?** If yes, it is the roadmap. If not, and the diff will not be quick to review or cheap to retry (a new project, a cross-cutting change, or any diff that adds types, public contracts, or module boundaries), suggest locking the contract first: `/planning:interview` when installed (it hands off to `/planning:plan`), otherwise whatever interview or plan skill the setup actually provides; never invent skill names. A diff that is quick to review and cheap to retry proceeds without a plan and is reviewed afterward; if it turns out not to be quick to review, stop and route back to `/planning:interview`
-- **Correct branch?** On the default branch (`main`/`master`) when the project expects feature branches, stop and create one per the project's branch-naming convention (its `CLAUDE.md` / `AGENTS.md` / rules; `<type>/<description>` is a common default): `git checkout -b <branch>`, or `/source-control:worktree` when installed
-- **Uncommitted changes?** Flag unrelated dirty-tree changes; don't mix concerns in one commit
-- **Current base?** Before the first build or test run, fetch the base branch and bring this branch onto it the way the project integrates (merge or rebase; a brief or user instruction that forbids either wins), so a failure belongs to the real base. With no remote, or a failed fetch, say so in one line and carry on
+- **Is there an approved plan?** If yes, use it as execution roadmap. If no plan exists and the diff will not be quick to review or cheap to retry (a new project, a cross-cutting change), suggest locking the contract first: `/planning:interview` when the planning plugin is installed (it hands off to `/planning:plan`), otherwise whatever interview or plan skill the consuming setup provides (check what's actually available; never invent skill names). A change whose diff will be quick to review and cheap to retry proceeds without a formal plan (a diff that adds types, public contracts, or module boundaries is not cheap to retry and still takes the interview); review the diff and align on it afterward, and if the diff turns out not to be quick to review, stop and route back to the interview (`/planning:interview`)
+- **Is the branch correct?** Check the branch gathered above. If on the default branch (`main`/`master`) and the project's workflow expects feature branches, stop and create one following the consuming project's branch-naming convention (check its `CLAUDE.md` / `AGENTS.md` / rules; `<type>/<description>` is a common default). `git checkout -b <branch>`, or `/source-control:worktree` when that plugin is installed
+- **Are there uncommitted changes?** If dirty working tree with unrelated changes, flag it, don't mix concerns in one commit
+- **Is the base current?** Before the first build or test run, fetch the base branch and bring this branch onto it the way the project integrates (merge or rebase; a brief or user instruction that forbids either wins), so a failure in that first run belongs to the real base and not to a stale copy. With no remote, or a failed fetch, say so in one line and carry on
 
 ## Step 2: Execute with Incremental Validation
 
-Validate after each logical block, not just at the end.
+Core execution loop. Key discipline: **validate after each logical block, not just at the end.**
 
 ### Execution cadence
 
-1. **Implement one logical block**: a single concern, function, class, or feature slice, never the whole plan at once
-2. **Build check**: invoke `/toolchain:check` (Skill tool) for the affected ecosystem after each block when installed; otherwise run the project's own build/test command. In non-interactive runs, run typecheck/compile and the touched test files per block, and the broader affected-ecosystem suite at phase boundaries and Step 5
-3. **Test (TDD by default)**: when the `tdd` plugin is installed, invoke `/tdd:principles` (Skill tool) **before writing the first test**. Then Red-Green-Refactor **one test at a time**: one failing test for the smallest slice of behavior, confirm it fails (red), implement the minimum to pass (green), refactor, next slice. **Do not write all tests upfront**: one at a time keeps each red signal observable and stops code over-fitting tests written against a design that doesn't exist yet. **Minimum to pass means the smallest correct implementation, not the smallest text that turns the bar green**: never hardcode the test's expected values, special-case its inputs, or weaken an assertion; if a test seems wrong, fix it deliberately and say so. TDD is the fallback when the project declares no other testing cadence; skip it only when genuinely impractical (pure infrastructure wiring with no testable logic, UI rendering with no logic behind the seam) or when project policy opts out in its `CLAUDE.md` / rules (e.g. `Use tests-after for implementation work; do not use test-first TDD.`), which overrides this fallback and the mode context guidance
-4. **Commit checkpoint**: commit after tests pass; each commit is a green state (see Commit discipline). The one exception is a declared span: a phase whose plan carries a `**Planned breakage:**` line (`<build | tests | lint> red until Phase <M> for <paths or test filter>: <reason>`) opens a span that ends when Phase `<M>` lands. At the span's first block, record the failure set the named step produces before any edit. Inside the span a red commit is allowed only when every new failure lies in the declared paths or test filter; its body names the span (`Planned breakage: tests red until Phase 3 for tests/billing/`). A failure outside the declaration is a real failure: stop and handle it under "When to break the cadence", and never widen the declaration to cover it. Without a declaration every commit is green
+1. **Implement one logical block**. A single concern, function, class, or feature slice. Not the entire plan at once
+2. **Build check**. Invoke `/toolchain:check` (via Skill tool) for the affected ecosystem after each block when the `toolchain` plugin is installed; otherwise run the project's own build/test command directly. Catch compilation errors immediately, not after 5 files of changes. In non-interactive runs, tier the in-loop cost: typecheck/compile and the touched test files run per block; the broader affected-ecosystem test suite runs at phase boundaries and Step 5. Early detection stays, redundant full-suite passes go
+3. **Test (TDD by default)**. When the `tdd` plugin is installed, invoke `/tdd:principles` via Skill tool **before writing the first test** for authoritative guidance on what to test, which testing style fits (output/state/communication), and when to mock. Then follow Red-Green-Refactor **one test at a time**: write a single failing test for the smallest slice of behavior, confirm it fails (red), implement the minimum to pass (green), refactor. Then move to the next slice. **Minimum to pass means the smallest correct implementation, not the smallest text that turns the bar green**. Never hardcode the test's expected values, special-case its inputs, or weaken an assertion; if a test seems wrong, fix the test deliberately and say so. **Do not write all tests upfront**. Writing one at a time keeps each red signal observable (proving the test can fail before code makes it pass) and stops you over-fitting code to tests written against a design that doesn't exist yet. TDD is the fallback when the consuming project does not declare another testing cadence. Skip only when genuinely impractical (e.g., pure infrastructure wiring with no testable logic, or UI rendering with no logic behind the seam), or when project policy says otherwise. A consumer can opt out in its `CLAUDE.md` / rules, for example: `Use tests-after for implementation work; do not use test-first TDD.` That project policy overrides this fallback and the mode context guidance
+4. **Commit checkpoint**. Commit after tests pass. Each commit represents a green state; message shape and granularity are in "Commit discipline" below. The one exception is a declared span: a phase whose plan carries a `**Planned breakage:**` line (`<build | tests | lint> red until Phase <M> for <paths or test filter>: <reason>`) opens a span that ends when Phase `<M>` lands. At the span's first block, record the failure set the named step produces before any edit, so later failures can be told apart from ones already there. Inside the span a red commit is allowed only when every new failure lies in the declared paths or test filter; its body names the span (`Planned breakage: tests red until Phase 3 for tests/billing/`). Any failure outside the declaration is a real failure: stop and handle it under "When to break the cadence", and never widen the declaration to cover it. Without a declaration there is no planned breakage, and every commit is green
 5. **Repeat** until the plan is complete
 
-**Multi-site step (lever check)**. Before a block that applies one change at three or more sites (count the sites that get the same edit, not the files), invoke `/discipline:script-the-deterministic-work lever-check <block summary>` via the Skill tool when it is among the available skills, and follow its `build-a-lever` or `edit-by-hand` answer. When it is not available, apply its `deterministic` rule: build a lever only when each site's edit follows from that site's text alone, and say in one line that the check ran on `deterministic` because the discipline skill was unavailable. With `build-a-lever`, edit the first site by hand, run the lever on a clean copy of that site, diff the two, fix the lever until they match, then run it on the rest. The lever's run goes through the same build check and commit checkpoint as any block.
+**Multi-site step (lever check)**. Before a block that applies one change at three or more sites (a judgment call: count the sites that get the same edit, not the files the block touches), invoke `/discipline:script-the-deterministic-work lever-check <block summary>` via the Skill tool when it is among the available skills. It resolves `lever_scope`, reports the supplying layer, and answers `build-a-lever` or `edit-by-hand` with its reason; follow the answer. When it is not among the available skills (the discipline plugin ships disabled), apply its `deterministic` rule here: build a lever only when the change is mechanical, meaning each site's edit follows from that site's text alone, and say in one line that the lever check ran on `deterministic` because the discipline skill was unavailable. With `build-a-lever`, edit the first site by hand, run the lever on a clean copy of that site, and diff the two; fix the lever until they match, then run it on the remaining sites. The lever's run goes through the same build check and commit checkpoint as any other block.
 
-**Per-unit check (`per_unit_check`)**. Apply the lever or hand edit unit by unit (a unit is one site, or one file holding several sites) under this key (Settings):
+**Per-unit check (`per_unit_check`)**. Once the lever or the hand edit is ready, apply it unit by unit (a unit is one site, or one file when the change touches several sites in it) under this key. Resolve it the first time a multi-site block runs, from three layers, lowest first: the default `pilot`; the user's option, `${user_config.per_unit_check}` (a literal, unexpanded placeholder means unset); and the `per_unit_check` key of the repository's `docs/conventions/implementation.yaml`, which wins when set, read under the root rule in [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md). A value other than `pilot` or `every` is named with its file or option, the key and the value, and that layer is dropped: the repository's valid value still wins over an invalid user value, and an invalid repository value resolves the default `pilot`, never the user's value. Report one line, for example `per_unit_check: every (docs/conventions/implementation.yaml)`.
 
-- `pilot`: apply the change to a small first batch, run the build check and the tests covering it, and fix the lever or edit until that batch is green; then apply it to every remaining unit and run one check over all of them. Size the batch from the "Fan out across files" section of the Claude Code best practices ([best-practices#fan-out-across-files](https://code.claude.com/docs/en/best-practices#fan-out-across-files); as of 2026-10-04; recheck when that section changes its pilot advice or moves). A failure in the final check is handled under "When to break the cadence", not by re-running the whole set.
-- `every`: run the build check and the affected tests after each unit, and move on only once it passes.
+- `pilot`: apply the change to a small first batch of units, run the build check and the tests covering them, and fix the lever or the edit until that batch is green. Then apply it to every remaining unit and run one check over all of them at the end. Size the batch from the "Fan out across files" section of the Claude Code best practices, which says how many units to try before the full set ([best-practices#fan-out-across-files](https://code.claude.com/docs/en/best-practices#fan-out-across-files); as of 2026-10-04; recheck when that section changes its pilot advice or moves). A failure in the final check is handled under "When to break the cadence", not by re-running the whole set.
+- `every`: run the build check and the affected tests after each unit, and move on to the next unit only once that check passes.
 
 Either way the commit checkpoint follows the last green check.
 
-**Revert a unit that does not move the check**. When a block meant to turn a failing check green, or change how it fails, leaves the check reporting the same result, revert the block to the last green commit instead of patching forward, then try the next hypothesis; inside a declared planned-breakage span revert to the start of that span instead.
+**Revert a unit that does not move the check**. When a block was meant to turn a failing check green or change how it fails, and the check reports the same result after the block as before it, revert the block to the last green commit instead of patching forward, then try the next hypothesis; inside a declared planned-breakage span (Execution cadence item 4) revert to the start of that span instead.
 
-**Integration-first within a multi-layer phase**. Build the integration slice end-to-end and verify it runs before fanning out across layers.
+**Integration-first within a multi-layer phase**. Build the integration slice end-to-end first and verify it runs before fanning out across layers; it is the cheapest form of the Step 3 "plans are hypotheses" experiment.
 
 ### When to break the cadence
 
-- **Build fails** → fix it before adding more code
-- **Test fails unexpectedly** → investigate; it may signal a flawed approach, not just a bug
-- **Scope creep** → if the task is bigger than planned, stop and replan (invoke `/planning:plan review` via the Skill tool when installed) rather than expanding scope silently
-- **Technical question mid-implementation** → invoke `/discovery:research` via the Skill tool when installed, otherwise run disciplined multi-source research
-- **Too-big-and-foggy (not just bigger)** → if the work is a sprawl of still-undecided questions rather than a scoped change, stop building and name `/planning:interview` to the user (it escalates to `/planning:wayfind` when the effort outgrows one session). Guide, never auto-switch
+- **Build fails** → fix immediately. Don't add more code on top of broken code
+- **Test fails unexpectedly** → investigate. An unexpected failure may signal a flawed approach, not just a bug
+- **Scope creep** → if implementation reveals the task is bigger than planned, stop and replan. Route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) rather than expanding scope silently
+- **Too-big-and-foggy (not just bigger)** → if implementation reveals the work is a sprawling set of still-undecided, not-yet-phrasable questions rather than a scoped change, stop building and name `/planning:interview` to the user; it escalates to `/planning:wayfind` when the effort outgrows one session. Guide, never auto-switch
 
 ### Commit discipline
 
-- **Commit after tests pass**, except a red commit inside a declared planned-breakage span
-- **Default delivery order**: commits that delete code go ahead of the commits that build on what is left, and in a fix the commit holding the failing test goes ahead of the fix. Under a project-declared tests-after cadence the failing-test commit is optional
-- **Separate structural from behavioral commits** (Tidy First: "make the change easy, then make the easy change")
-- **Commit before running a simplify pass**, so a bad simplification reverts cleanly
-- **Stage specific files**: `git add <file>`, never `git add -A` or `git add .`
-- **Fix the finding, never silence it**: add no lint or type-checker suppression (`eslint-disable`, `# noqa`, `# type: ignore`, `#pragma warning disable` and the like) to turn a check green. The exception is a false positive you have shown to be one: its suppression names the rule id, where the tool can name one, and states why the finding is wrong there. A project's own instructions override this rule where they say otherwise
-- **Follow the project's commit-message convention** (its `CLAUDE.md` / rules; Conventional Commits is a common default). On squash-merge workflows, feature-branch messages matter less than the final squash subject
+- **Commit after tests pass**. Each commit is a green save point, except a red commit inside a declared planned-breakage span (Execution cadence item 4)
+- **Default delivery order**. Commits that delete code go ahead of the commits that build on what is left, and in a fix the commit holding the failing test goes ahead of the fix itself. Under a project-declared tests-after cadence the failing-test commit is optional
+- **Separate structural from behavioral commits**. A rename/extract gets its own commit, separate from new features (Tidy First: "make the change easy, then make the easy change")
+- **Commit before running a simplify pass**. Your working code is a save point. If simplification introduces a bad change, revert cleanly
+- **Stage specific files**. `git add <file>`, never `git add -A` or `git add .`
+- **Fix the finding, never silence it**. Do not add a lint or type-checker suppression (`eslint-disable`, `# noqa`, `# type: ignore`, `#pragma warning disable` and the like) to turn a check green. The one exception is a false positive you have shown to be one: its suppression line names the rule id, where the tool's syntax can name one, and states why the finding is wrong there. A project's own instructions override this rule where they say otherwise
+- **Follow the consuming project's commit-message convention** (check its `CLAUDE.md` / rules; Conventional Commits is a common default). On squash-merge workflows, feature-branch messages matter less than the final squash subject
 
 ### Dependency direction
 
-Implement depended-upon components before the ones that depend on them, following the project's own dependency direction (in a layered Clean-Architecture app, Core/Domain before Application/Infrastructure).
+When implementing across components, respect the project's own dependency direction. Implement the depended-upon components before the ones that depend on them, so each compiles against something that already exists. In a layered .NET/Clean-Architecture app, for example, that means inner Core/Domain types before outer Application/Infrastructure; a project with a different structure applies the same principle to its own layout.
 
 ## Step 3: Divergence Detection
 
-Plans are hypotheses; implementation is the experiment.
+Most important discipline in execution. Plans are hypotheses, implementation is the experiment.
 
 **Divergence signals:**
 
@@ -164,7 +150,7 @@ Plans are hypotheses; implementation is the experiment.
 - You're writing workarounds or hacks to make the plan fit
 - Tests reveal edge cases the plan didn't account for
 
-**Design signals.** Before filing friction as a plan problem, compare what you just did with these rows. A match means the design, not only the plan, may have to go.
+**Design signals.** Before you file friction as a plan problem, compare what you just did with the rows below. A match on any row means the design, not only the plan, may have to go.
 
 | You just | For example | It points to |
 |---|---|---|
@@ -173,25 +159,27 @@ Plans are hypotheses; implementation is the experiment.
 | Added a lock or a retry to settle a race or an ordering bug that would not exist if another component owned the state | Two workers in one wave appending to `DEVIATIONS.md` behind a lockfile, where the race would not exist if the orchestrator owned the file | State owned by the wrong component |
 | Hit one cause a second time | Two or more `DEVIATIONS.md` entries that trace to one cause, or a workaround about to be copied to a second file | A problem the plan cannot absorb |
 
-Length is not a row: code that parses a messy format, such as a transcript JSONL file, can run long in a sound design; judge where it is divided, not how many lines it has.
+Length is not a row. Code that parses a messy format, such as a transcript JSONL file, can run long in a sound design; judge where it is divided, not how many lines it has.
 
 **When divergence is detected:**
 
 1. **Stop writing code.** Do not push through a broken approach
-2. **Research before declaring something impossible.** Look one level deeper (the dependency's issue tracker, workaround flags, bypass options, alternative APIs). Present "I've tried two things and they didn't work" as a progress update, not a conclusion
+2. **Research before declaring something impossible.** Before telling the user "this can't be done", look one level deeper: the dependency's issue tracker for workaround flags, bypass options, alternative APIs. Present "I've tried two things and they didn't work" as a progress update, not a conclusion
 3. **Assess severity:**
    - **Minor** (typo in plan, small API difference) → fix inline, note the deviation
-   - **Moderate** (approach needs adjustment, direction is right) → research alternatives rather than settling for a workaround, then adjust the plan and document what changed and why
-   - **Major** (fundamental assumption was wrong) → run external research first (`/discovery:research` via the Skill tool when installed, otherwise a disciplined multi-source lookup), THEN route back to planning (`/planning:plan review` via the Skill tool when installed). The user approved a plan that no longer works; they approve the new direction
-4. **For major divergence:** switch to plan mode while redesigning. Exit plan mode only when the revised plan is clear and its first draft answers yes to each check: Is it smaller than the failed attempt? Does it list what it drops before what it adds? Does it start from the goal and what the failed attempt proved, never from the broken code?
+   - **Moderate** (approach needs adjustment but direction is right) → adjust the plan, document what changed and why. Research alternatives before adjusting, don't settle for workarounds when a proper solution may exist
+   - **Major** (fundamental assumption was wrong) → run external research first to find alternative approaches (invoke `/discovery:research` via the Skill tool when the discovery plugin is installed, otherwise a disciplined multi-source lookup), THEN route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) to re-plan. The user approved a plan that no longer works, they need to approve the new direction, informed by fresh research
+4. **For major divergence:** switch to plan mode for safe exploration while redesigning the approach. Exit plan mode only after the revised plan is clear and its first draft answers yes to each check: Is it smaller than the failed attempt? Does it list what it drops before what it adds? Does it start from the goal and what the failed attempt proved, never from the broken code?
 
-**Non-interactive fork (autonomous runs only):** see `/implementation:implement-dispatch` "Divergence in non-interactive runs". Moderate divergence takes the conservative option plus a deviations log instead of deadlocking; Major still STOPS. Interactive sessions keep the ladder above.
+**Non-interactive fork (autonomous runs only):** see `/implementation:implement-dispatch` "Divergence in non-interactive runs". Moderate divergence takes the conservative option + a deviations log instead of deadlocking; Major still STOPS. Interactive sessions keep the escalation ladder above unchanged.
 
-**Opt-in deviation log (interactive):** an interactive session may keep the same append-only `DEVIATIONS.md` beside the plan artifact, typing entries per that contract (plan-confirmed / discovery / deviation / human-decision; a deviation answers plan said / found / chose / revisit). Opt in when the session is long, the plan is contested, or a handoff is likely: the Moderate rung's record then survives, and Step 5's fold-back reads it.
+**Opt-in deviation log (interactive):** an interactive session may keep the same append-only `DEVIATIONS.md` beside the plan artifact, typing entries per the contract in `/implementation:implement-dispatch` "Divergence in non-interactive runs" (plan-confirmed / discovery / deviation / human-decision; a deviation answers plan said / found / chose / revisit). Worth opting into when the session is long, the plan is contested, or a handoff is likely: the Moderate rung's "document what changed and why" then has a durable home instead of scrollback, and Step 5's fold-back has something to read.
 
 ## Step 3.5: Scope-fence drift detector (run at every decision boundary)
 
-**When**: at each phase boundary, at each worker-agent return, and BEFORE proposing any action not literally in the approved plan's work items. Classify every proposed action before announcing it:
+**When**: at each phase boundary, at each worker-agent return, and BEFORE proposing any action not literally in the approved plan's work items.
+
+**Discipline**: classify every proposed action against the plan before announcing it to the user. Three categories:
 
 | Category | Definition | Action |
 |---|---|---|
@@ -199,9 +187,9 @@ Length is not a row: code that parses a messy format, such as a transcript JSONL
 | **Plan-tagged fallback / execution-shape item** | The plan itself pre-tagged it as a contingency or execution-shape choice | If a fallback: surface to the user with `AskUserQuestion`, confirm/override/drop. If pre-approved execution shape: execute |
 | **Invented mid-implement** | Not in the plan at all; surfaced by an agent return, anomaly, or implementation discovery | Stop. Classify (briefed-via-other-phase / plan-fallback / pure-invention / scope-expansion). Surface to the user with category tag + `AskUserQuestion`, separately from plan-anticipated items |
 
-**Never batch invented follow-ups with plan-anticipated items in one proposal**: pushback on a mixed batch is ambiguous, and "drop both" silently drops plan work.
+**Anti-pattern (canonical failure mode)**: batching invented follow-up actions with plan-anticipated items in one proposal. User pushback on the batch is structurally ambiguous. "drop both" reads as "drop all my proposals"; silent over-correction drops plan-anticipated work. Always separate categories at proposal time.
 
-**Over-correction guard**: when the user pushes back on two or more proposed actions, do not silently drop all of them. Use `AskUserQuestion`:
+**Over-correction guard**: when the user pushes back on N proposed actions (≥2), do not silently drop all of them. Use `AskUserQuestion`:
 
 ```text
 Q: You pushed back on N actions. Drop which?
@@ -211,22 +199,22 @@ Options:
 - Specific items: <enumerate by category>
 ```
 
-If the trap fires, record it for this session's retro: an input to `/session-flow:retro` when installed, otherwise a note in the completion summary.
+If the trap fires, document it in this session's retro. When the `session-flow` plugin is installed, surface it as an input to `/session-flow:retro`; otherwise note it in the completion summary.
 
 ## Step 4: Task Tracking and Phase-Boundary Handoff
 
-For non-trivial implementations (3+ steps), track each major block from the plan as a task, marking it complete only after its tests pass. Skip this for single-step work.
+For non-trivial implementations (3+ steps), track each major logical block from the plan as a task in the harness task list, marking a block complete only after its tests pass. Skip this for trivial single-step implementations.
 
 ### Phase-boundary discipline (the durable layer)
 
-Task state does not survive a context clear; the plan artifact and handoff notes do (placement: the artifact protocol above). Plan progress is marked in `<memory_dir>/<slug>/PLAN.md` and handoff entries are timestamped notes in the memory slice's handoffs home. Both are self-ignored and never committed, so when marking changes the plan, refresh its paste in the pull request body or the linked issue. Write that body refresh before the push that carries the phase's commit, or after the last push's CI run has finished, never as its own edit right after a push: a body edit re-runs every workflow that triggers on `edited`, adding a second run on the same head.
+In-session task state lives in the harness and does not survive a context clear. The durable mirror is the plan artifact plus handoff notes. Where these live: per the lifecycle artifact protocol ([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)). Plan progress is marked in the plan file in the memory slice (`<memory_dir>/<slug>/PLAN.md`, default `.work/`), handoff entries are timestamped notes in the memory slice's handoffs home. Both are self-ignored and never committed, so when marking changes the plan, refresh its paste in the pull request body or the linked issue. Write a pull-request body refresh before the push that carries the phase's commit, or after the last push's CI run has finished, never as its own edit right after a push: a body edit re-runs every workflow that triggers on `edited`, and one that lands while the push's run is still going adds a second run on the same head.
 
-**At every phase boundary** (the phase's sanity check passes), perform this ritual atomically, in order:
+**At every phase boundary** (the phase's sanity check passes), perform this ritual atomically:
 
-1. **Verify acceptance criteria, then mark plan progress**. Confirm the phase's acceptance criteria before setting its tag to `[DONE]`. Self-review is the floor. For any phase beyond a mechanical, behavior-preserving change (where an objective build/test/lint pass suffices), and for every phase when `verify_mechanical_phases` resolves `true` (Settings; report the value and its layer), the verdict comes from an agent that did NOT produce the changes: a fresh-context verifier handed binary criteria and the diff, without your rationale, or the cross-vendor option `/verification:confirm` names; never the producing context auditing itself, which converges on approval. Then set the tag to `[DONE]`, tick its step boxes, and sync any parent/roadmap documents that mirror phase status in the same turn
-2. **Update the status summary** in the memory slice (`<memory_dir>/<slug>/`): current phase, next concrete action, blockers, and a resume pointer. When step 4 writes a handoff entry, the pointer names it by its topic (the newest `phase-N` note in `<memory_dir>/handoffs/`, not yet written when this step runs); otherwise it names the PLAN.md path and the next phase
-3. **Commit** the phase's source changes in a single commit; plan and memory-slice files never enter it. Do not present or run the commit until steps 1-2 are done. When git is owned by the user, still finish steps 1-2 FIRST and hand them the commit before step 4
-4. **Route the continuation, last**. Phases of one approved plan are one task, so a boundary does not by itself end the turn. Write a handoff entry and stop only on this skill's own conditions: a model or domain switch for the next phase, the end of the run, a commit gate only the user can pass, or the work moving to another session or checkout. Everything else about the window (keep going, compact, clear or hand off, including a heavy window, a pause, repeated failed corrections, an already-compacted run whose output is degrading, and the step into review) goes to `/session-flow:workflow`, handed the PLAN.md path and the next phase. A compaction is the user's to type; an unattended run relies on automatic compaction. Without session-flow, see <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. Writing a handoff entry ends the turn. When `session-flow` is installed, invoke `/session-flow:handoff` via the Skill tool (file method, topic `phase-N`); it owns the note's surface, sections and format, and its STOP gate ends the turn; never write the note free-hand. Otherwise write a timestamped note to `<memory_dir>/handoffs/` (default `.work/handoffs/`) that stands on its own: what shipped, the decisions made and why, the approaches tried and ruled out, the files modified, anything already applied that must not be repeated, the ordered remainder of the work, the sanity-check evidence for the phase just closed, and the pointer into the next phase. The fallback note ends with, and the response prints, a copy region in exactly the engine's shape: the copy-instruction line, a top rail, the `Read @` directive, the `Prior session:` line, the `Handoff origin:` line, the `Next:` line carrying one to five headline lines (or `Next: none (closed)` alone, for a closing handoff), and a bottom rail
+1. **Verify acceptance criteria, then mark plan progress**. Before setting the completed phase's tag to `[DONE]`, confirm the phase's acceptance criteria hold. Self-review is the floor; for any phase beyond a mechanical, behavior-preserving change (where an objective build/test/lint pass is verification enough), and for every phase, mechanical ones included, when `verify_mechanical_phases` resolves `true`, that verdict is rendered by an agent that did NOT produce the phase's changes: a fresh-context verifier handed binary criteria and the diff, withholding your rationale, or the cross-vendor option `/verification:confirm` names, never the producing context auditing itself, which converges on approval rather than detection. Resolve `verify_mechanical_phases` once per run, before the first phase boundary, from the default `false`, `${user_config.verify_mechanical_phases}` and the repository's `docs/conventions/implementation.yaml`, by the floor, root and invalid-value rules in [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md), and report the value and the layer that supplied it in one line. Then set the tag to `[DONE]` in the plan artifact and tick its step boxes; keep any parent/roadmap documents that mirror phase status in sync in the same turn
+2. **Update the status summary** in the topic's memory slice (`<memory_dir>/<slug>/`, default `.work/`). Current phase, next concrete action, blockers, and a resume pointer: when step 4 writes a handoff entry, the pointer names it by its topic (the newest `phase-N` note in `<memory_dir>/handoffs/`, since that file does not exist yet when this step runs); otherwise it names the PLAN.md path and the next phase
+3. **Commit** the phase's source-code changes in a single commit. The plan and the memory-slice files (status summary, handoffs) are self-ignored and never enter the commit, so plan marks update in place. Do not present or run the commit until steps 1-2 are done. When git is owned by the user, still complete steps 1-2 FIRST and hand them the commit before step 4
+4. **Route the continuation, last**. Phases of one approved plan are the same task, so a boundary does not by itself end the turn. Write a handoff entry and stop only on this skill's own conditions: a model or domain switch for the next phase, the end of the run, a commit gate only the user can pass, or the work moving to another session or checkout. For everything else about the window at this boundary (keep going, compact, clear or hand off, including a heavy window, a pause, repeated failed corrections, an already-compacted run whose output is degrading, and the step into review), route the next step with `/session-flow:workflow`, handing it the PLAN.md path and the next phase as the facts it needs. A compaction is the user's to type; an unattended run relies on automatic compaction. Without session-flow, see <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. When this step writes a handoff entry, it ends the turn, so nothing in this ritual runs after it. When the `session-flow` plugin is installed, invoke `/session-flow:handoff` via the Skill tool (file method, topic `phase-N`); its STOP gate is the end of the turn. That skill owns the handoff surface and format, and the note is never written free-hand; otherwise write a timestamped handoff note to the memory tier's handoffs home (`<memory_dir>/handoffs/`, default `.work/handoffs/`). When that skill is present it defines which sections the note carries. Do not restate them here. Without it, this skill owns the fallback shape, so the note must stand on its own: what shipped, the decisions made and why, the approaches tried and ruled out, the files modified, anything already applied that must not be repeated, and the ordered remainder of the work. Plus the two items specific to a phase boundary, the sanity-check evidence for the phase just closed and the pointer into the next phase. A note carrying only the latter two forces the next session back into the diffs, which is the rediscovery the paragraph below says this ritual prevents. The fallback note ends with, and the response prints, a copy region in exactly the engine's shape: the copy-instruction line, a top rail, the `Read @` directive, the `Prior session:` line, the `Handoff origin:` line, the `Next:` line carrying one to five headline lines (or `Next: none (closed)` alone, for a closing handoff), and a bottom rail
 
    ```text
    `/clear`, then copy everything between the dashed lines:
@@ -241,36 +229,59 @@ Task state does not survive a context clear; the plan artifact and handoff notes
    ──────────────────────────────────────────────────────────
    ```
 
-   That copy region, from the handoff skill or the fallback note, is the next-phase resume prompt: with a Phase N+1 still `[TODO]`, its `Next:` lines start that phase from cold (status summary + plan); when the final phase is done, they name the plausible next step (review pass, retro, or PR) instead of a prose summary. Leave the resume prompt out only when the sanity check failed or the user said "stop after this"
+   That copy region, whether the handoff skill prints it or the fallback note does, is the next-phase resume prompt: when the plan has a Phase N+1 still `[TODO]`, its `Next:` lines start that phase from cold (status summary + plan); when the final phase is done, they name the plausible next step (review pass, retro, or PR) instead of a prose summary. Leave the resume prompt out only when the sanity check failed or the user said "stop after this"
 
-**Mid-phase**, when a pause is imminent, the user reports the session is heavy, a context-measuring mechanism says to fork, or the responses are drifting, route the next step with `/session-flow:workflow` (topic for any handoff it routes to, e.g. `wip-checkpoint`). Never on your own estimate of the remaining window: a budget reading is a measurement, not a decay signal. Entering implementation from a finished plan still starts in a fresh session.
+**Why a durable record every phase:** the plan marks and status summary let any later session resume from the plan and the newest note instead of reading source diffs to reconstruct what was tried. When a boundary does write a handoff entry, it carries the decisions and dead ends a resumed session would otherwise rediscover.
+
+**Mid-phase**, when a pause is imminent, the user reports the session is heavy, a context-measuring mechanism says to fork, or the responses themselves are drifting, route the next step with `/session-flow:workflow` (topic for any handoff it routes to, e.g. `wip-checkpoint`). Not on your own estimate of the remaining window: a budget reading is a measurement, not a decay signal.
+
+We treat the phases of one approved plan as one task and leave the compact, clear or handoff choice to the workflow router. Entering implementation from a finished plan still starts in a fresh session.
 
 - **Pointer**: for what to do when the window fills, see <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>.
 - **As of**: 2026-10-02
 - **Recheck trigger**: that section changes its `/compact` or `/clear` guidance.
 
-In orchestrated runs the orchestrator may stay resident across phase boundaries instead of clearing, per `/implementation:implement-dispatch` "Resident-vs-clear at phase boundaries"; a boundary that clears runs the ritual above in full, and a resident one runs the reduced form that skill's "Phase boundaries" section defines.
+In orchestrated runs, the orchestrator may stay resident across phase boundaries instead of clearing. Criteria per `/implementation:implement-dispatch` "Resident-vs-clear at phase boundaries"; a boundary that clears runs the ritual above in full, and a resident one runs the reduced form that skill's "Phase boundaries" section defines.
 
 ## Step 5: Completion and Handoff
 
 When all planned work is done:
 
-1. **Final build check**: `/toolchain:check` via the Skill tool for all affected ecosystems when installed; otherwise the project's own build/test command
-2. **Run all affected tests**, including the ones you wrote and any your changes could impact. This end gate is always green: a planned-breakage declaration covers only its span, never the completed work
-3. **Self-review (a floor, not the final verdict; step 6's `/verification:confirm` renders that)**. Read the changes (`git diff HEAD~N`) for:
+1. **Final build check**. Invoke `/toolchain:check` via the Skill tool for all affected ecosystems when the `toolchain` plugin is installed; otherwise run the project's own build/test command
+2. **Run all affected tests**. Include the tests you wrote and any tests your changes could impact. This end gate is always green: a planned breakage declaration covers only the span it names, never the completed work, so a failure still present here is a failure
+3. **Self-review (a floor, not the final verdict)**. The producing context converges on approval, so this catches slips but does not render the outcome verdict (step 6 hands to `/verification:confirm`, which renders it from outside the producing loop). Read through changes (`git diff HEAD~N`) looking for:
    - Consistency with existing patterns
-   - No debugging artifacts, commented-out code, or TODO comments that should be actual work
+   - No debugging artifacts left behind
+   - No commented-out code
+   - No TODO comments that should be actual work
    - No scratch verification scripts committed as permanent tests; committed tests are sized like their neighbors, roughly one focused test per stated behavior
-   - No fixes, optimizations, or extensions outside the task; report anything noticed nearby as a follow-up in the summary instead
-4. **Deviation fold-back**. When a `DEVIATIONS.md` exists for this work, read it and emit one plan-amendment bullet per unresolved deviation or human-decision entry: what the plan should say next time, or what still needs a person. Fold the bullets into the phase-boundary plan updates or the handoff summary
-5. **Rubber-duck advisor checkpoint (HIGH/CRITICAL only)**. For changes involving concurrency, security, cross-platform behavior, external API integration, or significant divergence from the plan, call the `advisor` tool (when available) for a cross-model critique before the review gate. Skip for trivial changes
-6. **Hand off to the pre-PR sequence**, in its own order (invoke `/session-flow:workflow pre-pr` via the Skill tool when installed; otherwise the setup's own pre-PR checklist). Review comes before outcome verification, because the simplify pass sits between them and verification must judge the code that ships. So: first suggest the Test-stage checks the change still needs (see Next), then the review flow (`/review:quality-gate` when installed, else the setup's review step), then `/verification:confirm` once the diff is final (when installed; otherwise self-verify the outcome against the plan/intent), then the PR (`/source-control:pull-request` when installed, otherwise whatever the setup provides; the user controls timing). Do not commit-and-push unilaterally: final staging and PR creation belong to that flow. A run that ends without outcome verification against the Brief's outcome criteria states in the handoff summary, or in `DEVIATIONS.md` when one exists, that it did not run and why. In an orchestrated run, a source commit the orchestrator makes after the last phase gets the `phase-verifier` verdict before it is pushed, per `/implementation:implement-dispatch` "Phase boundaries"
-7. **Completion reply**. Say what now exists, and wherever the plan or task left a call to you, which way you went and why. Close by putting to the user every decision that is still theirs, each with your recommendation, or by saying none remain
+   - No fixes, optimizations, or extensions outside the task; anything noticed nearby is reported as a follow-up in the summary, not changed
+4. **Deviation fold-back**. When a `DEVIATIONS.md` exists for this work (the non-interactive fork wrote one, or the session opted in per Step 3), read it now and emit one plan-amendment bullet per unresolved deviation or human-decision entry: what the plan should say next time, or what still needs a person. The log is the run's memory; a completion that never reads it back hands the PR reviewer deviations the author already knew about. Fold the bullets into the phase-boundary plan updates (Step 4 ritual) or the handoff summary
+5. **Rubber-duck advisor checkpoint (HIGH/CRITICAL only)**. For changes involving concurrency, security, cross-platform behavior, external API integration, or with significant divergence from the original plan, call the `advisor` tool (when available in the session) for a quick cross-model critique pass before the review gate. Skip for trivial changes
+6. **Hand off to the pre-PR sequence**. Hand off, do not re-order: that sequence owns the step order (invoke `/session-flow:workflow pre-pr` via the Skill tool when the `session-flow` plugin is installed to read it; otherwise follow the consuming setup's own pre-PR checklist). Its order puts **review before outcome verification**, because the simplify pass sits between them and outcome verification must judge the code that ships. So: first suggest the Test-stage checks the change still needs beyond the affected tests above (coverage, test quality, end to end: the outcomes under Next), then the project's review flow (`/review:quality-gate` when the `review` plugin is installed; otherwise the consuming setup's review step), then `/verification:confirm` for outcome verification once the diff is final (when the `verification` plugin is installed; otherwise self-verify the outcome against the plan/intent directly), then the PR (`/source-control:pull-request` when that plugin is installed; otherwise whatever the consuming setup provides. The user controls timing). Do not commit-and-push unilaterally, final staging and PR creation belong to that flow. A run that ends without outcome verification against the Brief's outcome criteria (no `/verification:confirm`, no self-verification against intent) states in the handoff summary, or in `DEVIATIONS.md` when one exists, that it did not run and why, so the omission is never invisible. In an orchestrated run, a source commit the orchestrator itself makes after the last phase gets the `phase-verifier` verdict before it is pushed, per `/implementation:implement-dispatch` "Phase boundaries"
+7. **Completion reply**. Close by putting to the user every decision that is still theirs, each with your recommendation, or by saying none remain. Ahead of that, say what now exists, and wherever the plan or task left a call to you, say which way you went and why
 
-## Boundaries
+## Skill chaining during execution
 
-- Provides execution discipline; it does not produce plans (a planning pass does, and this skill routes back to it) or orchestrate workers (`/implementation:implement-dispatch` owns worker-routed phases and autonomous runs).
-- `/toolchain:check` owns build commands and `/verification:confirm` owns outcome verification, each when installed; this skill invokes them at the right moments and falls back to the project's own commands.
+| Condition | Action |
+|-----------|--------|
+| Before writing first test | Invoke `/tdd:principles` via Skill tool (when installed) for test design guidance |
+| After each logical block | Invoke `/toolchain:check` via Skill tool (when the `toolchain` plugin is installed; else the project's own build) |
+| At every phase boundary | Run the Step 4 ritual (plan marks + status + commit, then route the continuation last; a handoff entry with its resume prompt only on Step 4's own stop conditions or when the router routes there) |
+| Worker-routed phase or autonomous orchestration | Invoke `/implementation:implement-dispatch` via Skill tool |
+| Divergence detected (major) | Route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) |
+| Technical question mid-implementation | Invoke `/discovery:research` via the Skill tool (when installed), otherwise disciplined multi-source research |
+| HIGH/CRITICAL change at completion | Call the `advisor` tool, rubber-duck checkpoint before review |
+| All implementation complete, tests pass | Hand off to the pre-PR sequence in its own order. The Test-stage checks the change still needs (see Next), then review, then outcome verification once the diff is final, then the PR: `/review:quality-gate`, then `/verification:confirm` (else self-verify against intent), then `/source-control:pull-request`. Each invoked via the Skill tool, each when its plugin is installed |
+
+## What This Skill Does NOT Do
+
+- **Does not replace Claude's coding ability**. Provides execution discipline, not implementation instructions
+- **Does not auto-execute plans**. Guides execution with checkpoints and validation. Code changes are still judgment calls
+- **Does not replace `/verification:confirm`**. The `verification` plugin's outcome-verification skill (a separate plugin, when installed) does comprehensive build + test + lint + outcome verification. This skill does incremental validation during implementation
+- **Does not produce plans**. A planning pass does. If the plan needs revision, this skill routes back to it
+- **Does not replace `/toolchain:check`**. The `toolchain` plugin's check skill (a separate plugin, when installed) is the SSOT for build commands; this skill invokes it at the right moments and falls back to the project's own build command when that plugin is absent
+- **Does not orchestrate workers**. `/implementation:implement-dispatch` owns the orchestrated dispatch cadence for worker-routed phases and autonomous runs. This skill detects the routing and chains to it
 
 ## Next
 
@@ -281,4 +292,4 @@ When all planned work is done:
 
 ## Gotchas
 
-Observed failure patterns are in [context/gotchas.md](context/gotchas.md). Read it before the first edit of an implementation session, and again at any stall point: a second workaround, a build error you are about to defer, a commit about to mix concerns. When a new pattern bites, record it in the topic's memory slice (`<memory_dir>/<slug>/`) as one lesson per file with a one-line summary at the top, in the same what-happens / why-it-is-bad / how-to-avoid shape, and consult that slice at the start of later sessions on the same topic. Do not edit the plugin's own file from a consuming project.
+Every observed failure pattern for this skill is in [context/gotchas.md](context/gotchas.md). Read it before the first edit of an implementation session, and again at any stall point: a second workaround, a build error you are about to defer, a commit about to mix concerns. When a new pattern bites, record it in the topic's memory slice (`<memory_dir>/<slug>/`) as one lesson per file with a one-line summary at the top, in the same what-happens / why-it-is-bad / how-to-avoid shape, and consult that slice at the start of later sessions on the same topic. Do not edit the plugin's own file from a consuming project; maintainers fold patterns that recur across projects into it.
