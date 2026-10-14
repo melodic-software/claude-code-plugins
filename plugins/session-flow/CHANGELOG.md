@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.56.1] - 2026-10-14
+
+### Changed
+
+- The audit-sessions collector and friction scan record why they still accept the legacy `MultiEdit` tool from old transcripts, with a permissions-docs pointer and a check date.
+
 ## [0.56.0] - 2026-10-13
 
 ### Added
