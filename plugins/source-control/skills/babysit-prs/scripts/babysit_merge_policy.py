@@ -663,6 +663,23 @@ def read_rung_cap(repo: str) -> RungCap:
     return RungCap("off", "cap-unreadable" if status != 200 else "cap-invalid")
 
 
+def rung_cap(repo: str, *, authority: str, lane_value: str | None = None) -> RungCap:
+    """The rung cap for `authority`. The pr-merge lane's token cannot read
+    Actions variables, so its workflow passes `vars.CLAUDE_LANES_MERGE_RUNG_CAP`
+    as `lane_value`: empty (the variable unset) is no cap, a rung name is the
+    cap, and a missing or any other value is off. Local babysit reads the
+    variable (`read_rung_cap`) and ignores `lane_value`."""
+    if authority != PR_MERGE:
+        return read_rung_cap(repo)
+    if lane_value is None:
+        return RungCap("off", "lane-value-missing")
+    if lane_value == "":
+        return RungCap(None, "no-cap")
+    if lane_value in RUNG_RANK:
+        return RungCap(lane_value, "cap-set")
+    return RungCap("off", "cap-invalid")
+
+
 # --- Human ----------------------------------------------------------------------------
 
 Permission = Callable[[str], str | None]
@@ -2105,13 +2122,15 @@ def assess(
     promotion: Callable[[datetime | None], Promotion] | None = None,
     authority: str = LOCAL_BABYSIT,
     lane_kill_switch: str | None = None,
+    lane_rung_cap: str | None = None,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
 
     `authority` is the caller's: the local babysit lane, or the pr-merge CI
     lane, which reads `lane_eligibility` in place of `eligibility`, no
     promotion evidence (D16: report-only, then the owner's live flip), the
-    kill switch from `lane_kill_switch` (`kill_switch`), and only its own
+    kill switch from `lane_kill_switch` (`kill_switch`), the rung cap from
+    `lane_rung_cap` (`rung_cap`), and only its own
     merges in flight. The
     config at the base must enable that authority (`enabled_authority`).
 
@@ -2213,7 +2232,7 @@ def assess(
     if gate.refusal:
         return replace(stopped, reason=f"post-merge:{gate.refusal}")
 
-    cap = read_rung_cap(repo)
+    cap = rung_cap(repo, authority=authority, lane_value=lane_rung_cap)
     rung = effective_rung(
         config_rung=config.rung,
         loop_merge=config.loop_merge,

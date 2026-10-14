@@ -2535,7 +2535,61 @@ class LaneAssess(unittest.TestCase):
 
     def lane_assess(self, **kwargs: Any) -> policy.UnattendedPolicy:
         kwargs.setdefault("lane_kill_switch", "proceed")
+        kwargs.setdefault("lane_rung_cap", "")
         return self.assess(authority="pr-merge", **kwargs)
+
+    def unreadable_variables(self) -> GhFake:
+        gh = self.readable()
+        for path in (
+            "actions/variables?per_page=1",
+            "actions/organization-variables?per_page=100",
+            "actions/variables/CLAUDE_LANES_MERGE_RUNG_CAP",
+        ):
+            gh.rest[f"repos/{REPO}/{path}"] = 403
+        return gh
+
+    def test_an_empty_workflow_cap_allows_the_configured_rung(self) -> None:
+        # The variable's own rule: unset (empty in `vars`) is no cap.
+        gh = self.unreadable_variables()
+        self.lane_clear()
+        result = self.lane_assess(post_merge=lambda floor, who: gate())
+        self.assertIsNone(result.reason)
+        self.assertEqual(result.report()["rung"], "C2")
+        self.assertEqual(
+            result.report()["rungCap"], {"value": None, "reason": "no-cap"}
+        )
+        self.assertFalse(any("actions/" in " ".join(c) for c in gh.calls))
+
+    def test_a_workflow_cap_below_the_rung_refuses(self) -> None:
+        for cap in ("off", None, "C9", " C2"):
+            with self.subTest(cap=cap):
+                self.unreadable_variables()
+                self.lane_clear()
+                result = self.lane_assess(
+                    post_merge=lambda floor, who: gate(), lane_rung_cap=cap
+                )
+                self.assertEqual(result.reason, "rung-off:rungCap")
+
+    def test_a_workflow_cap_at_the_rung_allows_it(self) -> None:
+        self.unreadable_variables()
+        self.lane_clear()
+        result = self.lane_assess(
+            post_merge=lambda floor, who: gate(), lane_rung_cap="C3"
+        )
+        self.assertIsNone(result.reason)
+
+    def test_local_babysit_reads_the_cap_from_the_variables(self) -> None:
+        gh = Assess.readable(self)
+        gh.rest[f"repos/{REPO}/actions/variables/CLAUDE_LANES_MERGE_RUNG_CAP"] = {
+            "value": "off"
+        }
+        Assess.all_clear(self)
+        result = self.assess(
+            post_merge=lambda floor, who: gate(),
+            promotion=lambda s: PROMOTED,
+            lane_rung_cap="",
+        )
+        self.assertEqual(result.reason, "rung-off:rungCap")
 
     def test_the_lane_takes_the_kill_switch_from_the_workflow(self) -> None:
         # Owner decision 2026-10-14: the lane token cannot read Actions

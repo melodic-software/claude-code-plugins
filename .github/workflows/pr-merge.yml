@@ -218,7 +218,10 @@ jobs:
       # a pin comment and adds the PR to the merge queue at that commit.
       # The gate's token cannot read the kill switch, so it gets this run's
       # own answer from the first step: the word `proceed`, or nothing. It
-      # stops on anything but `proceed`.
+      # stops on anything but `proceed`. For the same reason it gets the
+      # CLAUDE_LANES_MERGE_RUNG_CAP variable from here: a person can set it to
+      # `off` (or `C2`) to lower how far the lane may go; left unset, there is
+      # no extra limit.
       - name: Run the merge gate on each candidate
         id: gate
         if: steps.candidates.outcome == 'success'
@@ -228,6 +231,7 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           SCRIPT: ${{ steps.config.outputs.script }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
         run: |
           set -euo pipefail
           # The script and its flags come from the merge-pr activity on main.
@@ -238,7 +242,7 @@ jobs:
             out="$RUNNER_TEMP/gate-$number.json"
             code=0
             ".base/$SCRIPT" "${args[@]}" --allowed-owners "$OWNER" \
-              --lane-kill-switch "$KILL_SWITCH" \
+              --lane-kill-switch "$KILL_SWITCH" --lane-rung-cap "$RUNG_CAP" \
               --expected-head "$head" "$REPO#$number" </dev/null >"$out" || code=$?
             echo "::group::PR #$number at $head: exit $code"
             cat "$out"

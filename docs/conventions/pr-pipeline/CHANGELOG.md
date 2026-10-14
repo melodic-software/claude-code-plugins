@@ -2,8 +2,9 @@
 
 ## 1.12.4 - 2026-10-14
 
-"The pr-merge lane" names two more reads it changes: the kill switch comes from the workflow's own
-check (`--lane-kill-switch proceed`; missing or any other value stops), and the post-merge check
+"The pr-merge lane" names three more reads it changes: the kill switch comes from the workflow's
+own check (`--lane-kill-switch proceed`; missing or any other value stops), the rung cap from the
+workflow's `vars` (`--lane-rung-cap`; empty is no cap), and the post-merge check
 and in-flight rule count only merges the agent identity enqueued. In report-only mode the workflow
 starts no full CI run. `version` stays 1.
 

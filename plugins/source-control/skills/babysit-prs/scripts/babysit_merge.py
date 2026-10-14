@@ -95,6 +95,7 @@ Contract enforced here (encoded as code, not convention):
   the identity's App applied on a diff off `merge.diff-check.denied-paths`, no
   promotion evidence is read, the kill switch is the workflow's own check
   passed as `--lane-kill-switch proceed` (missing or any other value stops),
+  the rung cap is the workflow's `--lane-rung-cap` (empty is no cap),
   only merges the identity enqueued are judged after the fact, and while
   `merge.report-only` is true `--merge` runs as a check that writes nothing.
 
@@ -2764,6 +2765,7 @@ def assess_unattended(
     self_logins: frozenset[str],
     authority: str = merge_policy.LOCAL_BABYSIT,
     lane_kill_switch: str | None = None,
+    lane_rung_cap: str | None = None,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -2803,6 +2805,7 @@ def assess_unattended(
         promotion=promotion,
         authority=authority,
         lane_kill_switch=lane_kill_switch,
+        lane_rung_cap=lane_rung_cap,
     )
     return score_unattended(repo, number, policy, self_logins)
 
@@ -3348,6 +3351,15 @@ def main() -> int:
             "value stops the lane"
         ),
     )
+    parser.add_argument(
+        "--lane-rung-cap",
+        default=None,
+        help=(
+            "with --authority pr-merge, the CLAUDE_LANES_MERGE_RUNG_CAP value the "
+            "workflow read: empty is no cap, a rung name caps the rung; missing "
+            "or any other value holds the rung at off"
+        ),
+    )
     args = parser.parse_args()
 
     def _refuse(message: str, code: int, **envelope: object) -> int:
@@ -3472,9 +3484,13 @@ def main() -> int:
         return _refuse("--auto requires --merge and --expected-head", 2)
     if args.authority is not None and not args.unattended:
         return _refuse("--authority is only meaningful with --unattended", 2)
-    if args.lane_kill_switch is not None and args.authority != merge_policy.PR_MERGE:
+    if args.authority != merge_policy.PR_MERGE and (
+        args.lane_kill_switch is not None or args.lane_rung_cap is not None
+    ):
         return _refuse(
-            "--lane-kill-switch is only meaningful with --authority pr-merge", 2
+            "--lane-kill-switch and --lane-rung-cap are only meaningful with "
+            "--authority pr-merge",
+            2,
         )
 
     pending_path: Path | None = None
@@ -3529,6 +3545,7 @@ def main() -> int:
                 self_logins=bot_selves,
                 authority=args.authority or merge_policy.LOCAL_BABYSIT,
                 lane_kill_switch=args.lane_kill_switch,
+                lane_rung_cap=args.lane_rung_cap,
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)
