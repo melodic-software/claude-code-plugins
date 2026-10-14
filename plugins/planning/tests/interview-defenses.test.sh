@@ -559,11 +559,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # template headings; it retires no row and relaxes no rule.
 # The cross-check names `brief=unconfirmed` and the fresh-Confirm rule; it adds a halt and retires no row.
 # The start-fresh line names the scope-change note as the Brief's only history; it touches no assumption, gap or Brief rule.
+# The `me`-mode persistence line routes a pause through /session-flow:workflow; it touches no assumption, gap or Brief rule.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "8553a145d1912e1bfff5a0078e01ea02122e5aed81f12f1c9316aa2b9ba3552e"
+  "001f96abad59f9243bf22a102c7a2e671339c478bcce679eab5206a0a827e158"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -639,12 +640,12 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
-# The page bullet names the page's option labels, and the handoff resume line resolves the surface again and runs `round.sh doctor`; neither changes which rows a reply may close.
+# The page bullet names the page's option labels, and the "Continue on signal" bullet routes a pause through /session-flow:workflow, then resolves the surface again and runs `round.sh doctor`; neither changes which rows a reply may close.
 pin_section "loop.md relentless mechanics section is unchanged (late commitment rows take the next free id)" \
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "ef734001cb6f119e02e537cb630bfdcec76adea5a1afe7f653ef79e6315ff6d4"
+  "52eb0051adfbb7b7a7fbc99bab854138ff52eae7f5ad1d1c8e78993d0d7862c8"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "9fd949249c01cdd3217765208d694a960453762c2d7067d6a224ea49aead9c7d"

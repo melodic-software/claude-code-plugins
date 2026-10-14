@@ -23,13 +23,13 @@ turn out larger or foggier than it looked at entry? Each trigger has its own rec
   branch gets its row only when it is asked. Two rounds running with more opened than closed is
   the trigger; one is noise. This is the fog evidence wayfind's too-big AND foggy stop rule needs,
   so wayfind is never recommended without it.
-- **Size alone: the context zone has worsened → `/session-flow:handoff`.** The session's
+- **Size alone: the context zone has worsened → `/session-flow:workflow`.** The session's
   context-guard report (the zone line the module injects, or its `mcp__context-guard__status`
   tool) puts the session in a worse zone than the one it reported at entry. Use only a report the
   harness already surfaced or that tool; do not poll your own context statistics, and write no
   token or percentage figure here, because the zone thresholds belong to context-guard. No report,
-  or `unknown`, is not a trigger. With no fog trigger, this recommends the interview's own handoff
-  (Step 5: save-point, clear, resume), not wayfind. When both hold, recommend wayfind.
+  or `unknown`, is not a trigger. With no fog trigger, this recommends routing the continuation
+  through `/session-flow:workflow` (Step 5), not wayfind. When both hold, recommend wayfind.
 
 On a trigger, recommend its route to the user in one short block (the trigger and its evidence,
 what it would carry over); never switch on your own. If it is not a trigger, say nothing and ask
