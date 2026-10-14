@@ -461,7 +461,8 @@ def edited(session_id: str, prs: list[tuple[str, int]] | None, paths: dict | Non
 
 def test_churn_sums_one_paths_edits_across_the_sessions_of_one_pr(data_dir):
     # The rule's threshold is 5: a.py is edited 4 + 3 = 7 times within o/r#12, so it is over;
-    # b.py's 2 + 3 = 5 is not, and o/r#13's a.py (6) is its own ticket.
+    # b.py's 2 + 3 = 5 is not, and o/r#13's a.py (6) is its own ticket. The placeholders collect.py
+    # stores in place of a path name no file, so o/r#14 has no pair. Ties order by repo, then PR number.
     write_store(
         data_dir,
         edited("s1", [("o/r", 12)], {"a.py": 4, "b.py": 2}),
@@ -469,22 +470,30 @@ def test_churn_sums_one_paths_edits_across_the_sessions_of_one_pr(data_dir):
         edited("s3", [("o/r", 13)], {"a.py": 6}),
         edited("s4", [("o/r", 12), ("o/r", 13)], {"a.py": 50}),
         edited("s5", [("o/r", 14)], {"<suppressed>": 40}),
+        edited("s6", [("o/r", 14)], {"<too-long>": 40}),
+        edited("s7", [("o/r", 100)], {"c.py": 6}),
+        edited("s8", [("o/r", 9)], {"c.py": 6}),
     )
     result = sweep(data_dir)
     assert result.returncode == 0, result.stdout + result.stderr
     env = envelope(result)
-    assert env["data"]["metrics"]["edits.churn_per_pr"] == {"value": 6, "unit": "count", "n": 3}
+    assert env["data"]["metrics"]["edits.churn_per_pr"] == {"value": 6, "unit": "count", "n": 5}
     churn = findings_by_metric(env)["edits.churn_per_pr"]
     assert churn["threshold"] == 5 and churn["value"] == 7 and churn["lens"] == "churn"
     assert churn["evidence"] == [
         {"repo": "o/r", "number": 12, "path": "a.py", "edits": 7, "sessions": ["s1", "s2"]},
+        {"repo": "o/r", "number": 9, "path": "c.py", "edits": 6, "sessions": ["s8"]},
         {"repo": "o/r", "number": 13, "path": "a.py", "edits": 6, "sessions": ["s3"]},
+        {"repo": "o/r", "number": 100, "path": "c.py", "edits": 6, "sessions": ["s7"]},
     ]
     reasons = [u["reason"] for u in env["data"]["unchecked"] if u["what"] == "edits.churn_per_pr"]
     assert any(reason.startswith("review outcome not linked") for reason in reasons)
     md = sweep(data_dir, "--format", "md").stdout.split("## Findings", 1)[1].split("## Drift", 1)[0]
     line = next(row for row in md.splitlines() if row.startswith("- `edits.churn_per_pr`"))
-    assert line == "- `edits.churn_per_pr`: `o/r`#12 `a.py` (7 edits), `o/r`#13 `a.py` (6 edits)"
+    assert line == (
+        "- `edits.churn_per_pr`: `o/r`#12 `a.py` (7 edits: s1, s2), `o/r`#9 `c.py` (6 edits: s8), "
+        "`o/r`#13 `a.py` (6 edits: s3), `o/r`#100 `c.py` (6 edits: s7)"
+    )
 
 
 def test_records_without_prs_or_edits_sweep_cleanly(data_dir):

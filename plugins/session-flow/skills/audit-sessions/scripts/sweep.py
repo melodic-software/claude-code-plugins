@@ -40,7 +40,8 @@ import census
 
 SCHEMA = "audit-sessions.sweep/v1"
 RULES_SCHEMA = "audit-sessions.sweep-rules/v1"
-SUPPRESSED = "<suppressed>"
+# Placeholders collect.py stores in place of a path; neither names one file.
+PLACEHOLDERS = {"<suppressed>", "<too-long>"}
 BUNDLED_RULES = Path(__file__).resolve().parents[1] / "reference" / "sweep-rules.json"
 KEEP_REPORTS = 20
 STATE_KEY_RE = re.compile(r"[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)+")
@@ -99,7 +100,7 @@ def _churn(records: list[dict]) -> list[tuple[int, dict]]:
             continue
         counts, sessions = tickets.setdefault((repo, number), (Counter(), {}))
         for path, n in paths.items():
-            if path != SUPPRESSED and isinstance(n, int) and n > 0:
+            if path not in PLACEHOLDERS and isinstance(n, int) and n > 0:
                 counts[path] += n
                 sessions.setdefault(path, set()).add(r["session_id"])
     return [
@@ -173,7 +174,7 @@ def build_data(records, rules, drift, fed, scope, window, catalog) -> dict:
         if threshold is None:
             unchecked.append({"what": metric, "reason": f"reported only, no threshold: {rule['basis']}"})
             continue
-        over = sorted(((v, e) for v, e in per if v > threshold), key=lambda p: (-p[0], json.dumps(p[1], sort_keys=True)))
+        over = sorted(((v, e) for v, e in per if v > threshold), key=lambda p: (-p[0], *_evidence_key(p[1])))
         if not over:
             continue
         findings.append(
@@ -269,11 +270,15 @@ def _fmt(value: object) -> str:
     return f"{value:,}" if isinstance(value, int) else str(value)
 
 
+def _evidence_key(e: dict) -> tuple:
+    return (e.get("repo", ""), e.get("number", 0), e.get("path", ""), e.get("session_id", ""))
+
+
 def evidence_md(e: dict) -> str:
     """A session ID, or a path within a linked PR with its edit count."""
     if "session_id" in e:
         return e["session_id"]
-    return f"{markdown_code(e['repo'])}#{e['number']} {markdown_code(e['path'])} ({e['edits']} edits)"
+    return f"{markdown_code(e['repo'])}#{e['number']} {markdown_code(e['path'])} ({e['edits']} edits: {', '.join(e['sessions'])})"
 
 
 def render_md(data: dict) -> str:
@@ -288,7 +293,7 @@ def render_md(data: dict) -> str:
         n = window["unclassified"]
         sessions += f"; {n} session{'s' * (n != 1)} without an entrypoint kept"
     lines = [f"# Session audit ({data['scope']})", "", sessions, ""]
-    lines += ["## Metrics", "", "| Metric | Value (per-session median) | Unit | n |", "|---|---|---|---|"]
+    lines += ["## Metrics", "", "| Metric | Value (median) | Unit | n |", "|---|---|---|---|"]
     for metric, row in data["metrics"].items():
         value = "unavailable (canary lost)" if row.get("degraded") else _fmt(row["value"])
         lines.append(f"| `{metric}` | {value} | {row['unit']} | {row['n']} |")
