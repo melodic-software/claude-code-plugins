@@ -3004,7 +3004,9 @@ def unattended_enqueue(
     posted before the enqueue and the enqueue goes nowhere without it; after
     the enqueue the queue is
     re-read and, when another identity entry was enqueued earlier, this one
-    dequeues itself."""
+    dequeues itself. In the pr-merge lane the kill switch "read again" is the
+    value the workflow passed at the start of its run, so a flip during the
+    run does not stop this enqueue."""
     inputs = policy.inputs or {}
     identity, branch = str(inputs["identity"]), str(inputs["branch"])
     pin = str(result.get("headRefOid") or "")

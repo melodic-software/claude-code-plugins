@@ -391,7 +391,8 @@ except five:
   the owner reads its reports and sets `false` to let it merge.
 - **Kill switches.** The lane token cannot read Actions variables, so the workflow checks the
   switches itself and passes `--lane-kill-switch proceed`. A missing value or any other value
-  stops the lane.
+  stops the lane. The value is read once per run, and a stopped run cannot dequeue: to stop at
+  once, cancel the running pr-merge run and dequeue the lane's pull request by hand.
 - **Post-merge check and one merge in flight.** Only merges the agent identity enqueued count. A
   merge by a person or by another App, such as a release pull request, is not the lane's.
 
