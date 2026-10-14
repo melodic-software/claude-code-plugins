@@ -44,7 +44,11 @@ before(() => {
   writeFileSync(resolved, JSON.stringify({ selected: { args: "ci" } }));
 });
 
-after(() => rmSync(root, { recursive: true, force: true }));
+after(() => {
+  // The check copies are made read-only.
+  spawnSync("chmod", ["-R", "u+w", root]);
+  rmSync(root, { recursive: true, force: true });
+});
 
 function stage(overrides) {
   const runTemp = mkdtempSync(path.join(root, "temp-"));
@@ -133,6 +137,10 @@ test("a listed check gets a no-argument wrapper that runs the base copy against 
     [`Bash(${wrapper})`],
   );
   assert.ok(args.includes(wrapper), "the system prompt names the check");
+  const denied = (/--disallowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(",");
+  assert.ok(denied.includes(`Edit(/${checksDir}/**)`) && denied.includes(`Write(/${checksDir}/**)`), denied.join(" | "));
+  const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", wrapper], { encoding: "utf8" });
+  assert.notEqual(write.status, 0, "the wrapper is read-only");
   const run = spawnSync(wrapper, [], { cwd: root, encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assert.equal(

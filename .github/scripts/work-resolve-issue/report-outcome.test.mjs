@@ -140,9 +140,31 @@ test("HTML comments and @ mentions in the model's text are stripped", () => {
   assert.ok(!plan.body.includes("@octocat"), plan.body);
 });
 
-test("the model's summary is cut to the length cap", () => {
-  const plan = decideDone({ outcome: { ...done, summary: "x".repeat(5000) } });
-  assert.ok(plan.body.length < 4000, String(plan.body.length));
+test("the model's text is cut to the length caps after escaping", () => {
+  const plan = decideDone({
+    outcome: { ...done, summary: "<".repeat(5000), changes: Array(30).fill("<".repeat(400)) },
+  });
+  // 3000 for the summary, 20 items of 300 for the list, plus the fixed text.
+  assert.ok(plan.body.length < 3000 + 20 * 305 + 1000, String(plan.body.length));
+  assert.ok(!/&l?t?$|&lt$/m.test(plan.body.split("## Fix")[0].trim()), "no half-cut entity");
+});
+
+// CommonMark decodes `&commat;` to `@` and `&num;` to `#`; GitHub links GH-12.
+test("entities, GH- references and link definitions in model text stay inert", () => {
+  const plan = decideDone({
+    outcome: { ...done, summary: "&commat;octocat Closes &num;12, fixes GH-13\n[x]: https://evil \"hidden\"" },
+  });
+  const quote = section(plan.body, "Summary");
+  assert.ok(quote.includes("&amp;commat;octocat Closes &amp;num;12"), quote);
+  assert.ok(!/GH-13/.test(quote), quote);
+  assert.ok(quote.includes("> \\[x\\]: https://evil"), quote);
+});
+
+test("a not_done item marked required counts even when it names nothing", () => {
+  withDir({ "work-outcome.json": JSON.stringify({ ...done, not_done: [{ what: 5, required: true }] }) }, (dir) => {
+    const outcome = readOutcome(join(dir, "work-outcome.json"));
+    assert.equal(decideDone({ outcome }).exit, "stopped");
+  });
 });
 
 test("changes, verification and not_done fill Fix, Verification and Not verified", () => {
@@ -158,7 +180,7 @@ test("changes, verification and not_done fill Fix, Verification and Not verified
   assert.equal(section(plan.body, "Fix"), "- plugins/a/README.md: fixed the install command");
   assert.equal(
     section(plan.body, "Verification"),
-    "- scripts/check-changelog-fragments.sh --check: passed\n- The lane run: https://example/run/1\n\nLeft out: the items under Not verified.",
+    "The run reports:\n\n- scripts/check-changelog-fragments.sh --check: passed\n- The lane run: https://example/run/1\n\nLeft out: the items under Not verified.",
   );
   assert.equal(section(plan.body, "Not verified"), "- Did not render the page");
 });

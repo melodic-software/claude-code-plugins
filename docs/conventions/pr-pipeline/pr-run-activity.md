@@ -276,7 +276,8 @@ gets neither the tool nor that sentence: it stages its resolution and the runner
 `Bash` comes from its own `allowed-tools`, git included, plus one rule per entry in the activity's
 `checks`: `collect-base-activity` copies the base `scripts/` to `$RUNNER_TEMP/lane-checks`, outside
 the working directory, writes a wrapper there that runs the copy with the entry's fixed flags and
-`CHECK_DATA_ROOT` naming the checkout, allows `Bash(<wrapper>)` with no arguments, and names the
+`CHECK_DATA_ROOT` naming the checkout, makes the copy read-only and denies `Edit` and `Write` on
+it, allows `Bash(<wrapper>)` with no arguments, and names the
 wrappers in `--append-system-prompt` as checks to run before reporting done. `WebFetch` and `WebSearch` stay off
 (`--disallowedTools`) unless a skill needs them. No rule limits which files it changes: with its
 token it can change, commit and push any file in the repository, and claude-code-action writes

@@ -206,6 +206,9 @@ runs:
                 allowed="$allowed,Bash($wrapper)"
                 wrappers="$wrappers $wrapper"
               done
+              # The skill's bare Edit and Write must not reach the copy it runs.
+              chmod -R a-w "$CHECKS_DIR"
+              disallowed="$disallowed,Edit(/$CHECKS_DIR/**),Write(/$CHECKS_DIR/**)"
               system_prompt="$system_prompt Before you report done, run each of these repository checks as written, with no arguments:$wrappers."
             fi
             ;;

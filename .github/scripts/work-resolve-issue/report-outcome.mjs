@@ -58,15 +58,17 @@ const text = (value) => (typeof value === "string" ? value.slice(0, MAX_TEXT) : 
 const list = (value) =>
   Array.isArray(value) ? value.filter((item) => typeof item === "string").slice(0, MAX_ITEMS).map((item) => item.slice(0, MAX_ITEM)) : [];
 // A not_done entry is a string or {what, required}; required marks a check the
-// run had to pass and did not.
+// run had to pass and did not, and counts whatever `what` holds.
 const notDoneList = (value) =>
   (Array.isArray(value) ? value : [])
     .map((item) =>
       typeof item === "string"
         ? { what: item, required: false }
-        : typeof item?.what === "string"
-          ? { what: item.what, required: item.required === true }
-          : null,
+        : item?.required === true
+          ? { what: typeof item.what === "string" ? item.what : "A required check the run did not name.", required: true }
+          : typeof item?.what === "string"
+            ? { what: item.what, required: false }
+            : null,
     )
     .filter(Boolean)
     .slice(0, MAX_ITEMS)
@@ -105,26 +107,34 @@ export function readOutcome(path) {
   };
 }
 
-// Model text is data. HTML comments and raw HTML are cut (`<` and `>` are
-// escaped), `@` is dropped so nothing mentions anyone, and issue references
-// are broken: squash merge copies the body as plain text, so `#` becomes a
-// full-width ＃ and `/issues/` or `/pull/` gains a space, and no closing
-// keyword in it can close an issue. Control characters other than newline go.
-const neutral = (value) =>
+// Model text is data. HTML comments go; `&` is escaped first, so no entity
+// can spell `@` or `#`, then raw HTML (`<`, `>`) and link syntax (`[`, `]`,
+// which could hide a reference definition). `@` is dropped so nothing
+// mentions anyone, and issue references are broken: squash merge copies the
+// body as plain text, so `#` becomes a full-width ＃, `GH-` and `/issues/` or
+// `/pull/` gain a space, and no closing keyword in it can close an issue.
+// Control characters other than newline go. The cap applies after escaping.
+const neutral = (value, cap) =>
   value
     .replaceAll(/<!--[\s\S]*?(-->|$)/g, "")
     .replaceAll("\r\n", "\n")
     .replaceAll(/[\u0000-\u0009\u000b-\u001f\u007f]/g, " ")
+    .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
+    .replaceAll("[", "\\[")
+    .replaceAll("]", "\\]")
     .replaceAll("@", "")
     .replaceAll("#", "＃")
-    .replaceAll(/\/(issues|pull)\//gi, "/$1 /");
+    .replaceAll(/\bGH-/gi, "GH -")
+    .replaceAll(/\/(issues|pull)\//gi, "/$1 /")
+    .slice(0, cap)
+    .replace(/&[a-z]*$|\\$/, "");
 
 // Every line prefixed `> `, so no line of it can start a heading or leave the
 // quote, and the text wraps when rendered.
 const quoted = (value) =>
-  neutral((value || "(none)").slice(0, MAX_TEXT))
+  neutral(value || "(none)", MAX_TEXT)
     .trim()
     .split("\n")
     .map((line) => (line.trim() ? `> ${line.trimEnd()}` : ">"))
@@ -134,7 +144,7 @@ const quoted = (value) =>
 const bullets = (items) =>
   items
     .slice(0, MAX_ITEMS)
-    .map((item) => `- ${neutral(item.slice(0, MAX_ITEM)).replaceAll(/\s+/g, " ").trim()}`)
+    .map((item) => `- ${neutral(item.replaceAll(/\s+/g, " "), MAX_ITEM).trim()}`)
     .join("\n");
 
 function handBack({ outcome, issueNumber, branch, humanLabel, runUrl }) {
@@ -237,7 +247,7 @@ export function decide({
     "",
     "## Verification",
     "",
-    outcome.verification.length ? bullets(outcome.verification) : "The run listed no checks.\n",
+    outcome.verification.length ? `The run reports:\n\n${bullets(outcome.verification)}` : "The run listed no checks.\n",
     runUrl ? `- The lane run: ${runUrl}` : "- The lane run.",
     "",
     gaps.length ? "Left out: the items under Not verified." : "Left out: nothing the run reported.",
