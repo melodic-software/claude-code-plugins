@@ -381,6 +381,9 @@ class Unattended(unittest.TestCase):
         self.async_merge = mock.Mock(side_effect=self._async_merge)
         self.dequeue = mock.Mock(side_effect=self._dequeue)
         self.dispatch = mock.Mock(side_effect=self._dispatch)
+        self.post_check = mock.Mock(return_value=self.verdict)
+        self.in_flight = mock.Mock(return_value=self.flight)
+        self.read_cap = mock.Mock(return_value=self.cap)
 
         def gh_json(args: list[str]) -> Any:
             if args[:2] == ["pr", "view"]:
@@ -436,9 +439,9 @@ class Unattended(unittest.TestCase):
                 "enabled_since",
                 return_value=datetime(2026, 10, 1, tzinfo=UTC),
             ),
-            mock.patch.object(postmerge, "check", return_value=self.verdict),
-            mock.patch.object(policy, "read_rung_cap", return_value=self.cap),
-            mock.patch.object(policy, "in_flight", return_value=self.flight),
+            mock.patch.object(postmerge, "check", self.post_check),
+            mock.patch.object(policy, "read_rung_cap", self.read_cap),
+            mock.patch.object(policy, "in_flight", self.in_flight),
             mock.patch.object(policy, "read_promotion", return_value=self.promotion),
             mock.patch.object(policy, "eligibility", return_value=self.eligible),
             mock.patch.object(
@@ -537,16 +540,78 @@ class LaneMode(Unattended):
         self.opt_in_recheck = "not-lane-authored-or-opted-in"
         # D16 replaces the local promotion read: an unpromoted cell must not hold.
         self.promotion = policy.Promotion(None, "resolver-failed")
+        # The lane never reads the variables kill switch: a read would pop
+        # from an empty list and fail the test.
+        self.kill = []
+
+    def lane(self, *flags: str) -> tuple[int, dict[str, Any]]:
+        return self.run_main(
+            "--authority",
+            "pr-merge",
+            "--lane-kill-switch",
+            "proceed",
+            "--lane-rung-cap",
+            "",
+            *flags,
+        )
+
+    def test_the_lane_takes_the_rung_cap_from_the_workflow(self) -> None:
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.read_cap.assert_not_called()
+        self.assertEqual(
+            out["unattended"]["rungCap"], {"value": None, "reason": "no-cap"}
+        )
+
+    def test_a_workflow_cap_below_the_rung_refuses(self) -> None:
+        code, out = self.run_main(
+            "--authority", "pr-merge", "--lane-kill-switch", "proceed",
+            "--lane-rung-cap", "off",
+        )  # fmt: skip
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "rung-off:rungCap")
+        self.read_cap.assert_not_called()
 
     def test_the_lane_enqueues_at_the_pinned_head(self) -> None:
-        code, out = self.run_main("--authority", "pr-merge")
+        code, out = self.lane()
         self.assertEqual(code, 0, out["blockers"])
         self.assertIsNone(out["unattended"]["reason"])
         self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+        self.assertEqual(
+            out["unattended"]["enqueue"]["killSwitch"],
+            {"proceed": True, "reason": "proceed"},
+        )
+
+    def test_a_missing_workflow_kill_switch_stops_the_lane(self) -> None:
+        # A stop like the switch itself: no enqueue, and the identity's own
+        # queued entries leave the queue.
+        code, out = self.run_main("--authority", "pr-merge")
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "kill-switch:lane-value-missing")
+        self.assertEqual(self.log, ["dequeue:all"])
+
+    def test_a_workflow_kill_switch_other_than_proceed_refuses(self) -> None:
+        for value in ("true", "stop", "PROCEED"):
+            with self.subTest(value=value):
+                self.log = []
+                code, out = self.run_main(
+                    "--authority", "pr-merge", "--lane-kill-switch", value
+                )
+                self.assert_no_merge(code)
+                self.assertEqual(
+                    out["unattended"]["reason"], "kill-switch:lane-value-not-proceed"
+                )
+
+    def test_the_lane_judges_only_its_own_merges(self) -> None:
+        # #7481: the post-merge check and the in-flight rule skip another
+        # App's merge on main.
+        self.lane()
+        self.assertIs(self.post_check.call_args.kwargs["lane_merges_only"], True)
+        self.assertIs(self.in_flight.call_args.kwargs["lane_merges_only"], True)
 
     def test_a_class_label_gone_before_the_enqueue_refuses(self) -> None:
         self.lane_recheck = "class-label-removed"
-        code, out = self.run_main("--authority", "pr-merge")
+        code, out = self.lane()
         self.assert_no_merge(code)
         self.assertIn(
             "unattended merge refused: ineligible:class-label-removed", out["blockers"]
@@ -554,7 +619,7 @@ class LaneMode(Unattended):
 
     def test_an_ineligible_pr_is_refused(self) -> None:
         self.lane_eligible = policy.Eligibility(False, "denied-path:.github/x.yml")
-        code, out = self.run_main("--authority", "pr-merge")
+        code, out = self.lane()
         self.assert_no_merge(code)
         self.assertEqual(
             out["unattended"]["reason"], "ineligible:denied-path:.github/x.yml"
@@ -562,7 +627,7 @@ class LaneMode(Unattended):
 
     def test_report_only_reports_the_decision_and_writes_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, report_only=True)
-        code, out = self.run_main("--authority", "pr-merge")
+        code, out = self.lane()
         self.assertEqual(code, 0, out["blockers"])
         self.assertEqual(out["action"], "check")
         self.assertIs(out["unattended"]["reportOnly"], True)
@@ -581,6 +646,43 @@ class LaneMode(Unattended):
             contextlib.redirect_stdout(out),
         ):
             self.assertEqual(merge.main(), 2)
+
+    def test_a_lane_kill_switch_outside_the_lane_is_a_usage_error(self) -> None:
+        # Local babysit keeps its variables read; it never takes a passed value.
+        for flags in (
+            ["--unattended", "--lane-kill-switch", "proceed"],
+            ["--unattended", "--authority", "local-babysit"]
+            + ["--lane-kill-switch", "proceed"],
+            ["--lane-kill-switch", "proceed"],
+            ["--unattended", "--lane-rung-cap", ""],
+            ["--unattended", "--authority", "local-babysit", "--lane-rung-cap", "C2"],
+        ):
+            with self.subTest(flags=flags):
+                argv = ["babysit_merge.py", f"owner/repo#{PR}"]
+                argv += ["--allowed-owners", "owner", *flags]
+                out = io.StringIO()
+                with (
+                    mock.patch.object(sys, "argv", argv),
+                    mock.patch.object(merge, "gh_capture", side_effect=AssertionError),
+                    mock.patch.object(merge, "gh_json", side_effect=AssertionError),
+                    contextlib.redirect_stdout(out),
+                ):
+                    self.assertEqual(merge.main(), 2)
+
+
+class LocalBabysitKeepsItsReads(Unattended):
+    """Without `--authority pr-merge` the kill switch is read from the
+    variables and every non-human merge is judged, as before."""
+
+    def test_the_variables_kill_switch_and_every_merge_are_read(self) -> None:
+        code, out = self.run_main()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(
+            out["unattended"]["enqueue"]["killSwitch"],
+            {"proceed": PROCEED.proceed, "reason": PROCEED.reason},
+        )
+        self.assertIs(self.post_check.call_args.kwargs["lane_merges_only"], False)
+        self.assertIs(self.in_flight.call_args.kwargs["lane_merges_only"], False)
 
 
 class AllInputsGood(Unattended):

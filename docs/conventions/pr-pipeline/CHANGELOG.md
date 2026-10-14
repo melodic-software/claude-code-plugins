@@ -1,5 +1,13 @@
 # Changelog for the PR pipeline convention
 
+## 1.12.4 - 2026-10-14
+
+"The pr-merge lane" names three more reads it changes: the kill switch comes from the workflow's
+own check (`--lane-kill-switch proceed`; missing or any other value stops), the rung cap from the
+workflow's `vars` (`--lane-rung-cap`; empty is no cap), and the post-merge check
+and in-flight rule count only merges the agent identity enqueued. In report-only mode the workflow
+starts no full CI run. `version` stays 1.
+
 ## 1.12.3 - 2026-10-14
 
 The `work-resolve-issue` lane's allowlist gains `work-class: mechanical` beside `work-class: read-only`,

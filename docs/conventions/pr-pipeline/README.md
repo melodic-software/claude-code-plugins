@@ -378,7 +378,7 @@ admin permission on the repository.
 
 The same wrapper run with `--unattended --authority pr-merge` is the pr-merge lane's gate. It needs
 `merge.authority: pr-merge` and `merge.agent-identity` at the base, and keeps every read above
-except three:
+except six:
 
 - **Eligibility.** Not a fork or a dependency manager's pull request, a `work-class: mechanical`
   label on the pull request, and a diff where no path, either side of a rename, matches
@@ -389,6 +389,18 @@ except three:
   as `github-actions[bot]`. A class label anyone adds can still only make the class stricter.
 - **Promotion.** No promotion evidence is read. The lane starts with `merge.report-only: true`;
   the owner reads its reports and sets `false` to let it merge.
+- **Kill switches.** The lane token cannot read Actions variables, so the workflow checks the
+  switches itself and passes `--lane-kill-switch proceed`. A missing value or any other value
+  stops the lane. The value is read once per run, and a stopped run cannot dequeue: to stop at
+  once, cancel the running pr-merge run and dequeue the lane's pull request by hand.
+- **Cap variable.** For the same reason the workflow passes `CLAUDE_LANES_MERGE_RUNG_CAP` from its
+  `vars` context as `--lane-rung-cap`. Empty (unset) is no cap; `off`, `C2` or `C3` caps the rung;
+  a missing flag or any other value holds the rung at `off`.
+- **Post-merge check and one merge in flight.** Only merges the agent identity enqueued count. A
+  merge by a person or by another App, such as a release pull request, is not the lane's.
+
+While `merge.report-only` is true, the workflow starts no full CI run either; its summary says
+whether it would have.
 
 `.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
 checkout. A finished `ci-status` or review run, a label, body or ready change on a PR, a manual
