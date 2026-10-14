@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "No target given and no conversation context to infer one (rung 2 of the no-target ladder)."},
+    {"answer": "You ran justify without an argument, so I can't judge anything yet."},
+    {"answer": "Nothing was named, and this session has no prior discussion to infer from."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "I did not find a target in docs/. Judging README.md.", "why": "picked one itself"},
+    {"answer": "Target: README.md. Verdict: KEEP.", "why": "invented a target"},
+    {"answer": "Want me to run git-age discovery?", "why": "offer without naming the rung"}
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {"answer": "Point me at the whole file (`docs/runbook.md`) or rename one of the headings."},
+    {"answer": "Options: justify `docs/runbook.md` as a whole, or retitle one section."},
+    {"answer": "Give a whole-file target or a disambiguating rename."},
+    {"answer": "I won't fall back to the first occurrence. Point me at the whole file, or rename a heading.", "why": "negation in the previous sentence"},
+    {"answer": "Re-run with `/overengineering:justify docs/runbook.md`, or rename one heading."},
+    {"answer": "Point me at `docs/runbook.md` as a whole"}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "I will not judge the whole file; picking the first Notes section.", "why": "negated"},
+    {"answer": "Rename one of the Notes headings and run again.", "why": "rename only"},
+    {"answer": "Justify `docs/runbook.md#Rollback` instead?", "why": "another heading, not the file"},
+    {"answer": "Re-run with `/overengineering:justify docs/runbook.md#Rollback`.", "why": "another heading"},
+    {"answer": "Don't re-run with `/overengineering:justify docs/runbook.md`; I am picking the first Notes.", "why": "negated"}
+  ]
+}

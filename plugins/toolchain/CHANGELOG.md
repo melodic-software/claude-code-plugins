@@ -3,6 +3,16 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0] - 2026-10-14
+
+### Added
+
+- Six outcome eval cases for `check` and `lint` under `evals/`, and frozen trigger-probe sets under `probes/`.
+
+### Changed
+
+- `check`'s body and the `check` and `lint` descriptions are shorter, and `check`'s CI-parity gate rules move to `context/gates.md`. `setup`'s description is a one-line summary, since it is user-invoked. `check` names its next step in a `## Next` section. `lint` keeps its original body, because the shorter one was not shown to hold on Sonnet.
+
 ## [0.16.1] - 2026-10-13
 
 ### Changed

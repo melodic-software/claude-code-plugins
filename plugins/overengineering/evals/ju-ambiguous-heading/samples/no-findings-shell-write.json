@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": [], "why": "no shell"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls .work/overengineering/main/findings.md 2>/dev/null"}}], "why": "existence probe"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git symbolic-ref --quiet --short HEAD"}}], "why": "branch call"},
+    {"answer": [{"tool": "Bash", "input": {"command": "grep -n '^## ' docs/runbook.md"}}], "why": "heading scan"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "printf '%s' \"$row\" >> .work/overengineering/main/findings.md"}}], "why": "append redirect"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat row.md | tee .work/overengineering/main/findings.md"}}], "why": "tee"},
+    {"answer": [{"tool": "Bash", "input": {"command": "mv /tmp/f.md .work/overengineering/main/findings.md"}}], "why": "mv into place"}
+  ]
+}

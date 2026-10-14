@@ -1,0 +1,130 @@
+{
+  "skill": "overengineering:delta",
+  "plugin": "overengineering",
+  "skill_dir": "plugins/overengineering/skills/delta",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin siblings and nearby model-invoked skills, as near-miss targets.",
+  "competitors": [
+    "overengineering:audit",
+    "overengineering:justify",
+    "overengineering:realign",
+    "harness-config:audit-automation-gaps",
+    "improvement:find"
+  ],
+  "competitor_dirs": {
+    "overengineering:audit": "plugins/overengineering/skills/audit",
+    "overengineering:justify": "plugins/overengineering/skills/justify",
+    "overengineering:realign": "plugins/overengineering/skills/realign",
+    "harness-config:audit-automation-gaps": "plugins/harness-config/skills/audit-automation-gaps",
+    "improvement:find": "plugins/improvement/skills/find"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We reviewed our hooks and CI checks in June. Run it again and show me only what's different."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Has anything flipped from keep to retire in our gate review since the previous run?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want a recurring Monday job that re-checks our automation for dead weight and posts just the changes."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Compare this week's enforcement findings with the last baseline and tell me what's new or closed."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Rerun the check on whether our CI and hooks are earning their keep, but skip anything that's unchanged."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Only the movement please: which findings about our merge gates appeared or went away since last time?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Did the hook we added last sprint show up in the gate review yet? Show me the changes since the prior pass."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Refresh the baseline on our enforcement review and report what shifted."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run the incremental version of the CI-and-hooks value review for the scheduled lane."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Since the last overengineering pass, did any of the verdicts change?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "We've never looked at whether our CI is overbuilt. Do a full review of every check."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Go ahead and retire the two hooks the last review marked, one at a time."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What changed in Claude Code's latest release?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Rank the best improvements across this repository."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which automations are we missing that would catch recurring mistakes?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "List the commits merged to main since the last release tag."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is this particular config file still needed?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Remove the stale Danger check now; I've approved it."
+    }
+  ]
+}
