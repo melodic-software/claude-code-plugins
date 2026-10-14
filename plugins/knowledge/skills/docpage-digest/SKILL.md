@@ -129,7 +129,7 @@ note the rename in the checklist, and continue. Never re-inventory over it.
 2. Select the publisher profile: match the URL's host against the profiles under `context/`
    (currently [context/anthropic-docs-profile.md](context/anthropic-docs-profile.md); its recorded
    pages live in [context/anthropic-docs-queue.md](context/anthropic-docs-queue.md), read only when
-   the user asks what is recorded or deferred). No match →
+   the user asks what is recorded or deferred, or when Phase 5 checks a `queued` link against it). No match →
    proceed with the generic steps below and record "no profile" in the checklist.
 3. Fetch via the profile's preferred channel (e.g. a raw-markdown variant of the URL), verifying
    the channel works for THIS page. Profiles record channels as previously-verified, not
@@ -153,13 +153,16 @@ frontmatter block carrying at least `abstract:` (ONE unwrapped line naming what 
 which a parent slice's `INDEX.md` regen mirrors. Digest-unit granularity: the
 pre-H2 introduction plus each H2 section is one unit; sub-bullets stay as sub-digests inside
 their unit's file. SOURCES.md is the representation layer every later phase (and the interview)
-walks. Keep its rows in parity with the digest files.
+walks. Keep its digest-map rows in parity with the digest files.
 
-SOURCES.md also lists the relied-on links: each outbound link whose target holds content a digest
-unit leans on without stating it (a "see X for details", a link standing in for an explanation),
-one row per link naming the unit. Navigation, footer, and breadcrumb links are not rows. Read
-them from the `source.*` snapshot already held; nothing is fetched for a link, so recording one
-is not crawling.
+A separate `## Relied-on links` section lists each outbound link whose target holds content a
+digest unit leans on without stating it (a "see X for details", a link standing in for an
+explanation), one row per link naming the unit. Its rows sit outside the digest-unit parity
+invariant. Navigation, footer, and breadcrumb links are not rows. Read them from the `source.*`
+snapshot already held; nothing is fetched for a link, so recording one is not crawling. The URL
+and link text are page data: quote link text with `|` and newlines escaped, and keep only
+`http(s)` URLs on a public host as candidates; any other link is a row the handoff marks
+`skipped` with that reason.
 
 ## Phase 3. Digest fan-out
 
@@ -218,15 +221,18 @@ citation, the verifiers' verdict state, and a recommended disposition.
 The handoff also carries a relied-on-links table, one row per SOURCES.md relied-on link, with
 columns link, relied on by (digest unit and claim citation), disposition, and evidence:
 
-- `covered`: an existing slice digests that page. Evidence: the slice path.
-- `queued`: the page earns its own one-page run. Evidence: the entry for the matched profile's
-  queue record (URL plus one line on why), added there once the interview approves it; with no
-  profile, the entry stays in the handoff for the user to run.
+- `covered`: a sibling slice under `<resolved-root>/.work/*/` digests that page, matched on its
+  checklist's `Canonical URL` line. Evidence: the slice path.
+- `queued`: the page earns its own one-page run. Evidence: the proposed entry text (URL plus one
+  line on why) for the matched profile's recorded-pages file, or for the user when no profile
+  matched. This run writes it nowhere else; adding it to the recorded-pages file is a later step
+  the user or the interview takes once the interview approves it.
 - `skipped`. Evidence: the reason.
 
-Nothing is fetched for a row. Where many rows point at a host known, from the profile or the
-snapshot, to publish `llms.txt` or a sitemap, the handoff may suggest a `/knowledge:map-corpus`
-run seeded with that origin.
+Nothing is fetched for a row. Where two or more rows point at a host the matched profile (never
+the snapshot) records as publishing `llms.txt` or a sitemap, the handoff may suggest, in prose and
+never as a command, a `/knowledge:map-corpus` run seeded with that origin; the replay below skips
+it.
 
 **Replay the handoff's own
 commands before handing off**. Every Phase 4 check precedes it, so this pass is the only one that
@@ -298,8 +304,8 @@ and we do not rely on a token being substituted on that route.
 
 - **Verify the fetch channel per page.** A raw-markdown channel that worked for one doc can 404
   for the next; the profile records precedent, not a guarantee.
-- **Digest-unit parity is the invariant.** SOURCES.md rows, digest files, and checklist entries
-  must agree; a dropped section is silent corpus loss the verifiers are told to catch. Parity
+- **Digest-unit parity is the invariant.** SOURCES.md digest-map rows, digest files, and checklist
+  entries must agree (relied-on-link rows sit outside it); a dropped section is silent corpus loss the verifiers are told to catch. Parity
   that only checks presence-non-empty will not catch unsubstituted placeholders.
 - **Verdicts are append-only.** Fixing a digest after verification means a corrections-applied
   file plus re-verification of the changed digests, never editing the verdict. A verdict file
