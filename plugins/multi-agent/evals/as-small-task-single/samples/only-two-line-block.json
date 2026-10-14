@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: single\nreason: one 30-line function in one file, one dependent chain that fits this context\n",
+      "why": "two lines"
+    },
+    {
+      "answer": "```text\nverdict: single\nreason: one file, one chain\n```\n",
+      "why": "fenced"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Checked availability: not-off.\nverdict: single\nreason: one 30-line function in one file, one dependent chain that fits this context\n",
+      "why": "preamble"
+    },
+    {
+      "answer": "verdict: single\nreason: one 30-line function in one file, one dependent chain that fits this context\n\nNext: /session-flow:orchestrate\n",
+      "why": "trailing text"
+    },
+    {
+      "answer": "verdict: single\n",
+      "why": "no reason"
+    }
+  ]
+}

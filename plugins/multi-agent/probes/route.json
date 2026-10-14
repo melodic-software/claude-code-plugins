@@ -1,0 +1,128 @@
+{
+  "skill": "multi-agent:route",
+  "plugin": "multi-agent",
+  "skill_dir": "plugins/multi-agent/skills/route",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the same-plugin setup skill (writes the role map that route only reads), assess (execution shape, not model choice) and audit-defaults (drift of the defaults), plus harness-config:audit for general settings questions.",
+  "competitors": [
+    "multi-agent:setup",
+    "multi-agent:assess",
+    "multi-agent:audit-defaults",
+    "harness-config:audit"
+  ],
+  "competitor_dirs": {
+    "multi-agent:setup": "plugins/multi-agent/skills/setup",
+    "multi-agent:assess": "plugins/multi-agent/skills/assess",
+    "multi-agent:audit-defaults": "plugins/multi-agent/skills/audit-defaults",
+    "harness-config:audit": "plugins/harness-config/skills/audit"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "For this code fan-out, tell me what model and effort the orchestrator, workers and verifier should get."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm launching a workflow that needs a roles argument. What should I pass for each agent?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Are the parallel workers going to land on Fable, or does something keep them on a cheaper model?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which config layer is deciding the verifier's model right now: the defaults, my user file, or the repo?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Print the resolved role assignments as JSON for a research run."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What effort should a retrieval subagent use when it runs alone versus in a fan-out?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Show me model and effort for every agent role in a mechanical batch job."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before I spawn these helpers, which model is each one supposed to use?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Resolve the worker role for a code task with the session on Opus."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me the per-role model picks for my subagent pipeline, including where each value came from."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Set the worker effort to low in my personal multi-agent config and show the before and after."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Should this task be a workflow at all, or just done inline?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "A new model just shipped. Are our bundled role defaults out of date?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Audit my settings.json and hooks for drift against the current docs."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Turn off the fan-out guard for this repository."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Sweep this repo's docs for stale claims about subagent models."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is the Workflow tool available in this session?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check whether my personal overlay file is gitignored."
+    }
+  ]
+}

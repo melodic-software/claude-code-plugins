@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "WebFetch",
+          "input": {
+            "url": "https://code.claude.com/docs/en/workflows",
+            "prompt": "model guidance"
+          }
+        }
+      ],
+      "why": "fetched upstream"
+    }
+  ]
+}

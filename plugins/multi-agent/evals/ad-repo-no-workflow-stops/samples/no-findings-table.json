@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Workflows are unavailable in this session (the Workflow tool is not callable), so `repo` mode stops here: it needs the `multi-agent:drift-audit` workflow and does not sweep the repository on the main thread.\n",
+      "why": "no table"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Fallback sweep results:\n\n| file:line | kind | quote |\n|---|---|---|\n| docs/models.md:12 | stale | Opus is the default |\n",
+      "why": "swept on the main thread"
+    }
+  ]
+}
