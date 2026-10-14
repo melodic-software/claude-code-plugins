@@ -1,6 +1,10 @@
 {
   "pass": [
     {
+      "answer": "attempt 3: chosen by adds no new dependency\nattempt 1: set aside by adds no new dependency\n\nAttempt 2 failed, so it was set aside by the verifier; its gap was criterion 2.",
+      "why": "failure prose for attempt 2 is not a selection-record line"
+    },
+    {
       "answer": "Selection rule: Prefer the attempt that adds no new dependency; among those, prefer the one with the fewest changed lines.\n\nattempt 3: chosen by adds no new dependency\nattempt 1: set aside by adds no new dependency\n\nAttempt 2 failed verification and gets no record line. Verifier gap: criterion 2, `round_total(2.665)` returned 2.67, expected 2.66.\n\nNext: fast-forward `feat/invoice-rounding` to `feat/invoice-rounding-attempt-3`."
     },
     {

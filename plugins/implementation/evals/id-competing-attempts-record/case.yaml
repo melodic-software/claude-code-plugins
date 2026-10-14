@@ -13,7 +13,7 @@ graders:
     target: last_message
   - name: no-failed-record
     type: regex
-    pattern: 'attempt[ *_`]*(?:2|two)\b[^\n]{0,25}\b(?:chosen|set aside) by\b'
+    pattern: '^[ \t>*_-]*(?:\d+[.)][ \t]*)?[*_`]*attempt[ *_`]*(?:2|two)\b[^\n:]{0,15}?[*_`]*[ \t]*(?::|[-–—][ \t])[ \t]*[*_`]*(?:chosen|set aside) by\b'
     flags: 'mi'
     match: not_contains
     target: last_message
