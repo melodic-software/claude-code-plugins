@@ -130,6 +130,8 @@ J
   regressed-early) echo '{"total_count":2,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T10:00:00Z","completed_at":"2099-01-01T00:00:00Z"},{"id":902,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T10:05:00Z","completed_at":"2026-10-14T10:10:00Z"}]}' >"$FIX/checks.json" ;;
   # A newer run still in progress, started before the older one completed.
   newer-pending) echo '{"total_count":2,"check_runs":[{"id":901,"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:10:00Z"},{"id":902,"name":"ci-status","app":{"id":15368},"status":"in_progress","conclusion":null,"started_at":"2026-10-14T10:05:00Z","completed_at":null}]}' >"$FIX/checks.json" ;;
+  # An older run still in progress, then a newer run that skipped the job.
+  pending-then-skipped) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"status":"in_progress","conclusion":null,"started_at":"2026-10-14T10:00:00Z","completed_at":null},{"id":902,"name":"test","app":{"id":15368},"status":"completed","conclusion":"skipped","started_at":"2026-10-14T10:20:00Z","completed_at":"2026-10-14T10:20:00Z"}]}' >"$FIX/checks.json" ;;
   # A later event skipped the job that had failed.
   failed-then-skipped) echo '{"total_count":2,"check_runs":[{"id":901,"name":"test","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T10:00:00Z","completed_at":"2026-10-14T10:10:00Z"},{"id":902,"name":"test","app":{"id":15368},"status":"completed","conclusion":"skipped","started_at":"2026-10-14T10:20:00Z","completed_at":"2026-10-14T10:20:00Z"}]}' >"$FIX/checks.json" ;;
   *) return 1 ;;
@@ -260,6 +262,9 @@ assert_contains "names the newer pending run" "$ERR" "Pending checks (use --auto
 scenario none none failed-then-skipped green
 run "a later skipped run does not clear a failure" 'gh pr merge 42 --squash' 2
 assert_contains "names the skipped-over failure" "$ERR" "Failing checks: test"
+scenario none none pending-then-skipped green
+run "a newer skipped run supersedes an older pending one" 'gh pr merge 42 --squash' 0
+assert_eq "pending then skipped -> no stderr" "" "$ERR"
 
 # --- 4. REST, GraphQL and curl merge paths -------------------------------------
 scenario unresolved none green green
