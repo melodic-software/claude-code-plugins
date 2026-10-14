@@ -2392,6 +2392,36 @@ class LaneEligibility(unittest.TestCase):
                 self.assertFalse(result.eligible)
                 self.assertEqual(result.reason, f"denied-path:{path}")
 
+    def test_the_live_config_denies_each_owner_approved_path(self) -> None:
+        # Plan D17 plus the owner's three additions on #7467.
+        live = pathlib.Path(__file__).resolve().parents[6] / policy.CONFIG_PATH
+        values = policy._concern_values(
+            live.read_text(encoding="utf-8"),
+            [("merge.diff-check.denied-paths", True)],
+        )
+        denied = tuple((values or {}).get("merge.diff-check.denied-paths", ()))
+        for path in (
+            ".github/workflows/x.yml",
+            "docs/conventions/pr-pipeline.yaml",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py",
+            ".claude/rules/x.md",
+            "plugins/foo/skills/bar/SKILL.md",
+            "plugins/foo/agents/baz.md",
+            "plugins/foo/hooks/hooks.json",
+            "plugins/foo/.claude-plugin/plugin.json",
+            "scripts/check-convention-yaml.sh",
+        ):
+            with self.subTest(path):
+                self.fake(files=["docs/guide.md", path])
+                result = policy.lane_eligibility(
+                    REPO,
+                    7,
+                    pr={"number": 7, "changed_files": 2},
+                    denied_paths=denied,
+                    agent_identity=IDENTITY,
+                )
+                self.assertEqual(result.reason, f"denied-path:{path}")
+
     def test_a_renamed_file_from_a_denied_path_refuses(self) -> None:
         gh = self.fake()
         gh.rest[self.FILES] = [

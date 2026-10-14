@@ -64,4 +64,7 @@ merge:
       - ".claude/**"
       - "plugins/*/skills/**"
       - "plugins/*/agents/**"
+      - "plugins/*/hooks/**"
+      - "plugins/*/.claude-plugin/**"
+      - "scripts/**"
     max-changed-lines: 400
