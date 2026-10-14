@@ -113,7 +113,14 @@ test("live config: resolve-issue starts nothing for an issue labeled before the 
   );
 });
 
-test("live config: resolve-issue admits read-only issues only", () => {
+test("live config: resolve-issue starts for a mechanical issue", () => {
+  assert.equal(
+    selected("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["agent-ready", "work-class: mechanical"] }).applies,
+    true,
+  );
+});
+
+test("live config: resolve-issue admits read-only and mechanical issues only", () => {
   assert.equal(
     skipReason("work-resolve-issue", "resolve-issue", { ...ISSUE, labels: ["agent-ready", "work-class: scoped"] }),
     "not-applicable",
