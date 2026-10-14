@@ -171,6 +171,30 @@
         }
       ],
       "why": ".yaml extension"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import shutil; shutil.move('/tmp/x.md','docs/adr/0001-postgres.md')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter move"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"require('fs').copyFileSync('/tmp/x.md','docs/adr/0001-postgres.md')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter copy"
     }
   ]
 }

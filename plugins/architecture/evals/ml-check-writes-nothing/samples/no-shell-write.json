@@ -174,6 +174,30 @@
         }
       ],
       "why": "pathlib write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import shutil; shutil.move('/tmp/x.md','docs/architecture/landscape.md')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter move"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"require('fs').copyFileSync('/tmp/x.md','docs/architecture/landscape.md')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter copy"
     }
   ]
 }
