@@ -40,6 +40,8 @@ import census
 
 SCHEMA = "audit-sessions.sweep/v1"
 RULES_SCHEMA = "audit-sessions.sweep-rules/v1"
+# Placeholders collect.py stores in place of a path; neither names one file.
+PLACEHOLDERS = {"<suppressed>", "<too-long>"}
 BUNDLED_RULES = Path(__file__).resolve().parents[1] / "reference" / "sweep-rules.json"
 KEEP_REPORTS = 20
 STATE_KEY_RE = re.compile(r"[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)+")
@@ -82,11 +84,42 @@ def _write_5m_share(records: list[dict]) -> float | None:
 MACHINE_WIDE = {"cache.write_5m_share": _write_5m_share}
 
 
+def _churn(records: list[dict]) -> list[tuple[int, dict]]:
+    """Edits to one path within one linked PR, summed over the sessions that link only that PR.
+
+    A session linking several PRs is left out: its edits cannot be split between them. Stored paths
+    are relative to each session's own working directory, so each is joined back onto it first.
+    """
+    tickets: dict[tuple[str, int], tuple[Counter, dict]] = {}
+    for r in records:
+        edits, prs, cwd = r.get("edits"), r.get("prs"), r.get("cwd")
+        paths = edits.get("by_relpath") if isinstance(edits, dict) else None
+        if not isinstance(paths, dict) or not isinstance(prs, list) or len(prs) != 1 or not isinstance(prs[0], dict):
+            continue
+        repo, number = prs[0].get("repo"), prs[0].get("number")
+        if not isinstance(repo, str) or not isinstance(number, int):
+            continue
+        counts, sessions = tickets.setdefault((repo, number), (Counter(), {}))
+        for path, n in paths.items():
+            if path not in PLACEHOLDERS and isinstance(n, int) and n > 0:
+                path = Path(cwd, path).as_posix() if isinstance(cwd, str) and cwd else path
+                counts[path] += n
+                sessions.setdefault(path, set()).add(r["session_id"])
+    return [
+        (n, {"repo": repo, "number": number, "path": path, "edits": n, "sessions": sorted(sessions[path])})
+        for (repo, number), (counts, sessions) in tickets.items()
+        for path, n in counts.items()
+    ]
+
+
+PER_TICKET = {"edits.churn_per_pr": _churn}
+
+
 def load_rules(path: Path) -> list[dict]:
     rules = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(rules, dict) or rules.get("schema") != RULES_SCHEMA:
         raise ValueError(f"{path}: not an {RULES_SCHEMA} file")
-    unknown = [r.get("metric") for r in rules["rules"] if r.get("metric") not in {**PER_SESSION, **MACHINE_WIDE}]
+    unknown = [r.get("metric") for r in rules["rules"] if r.get("metric") not in {**PER_SESSION, **MACHINE_WIDE, **PER_TICKET}]
     if unknown:
         raise ValueError(f"{path}: no extractor for metrics {unknown}")
     return rules["rules"]
@@ -126,7 +159,10 @@ def build_data(records, rules, drift, fed, scope, window, catalog) -> dict:
             per, value = [], MACHINE_WIDE[metric](records)
             n = len(records)
         else:
-            per = [(v, r["session_id"]) for r in records if (v := PER_SESSION[metric](r)) is not None]
+            if metric in PER_TICKET:
+                per = PER_TICKET[metric](records)
+            else:
+                per = [(v, {"session_id": r["session_id"]}) for r in records if (v := PER_SESSION[metric](r)) is not None]
             value, n = (statistics.median(v for v, _ in per) if per else None), len(per)
         if metric in degraded:
             metrics[metric] = {"value": None, "unit": unit, "n": n, "degraded": True}
@@ -135,10 +171,12 @@ def build_data(records, rules, drift, fed, scope, window, catalog) -> dict:
         metrics[metric] = {"value": value, "unit": unit, "n": n}
         if metric not in fed:
             unchecked.append({"what": metric, "reason": "drift not checked: no canary feeds this metric"})
+        if rule.get("caveat"):
+            unchecked.append({"what": metric, "reason": rule["caveat"]})
         if threshold is None:
             unchecked.append({"what": metric, "reason": f"reported only, no threshold: {rule['basis']}"})
             continue
-        over = sorted(((v, sid) for v, sid in per if v > threshold), key=lambda p: (-p[0], p[1]))
+        over = sorted(((v, e) for v, e in per if v > threshold), key=lambda p: (-p[0], *_evidence_key(p[1])))
         if not over:
             continue
         findings.append(
@@ -150,7 +188,7 @@ def build_data(records, rules, drift, fed, scope, window, catalog) -> dict:
                 "value": over[0][0],
                 "unit": unit,
                 "threshold": threshold,
-                "evidence": [{"session_id": sid} for _, sid in over],
+                "evidence": [e for _, e in over],
                 "impact": impact(unit, sum(v - threshold for v, _ in over)),
                 "confidence": rule["confidence"],
                 "route": rule["route"],
@@ -234,6 +272,17 @@ def _fmt(value: object) -> str:
     return f"{value:,}" if isinstance(value, int) else str(value)
 
 
+def _evidence_key(e: dict) -> tuple:
+    return (e.get("repo", ""), e.get("number", 0), e.get("path", ""), e.get("session_id", ""))
+
+
+def evidence_md(e: dict) -> str:
+    """A session ID, or a path within a linked PR with its edit count."""
+    if "session_id" in e:
+        return e["session_id"]
+    return f"{markdown_code(e['repo'])}#{e['number']} {markdown_code(e['path'])} ({e['edits']} edits: {', '.join(e['sessions'])})"
+
+
 def render_md(data: dict) -> str:
     window = data["window"]
     span = f"{window['since'] or 'start'} to {window['until'] or 'now'}"
@@ -246,20 +295,20 @@ def render_md(data: dict) -> str:
         n = window["unclassified"]
         sessions += f"; {n} session{'s' * (n != 1)} without an entrypoint kept"
     lines = [f"# Session audit ({data['scope']})", "", sessions, ""]
-    lines += ["## Metrics", "", "| Metric | Value (per-session median) | Unit | n |", "|---|---|---|---|"]
+    lines += ["## Metrics", "", "| Metric | Value (median) | Unit | n |", "|---|---|---|---|"]
     for metric, row in data["metrics"].items():
         value = "unavailable (canary lost)" if row.get("degraded") else _fmt(row["value"])
         lines.append(f"| `{metric}` | {value} | {row['unit']} | {row['n']} |")
     lines += ["", "## Findings", ""]
     if data["findings"]:
-        lines += ["| Lens | Metric | Worst session | Threshold | Sessions over | Route | Suggested |", "|---|---|---|---|---|---|---|"]
+        lines += ["| Lens | Metric | Worst | Threshold | Over | Route | Suggested |", "|---|---|---|---|---|---|---|"]
         for f in data["findings"]:
             lines.append(
                 f"| {f['lens']} | `{f['metric']}` | {_fmt(f['value'])} {f['unit']} | {_fmt(f['threshold'])} | "
                 f"{len(f['evidence'])} | {f['route']} | {f['suggested_skill']} |"
             )
-        lines += ["", "Sessions over each threshold, worst first:", ""]
-        lines += [f"- `{f['metric']}`: " + ", ".join(e["session_id"] for e in f["evidence"]) for f in data["findings"]]
+        lines += ["", "Sessions, or linked PRs, over each threshold, worst first:", ""]
+        lines += [f"- `{f['metric']}`: " + ", ".join(evidence_md(e) for e in f["evidence"]) for f in data["findings"]]
     else:
         lines.append("No session is over a threshold.")
     drift = data["drift"]

@@ -113,6 +113,17 @@
       "suggested_skill": "/harness-ops:audit-performance",
       "confidence": "measured",
       "basis": "a session's p90 stop-hook run time; spike median 211 ms, p90 645 ms"
+    },
+    {
+      "metric": "edits.churn_per_pr",
+      "lens": "churn",
+      "unit": "count",
+      "threshold": 5,
+      "route": "retro-codify",
+      "suggested_skill": "/session-flow:retro",
+      "confidence": "measured",
+      "basis": "edits to one path within one linked PR, summed over the sessions that link only that PR; second spike (320 interactive sessions, Claude Code 2.1.280-2.1.296, 2026-10-13): 46 single-PR sessions, 43 PRs, 1581 path-PR pairs, median 1, p90 5, p99 19",
+      "caveat": "review outcome not linked: sweep reads only the store; sessions linking more than one PR are left out"
     }
   ]
 }
