@@ -19,9 +19,8 @@ Report discipline's effective configuration and write its one repository file. T
 plugin's personal options are native `userConfig`: three `sweep-all` batch-overlay
 options (`batch_exclude` / `batch_promote` / `batch_demote`), the verification-depth
 default of `do-your-research`'s fan-out tier (`research_deep_verification`) and
-`lever_scope`. Claude Code prompts for them when the plugin is enabled, stores
-non-sensitive options in user settings, and ignores `pluginConfigs` entries in project
-and local settings on current releases (>= 2.1.207).
+`lever_scope`. Where Claude Code stores them and which settings scopes it reads: the
+official contract below.
 
 The plugin owns one tracked consumer file, `docs/conventions/discipline.yaml`, the
 repository layer of `lever_scope` (keys, values and layers:
@@ -33,6 +32,8 @@ or `check` runs the check; `apply` runs the check, then writes. Re-running eithe
 the current state again.
 
 Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
+As of 2026-10-14; recheck when that section changes when options are prompted for, where
+they are stored, or which settings scopes are read.
 
 ## `check` (read-only)
 
