@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 - <<'EOF'\nimport sys\nsys.path.insert(0, r\"/plugins/performance/lib\")\nfrom spawn_noise import spawn_probe, is_measurable\nsummary = spawn_probe()\nprint(is_measurable(summary))\nprint(summary)\nEOF"}}
+      ],
+      "why": "the bundled probe and its verdict"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 -c \"import sys; sys.path.insert(0, '/plugins/performance/lib'); from spawn_noise import spawn_probe, is_measurable; s = spawn_probe(); print(is_measurable(s))\""}}
+      ],
+      "why": "one-line form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "grep -n 'def spawn_probe' /plugins/performance/lib/spawn_noise.py"}}
+      ],
+      "why": "reading the function is not running it"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "for i in $(seq 20); do /usr/bin/time -f %e bash hooks/guard.sh 'ls'; done"}}
+      ],
+      "why": "a hand-rolled timing loop, no floor probe"
+    }
+  ]
+}

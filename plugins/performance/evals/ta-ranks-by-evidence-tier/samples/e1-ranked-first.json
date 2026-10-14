@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter that would settle it | Cheapest next instrument |\n|---|---|---|---|---|---|\n| 1 | hooks/guard.sh wrapper | E1 | census: 4 of 7 spawns per call | process spawns per call | none: census exists |\n| 2 | guard_body.py | E1 | 1 python3 spawn per call | spawns per call | none |\n| 3 | WDAC | E4 | a plausible mechanism only | spawn count is unaffected; needs a spawn-spread probe | spawn_probe spread |\n",
+      "why": "E1 at rank 1"
+    },
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter | Next |\n|---|---|---|---|---|---|\n| **1** | `guard.sh` (wrapper layer) | **E1, attributed measurement** | 4 of 7 spawns | spawns | none |\n",
+      "why": "bold rank and tier"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter | Next |\n|---|---|---|---|---|---|\n| 1 | guard_body.py | E3 | 1,900 lines | spawns | census |\n| 2 | guard.sh | E1 | 4 of 7 spawns | spawns | none |\n",
+      "why": "structural inference ranked above a measurement"
+    },
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter | Next |\n|---|---|---|---|---|---|\n| 1 | WDAC | E4 | suspicion | none | spawn_probe |\n| 2 | guard.sh | E1 | census | spawns | none |\n",
+      "why": "suspicion at rank 1"
+    }
+  ]
+}

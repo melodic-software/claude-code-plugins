@@ -1,0 +1,130 @@
+{
+  "skill": "performance:verify",
+  "plugin": "performance",
+  "skill_dir": "plugins/performance/skills/verify",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are verification:measure and verification:confirm for general before/after and outcome checks, sibling snapshot and protect, and review:quality-gate for general diff review.",
+  "competitors": [
+    "verification:measure",
+    "verification:confirm",
+    "performance:snapshot",
+    "performance:protect",
+    "review:quality-gate"
+  ],
+  "competitor_dirs": {
+    "verification:measure": "plugins/verification/skills/measure",
+    "verification:confirm": "plugins/verification/skills/confirm",
+    "performance:snapshot": "plugins/performance/skills/snapshot",
+    "performance:protect": "plugins/performance/skills/protect",
+    "review:quality-gate": "plugins/review/skills/quality-gate"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The post snapshot is in. Re-derive the result from scratch and tell me if we met the target."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My teammate says the parser is 40% faster. Is that real? Check it without trusting their numbers."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Summarize how the allocator work turned out against its goal, honestly."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Do an independent verification of the speedup in this branch against the goal file."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Don't take my word for the benchmark numbers; recompute them in a clean context."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Verify this speedup before I announce it."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is the drop in query count real, or noise? Give me a straight yes or no on the goal."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Final check on the optimization: we were 2% short of target, report it without rounding up."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Confirm from fresh measurements whether the startup time goal was reached."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Produce the final performance write-up after the post snapshot, re-deriving every number."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review this diff for code quality before I open the PR."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Did my bug fix actually work? Build, test and check the outcome."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Take the post-change snapshot for the cache work."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The result was MET on the counter. Add it to CI so it can't regress."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Capture a baseline before I start optimizing the encoder."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Did complexity go down after the refactor? Compare to the baseline."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run the tests and lint for my changed files."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Keep trying optimizations until the target is hit."
+    }
+  ]
+}

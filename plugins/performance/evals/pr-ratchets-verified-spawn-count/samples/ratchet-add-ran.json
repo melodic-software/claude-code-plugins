@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 /plugins/performance/scripts/ratchet.py add --name guard-spawns --field spawns --goal 'guard.sh deny path 4 -> 1. Correlation: unproven: no duration rig run yet' --command 'bash bench/count-spawns.sh'"}}
+      ],
+      "why": "the bundled add"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 .performance/ratchet.py add --file .performance/ratchets.json --runs 2 --name guard-spawns --field spawns --goal g --command 'bash bench/count-spawns.sh'"}}
+      ],
+      "why": "the vendored copy"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 \"/plugins/performance/scripts/ratchet.py\" add --name guard-spawns --field spawns --goal \"guard.sh 4 -> 1. Correlation: unproven: no duration rig run yet\" --command \"bash bench/count-spawns.sh\""}}
+      ],
+      "why": "double-quoted arguments"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 /plugins/performance/scripts/ratchet.py add --help"}}
+      ],
+      "why": "help is not add"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "cat > .performance/ratchets.json <<'EOF'\n{\"counters\": [{\"name\": \"guard-spawns\", \"ceiling\": 1}]}\nEOF"}}
+      ],
+      "why": "hand-written ceiling, never measured"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 .performance/ratchet.py check --file .performance/ratchets.json"}}
+      ],
+      "why": "check without add"
+    }
+  ]
+}

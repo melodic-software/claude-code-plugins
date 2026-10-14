@@ -1,0 +1,52 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "claude-api",
+            "args": "hillclimb: support chatbot system prompt"
+          }
+        }
+      ],
+      "why": "starts the eval hillclimb, not climb"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/prompts/system.md"
+          }
+        }
+      ],
+      "why": "no skill call at all"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "performance:climb",
+            "args": "pass-rate"
+          }
+        }
+      ],
+      "why": "climbs the eval score"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "climb"
+          }
+        }
+      ],
+      "why": "unqualified climb name"
+    }
+  ]
+}

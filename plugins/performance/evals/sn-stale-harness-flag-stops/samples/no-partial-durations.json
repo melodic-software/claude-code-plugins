@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped before timing. The goal asks for p50, p95 over N>=20; no duration was taken and none is reported.",
+      "why": "restates the goal's percentile list without numbers"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Stopped: --json is unsupported. For reference, p50 = 4.1 ms from a quick run.",
+      "why": "partial number"
+    },
+    {
+      "answer": "**p95:** 7 ms over 20 calls (without --json).",
+      "why": "bold partial number"
+    }
+  ]
+}

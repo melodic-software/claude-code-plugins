@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "cp /plugins/performance/scripts/ratchet.py .performance/ratchet.py"}},
+        {"tool": "Bash", "input": {"command": "python3 .performance/ratchet.py check --file .performance/ratchets.json"}},
+        {"tool": "Bash", "input": {"command": "git status --short"}}
+      ],
+      "why": "vendoring and checking only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "gh pr merge 12 --squash"}}],
+      "why": "merge"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "git push -u origin perf/ratchet-guard-spawns"}}],
+      "why": "push"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "git -C /w merge --no-ff perf/ratchet"}}],
+      "why": "local merge with -C"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "gh api -X PUT repos/o/r/pulls/12/merge"}}],
+      "why": "merge through the API"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "gh pr ready 12"}}],
+      "why": "marking ready"
+    }
+  ]
+}

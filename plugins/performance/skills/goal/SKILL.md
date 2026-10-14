@@ -1,5 +1,5 @@
 ---
-description: "Construct a performance goal the data can settle: metric, command, realistic vs ideal targets, and the floor before any work. Surfaces 'your target is below the measured floor, no code change can reach it' up front. Human-gated; never unattended. Use when: 'set a performance target', 'is this target achievable', 'define done for this optimization', 'what is the floor here'. After /performance:target, before /performance:snapshot."
+description: "Performance goal the data can settle: metric, command, realistic and ideal targets, and the floor computed before any work, surfacing 'your target is below the measured floor, no code change can reach it' up front. Human-gated, never unattended. Use when: 'set a performance target', 'is this target achievable', 'define done for this optimization', 'what is the floor here'. After /performance:target, before /performance:snapshot."
 user-invocable: true
 argument-hint: "[<target>]"
 disable-model-invocation: false
@@ -14,20 +14,17 @@ metadata:
 
 Answers **"what would count as done, and is it reachable at all?"**
 
-The failure this prevents: a goal of p50 <= 250 ms on a host that charges 0.3-2.8 s for one
-irreducible process spawn is **unreachable by any code change**, and a goal agreed before the floor
-is computed hides that until the work is spent. Computing the floor first reframes the task from
-"make it fast" to "remove the spawn or accept the floor".
+Compute the floor before the goal is agreed: a goal of p50 <= 250 ms on a host that charges
+0.3-2.8 s for one irreducible process spawn is **unreachable by any code change**, and the task
+becomes "remove the spawn or accept the floor", not "make it fast".
 
 ## Human-gated, always
 
-This phase requires the user. `/performance:snapshot` and `/performance:verify` may run unattended;
-this one may not, under any autonomy setting.
-
-The floor routinely produces a verdict the user has to act on ("this target is unreachable"), and
-choosing between a reframed goal, a different target, and accepting the floor is a judgment about
-what the work is for. An agent resolving it converts a surfaced constraint back into a silent one.
-If the user is unavailable, **stop and say what is blocked**; do not pick a target and proceed.
+This phase requires the user, under any autonomy setting; `/performance:snapshot` and
+`/performance:verify` may run unattended. Choosing between a reframed goal, a different target and
+accepting the floor is a judgment about what the work is for, and an agent resolving it turns a
+surfaced constraint back into a silent one. If the user is unavailable, **stop and say what is
+blocked**; do not pick a target and proceed.
 
 ## What a goal must contain
 
@@ -79,10 +76,10 @@ has not stated one, the goal is not locked: stop and say what is blocked, and do
 
 **Code path under test, required.** Name the code path(s) the metric exercises and the **observable**
 that identifies each: a marker file, an exit code, the set of processes spawned. A goal that names no
-path is not locked. A harness can sit on a rare branch without erroring: in #4437 a stale
-`bench.launched` marker sent every Stop-hook sample down the rare Python path while the common skip
-path went unmeasured. `/performance:snapshot` step 2b resets or records the path-selecting state
-before each arm and reports which path ran.
+path is not locked. A harness can sit on a rare branch without erroring: a stale `bench.launched`
+marker once sent every Stop-hook sample down the rare Python path while the common skip path went
+unmeasured. `/performance:snapshot` step 2b resets or records the path-selecting state before each
+arm and reports which path ran.
 
 ### 2. The floor, computed before any work
 

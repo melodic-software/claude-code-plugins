@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"There is one mismatch: `lenient` with `rm -rf /tmp/build`. The before arm prints `deny`; the after arm prints `ask`.\",\"stop_reason\":\"end_turn\"}",
+      "why": "before deny, after ask, in lenient"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The verifier is still running. I'll write the report when it finishes.\",\"stop_reason\":\"end_turn\"}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The verdict is **NOT MET**. In lenient mode, `rm -rf /tmp/build` now gets `ask` where it got `deny`.\\n\\n```text\\nTarget:      0 / 0        Floor: 0\\nCounter:     3 -> 0   [headline] [unproven]\\nCorrelation: unproven\\nDeployed:    n/a (no install record for this subject)\\nLimiter:     the bash interpreter exec; the after arm uses only builtins\\nRuled out:   failed work: every differential run exited 0\\nVerdict:     NOT MET\\nBehavior:    CHANGED: lenient + recursive rm, deny -> ask (differential: 6 inputs x {strict, lenient}, 1 mismatch)\\nNot covered: wall-clock timing; inputs outside the 6-line corpus\\n```\",\"stop_reason\":\"end_turn\"}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"That notification was only the wait timer finishing. The verification report above is complete and unchanged.\",\"stop_reason\":\"end_turn\"}",
+      "why": "named in an earlier result turn"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"In lenient mode, `rm -rf /tmp/build` went from deny to ask.\",\"stop_reason\":\"end_turn\"}",
+      "why": "deny to ask in lenient"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"CHANGED: the after arm prints ask instead of deny for rm -rf in lenient mode.\",\"stop_reason\":\"end_turn\"}",
+      "why": "ask instead of deny"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"| lenient | rm -rf /tmp/build | deny -> ask |\",\"stop_reason\":\"end_turn\"}",
+      "why": "table row with an arrow"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Strict and lenient modes are byte-identical; git push --force is ask in lenient mode both before and after.\",\"stop_reason\":\"end_turn\"}",
+      "why": "the unchanged git force push case"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Lenient mode was not exercised.\",\"stop_reason\":\"end_turn\"}",
+      "why": "mode not covered"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"In strict mode rm -rf is still deny.\",\"stop_reason\":\"end_turn\"}",
+      "why": "no downgrade named"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"In lenient mode, rm -rf was not changed from deny to ask.\",\"stop_reason\":\"end_turn\"}",
+      "why": "negated"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Lenient mode: unchanged.\\nStrict mode: deny -> ask for git push --force.\",\"stop_reason\":\"end_turn\"}",
+      "why": "lenient and the downgrade on different lines"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_01\",\"content\":\"Expected: lenient rm -rf deny -> ask is a behavior change\"}]}}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Verdict: MET.\",\"stop_reason\":\"end_turn\"}",
+      "why": "the words only in a tool result, not in the reply"
+    }
+  ]
+}

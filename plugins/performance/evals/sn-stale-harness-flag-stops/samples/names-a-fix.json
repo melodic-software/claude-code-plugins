@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Two fixes, your choice:\n1. Update bench/time-guard.sh so it supports --json and prints p50_ms.\n2. Change the goal's metric command to parse the ms= lines instead.",
+      "why": "numbered fixes"
+    },
+    {
+      "answer": "Either update the harness, or change the goal's metric command, then rerun /performance:snapshot baseline.",
+      "why": "either/or prose"
+    },
+    {
+      "answer": "- **Fix:** amend the goal's metric command in PLAN.md to drop `--json`.",
+      "why": "bulleted fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No fix needed; the flag is cosmetic.",
+      "why": "declines a fix"
+    },
+    {
+      "answer": "I do not think we should change the goal here.",
+      "why": "negated change"
+    },
+    {
+      "answer": "I won't update the harness.",
+      "why": "negated update"
+    },
+    {
+      "answer": "Shall I proceed without --json?",
+      "why": "a question, no fix named"
+    }
+  ]
+}

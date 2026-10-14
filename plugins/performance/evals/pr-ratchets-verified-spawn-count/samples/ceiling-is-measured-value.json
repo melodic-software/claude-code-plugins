@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"counters\": [\n    {\n      \"name\": \"guard-spawns\",\n      \"command\": \"bash bench/count-spawns.sh\",\n      \"field\": \"spawns\",\n      \"ceiling\": 1,\n      \"goal\": \"guard 4->1. Correlation: unproven: no duration rig run yet\"\n    }\n  ]\n}\n",
+      "why": "what ratchet.py add writes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"counters\": [{\"name\": \"guard-spawns\", \"field\": \"spawns\", \"ceiling\": 2, \"goal\": \"g\"}]}\n",
+      "why": "headroom above the measured value"
+    },
+    {
+      "answer": "{\"counters\": [{\"name\": \"guard-spawns\", \"field\": \"spawns\", \"ceiling\": 10, \"goal\": \"g\"}]}\n",
+      "why": "a round number"
+    },
+    {
+      "answer": "{\"counters\": [{\"name\": \"guard-spawns\", \"field\": \"spawns\", \"ceiling\": 1.5, \"goal\": \"g\"}]}\n",
+      "why": "fractional headroom"
+    }
+  ]
+}

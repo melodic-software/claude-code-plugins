@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: ve-differential-catches-mode-change
+description: 'Verify main path: a fresh-context verifier re-derives a 3-to-0 spawn claim for a guard hook, runs a differential over a real-command corpus in every mode the goal names, and writes the report block. The after arm keeps strict mode byte-identical but turns the rm -rf deny into an ask in lenient mode, so only a differential that covers both modes sees it. The subject has no install record. A run needs --scaffold and --allow-tools Bash.'
+tags: [verify, differential]
+plugins: ["../.."]
+expected_outcome: 'The run dispatches a verifier that does not inherit the implementer''s numbers, runs the differential over arms/corpus.txt in strict and lenient modes, and reports Behavior: CHANGED for the lenient rm -rf deny-to-ask downgrade, stated separately from the counter result. The report carries Limiter:, Ruled out:, Verdict:, Not covered: and Deployed: n/a (no install record for this subject).'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/performance:verify the 3-to-0 spawn reduction in guard.sh. Before arm: arms/before/guard.sh; after arm: arms/after/guard.sh; a corpus of real commands is in arms/corpus.txt. The goal and both snapshots are under .work/guard-hook/.'
+  allowed_tools: [Bash, Read, Grep, Glob, Skill, Agent]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: verifier-dispatched
+    type: tool_used
+    tool: Agent
+    min: 1
+    arm: with-only
+  - name: behavior-changed
+    type: regex
+    target: trace
+    pattern: '^(?=[^\n]*"type":"result")[^\n]*?(?:"result":"|\\n)[^\w<\\]*Behavior:[^\w<\\]*CHANGED\b'
+    flags: 'm'
+    arm: both
+  - name: names-lenient-downgrade
+    type: regex
+    target: trace
+    pattern: '^(?=[^\n]*"type":"result")[^\n]*?(?:\blenient\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,200}?\bdeny\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,40}?(?:->|→|\bto\b|\bbecomes?\b|\bnow\b|\binto\b)(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,20}?\bask\b|\bask\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,60}?\binstead of\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,20}?\bdeny\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,200}?\blenient\b|\blenient\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,200}?\bask\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,60}?\binstead of\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,20}?\bdeny\b|\bdeny\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,40}?(?:->|→|\bto\b|\binto\b)(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,20}?\bask\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,200}?\blenient\b|\blenient\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,200}?\bbefore\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,80}?\bdeny\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,80}?\bafter\b(?:(?!\\n|\b(?:not|never|no)\b|n[''’]t\b)[^\n]){0,80}?\bask\b)'
+    flags: 'mi'
+    arm: both
+  - name: report-lines-before-verdict
+    type: regex
+    target: trace
+    pattern: '^(?=[^\n]*"type":"result")(?=[^\n]*(?:"result":"|\\n)[^\w<\\]*Not covered:)[^\n]*?(?:"result":"|\\n)[^\w<\\]*Limiter:[^\n]*?\\n[^\w<\\]*Ruled out:[^\n]*?\\n[^\w<\\]*Verdict:[^\w<\\]*(?:MET|NOT MET|UNMEASURABLE)\b(?![ \t]*\|)'
+    flags: 'm'
+    arm: both
+  - name: deployed-not-applicable
+    type: regex
+    target: trace
+    pattern: '^(?=[^\n]*"type":"result")[^\n]*?(?:"result":"|\\n)[^\w<\\]*Deployed:[^\w<\\]*n/a\b'
+    flags: 'mi'
+    arm: both

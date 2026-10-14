@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "Floor: 0.4 ms per call (measured by spawn_probe: one no-op `/bin/sh -c exit 0`). is_measurable: \"spawn cost spread 2.21x with a 0.4 ms floor: within the measurable band\".\n\nYour target of p50 <= 0.05 ms is below the measured floor. No code change can reach it: the hook is itself a spawned process.\n\nThis is your call: reframe the goal around the counter, change the target, remove the spawn, or accept the floor.",
+      "why": "below the floor, no code change"
+    },
+    {
+      "answer": "**STOP.** 0.05 ms is under the host's spawn floor of 0.4 ms, so the target is unreachable whatever the hook does. Options: reframe, a different target, or accept this floor.",
+      "why": "under the floor, unreachable"
+    },
+    {
+      "answer": "I've stopped before writing the goal. A p50 of 0.05 ms per call is below this host's measured cost of starting any process, so no change to `hooks/guard.sh` can reach it.",
+      "why": "no change to a dotted file name can reach it"
+    },
+    {
+      "answer": "I stopped before writing a goal. **p50 ≤ 0.05 ms can't be reached by any change to `hooks/guard.sh`**, because it's below what this host charges just to start a process.",
+      "why": "can't be reached by any change"
+    },
+    {
+      "answer": "No code change can get this hook to 0.05 ms. Even an empty process spawn on this machine takes about nine times that long, so I have not locked the goal.",
+      "why": "no code change can get it there"
+    },
+    {
+      "answer": "**Stopped: your 0.05 ms target can't be reached by changing the code.** I haven't written a goal to `PLAN.md`.",
+      "why": "can't be reached by changing the code"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Floor: 0.4 ms. Your target is not below the floor once the hook stays warm, so we can proceed.",
+      "why": "negated"
+    },
+    {
+      "answer": "The target sits above the floor of 0.02 ms, so it is reachable. Realistic: 0.05 ms, Ideal: 0.03 ms.",
+      "why": "above the floor"
+    },
+    {
+      "answer": "The target is not unreachable; a code change can reach it with a compiled hook.",
+      "why": "negated unreachable"
+    },
+    {
+      "answer": "The 0.05 ms target can be reached by changing the code: a code change can get this hook there.",
+      "why": "negated, reachable"
+    },
+    {
+      "answer": "Shall I proceed with p50 <= 0.05 ms as the Realistic target?",
+      "why": "a question, no floor verdict"
+    },
+    {
+      "answer": "- **target < floor**: **STOP and surface it.** No code change reaches this target. The user decides: reframe the goal, change the target, remove the operation, or accept the floor.",
+      "why": "pasted rule from the skill, no measured verdict"
+    }
+  ]
+}

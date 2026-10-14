@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Rank | Candidate | Tier | What is known | Counter that would settle it | Cheapest next instrument |\n|---|---|---|---|---|---|\n| 1 | hooks/guard.sh wrapper | E1 | census: 4 of 7 spawns per call | process spawns per call | none: census exists |\n",
+      "why": "the skill's table header"
+    },
+    {
+      "answer": "| # | Candidate | Tier | Known | Counter | Next instrument |\n|---|---|---|---|---|---|\n",
+      "why": "short column names"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Rank | Candidate | What is known |\n|---|---|---|\n| 1 | guard.sh | 4 of 7 spawns |\n",
+      "why": "no tier or counter column"
+    },
+    {
+      "answer": "Ranked by tier: guard.sh (E1), guard_body.py (E3), WDAC (E4). Counter: spawns per call.",
+      "why": "prose, no table"
+    }
+  ]
+}

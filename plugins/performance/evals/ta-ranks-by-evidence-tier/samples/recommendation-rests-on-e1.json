@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Recommended target: the hooks/guard.sh wrapper layer, resting on E1 (the census attributes 4 of 7 spawns to it). Next: /performance:goal hooks/guard.sh.",
+      "why": "recommendation and its tier"
+    },
+    {
+      "answer": "**Recommendation:** guard.sh (E1); not guard_body.py, whose size is not a cost model.",
+      "why": "a later negation about another candidate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Recommendation: instrument this first, since nothing here reaches E1.",
+      "why": "instrument-first with a negated E1"
+    },
+    {
+      "answer": "Recommended target: guard_body.py, resting on E3.",
+      "why": "rests on E3"
+    },
+    {
+      "answer": "I recommend guard.sh.\n\nThe census is E1 evidence.",
+      "why": "tier on a different line from the recommendation"
+    },
+    {
+      "answer": "Recommended next step: instrument guard_body.py, then compare with the E1 census.",
+      "why": "an instrument recommendation"
+    }
+  ]
+}

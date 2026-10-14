@@ -1,5 +1,5 @@
 ---
-description: "Sweep the whole AI-assisted development process for ways to go faster without losing accuracy: this session's work, git, hooks and the rest of the setup. Runs in the background, returns evidenced findings ranked by measured size, and offers speedups this session can adopt now. Edits no repository file or setting. Use when: 'go faster', 'how can we go faster', 'speed up this session', 'what is slowing us down', 'whole-process speed sweep'. Skip: ranking candidates already in hand is /performance:target."
+description: "Background sweep of the whole AI-assisted development process (this session's work, git, hooks, the rest of the setup) for ways to go faster without losing accuracy, returning evidenced findings ranked by measured size and speedups to adopt now; edits no repository file or setting. Use when: 'go faster', 'how can we go faster', 'speed up this session', 'what is slowing us down', 'whole-process speed sweep'. Skip: ranking candidates already in hand is /performance:target."
 user-invocable: true
 argument-hint: "[unattended]"
 disable-model-invocation: false

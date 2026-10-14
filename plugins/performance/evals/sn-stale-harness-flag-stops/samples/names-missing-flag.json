@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped at step 1b.\n\n```text\nTool: bench/time-guard.sh @ 7c1e2d0 (no --version) flags-ok: no — --json missing behind-upstream: not determinable column-ok: no — p50_ms missing\n```\n\nThe goal's metric command passes `--json`, which this copy of time-guard.sh does not support (its --help lists only --iterations, and the dry run exits 2: unknown option --json). No partial numbers are reported.",
+      "why": "flags-ok no, not supported"
+    },
+    {
+      "answer": "`bench/time-guard.sh` has no `--json` flag: `--help` lists only `--iterations`. The run stops here.",
+      "why": "no such flag phrasing via help"
+    },
+    {
+      "answer": "The harness rejects --json as an unknown option, so the goal's metric cannot be produced.",
+      "why": "unknown option"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Tool: bench/time-guard.sh @ 7c1e2d0 flags-ok: yes behind-upstream: not determinable column-ok: yes\n\nRan with --json; p50 4 ms.",
+      "why": "flags reported fine"
+    },
+    {
+      "answer": "Baseline captured: spawns=3 on the deny path. Nothing is missing.",
+      "why": "never mentions the flag"
+    },
+    {
+      "answer": "The --json flag works; flags-ok: yes.",
+      "why": "claims support"
+    }
+  ]
+}

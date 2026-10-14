@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"**Behavior changed, so the 3-to-0 spawn reduction is NOT MET.**\\n\\n**Behavior: CHANGED (ranked above the performance claim)**\\n- one mismatch: `lenient` with `rm -rf /tmp/build`.\",\"stop_reason\":\"end_turn\"}",
+      "why": "bold heading line in the reply"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The verifier is still running. I'll write the report when it finishes.\",\"stop_reason\":\"end_turn\"}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The verdict is **NOT MET**. In lenient mode, `rm -rf /tmp/build` now gets `ask` where it got `deny`.\\n\\n```text\\nTarget:      0 / 0        Floor: 0\\nCounter:     3 -> 0   [headline] [unproven]\\nCorrelation: unproven\\nDeployed:    n/a (no install record for this subject)\\nLimiter:     the bash interpreter exec; the after arm uses only builtins\\nRuled out:   failed work: every differential run exited 0\\nVerdict:     NOT MET\\nBehavior:    CHANGED: lenient + recursive rm, deny -> ask (differential: 6 inputs x {strict, lenient}, 1 mismatch)\\nNot covered: wall-clock timing; inputs outside the 6-line corpus\\n```\",\"stop_reason\":\"end_turn\"}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"That notification was only the wait timer finishing. The verification report above is complete and unchanged.\",\"stop_reason\":\"end_turn\"}",
+      "why": "report in an earlier result turn; the last turn only notes a background timer"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"- **Behavior:** **CHANGED** (lenient mode, rm -rf: deny -> ask)\",\"stop_reason\":\"end_turn\"}",
+      "why": "bold bullet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Behavior:    UNCHANGED (differential: 6 inputs, modes covered: strict)\",\"stop_reason\":\"end_turn\"}",
+      "why": "one mode only, reports unchanged"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Behavior: not CHANGED in strict mode.\",\"stop_reason\":\"end_turn\"}",
+      "why": "negated"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_01\",\"content\":\"Behavior:    CHANGED: <what changed, ranked above the performance claim>\"}]}}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The lenient mode changed behavior.\",\"stop_reason\":\"end_turn\"}",
+      "why": "template only in a tool result; the reply has no Behavior line"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Behavior:    <UNCHANGED | CHANGED>\",\"stop_reason\":\"end_turn\"}",
+      "why": "pasted template placeholder"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The spawn count dropped from 3 to 0 on the deny path.\\n\\nVerdict: MET. Reproduced by an independent verifier: yes.\",\"stop_reason\":\"end_turn\"}",
+      "why": "skips the differential"
+    }
+  ]
+}
