@@ -18,8 +18,10 @@ following those changes.
 
 ## Decision
 
-1. **`plugins/session-flow/scripts/transcript_reader.py` is the only code in session-flow that
-   parses transcript JSONL.** It owns record iteration, usage dedup by `message.id` (last record
+1. **`lib/transcript_reader.py` is the only code that parses transcript JSONL.** It is vendored
+   per [ADR 0019](0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md), and
+   session-flow's code imports its generated copy, `plugins/session-flow/scripts/transcript_reader.py`.
+   It owns record iteration, usage dedup by `message.id` (last record
    wins), typed-turn detection and the parse stats, including a count of unknown record types.
 2. **Store readers never import it.** `audit-sessions`' `collect.py` imports the reader and writes
    the store. `census.py` and `sweep.py` read only the store, so a second parsing loop has no way back in.
