@@ -5,6 +5,10 @@
     },
     {
       "answer": "Run `claude plugin eval . --trust-plugin --model <full model ID> --judge-model <full model ID> --json out.json`. Never pin with an alias like `sonnet`. Parse out.json with jq rather than trusting the exit code alone."
+    },
+    {
+      "answer": "```bash\nclaude plugin eval . --no-publish --trust-plugin --json out.json\n```",
+      "why": "flag after --no-publish"
     }
   ],
   "fail": [
@@ -18,6 +22,10 @@
     {
       "answer": "Trust the plugin first.",
       "why": "no flag"
+    },
+    {
+      "answer": "Don't pass --trust-plugin in CI.",
+      "why": "negated"
     }
   ]
 }

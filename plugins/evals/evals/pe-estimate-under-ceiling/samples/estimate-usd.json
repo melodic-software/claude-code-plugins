@@ -16,6 +16,14 @@
     {
       "answer": "~4 dollars total.",
       "why": "whole dollars"
+    },
+    {
+      "answer": "Estimate: USD 4.80 (24 runs). It fits, so it starts with no confirmation.",
+      "why": "currency code first"
+    },
+    {
+      "answer": "Estimate: 4.80 (USD), 24 runs.",
+      "why": "currency in parentheses"
     }
   ],
   "fail": [

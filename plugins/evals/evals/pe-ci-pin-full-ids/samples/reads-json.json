@@ -25,6 +25,14 @@
     {
       "answer": "Upload results.json as a build artifact.",
       "why": "kept, not read"
+    },
+    {
+      "answer": "Check the exit code only; never parse the JSON.",
+      "why": "negated parse in the next clause"
+    },
+    {
+      "answer": "the JSON shows nothing the exit code doesn't, so gate on the exit code.",
+      "why": "JSON dismissed"
     }
   ]
 }

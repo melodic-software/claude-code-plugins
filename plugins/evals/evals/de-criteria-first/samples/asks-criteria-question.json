@@ -28,6 +28,10 @@
       "why": "unrelated question"
     },
     {
+      "answer": "Before I write anything: what's the target directory and which test framework do you use?",
+      "why": "target means a directory"
+    },
+    {
       "answer": "Success criteria: 95% of summaries are accurate.",
       "why": "no question"
     }

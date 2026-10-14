@@ -1,6 +1,10 @@
 {
   "pass": [
     {
+      "answer": "No. Each run starts from a throwaway home: `CLAUDE.md`, `.claude/rules`, memory and user settings are never loaded.",
+      "why": "observed reply, path dots inside the gap"
+    },
+    {
       "answer": "No. Every run starts from a throwaway home with no CLAUDE.md, rules, settings or memory, so your rules never load, and a shim that re-injects them measures the shim. Use /harness-config:unhobble instead: strip the instructions on a branch, log where the model stumbles, and restore only what repeated evidence earns."
     },
     {

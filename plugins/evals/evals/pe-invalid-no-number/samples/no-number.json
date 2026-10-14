@@ -40,6 +40,22 @@
     {
       "answer": "Delta .27, INVALID.",
       "why": "no leading zero"
+    },
+    {
+      "answer": "INVALID, so a 27 percentage-point gain is not reportable.",
+      "why": "percentage-point"
+    },
+    {
+      "answer": "Delta +27 (83 vs 56), but the run is INVALID.",
+      "why": "whole-number delta and arms"
+    },
+    {
+      "answer": "The +0.270 delta comes from an INVALID run.",
+      "why": "trailing zero"
+    },
+    {
+      "answer": "A twenty-seven points gain from an INVALID run is not a result.",
+      "why": "spelled out"
     }
   ]
 }

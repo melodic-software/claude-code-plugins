@@ -8,6 +8,10 @@
     },
     {
       "answer": "No number yet. The gate says INVALID: 2 run errors, and permission denials unchecked with no kept traces. Share `verdict: INVALID (2 run errors; permission denials unchecked: no kept traces)` in the channel in place of a delta, fix the errors, and rerun with --keep-temp."
+    },
+    {
+      "answer": "The run is invalid (2 run errors, no kept traces), so there is no delta. Post the verdict line and its reasons instead.",
+      "why": "lowercase"
     }
   ],
   "fail": [

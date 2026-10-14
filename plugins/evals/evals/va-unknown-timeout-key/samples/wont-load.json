@@ -8,6 +8,18 @@
     },
     {
       "answer": "No. The suite fails to load because `timeout` isn't a recognized key; use timeout_seconds."
+    },
+    {
+      "answer": "No, not as written: `summarize-meeting/prompt.md` uses `timeout: 120`. `timeout` isn't a recognized key, so this case is rejected. Rename it to `timeout_seconds: 120`.",
+      "why": "observed reply"
+    },
+    {
+      "answer": "**No, not all of it.** `summarize-meeting` will fail to load, because its `prompt.md` uses `timeout: 120`. The key the loader accepts is `timeout_seconds`.",
+      "why": "observed reply, fail-to-load phrasing"
+    },
+    {
+      "answer": "One case will fail to load: `timeout: 120` is an unknown key.",
+      "why": "fail-to-load without a leading No"
     }
   ],
   "fail": [
@@ -28,6 +40,18 @@
     },
     {
       "answer": "It should load without problems; nothing will fail."
+    },
+    {
+      "answer": "It loads. It doesn't fail to load over timeout: 120, which is an alias of timeout_seconds.",
+      "why": "negated fail-to-load"
+    },
+    {
+      "answer": "It loads; this is not a FAIL. timeout: 120 is unknown to older binaries but newer ones accept it as timeout_seconds.",
+      "why": "not a FAIL"
+    },
+    {
+      "answer": "It loads. Two warnings won't stop it loading.",
+      "why": "warnings do not block loading"
     }
   ]
 }

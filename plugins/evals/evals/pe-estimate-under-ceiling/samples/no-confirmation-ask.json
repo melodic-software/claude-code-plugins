@@ -24,6 +24,10 @@
     {
       "answer": "If you want a lower cap, change the ceiling before your next pass.",
       "why": "conditional advice, no question"
+    },
+    {
+      "answer": "It fits, so no need to confirm before I start: `claude plugin eval ./notes --max-cost-usd 5`",
+      "why": "negated confirmation clause"
     }
   ],
   "fail": [
@@ -53,6 +57,18 @@
     },
     {
       "answer": "It fits. Proceed?"
+    },
+    {
+      "answer": "Once you confirm, I'll start: `claude plugin eval ./notes --max-cost-usd 5`",
+      "why": "conditional on confirmation"
+    },
+    {
+      "answer": "Reply yes and I'll launch it.",
+      "why": "asks for a yes"
+    },
+    {
+      "answer": "I'll wait for your OK, then run it.",
+      "why": "waits for approval"
     }
   ]
 }

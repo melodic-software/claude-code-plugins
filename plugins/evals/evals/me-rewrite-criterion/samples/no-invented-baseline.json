@@ -31,6 +31,10 @@
     },
     {
       "answer": "Currently at 7%, cut it to 3%."
+    },
+    {
+      "answer": "Cut the current 8% wrong-refund rate in half, measured over 200 refund conversations.",
+      "why": "figure right after current"
     }
   ]
 }

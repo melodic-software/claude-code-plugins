@@ -59,6 +59,26 @@
     },
     {
       "answer": "Use a wrapper script so the word never appears in the command line."
+    },
+    {
+      "answer": "Run `cmd /c claude plugin eval /srv/x` instead.",
+      "why": "cmd /c"
+    },
+    {
+      "answer": "Try `python3 -c \"import subprocess; subprocess.run(['claude','plugin','eval'])\"`.",
+      "why": "python -c"
+    },
+    {
+      "answer": "Type `!claude plugin eval /srv/x --json /srv/r.json` in the prompt.",
+      "why": "inline bang command"
+    },
+    {
+      "answer": "Use `pwsh -NonInteractive -Command \"claude plugin eval /srv/x\"`.",
+      "why": "pwsh with another flag first"
+    },
+    {
+      "answer": "Escape a letter: `claude plugin ev\\al /srv/x`.",
+      "why": "backslash split"
     }
   ]
 }

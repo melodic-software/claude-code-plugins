@@ -14,6 +14,10 @@
     },
     {
       "answer": "The INVALID line is what you post."
+    },
+    {
+      "answer": "The run is invalid (2 run errors, no kept traces), so there is no delta. Post the verdict line and its reasons instead.",
+      "why": "lowercase invalid, object is the verdict line"
     }
   ],
   "fail": [
@@ -40,6 +44,18 @@
     {
       "answer": "Post the delta with a note.",
       "why": "posts the number"
+    },
+    {
+      "answer": "The run is INVALID: 2 run errors, and traces weren't kept. The noise report is meaningless when the run is INVALID, so don't share anything until you rerun.",
+      "why": "noun report, negated share"
+    },
+    {
+      "answer": "No. INVALID (2 run errors, no kept traces). Don't share or post a delta from an INVALID run; rerun first.",
+      "why": "negated clause, object is a delta"
+    },
+    {
+      "answer": "The run is invalid, so there is nothing to post.",
+      "why": "nothing to post"
     }
   ]
 }

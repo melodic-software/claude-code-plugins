@@ -8,6 +8,15 @@
     },
     {
       "answer": "Target: a 3x reduction from the current rate over 500 chats."
+    },
+    {
+      "answer": "Across 500 refund conversations, the share with a wrong amount is at most half the current rate."
+    },
+    {
+      "answer": "Halve the current wrong-amount rate over 500 conversations; measure that rate first."
+    },
+    {
+      "answer": "Cut the baseline wrong-amount rate by 50% across 500 chats."
     }
   ],
   "fail": [
@@ -26,6 +35,10 @@
     {
       "answer": "Improve on current behavior across many chats.",
       "why": "no quantity"
+    },
+    {
+      "answer": "Wrong refund amounts in under 1% of 200 refund conversations (current rate unknown).",
+      "why": "absolute target, baseline word unrelated to the quantity"
     }
   ]
 }

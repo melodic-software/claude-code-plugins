@@ -29,6 +29,14 @@
     },
     {
       "answer": "```js\ntest('summary has three bullets', () => {})\n```"
+    },
+    {
+      "answer": "Here are cases for the summarizer:\n1. A refund thread with two issues\n2. An angry customer\n3. A ticket in Spanish",
+      "why": "plain numbered list of cases"
+    },
+    {
+      "answer": "| Input | Expected |\n|---|---|\n| refund thread | three bullets naming the refund |",
+      "why": "table of cases"
     }
   ]
 }

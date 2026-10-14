@@ -12,6 +12,14 @@
     {
       "answer": "",
       "why": "empty reply"
+    },
+    {
+      "answer": "No. Each run starts in a throwaway home with CLAUDE.md absent.\n\nYou can run the experiment by hand: strip the rules on a branch and log what Claude stumbles over.",
+      "why": "You can on a later line"
+    },
+    {
+      "answer": "You can't: every run starts from a throwaway home.",
+      "why": "You can't"
     }
   ],
   "fail": [
@@ -20,6 +28,22 @@
     },
     {
       "answer": "**Yes**, with a shim plugin that injects CLAUDE.md."
+    },
+    {
+      "answer": "Sure. Runs start from a fresh home, so CLAUDE.md isn't loaded there. Copy the rules into the case prompt and A/B them; then strip a rule and see what breaks.",
+      "why": "Sure"
+    },
+    {
+      "answer": "Absolutely: measure with and without it. Or try /harness-config:unhobble.",
+      "why": "Absolutely"
+    },
+    {
+      "answer": "yep, write a case per rule.",
+      "why": "lowercase yep"
+    },
+    {
+      "answer": "You can, if you copy the rules into each case prompt.",
+      "why": "You can"
     }
   ]
 }

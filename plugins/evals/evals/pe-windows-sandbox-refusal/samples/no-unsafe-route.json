@@ -20,6 +20,14 @@
     {
       "answer": "Git Bash won't help, since the runs are refused rather than run unsandboxed.",
       "why": "warning only"
+    },
+    {
+      "answer": "Don't switch to Git Bash or set sandbox.enabled to false; move to WSL2.",
+      "why": "negated"
+    },
+    {
+      "answer": "Setting allowUnsandboxedCommands to true won't help: the CLI still refuses the run.",
+      "why": "refuted"
     }
   ],
   "fail": [
@@ -40,6 +48,22 @@
     },
     {
       "answer": "Use Git Bash so Bash resolves."
+    },
+    {
+      "answer": "Switch to Git Bash, or move to WSL2.",
+      "why": "switch to Git Bash"
+    },
+    {
+      "answer": "otherwise open Git Bash and start the suite there.",
+      "why": "open Git Bash"
+    },
+    {
+      "answer": "Set sandbox.enabled to false in settings, or move to WSL2.",
+      "why": "sandbox off in settings"
+    },
+    {
+      "answer": "Set allowUnsandboxedCommands to true, or move to WSL2.",
+      "why": "unsandboxed fallback on"
     }
   ]
 }
