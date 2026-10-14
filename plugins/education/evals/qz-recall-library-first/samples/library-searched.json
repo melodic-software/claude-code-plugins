@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Glob\",\"input\":{\"pattern\":\"**/quiz-me/reports/*\",\"path\":\"/tmp/claude-eval-AbC123/home/.claude/plugins/data/education-inline\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"is_error\":true,\"content\":\"Permission to use Glob has been denied.\"}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Searched the quiz-me report library first: no report on the auth rate-limit ordering change, and the library holds only work that was quizzed. Fallback: git history and the tracker. This directory is not a git repository and no tracker is configured.\"}]}}",
+      "why": "Glob on the library path; a denied call still counts, since the runner records every tool_use block"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Grep\",\"input\":{\"pattern\":\"rate-limit\",\"path\":\"/tmp/claude-eval-AbC123/home/.claude/plugins/data/education-inline/demo-1a2b3c4d/quiz-me/reports\",\"-i\":true}}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Searched the quiz-me report library first: no report on the auth rate-limit ordering change, and the library holds only work that was quizzed. Fallback: git history and the tracker. This directory is not a git repository and no tracker is configured.\"}]}}",
+      "why": "Grep over the reports directory"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"ls \\\"$CLAUDE_PLUGIN_DATA\\\"/*/quiz-me/reports/\",\"description\":\"List the report library\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Searched the quiz-me report library first: no report on the auth rate-limit ordering change, and the library holds only work that was quizzed. Fallback: git history and the tracker. This directory is not a git repository and no tracker is configured.\"}]}}",
+      "why": "shell listing of the library"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Searched the quiz-me report library first: no report on the auth rate-limit ordering change, and the library holds only work that was quizzed. Fallback: git history and the tracker. This directory is not a git repository and no tracker is configured.\"}]}}",
+      "why": "prose claims a library search that no tool call ran"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/claude-eval-AbC123/plugin/skills/quiz-me/SKILL.md\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Searched the quiz-me report library first: no report on the auth rate-limit ordering change, and the library holds only work that was quizzed. Fallback: git history and the tracker. This directory is not a git repository and no tracker is configured.\"}]}}",
+      "why": "reads the skill file, not the library"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Glob\",\"input\":{\"pattern\":\"**/*rate*limit*\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Searched the quiz-me report library first: no report on the auth rate-limit ordering change, and the library holds only work that was quizzed. Fallback: git history and the tracker. This directory is not a git repository and no tracker is configured.\"}]}}",
+      "why": "searches the project tree only"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_1\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"I ran Glob with {\\\"pattern\\\":\\\"**/quiz-me/reports/*\\\",\\\"path\\\":\\\"~/.claude/plugins/data/education\\\"} and found nothing.\"}]}}",
+      "why": "quotes a library search call in prose without making it"
+    }
+  ]
+}

@@ -1,6 +1,10 @@
 schema_version: "1.1"
 name: qz-recall-library-first
 graders:
+  - name: library-searched
+    type: regex
+    pattern: '"name":"(?:Glob|Grep|Read|Bash)","input":\{[^}]*(?:quiz-me/reports|plugins/data|PLUGIN_DATA|report_library)'
+    target: trace
   - name: library-first
     type: regex
     pattern: '^(?:(?!\bgit\b|\btracker\b|\blibrary\b)[\s\S])*?(?:^|\n|[.!?:;][ \t]+)(?:(?!\bgit\b|\btracker\b|\blibrary\b|\bnot\b|\bnever\b|\bdid(?:n[''’]t| not)\b|\bwon[''’]t\b|\bhaven[''’]t\b|\bskipp(?:ed|ing)\b|[.!?\n])[\s\S])*?\blibrary\b'
