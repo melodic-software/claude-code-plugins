@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: rdr-retry-precedent
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-the-code
+    type: regex
+    pattern: '"name":"(?:Read|Grep)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:chargeCard\.js|CONVENTIONS\.md|retry\.js)|^(?=[^\n]*"type":"tool_result")[^\n]*?(?:gateway\.charge|wraps its body in|let last;)'
+    flags: 'm'
+    target: trace
+  - name: double-charge-risk
+    type: regex
+    pattern: '\b(?:non-?|not |isn''t |is not )idempoten(?:t|cy)\b|\bidempotency[- ]keys?\b|\bcharg(?:e|es|ing)\b[^\n]{0,40}\bidempoten|\bidempoten\w*[^\n]{0,40}\bcharg|(?<!\bno )(?<!cannot )(?<!can''t )(?<!\bnot )(?<!never )\bdouble[- ]charg(?:e|es|ed|ing)\b|\bcharg(?:e|ed|es|ing)\b[^\n]{0,40}\b(?:twice|more than once|multiple times|three times|again)\b|(?<!\bno )\bduplicate (?:charges?|payments?)\b'
+    flags: 'i'
+    target: last_message
+  - name: precedent-only-named
+    type: regex
+    pattern: '\b(?:only|solely|purely|alone|nothing but|nothing more than)\b[^\n]{0,40}\bprecedent\b|\bprecedent\b[^\n]{0,40}\b(?:alone|only|not (?:a )?(?:reason|justification|rationale)|describes)\b|\brest(?:s|ing)? (?:only |solely |entirely )?on precedent\b|\b(?:precedent|convention)[- ]only\b|(?<!\bno )(?<!\bnot )\b(?:incumben(?:t|cy)|inertia)\b|\bdescriptive[- ]only\b|\b(?:no|without (?:a|any)) (?:stated |recorded |written |documented )?rationale\b|\b(?:no|without (?:a|any)) (?:stated|recorded|written|documented) (?:purpose|reason)\b|\bdescribes?\b[^\n]{0,60}\bnot\b[^\n]{0,30}\bjustif'
+    flags: 'i'
+    target: last_message
+  - name: reads-keep-their-retry
+    type: regex
+    pattern: '\b(?:getUser|listOrders|reads\b(?! (?:the|docs|src|notes))|read[- ]only|read (?:handlers?|paths?|operations?|calls?|endpoints?)|GET handlers?|idempotent (?:handlers?|reads?|calls?|operations?|lookups?))[^\n]{0,160}(?<!\bnot )(?<!n''t )(?<!nothing is )(?<!no longer )\b(?:keep|keeps|kept|fine|valid|holds|justified|safe|appropriate|stays?|still makes sense|correct)\b|(?<!\bnot )(?<!n''t )(?<!nothing is )(?<!no longer )\b(?:keep|keeps|kept|fine|valid|holds|justified|safe|appropriate|stays?|still makes sense|correct)\b[^\n]{0,80}\b(?:for|on)\b[^\n]{0,40}\b(?:getUser|listOrders|reads\b|GET|idempotent)'
+    flags: 'i'
+    target: last_message

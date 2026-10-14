@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "**Phase 1 of 5: Get a runner registration token**\n\nWhere: a browser signed in to GitHub as an owner of `acme-builds`.\n\n1. (you) Open https://github.com/organizations/acme-builds/settings/actions/runners/new .\n   You should see a page titled 'Create self-hosted runner'.\n2. (you) Select **Windows** and copy the token from the `--token` line.\n\nCommon failure: the page returns 404. That means your account is not an org owner; ask an owner to run this phase.\n\nWhen the token is copied, tell me: `phase 1 done`"
+    },
+    {
+      "answer": "Expected output: `Settings Saved.`"
+    },
+    {
+      "answer": "The command should print `Runner successfully added`."
+    },
+    {
+      "answer": "**Expected:** the Runners page lists `build-01` as Idle."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "1. Run config.cmd.\n2. Run run.cmd.",
+      "why": "steps with no expected result"
+    },
+    {
+      "answer": "Done. Tell me `phase 1 done`.",
+      "why": "advancing reply only"
+    }
+  ]
+}

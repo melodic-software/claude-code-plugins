@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "1. jest -> vitest. Basis: verified (package.json:6, `\"test\": \"vitest run\"`)."
+    },
+    {
+      "answer": "**Basis:** verified, package.json read this turn"
+    },
+    {
+      "answer": "| # | Old | New | Basis |\n|---|---|---|---|\n| 3 | add --runInBand | withheld | judgment |"
+    },
+    {
+      "answer": "Basis: `judgment` (not consequential; a one-line config choice)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Basis: not verified yet",
+      "why": "negated label"
+    },
+    {
+      "answer": "I verified each claim against package.json.",
+      "why": "no Basis label at all"
+    },
+    {
+      "answer": "The basis for this is unknown.",
+      "why": "word basis without an outcome"
+    },
+    {
+      "answer": "| Rec | Basis |\n|---|---|\n| 1 | not verified |",
+      "why": "table cell negated"
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:reuse-or-replace",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/reuse-or-replace",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the point-dont-copy sibling, the coupling reduction and tidy skills, the SSOT extraction skill and the follow-our-standards sibling.",
+  "competitors": [
+    "discipline:point-dont-copy",
+    "coupling:reduce",
+    "code-tidying:tidy",
+    "docs-hygiene:extract-ssot",
+    "discipline:follow-our-standards"
+  ],
+  "competitor_dirs": {
+    "discipline:point-dont-copy": "plugins/discipline/skills/point-dont-copy",
+    "coupling:reduce": "plugins/coupling/skills/reduce",
+    "code-tidying:tidy": "plugins/code-tidying/skills/tidy",
+    "docs-hygiene:extract-ssot": "plugins/docs-hygiene/skills/extract-ssot",
+    "discipline:follow-our-standards": "plugins/discipline/skills/follow-our-standards"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Config loading is already handled somewhere in this repo. Why did you write a new one?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Pick a single route: use the current error handler or replace it, never add a parallel one."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Routing here differs from the rest of the repo. Align it or migrate everything."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Match the current pattern, or openly retire it and say why."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You introduced a second approach to logging beside the current one without telling me."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before adding a new test helper, see whether there's one we already use."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "If you want a different structure from the current one, propose replacing it and migrating all callers."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Two ways of doing validation in the same service is a mess. Fix that."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Follow the established folder layout rather than inventing your own."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I notice a silent fork from our existing pattern in this PR."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Tidy up this module with small structure-only refactors."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Reduce coupling between the billing and shipping packages."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make the new doc follow the org's engineering standards."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "This value is repeated in many files; centralize it."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run a boy scout cleanup on this directory."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Decouple these two services."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Does this PR meet the written conventions for our team?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Extract the repeated rule text into one shared source."
+    }
+  ]
+}

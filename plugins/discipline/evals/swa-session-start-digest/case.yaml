@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: swa-session-start-digest
+graders:
+  - name: no-audit-fan-out
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both
+  - name: tiers-reported
+    type: regex
+    pattern: '(?=[\s\S]*\bcore\b)(?=[\s\S]*\bsituational\b)(?=[\s\S]*(?:\bnever[- ]?(?:batch(?:ed)?|tier|run)\b|`never`|\*\*never\*\*|\bnever\b[ \t]*(?:\*\*)?[ \t]*[:|(—–]|\bnot batched\b|\binvoked directly\b))'
+    flags: 'i'
+    target: last_message
+  - name: no-audit-stated
+    type: regex
+    pattern: '\bno audit\b|\bnothing (?:was |is |got )?audited\b|\baudit(?:s|ed)? nothing\b|\baudit(?:ing)? (?:did not|didn''t|does not|doesn''t|will not|won''t) run\b|\bwithout (?:running )?(?:an |any )?audit\b|\bno (?:corrector|audit)s? (?:ran|run|were run)\b|\bnot (?:run|running) (?:an |any )?audit\b|\bskipp(?:ed|ing) the audit\b|\bdigest only\b|\bposture only\b|\bnothing to audit\b'
+    flags: 'i'
+    target: last_message

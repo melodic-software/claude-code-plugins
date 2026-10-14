@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval-ws/notes/delegation-brief.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval-ws/docs/guide.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval-ws/notes/delegation-brief.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/eval-ws/docs/guide.md"
+          }
+        }
+      ]
+    }
+  ]
+}

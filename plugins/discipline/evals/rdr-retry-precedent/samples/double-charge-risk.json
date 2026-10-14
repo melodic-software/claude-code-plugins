@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "A charge is not idempotent: a retry after a timeout can charge the card twice."
+    },
+    {
+      "answer": "Retrying `gateway.charge` three times risks a **double charge**."
+    },
+    {
+      "answer": "Each retry may create a duplicate charge unless the gateway gets an idempotency key."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The retry matches the convention, so the decision holds.",
+      "why": "recited the precedent"
+    },
+    {
+      "answer": "withRetry(3) is consistent with every other handler.",
+      "why": "consistency only"
+    },
+    {
+      "answer": "getUser and listOrders are idempotent reads, so their retry is fine.",
+      "why": "idempotent about reads only, no charge risk"
+    },
+    {
+      "answer": "The gateway dedups requests, so a retry cannot double-charge.",
+      "why": "negation"
+    }
+  ]
+}

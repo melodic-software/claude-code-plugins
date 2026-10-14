@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": "Finding: the brief names no skill. `/discipline:point-dont-copy` owns this exact audit; added it to the brief."
+    },
+    {
+      "answer": "Fixed: the brief now tells the subagent to use point-dont-copy."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The brief is clear; send it.",
+      "why": "no skill named"
+    },
+    {
+      "answer": "Added 'use your skills' to the brief.",
+      "why": "generic"
+    },
+    {
+      "answer": "The brief is fine without point-dont-copy; send it.",
+      "why": "named only to dismiss"
+    },
+    {
+      "answer": "Do not use /discipline:point-dont-copy here.",
+      "why": "negation"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor the discipline that existing state (config, code, docs, infra) is not evidence of its own correctness; audit it against CURRENT official upstream docs. Use when: 'recheck against upstream', 'check this against the docs', 'is our config still current', 'did upstream change', 'are we still doing this right', 'verify against the official docs', 'this may have drifted from upstream', 'audit our setup against the vendor docs', 'recheck the whole subsystem against upstream', 'audit every surface against the docs', 'deep upstream conformance pass', or at conversation start on config, infra, or integration work."
+description: "Re-anchors that existing state (config, code, docs, infra) is not evidence of its own correctness, and audits it against CURRENT official upstream docs. Use when: 'recheck against upstream', 'check this against the docs', 'is our config still current', 'did upstream change', 'are we still doing this right', 'verify against the official docs', 'this may have drifted from upstream', 'audit our setup against the vendor docs', 'recheck the whole subsystem against upstream', 'audit every surface against the docs', 'deep upstream conformance pass', or at conversation start on config, infra, or integration work."
 argument-hint: "[fan-out] [scope]"
 user-invocable: true
 disable-model-invocation: false
@@ -13,8 +13,8 @@ metadata:
 # Recheck against upstream
 
 A drift corrector for the discipline that existing state does not vouch for
-itself. The method, re-anchor, audit the work in flight, correct forward,
-report, and the tone that firing this is not an accusation, lives in
+itself. The shared method (re-anchor, audit the work in flight, correct
+forward, report) lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md).
 Read it; this file adds only what is specific to upstream-conformance
 discipline.
@@ -23,12 +23,10 @@ discipline.
 
 Existing state, a config file, a code path, a runbook, an infra
 definition, is evidence of *what is*, never proof that it matches the
-upstream it depends on. Upstream ships new defaults, renames flags,
-deprecates APIs, and obsoletes yesterday's workaround; the state that was
-correct when written silently rots. Resolve the source of truth per the
-method doc's ladder: if the consuming project states an
-upstream-conformance rule in its own `CLAUDE.md` / `.claude/rules/`,
-re-anchor THAT. Otherwise re-anchor this portable baseline:
+upstream it depends on. Resolve the source of truth per the method doc's
+ladder: if the consuming project states an upstream-conformance rule in its
+own `CLAUDE.md` / `.claude/rules/`, re-anchor THAT. Otherwise re-anchor this
+portable baseline:
 
 - **Present state is not self-justifying.** "It's already configured this
   way" and "the code does X" describe the state; neither shows it still
@@ -111,22 +109,14 @@ and correct-forward steps.
 ## Distinct axes. What this is NOT
 
 - **vs `/discipline:reason-dont-recite`.** That skill interrogates INTERNAL
-  precedent. Inherited structure coasting on "that's how it's done here".
-  This one measures against an EXTERNAL upstream authority: the vendor's
-  current docs, not the repo's own inherited habits.
+  precedent coasting on "that's how it's done here". This one measures
+  against an EXTERNAL upstream authority: the vendor's current docs.
 - **vs `/discipline:follow-our-standards`.** That skill audits against the
   consuming ORG's own engineering standards. This one audits against the
-  third-party VENDOR's documentation, the upstream the state depends on,
-  not the conventions the org authored.
-
-## What this skill does NOT do
-
-- **Does not treat divergence as automatic error.** A recorded, still-valid
-  deliberate divergence audits clean; the duty is to classify, not to force
-  every difference back to the default.
-- **Does not fabricate conformance or a finding.** A surface that matches
-  the current docs audits clean; a surface not compared is reported as
-  skipped, never as passing.
+  third-party VENDOR's documentation the state depends on.
+- **Divergence is not automatic error.** A recorded, still-valid deliberate
+  divergence audits clean; the duty is to classify, not to force every
+  difference back to the default.
 
 ## Gotchas
 

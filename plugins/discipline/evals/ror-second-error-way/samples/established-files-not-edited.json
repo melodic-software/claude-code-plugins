@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/eval-ws/src/invoices.ts",
+            "old_string": "throw",
+            "new_string": "return err"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/eval-ws/src/invoices.ts",
+            "old_string": "export class InvoiceError extends Error {}",
+            "new_string": "import { ok, err, type Result } from \"./lib/result.ts\";"
+          }
+        }
+      ],
+      "why": "an invoices.ts edit whose content mentions result.ts is not an edit of result.ts"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/eval-ws/src/users.ts",
+            "old_string": "err(",
+            "new_string": "throw "
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/eval-ws/src/lib/result.ts",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    }
+  ]
+}

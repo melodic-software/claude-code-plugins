@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "**Phase 1 of 5: Get a runner registration token**\n\nWhere: a browser signed in to GitHub as an owner of `acme-builds`.\n\n1. (you) Open https://github.com/organizations/acme-builds/settings/actions/runners/new .\n   You should see a page titled 'Create self-hosted runner'.\n2. (you) Select **Windows** and copy the token from the `--token` line.\n\nCommon failure: the page returns 404. That means your account is not an org owner; ask an owner to run this phase.\n\nWhen the token is copied, tell me: `phase 1 done`"
+    },
+    {
+      "answer": "**Phase 1 of 5: Get a runner registration token**\n\nWhere: a browser signed in to GitHub as an owner of `acme-builds`.\n\n1. (you) Open https://github.com/organizations/acme-builds/settings/actions/runners/new .\n   You should see a page titled 'Create self-hosted runner'.\n2. (you) Select **Windows** and copy the token from the `--token` line.\n\nCommon failure: the page returns 404. That means your account is not an org owner; ask an owner to run this phase.\n\nWhen the token is copied, tell me: `phase 1 done`\n\nProgress: Phase 1 (current), Phase 2 of 5, Phase 3 of 5, Phase 4 of 5, Phase 5 of 5"
+    },
+    {
+      "answer": "Phase 1 of 4: token. This is now 5 phases, not 4."
+    },
+    {
+      "answer": "Phase 1 of 5: Get a token\n\nWhen this is done I will present Phase 2.\n\nTell me: `phase 1 done`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Phase 1 of 5: Get a runner registration token**\n\nWhere: a browser signed in to GitHub as an owner of `acme-builds`.\n\n1. (you) Open https://github.com/organizations/acme-builds/settings/actions/runners/new .\n   You should see a page titled 'Create self-hosted runner'.\n2. (you) Select **Windows** and copy the token from the `--token` line.\n\nCommon failure: the page returns 404. That means your account is not an org owner; ask an owner to run this phase.\n\nWhen the token is copied, tell me: `phase 1 done`\n\nNext up:\nPhase 2: Install the runner service",
+      "why": "leaks the next phase title"
+    },
+    {
+      "answer": "Phase 1 of 3: token\n\n**Phase 3 —** Register the runner",
+      "why": "leaks a later phase with a dash"
+    },
+    {
+      "answer": "- Phase 2 - Download the runner package",
+      "why": "bullet leak"
+    },
+    {
+      "answer": "Phase 1 of 5: token\n\nPhase two: install the runner",
+      "why": "spelled-out later phase number"
+    },
+    {
+      "answer": "Phase 1 of 5: token\n\n### Phase 2\nInstall the runner.",
+      "why": "later phase as a heading, title on next line"
+    },
+    {
+      "answer": "Phase 1 of 5: token\n\nPhase 2 (install the runner) comes next.",
+      "why": "paren title"
+    },
+    {
+      "answer": "Phases 2-5 cover install, config and service setup.",
+      "why": "range preview of later phases"
+    }
+  ]
+}

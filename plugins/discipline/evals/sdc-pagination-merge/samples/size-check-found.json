@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "2. Outside the focus: size <= 0 is not rejected; the requirement says raise ValueError."
+    },
+    {
+      "answer": "A zero size returns [] instead of raising."
+    },
+    {
+      "answer": "Negative sizes are not validated."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Only the paging math was checked; it is off by one.",
+      "why": "focus suppressed the other flaw"
+    },
+    {
+      "answer": "Size handling is fine.",
+      "why": "waved through"
+    }
+  ]
+}

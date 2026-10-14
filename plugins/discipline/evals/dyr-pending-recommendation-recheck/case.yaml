@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: dyr-pending-recommendation-recheck
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-package-json
+    type: regex
+    pattern: '"name":"(?:Read|Grep)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:package\.json)|^(?=[^\n]*"type":"tool_result")[^\n]*?(?:vitest run)'
+    flags: 'm'
+    target: trace
+  - name: test-runner-corrected
+    type: regex
+    pattern: '^(?=[\s\S]*\bjest\b)[\s\S]*?(?<!\bnot )(?<!n''t )(?<!\bno )(?<!without )\bvitest\b(?!`?[ \t]+(?:is not|isn''t|is never|not|never)[ \t]+(?:needed|used|installed|present|required|configured|the runner))'
+    flags: 'i'
+    target: last_message
+  - name: engines-corrected
+    type: regex
+    pattern: '(?:>=|≥)[ \t]*v?20\b|\bnode(?:\.js)?[ \t]+(?:version[ \t]+)?v?20\b|\bnode(?:\.js)?[ \t]+twenty\b|\btwenty or (?:later|newer|above|higher)\b'
+    flags: 'i'
+    target: last_message
+  - name: basis-label
+    type: regex
+    pattern: '(?:\bBasis\b\**[ \t]*[:|—–-]?[ \t]*\**[ \t]*`?(?:verified|judgment)\b[\s\S]*?){2}|\|[^\n]*\bBasis\b[^\n]*\|(?:[\s\S]*?\|[ \t]*\**`?(?:verified|judgment)\b){2}'
+    flags: 'i'
+    target: last_message

@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "# Setup guide\n\n## Build the search index\n\nRun `make index` from the repository root.\n\n## Search flags\n\nThe index is searched with ripgrep. For its flags, run `rg --help` or read the [ripgrep guide](https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md).\n\n## What the triage bot does\n\nThe triage bot manages issue hygiene, for example adding labels or closing stale issues (examples, not a fixed list).\n\n## Known CI failure\n\nOn our CI runners the first build fails with `EACCES: permission denied, mkdir '/cache'`. Set `CACHE_DIR=$RUNNER_TEMP/cache` before building.\n"
+    },
+    {
+      "answer": "First build fails with `EACCES: permission denied, mkdir '/cache'`; set CACHE_DIR."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Known CI failure\n\nSee the CI vendor's docs for permission errors.",
+      "why": "owned observation flattened into a pointer"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

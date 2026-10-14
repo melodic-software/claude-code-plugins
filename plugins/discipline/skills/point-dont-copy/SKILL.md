@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor pointer-over-copy discipline, then audit the work in flight for copied content, internal-name coupling, and closed capability lists, and correct by pointing at the living source. Use when: 'point don't copy', 'you copied that', 'don't duplicate the docs', 'cite instead of paste', 'link don't restate', 'you enumerated the tools', 'that couples to internal names', 'this will drift', or at conversation start on documentation work."
+description: "Re-anchors pointer-over-copy discipline: audits the work in flight for copied content, internal-name coupling, and closed capability lists, and corrects by pointing at the living source. Use when: 'point don't copy', 'you copied that', 'don't duplicate the docs', 'cite instead of paste', 'link don't restate', 'you enumerated the tools', 'that couples to internal names', 'this will drift', or at conversation start on documentation work."
 argument-hint: "[target]"
 user-invocable: true
 disable-model-invocation: false
@@ -14,16 +14,16 @@ metadata:
 
 # Point, don't copy
 
-A drift corrector for pointer-over-copy discipline. The method, re-anchor, audit the work in flight, correct forward, report, and the tone
-that firing this is not an accusation, lives in
+A drift corrector for pointer-over-copy discipline. The shared method
+(re-anchor, audit the work in flight, correct forward, report) lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md).
 Read it; this file adds only what is specific to duplication discipline.
 
 ## The discipline this re-anchors
 
-Point at the living source; do not copy what it owns. This doctrine is
-already owned by convention docs. Re-anchor THEM, do not restate their
-content here. Resolve the source of truth per the method doc's ladder:
+Point at the living source; do not copy what it owns. Convention docs
+already own this doctrine: re-anchor THEM, do not restate them. Resolve the
+source of truth per the method doc's ladder:
 
 - **Facts you own (in-repo).** Your organization's reference-don't-duplicate
   convention. Every fact has one source of truth; consumers cite it by a
@@ -50,10 +50,9 @@ stale when the source moves.
   appears. Weigh a genuine case for local divergence on its merits, but the
   default at two copies is to consolidate to one source and point at it.
 - **Point at public contracts, not internals.** Reference the stable public
-  contract, a tool's invocation surface, the command and its arguments, never the internal script or file names behind it, which are rename blast
-  radius that breaks every citation the moment they move. (The conventions
-  cover citing stable anchors; this names the specific trap of citing an
-  internal name where the public contract exists.)
+  contract (a tool's invocation surface, the command and its arguments),
+  never the internal script or file names behind it, which break every
+  citation the moment they move.
 - **No capability enumeration.** Phrase your OWN duties open-ended, not just
   upstream-owned inventories. A closed list of what something can do goes
   stale as the surface evolves; name current mechanisms only as
@@ -114,14 +113,6 @@ misreads into working code, where the audit can no longer see them as findings:
 - **Confirmation gate.** Stop and wait for the user to confirm the map before port work
   proceeds. A reply of "semantics confirmed" is the recommended token, not a required
   one; any clear confirmation opens the gate.
-
-## What this skill does NOT do
-
-- **Does not strip legitimate local content.** An adapted config, a
-  self-owned constraint, a one-shot research snapshot, and an observed
-  error string are not copies. Do not flatten them into pointers.
-- **Does not fabricate a violation.** A doc that already points rather than
-  copies audits clean; say so.
 
 ## Gotchas
 

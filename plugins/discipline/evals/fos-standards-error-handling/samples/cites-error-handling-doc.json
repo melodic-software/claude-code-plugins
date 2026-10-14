@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "1. `src/sync.py:15` swallows every exception. Breaks docs/standards/error-handling.md EH-1."
+    },
+    {
+      "answer": "| src/sync.py:15 | `except Exception: pass` | `error-handling.md` (EH-1) |"
+    },
+    {
+      "answer": "| src/sync.py:15 | `except Exception: pass` | error-handling.md EH-1 | fixed; now conforms |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The except block swallows errors, which is bad practice.",
+      "why": "finding with no doc cited"
+    },
+    {
+      "answer": "Per our error handling standard, catch narrow types.",
+      "why": "names the topic but not the doc"
+    },
+    {
+      "answer": "No violations of error-handling.md found.",
+      "why": "negation: cited as clean"
+    },
+    {
+      "answer": "src/sync.py conforms to error-handling.md and naming.md.",
+      "why": "negation: conforms"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "`useDefineForClassFields: false` looks intentional but is undocumented: adopt the default, or keep it and record why?"
+    },
+    {
+      "answer": "Undocumented divergence: useDefineForClassFields. Your call."
+    },
+    {
+      "answer": "useDefineForClassFields has no recorded rationale; I left it for you to decide."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "useDefineForClassFields: false is fine.",
+      "why": "waved through"
+    },
+    {
+      "answer": "Gap: useDefineForClassFields; I set it to true.",
+      "why": "picked a side silently"
+    },
+    {
+      "answer": "useDefineForClassFields: gap, set to true.\nstrict: your call.",
+      "why": "your call belongs to another setting"
+    },
+    {
+      "answer": "useDefineForClassFields is not undocumented; the ADR covers it.",
+      "why": "negation"
+    }
+  ]
+}

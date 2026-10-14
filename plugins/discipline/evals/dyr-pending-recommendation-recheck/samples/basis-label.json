@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": "1. jest -> vitest. Basis: verified (package.json:6, `\"test\": \"vitest run\"`).\n2. node >=16 -> >=20. **Basis:** verified, package.json read this turn"
+    },
+    {
+      "answer": "| # | Old | New | Basis |\n|---|---|---|---|\n| 1 | jest | vitest | verified |\n| 2 | >=16 | >=20 | verified |\n| 3 | add --runInBand | withheld | judgment |"
+    },
+    {
+      "answer": "Rec 1: vitest. Basis: verified (package.json:6).\nRec 2: >=20. Basis: `judgment` (engines read, but CI image not checked)"
+    },
+    {
+      "answer": "1. vitest, not jest. Basis: verified (package.json:6).\n2. engines is >=20. Basis: verified (package.json:4).\n3. --runInBand: withheld as an open question."
+    },
+    {
+      "answer": "| # | New | Basis |\n|---|---|---|\n| 1 | vitest | verified |\n| 2 | node >=20 | verified |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Basis: not verified yet",
+      "why": "negated label"
+    },
+    {
+      "answer": "I verified each claim against package.json.",
+      "why": "no label"
+    },
+    {
+      "answer": "1. jest -> vitest. Basis: verified (package.json:6).",
+      "why": "one label for two corrected recommendations"
+    },
+    {
+      "answer": "1. vitest, not jest. Basis: verified (package.json:6).\n2. engines is >=20.",
+      "why": "only one of the two corrected recommendations is labeled"
+    },
+    {
+      "answer": "| # | New | Basis |\n|---|---|---|\n| 1 | vitest | verified |\n| 2 | node >=20 | not checked |",
+      "why": "table labels one row only"
+    }
+  ]
+}

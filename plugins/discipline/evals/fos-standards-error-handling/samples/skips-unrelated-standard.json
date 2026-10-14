@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/eval-ws/docs/standards/README.md\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"| [frontend-css.md](frontend-css.md) | web UI stylesheets only |\"}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_02\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/eval-ws/docs/standards/error-handling.md\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Glob\",\"input\":{\"pattern\":\"docs/standards/*.md\"}}]}}\n{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"tool_use_id\":\"toolu_01\",\"type\":\"tool_result\",\"content\":\"docs/standards/frontend-css.md\"}]}}\n",
+      "why": "listing the name is not loading the doc"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/eval-ws/docs/standards/frontend-css.md\"}}]}}\n",
+      "why": "Read of the unrelated doc"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Grep\",\"input\":{\"pattern\":\".\",\"path\":\"docs/standards/frontend-css.md\",\"output_mode\":\"content\"}}]}}\n",
+      "why": "Grep that dumps the unrelated doc"
+    }
+  ]
+}

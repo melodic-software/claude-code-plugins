@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: sdc-pagination-merge
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: fresh-context-pass
+    type: tool_used
+    tool: Agent
+    min: 1
+    max: 3
+  - name: pass-is-not-a-fork
+    type: tool_used
+    tool: Agent
+    input_match: '\"subagent_type\":\"fork\"'
+    min: 0
+    max: 0
+    arm: both
+  - name: off-by-one-found
+    type: regex
+    pattern: '\b(?:1-based|one-based|0-based|zero-based|off[- ]by[- ]one)\b|\(page[ \t]*-[ \t]*1\)|\bpage[ \t]*-[ \t]*1\b'
+    flags: 'i'
+    target: last_message
+  - name: size-check-found
+    type: regex
+    pattern: '\bValueError\b|\bsize\b[^\n]{0,40}(?:<=|<|==)[ \t]*0\b|\b(?:zero|negative|non-positive|nonpositive)\b[^\n]{0,20}\bsizes?\b|\bsize\b[^\n]{0,30}\b(?:of )?(?:0|zero)\b'
+    flags: 'i'
+    target: last_message
+  - name: fix-worked-with-user
+    type: regex
+    pattern: '\b(?:shall|should) (?:I|we)\b[^\n?]*\?|\b(?:want me to|do you want|would you like|ok(?:ay)? (?:to|if)|which (?:fix|option|one) do you|how (?:do|would) you (?:like|want))\b[^\n?]*\?|^[^\n?]{0,60}\b(?:proceed|apply|go ahead|fix (?:it|them|both))\b[^\n?]{0,40}\?|\b(?:your (?:call|decision|choice)|up to you)\b|(?<!no need to )(?<!\bnot )(?<!n''t )\bconfirm\b[^\n]{0,60}\b(?:before|and I)\b|\blet me know (?:which|whether|how|when you|if you(?:''d)? (?:want|like) (?:me|the|both|either))\b'
+    flags: 'mi'
+    target: last_message

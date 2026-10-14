@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:pick-for-the-problem",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/pick-for-the-problem",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the brainstorm, research and devil's-advocate skills in other plugins, the overengineering justify skill and the reason-dont-recite sibling.",
+  "competitors": [
+    "planning:brainstorm",
+    "discovery:research",
+    "planning:devils-advocate",
+    "overengineering:justify",
+    "discipline:reason-dont-recite"
+  ],
+  "competitor_dirs": {
+    "planning:brainstorm": "plugins/planning/skills/brainstorm",
+    "discovery:research": "plugins/discovery/skills/research",
+    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
+    "overengineering:justify": "plugins/overengineering/skills/justify",
+    "discipline:reason-dont-recite": "plugins/discipline/skills/reason-dont-recite"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which ORM should we use for this service? Don't just say EF because we always do."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Should we build our own job queue or adopt something off the shelf?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You reached for React by default. Is it really what this small dashboard needs?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Compare the realistic options for caching here and choose based on our workload, not habit."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We're choosing a language for the new CLI. Work out what suits the problem."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is a message broker the right approach for this, or are we over-reaching?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Pick a library for PDF generation, and show why it fits our constraints."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Every project here uses Postgres. Does this one actually need it?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Build vs buy for feature flags: reason it through from our requirements."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Reevaluate the framework choice instead of assuming the incumbent one."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Brainstorm a few creative ways we could reduce onboarding time."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Look up which Node versions the library officially supports and cite the page."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Attack this plan: what could go wrong with moving to microservices?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Does this abstraction layer need to exist at all?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me a list of ideas, cheapest to most ambitious, for improving search."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Research and compare Playwright and Cypress with sources."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Stress-test the proposal to adopt Kubernetes."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Why is this wrapper class here and is it still justified?"
+    }
+  ]
+}

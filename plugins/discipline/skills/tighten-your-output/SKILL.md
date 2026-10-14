@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor terseness discipline, say markdown in fewer words without semantic loss, write code in fewer lines when readability holds, then audit the work in flight for avoidable verbosity and tighten it. Use when: 'tighten your output', 'tighten this', 'too verbose', 'say it in fewer words', 'this is bloated', 'trim the code', 'simpler form', 'cut the wordiness', 'be more concise', or at conversation start on prose- or code-heavy work."
+description: "Re-anchors terseness discipline (markdown in fewer words without semantic loss, code in fewer lines when readability holds), then audits the work in flight for avoidable verbosity and tightens it. Use when: 'tighten your output', 'tighten this', 'too verbose', 'say it in fewer words', 'this is bloated', 'trim the code', 'simpler form', 'cut the wordiness', 'be more concise', or at conversation start on prose- or code-heavy work."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,9 +11,8 @@ metadata:
 
 # Tighten your output
 
-A drift corrector for terseness discipline. The method, re-anchor, audit
-the work in flight, correct forward, report, and the tone that firing this
-is not an accusation, lives in
+A drift corrector for terseness discipline. The shared method (re-anchor,
+audit the work in flight, correct forward, report) lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md).
 Read it; this file adds only what is specific to terseness discipline.
 
@@ -47,20 +46,12 @@ hedging, and restatement, never a directive, qualifier, threshold, or
 example. Tightening selects what to include; it does not compress prose into
 fragments, abbreviations, arrow chains, or jargon, and it keeps complete
 sentences a reader who did not watch the work can follow. When brevity and
-readability conflict, readability wins. Unlike the code side, prose terseness usually has **no dedicated
-standards convention** to discipline: when the consuming project's standards
-source declares one, route through it; when it does not, that is still a
-flagged gap (a candidate upstream standards addition), not license to invent
-a rubric in this skill.
-
-The gap has a routing owner. `/writing:be-concise` holds the doctrine for
-prose a person reads, a ticket comment, a pull-request body, a doc, a status
-update, and it is where reader-facing text goes when the `writing` plugin is
-installed. Without it, reduce against the discipline above and say the
-point-first shape went unapplied. The operative safety net for prose
-reduction is a compress capability's semantic-diff discipline either way:
-route batch prose work there when that capability is installed, and otherwise
-run that same discipline in-thread rather than hand-rolling criteria here.
+readability conflict, readability wins. Prose terseness usually has **no
+dedicated standards convention**: when the consuming project's standards
+source declares one, route through it; when it does not, that is a flagged
+gap (a candidate upstream standards addition), not license to invent a rubric
+in this skill. Route reader-facing prose and batch prose work per the
+Routing section below.
 
 ## Audit. What to look for
 
@@ -80,10 +71,11 @@ say why.
 
 ## Routing, where batch and proactive work live
 
-- **Prose a person reads → `/writing:be-concise`** when the `writing` plugin
-  is installed. It owns the point-first, scannable shape those readers need,
-  which this corrector does not. Without that plugin, fall back to the
-  markdown discipline above.
+- **Prose a person reads (a ticket comment, a pull-request body, a doc, a
+  status update) → `/writing:be-concise`** when the `writing` plugin is
+  installed. It owns the point-first, scannable shape those readers need,
+  which this corrector does not. Without that plugin, reduce against the
+  markdown discipline above and say the point-first shape went unapplied.
 - **Batch prose remediation → the docs-hygiene compress capability** when
   that plugin is installed (its semantic-diff safety net is the guardrail for
   large prose cuts); otherwise run that same semantic-diff discipline as an
@@ -94,8 +86,7 @@ say why.
   convention, or observability to do it.
 - **Proactive code-side enforcement is NOT here.** It lives in review and
   design gates that cite the simpler-code convention; this corrector
-  re-anchors the discipline and corrects the work in flight, it does not
-  stand in for those gates.
+  re-anchors the discipline and corrects the work in flight.
 
 ## Trigger ownership. One owner per brevity phrase
 
@@ -126,19 +117,6 @@ this table gives the other.
 
 Once either skill is loaded, route by the target in front of you, not by the
 phrase that reached it; the sections above say where.
-
-## What this skill does NOT do
-
-- **Does not trade a constraint for brevity.** A shorter form that spends
-  clarity, a test, error handling, a convention, or observability is a wrong
-  reduction, not a win.
-- **Does not invent markdown-terseness criteria.** The consuming project's
-  standard is still a flagged gap; the skill routes reader-facing prose to
-  `/writing:be-concise` when the `writing` plugin is installed, and to the
-  compress capability's discipline otherwise, rather than manufacturing its
-  own rubric.
-- **Does not fabricate a finding.** Work already at its tight form audits
-  clean; say so.
 
 ## Gotchas
 

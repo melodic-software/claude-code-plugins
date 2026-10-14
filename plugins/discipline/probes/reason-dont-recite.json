@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:reason-dont-recite",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/reason-dont-recite",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the trace-intent history skill, the overengineering justify skill, the devil's-advocate skill, the upstream recheck sibling and the self-scrutiny sibling.",
+  "competitors": [
+    "discovery:trace-intent",
+    "overengineering:justify",
+    "planning:devils-advocate",
+    "discipline:recheck-against-upstream",
+    "discipline:scrutinize-dont-coast"
+  ],
+  "competitor_dirs": {
+    "discovery:trace-intent": "plugins/discovery/skills/trace-intent",
+    "overengineering:justify": "plugins/overengineering/skills/justify",
+    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
+    "discipline:recheck-against-upstream": "plugins/discipline/skills/recheck-against-upstream",
+    "discipline:scrutinize-dont-coast": "plugins/discipline/skills/scrutinize-dont-coast"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You're just saying that's how the repo does it. Is it actually the right way?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Question this inherited design instead of repeating what the comment says."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Because the old code did X doesn't make X correct. Reason it out again."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Stop quoting the existing docs as if they were proof. Derive the decision from first principles."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This legacy module has a weird convention. Challenge whether it should stay."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We've always done it this way is not an argument. Reconsider."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "You deferred to precedent in that recommendation. Does it hold up on its own?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before we copy the pattern from the old service, decide whether it was ever sound."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Why is it structured like this, and does the reasoning survive scrutiny today?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Treat the README's claims as evidence, not authority, and decide for yourself."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Dig through the git history and PRs to find out why this was built this way originally."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Does this wrapper class still need to exist?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Stress-test my plan to migrate the monolith."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check our webpack config against the current official docs."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What were the original authors thinking when they added this flag?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Justify the existence of the retry middleware."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Play devil's advocate on the new caching design."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is our Dockerfile still consistent with the vendor's latest guidance?"
+    }
+  ]
+}

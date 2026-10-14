@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: hmh-runner-setup-phase-one
+graders:
+  - name: phase-count-line
+    type: regex
+    pattern: '^[ \t>*_#]*Phase[ \t]+1[ \t]+of[ \t]+(?:\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b'
+    flags: 'mi'
+    target: last_message
+  - name: no-later-phase-titles
+    type: regex
+    pattern: '\bPhase[ \t]+(?:[2-9]|1[0-9]|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b(?![ \t]+of\b)[ \t]*(?:\*\*)?[ \t]*[:—–(-][ \t]*(?:\*\*)?[ \t]*[A-Za-z]|^[ \t>]*#{1,6}[ \t]*(?:\*\*)?[ \t]*Phase[ \t]+(?:[2-9]|1[0-9]|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b(?![ \t]+of\b)|\bPhases[ \t]+(?:[2-9]|1[0-9]|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)[ \t]*(?:[-–—]|to|through)[ \t]*(?:[2-9]|1[0-9]|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+  - name: advancing-reply-literal
+    type: regex
+    pattern: '\b(?:tell me|reply(?: with)?|respond(?: with)?|say|type|send(?: me)?|answer)\b[^\n`\"“”]{0,40}[`\"“][^`\"“”\n]{2,40}[`\"”]|\b(?:tell me|reply(?: with)?|respond(?: with)?|say|type|send(?: me)?|answer)\b[^\n`]{0,40}:[ \t]*\n+[ \t]*```(?!(?:powershell|pwsh|ps1|bash|sh|shell|cmd|console)\b)[\w-]*[ \t]*\n[ \t]*[^\n`]{2,40}\n[ \t]*```'
+    flags: 'i'
+    target: last_message
+  - name: expected-result-stated
+    type: regex
+    pattern: '\b(?:expected (?:output|result|outcome)|you should (?:now )?see|you will see|you''ll see|success looks like|should (?:now )?(?:show|print|display|return|appear|read|list))\b|\bexpected\b[ \t]*(?:\*\*)?[ \t]*[:—–-]'
+    flags: 'i'
+    target: last_message
+  - name: performer-labeled
+    type: regex
+    pattern: '\((?:you|me|I|claude|assistant)\)|\[(?:you|me|I|claude|assistant)\]|\b(?:performer|performed by|done by|who acts|who)\b[ \t]*\**[ \t]*[:—–|-]|\*\*(?:you|me|I|claude|assistant)\*\*[ \t]*[:—–-]?|^[ \t]*(?:\d+[.)][ \t]*)?\**(?:you|me|claude)\**[ \t]*:'
+    flags: 'mi'
+    target: last_message

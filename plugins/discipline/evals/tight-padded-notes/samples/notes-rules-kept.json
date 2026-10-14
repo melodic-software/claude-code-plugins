@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "# Deploy notes\n\nRun database migrations only after the nightly backup completes, and never on Fridays. Keep at least 3 replicas running during the rollout; fewer can fail customer requests.\n\nTo roll back, redeploy the previous image tag with the deploy command.\n"
+    },
+    {
+      "answer": "It is worth noting that, basically, in order to deploy the service safely, you should run the\ndatabase migrations only after the nightly backup completes, and you should never run them on\nFridays. As previously mentioned above, the cluster must always keep at least 3 replicas running.\n"
+    },
+    {
+      "answer": "- Migrations: after the nightly backup only; Fridays: never.\n- Rollout: minimum of three replicas.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run migrations after the nightly backup, never on Fridays. Keep 3 replicas running.\n",
+      "why": "dropped 'at least'"
+    },
+    {
+      "answer": "Run migrations after the backup. Keep at least 3 replicas.\n",
+      "why": "dropped the Friday rule"
+    },
+    {
+      "answer": "Never migrate on Fridays. Keep at least 3 replicas.\n",
+      "why": "dropped the backup ordering"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

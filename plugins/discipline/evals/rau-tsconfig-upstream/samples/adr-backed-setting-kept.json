@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"compilerOptions\": {\n    \"strict\": false,\n    \"verbatimModuleSyntax\": true\n  }\n}\n"
+    },
+    {
+      "answer": "{ \"compilerOptions\": { \"strict\":false } }"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\n  \"compilerOptions\": {\n    \"strict\": true\n  }\n}\n",
+      "why": "flipped the ADR-backed setting"
+    },
+    {
+      "answer": "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\"\n  }\n}\n",
+      "why": "removed the setting"
+    }
+  ]
+}

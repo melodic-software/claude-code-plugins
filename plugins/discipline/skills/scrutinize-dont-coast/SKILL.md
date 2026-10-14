@@ -10,21 +10,17 @@ metadata:
 
 # Scrutinize, don't coast
 
-A drift corrector for adversarial self-scrutiny. The shared method. Re-anchor,
-audit the work in flight, correct forward, report, and the tone that firing this
-is not an accusation, lives in
+A drift corrector for adversarial self-scrutiny. The shared method (re-anchor,
+audit the work in flight, correct forward, report) lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md).
-Read it; this file adds only what is specific to adversarial self-scrutiny. And
-two deliberate deltas this corrector makes to the shared loop.
+Read it; this file adds only what is specific to adversarial self-scrutiny,
+and the three declared deltas this corrector makes to the shared loop.
 
 ## The discipline this re-anchors
 
-Every other corrector in this plugin re-anchors a *content* discipline. Research,
-incumbency, terseness. This one re-anchors a *meta* discipline: **adversarial
-self-scrutiny of your own recent output.** Confidence that the output is sound is
-not evidence that it is; fluent, momentum-carried work reads as finished long
-before it has been tested. The lens is not "does this conform to discipline X" but
-"is this actually right, and would it survive a hostile second look."
+This corrector re-anchors a *meta* discipline: **adversarial self-scrutiny of
+your own recent output.** The lens is not "does this conform to discipline X"
+but "is this actually right, and would it survive a hostile second look."
 
 Resolve the source of truth per the method doc's ladder: if the consuming project
 states a self-scrutiny / verify-before-acting discipline in its own `CLAUDE.md` or
@@ -33,8 +29,10 @@ states a self-scrutiny / verify-before-acting discipline in its own `CLAUDE.md` 
 - **Confidence is not correctness.** Output that flows smoothly and reads as
   finished has not thereby been tested. Treat "this looks done" as the cue to
   scrutinize, not the verdict.
-- **Attack the work, don't defend it.** The pass looks actively for what is wrong: a wrong assumption, an unstated leap, a case not handled, a claim not backed, a
-  requirement quietly dropped. Rather than re-reading for reassurance.
+- **Attack the work, don't defend it.** The pass looks actively for what is
+  wrong (a wrong assumption, an unstated leap, a case not handled, a claim not
+  backed, a requirement quietly dropped) rather than re-reading for
+  reassurance.
 - **The producing context is the weakest critic.** The reasoning that made a
   mistake plausible is still active, so a hostile look must come from outside it
   (see the fresh-context rule below).
@@ -43,42 +41,34 @@ states a self-scrutiny / verify-before-acting discipline in its own `CLAUDE.md` 
 
 ## Three deltas to the shared loop
 
-This corrector runs the shared re-anchor / audit / correct-forward loop with three
-specific modifications, all flagged here rather than left to diverge silently (the
-third is declared in its own section below: the loop's step 2 self-audit runs inside
-the fresh-context subagent, not in the producing thread. See "The adversarial pass
-runs in a fresh context"):
+Declared here per the method doc's "Declared step deltas" allowance:
 
 1. **Stop first.** An inserted step between the loop's step 1 and step 2:
    re-anchoring happens on skill load as always, then the current trajectory
-   halts before the audit runs. The failure mode
-   this addresses is over-confident forward momentum, so the first move is to take
-   the foot off the gas. Do not push the in-flight action one step further before
-   the re-examination has run. No other corrector prepends a stop; this one does,
-   because the trigger *is* "you are moving too fast on this."
-2. **Remediate *with* the user, not autonomously.** The shared loop's step 3 (correct forward)
-   corrects forward on its own, in-tree, now. Here that step becomes collaborative:
-   surface the adversarial findings and work the fixes **with** the user rather than
-   barrelling ahead into an autonomous rewrite. The reason is the same failure mode:
-   the remedy for over-confident momentum cannot be *more* unilateral momentum.
-   The user just hit the brakes, so they stay in the loop on what changes. Purely
-   mechanical, unambiguous corrections (a typo the pass surfaced) are still fixed
-   directly; anything carrying a judgment call is proposed and worked jointly.
+   halts before the audit runs. Do not push the in-flight action one step
+   further before the re-examination has run: the trigger *is* "you are moving
+   too fast on this."
+2. **Remediate *with* the user, not autonomously.** The shared loop's step 3
+   (correct forward) becomes collaborative: surface the adversarial findings
+   and work the fixes **with** the user rather than barrelling ahead into an
+   autonomous rewrite. The user just hit the brakes, so they stay in the loop
+   on what changes. Purely mechanical, unambiguous corrections (a typo the
+   pass surfaced) are still fixed directly; anything carrying a judgment call
+   is proposed and worked jointly.
+3. **The step 2 self-audit runs in a fresh-context subagent**, not in the
+   producing thread (next section).
 
 The shared method doc's outward-artifact carve-out is unchanged: nothing here files
 a PR, issue, or published comment without the user's explicit opt-in.
 
 ## The adversarial pass runs in a fresh context (mandatory)
 
-The method doc already owns the rule: where your own judgment is the suspected
-source of the drift, re-derive in a fresh-context subagent rather than self-checking
-in the context that produced it. For every other corrector that is an escalation;
-for this one it is the **core step**. Adversarially re-examining output the same
-context just produced is exactly the bias that rule targets, so the pass is not
-optional here. It **must** run as a fresh-context (non-fork) subagent, blind to the
-reasoning that produced the output: handed the artifact and the requirement, not the
-story of how the work was reached, and told to find what is wrong. Never use a fork
-subagent for this pass. (This means the Agent tool's fork subagent type. A *skill's* `context: fork`
+For every other corrector the method doc's fresh-context re-derivation is an
+escalation; for this one it is the **core step**. It **must** run as a
+fresh-context (non-fork) subagent, blind to the reasoning that produced the
+output: handed the artifact and the requirement, not the story of how the work
+was reached, and told to find what is wrong. Never use a fork subagent for this
+pass. (This means the Agent tool's fork subagent type. A *skill's* `context: fork`
 frontmatter is a different mechanism the docs also call fork, and this rule does not
 exclude it.)
 
@@ -90,9 +80,8 @@ exclude it.)
 - **Recheck trigger**: either section changes what a fork inherits from the main
   session, or whether a skill run with `context: fork` starts without conversation history.
 
-The findings return to this thread, and remediation proceeds *with* the user (delta
-2): the fresh context supplies the unbiased critique, the user stays in the loop on
-the fix.
+The findings return to this thread, and remediation proceeds *with* the user
+(delta 2).
 
 ## Optional focus
 
@@ -104,10 +93,8 @@ that too.
 
 ## Audit. What to look for
 
-This is the brief handed to the fresh-context pass, the questions it is told to
-answer from a stance actively trying to break the work. It is the method doc's step
-2 (self-audit) run in the fresh context rather than here, so the findings come back
-concrete and located, not as a generic mea culpa:
+This is the brief handed to the fresh-context pass: the method doc's step 2
+run there rather than here, so the findings come back concrete and located:
 
 - an output presented as finished that was never tested against its actual
   requirement;
@@ -118,34 +105,30 @@ concrete and located, not as a generic mea culpa:
   output;
 - a leap where the reasoning skipped a step and momentum carried it past.
 
-Correct each per the two deltas: surface what the pass returns, and work the fix WITH
+Correct each per the deltas: surface what the pass returns, and work the fix WITH
 the user (fixing trivial mechanical items directly).
 
 ## What this skill does NOT do
 
 - **Not a pre-implementation plan stress-test.** Attacking a plan or proposal
   *before* the work is built is `/planning:devils-advocate`. This corrector
-  re-examines output *already produced*, reactively, mid-flight, a different point
-  on the timeline. Route "poke holes in this plan before we start" to
-  devils-advocate; degrade to prose when it is not installed.
+  re-examines output *already produced*. Route "poke holes in this plan before
+  we start" to devils-advocate; degrade to prose when it is not installed.
 - **Not a review checkpoint.** A structured review pass between "code works" and
   "code is ready" routes to `/review:quality-gate`, invoked via the Skill tool (degrade to
-  prose when it is not installed); this corrector is a re-anchor of a discipline, not a review mode.
-- **Not a single-axis corrector.** It does not own research, incumbency, terseness,
-  or any one discipline a sibling owns. It is the *general* adversarial re-look.
+  prose when it is not installed).
+- **Not a single-axis corrector.** It is the *general* adversarial re-look.
   When a flaw is squarely one axis (an unverified claim), hand that part to the
   sibling that owns it (`/discipline:do-your-research`) while keeping the general
   scrutiny here.
-- **Does not manufacture a fault.** A hostile look that finds the work sound reports
-  clean; it never invents a flaw to look diligent.
 
 ## Gotchas
 
 - Re-reading your own work in the same context and feeling reassured is not the
   adversarial pass. It is the bias the pass exists to defeat. The hostile look has
   to come from the fresh-context subagent, not a second read by the producer.
-- "Stop" means stop the trajectory, not stop the conversation. The point is to
-  interrupt momentum long enough to scrutinize, then remediate with the user. Not
-  to abandon the task.
+- "Stop" means stop the trajectory, not stop the conversation. Interrupt
+  momentum long enough to scrutinize, then remediate with the user. Do not
+  abandon the task.
 - A clean result is not a failure to try. If the fresh pass genuinely finds nothing
   wrong, say so plainly rather than downgrading a non-finding into a vague caveat.

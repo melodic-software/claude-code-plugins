@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "# Setup guide\n\n## Build the search index\n\nRun `make index` from the repository root.\n\n## Search flags\n\nThe index is searched with ripgrep. For its flags, run `rg --help` or read the [ripgrep guide](https://github.com/BurntSushi/ripgrep/blob/master/GUIDE.md).\n\n## What the triage bot does\n\nThe triage bot manages issue hygiene, for example adding labels or closing stale issues (examples, not a fixed list).\n\n## Known CI failure\n\nOn our CI runners the first build fails with `EACCES: permission denied, mkdir '/cache'`. Set `CACHE_DIR=$RUNNER_TEMP/cache` before building.\n"
+    },
+    {
+      "answer": "Build the index with `make index`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Setup guide\n\n## Build the search index\n\nRun `./scripts/_internal/build-index.sh` from the repository root.\n\n| `--sort-files` | Sort results by file path. |\n| `--max-columns-preview` | Print a preview. |\n\nThe triage bot can do exactly three things: add labels, assign reviewers, and close stale issues.\n\nOn our CI runners the first build fails with `EACCES: permission denied, mkdir '/cache'`.\n",
+      "why": "unchanged"
+    },
+    {
+      "answer": "Run the index build script from the repo root.",
+      "why": "vague, no contract"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

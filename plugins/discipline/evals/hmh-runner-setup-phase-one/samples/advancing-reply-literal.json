@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "**Phase 1 of 5: Get a runner registration token**\n\nWhere: a browser signed in to GitHub as an owner of `acme-builds`.\n\n1. (you) Open https://github.com/organizations/acme-builds/settings/actions/runners/new .\n   You should see a page titled 'Create self-hosted runner'.\n2. (you) Select **Windows** and copy the token from the `--token` line.\n\nCommon failure: the page returns 404. That means your account is not an org owner; ask an owner to run this phase.\n\nWhen the token is copied, tell me: `phase 1 done`"
+    },
+    {
+      "answer": "Reply \"phase 1 done\" once the token is copied."
+    },
+    {
+      "answer": "Then type **`token ready`** here."
+    },
+    {
+      "answer": "When those two steps are done, tell me:\n\n```text\nphase 1 done\n```",
+      "why": "the skill's own fenced-literal form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Let me know when you're done.",
+      "why": "no literal reply"
+    },
+    {
+      "answer": "Tell me when the runner shows as Idle.",
+      "why": "condition, not a copyable literal"
+    },
+    {
+      "answer": "Tell me when you are done.\n\n```powershell\n./config.cmd\n```",
+      "why": "a command fence after a vague ask is not a literal advancing reply"
+    }
+  ]
+}

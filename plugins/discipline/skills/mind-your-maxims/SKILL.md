@@ -11,8 +11,8 @@ metadata:
 
 # Mind your maxims
 
-A drift corrector for cooperative-communication discipline. The method, re-anchor, audit the work in flight, correct forward, report, and the tone
-that firing this is not an accusation, lives in
+A drift corrector for cooperative-communication discipline. The shared method
+(re-anchor, audit the work in flight, correct forward, report) lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md).
 Read it; this file adds only what is specific to communication discipline.
 
@@ -20,10 +20,9 @@ Read it; this file adds only what is specific to communication discipline.
 
 Cooperative communication: give the reader what they need. No less, no
 more. Relevantly, clearly, and with your uncertainty and limits disclosed.
-This discipline rests on maxims their **primary sources own**; this skill
-points at them and does not restate them (it dogfoods
-`/discipline:point-dont-copy`, a paraphrase of the maxims here would be a
-second copy that drifts):
+The maxims are owned by their **primary sources**; point at them, do not
+restate them (this skill dogfoods `/discipline:point-dont-copy`: a paraphrase
+here would be a second copy that drifts):
 
 - Grice's Cooperative Principle and its four maxims. Quantity, Quality,
   Relation, Manner. In
@@ -40,13 +39,11 @@ project declares a communication or writing-quality convention in its own
 
 ## The rubric this skill audits
 
-Its own delta, the four axes this corrector owns, mapped onto the pointed-to
-maxims:
+The four axes this corrector owns, mapped onto the pointed-to maxims:
 
 - **Quantity, both directions.** Under-informing is a finding: an asked-for
   detail, a load-bearing caveat, or a necessary step omitted. Over-informing
   is a finding too: padding, restatement, and detail the reader did not need.
-  Both fail the reader.
 - **Relation.** Answer the question actually asked. An adjacent answer to a
   question the reader did not ask, a tangent, or a buried lede (the answer
   present but hidden below setup) fails relevance even when technically
@@ -60,45 +57,29 @@ maxims:
 
 ## Delegations. Axes this skill routes elsewhere
 
-Each axis below is routed by invoking the named skill via the Skill tool.
+Route each axis below by invoking the named sibling skill via the Skill tool.
 
-- **Quality (truthfulness, evidence) → `/discipline:do-your-research`.** The
-  Gricean Quality maxim, say what you have grounds for, is that skill's
-  discipline, not this one's. A claim's truth routes there; this skill owns
-  how the message is shaped, not whether it is factually backed.
+- **Quality (truthfulness, evidence) → `/discipline:do-your-research`.** A
+  claim's truth routes there; this skill owns how the message is shaped, not
+  whether it is factually backed.
 - **Pure verbosity remediation → `/discipline:tighten-your-output`.** The
-  Quantity audit here NAMES padding as a finding, but batch prose-trimming
-  is that skill's job; route large verbosity cleanups to it rather than
-  hand-trimming at scale here.
-
-Both are sibling skills in this plugin, so these are direct routes.
+  Quantity audit here NAMES padding as a finding; route large verbosity
+  cleanups there rather than hand-trimming at scale here.
 
 ## Benevolence. Deliberate out-of-scope
 
-The paper's other augmented maxim, Benevolence, is deliberately NOT audited
-here: it is platform / safety-layer territory (the model's alignment
-posture), not an auditable communication-drift axis a mid-session corrector
-can meaningfully score.
+The paper's other augmented maxim, Benevolence, is NOT audited here: it is
+platform / safety-layer territory, not a communication-drift axis a
+mid-session corrector can score.
 
 ## Audit targets and the dual moment
 
 - **Two target kinds.** Audit recent agent RESPONSES and agent-authored
-  ARTIFACTS alike. Docs, PR bodies, prompts, commit messages, skill text.
+  ARTIFACTS alike: docs, PR bodies, prompts, commit messages, skill text.
   A buried lede in a PR body fails the same rubric as one in a chat reply.
 - **Dual moment.** Valid as posture-setting at any time (the method doc's
-  conversation-start case. Acknowledge the discipline as active and stop,
-  nothing to audit yet), AND as an audit once output exists. Fire it early
-  to set the posture or later to check the work.
-
-## What this skill does NOT do
-
-- **Does not audit truthfulness.** Whether a claim is factually backed is
-  `/discipline:do-your-research`; this skill audits the shape of the message,
-  not its evidence.
-- **Does not restate the maxims.** The definitions live in the cited
-  sources; this skill audits against them, it does not reproduce them.
-- **Does not fabricate a finding.** A response that gave the reader exactly
-  what they needed, relevantly and clearly, audits clean; say so.
+  conversation-start case: acknowledge the discipline as active and stop,
+  nothing to audit yet), AND as an audit once output exists.
 
 ## Gotchas
 

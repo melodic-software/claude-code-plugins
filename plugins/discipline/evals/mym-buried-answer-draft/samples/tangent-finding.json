@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Relation: the Poetry/Hatch/PDM aside is a tangent Dana did not ask about."
+    },
+    {
+      "answer": "Cut the packaging-tool discussion, which is off-topic."
+    },
+    {
+      "answer": "Quantity: the packaging tool comparison (Poetry, Hatch, PDM) is not needed and was removed."
+    },
+    {
+      "answer": "The packaging-tool aside (Poetry, Hatch, PDM) is a digression; removed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Audit clean: every sentence serves the question.",
+      "why": "no finding"
+    },
+    {
+      "answer": "Moved the answer to the top.",
+      "why": "only the buried-lede fix"
+    },
+    {
+      "answer": "No tangents found; every sentence is on topic.",
+      "why": "negation"
+    },
+    {
+      "answer": "Nothing irrelevant in the draft.",
+      "why": "negation"
+    },
+    {
+      "answer": "Kept the Poetry/Hatch/PDM sentence; not removed.",
+      "why": "negation on removed"
+    }
+  ]
+}
