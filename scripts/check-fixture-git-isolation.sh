@@ -275,7 +275,9 @@ scan() {
     # --get user.name`) — an under-selection, the direction this gate calls
     # unsafe. Deleting each read occurrence first leaves any write on the line
     # still visible.
+    # Each prefilter below is a substring guard every pattern after it requires.
     function ident_write(s,   t) {
+      if (!index(s, "user.")) return 0
       t = s
       gsub(/config[ \t]+(--[a-zA-Z-]+[ \t]+)*--(get|get-all|get-regexp|get-urlmatch|list)([ \t]+--[a-zA-Z-]+)*[ \t]+user\.(email|name)/, " ", t)
       return t ~ /config[ \t]+(--[a-zA-Z-]+[ \t]+)*user\.(email|name)([ \t]|$)/
@@ -300,6 +302,7 @@ scan() {
     # shell-looking word sequence and lets one set of intents cover both
     # languages.
     function is_fixture(s,   argv) {
+      if (!index(s, "git") && !index(s, "user.") && !index(s, "worktree")) return 0
       if (s ~ /git[a-zA-Z_]*[ \t]+(-[^ \t]+[ \t]+[^ \t]+[ \t]+)*(init|clone)([ \t]|$)/ ||
           s ~ /git_init[a-zA-Z_]*[ \t(]/ ||
           ident_write(s) ||
@@ -318,6 +321,7 @@ scan() {
     # some unrelated variable, while separately mentioning GIT_DIR, pass as
     # isolated.
     function pops_literal(s, name) {
+      if (!index(s, "environ") && !index(s, "delenv")) return 0
       return s ~ ("(environ[ \t]*\\.[ \t]*pop|delenv)[ \t]*\\([ \t]*" Q name Q) ||
              s ~ ("del[ \t]+os[ \t]*\\.[ \t]*environ[ \t]*\\[[ \t]*" Q name Q)
     }
@@ -327,6 +331,7 @@ scan() {
     # the LOOP VARIABLE, so a pop and a mention that never met cannot credit
     # each other.
     function pops_var(s, v) {
+      if (!index(s, "environ") && !index(s, "delenv")) return 0
       return s ~ ("(environ[ \t]*\\.[ \t]*pop|delenv)[ \t]*\\([ \t]*" v "[ \t]*[,)]") ||
              s ~ ("del[ \t]+os[ \t]*\\.[ \t]*environ[ \t]*\\[[ \t]*" v "[ \t]*\\]")
     }
