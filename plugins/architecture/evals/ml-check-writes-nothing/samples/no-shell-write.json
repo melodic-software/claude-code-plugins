@@ -222,6 +222,18 @@
         }
       ],
       "why": "interpreter copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; Path('/tmp/x.md').replace('docs/architecture/landscape.md')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib replace"
     }
   ]
 }
