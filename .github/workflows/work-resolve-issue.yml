@@ -44,7 +44,7 @@ jobs:
       trusted-base: default-tip
       timeout-minutes: 50
     secrets:
-      claude-code-oauth-token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-code-oauth-token: ${{ secrets.AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN }}
 
   report-outcome:
     needs: resolve-issue
