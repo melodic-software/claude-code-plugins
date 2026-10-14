@@ -497,6 +497,8 @@ async page => {
     ok("the header round comes from the newest question's stage only", lbl === "Round 1 · Design", lbl);
     const rounds = await page.$$eval(".qbtn", els => els.length);
     ok("both stages' questions are listed", rounds >= 3, String(rounds));
+    const e1 = await page.textContent('.qbtn[data-q="E1"]'), d2 = await page.textContent('.qbtn[data-q="D2"]');
+    ok("a round-1 question added after round 3 was posted says so; one asked in its own round does not", /Added in round 3/.test(e1) && !/Added in round/.test(d2), e1 + " | " + d2);
   }
   if (PHASE === 6) { // its own server, no events: an unhandled answer reads as not delivered until a watcher holds the lease, then a handle-only apply clears it without a reload
     await page.setViewportSize({width: 1400, height: 860});

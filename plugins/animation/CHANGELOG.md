@@ -3,6 +3,16 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0] - 2026-10-14
+
+### Added
+
+- Seven outcome eval cases under `evals/` (three for `produce`, two for `rotoscope`, two for `learn-style`), and frozen trigger-probe sets for those three skills under `probes/`.
+
+### Changed
+
+- `produce`, `rotoscope` and `learn-style` have shorter descriptions and bodies, and `setup` has a one-line description. Outcome eval cases and held-out trigger probes measured each change against the old text before it shipped.
+
 ## [0.4.14] - 2026-10-13
 
 ### Changed
