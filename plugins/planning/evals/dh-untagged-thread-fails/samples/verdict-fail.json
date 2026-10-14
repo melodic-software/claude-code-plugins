@@ -15,6 +15,10 @@
     {
       "answer": "Verdict: **FAIL**. Route back to /planning:design.\n",
       "why": "bold verdict; the old grader also accepted it"
+    },
+    {
+      "answer": "**Gate: FAIL.** T2 Retry backoff policy is open and untagged; T3 has no rationale.\n",
+      "why": "verdict, then a semicolon in the findings"
     }
   ],
   "fail": [
@@ -45,6 +49,14 @@
     {
       "answer": "**Gate: PASS.** Every thread clears the PASS/FAIL check.\n",
       "why": "FAIL only inside a PASS/FAIL label, which the old grader accepted"
+    },
+    {
+      "answer": "Verdict: PASS. The gate passes; no thread fails the check.\n",
+      "why": "PASS verdict; the old window ran past the semicolon"
+    },
+    {
+      "answer": "Verdict: PASS. Zero FAIL rows.\n",
+      "why": "PASS verdict; FAIL negated by zero"
     }
   ]
 }

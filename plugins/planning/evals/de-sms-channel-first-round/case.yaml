@@ -18,7 +18,7 @@ graders:
     arm: with-only
   - name: numbered-recommendations
     type: regex
-    pattern: '^[ \t]*(?:#{1,4}[ \t]*)?(?:\*\*)?(?:Q|T)?\d+[.):][\s\S]*?(?<!no )\brecommend[\s\S]*?^[ \t]*(?:#{1,4}[ \t]*)?(?:\*\*)?(?:Q|T)?\d+[.):][\s\S]*?(?<!no )\brecommend'
+    pattern: '^[ \t]*(?:#{1,4}[ \t]*)?(?:\*\*)?(?:Q|T)?\d+[.):][\s\S]*?(?<!no )(?<!not )(?<!never )(?<!n''t )\brecommend[\s\S]*?^[ \t]*(?:#{1,4}[ \t]*)?(?:\*\*)?(?:Q|T)?\d+[.):][\s\S]*?(?<!no )(?<!not )(?<!never )(?<!n''t )\brecommend'
     flags: mi
     arm: both
   - name: basis-lines

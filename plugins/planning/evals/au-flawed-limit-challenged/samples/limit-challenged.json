@@ -49,6 +49,14 @@
     {
       "answer": "D1 Redis: CHALLENGED; D2 600 per minute: CONFIRMED.\n",
       "why": "the challenge is on D1 and D2 is confirmed on the same line"
+    },
+    {
+      "answer": "D2 (600 per minute): nobody challenged it.\n",
+      "why": "negated with nobody"
+    },
+    {
+      "answer": "D2 600 per minute: nothing challenged it; CONFIRMED.\n",
+      "why": "negated with nothing, then confirmed"
     }
   ]
 }

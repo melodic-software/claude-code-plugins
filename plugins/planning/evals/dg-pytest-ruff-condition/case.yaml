@@ -32,6 +32,6 @@ graders:
     arm: both
   - name: session-note
     type: regex
-    pattern: '^(?=[\s\S]*/clear\b)(?=[\s\S]*\bresum(?:e|es|ed|ing)\b)'
-    flags: i
+    pattern: '^(?=[\s\S]*?^(?![^\n]*(?:\b(?:not|never|no)|n''t)\b[ \t]+(?:\w+[ \t]+){0,2}(?:go(?:ing)? into|get into|cover|discuss|explain|mention|describe|address|detail|say|talk about)\w*\b)[^\n]*/clear\b)(?=[\s\S]*?^(?![^\n]*(?:\b(?:not|never|no)|n''t)\b[ \t]+(?:\w+[ \t]+){0,2}(?:go(?:ing)? into|get into|cover|discuss|explain|mention|describe|address|detail|say|talk about)\w*\b)[^\n]*\bresum(?:e|es|ed|ing)\b)'
+    flags: mi
     arm: both

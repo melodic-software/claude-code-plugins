@@ -15,6 +15,10 @@
     {
       "answer": "**1. D2: limit value (600 requests per minute). Both validators challenged it.**\n\n**2. D1: counter store (the existing session Redis). Both validators challenged it.**\n\n## Confirmed by both validators\n\n- **D3: 429 with a `Retry-After` header.** It meets acceptance criterion (a).\n",
       "why": "observed smoke reply: D3's verdict sits in a heading two lines above it"
+    },
+    {
+      "answer": "## Confirmed by both validators\n\n- D1. Redis counter store\n- D3. 429 with Retry-After\n\n## Needs your answer\n\n1. D2. 600 requests per minute: CHALLENGED against the 20 rps SLA.\n",
+      "why": "collapsed CONFIRMED block under a heading, as the skill presents it"
     }
   ],
   "fail": [
@@ -41,6 +45,14 @@
     {
       "answer": "**1. D2: limit value (600 requests per minute). Both validators challenged it.**\n\n**2. D1: counter store (the existing session Redis). Both validators challenged it.**\n\n## Not yet reviewed\n\nThe validators ran out of turns.\n\nSome other notes here.\n\nAnd more.\n\n- **D3: 429 with a `Retry-After` header.**\n",
       "why": "D3 carries no verdict; the nearest verdict word is too far above"
+    },
+    {
+      "answer": "I have not yet confirmed Redis, the 600 limit, or the 429 response.\n",
+      "why": "lowercase, negated: no verdict given"
+    },
+    {
+      "answer": "D1 Redis: CONFIRMED\nD2 600 per minute: CHALLENGED\nD3 429 with Retry-After: validator did not return.\n",
+      "why": "D3 has no verdict; the D2 verdict on the line above does not count"
     }
   ]
 }

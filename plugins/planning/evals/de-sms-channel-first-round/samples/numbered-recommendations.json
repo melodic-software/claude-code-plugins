@@ -1,14 +1,50 @@
 {
   "pass": [
-    {"answer": "## Round 1\n\n1. **How does the dispatcher fan out to channels?** Recommend: a list of channel senders the dispatcher loops over.\n   Basis: verified, notifications/dispatcher.py:9 calls one sender.\n2. **Twilio integration verdict?** Recommend: contain now, abstract later.\n   Basis: judgment.\n", "why": "numbered bold questions"},
-    {"answer": "### 1. Opt-in storage\n\nRecommendation: a `sms_opt_in` flag on the user record.\n\n### 2. Failure isolation\n\nRecommendation: send SMS after email and swallow Twilio errors into a log.\n", "why": "numbered headings with Recommendation"},
-    {"answer": "Q1: Where does the phone number live? (recommended: on the user dict, read as user[\"phone\"])\nQ2: Does a Twilio failure retry? (recommended: no retry in this slice)\n", "why": "Q-numbered, lowercase recommended"}
+    {
+      "answer": "## Round 1\n\n1. **How does the dispatcher fan out to channels?** Recommend: a list of channel senders the dispatcher loops over.\n   Basis: verified, notifications/dispatcher.py:9 calls one sender.\n2. **Twilio integration verdict?** Recommend: contain now, abstract later.\n   Basis: judgment.\n",
+      "why": "numbered bold questions"
+    },
+    {
+      "answer": "### 1. Opt-in storage\n\nRecommendation: a `sms_opt_in` flag on the user record.\n\n### 2. Failure isolation\n\nRecommendation: send SMS after email and swallow Twilio errors into a log.\n",
+      "why": "numbered headings with Recommendation"
+    },
+    {
+      "answer": "Q1: Where does the phone number live? (recommended: on the user dict, read as user[\"phone\"])\nQ2: Does a Twilio failure retry? (recommended: no retry in this slice)\n",
+      "why": "Q-numbered, lowercase recommended"
+    },
+    {
+      "answer": "1. **Twilio integration?** Recommend: contain it now; don't abstract a provider interface yet.\n2. **Retry on Twilio failure?** Recommend: no retry in this slice.\n",
+      "why": "recommendations whose content carries a negation"
+    }
   ],
   "fail": [
-    {"answer": "", "why": "empty"},
-    {"answer": "1. **Twilio integration verdict?** Recommend: contain now, abstract later.\n", "why": "one question where a round of several is required"},
-    {"answer": "I have designed the SMS channel: an SmsSender class beside EmailSender and a loop in the dispatcher. Shall I proceed?\n", "why": "decided autonomously, then asked for a go-ahead"},
-    {"answer": "1. Opt-in storage\n2. Failure isolation\n3. Twilio verdict\n\nOK to go ahead?\n", "why": "numbered list with no recommendations"},
-    {"answer": "1. Opt-in storage: no recommendation yet.\n2. Failure isolation: no recommendation yet.\n", "why": "negated recommendations"}
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "1. **Twilio integration verdict?** Recommend: contain now, abstract later.\n",
+      "why": "one question where a round of several is required"
+    },
+    {
+      "answer": "I have designed the SMS channel: an SmsSender class beside EmailSender and a loop in the dispatcher. Shall I proceed?\n",
+      "why": "decided autonomously, then asked for a go-ahead"
+    },
+    {
+      "answer": "1. Opt-in storage\n2. Failure isolation\n3. Twilio verdict\n\nOK to go ahead?\n",
+      "why": "numbered list with no recommendations"
+    },
+    {
+      "answer": "1. Opt-in storage: no recommendation yet.\n2. Failure isolation: no recommendation yet.\n",
+      "why": "negated recommendations"
+    },
+    {
+      "answer": "1. Opt-in storage: I don't recommend one yet.\n2. Failure isolation: I wouldn't recommend a change.\n",
+      "why": "negated with don't and wouldn't"
+    },
+    {
+      "answer": "1. Opt-in storage: I do not recommend one yet.\n2. Failure isolation: I won't recommend a change.\n",
+      "why": "negated with do not and won't"
+    }
   ]
 }
