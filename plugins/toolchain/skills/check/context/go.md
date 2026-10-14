@@ -52,7 +52,7 @@ cd "$PROJECT_DIR" && golangci-lint run --fix <files>
   flag. An older toolchain rejects it outright; `go version` confirms the installed toolchain is
   below that documented floor, so `/toolchain:check` reports the gate as `skip (unsupported: ...)`
   with the `install-hint` rather than a false drift `FAIL` (the gate's version-floor rule in
-  `check/SKILL.md` §2). Drift goes unchecked until the toolchain is upgraded. The skip is visible
+  `check/context/gates.md`). Drift goes unchecked until the toolchain is upgraded. The skip is visible
   in the report, never silent.
 - **GOFLAGS**: a repo-level `GOFLAGS` env var or `go env -w GOFLAGS=...` setting changes build/test
   behavior repo-wide (e.g. `-mod=readonly`); check for one before assuming a bare command failure

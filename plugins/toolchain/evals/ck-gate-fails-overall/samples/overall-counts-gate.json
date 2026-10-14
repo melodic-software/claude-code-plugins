@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "## Build Results\n\n| Ecosystem | Build | Test | Lint | Status |\n|---|---|---|---|---|\n| bash | pass | pass | pass | FAIL |\n\nGates: fixture-drift — FAIL (run tools/regen-fixtures.sh and commit the regenerated fixtures)\n\nOverall: FAIL (0 of 1 ecosystems failed, 1 gate failed)",
+      "why": "1 gate failed"
+    },
+    {
+      "answer": "| bash | pass | pass | pass | PASS |\n\n| Gate | Result | Remediation |\n|---|---|---|\n| `fixture-drift` | **FAIL** | run `tools/regen-fixtures.sh` and commit |\n\n**Overall:** **FAIL** — 0 of 1 ecosystems failed; 1 gate failed",
+      "why": "bold, semicolon"
+    },
+    {
+      "answer": "Gate `fixture-drift`: FAIL. Remediation: run tools/regen-fixtures.sh and commit the regenerated fixtures.\n\nOverall: `FAIL` (1 of 1 gates failed)",
+      "why": "1 of 1 gates failed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| bash | pass | pass | pass | FAIL |\n\nGates: fixture-drift — FAIL (run tools/regen-fixtures.sh)\n\nOverall: FAIL (1 of 1 ecosystems failed)",
+      "why": "FAIL without the gate count"
+    },
+    {
+      "answer": "Gates: fixture-drift — pass (it would FAIL only if fixtures drifted)\n\nOverall: PASS (1 of 1 ecosystems passed; not FAIL, 0 gates failed)",
+      "why": "PASS, 0 gates failed"
+    },
+    {
+      "answer": "Overall: PASS (1 of 1 ecosystems passed, 1 gate failed)",
+      "why": "gate counted under a PASS"
+    }
+  ]
+}

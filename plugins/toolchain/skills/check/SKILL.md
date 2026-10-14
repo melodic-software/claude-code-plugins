@@ -1,5 +1,5 @@
 ---
-description: "Run build, test, and lint verification for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Go, Bash, PowerShell, Markdown) from git status, with the consuming project's own documented commands overriding portable defaults. Use when: 'does it compile', 'run tests', 'build it', 'run the tests', 'does this still build', 'check it', or after any code edit; for lint-only use /toolchain:lint, for full outcome verification use /verification:confirm."
+description: "Build, test, and lint verification for changed files across detected ecosystems (.NET, Python, TypeScript, Go, Bash, PowerShell, Markdown), with the project's own commands overriding bundled defaults. Use when: 'does it compile', 'run tests', 'build it', 'run the tests', 'does this still build', 'check it', or after any code edit. Lint only: /toolchain:lint; outcome verification: /verification:confirm."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[ecosystem]"
@@ -12,50 +12,24 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+Collect these with **individual** Bash calls, one command per call, never combined into one invocation, so a worktree-isolated session screens each git read on its own:
 
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Current branch, `git branch --show-current`
 
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-bounds nothing: the cap applies only after the command's output has come back. What a large output
-returns is in [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits).
-As of: 2026-10-11. Recheck trigger: that section changes what a valid result returns.
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines, so a worktree-isolated session screens each
-git read on its own. The dated record for why a pre-compute block that carries git is refused is
-kept by `/source-control:worktree`, in its gather-block reference under "The pre-compute block
-runs as one shell invocation". It is cited by skill name, not by path or link, so it carries no
-anchor; that record holds its own as-of date and recheck trigger. Relay as of 2026-10-11; recheck
-when that skill drops or renames that section.
-
-Pointer for how injected commands run:
-[How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run).
-As of: 2026-10-11. Recheck trigger: that section documents how a block's commands are grouped into
-shell invocations.
+Keep the bound in the pipe; a read-time cap bounds nothing. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Pointers: what a large output returns, [Output limits](https://code.claude.com/docs/en/tools-reference#output-limits); how injected commands are grouped, [How injected commands run](https://code.claude.com/docs/en/skills#how-injected-commands-run); why a pre-compute block carrying git is refused, `/source-control:worktree`'s gather-block reference, "The pre-compute block runs as one shell invocation". As of: 2026-10-11. Recheck trigger: either docs section changes, or that skill drops or renames that section.
 
 ## Purpose
 
-Detects affected ecosystems from changed files and runs each one's build → test → lint. Serves two roles:
+Detects the ecosystems the changed files touch and runs each one's build → test → lint. Run it as `/toolchain:check` or `/toolchain:check <ecosystem>`. `/toolchain:lint`, `/verification:confirm` (when installed) and verification agents compose it for detection and command resolution instead of keeping their own tables.
 
-1. **Task skill**. `/toolchain:check` runs build verification for changed files. `/toolchain:check dotnet` targets one ecosystem
-2. **Reference skill**. Its sibling `/toolchain:lint`, the `verification` plugin's `/verification:confirm` (when installed), and verification agents compose this for detection and command resolution instead of baking their own tables
-
-**The command surface is resolved, not hardcoded.** Both `/toolchain:check` and `/toolchain:lint` resolve each ecosystem's build/test/lint commands through the shared four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md): the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` is authoritative when present; the plugin's bundled portable defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the rung-4 fallback. The consumer's file always wins.
+Commands are resolved, not hardcoded: the four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) reads the consuming repo's tracked `.claude/ecosystems/<ecosystem>.yaml` first; the bundled defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the last-rung fallback. The consumer's file always wins.
 
 ## Arguments
 
-`$ARGUMENTS`, optional ecosystem filter. If provided, run only that ecosystem. If omitted, auto-detect from changed files.
+`$ARGUMENTS` is an optional ecosystem filter: `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `go`. Aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`, `golang` → `go`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces belong to `/toolchain:lint`; this skill never runs them (and never matches `cross-cutting`'s `**` glob).
 
-Available ecosystem filters are the ecosystems `/toolchain:check` covers: `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `go` (resolved per the ladder). Common aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`, `golang` → `go`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces are **not** run by `/toolchain:check`. Use `/toolchain:lint` for those.
-
-## Ecosystem detection
-
-Each ecosystem declares a list of `globs` that classify changed files into that ecosystem (resolved per the ladder. Consumer `.claude/ecosystems/<ecosystem>.yaml` when present, else the bundled default). The skill matches `git status --porcelain` output against each covered ecosystem's `globs` to determine which ecosystems are affected. `/toolchain:check` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `go`; the lint-only `yaml` and `cross-cutting` surfaces are `/toolchain:lint`'s (in particular `cross-cutting`'s `**` glob is never matched here).
-
-For ecosystem-specific gotchas, reference files, and primary-source detail, read the corresponding context file:
+Per-ecosystem gotchas and primary-source detail, read for each ecosystem that runs:
 
 - [context/dotnet.md](context/dotnet.md). .NET build, test, format
 - [context/sarif.md](context/sarif.md). Roslyn SARIF output, jq parser patterns, AI consumption
@@ -65,9 +39,7 @@ For ecosystem-specific gotchas, reference files, and primary-source detail, read
 - [context/powershell.md](context/powershell.md). PSScriptAnalyzer
 - [context/go.md](context/go.md). Go build, test, lint, module discovery
 
-When invoked as a task (`/toolchain:check`), detect from `git status --porcelain`. When referenced by another skill, use the file list that skill provides.
-
-## Workflow (when invoked as /toolchain:check)
+## Workflow
 
 ### 0. Resolve repo root
 
@@ -79,9 +51,9 @@ All commands use absolute paths. Never `cd` and lose context.
 
 ### 1. Detect ecosystems
 
-If `$ARGUMENTS` specifies an ecosystem, use it. If `all`, run every covered ecosystem. Otherwise, classify changed files from `git status --porcelain` against each covered ecosystem's `globs` (resolved per the ladder; `/toolchain:check` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `go`). Skip any ecosystem whose resolved `enabled` is `false` (a consumer opt-out). Excluded even under `all`.
+With an ecosystem argument, use it; with `all`, run every covered ecosystem. Otherwise match the changed files from `git status --porcelain` against each covered ecosystem's resolved `globs`. When another skill calls this one with a changed-file list, use that list instead. Skip any ecosystem whose resolved `enabled` is `false`, even under `all`.
 
-If the working tree is clean, fall back to the branch diff so checkpoint-committed work still gets classified (the common pre-PR case: every green block was already committed). Resolve the default branch by **detection, not assumption**, never a hardcoded `main`/`master`, and assign it before use:
+If the working tree is clean, fall back to the branch diff, so work already committed at green checkpoints still gets classified. Detect the default branch, never hardcode `main` or `master`, with this script as written:
 
 ```bash
 REMOTE="" DEFAULT_BRANCH=""
@@ -104,15 +76,15 @@ else
 fi
 ```
 
-The loop probes candidate remotes in priority order, the remote the current branch tracks (`branch.<name>.remote`) first, then `origin` if present, then the rest, and selects the first one whose default branch resolves to a locally available tracking ref, never a hardcoded remote name. This handles an unpushed feature branch (no tracking remote) in a repo cloned with a different remote name (e.g. `git clone -o vendor`), and skips a remote that was added but never fetched (its default branch has no local `refs/remotes/<remote>/<branch>` to diff against) in favor of a later remote that does, the candidate is accepted only when `git rev-parse` confirms the tracking ref exists locally. Each candidate's default branch comes from that remote's own `HEAD` (not the current branch's upstream, which on a pushed feature branch points at the feature branch itself and would make `merge-base` equal `HEAD`, yielding an empty diff), falling back to a `git ls-remote --symref` query when the local `HEAD` symref is absent. `merge-base` is taken against the fully-qualified remote-tracking ref `refs/remotes/$REMOTE/$DEFAULT_BRANCH`, which resolves without a local branch of that name and, like the `rev-parse` verify. Cannot be misparsed as an option when the remote name begins with a dash (`git clone --origin=-x`); the `git ls-remote` probe terminates option parsing with `--end-of-options` for the same reason. If no candidate yields a locally available default branch, skip the branch-diff path rather than guessing. A caller passing an explicit changed-file list (e.g. `/verification:confirm`) overrides both detection paths.
+It tries the remote the current branch tracks, then `origin`, then the rest, and accepts the first whose own `HEAD` names a default branch with a local tracking ref. When none does, skip the branch diff rather than guess.
 
 If neither path yields changes and no `$ARGUMENTS`: report "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:check all` to verify the full repo, or `/toolchain:check <ecosystem>` for a specific ecosystem." and exit.
 
-**Conversation-aware targeting**: when the conversation has been working with specific files/projects, scope the build to what was touched. Don't rebuild the whole scope for a single-project change. The ecosystem config's `anchor` field provides the default scoping anchor for ecosystems with a canonical entry point; substitute a narrower project file when changes are confined to one project. For .NET specifically: use the specific `.csproj` when changes are in one project, use the solution file when changes span multiple projects or touch shared files (`.props`, `.targets`, solution file).
+**Conversation-aware targeting.** When the conversation has been working in specific files or projects, scope the build to what was touched. The ecosystem's `anchor` is the default entry point; substitute a narrower project file when changes stay in one project. For .NET, use the specific `.csproj` for a one-project change, and the solution file when changes span projects or touch shared files (`.props`, `.targets`, the solution file).
 
 ### 1.5 Resolve each ecosystem's command surface
 
-For each affected ecosystem, resolve its command surface (`globs`, `build-cmd`, `test-cmd`, `check-cmd`, `fix-cmd`, `code-fix-cmd`, `anchor`, `project-discovery`, `install-hint`, `gates`, `notes`) through the four-rung ladder in [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md):
+Resolve `globs`, `build-cmd`, `test-cmd`, `check-cmd`, `fix-cmd`, `code-fix-cmd`, `anchor`, `project-discovery`, `install-hint`, `gates` and `notes` per the ladder:
 
 1. Consumer `.claude/ecosystems/<ecosystem>.yaml` (+ `.local.yaml` overlay, `~/.claude/ecosystems/` user-global, additive per key) → authoritative.
 2. Absent → infer from the repo's build files and offer to persist via `/toolchain:setup`.
@@ -123,61 +95,32 @@ A malformed consumer file warns and degrades to rung 2, never a hard stop.
 
 ### 2. Run checks
 
-For each affected ecosystem, use the resolved `build-cmd`, `test-cmd`, and `check-cmd`. Null commands are skipped (no build step / no test framework / no lint).
-
-Substitute placeholders from the ecosystem config:
-
-- `<solution-or-project-file>` ← resolved per the ecosystem's `anchor` description
-- `<project-dir>` ← walked per-project root (driven by `project-discovery` patterns)
-- `<files>` ← the changed-files list for that ecosystem
-
-Run build → test → lint in order per ecosystem. Stop that ecosystem on first failure but continue to next ecosystem.
+For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-cmd`, in that order; skip a null command. Substitute `<solution-or-project-file>` (per `anchor`), `<project-dir>` (each root `project-discovery` finds) and `<files>` (that ecosystem's changed files). Stop an ecosystem at its first failure and continue with the next.
 
 **What counts as a check.** A cell reads `pass` only when its command started, exercised the project, and exited 0. Two outcomes look green and are not:
 
 - **Syntax only.** A command that only parses the files (`bash -n`, `python -m py_compile`, `node --check`) checks no behavior. It fills no Build or Test cell: report that cell `syntax only`.
 - **Failed to start.** Exit 126 or 127, a spawn or permission error, or a runner that aborted before running anything (an import error while collecting tests) produced no result. When the cause is missing declared dependencies, apply the install rule below; otherwise the cell is `FAIL` with the output shown.
 
-**Passed on retry.** A test that failed and then passed on a rerun the project configures is a flaky result, not a clean pass: Playwright and pytest-rerunfailures both report it as its own outcome, and an agent that gets green from a retry learns that retrying works. When the test output reports any such test, the Test cell reads `pass (flaky: N)`, the ecosystem Status reads `PASS (flaky: N)`, the Overall line adds the summed count to its parenthetical (e.g. `Overall: PASS (2 of 2 ecosystems passed; flaky: 1)`), and each flaky test is named below the table. It does not turn the run `FAIL`, since the project chose to allow retries, but a caller never reads it as a clean `PASS`. Which output marks a retry-earned pass, and what to report when retries are configured but the runner marks none, is recorded in the ecosystem's `context/<ecosystem>.md`.
+**Passed on retry.** A test that failed and then passed on a rerun the project configures is a flaky result, not a clean pass. When the test output reports any, the Test cell reads `pass (flaky: N)`, the ecosystem Status `PASS (flaky: N)`, the Overall line adds the summed count (e.g. `Overall: PASS (2 of 2 ecosystems passed; flaky: 1)`), and each flaky test is named below the table. It does not make the run `FAIL`. `context/<ecosystem>.md` records which output marks a retry-earned pass, and what to report when retries are configured but none is marked.
 
-**Run signals to echo.** From the same test output, also echo below the table, when present:
+**Run signals to echo** below the table, from the same test output, when present:
 
-- **Shuffle seed.** Any order or random seed the runner printed, so the exact order can be replayed. When the project shuffles but the output hides the seed, say so and name the replay form from `context/<ecosystem>.md`.
-- **Slowest tests.** The runner's slowest-tests section, top entries only, so test latency stays visible. When the output carries none, a one-line note names how the project turns it on (from `context/<ecosystem>.md`). Never edit the resolved `test-cmd` to add it: command strings are opaque.
+- **Shuffle seed.** Any order or random seed the runner printed. When the project shuffles but the output hides the seed, say so and name the replay form from `context/<ecosystem>.md`.
+- **Slowest tests.** The runner's slowest-tests section, top entries only. When the output has none, one line names how the project turns it on (from `context/<ecosystem>.md`). Never edit the resolved `test-cmd` to add it: command strings are opaque.
 
 **Missing declared dependencies.** When the ecosystem's tool is on `PATH` but a command cannot start because the project's declared dependencies are not installed (a package or module not found, a project not restored), install them once and rerun that command, within these limits:
 
-- Install only from the committed lockfile, with install scripts disabled, and only with one of these commands: `npm ci --ignore-scripts`, `uv sync --frozen --no-build --no-install-local`, `dotnet restore --locked-mode`. Any other package manager installs nothing: report `skip (dependencies missing: no vetted install)`. With no lockfile, do not install; report `skip (dependencies missing: no lockfile)`. The uv command builds nothing at install time: `--no-build` refuses third-party source builds, and `--no-install-local` leaves out the project and its local packages, so no build backend is fetched from outside the lockfile. A third-party dependency that ships no wheel fails the install, and that is `skip (dependencies missing: no wheel for <package>)`. Pointer: for the flags, see <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-build> and <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-install-local>. As of: 2026-10-02. Recheck trigger: either entry changes what it builds or installs.
+- Install only from the committed lockfile, with install scripts disabled, and only with one of these commands: `npm ci --ignore-scripts`, `uv sync --frozen --no-build --no-install-local`, `dotnet restore --locked-mode`. Any other package manager installs nothing: report `skip (dependencies missing: no vetted install)`. With no lockfile, do not install; report `skip (dependencies missing: no lockfile)`. The uv command builds nothing at install time, so a third-party dependency that ships no wheel fails the install: report `skip (dependencies missing: no wheel for <package>)`. Pointer: for the flags, see <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-build> and <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-install-local>. As of: 2026-10-02. Recheck trigger: either entry changes what it builds or installs.
 - Stay within the session's permission mode. Never use `sudo` or any other elevation, and never retry a denied install another way: report `skip (dependencies missing: install denied)`.
 - Never install a tool. A runner missing from `PATH` stays `skip (tool missing: <tool>)`.
 - Capture `git status --porcelain` and a hash of `git diff HEAD --binary` before the install and again after it, so a file that was already modified and changes again is caught. If either differs, stop the whole run and report `Overall: STOPPED (dependency install changed: <paths>)`. Run no further check: the tree is no longer the one under test.
 
-Tool presence: before each ecosystem runs, verify the tool is on `PATH`. If missing, report `skip (tool missing: <tool>)` with the ecosystem's `install-hint` from the ecosystem config, never report `FAIL` for a missing tool. **What "the tool" means here is the one the ecosystem's commands are invoked through** (python's `uv`, not the `ruff` and `pyright` behind it), the probe is per ecosystem, not per sub-tool. A sub-tool bundled inside an opaque compound `check-cmd` is not probed and cannot be: its absence is discoverable only at execution time, where it surfaces as a real non-zero exit and the ecosystem reports `FAIL`. Do not extend this rule into a per-sub-tool probe to convert that into a `skip`. That contradicts the atomicity rule below, and each affected ecosystem documents the consequence in its own `context/<ecosystem>.md`.
+**Tool presence.** Before each ecosystem runs, check that the tool its commands are invoked through is on `PATH` (python's `uv`, not the `ruff` and `pyright` behind it). Missing: report `skip (tool missing: <tool>)` with the ecosystem's `install-hint`, never `FAIL`. Do not probe the sub-tools inside a compound `check-cmd`: one that is absent fails at run time, and that real non-zero exit is reported as `FAIL`.
 
-**Opt-in gate (lint phase only)**: before running an ecosystem's `check-cmd`, evaluate its resolved `opt-in` condition (if present) against the repo. Build and test always run regardless of `opt-in`. Only the lint phase is gated, since compiling and testing don't depend on style configuration.
+**Opt-in gate (lint phase only).** Before `check-cmd`, evaluate the resolved `opt-in` condition, if any; build and test always run. When `opt-in` is ONE condition for the whole `check-cmd` (e.g. dotnet, python, go; any ecosystem whose resolved `opt-in` has this shape), unmet means the Lint cell reads `skip (opt-in unmet: <condition, one short phrase>)` and `check-cmd` does not run; never omit it silently. When `opt-in` lists several per-tool conditions bundled in one command string (bash: shellcheck always, shfmt only with an `.editorconfig` shell style), run `check-cmd` whole and report its real output: a command string cannot be partly skipped. An opt-in skip counts toward the ecosystem total, never toward the FAIL count, and never blocks a "done" claim.
 
-This binary gate applies cleanly when `opt-in` describes ONE condition governing the whole `check-cmd` (e.g. dotnet, python, go): unmet → report the ecosystem's Lint column as `skip (opt-in unmet: <condition, one short phrase>)`, visible, not silently omitted, and do not run `check-cmd`. Met → run `check-cmd` normally.
-
-When `opt-in` instead describes MULTIPLE independent per-tool conditions bundled into one opaque command string (e.g. bash's `"shellcheck always applies to shell files; shfmt only when .editorconfig declares shell style"`, where `check-cmd` is `shellcheck ... && shfmt -d <files>`), this gate does NOT apply. `check-cmd` is a single opaque string (per the ecosystem-commands contract) with no way to run one sub-tool's portion without the other. Run `check-cmd` whole and report its real output; do not attempt a partial skip. The known atomicity limitation this leaves open is in Gotchas below.
-
-An opt-in-unmet skip (single-condition case) counts toward the table's total ecosystem count but never toward the FAIL count, the same precedent as a missing-tool skip. Unlike a missing-tool skip, it never blocks a "done" claim: the consumer chose it. This is ecosystem-generic (reads the resolved `opt-in` key), not dotnet-specific. It applies to every current and future single-condition opt-in-bearing ecosystem `/toolchain:check` covers. CI-parity gates (below) are unaffected. They run independent of `check-cmd`.
-
-**CI-parity gates (resolved `gates` array).** After an affected ecosystem's build → test → lint, iterate its resolved `gates` array (§1.5. Bundled default or consumer file, per the ladder). Gates cover the CI-parity checks plain build / test / lint don't catch: lockfile drift, generated-artifact freshness, schema regeneration. For each gate:
-
-- **Fire condition**. `trigger-globs` narrows a *change-driven* run. Under auto-detection (§1), run the gate only when ≥1 changed file matches, matched against the **full** changed-files set (not the ecosystem-scoped subset, a gate's trigger files need not classify into the ecosystem's own `globs`); no match → the gate does not fire. If `trigger-globs` is omitted, run whenever the ecosystem runs.
-- **Explicit scope overrides the narrowing**, when `$ARGUMENTS` names a scope (`/toolchain:check all` or `/toolchain:check <ecosystem>`), every gate of a selected ecosystem fires regardless of `trigger-globs`. The user asked to verify that scope, not to narrow by what changed, and the ecosystem's own `build-cmd`/`test-cmd`/`check-cmd` already run in full there. Leaving gates change-narrowed would make `check all` on a clean tree, the exact command §1 tells the user to run for full-repo verification, pass a committed-but-untidy `go.mod`. This is also the only way to force a gate without manufacturing a matching change.
-- **Reachability**, a gate is subordinate to its ecosystem's run (per the ecosystem-commands schema: `trigger-globs` "run the gate only when a changed file matches (matched against the full changed-file set); omit to run whenever the ecosystem runs"), so `trigger-globs` narrows *within* a run and never selects an ecosystem. Under auto-targeting the ecosystem must first be affected by its own `globs` (§1); a gate whose `trigger-globs` alone match a changed file is reached via `/toolchain:check <ecosystem>` or `/toolchain:check all`. To make a cross-ecosystem trigger select its ecosystem under auto-targeting, add the trigger pattern to that ecosystem's own `globs`.
-- **Independent of the build/test/lint short-circuit**, a fired gate runs even when this ecosystem's build, test, or lint already failed and stopped (line above). Gates mirror CI checks that are independent of build success (a lockfile or `go mod tidy` gate is meaningful whether or not the build compiled), so a failed earlier phase never suppresses them.
-- **Run** `gate.cmd` (an opaque shell string. Substitute the same placeholders as other commands: `<files>`, resolved anchor, etc.) with absolute paths. Execution location is governed by the resolved `run-from` (default `"ecosystem"` when the key is omitted): `"ecosystem"` runs from the **same execution location the ecosystem's own build/test/lint use** (§2 placeholders, and Gotchas' "Multiple projects in same ecosystem"), once per resolved `<project-dir>` for a `project-discovery` ecosystem, from the `anchor`'s directory for an `anchor` ecosystem, and from `$REPO_ROOT` only when neither is defined; `"repo-root"` forces a single run from `$REPO_ROOT` regardless of the ecosystem's `project-discovery` or `anchor`. The `"ecosystem"` default matters for the bundled `go.yaml` `go-mod-tidy-drift` gate: `go mod tidy -diff` is inherently per-module, so a `project-discovery: ["go.mod"]` monorepo must run it from each `go.mod` root, a `$REPO_ROOT`-only run falsely fails when the sole module is nested (`go.mod file not found`) and never checks drift in nested modules when a root module also exists. `run-from: repo-root` exists for the opposite shape: a repo-wide gate (protobuf generation, schema freshness) declared under a `project-discovery` ecosystem, which would otherwise inherit the per-project scope and run redundantly or fail in project roots lacking its config. Declare `run-from: repo-root` on that gate instead of moving it to an ecosystem without `project-discovery`. The **fire condition** above stays repo-wide (`trigger-globs` vs the full changed-files set decides *whether* the gate runs) regardless of `run-from`; only the execution location changes. When a gate `cmd` uses `<files>` under `"ecosystem"` scope, it expands to that project's scoped changed-files subset, exactly as for the ecosystem's other commands (§2); under `"repo-root"` scope it expands to the full changed-files set for that ecosystem, since there is no single project root to scope to. `<project-dir>` is **not defined** under `"repo-root"` scope, a single run has no one project root to bind it to, and picking one arbitrarily or iterating them would defeat the single-run guarantee this key exists to provide. A gate `cmd` that uses `<project-dir>` while declaring `run-from: repo-root` is a configuration error: report it as a `FAIL` naming the gate and the unresolvable placeholder rather than guessing an expansion. Such a gate is per-project by construction and belongs on the `"ecosystem"` default.
-- **Tool presence**, as with `check-cmd`, if the gate's tool is missing from `PATH`, report `skip (tool missing: <tool>)` (reuse the ecosystem's `install-hint`), never `FAIL`.
-- **Version floor**, a tool that is present but too old for the gate's invocation is an environment capability gap, not project drift, so it reports `skip (unsupported: <tool and missing capability, one short phrase>)` with the `install-hint` rather than a false `FAIL`. The bundled `go.yaml` `go-mod-tidy-drift` gate has one: `go mod tidy -diff` needs Go 1.23+, so a Go 1.22 toolchain must skip rather than fail every `*.go`/`go.mod`/`go.sum` change. **A rejected invocation is not by itself evidence of a version floor**, a typo in a consumer's `gate.cmd` (misspelled flag, wrong subcommand) is rejected identically, and skipping it would leave a malformed gate silently unenforced. So the skip requires the mismatch to be **positively established**, either by the tool naming its own minimum in the error, or by a minimum documented for that gate (the gate's `remediation`, the ecosystem's `notes`, or `context/<ecosystem>.md`) that the tool's reported version, queried directly, e.g. `go version`, falls below. Unexplained rejection → `FAIL`, with the rejection text shown so the typo is visible. Every other non-zero exit (a malformed manifest, a network failure, real drift) is likewise a `FAIL`.
-- **Outcome**. Report `pass`/`FAIL` by name. On `FAIL`, surface `gate.remediation`. A fired gate that fails is a real failure and **counts toward the run's FAIL verdict** (unlike opt-in/missing-tool skips). A gate that runs more than once (`"ecosystem"` scope under `project-discovery`, once per project root) reports **one aggregated outcome line per gate name**, not one line per root: `FAIL` if any invocation failed, `pass` only if every invocation passed. On an aggregated `FAIL`, show each failing invocation's output below the table labeled by its execution root, so a multi-root failure is traceable to the specific root that failed. `run-from: repo-root` runs exactly once, so this aggregation never applies to it.
-
-Gates resolve through the ladder like every other key: a bundled default may ship one (e.g. `go.yaml`'s `go-mod-tidy-drift`), and a consumer declares its own in its tracked `.claude/ecosystems/<ecosystem>.yaml` `gates` array (e.g. the `nuget-lockfile-drift` shape in the contract's examples, <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/ecosystem-commands/examples/dotnet.yaml>).
-
-**Convention-documented gates still run.** The `gates` array is the declaration form this skill can resolve, report by name, and layer per the ladder, but it is not the only place a consuming project states its CI-parity checks. When the project documents extra local checks in its own conventions (its `CLAUDE.md`, `.claude/rules/`, or a commands reference) rather than in a `gates` array, run those too, by the same rules above: fire on their stated trigger files, run after build → test → lint and independent of that short-circuit, report by name with the project's own remediation, and count a failure toward the verdict. A project that documented its gates in prose keeps them; declaring them in `.claude/ecosystems/<ecosystem>.yaml` is the preferred form because it makes them structured, layerable, and machine-checkable, not a precondition for running them.
-
-For ecosystem-specific gotchas (xUnit `--nologo` trap, `dotnet test --project`, etc.), read the corresponding `context/<ecosystem>.md` file.
+**CI-parity gates.** When an affected ecosystem resolves a non-empty `gates` array, or the project documents CI-parity checks in its `CLAUDE.md`, `.claude/rules/` or a commands reference, read [context/gates.md](context/gates.md) and run them by its rules after build → test → lint. A gate runs even when an earlier phase failed, and a fired gate that fails makes the run `FAIL`.
 
 ### 3. Report results
 
@@ -208,33 +151,24 @@ Use `pass`, `FAIL`, `syntax only`, a named skip, or `—` (not applicable: the c
 
 An ecosystem's Status and the Overall line read `FAIL` when any cell or fired gate failed, `INCOMPLETE` when nothing failed but an environment skip remains or an ecosystem's only filled cells are `syntax only`, and `PASS` only when none of these holds. `INCOMPLETE` names each cause with its reason (e.g. `Overall: INCOMPLETE (1 of 2 ecosystems passed; python: skip (tool missing: uv))`, or `bash: no real check ran (syntax only)`), so a caller can say exactly what stayed unverified and whether it was an environment skip. A run the install rule stopped reads `STOPPED`. A `PASS` with any `pass (flaky: N)` cell carries the summed count, as in `Overall: PASS (2 of 2 ecosystems passed; flaky: 1)`.
 
-If any CI-parity gates fired, summarize each by name + outcome below the per-ecosystem block, with the remediation pointer on failure. A fired gate that failed flips Overall to `FAIL` and is counted in it, including when every ecosystem's build/test/lint cell passed (e.g. `Overall: FAIL (0 of 2 ecosystems failed, 1 gate failed)`). The Overall line names both counts whenever a gate fires, pass or fail, a fired-and-passed gate still reports its count (e.g. `Overall: PASS (2 of 2 ecosystems passed, 1 gate passed)`), so the report is unambiguous about whether a gate ran.
-
-A gate declared under a `project-discovery` ecosystem without `run-from: repo-root` runs once per discovered project root (§2 "Run"); per the aggregation rule (§2 "Outcome"), that still reports **one** `Gates:` line per gate name, with each failing root's output shown underneath, labeled by its execution root:
-
-```text
-Gates: go-mod-tidy-drift — FAIL (run go mod tidy and commit the updated go.mod/go.sum)
-  [services/auth] go: updates to go.sum needed, disabled by -mod=readonly
-  [services/billing] go.mod: missing go.sum entry for module golang.org/x/text v0.14.0
-```
-
-Only the roots that actually failed are listed, a root whose invocation passed contributes nothing below the line. A gate declaring `run-from: repo-root` never produces this per-root breakdown (it runs exactly once), so its `FAIL` line stands alone as in the first example above.
+When any gate fired, list each by name and outcome below the ecosystem table, with its remediation on failure. The Overall line then names both counts, pass or fail (e.g. `Overall: FAIL (0 of 2 ecosystems failed, 1 gate failed)`, `Overall: PASS (2 of 2 ecosystems passed, 1 gate passed)`), so it is clear whether a gate ran.
 
 ## For other skills referencing /toolchain:check
 
-When composing `/toolchain:check` from another skill (like `/verification:confirm` or `/toolchain:lint`):
+- **Command tables**: resolve per [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md), and read `context/<ecosystem>.md` for gotchas, including when embedding commands in an agent prompt.
+- **Full verification**: invoke `/toolchain:check` or `/toolchain:check <ecosystem>` via the Skill tool.
+- **Lint only**: invoke `/toolchain:lint` or `/toolchain:lint <ecosystem>` via the Skill tool; it resolves through the same ladder and also owns the `yaml` and `cross-cutting` surfaces.
 
-- **To get command tables**: resolve per [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md). Consumer `.claude/ecosystems/<ecosystem>.yaml` wins, bundled defaults at `${CLAUDE_PLUGIN_ROOT}/reference/ecosystems/` are the fallback, or the relevant `context/<ecosystem>.md` for gotchas and prose detail
-- **To run full verification**: invoke `/toolchain:check` or `/toolchain:check <ecosystem>` via the Skill tool
-- **To run lint-only checks**: invoke `/toolchain:lint` or `/toolchain:lint <ecosystem>` via the Skill tool (it resolves through the same ladder and additionally owns the `yaml` and `cross-cutting` surfaces)
-- **To embed commands in agent prompts**: resolve per the ladder AND read the corresponding `context/<ecosystem>.md` for gotchas
+## Next
+
+- Overall `PASS`: /verification:confirm before committing.
+- Overall `FAIL`: /testing:diagnose.
 
 ## Gotchas (cross-ecosystem)
 
-- **CWD drift**, the #1 source of false failures. Always use absolute paths
-- **Missing tools**. Report as `skip (tool missing: <tool>)`, not as failure (e.g., `uv` not installed), and never as done: the Overall line reads `INCOMPLETE`. The probe is per ecosystem: it covers the tool the ecosystem's commands are invoked through, not every sub-tool a compound command reaches (see the atomicity bullet below)
-- **A green exit that checked nothing**. A syntax-only command or one that failed to start is not a `pass`; see "What counts as a check" in §2
-- **A green exit a retry earned**. A configured rerun can exit 0 with a test that failed first; report `pass (flaky: N)`, never a plain `pass` (see "Passed on retry" in §2)
-- **Opt-in unmet**. Report as `skip (opt-in unmet: ...)` with the condition, not as failure and not silently omitted (e.g., dotnet with no C#-relevant `.editorconfig`)
-- **Multi-tool `check-cmd` atomicity**, when a multi-tool ecosystem's `check-cmd` bundles a gated sub-tool and an unconditional sub-tool in one shell string (e.g. bash's `shellcheck ... && shfmt -d <files>`), the opt-in gate cannot suppress just the gated sub-tool's contribution. Both run whenever the unconditional sub-tool's condition holds, per the ecosystem-commands contract's own "opaque shell string" rule. The same opacity reaches the missing-tool rule above: a sub-tool the ecosystem's own probe never covers (python's `pyright` behind `uv`) is absent only at execution time, so its absence surfaces as a real non-zero exit and the Lint cell reports `FAIL`, not `skip`; report what the runner did, never a skip it did not perform. Each affected ecosystem's `context/<ecosystem>.md` states the consequence
-- **Multiple projects in same ecosystem**. Ecosystems with an `anchor` use that as the scoping anchor; ecosystems with `project-discovery` patterns walk each discovered project root
+- **CWD drift**, the most common source of false failures. Always use absolute paths.
+- **A green exit that checked nothing.** A syntax-only command, or one that failed to start, is not a `pass`.
+- **A green exit a retry earned.** Report `pass (flaky: N)`, never a plain `pass`.
+- **Missing tool is never done.** `skip (tool missing: <tool>)` makes the Overall line `INCOMPLETE`, not `FAIL` and not `PASS`.
+- **Multi-tool `check-cmd` atomicity.** When a `check-cmd` bundles a gated sub-tool with an unconditional one (bash's `shellcheck ... && shfmt -d <files>`), the opt-in gate cannot suppress just the gated part: both run whenever the unconditional one applies. The same opacity reaches the missing-tool rule: a sub-tool the ecosystem's probe never covers (python's `pyright` behind `uv`) is absent only at run time, so the Lint cell reports `FAIL`, not `skip`. Report what the runner did, never a skip it did not perform. Each affected `context/<ecosystem>.md` states the consequence.
+- **Multiple projects in one ecosystem.** Ecosystems with an `anchor` scope to it; ecosystems with `project-discovery` patterns walk each discovered project root.

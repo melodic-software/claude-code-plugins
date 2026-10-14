@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: ln-missing-tool-incomplete
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: lint-skip-tool-missing
+    type: regex
+    pattern: 'skip\W{0,4}\(\s*tool missing:\s*[`*]{0,2}qqfmt-absent'
+    flags: i
+    target: last_message
+  - name: overall-incomplete
+    type: regex
+    pattern: 'Overall\W{0,8}INCOMPLETE\b'
+    target: last_message
+  - name: overall-names-cause
+    type: regex
+    pattern: 'Overall\W{0,8}INCOMPLETE\b[\s\S]{0,300}?qqfmt-absent'
+    target: last_message
+  - name: overall-not-pass-or-fail
+    type: regex
+    pattern: 'Overall\W{0,8}(?:PASS|FAIL)\b'
+    match: not_contains
+    target: last_message
+  - name: probed-the-tool
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|if|else|elif|while|until)\s|!\s))?\s*(?:(?:(?:\S*/)?(?:bash|sh|zsh|dash|ksh|source|exec|env|nohup|time|xargs|sudo|timeout|\.)\s+(?:(?!-n\s)-\S+\s+|\w+=\S*\s+|\d+\S*\s+)*\\?["'']?)*|(?:command\s+-v|which|type|hash)\s+(?:-\S+\s+)*\\?["'']?)qqfmt-absent'
+    arm: both
