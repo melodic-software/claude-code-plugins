@@ -53,14 +53,6 @@ on:
 
 permissions: {}
 
-# One run at a time, and a running one is never cancelled: a cancelled run
-# could stop between the gate's check and its merge-queue write. While one
-# runs, GitHub keeps at most one more waiting, which is enough because every
-# run re-reads every PR.
-concurrency:
-  group: pr-merge
-  cancel-in-progress: false
-
 defaults:
   run:
     shell: bash
@@ -69,8 +61,23 @@ jobs:
   merge:
     # A run started on any other branch would use that branch's copy of this
     # file, so it does nothing. pull_request_target runs carry the PR's base
-    # branch here, so PRs that do not target main are skipped too.
-    if: github.ref == 'refs/heads/main'
+    # branch here, so PRs that do not target main are skipped too. Events from
+    # a fork PR are skipped before the job joins the concurrency group, so an
+    # outsider editing a fork PR over and over cannot keep pushing real runs
+    # out of the queue.
+    if: >-
+      github.ref == 'refs/heads/main'
+      && (github.event_name != 'pull_request_target'
+      || github.event.pull_request.head.repo.full_name == github.repository)
+      && (github.event_name != 'workflow_run'
+      || github.event.workflow_run.head_repository.full_name == github.repository)
+    # One run at a time, and a running one is never cancelled: a cancelled run
+    # could stop between the gate's check and its merge-queue write. While one
+    # runs, GitHub keeps at most one more waiting, which is enough because
+    # every run re-reads every PR.
+    concurrency:
+      group: pr-merge
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -242,14 +249,14 @@ jobs:
             echo "### pr-merge ($EVENT)"
             echo
             echo '```json'
-            jq '[.[] | .blockers |= map(gsub("`"; "") | .[0:300])]' "$summary"
+            jq '[.[] | .blockers |= map(gsub("[\r\n`]"; " ") | .[0:300])]' "$summary"
             echo '```'
             echo
             echo "#### Blocked for over 24 hours"
             echo
             jq -r --arg cutoff "$cutoff" '
               [.[] | select(((.enqueued or .merged) | not) and .updatedAt < $cutoff)]
-              | if length == 0 then "None." else .[] | "- #\(.pr): \((.reason // "not ready") | tostring | gsub("`"; "") | .[0:200])" end
+              | if length == 0 then "None." else .[] | "- #\(.pr): \((.reason // "not ready") | tostring | gsub("[\r\n`]"; " ") | .[0:200])" end
             ' "$summary"
           } >>"$GITHUB_STEP_SUMMARY"
 
