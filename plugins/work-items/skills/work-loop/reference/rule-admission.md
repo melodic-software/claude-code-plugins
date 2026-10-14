@@ -8,7 +8,8 @@ in the security binding's `admission.rule_admission[]`; the `autonomy` plugin's
 
 Resolve the security binding as `/autonomy:setup` "Guardrail binding resolution" defines it, never
 from a repo-local file; when none resolves, or the tracker is not GitHub-bound, skip this path. Run
-`bash ${CLAUDE_PLUGIN_ROOT}/scripts/rule-admit.sh --repo <owner/name> --binding <path> --issue <n> [--issue <n> ...]`
+`rule-admit.sh` at the path the SKILL.md pointer to this file names, as
+`bash <that path> --repo <owner/name> --binding <path> --issue <n> [--issue <n> ...]`
 and admit an item only on its `"verdict": "admit"` row from an exit-`0` run; any other exit admits
 nothing (exit `4` also covers a binding whose posture or decision table does not allow rule
 admission).
