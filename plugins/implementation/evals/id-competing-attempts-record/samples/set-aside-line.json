@@ -8,6 +8,10 @@
     },
     {
       "answer": "- Attempt 3: chosen by \"adds no new dependency\"\n- Attempt 1: set aside by \"adds no new dependency\"\n\nAttempt 2 failed criterion 2 (2.665 rounded to 2.67)."
+    },
+    {
+      "answer": "attempt 3: chosen by the no-new-dependency clause\nattempt 1: set aside by the no-new-dependency clause",
+      "why": "hyphenated clause name"
     }
   ],
   "fail": [
@@ -26,6 +30,10 @@
     {
       "answer": "attempt 1: set aside (adds py-moneyed)",
       "why": "no rule clause"
+    },
+    {
+      "answer": "attempt 1: set aside by fewest changed lines (it also adds a new dependency)",
+      "why": "deciding clause is the wrong one"
     }
   ]
 }

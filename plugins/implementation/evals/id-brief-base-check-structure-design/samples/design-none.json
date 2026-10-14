@@ -10,6 +10,18 @@
     {
       "answer": "Run `git -C \"/srv/dev/wt/invoice-rounding\" merge-base HEAD origin/integration/rounding` before any edit; if it differs from the base, STOP and report.\n\n**Structure**: a lookup from rounding mode to quantize rule\n**Design excerpt**: `none`\n",
       "why": "Design excerpt label, backticked none"
+    },
+    {
+      "answer": "Design: (none)",
+      "why": "parenthesized none"
+    },
+    {
+      "answer": "### Design\nnone",
+      "why": "heading form"
+    },
+    {
+      "answer": "**Design: none.** The plan has no `## Design` section.",
+      "why": "bold, period after none"
     }
   ],
   "fail": [
@@ -28,6 +40,14 @@
     {
       "answer": "Design excerpt omitted.",
       "why": "no label"
+    },
+    {
+      "answer": "Design: none of the plan sections apply; see the rounding notes.",
+      "why": "none does not end the value"
+    },
+    {
+      "answer": "Design: nonexistent",
+      "why": "not the word none"
     }
   ]
 }

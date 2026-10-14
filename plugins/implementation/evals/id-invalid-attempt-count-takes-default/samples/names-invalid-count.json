@@ -14,6 +14,18 @@
     {
       "answer": "- **`competing_attempts`:** `auto` (`docs/conventions/implementation.yaml`).\n- **`competing_attempt_count`:** `3` (default). The repo file sets it to `7`, but the allowed range is 2 to 5, so the repo value is dropped.",
       "why": "value is dropped"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml: competing_attempt_count 7 is invalid.",
+      "why": "key then value"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets competing_attempt_count; competing_attempt_count is 7, which is above the 2-5 range.",
+      "why": "above the range"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml has competing_attempt_count: 7, must be 2 to 5; dropped.",
+      "why": "must be, dropped"
     }
   ],
   "fail": [
@@ -40,6 +52,22 @@
     {
       "answer": "docs/conventions/implementation.yaml sets competing_attempt_count: 7. The allowed range is 2 to 5, but the repo value is not dropped; phase 2 gets 7 attempts.",
       "why": "range stated, invalid value kept"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets competing_attempt_count: 7. No invalid values found.",
+      "why": "no invalid values"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets competing_attempt_count: 7; nothing invalid there.",
+      "why": "nothing invalid"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets competing_attempt_count: 7, above the maximum but allowed.",
+      "why": "but allowed"
+    },
+    {
+      "answer": "Is competing_attempt_count: 7 in docs/conventions/implementation.yaml invalid?",
+      "why": "a question"
     }
   ]
 }

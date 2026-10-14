@@ -13,6 +13,18 @@
     {
       "answer": "- **`competing_attempts`:** `auto` (`docs/conventions/implementation.yaml`).",
       "why": "bold backticked key, colon inside the emphasis"
+    },
+    {
+      "answer": "competing_attempts: auto (repository: docs/conventions/implementation.yaml)",
+      "why": "repository prefix"
+    },
+    {
+      "answer": "competing_attempts: auto (./docs/conventions/implementation.yaml)",
+      "why": "dot-slash path"
+    },
+    {
+      "answer": "| `competing_attempts` | `auto` | `docs/conventions/implementation.yaml` |",
+      "why": "table row"
     }
   ],
   "fail": [
@@ -35,6 +47,14 @@
     {
       "answer": "**`competing_attempts`:** `auto` (default)",
       "why": "wrong layer"
+    },
+    {
+      "answer": "| `competing_attempts` | `auto` | default |",
+      "why": "table row, wrong layer"
+    },
+    {
+      "answer": "`competing_attempts` is `suggest` (docs/conventions/implementation.yaml).",
+      "why": "wrong value"
     }
   ]
 }

@@ -14,6 +14,18 @@
     {
       "answer": "- **`competing_attempt_count`:** `3` (default). The repo file sets it to `7`, but the allowed range is 2 to 5, so the repo value is dropped.",
       "why": "bold backticked key, colon inside the emphasis"
+    },
+    {
+      "answer": "competing_attempt_count: 3 (the default)",
+      "why": "the default"
+    },
+    {
+      "answer": "| `competing_attempt_count` | `3` | built-in default |",
+      "why": "table row"
+    },
+    {
+      "answer": "`competing_attempt_count` is `3` (default).",
+      "why": "is form"
     }
   ],
   "fail": [
@@ -39,6 +51,14 @@
     },
     {
       "answer": "**`competing_attempt_count`:** `3` (docs/conventions/implementation.yaml)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "| `competing_attempt_count` | `7` | default |",
+      "why": "table row, wrong value"
+    },
+    {
+      "answer": "`competing_attempt_count` is `3` (docs/conventions/implementation.yaml).",
       "why": "wrong layer"
     }
   ]

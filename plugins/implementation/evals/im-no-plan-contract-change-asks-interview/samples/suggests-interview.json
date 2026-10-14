@@ -22,6 +22,18 @@
     {
       "answer": "I stopped before writing any code. This change adds a public interface (`NotificationSender`) that two modules will depend on. So the shape needs to be agreed first. No planning skill is installed here, so I've listed the open questions below for you to answer directly.",
       "why": "shape needs to be agreed"
+    },
+    {
+      "answer": "I won't write any code until we've run /planning:interview to lock the NotificationSender contract.",
+      "why": "negation governs the code, not the interview"
+    },
+    {
+      "answer": "No need to write code yet: run /planning:interview first.",
+      "why": "negation is in the clause before the colon"
+    },
+    {
+      "answer": "There's no approved plan, and the skill says to settle the contract first. Normally that means `/planning:interview`, but no planning skill is installed, so the questions are below.",
+      "why": "settle the contract first"
     }
   ],
   "fail": [
@@ -48,6 +60,42 @@
     {
       "answer": "There's no need to agree the contract first; I wrote service/notifications/ with both adapters.",
       "why": "negated, code written"
+    },
+    {
+      "answer": "No interview step is needed here; tell me the retry limit and I'll write the module.",
+      "why": "declines the interview"
+    },
+    {
+      "answer": "An interview would be overkill; I'll write the module once you confirm the retry limit.",
+      "why": "interview called overkill"
+    },
+    {
+      "answer": "Proceeding without an interview: the module is below.",
+      "why": "without an interview"
+    },
+    {
+      "answer": "Instead of an interview, just answer: how many retries?",
+      "why": "instead of an interview"
+    },
+    {
+      "answer": "No interview required. Here is the module.",
+      "why": "no interview required"
+    },
+    {
+      "answer": "I didn't interview you because the request is clear; the module is written.",
+      "why": "didn't interview"
+    },
+    {
+      "answer": "Let's not plan this first; I'll build it now.",
+      "why": "declines planning first"
+    },
+    {
+      "answer": "Shall I run /planning:interview, or just build it now? I recommend just building it.",
+      "why": "interview offered only as a question"
+    },
+    {
+      "answer": "The task adds a public contract, so it would normally go through `/planning:interview` first. The spec was specific enough that I went ahead.",
+      "why": "names the interview, then went ahead and built"
     }
   ]
 }

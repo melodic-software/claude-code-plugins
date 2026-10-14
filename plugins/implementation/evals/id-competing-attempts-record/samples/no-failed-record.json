@@ -9,6 +9,14 @@
     },
     {
       "answer": "- Attempt 3: chosen by \"adds no new dependency\"\n- Attempt 1: set aside by \"adds no new dependency\"\n\nAttempt 2 failed criterion 2 (2.665 rounded to 2.67)."
+    },
+    {
+      "answer": "attempt 3: chosen by adds no new dependency\nattempt 2: failed\nattempt 1: set aside by adds no new dependency",
+      "why": "not a chosen-by or set-aside-by record"
+    },
+    {
+      "answer": "attempt 3: chosen by adds no new dependency\nattempt 1: set aside by adds no new dependency\n\nFailed attempt:\n- attempt 2: FAIL on criterion 2, `round_total(2.665)` returned 2.67.",
+      "why": "verifier-gap line for attempt 2, not a record"
     }
   ],
   "fail": [
@@ -17,12 +25,12 @@
       "why": "record line for the failed attempt"
     },
     {
-      "answer": "attempt 3: chosen by adds no new dependency\nattempt 2: failed\nattempt 1: set aside by adds no new dependency",
-      "why": "template-shaped line for the failed attempt"
-    },
-    {
       "answer": "- Attempt two: set aside by failing criterion 2",
       "why": "spelled-out number"
+    },
+    {
+      "answer": "**Attempt 2**: set aside by verifier FAIL",
+      "why": "record shape with bold label"
     }
   ]
 }

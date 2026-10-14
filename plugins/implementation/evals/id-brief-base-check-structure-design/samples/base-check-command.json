@@ -10,6 +10,14 @@
     {
       "answer": "Run `git -C \"/srv/dev/wt/invoice-rounding\" merge-base HEAD origin/integration/rounding` before any edit; if it differs from the base, STOP and report.\n\n**Structure**: a lookup from rounding mode to quantize rule\n**Design excerpt**: `none`\n",
       "why": "quoted path"
+    },
+    {
+      "answer": "Before your first edit, run `git -C /srv/dev/wt/invoice-rounding merge-base origin/integration/rounding HEAD`; on a mismatch, STOP and report.",
+      "why": "arguments in the other order"
+    },
+    {
+      "answer": "Run git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding.",
+      "why": "sentence period after the ref"
     }
   ],
   "fail": [
@@ -28,6 +36,18 @@
     {
       "answer": "Check `git -C /srv/dev/wt/invoice-rounding merge-base HEAD integration/rounding`.",
       "why": "local ref, not the passed remote-tracking ref"
+    },
+    {
+      "answer": "Do not run `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding`; the orchestrator checks the base.",
+      "why": "negated: the worker is told not to run it"
+    },
+    {
+      "answer": "Check `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding-v2`.",
+      "why": "a different ref sharing the prefix"
+    },
+    {
+      "answer": "Check `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding/old`.",
+      "why": "a longer ref path"
     }
   ]
 }

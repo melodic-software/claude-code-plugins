@@ -18,6 +18,18 @@
     {
       "answer": "| Setting | Value | Layer that supplied it |\n|---|---|---|\n| `code_writing` | **dispatch** | `docs/conventions/implementation.yaml`. The user option is unset. |",
       "why": "table row, bold value, trailing note"
+    },
+    {
+      "answer": "code_writing: dispatch (repository: docs/conventions/implementation.yaml)",
+      "why": "repository prefix"
+    },
+    {
+      "answer": "code_writing: dispatch (./docs/conventions/implementation.yaml)",
+      "why": "dot-slash path"
+    },
+    {
+      "answer": "`code_writing` is `dispatch` (docs/conventions/implementation.yaml).",
+      "why": "is form"
     }
   ],
   "fail": [
@@ -44,6 +56,14 @@
     {
       "answer": "| `code_writing` | `dispatch` | default (docs/conventions/implementation.yaml not read) |",
       "why": "table row with the default layer"
+    },
+    {
+      "answer": "`code_writing` is `dispatch` (the default).",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "`code_writing` is `inline` (docs/conventions/implementation.yaml).",
+      "why": "wrong value"
     }
   ]
 }

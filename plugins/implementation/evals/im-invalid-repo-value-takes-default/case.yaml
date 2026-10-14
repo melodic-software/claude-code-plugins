@@ -9,16 +9,16 @@ graders:
     input_match: 'docs/conventions/implementation\.yaml'
   - name: names-invalid-value
     type: regex
-    pattern: '^(?=(?:[^\n]*\n){0,2}[^\n]*implementation\.yaml)(?=(?:[^\n]*\n){0,2}[^\n]*\bcode_writing\b)(?=(?:[^\n]*\n){0,2}[^\n]*\bparallel\b)(?=(?:[^\n]*\n){0,2}[^\n]*\b(?:invalid|not (?:a )?valid|isn[''’]t (?:a )?valid|unrecognized|unknown|unsupported|not (?:one of|allowed|supported|recognized)|isn[''’]t one of|(?:is not|isn[''’]t) [`*]*inline[`*]* or [`*]*dispatch)\b)(?!(?:[^\n]*\n){0,2}[^\n]*\b(?:not|isn[''’]t) (?:an? )?invalid\b)'
+    pattern: '^(?=(?:[^\n]*\n){0,2}[^\n]*implementation\.yaml)(?=(?:[^\n]*\n){0,2}[^\n]*\bcode_writing\b)(?=(?:[^\n]*\n){0,2}[^\n]*\bparallel\b)(?=(?:[^\n]*\n){0,2}[^\n]*\b(?:invalid|not (?:a )?valid|isn[''’]t (?:a )?valid|unrecogni[sz]ed|recogni[sz]ed|unknown|unsupported|outside|ignored|dropped|must be (?:one of|either|[`*]*(?:inline|dispatch)\b)|not (?:one of|allowed|supported|recogni[sz]ed)|isn[''’]t one of|(?:is not|isn[''’]t) [`*]*inline[`*]* or [`*]*dispatch)\b(?![^\n.!]*\?))(?!(?:[^\n]*\n){0,2}[^\n]*(?:\b(?:no|nothing|none|not|isn[''’]t|never)\b[^\n]{0,20}\b(?:invalid|dropped|ignored)\b|\bbut allowed\b))'
     flags: 'mi'
     target: last_message
   - name: code-writing-default
     type: regex
-    pattern: '\bcode_writing\b[`*]*[ \t]*[:=][`* \t]*inline\b[`*]*[ \t]*\([ \t]*default\b'
+    pattern: '\bcode_writing\b(?:[`*]*[ \t]*[:=][`* \t]*|[`*]*[ \t]+(?:is|resolves to|resolved to)[ \t]+[`*]*)inline\b[`*.]*[ \t]*\([ \t]*(?:the |built-in |skill(?:[''’]s)? )?default\b|\|[ \t]*[`*]*code_writing[`*]*[ \t]*\|[ \t]*[`*]*inline[`*]*[ \t]*\|[ \t]*[`*(]*(?:the |built-in |skill(?:[''’]s)? )?default\b'
     flags: 'i'
     target: last_message
   - name: posture-from-repo
     type: regex
-    pattern: '\bintegration_posture\b[`*]*[ \t]*[:=][`* \t]*minimal\b[`*]*[ \t]*\([ \t]*(?:from )?`?(?:docs/conventions/)?implementation\.yaml'
+    pattern: '\bintegration_posture\b(?:[`*]*[ \t]*[:=][`* \t]*|[`*]*[ \t]+(?:is|resolves to|resolved to)[ \t]+[`*]*)minimal\b[`*.]*[ \t]*\([ \t]*(?:from |(?:the )?repo(?:sitory)?(?: file| layer)?[:,]?[ \t]*)?`?(?:\./)?(?:docs/conventions/)?implementation\.yaml|\|[ \t]*[`*]*integration_posture[`*]*[ \t]*\|[ \t]*[`*]*minimal[`*]*[ \t]*\|[ \t]*[`*(]*(?:from |(?:the )?repo(?:sitory)?(?: file| layer)?[:,]?[ \t]*)?`?(?:\./)?(?:docs/conventions/)?implementation\.yaml'
     flags: 'i'
     target: last_message

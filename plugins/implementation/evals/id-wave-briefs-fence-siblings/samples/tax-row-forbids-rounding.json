@@ -22,6 +22,10 @@
     {
       "answer": "## Row B\nFORBIDDEN: everything else\n\n## Row A\nALLOWED: billing/rounding.py",
       "why": "rounding.py only in row A's ALLOWED list"
+    },
+    {
+      "answer": "## Row A\nALLOWED: billing/rounding.py, tests/test_rounding.py\nFORBIDDEN: billing/tax.py, tests/test_tax.py\nAcceptance: round_half_even in billing/rounding.py returns 2.68 for 2.675; pytest tests/test_rounding.py passes.\n\n## Row B\nALLOWED: billing/tax.py, tests/test_tax.py\nFORBIDDEN: everything else",
+      "why": "row B forbids only 'everything else'; rounding.py appears in row A's Acceptance line"
     }
   ]
 }

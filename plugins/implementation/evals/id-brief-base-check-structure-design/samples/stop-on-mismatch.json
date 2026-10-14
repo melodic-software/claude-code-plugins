@@ -33,6 +33,30 @@
     {
       "answer": "Run `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding`. If the worktree does not exist, STOP and report.",
       "why": "STOP on a missing worktree, not a base mismatch"
+    },
+    {
+      "answer": "Run `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding`. If it differs, rebase and continue; there is no reason to stop.",
+      "why": "no STOP"
+    },
+    {
+      "answer": "Run `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding`. If they differ, rebase; you need not stop.",
+      "why": "no STOP"
+    },
+    {
+      "answer": "Run `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding`. If it is different, keep going. STOP only when tests fail.",
+      "why": "STOP in another sentence, for another reason"
+    },
+    {
+      "answer": "Run `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding`. If it does not exist, STOP and report.",
+      "why": "STOP on a missing worktree, not a mismatch"
+    },
+    {
+      "answer": "Run `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding`. Otherwise proceed. STOP when done.",
+      "why": "bare otherwise, STOP unrelated"
+    },
+    {
+      "answer": "Run `git -C /srv/dev/wt/invoice-rounding merge-base HEAD origin/integration/rounding`. A mismatch is fine. Stop worrying and rebase.",
+      "why": "Stop is not the STOP instruction"
     }
   ]
 }

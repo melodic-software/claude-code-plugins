@@ -3,17 +3,17 @@ name: id-competing-attempts-record
 graders:
   - name: chosen-line
     type: regex
-    pattern: '^[ \t>*`-]*attempt 3: chosen by\b[^\n]*\bno new dependency\b'
+    pattern: '^[ \t>*_`-]*attempt 3:[*_`]*[ \t]*chosen by[ \t]+(?:the rule[''’]s (?:first )?clause[ \t]*[:,—–-]?[ \t]*)?[*_"“''`]*(?:the )?(?:prefer the attempt that |that )?(?:adds? |it adds )?no[ -]new[ -]dependenc(?:y|ies)'
     flags: 'mi'
     target: last_message
   - name: set-aside-line
     type: regex
-    pattern: '^[ \t>*`-]*attempt 1: set aside by\b[^\n]*\bno new dependency\b'
+    pattern: '^[ \t>*_`-]*attempt 1:[*_`]*[ \t]*set aside by[ \t]+(?:the rule[''’]s (?:first )?clause[ \t]*[:,—–-]?[ \t]*)?[*_"“''`]*(?:the )?(?:prefer the attempt that |that )?(?:adds? |it adds )?no[ -]new[ -]dependenc(?:y|ies)'
     flags: 'mi'
     target: last_message
   - name: no-failed-record
     type: regex
-    pattern: '^[ \t>*`-]*attempt (?:2|two)[ \t]*:'
+    pattern: 'attempt[ *_`]*(?:2|two)\b[^\n]{0,25}\b(?:chosen|set aside) by\b'
     flags: 'mi'
     match: not_contains
     target: last_message

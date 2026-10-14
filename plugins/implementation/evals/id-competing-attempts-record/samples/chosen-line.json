@@ -10,6 +10,18 @@
     {
       "answer": "- Attempt 3: chosen by \"adds no new dependency\"\n- Attempt 1: set aside by \"adds no new dependency\"\n\nAttempt 2 failed criterion 2 (2.665 rounded to 2.67).",
       "why": "bullets, quoted clause"
+    },
+    {
+      "answer": "attempt 3: chosen by the no-new-dependency clause\nattempt 1: set aside by the no-new-dependency clause",
+      "why": "hyphenated clause name"
+    },
+    {
+      "answer": "attempt 3: chosen by the rule's first clause: \"Prefer the attempt that adds no new dependency\"",
+      "why": "the rule's first clause, quoted"
+    },
+    {
+      "answer": "**attempt 3:** chosen by adds no new dependency",
+      "why": "bold label"
     }
   ],
   "fail": [
@@ -32,6 +44,10 @@
     {
       "answer": "| Attempt | Verdict |\n|---|---|\n| 3 | chosen: no new dependency |\n| 1 | set aside: new dependency |",
       "why": "table, not record lines"
+    },
+    {
+      "answer": "attempt 3: chosen by fewest changed lines (it also adds no new dependency)",
+      "why": "deciding clause is the wrong one"
     }
   ]
 }

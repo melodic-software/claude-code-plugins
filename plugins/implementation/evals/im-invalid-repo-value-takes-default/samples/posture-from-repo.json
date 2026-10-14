@@ -13,6 +13,22 @@
     {
       "answer": "- **`integration_posture`:** `minimal` (`docs/conventions/implementation.yaml`).",
       "why": "bold backticked key, colon inside the emphasis"
+    },
+    {
+      "answer": "integration_posture: minimal (repository: docs/conventions/implementation.yaml)",
+      "why": "repository prefix"
+    },
+    {
+      "answer": "integration_posture: minimal (./docs/conventions/implementation.yaml)",
+      "why": "dot-slash path"
+    },
+    {
+      "answer": "| `integration_posture` | `minimal` | `docs/conventions/implementation.yaml` |",
+      "why": "table row"
+    },
+    {
+      "answer": "`integration_posture` is `minimal` (docs/conventions/implementation.yaml).",
+      "why": "is form"
     }
   ],
   "fail": [
@@ -35,6 +51,14 @@
     {
       "answer": "**`integration_posture`:** `minimal` (default)",
       "why": "wrong layer"
+    },
+    {
+      "answer": "| `integration_posture` | `minimal` | default |",
+      "why": "table row, wrong layer"
+    },
+    {
+      "answer": "`integration_posture` is `by-kind` (docs/conventions/implementation.yaml).",
+      "why": "wrong value"
     }
   ]
 }

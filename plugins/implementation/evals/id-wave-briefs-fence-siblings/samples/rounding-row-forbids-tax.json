@@ -14,6 +14,10 @@
     {
       "answer": "## Row A\n\nALLOWED: billing/rounding.py, tests/test_rounding.py\nFORBIDDEN: billing/tax.py, tests/test_tax.py\n\nif an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\n## Row B\n\nALLOWED: billing/tax.py, tests/test_tax.py\nFORBIDDEN: anything outside ALLOWED\n\nif an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n",
       "why": "row A names the sibling's paths"
+    },
+    {
+      "answer": "## Row A\n\nALLOWED: billing/rounding.py\n\n**FORBIDDEN**\n\n- billing/tax.py\n- tests/test_tax.py\n\n## Row B\n\nALLOWED: billing/tax.py\n\nFORBIDDEN: billing/rounding.py",
+      "why": "one blank line after a heading-style FORBIDDEN"
     }
   ],
   "fail": [
@@ -28,6 +32,10 @@
     {
       "answer": "## Row A\nFORBIDDEN: anything outside ALLOWED\nALLOWED: billing/rounding.py\n## Row B\nALLOWED: billing/tax.py\nFORBIDDEN: everything else",
       "why": "tax.py only in row B's ALLOWED list"
+    },
+    {
+      "answer": "## Row A\nALLOWED: billing/rounding.py, tests/test_rounding.py\nFORBIDDEN: everything else\n\n## Row B\nALLOWED: billing/tax.py, tests/test_tax.py\nFORBIDDEN: billing/rounding.py, tests/test_rounding.py\nAcceptance: no TAX_RATE remains in billing/tax.py; pytest tests/test_tax.py passes.",
+      "why": "row A forbids only 'everything else'; tax.py appears in row B's Acceptance line"
     }
   ]
 }

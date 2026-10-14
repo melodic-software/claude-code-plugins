@@ -15,6 +15,18 @@
     {
       "answer": "- `code_writing: inline (default)`. `docs/conventions/implementation.yaml` sets `parallel`, which isn't `inline` or `dispatch`, so that layer is dropped.\n- `integration_posture: minimal (docs/conventions/implementation.yaml)`.",
       "why": "isn't inline or dispatch"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets code_writing: parallel, which is outside its allowed values (inline, dispatch); that layer is dropped.",
+      "why": "outside, dropped"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets code_writing: parallel, which is not a recognized value, so it is ignored.",
+      "why": "not recognized, ignored"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets code_writing: parallel; it must be inline or dispatch.",
+      "why": "must be"
     }
   ],
   "fail": [
@@ -41,6 +53,26 @@
     {
       "answer": "docs/conventions/implementation.yaml sets code_writing: parallel, which is not inline-only; parallel is used.",
       "why": "invalid value used, never named invalid"
+    },
+    {
+      "answer": "Checked docs/conventions/implementation.yaml: no invalid values found, so code_writing is parallel.",
+      "why": "no invalid values"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets code_writing: parallel. Nothing invalid there.",
+      "why": "nothing invalid"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets code_writing: parallel; none of its keys are invalid.",
+      "why": "none invalid"
+    },
+    {
+      "answer": "docs/conventions/implementation.yaml sets code_writing: parallel, which is never dropped.",
+      "why": "never dropped"
+    },
+    {
+      "answer": "Is code_writing: parallel in docs/conventions/implementation.yaml invalid?",
+      "why": "a question"
     }
   ]
 }

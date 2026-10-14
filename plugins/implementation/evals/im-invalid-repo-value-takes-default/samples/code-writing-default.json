@@ -14,6 +14,22 @@
     {
       "answer": "- **`code_writing`:** `inline` (default). `docs/conventions/implementation.yaml` sets `parallel`, which is not `inline` or `dispatch`.",
       "why": "bold backticked key, colon inside the emphasis"
+    },
+    {
+      "answer": "code_writing: inline (the default)",
+      "why": "the default"
+    },
+    {
+      "answer": "code_writing: inline (built-in default; the repository value is invalid)",
+      "why": "built-in default"
+    },
+    {
+      "answer": "| Key | Value | Layer |\n|---|---|---|\n| `code_writing` | `inline` | default |",
+      "why": "table row"
+    },
+    {
+      "answer": "`code_writing` is `inline` (default).",
+      "why": "is form"
     }
   ],
   "fail": [
@@ -40,6 +56,14 @@
     {
       "answer": "**`code_writing`:** `parallel` (docs/conventions/implementation.yaml)",
       "why": "invalid value resolved from the repository layer"
+    },
+    {
+      "answer": "| `code_writing` | `inline` | `docs/conventions/implementation.yaml` |",
+      "why": "table row, wrong layer"
+    },
+    {
+      "answer": "`code_writing` is `parallel` (default).",
+      "why": "wrong value"
     }
   ]
 }
