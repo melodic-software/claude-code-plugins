@@ -9,7 +9,8 @@
 #
 #   --enabled FILE    enabled hooks, one `EVENT<TAB>HOOK` per line (`#` comments), HOOK as the
 #                     transcript records it (statusMessage if set, else the unexpanded command);
-#                     each with no sample is listed as unsampled
+#                     each with no sample is listed as unsampled. Output redacts credentials, so
+#                     copy a hook from the transcript, not from a redacted output line
 #   --latency         per-event p50/p95 instead of per-hook rows (the `latency` fallback)
 #   --budget EVENT=MS Stop p95 budget for --latency; repeatable, last wins
 #
@@ -23,7 +24,7 @@
 
 set -uo pipefail
 
-usage() { sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,23p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 die() {
   printf 'hook-transcript-timing: %s\n' "$1" >&2
   exit 2
@@ -65,9 +66,11 @@ def q($p): sort as $s | ($s | length) as $n | (($n - 1) * $p) as $h | ($h | floo
   | if $lo + 1 < $n then $s[$lo] + ($h - $lo) * ($s[$lo + 1] - $s[$lo]) else $s[$lo] end;
 def r: . + 0.5 | floor;
 # Output only: strip control bytes and redact credential shapes (context/privacy.md).
-def clean: tostring | gsub("[\u0000-\u001f\u007f]"; "")
-  | gsub("(?<k>[A-Za-z0-9_]*(TOKEN|KEY|SECRET|PASSWORD)[A-Za-z0-9_]*)=[^\\s\"]*"; "\(.k)=[redacted]"; "i")
-  | gsub("[A-Za-z0-9+_-]{32,}={0,2}"; "[redacted-token]");
+# The token rule needs a digit and excludes `/`, so hook file names and paths stay readable.
+def clean: tostring | gsub("[\\p{Cc}\\p{Cf}]"; "")
+  | gsub("(?<![A-Za-z0-9_-])(?<k>DATABASE_URL|CONNECTION_STRING|(AWS|GITHUB|GH)_[A-Za-z0-9_]*|([A-Za-z0-9_]*_)?(TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIALS?|AUTH))=(\"[^\"]*\"|\\x27[^\\x27]*\\x27|[^\\s\"\\x27]*)"; "\(.k)=[redacted]"; "i")
+  | gsub("(?<s>[A-Za-z][A-Za-z0-9+.-]*://)[^/\\s@]+@"; "\(.s)[redacted]@")
+  | gsub("(?=[A-Za-z+_-]*[0-9])[A-Za-z0-9+_-]{32,}={0,2}"; "[redacted-token]");
 [inputs | fromjson? | objects] as $recs
 # One entry per firing: {event, coverage, hooks: [{command, ms}]}. Only these fields are read.
 | [ ($recs[] | select(.subtype? == "stop_hook_summary")

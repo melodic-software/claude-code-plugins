@@ -45,6 +45,10 @@ redact() {
 
 Apply just before final stdout / file write, never to the raw JSONL input.
 
+`scripts/hook-transcript-timing.sh` applies the same rules in jq, plus quoted assignment values,
+URL userinfo and control and bidi characters; its token rule leaves out `/` and needs a digit, so
+paths and hook file names stay readable.
+
 ## What is NEVER redacted
 
 - File paths (the whole point of `subject` is path-anchored signal)
