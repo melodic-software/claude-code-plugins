@@ -522,11 +522,16 @@ _bupm_api "repos/$BUPM_REPO/pulls/$BUPM_NUM/reviews?per_page=100" --jq '
   _bupm_unchecked "$BUPM_ERR"
 _bupm_changes="$BUPM_OUT"
 
-# Check runs on the head commit (GitHub returns the latest run per name).
+# Check runs on the head commit. The endpoint can return several runs of one
+# check (a draft run and the run after the ready flip, #7473), so only the
+# newest per name and app counts, as in GitHub's merge state: newest by
+# completion time, else start time; a run with neither sorts newest.
 # shellcheck disable=SC2016
 _bupm_api "repos/$BUPM_REPO/commits/$_bupm_sha/check-runs?per_page=100" --jq '
-  [.check_runs[] | select(.status == "completed" and (.conclusion | IN("failure","timed_out","cancelled","action_required","startup_failure","stale"))) | .name] as $f
-  | [.check_runs[] | select(.status != "completed") | .name] as $p
+  [.check_runs | group_by([.name, (.app.id // 0)])[]
+    | max_by(.completed_at // .started_at // "9999")] as $runs
+  | [$runs[] | select(.status == "completed" and (.conclusion | IN("failure","timed_out","cancelled","action_required","startup_failure","stale"))) | .name] as $f
+  | [$runs[] | select(.status != "completed") | .name] as $p
   | "\($f | join(", "))\u001f\($p | join(", "))"' ||
   _bupm_unchecked "$BUPM_ERR"
 # A unit separator, not a tab: tab is IFS whitespace, so an empty first field

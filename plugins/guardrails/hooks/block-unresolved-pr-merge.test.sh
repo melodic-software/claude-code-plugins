@@ -118,6 +118,13 @@ J
   green) echo '{"total_count":2,"check_runs":[{"name":"build","status":"completed","conclusion":"success"},{"name":"lint","status":"completed","conclusion":"skipped"}]}' >"$FIX/checks.json" ;;
   failed) echo '{"total_count":2,"check_runs":[{"name":"build","status":"completed","conclusion":"failure"},{"name":"lint","status":"completed","conclusion":"success"}]}' >"$FIX/checks.json" ;;
   pending) echo '{"total_count":1,"check_runs":[{"name":"build","status":"in_progress","conclusion":null}]}' >"$FIX/checks.json" ;;
+  # Two runs of one check on one head (#7473, azure-iac#26): the newer listed
+  # first, as the endpoint returned them there.
+  superseded-failure | superseded-cancelled)
+    local old="${3#superseded-}"
+    echo '{"total_count":2,"check_runs":[{"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T16:55:30Z","completed_at":"2026-10-14T16:55:43Z"},{"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"'"$old"'","started_at":"2026-10-14T15:29:01Z","completed_at":"2026-10-14T15:29:16Z"}]}' >"$FIX/checks.json"
+    ;;
+  regressed) echo '{"total_count":2,"check_runs":[{"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"success","started_at":"2026-10-14T15:29:01Z","completed_at":"2026-10-14T15:29:16Z"},{"name":"ci-status","app":{"id":15368},"status":"completed","conclusion":"failure","started_at":"2026-10-14T16:55:30Z","completed_at":"2026-10-14T16:55:43Z"}]}' >"$FIX/checks.json" ;;
   *) return 1 ;;
   esac
   case "$4" in
@@ -228,6 +235,15 @@ run "pending checks block an immediate merge" 'gh pr merge 42 --squash' 2
 assert_contains "names the pending checks" "$ERR" "Pending checks"
 scenario none none pending pending
 run "pending checks do not block --auto" 'gh pr merge 42 --auto --squash' 0
+# Only the newest run of a check on the head counts (#7473).
+for old in failure cancelled; do
+  scenario none none "superseded-$old" green
+  run "older $old superseded by a newer success" 'gh pr merge 42 --squash --match-head-commit abc123' 0
+  assert_eq "superseded $old -> no stderr" "" "$ERR"
+done
+scenario none none regressed green
+run "older success, newer failure" 'gh pr merge 42 --squash' 2
+assert_contains "names the regressed check" "$ERR" "Failing checks: ci-status"
 
 # --- 4. REST, GraphQL and curl merge paths -------------------------------------
 scenario unresolved none green green
