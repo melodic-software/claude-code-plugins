@@ -8,4 +8,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Agent, Bash, Write]
 expected_outcome: "The review reports that displayName no longer handles a null user or a user without a profile, contradicts the commit message's claim that every caller passes a signed-in user by pointing at renderHeader, and says the header now throws a TypeError for a signed-out visitor"
 ---
 
-/review:quality-gate code Please review the change on this branch.
+/review:quality-gate code Please review the change on this branch. No pull request is open for this branch yet.

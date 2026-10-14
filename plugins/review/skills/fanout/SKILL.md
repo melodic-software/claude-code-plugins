@@ -1,5 +1,5 @@
 ---
-description: "Fan out review across many finding-producing surfaces at once, this plugin's reviewer agents, the project's own per-concern review criteria docs, and orchestrator review plugins, then normalize the heterogeneous outputs into one severity-ranked, deduplicated report persisted to disk. Use when asked for a breadth review of a change (every reviewer at once, every angle or side, one combined ranked report), or to 'fix the review findings' (the fix action applies the merged set of persisted findings)."
+description: "Breadth review: fans a change out to many reviewers at once (this plugin's reviewer agents, the project's per-concern criteria docs, orchestrator review plugins) and merges their findings into one deduplicated, severity-ranked report on disk. Use when asked for a breadth review of a change (every reviewer at once, every angle or side, one combined ranked report), or to 'fix the review findings' (the fix action applies the merged set of persisted findings)."
 argument-hint: "[run-everything|fix] [--yes]"
 user-invocable: true
 disable-model-invocation: false
@@ -14,23 +14,13 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+Collect these with **individual** Bash calls, one command per call, never combined (a worktree-isolated session refuses a compound command that contains git):
 
 - Current branch, `git branch --show-current`
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Uncommitted diff size, `git diff --shortstat HEAD`
 
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the worktree skill's
-[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
-"The pre-compute block runs as one shell invocation".
+Keep the pipe in the command; it is the bound. Treat a failure (not a repository, git unavailable) as an unknown value and carry on.
 
 ## Pre-computed context
 
@@ -39,9 +29,7 @@ Committed diff size vs default-base merge base (recompute against the PR's baseR
 
 ## Purpose
 
-Breadth review. Where this plugin's `quality-gate` skill picks ONE lens per invocation, this skill fans out across MANY finding-producing surfaces at once, then normalizes their incomparable outputs into one severity-ranked report persisted to disk.
-
-**The hard problem this skill owns:** the surfaces emit heterogeneous free-text on two independent axes (severity, confidence), and most populate only one. A 5-stage normalization pipeline (extraction → severity crosswalk → confidence enum → dedup → agreement/rank) is therefore unavoidable. [context/findings-normalization.md](context/findings-normalization.md).
+Breadth review: fan out across MANY finding-producing surfaces at once (`quality-gate` picks ONE lens), then normalize their heterogeneous free-text, which carries two independent axes (severity, confidence) with most surfaces filling only one, through a 5-stage pipeline (extraction → severity crosswalk → confidence enum → dedup → agreement/rank, [context/findings-normalization.md](context/findings-normalization.md)) into one severity-ranked report persisted to disk.
 
 **Review modes report; a separate `fix` action applies.** The `default` and `run-everything` modes fan out, normalize, and persist findings, mutating nothing but the findings file. The `fix` action consumes the persisted findings and is the only mode that touches the working tree.
 
@@ -170,13 +158,7 @@ Neither is dispatched as a normalized fan-out surface and [context/findings-norm
 
 ## Spoke paths
 
-The `context/` files write the plugin's root directory as `<plugin-root>`, which is
-`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+The `context/` files write the plugin root as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`. Substitute it before running a command or writing it into a brief: a spoke arrives as plain bytes, so a `${…}` token in it would reach Bash unexpanded. Pointer: <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>. As of: 2026-10-07. Recheck trigger: that table adds supporting files to where a `${…}` reference resolves.
 
 ## What this skill does NOT do
 

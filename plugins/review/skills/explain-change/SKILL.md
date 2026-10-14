@@ -1,5 +1,5 @@
 ---
-description: "Explain one pull request as a markdown digest (why, before and after, a risk map a fresh-context agent checks, annotated hunks, an optional quiz), or rate its risk areas alone with --risk-only, and offer or build an interactive view of it from the checked-in template. A digest_policy of off, offer, or always decides when it runs unasked. Never posts to the pull request and never gates merge. Use when: 'explain this change', 'explain this PR', 'walk me through this pull request', 'where should I focus in this diff', 'digest this PR', 'PR explainer'."
+description: "Pull request explainer: a markdown digest of one PR (why, before and after, a checked risk map, annotated hunks, an optional quiz) with an optional interactive view, or its risk areas alone. Never posts to the PR or gates merge. Use when asked to 'explain this PR' or 'walk me through this pull request', for a 'digest' of a PR, or where to focus in a diff."
 argument-hint: "[pr-number|this branch] [--event ready] [--policy off|offer|always] [--quiz] [--risk-only]"
 user-invocable: true
 disable-model-invocation: false

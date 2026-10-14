@@ -1,5 +1,5 @@
 ---
-description: "Freeze a counter at today's value as a checked-in CI ceiling, so a rise fails the required check and a fall lowers the ceiling by PR: a lint rule's violation count, a suppression count, a verified performance counter, or a telemetry count. A zero count lands the rule with no ceiling. Counters only, never durations. Proposes files; a human approves and merges. Use when: 'ratchet this lint rule', 'freeze the violation count', 'add a count ceiling to CI', 'stop this count from growing', 'ratchet the suppressions'."
+description: "Count ratchet: freezes a lint violation, suppression, performance or telemetry count at today's value as a checked-in CI ceiling that fails on a rise and is lowered as the count falls. Counters only, never durations; proposes files for a human to merge. Use when asked to 'ratchet' a lint rule or suppressions, freeze a violation count, or 'stop this count from growing' in CI."
 user-invocable: true
 argument-hint: "[<counter, rule or claim>]"
 disable-model-invocation: false

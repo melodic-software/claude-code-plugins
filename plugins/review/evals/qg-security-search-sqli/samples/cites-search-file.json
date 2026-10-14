@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | CRITICAL | high | Injection | SQL injection (CWE-89): `q` is concatenated into the LIKE clause, so a UNION SELECT returns the users table. | src/routes/search.js:12 | Bind the term with a `?` placeholder |",
+      "why": "class then file on one table row"
+    },
+    {
+      "answer": "1. **Severity**: P1\n2. **Location**: src/routes/search.js:10\n3. **Risk**: The search term is spliced into the query string, so any visitor can inject arbitrary SQL and read the users table.\n4. **Fix**: use a parameterized query.",
+      "why": "file then class across lines of one finding"
+    },
+    {
+      "answer": "Blocking: routes/search.js is open to SQLi through the q parameter.",
+      "why": "shorter path form"
+    },
+    {
+      "answer": "| 1 | CRITICAL | High | SQL injection (CWE-89) | `q` is concatenated into the SQL. `?q=' UNION SELECT id, email, password_hash FROM users --` returns every user's email and password hash to any anonymous caller. The `--` also removes the `LIMIT`. `' OR 1=1 --` returns archived products. A heavy recursive query can stall the whole server, because better-sqlite3 runs synchronously. | `src/routes/search.js:9-17` | Bind the term with `?` and an escaped `LIKE` pattern, as `products.js` does. |",
+      "why": "observed Sonnet reply: class and file on one long table row, more than 300 characters apart"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No blocking findings. src/routes/search.js: no SQL injection risk here, the route is read-only.",
+      "why": "negated text"
+    },
+    {
+      "answer": "src/routes/search.js is not vulnerable to SQL injection because sort is allowlisted.",
+      "why": "negated: not vulnerable to"
+    },
+    {
+      "answer": "src/routes/search.js builds its SQL from strings; fine for an internal tool.",
+      "why": "mention without a finding"
+    },
+    {
+      "answer": "| 1 | CRITICAL | high | Injection | SQL injection: the id is concatenated into the query. | src/routes/products.js:8 | Use a `?` placeholder |",
+      "why": "different file"
+    },
+    {
+      "answer": "SQL injection risk in the new search endpoint: q is concatenated into the query.",
+      "why": "names the class but cites no file"
+    },
+    {
+      "answer": "| 1 | CRITICAL | High | SQL injection (CWE-89) | The id from the URL is concatenated into the lookup query, so a UNION SELECT can read the users table; this is reachable without signing in and returns every column the attacker names in the select list. | `src/routes/products.js:8` | Use a `?` placeholder. |\n| 2 | SUGGESTION | Medium | Hardening | The new endpoint has no rate limiting and no length cap on the term, so a long wildcard pattern forces a full table scan on each request from any client. | `src/routes/search.js:9` | Add per-IP rate limiting. |",
+      "why": "the injection is cited in a different file; search.js appears only on the next row for an unrelated finding"
+    }
+  ]
+}

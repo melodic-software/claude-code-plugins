@@ -1,5 +1,5 @@
 ---
-description: "Single-lens review checkpoint between 'code works' and 'code is ready'. Routes to self, code, architecture, security, spec, close-out, downstream, pr, criteria, slice, or restatement mode and delegates to the matching reviewer. Use when the user says 'review this', 'self-review', 'quality gate', 'code review', 'architecture review', 'security review', 'does this match the spec/issue/plan', or 'close-out review' / 'review the container' for a shipped spec container, or after implementation completes. Downstream mode covers 'what could this break', 'blast radius', 'what else does this touch', 'who calls this'. Breakage outside the diff on a change already written; assessing a plan's reach before implementation is '/planning:plan' and '/planning:devils-advocate', and a rename sweep is '/docs-hygiene:rename-references audit blast'."
+description: "Single-lens review checkpoint between 'code works' and 'code is ready': self, code, architecture, security, spec, close-out, downstream, pr, criteria, slice or restatement mode, each delegated to the matching reviewer. Use when the user asks to 'review this', for a 'self-review' or 'quality gate', a code, architecture or security review, whether the change 'matches the spec/issue/plan', a 'close-out review' of a shipped spec container, 'what could this break' or the 'blast radius' of a written change, or after implementation completes."
 argument-hint: "[self|code|architecture|security|spec|close-out|downstream|pr|criteria|slice|restatement]"
 user-invocable: true
 disable-model-invocation: false
@@ -14,38 +14,23 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+Collect these with **individual** Bash calls, one command per call, never combined (a worktree-isolated session refuses a compound command that contains git):
 
 - Current branch, `git branch --show-current`
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the worktree skill's
-[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
-"The pre-compute block runs as one shell invocation".
+Keep the pipe in the command; it is the bound. Treat a failure (not a repository, git unavailable) as an unknown value and carry on.
 
 ## Purpose
 
-Review is the quality checkpoint between "code works" and "code is ready." This skill structures that step so changes are inspected for consistency, correctness, and alignment with the project's conventions before verification or PR creation. Self-review catches errors tests miss. Inconsistencies, loose ends, convention drift, design shortcuts. Delegated reviews (code, architecture, security) bring specialized scrutiny the implementer's tunnel vision would miss.
-
-**Depth, not breadth.** This skill picks ONE lens per invocation. For a multi-surface fan-out that runs many reviewers at once and ranks their combined findings, use this plugin's `fanout` skill instead.
+Inspect a change for consistency, correctness and alignment with the project's conventions before verification or PR creation, through ONE lens per invocation. A multi-surface fan-out with ranked combined findings is this plugin's `fanout` skill.
 
 ## Shared inputs
 
-- **Review diff base**. **mode-scoped override first:** `close-out` does not use this base at all.
-  A spec container is not a branch, so that mode derives a container-scoped basis of its own, per
-  execution shape ([context/close-out.md](context/close-out.md) "Why it needs its own diff basis").
-  Every other mode uses the base below. When an open PR exists for the branch, its `baseRefName` is the base: dispatched reviewers diff `git merge-base origin/<baseRefName> HEAD`. Find it with `/source-control:pull-request list --head <current-branch>`, invoked via the Skill tool when the `source-control` plugin is installed, or the forge's own list of open PRs by head branch otherwise. One row gives the base; an empty array means no open PR. A failed read is not "no PR": the base is unresolved, so stop and report it rather than substitute another base. With no PR, `git merge-base origin/HEAD HEAD` (falling back to the remote's resolved default branch via `git ls-remote --symref`, then `origin/main`; when none yields a merge-base the base is unresolved, never `HEAD`) so committed-clean branches still show their changes; untracked files come from `git ls-files --others --exclude-standard`.
+- **Review diff base.** `close-out` derives its own container-scoped basis ([context/close-out.md](context/close-out.md) "Why it needs its own diff basis"); every other mode uses this one. When an open PR exists for the branch, its `baseRefName` is the base: dispatched reviewers diff `git merge-base origin/<baseRefName> HEAD`. Find it with `/source-control:pull-request list --head <current-branch>` via the Skill tool when the `source-control` plugin is installed, else the forge's list of open PRs by head branch. One row gives the base; an empty array means no open PR. A failed read is not "no PR": the base is unresolved, so stop and report it rather than substitute another base. With no PR, `git merge-base origin/HEAD HEAD` (falling back to the remote's resolved default branch via `git ls-remote --symref`, then `origin/main`; when none yields a merge-base the base is unresolved, never `HEAD`). Untracked files come from `git ls-files --others --exclude-standard`.
 - **Severity vocabulary**, the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
-- **Criteria resolution**. Review criteria resolve through the standards index per the plugin binding [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md) (its "Resolution ladder" section owns the procedure), detailed in [context/criteria.md](context/criteria.md).
-- **Findings location**. `<memory_dir>/reviews/<branch-slug>/`, never committed. `<memory_dir>` is `.work/` unless the project's instructions declare another memory root. `<branch-slug>` is the branch name lowercased, with `/` and every other non-`[a-z0-9._-]` character replaced by `-`. `<UTC-timestamp>` is `date -u +%Y%m%dT%H%M%SZ`. The session's first write verifies the memory root contains a `.gitignore` with `*`, creating it (announced) when absent; never edit the consumer's root `.gitignore`. Durable findings are `<UTC-timestamp>-<mode>.md` in that directory. Write repo-relative paths only, never absolute machine paths.
+- **Criteria resolution.** Review criteria resolve through the standards index per [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md) "Resolution ladder", detailed in [context/criteria.md](context/criteria.md).
+- **Findings location.** `<memory_dir>/reviews/<branch-slug>/`, never committed. `<memory_dir>` is `.work/` unless the project's instructions declare another memory root. `<branch-slug>` is the branch name lowercased, with `/` and every other non-`[a-z0-9._-]` character replaced by `-`. `<UTC-timestamp>` is `date -u +%Y%m%dT%H%M%SZ`. The session's first write verifies the memory root contains a `.gitignore` with `*`, creating it (announced) when absent; never edit the consumer's root `.gitignore`. Durable findings are `<UTC-timestamp>-<mode>.md` in that directory. Write repo-relative paths only, never absolute machine paths.
 
 ## Step 0: Detect review mode
 
@@ -67,56 +52,31 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 
 Ambiguous → present the modes and ask. **Read the matching context file before proceeding.**
 
-**Downstream probe setting.** `downstream` mode reads one setting, `downstream_probe` (`run` or
-`report`, default `run`). The user's option is `${user_config.downstream_probe}`; a literal,
-unexpanded placeholder means unset. It is a policy floor: `report` from the user option or from
-the repository's `docs/conventions/review.yaml`, read from the default branch, wins. The resolution
-steps and the probe are in [context/downstream.md](context/downstream.md) ("Resolve
-`downstream_probe`" and Step 2); keys and level rule:
-[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
+**Downstream probe setting.** `downstream` mode reads `downstream_probe` (`run` or `report`, default `run`). The user's option is `${user_config.downstream_probe}`; a literal, unexpanded placeholder means unset. It is a policy floor: `report` from the user option or from the repository's `docs/conventions/review.yaml`, read from the default branch, wins. Resolution steps and the probe: [context/downstream.md](context/downstream.md) ("Resolve `downstream_probe`" and Step 2); keys and level rule: [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
 
 ## Step 0.5: Pre-flight gate (diff-consuming modes only)
 
-**Mode-scoped by design.** `criteria` is a reference mode. It loads criteria rather than reviewing
-a change, and legitimately runs against a clean tree, so it is **exempt** and never gated.
-`close-out` is gated, but **on its own basis, not this one**: it runs the same two checks below
-against the container-scoped basis it derives, plus a rollup check that the container is actually
-finished ([context/close-out.md](context/close-out.md) "Step 4"). Every remaining mode consumes the
-branch review diff, so for those: resolve the review diff base ("Shared inputs") and confirm it
-yields a non-empty diff BEFORE dispatching any reviewer.
+`criteria` loads criteria rather than reviewing a change, so it is exempt and runs on a clean tree. `close-out` runs the two checks below against its own container-scoped basis, plus a rollup check that the container is finished ([context/close-out.md](context/close-out.md) "Step 4"). Every other mode resolves the review diff base and confirms a non-empty change set BEFORE dispatching any reviewer:
 
-- **Unresolvable base**, an open PR's `origin/<baseRefName>` fails `git rev-parse --verify` even
-  after a fetch (do NOT silently substitute a different base. That reviews the wrong diff), or no
-  ladder ref resolves at all → report which ref failed and STOP.
-- **Nothing to review**. No tracked diff against the base AND no untracked files → say so and
-  STOP; never stage files to manufacture a diff.
+- **Unresolvable base:** an open PR's `origin/<baseRefName>` fails `git rev-parse --verify` even after a fetch, or no ladder ref resolves → report which ref failed and STOP. Never substitute a different base; that reviews the wrong diff.
+- **Nothing to review:** no tracked diff against the base AND no untracked files → say so and STOP; never stage files to manufacture a diff.
 
-**Untracked-only is reviewable here, and this is a deliberate divergence from `fanout`.** This
-skill's Shared inputs hand untracked files to the dispatched reviewer directly ("Shared inputs";
-the `self` and `slice` worker templates both read them), so a branch whose whole change is new
-files has a real change set. Stopping on it would make a new-module or new-test review report
-"nothing to review" about work that is plainly there. `fanout` stops on that case because its
-surfaces receive only the merge-base diff, which cannot show an unstaged file. Review the untracked
-files in place; still never `git add` them.
+Untracked-only changes are reviewable here (unlike `fanout`, whose surfaces see only the merge-base diff): this skill hands untracked files to the reviewer directly, so review them in place and never `git add` them.
 
-Either outcome dispatches ZERO reviewers: a lens run against an empty or wrong change set produces
-noise, not a verdict. Two modes add a gate of their own on top of this one: an explicitly passed
-`--spec` ref that does not resolve is a STOP ([context/spec.md](context/spec.md) "Rung 1"), and so
-is an explicitly passed `--container` ref that does not resolve
-([context/close-out.md](context/close-out.md) "Step 1").
+Either STOP dispatches ZERO reviewers. Two modes add their own gate: an explicit `--spec` ref that does not resolve is a STOP ([context/spec.md](context/spec.md) "Rung 1"), and so is an explicit `--container` ref that does not resolve ([context/close-out.md](context/close-out.md) "Step 1").
 
 ## Step 1: Gather context
 
-1. **What changed?**. The repository context above + the review diff base
-2. **What was the goal?**, the original task, approved plan, or user intent from conversation. In every mode but `spec` and `close-out` this is background for judging the change; making the goal the thing under judgment is `spec` mode, which owns the spec-source discovery ladder and the fidelity finding classes. `close-out` is that same lens at container scale, reusing both and resolving its spec from the container instead of the branch
-3. **What conventions apply?**. Resolve the project's standards for the changed surfaces through the standards index per the Shared-inputs criteria-resolution binding, so every review mode grounds in the same rows plan formulation loaded
+1. **What changed?** The repository context above plus the review diff base.
+2. **What was the goal?** The original task, approved plan, or user intent from the conversation. Outside `spec` and `close-out` it is background for judging the change; `spec` makes the goal the thing under judgment (it owns the spec-source discovery ladder and the fidelity finding classes), and `close-out` applies that lens at container scale, resolving its spec from the container.
+3. **What conventions apply?** Resolve the project's standards for the changed surfaces through the standards index (Shared inputs, criteria resolution).
 
 ## Step 2: Execute the review
 
 Follow the selected context file. Two hard rules:
 
 - **Self mode never runs the checklist on the producing thread.** Dispatch a fresh-context read-only subagent; the thread that wrote the code rubber-stamps its own recap.
-- **Delegated modes synthesize, never substitute.** After the delegated reviewer returns, verify each finding against the actual diff (a subagent's report is synthesis, not evidence) before presenting.
+- **Delegated modes synthesize, never substitute.** Verify each returned finding against the actual diff before presenting it; a subagent's report is synthesis, not evidence.
 
 ## Step 3: Report findings
 
@@ -140,32 +100,25 @@ Follow the selected context file. Two hard rules:
 
 ## Step 4: Handoff
 
-- **All clear**. Suggest the project's next verification step (build/test, outcome verification, PR creation)
-- **Fixes needed**. List specific actions; after fixes, suggest a quick re-run of `self` mode. In a review-fix round, change exactly the lines each finding names; any other edit needs its own finding first. Unscoped edits made while fixing are where later rounds' defects come from, so the round stays bounded by its findings
-- **Design fundamentally flawed**. Suggest revisiting the plan/design before more code lands
+- **All clear.** Suggest the project's next verification step (build/test, outcome verification, PR creation).
+- **Fixes needed.** List specific actions; after fixes, suggest a `self` re-run. In a review-fix round, change exactly the lines each finding names; any other edit needs its own finding first.
+- **Design fundamentally flawed.** Suggest revisiting the plan or design before more code lands.
 
 ## What this skill does NOT do
 
-- **Does not run builds or tests**. Use the project's build/test tooling (or this plugin's `ecosystem-specialist` agent) separately. One exception: `downstream` mode, under `downstream_probe: run`, runs the single probe it writes for its safety fact ([context/downstream.md](context/downstream.md) Step 2)
-- **Does not write or fix code**. It identifies issues; the implementer fixes them
-- **Does not fan out across many surfaces**. That is this plugin's `fanout` skill
+- **Run builds or tests.** Use the project's tooling (or this plugin's `ecosystem-specialist` agent). Exception: `downstream` mode under `downstream_probe: run` runs the single probe it writes for its safety fact ([context/downstream.md](context/downstream.md) Step 2).
+- **Write or fix code.** It identifies issues; the implementer fixes them.
+- **Fan out across many surfaces.** That is `fanout`.
 
 ## Spoke paths
 
-The `context/` files write the plugin's root directory as `<plugin-root>`, which is
-`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
-2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
+The `context/` files write the plugin root as `<plugin-root>`, which is `${CLAUDE_PLUGIN_ROOT}`. Substitute it before running a command or writing it into a brief: a spoke arrives as plain bytes, so a `${…}` token in it would reach Bash unexpanded. Pointer: <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>. As of: 2026-10-07. Recheck trigger: that table adds supporting files to where a `${…}` reference resolves.
 
 ## Next
 
-`/verification:confirm`, when it is among the available skills, after an all-clear verdict, then
-PR creation; after fixes, a `self` re-run of this skill (Step 4).
+`/verification:confirm`, when it is among the available skills, after an all-clear verdict, then PR creation; after fixes, a `self` re-run of this skill (Step 4).
 
 ## Gotchas
 
-- **Don't skip self-review for "small" changes**. Small changes have the highest ratio of "obviously fine" to "actually had a bug."
-- **`criteria` mode is a reference, not an action**. It loads review criteria so you can see what to check; combine with `self` mode for an informed review.
+- **Small changes still get self-review.** They carry the highest ratio of "obviously fine" to "actually had a bug."
+- **`criteria` mode is a reference, not an action.** It loads the criteria; pair it with `self` mode for an informed review.

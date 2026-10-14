@@ -3,6 +3,10 @@
     {
       "answer": "| 1 | IMPORTANT | Correctness | Slicing is safe, but the removed `len(title) <= limit` branch returned short titles unchanged. Now every title gets the ellipsis: listing.py prints 'Desk lamp…' and 'Cable tray…', and a title of exactly 40 characters is cut to 39 plus the ellipsis. | titles.py:2 | Restore the early return |",
       "why": "names the input class and the changed output"
+    },
+    {
+      "answer": "| 1 | CRITICAL | high | Correctness | The commit calls the length check redundant, but it isn't. Slicing past the end is safe, but the guard also skipped the `\"…\"` suffix. Without it, every title gets an ellipsis. I ran it: `shorten('Mug')` returns `'Mug…'`, and a 40-character title loses its last character. | `titles.py:2` | Restore `if len(title) <= limit: return title`. |",
+      "why": "rejects the redundancy claim and shows the changed output with a short title other than the case's own example"
     }
   ],
   "fail": [
