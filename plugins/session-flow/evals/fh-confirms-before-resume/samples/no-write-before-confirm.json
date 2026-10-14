@@ -1,0 +1,64 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": ".work/handoffs/*-handoff-*.md"
+          }
+        }
+      ],
+      "why": "glob only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --short"
+          }
+        }
+      ],
+      "why": "inspection"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/billing.ts",
+            "content": "export const chargeRetries = 3;\n"
+          }
+        }
+      ],
+      "why": "resumed the work"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/recovered.md",
+            "content": "x\n"
+          }
+        }
+      ],
+      "why": "writes a recovery note"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "x",
+            "content": "y\n"
+          }
+        }
+      ],
+      "why": "any write"
+    }
+  ]
+}

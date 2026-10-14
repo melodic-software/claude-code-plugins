@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/skills/audit-sessions/scripts/sweep.py\" --data-dir \"/d\" --format json --min-count 20 --versions 3 --since 2026-09-01"
+          }
+        }
+      ],
+      "why": "json with since"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"$PY\" \"$S/sweep.py\" --data-dir \"/d\" --format=json --since=2026-09-01 --catalog 'session-flow:retro'"
+          }
+        }
+      ],
+      "why": "equals forms"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/sweep.py\" --data-dir \"/d\" --format md --since 2026-09-01"
+          }
+        }
+      ],
+      "why": "markdown"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/sweep.py\" --data-dir \"/d\" --format json"
+          }
+        }
+      ],
+      "why": "since dropped"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/skills/audit-sessions/scripts/sweep.py\" --data-dir \"/d\" --format json --min-count 20 --versions 3 --since 2026-09-01 --write-report"
+          }
+        }
+      ],
+      "why": "writes a report"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/sweep.py\" --help"
+          }
+        }
+      ],
+      "why": "help only"
+    }
+  ]
+}

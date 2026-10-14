@@ -1,5 +1,5 @@
 ---
-description: "Scan a codebase for module-level friction (shallow modules, seam leaks, locality gaps), report candidates as HTML, and interview the chosen one with a Design-It-Twice branch. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality', 'check our layer boundaries', 'which references cross a boundary'. Skip when: a cross-dimension ask ('what should we improve') routes to /improvement:find."
+description: "Codebase scan for module-level friction (shallow modules, seam leaks, locality gaps): an HTML candidate report, then a Design-It-Twice interview on the chosen one. Use when 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality', 'check our layer boundaries', 'which references cross a boundary'. Skip when a cross-dimension ask ('what should we improve') routes to /improvement:find."
 argument-hint: "[deepening|boundaries]"
 user-invocable: true
 disable-model-invocation: false

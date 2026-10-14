@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Templates to read: https://github.com/joelparkerhenderson/architecture-decision-record (CC BY-NC-SA 4.0)."
+    },
+    {
+      "answer": "See <https://github.com/joelparkerhenderson/architecture-decision-record> for templates."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No convention found. Pick a shape and I will write the record."
+    },
+    {
+      "answer": "Michael Nygard's template is the usual starting point: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions"
+    }
+  ]
+}

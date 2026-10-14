@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "- feat/retry-backoff (PR #12): handoff claims open and not on main; actually merged into main (merge commit 1a2b3c4).",
+      "why": "claimed then actual"
+    },
+    {
+      "answer": "| feat/retry-backoff | not on main | merged into main |",
+      "why": "table row"
+    },
+    {
+      "answer": "The retry-backoff branch already landed on main.",
+      "why": "landed"
+    },
+    {
+      "answer": "| feat/retry-backoff (PR #12) | not merged | merged |",
+      "why": "claimed not merged, actual merged table row"
+    },
+    {
+      "answer": "feat/retry-backoff: the handoff says it is not merged; it is actually merged into main.",
+      "why": "claim then correction on one line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "feat/retry-backoff has not been merged yet.",
+      "why": "negated"
+    },
+    {
+      "answer": "feat/retry-backoff: still open, not on main.",
+      "why": "the stale claim"
+    },
+    {
+      "answer": "Shall I check whether feat/retry-backoff merged?",
+      "why": "a question"
+    },
+    {
+      "answer": "feat/retry-backoff hasn't landed.",
+      "why": "contraction negation"
+    },
+    {
+      "answer": "PR #12 merged.",
+      "why": "no branch named"
+    },
+    {
+      "answer": "feat/retry-backoff: the handoff says it is not merged; I could not check.",
+      "why": "claimed not merged, unverified"
+    }
+  ]
+}

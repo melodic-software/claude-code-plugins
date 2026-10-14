@@ -1,0 +1,79 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".work/handoffs/20261012T153000Z-handoff-retry-backoff.md"
+          }
+        }
+      ],
+      "why": "reads only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --short"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -3"
+          }
+        }
+      ],
+      "why": "inspection only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/retry.ts",
+            "old_string": "1000",
+            "new_string": "Math.min(30000, 1000 * 2 ** i)"
+          }
+        }
+      ],
+      "why": "phase 2 work before the answer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": ".work/handoffs/20261012T153000Z-handoff-retry-backoff.md",
+            "old_string": "# Handoff",
+            "new_string": "# Handoff\n\n## Original goal\n\nBack off retries"
+          }
+        }
+      ],
+      "why": "writes an inferred goal into the handoff"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/retry.ts"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "test.sh",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "any edit"
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "skill": "architecture:map-dependencies",
+  "plugin": "architecture",
+  "skill_dir": "plugins/architecture/skills/map-dependencies",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are map-components (C4 view of one deployable), map-landscape (repos and systems), improve (shallow modules, boundary crossings) and map-flow (call graphs from source). map-dependencies cites build-manifest edges between projects and packages.",
+  "competitors": [
+    "architecture:map-components",
+    "architecture:map-landscape",
+    "architecture:improve",
+    "architecture:map-flow"
+  ],
+  "competitor_dirs": {
+    "architecture:map-components": "plugins/architecture/skills/map-components",
+    "architecture:map-landscape": "plugins/architecture/skills/map-landscape",
+    "architecture:improve": "plugins/architecture/skills/improve",
+    "architecture:map-flow": "plugins/architecture/skills/map-flow"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "In this solution, what depends on what at the project level? Cite the csproj for each edge."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me the project reference graph for the repo."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Are there any circular references between our projects?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "List the NuGet packages each project pulls in, per csproj."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What references the Domain project?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Show internal dependencies between packages in this monorepo, with the manifest line for each."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I need a dependency graph from the package.json files in the workspace."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which projects does the API project reference, directly?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Show only the external package dependencies of the Infrastructure project."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Map out who references whom across the solution file's projects."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which repositories do we have?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find shallow modules and layering violations."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Trace the call graph starting at the checkout endpoint."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw the C4 component view for the order service."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Upgrade all outdated NuGet packages."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check our dependencies for known vulnerabilities."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Show the imports between source files in the frontend."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which services publish this message?"
+    }
+  ]
+}

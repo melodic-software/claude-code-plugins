@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "# Build rules\n\n- Run `npm run build` before committing.\n",
+      "why": "the scaffolded file"
+    },
+    {
+      "answer": "# Build rules\n\n- Run `npm run build` before committing.\n",
+      "why": "read back after the run, unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Build rules\n\n- Run `npm run build` before committing.\n- Edit src/, never dist/.\n",
+      "why": "rule appended"
+    },
+    {
+      "answer": "# Build rules\n\n- Edit src/, never dist/.\n- Run `npm run build` before committing.\n",
+      "why": "rule inserted"
+    },
+    {
+      "answer": "---\npaths: [\"dist/**\"]\n---\n# Build rules\n\n- Run `npm run build` before committing.\n",
+      "why": "frontmatter added"
+    }
+  ]
+}

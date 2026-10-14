@@ -1,0 +1,56 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --show-toplevel",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <plugin>/skills/map-components/scripts/render-components.sh --graph docs/architecture/dependency-graph.json --out docs/architecture --dialect none --group-by directory --root .",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <plugin>/skills/map-components/scripts/render-components.sh --graph docs/architecture/dependency-graph.json --out docs/architecture --dialect none --group-by directory --root .",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <plugin>/skills/map-components/scripts/render-components.sh --graph docs/architecture/dependency-graph.json --out docs/architecture --dialect none --group-by directory --root . --container OrdersApi",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <plugin>/skills/map-components/scripts/render-components.sh --graph docs/architecture/dependency-graph.json --out docs/architecture --dialect none --group-by directory --root . --container \"OrdersWorker\"",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

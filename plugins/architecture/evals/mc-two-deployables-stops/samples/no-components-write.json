@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/architecture/components-notes.md",
+            "content": "Annotation: ..."
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/architecture/components.md",
+            "content": "# Components\n"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <plugin>/skills/map-components/scripts/render-components.sh --graph docs/architecture/dependency-graph.json --out docs/architecture --dialect none --group-by directory --root .",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/repo/docs/architecture/components.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

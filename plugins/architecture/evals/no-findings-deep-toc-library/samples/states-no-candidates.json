@@ -17,6 +17,10 @@
     {
       "answer": "Candidate 1 (Speculative): slug.js is small; fold it into tree.js. Which of these would you like to explore?",
       "why": "invents a candidate"
+    },
+    {
+      "answer": "No problem, here are two candidates: the parser and the formatter.",
+      "why": "'no' unrelated to the candidate count"
     }
   ]
 }

@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: rd-no-convention-writes-nothing
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: no-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\bmkdir\b|\btouch\b|\btee\b|\bcp\b|\bmv\b|\binstall\b|\bdd\b[^"]*\bof=|\bsed\s+-i|>>?\s*(?!/dev/null|&)\S*\.(?:md|markdown|txt|adoc|rst|yaml|yml)\b|\b(?:python3?\s+-c|node\s+-e)\b(?:[^"\\]|\\.)*?(?:write|dump|shutil\.(?:move|copy\w*)|os\.(?:rename|replace)|\.rename\(|\.replace\((?=\s*[^,()]*(?:\([^()]*\)[^,()]*)?\))|copyFile(?:Sync)?|rename(?:Sync)?|cp(?:Sync)?\(|(?:os|fs)\.(?:sym)?link(?:Sync)?|''[wa]\+?''|\\"[wa]\+?\\")|\|\s*(?:bash|zsh|dash|sh)\b|\bgit\s+(?:add|commit)\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: cites-template-catalog
+    type: regex
+    pattern: 'github\.com/joelparkerhenderson/architecture-decision-record'
+    target: last_message
+  - name: offers-numbered-shape
+    type: regex
+    pattern: '\b(?:0{2,3}1|NNNN|ADR-0*1|YYYY-MM-DD)\b'
+    flags: 'i'
+    target: last_message

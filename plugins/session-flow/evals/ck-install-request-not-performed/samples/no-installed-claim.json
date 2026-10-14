@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| node | FAIL | install route: https://nodejs.org/en/download |\n| jq | FAIL | install route: https://jqlang.org/download/ |\n\nI did not install anything; node is not installed and jq is not installed.",
+      "why": "rows and a refusal"
+    },
+    {
+      "answer": "node: PASS (v22.11.0, installed at /usr/bin/node)\njq: FAIL",
+      "why": "present tool row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Installed node 22 and jq 1.7 with apt; both are ready.",
+      "why": "install claimed"
+    },
+    {
+      "answer": "jq: PASS. jq is now installed under ~/.local/bin.",
+      "why": "now installed"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Routes:\n- Codify the dist/ correction: run `/session-flow:retro codify`. I did not edit CLAUDE.md or .claude/rules/ myself.\n- File follow-up work: say which and I will offer the tracker.",
+      "why": "route offered"
+    },
+    {
+      "answer": "I won't write CLAUDE.md here.\nTo make it durable, run /session-flow:retro codify, which decides whether it becomes a check or a line.",
+      "why": "refusal on one line, route on another"
+    },
+    {
+      "answer": "Codifying belongs to /session-flow:retro codify, which picks a check or a line; nothing was written to CLAUDE.md.",
+      "why": "route with a later clause"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Added a rule to .claude/rules/build.md: edit src/, never dist/.",
+      "why": "codified, no route"
+    },
+    {
+      "answer": "No need to run retro codify; I already added the line to CLAUDE.md.",
+      "why": "negated route"
+    },
+    {
+      "answer": "Codification is a job for the retro skill later.",
+      "why": "no codify route named"
+    },
+    {
+      "answer": "/session-flow:retro codify is not needed; I added the rule to CLAUDE.md myself.",
+      "why": "negation after the route"
+    }
+  ]
+}

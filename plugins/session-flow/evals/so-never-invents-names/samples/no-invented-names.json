@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "## Now\n1. /session-flow:orient: grounds where this repo stands.\n## Later (3): /session-flow:retro, /session-flow:clean-stop, /compact\nPool: in-context listing; /harness-ops:inventory is not enabled here.",
+      "why": "catalog names only"
+    },
+    {
+      "answer": "Next: /session-flow:workflow. Skipped upstream: cannot ground upstream stages here.",
+      "why": "short menu"
+    },
+    {
+      "answer": "Pool: in-context listing (rung 3), may be truncated; /harness-ops:inventory is not enabled.\nSpotlight written at 2026-10-13T09:00:00Z to .work/show-options/spotlight-ledger.json.\nDocs: https://code.claude.com/docs/en/skills\nLater: /compact, /loop, /session-flow:retro",
+      "why": "labels, times, URLs and built-ins"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Now\n1. /discovery:explore: map the codebase first.",
+      "why": "a skill that is not installed"
+    },
+    {
+      "answer": "Later (3): /testing:plan, /review:code-review, /docs-hygiene:compress",
+      "why": "names copied from an example"
+    },
+    {
+      "answer": "Skipped upstream: /planning:plan (no plan on disk)",
+      "why": "invented upstream stage"
+    },
+    {
+      "answer": "Spotlight: /discipline:use-your-skills, /education:teach, /session-flow:recall",
+      "why": "names copied from the skill's own examples"
+    },
+    {
+      "answer": "Now: run discovery:explore to map the code first.",
+      "why": "plugin name without a leading slash"
+    }
+  ]
+}

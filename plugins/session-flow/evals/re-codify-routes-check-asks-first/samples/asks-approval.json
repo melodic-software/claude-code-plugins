@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "| Lesson | Route | Rung |\n|---|---|---|\n| withRetry in src/billing | findings hand-off | lint rule |\n\nNothing is written yet. Do you approve writing `.work/codify/feat-billing-retry/20261013T120000Z-codify.md`?",
+      "why": "approval question after the table"
+    },
+    {
+      "answer": "Approve these codifications? Reply yes and I will write the hand-off file and the .gitignore.",
+      "why": "approve first"
+    },
+    {
+      "answer": "Shall I write them? Reply to confirm each row.",
+      "why": "question before the approval word"
+    },
+    {
+      "answer": "Shall I proceed?",
+      "why": "a go-ahead question asks before writing"
+    },
+    {
+      "answer": "| Lesson | Route | Rung |\n|---|---|---|\n| withRetry in src/billing | findings hand-off | lint rule |\n\nShall I write the hand-off file under .work/codify/feat-billing-retry/?",
+      "why": "shall I write"
+    },
+    {
+      "answer": "Which of these rows should I write? (all / none / row numbers)",
+      "why": "which rows"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I've written the rule to CLAUDE.md. Do you approve the wording?",
+      "why": "asked after writing"
+    },
+    {
+      "answer": "You said no need to check, so I added the lesson to CLAUDE.md under Conventions.",
+      "why": "no ask, written"
+    },
+    {
+      "answer": "You said there is no need to confirm, so I will not ask for approval.",
+      "why": "negated approval, no question"
+    },
+    {
+      "answer": "I wrote the lesson to .work/codify/feat-billing-retry/20261013T120000Z-codify.md. Confirm?",
+      "why": "hand-off written before asking"
+    },
+    {
+      "answer": "Done: appended the withRetry rule to CLAUDE.md. Confirm it reads right?",
+      "why": "written without I, then confirm"
+    }
+  ]
+}

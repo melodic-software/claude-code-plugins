@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\n  \"schema\": \"audit-sessions.sweep/v1\",\n  \"status\": \"error\",\n  \"summary\": \"no audit-sessions store under /d; run collect first\",\n  \"data\": {}\n}\n```\nExit code: 3",
+      "why": "exit code line"
+    },
+    {
+      "answer": "sweep.py exited with 3 (no store under the data directory).",
+      "why": "exited with"
+    },
+    {
+      "answer": "sweep.py returned exit code (3); no store exists yet.",
+      "why": "parenthesized code"
+    },
+    {
+      "answer": "Return code 3: no audit-sessions store under the data directory.",
+      "why": "return code wording"
+    },
+    {
+      "answer": "sweep.py exited with code three.",
+      "why": "spelled-out number states the code"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The sweep found no store; run /session-flow:audit-sessions to create it.",
+      "why": "no exit code"
+    },
+    {
+      "answer": "It failed; see the summary above.",
+      "why": "failure without a code"
+    },
+    {
+      "answer": "The sweep will exit once the store exists; run /session-flow:audit-sessions first.",
+      "why": "exit with no code"
+    }
+  ]
+}

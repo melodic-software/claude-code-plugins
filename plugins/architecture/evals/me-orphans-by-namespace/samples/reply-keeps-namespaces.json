@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "- **Messages**: messages=2. Identity is the resolved type, so Billing.Contracts.OrderPlaced and Shipping.Contracts.OrderPlaced are two messages.\n- **Findings**: orphans=2 (orphan-publisher Billing.Contracts.OrderPlaced, orphan-consumer Shipping.Contracts.OrderPlaced), unresolved=1 at src/Billing/CheckoutService.cs:16."
+    },
+    {
+      "answer": "Orphans: `Shipping.Contracts.OrderPlaced` has no publisher; `Billing.Contracts.OrderPlaced` has no consumer."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "OrderPlaced is published by Billing (CheckoutService.cs:15) and consumed by Shipping's OrderPlacedConsumer. No orphans."
+    },
+    {
+      "answer": "- **Findings**: orphan-publisher Billing.Contracts.OrderPlaced; the Shipping consumer of OrderPlaced handles it."
+    }
+  ]
+}

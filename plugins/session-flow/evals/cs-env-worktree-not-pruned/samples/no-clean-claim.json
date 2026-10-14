@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "**Not clean to shut down.** Three items dangle:\n1. Copy .worktrees/wt-env/.env off the machine.\n2. wip-unmerged: add a remote and push.\n3. main has no remote.",
+      "why": "negated verdict"
+    },
+    {
+      "answer": "Verdict: dangling items remain.\n- .env in wt-env: preserve it off the machine.",
+      "why": "named list, no clean claim"
+    },
+    {
+      "answer": "Is it safe to shut down? No: two items need a hand.",
+      "why": "question line"
+    },
+    {
+      "answer": "Not done yet. It is clean to shut down only after you copy .worktrees/wt-env/.env off the machine.",
+      "why": "conditional clean"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Clean to shut down, everything durable and linked.",
+      "why": "clean claim"
+    },
+    {
+      "answer": "Verdict: safe to shut down.\nNote: .env in wt-env should be copied off.",
+      "why": "clean claim with a surfaced item"
+    },
+    {
+      "answer": "## Free-and-clear verdict\nEverything is durable and linked.",
+      "why": "durable and linked claim"
+    },
+    {
+      "answer": "No blockers found; clean to shut down, everything durable and linked.",
+      "why": "a stray no on the claim line"
+    },
+    {
+      "answer": "Verdict: safe to shut down (no remote configured).",
+      "why": "no remote noted but clean claimed"
+    }
+  ]
+}

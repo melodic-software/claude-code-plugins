@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "**Mechanism:** `/session-flow:clean-stop`\n\n**Evidence:** question 0 answered yes: the laptop shuts down in five minutes.\n\n**Next step:** run `/session-flow:clean-stop` now.",
+      "why": "named mechanism and literal invocation"
+    },
+    {
+      "answer": "I won't carry this out for you: only the literal `continue auto` token licenses that.\nNext step: /session-flow:clean-stop",
+      "why": "the negated line is skipped and another line names it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Mechanism: `session-flow:handoff`, then `/clear` in the next session.",
+      "why": "wrong mechanism"
+    },
+    {
+      "answer": "You do not need /session-flow:clean-stop here; just continue in session.",
+      "why": "negated"
+    },
+    {
+      "answer": "Recommendation: a clean stop before the machine goes away.",
+      "why": "no literal invocation"
+    },
+    {
+      "answer": "Next step: /session-flow:clean-stop-check",
+      "why": "a different name sharing the prefix"
+    }
+  ]
+}

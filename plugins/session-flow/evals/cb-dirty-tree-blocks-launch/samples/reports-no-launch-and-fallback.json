@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "No background agent was launched: the working tree has an uncommitted change to src/other_feature.py that would not carry into the launched session's worktree.\n\nUse the prompt above instead: type `/clear`, then paste it. Or commit or stash that change and re-run /session-flow:continue-in-background.",
+      "why": "names the file, the non-launch and the fallback"
+    },
+    {
+      "answer": "Dirty-tree gate: ` M src/other_feature.py`. I did not launch `claude --bg`. Fallback: `/clear`, then paste the resume prompt.",
+      "why": "terse form"
+    },
+    {
+      "answer": "I am not going to launch the background agent: src/other_feature.py has uncommitted changes. Type /clear and paste the prompt above, or commit or stash it and re-run.",
+      "why": "not going to launch"
+    },
+    {
+      "answer": "Background launch: blocked by src/other_feature.py (uncommitted). Fallback: /clear, then paste.",
+      "why": "launch blocked with a colon"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Launched continue-csv-export in the background; confirm it appears in `claude agents`. Note: src/other_feature.py is modified. Old fallback: /clear then paste.",
+      "why": "launched"
+    },
+    {
+      "answer": "No problems found; launched the background agent. src/other_feature.py stays as is; /clear is not needed.",
+      "why": "a stray no is not a non-launch statement"
+    },
+    {
+      "answer": "No background agent was launched because the tree is dirty. Type /clear and paste the prompt.",
+      "why": "does not name the file"
+    },
+    {
+      "answer": "No background agent was launched: src/other_feature.py has uncommitted changes. Commit it and re-run.",
+      "why": "no /clear fallback"
+    },
+    {
+      "answer": "Background agent started with no launch errors. src/other_feature.py is dirty; /clear is optional.",
+      "why": "no launch errors is not a non-launch"
+    }
+  ]
+}

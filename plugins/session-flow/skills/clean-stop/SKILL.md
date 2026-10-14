@@ -1,5 +1,5 @@
 ---
-description: "Reach a clean stopping point before the machine may go away: sweep every repo and worktree touched for uncommitted, unpushed, or PR-less work, push it, record follow-ups in PR and issue bodies, prune only the provably safe, and give a free-and-clear verdict. Use when: 'clean stop', 'get to a clean stopping point', 'safe to shut down', 'wrap up before I lose this machine', 'make everything durable', 'stopping for the day', 'is anything stranded', 'leave it clean'. Gates destructive cleanup."
+description: "Clean stopping point before the machine may go away: sweeps every repo and worktree touched for uncommitted, unpushed, or PR-less work, pushes it, records follow-ups in PR and issue bodies, prunes only the provably safe, and gives a free-and-clear verdict. Use when: 'clean stop', 'get to a clean stopping point', 'safe to shut down', 'wrap up before I lose this machine', 'make everything durable', 'stopping for the day', 'is anything stranded', 'leave it clean'. Gates destructive cleanup."
 argument-hint: "[unattended]"
 user-invocable: true
 disable-model-invocation: false
@@ -12,20 +12,15 @@ metadata:
 
 ## Purpose
 
-Before a machine may disappear, whether that is end of day, a spot instance about to
-reclaim, a container about to be torn down, or just walking away, in-flight
-work is easy to strand: a commit that never pushed, a branch with no PR, a
-plan that lives only in a local file, a worktree nobody will find again. This
-skill sweeps everything touched this session to a durable, linked resting
-state and reports whether it is genuinely safe to shut down.
+Before a machine may disappear (end of day, a reclaimed spot instance, a torn-down
+container, walking away), sweep everything touched this session to a durable,
+linked resting state and report whether it is genuinely safe to shut down.
 
-Where `/session-flow:keep-going` recovers a session AFTER an interruption,
-clean-stop is its go/stop mirror. It makes the interruption safe BEFOREHAND,
-so there is nothing to recover. It supersedes a local `/session-flow:handoff`
-when the machine itself may go away: a handoff file is a machine-local
-save-point, and a save-point that dies with the disk is no save-point.
-clean-stop leaves the resumable state where it survives the machine, in the
-PR and issue bodies on the remote.
+`/session-flow:keep-going` recovers a session AFTER an interruption; clean-stop
+makes the interruption safe BEFOREHAND. It supersedes a local
+`/session-flow:handoff` when the machine itself may go away: a handoff file dies
+with the disk, so clean-stop leaves the resumable state in the PR and issue
+bodies on the remote.
 
 ## Arguments
 
@@ -141,20 +136,9 @@ do not manufacture work to look thorough.
 
 ## What this skill does NOT do
 
-- **Does not leave resumable state in a local file.** Context goes into PR
-  and issue bodies precisely because a local file dies with the machine,
-  that is what separates clean-stop from `/session-flow:handoff` and why it
-  supersedes it when the machine may go away.
-- **Does not force-commit ambiguous work.** Work that is not coherently
-  committable is surfaced as a dangling item, never wrapped in a junk commit
-  to make the tree look clean.
-- **Does not prune unmerged or dirty state.** Destructive cleanup is gated on
-  provable safety; when in doubt it names the item rather than deleting it.
 - **Does not duplicate capability mechanics.** It routes PR, issue, and
   worktree work to whatever capabilities are installed and falls back to
   `git` and the forge's or tracker's own tooling; it does not reimplement them.
-- **Does not report clean while something dangles.** The verdict is honest,
-  either genuinely free-and-clear or a named list.
 
 ## Gotchas
 
@@ -162,10 +146,6 @@ do not manufacture work to look thorough.
   strand its context if no PR or issue carries the why and the next step. The
   durability sweep and the breadcrumb bar are two separate checks; passing the
   first does not pass the second.
-- Idempotency is load-bearing. clean-stop is often run more than once as a
-  session winds down; every run must inspect real state first so the second
-  run is a no-op on what the first already made durable, not a source of
-  duplicate PRs or issues.
 - A stash is invisible to a casual glance and cannot be pushed. Inspect for
   stashes explicitly; each one is either converted to a durable commit or
   named in the verdict, never left to die with the machine.

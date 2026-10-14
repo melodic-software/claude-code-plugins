@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Searched: terms rate limiter, token bucket; transcript_scope: worktree (default); 1 directory, 0 transcripts.\n\n**Tried**\n- 2026-10-01 token-bucket rate limiter replacing the in-memory map (a1b2c3d)\n- 2026-10-01 sliding-window rate limiter (9f8e7d6)\n\n**Kept**\n- Sliding-window rate limiter, still in place in src/limiter.ts (9f8e7d6)\n\n**Dropped or reverted**\n- Token-bucket rate limiter, reverted in 4c5d6e7: the bucket dropped legitimate requests during traffic bursts.\n\nPull requests: not searched, no GitHub remote. Tracker: not searched, /work-items:track not available.",
+      "why": "both sources named"
+    },
+    {
+      "answer": "- gh: could not list closed pull requests (no GitHub remote)\n- Tracker: skipped",
+      "why": "gh and tracker"
+    },
+    {
+      "answer": "Closed pull requests: /source-control:pull-request is not available, so they were skipped.",
+      "why": "skill name with dots and colon before the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Tried: token bucket. Kept: sliding window.",
+      "why": "no source named"
+    },
+    {
+      "answer": "Sources: git log.",
+      "why": "only git"
+    },
+    {
+      "answer": "Checked gh pull requests and the tracker.",
+      "why": "no outcome stated"
+    },
+    {
+      "answer": "Tracker: not searched, /work-items:track not available.",
+      "why": "only the tracker outcome"
+    },
+    {
+      "answer": "Tracker: skipped. Pull requests: 2 closed unmerged, listed below.",
+      "why": "the outcome belongs to the tracker sentence"
+    }
+  ]
+}

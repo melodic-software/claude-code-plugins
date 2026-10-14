@@ -1,5 +1,5 @@
 ---
-description: "Recover and continue after an interruption, rate limit, crash, or gap, or check on off-thread work that looks stalled: inspect its real output, act on evidence (resume, rerun, kill-and-restart), then continue the main task. Use when: asked to keep going, continue, or resume; 'what were you doing'; 'pick up where that agent left off'; 'check the monitor', 'is it stuck', 'stop staring at it'. Gates killing or re-firing side-effectful work. To retire finished work and reconcile the ledger instead, use /session-flow:reconcile."
+description: "Recovery after an interruption, rate limit, crash, or gap, or a check on off-thread work that looks stalled: inspects its real output, acts on evidence (resume, rerun, kill-and-restart), then continues the main task. Use when: asked to keep going, continue, or resume; 'what were you doing'; 'pick up where that agent left off'; 'check the monitor', 'is it stuck', 'stop staring at it'. Gates killing or re-firing side-effectful work. To retire finished work and reconcile the ledger instead, use /session-flow:reconcile."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -17,8 +17,7 @@ silently finished, and the main task's position is easy to misremember.
 The same recovery also applies live, mid-session, when off-thread work
 *looks* stalled and someone asks you to check on it. This skill recovers
 or verifies the off-thread work from its **real** state, reconciles the
-main thread, and continues. Scope is general: the recovery is the same
-whatever caused the interruption, so the cause is not diagnosed here.
+main thread, and continues.
 
 Two failure modes this skill exists to prevent: **summarizing and
 stalling** once a usage limit has lifted instead of continuing, and
@@ -79,9 +78,7 @@ itself the thing this skill removes.
    This check sits between inspection and action deliberately: steps 1-2
    only read, but step 4 resumes and restarts work, and restarting work
    that serves a drifted goal re-arms the drift before anything has
-   tested it. One sentence, not a new stage. Its cost is nothing and its
-   absence is the only signal that many sessions of faithful execution
-   were aimed at the wrong thing.
+   tested it. One sentence, not a new stage.
 4. **Recover per item. Act on evidence.** Classify against the real
    output and act:
    - **Progressing** (even if slow) → leave it; report it is alive and
@@ -148,9 +145,8 @@ its `mcp__context-guard__status` pull tool, or resolve it per its reader
 contract, before continuing (the contract owns the snapshot
 path, staleness rule, and bands. Read them there; this skill consumes
 only the resulting word and inlines no band values). Never substitute
-your own estimate of the remaining window for the instrument's reading,
-a resumed session's sense of its own budget is exactly the guess the
-instrument exists to replace. Plugin not enabled, absent snapshot, or
+your own estimate of the remaining window for the instrument's reading.
+Plugin not enabled, absent snapshot, or
 `unknown` → judge from response quality alone, conservatively. A degraded
 zone, or context-guard's evidence-degraded marker for this session, does
 not stop the recovery (steps 1-4 are reads and evidence-gated actions
@@ -272,7 +268,6 @@ that is still the job.
   diagnosis. It does not change the recovery method.)
 - **Does not kill or restart live-but-slow work on a hunch.** Action
   follows real output, and kill/restart is gated like any side effect.
-- **Does not summarize-and-stall after a limit lifts**. It continues.
 - **Does not build or arm its own scheduler.** Still-blocked work is
   handed back by invoking `/session-flow:handoff` via the Skill tool, not parked on a self-armed
   wakeup.

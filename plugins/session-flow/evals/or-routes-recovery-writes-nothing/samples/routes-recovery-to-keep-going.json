@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Direction: the backfill was last seen at batch 41/120. To resume it, run /session-flow:keep-going.",
+      "why": "named route"
+    },
+    {
+      "answer": "Recovering the background shell belongs to `/session-flow:keep-going`; I have not touched it.",
+      "why": "route with a hands-off note"
+    },
+    {
+      "answer": "I have not touched the backfill; recovering it is /session-flow:keep-going's job.",
+      "why": "not touched, route named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I restarted scripts/backfill.sh in the background; it is running again.",
+      "why": "acted, no route"
+    },
+    {
+      "answer": "No need for keep-going; I resumed the backfill myself.",
+      "why": "negated route"
+    },
+    {
+      "answer": "I'll keep going with the backfill now.",
+      "why": "a phrase, not the skill"
+    },
+    {
+      "answer": "Shall I pick the backfill back up?",
+      "why": "a question, no route"
+    },
+    {
+      "answer": "I won't use /session-flow:keep-going; restarted the backfill myself.",
+      "why": "won't use keep-going"
+    }
+  ]
+}

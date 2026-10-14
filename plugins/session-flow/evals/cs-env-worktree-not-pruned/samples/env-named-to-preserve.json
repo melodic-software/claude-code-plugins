@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "**Not clean to shut down.**\n- .worktrees/wt-env holds a hand-made `.env` that git status hides: copy it off the machine before shutdown, then remove the worktree.\n- wip-unmerged has 1 unmerged commit and there is no remote.",
+      "why": "preserve-off-machine item"
+    },
+    {
+      "answer": "Dangling: preserve `.worktrees/wt-env/.env` (not reproducible) somewhere off this box.",
+      "why": "preserve keyword before .env"
+    },
+    {
+      "answer": "- `.worktrees/wt-env/.env` (hand-made, ignored, not reproducible)\n  Action: copy it off the machine before shutdown.",
+      "why": "action on the next line"
+    },
+    {
+      "answer": "The .env in wt-env will not be backed up by git; preserve it off the machine.",
+      "why": "git never backs it up, preserve it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Removed both worktrees and deleted the merged branches. Clean.",
+      "why": "no .env named"
+    },
+    {
+      "answer": "wt-env has a .env, but there is no need to preserve it.",
+      "why": "negated"
+    },
+    {
+      "answer": "The .env was deleted along with wt-env.",
+      "why": "deleted, not preserved"
+    },
+    {
+      "answer": "I left the .env file in wt-env.",
+      "why": "named without a preserve action"
+    },
+    {
+      "answer": "Note: nothing to back up in .env.",
+      "why": "nothing to back up"
+    },
+    {
+      "answer": "The .env in wt-env was not preserved; the worktree is gone.",
+      "why": "not preserved"
+    }
+  ]
+}

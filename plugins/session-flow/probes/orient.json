@@ -1,0 +1,130 @@
+{
+  "skill": "session-flow:orient",
+  "plugin": "session-flow",
+  "skill_dir": "plugins/session-flow/skills/orient",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are reanchor, recall, keep-going, workflow and show-options.",
+  "competitors": [
+    "session-flow:reanchor",
+    "session-flow:recall",
+    "session-flow:keep-going",
+    "session-flow:workflow",
+    "session-flow:show-options"
+  ],
+  "competitor_dirs": {
+    "session-flow:reanchor": "plugins/session-flow/skills/reanchor",
+    "session-flow:recall": "plugins/session-flow/skills/recall",
+    "session-flow:keep-going": "plugins/session-flow/skills/keep-going",
+    "session-flow:workflow": "plugins/session-flow/skills/workflow",
+    "session-flow:show-options": "plugins/session-flow/skills/show-options"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I just came back to this repo. Catch me up on where things stand."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Where were we on the auth rewrite?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a quick situation report: open PRs, in-flight work, and what the last handoff said."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Brief me on the state of this session without changing anything."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What's the current state of the migration, and why are we at this point?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Get my bearings: what's open, what's blocked, what did we decide?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I've lost the thread. Read the ledgers and handoffs and tell me where we are."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What's the lay of the land on this branch right now?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Summarize where the work stands from the running-retro ledger, open PRs and git."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Orient me."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Tell me where we stand on the open work items for this effort."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Are the PRs cited in this old handoff still open and does main still match?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What did we already try for this flaky test, and what got reverted?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What should I run next?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Pick up where the crashed agent left off."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Why was this module designed this way?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which workflow stage comes after review?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Explore the codebase and tell me how the cache layer works."
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/p/.work/handoff.md",
+            "content": "dirty: src/other_feature.py"
+          }
+        }
+      ],
+      "why": "save-point file naming the dirty file in content"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/p/src/other_feature.py",
+            "content": "def greeting(name):\n    return \"Hello, \" + name\n"
+          }
+        }
+      ],
+      "why": "rewrites the dirty file"
+    }
+  ]
+}

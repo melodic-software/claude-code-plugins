@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -3"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "fetch\\(",
+            "path": "/w/src/billing"
+          }
+        }
+      ],
+      "why": "a search"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/CLAUDE.md",
+            "old_string": "Run",
+            "new_string": "Use withRetry. Run"
+          }
+        }
+      ],
+      "why": "CLAUDE.md edited"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.claude/rules/billing.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "rules file edited"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/CLAUDE.md"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/CLAUDE.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "edit after a read"
+    }
+  ]
+}

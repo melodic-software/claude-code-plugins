@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "- **Mismatches**: 1. db/Post.authorId is ||--o{ in prisma and ||--o| in sql-migration; the diagram stays on prisma."
+    },
+    {
+      "answer": "data: status=drawn reason=none tier=model tool=prisma modules=1 entities=2 relationships=1 mismatches=1 columns=no"
+    },
+    {
+      "answer": "One cardinality mismatch: the migration makes Post.authorId unique."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- **Mismatches**: 0"
+    },
+    {
+      "answer": "- **Mismatches**: none. The migration agrees with the Prisma schema."
+    },
+    {
+      "answer": "The diagram uses the SQL migration, which says each User has at most one Post."
+    },
+    {
+      "answer": "There is not one mismatch: the migration agrees with the schema.",
+      "why": "negated"
+    }
+  ]
+}

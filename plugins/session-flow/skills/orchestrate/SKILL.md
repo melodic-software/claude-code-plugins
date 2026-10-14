@@ -1,5 +1,5 @@
 ---
-description: "Arm the current session for an orchestration-heavy task with seven standing imperatives (delegate and fan out, spec every spawn, fresh-context verify, run workers well, nested subagents, surface drift, calibrate to conditions); optionally export them as a brief for a worker. Use when: 'orchestrate', 'orchestration brief', 'prime this session', 'arm for orchestration', 'about to do heavy delegation', 'worker spawn prompt', 'delegation preamble'."
+description: "Seven standing imperatives that arm the current session for an orchestration-heavy task (delegate and fan out, spec every spawn, fresh-context verify, run workers well, nested subagents, surface drift, calibrate to conditions), optionally exported as a brief for a worker. Use when: 'orchestrate', 'orchestration brief', 'prime this session', 'arm for orchestration', 'about to do heavy delegation', 'worker spawn prompt', 'delegation preamble'."
 argument-hint: "[<task>|handoff [compact]|worker [compact]]"
 user-invocable: true
 disable-model-invocation: false
@@ -146,9 +146,8 @@ never label a claim "known" / "from memory" / "obvious".
 **Priming addendum (current session only).** As the main session, not a spawned non-fork worker,
 you may also reach orchestration surfaces a non-fork worker cannot: agent teams (driven from the
 lead session; the docs do not state whether a fork of the lead can drive one) and dynamic workflows
-(withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}`, if that value reads as a literal
-placeholder, this body was read directly rather than skill-loaded, so the substitution never ran:
-resolve the session's effort yourself before using it. Feed the value
+(withheld from non-fork workers). This session's reasoning effort is `${CLAUDE_EFFORT}`; if that value reads as a literal
+placeholder, resolve the session's effort yourself before using it. Feed the value
 into imperative 7's tier calibration: we treat it as the effort a spawn runs at when the spawn
 passes no `effort` and the agent's definition pins none, so its gap from what a subtask needs IS
 the over-provisioning imperative 7 exists to stop. Close that gap by passing the level on a
@@ -195,13 +194,10 @@ pasted target reaches none of those surfaces, and the substitution would travel 
 
 ## Tiered delegation, the shape of a deep tree
 
-Imperative 5 says a worker may spawn workers and imperative 7 says size the tree to conditions.
-This section is the shape those two imply once a task is large enough to need more than one layer.
-It is guidance for the main session; the export brief omits it, because a pasted worker sits inside
-a tree rather than authoring one.
+Guidance for the main session once a task needs more than one layer; the export brief omits it,
+because a pasted worker sits inside a tree rather than authoring one.
 
-**A rough anchor for small/medium/large.** Imperative 7's sizing is non-numeric, which leaves it
-rationalizable either way. Not thresholds to enforce, the judgment still runs on context
+**A rough anchor for small/medium/large.** Not thresholds to enforce, the judgment still runs on context
 boundaries, not head-count, but our anchor follows the platform's workflow size settings: fewer
 than 5 agents is small, 5 to 9 medium, 10 or more large, and a run large enough to trip the
 platform's large-workflow warning is a size to justify out loud. An order-of-magnitude
@@ -234,8 +230,7 @@ verdict rather than its reasoning.
 **Spec what crosses a boundary, not just what to do.** Every spawn already needs an objective and
 an output format (imperative 2). In a multi-tier tree the output format IS the context-economy
 lever: name the identifiers, the verdict, and where the bulky payload was parked, so the tier above
-can act without re-reading the work. A return that narrates cannot be summarized after the fact,
-it has already been paid for. Our magnitude for "compressed": a worker that explored across tens
+can act without re-reading the work. Our magnitude for "compressed": a worker that explored across tens
 of thousands of tokens still aims to return roughly 1,000 to 2,000. Treat it as the shape a return
 should aim for, never a budget to spend up to.
 
@@ -268,8 +263,7 @@ benefits from naming its sources. Provenance is the field that makes a wrong-tar
 detectable from above.
 
 **Never author a tree that needs a specific depth.** The platform's nesting default is
-configurable and has changed more than once within weeks, so any number written here is stale by
-the time it is read. Agent-tool subagents carry a depth cap and a concurrency cap
+configurable and changes. Agent-tool subagents carry a depth cap and a concurrency cap
 (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`, `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`); workflow agents
 and agent-team teammates carry their own, and workflow concurrency has its own override, so "read
 the current values" includes the workflows page whenever the run will use the Workflow tool. Read the current values rather than assuming
@@ -288,9 +282,7 @@ forbidden intermediate tier either. The version history behind the caps lives in
 - **Recheck trigger**: a changelog entry touches subagent limits, or `context/sources.md` is
   re-verified.
 
-**Confirm nesting from behavior, not from one page.** The ceiling moves faster than the prose
-docs track it, and the docs page and the changelog can lag each other by a release, so a tree
-authored from either alone can be wrong in both directions. The cheap check is behavioral: have a
+**Confirm nesting from behavior, not from one page** (why: `context/gotchas.md`). Have a
 worker of the SAME definition you plan to use as the intermediate tier attempt a trivial nested
 spawn and report the outcome. The gate is definition-specific, so another agent type proves
 nothing, and holding `Agent` is necessary but not sufficient. Read a refusal: a depth rejection

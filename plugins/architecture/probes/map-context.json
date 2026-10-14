@@ -1,0 +1,126 @@
+{
+  "skill": "architecture:map-context",
+  "plugin": "architecture",
+  "skill_dir": "plugins/architecture/skills/map-context",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are map-landscape (many repositories and a portfolio table), map-containers (internals of one system) and improve (module depth). map-context is the single-system C4 context level: actors plus external systems found in config.",
+  "competitors": [
+    "architecture:map-landscape",
+    "architecture:map-containers",
+    "architecture:improve"
+  ],
+  "competitor_dirs": {
+    "architecture:map-landscape": "plugins/architecture/skills/map-landscape",
+    "architecture:map-containers": "plugins/architecture/skills/map-containers",
+    "architecture:improve": "plugins/architecture/skills/improve"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Draw a system context diagram for the checkout application."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Pull from the config files everything this system talks to outside itself."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Who uses the booking system and which third-party services does it depend on?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a C4 level one view of this service."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "List the external systems in our appsettings, connection strings and base URLs, redacting secrets."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want a context diagram with these actors: customer, support agent, admin."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Show the outside world around the inventory system in one picture."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which external APIs and brokers does the notification service reach, based on tracked configuration?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Create a LikeC4 context model with the payments platform as the focal system."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Chart who and what sits around this application from the configuration committed in git."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Map every system we own across all our repos."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find shallow modules in this codebase."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Show the containers and databases inside the system."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw the deployment diagram for production."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which modules are inside the web app?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Explain what C4 is."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write an architecture decision record for adopting Kafka."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is our Stripe integration secure?"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-description: "Lay out which skills fit this moment as a ranked menu that hides nothing: Now, Next, Skipped upstream, Later, and a rotating Spotlight, drawn from the full installed catalog, not the truncated in-context listing. Use when: 'what should I run next', 'what are my options', 'what am I forgetting', 'which skill fits here', 'what else could I run', 'show me my options', 'what skills apply now'. Not the one-next-stage router (/session-flow:workflow) or a situation report (/session-flow:orient)."
+description: "Ranked menu of the skills that fit this moment, hiding nothing: Now, Next, Skipped upstream, Later, and a rotating Spotlight, drawn from the full installed catalog, not the truncated in-context listing. Use when: 'what should I run next', 'what are my options', 'what am I forgetting', 'which skill fits here', 'what else could I run', 'show me my options', 'what skills apply now'. Not the one-next-stage router (/session-flow:workflow) or a situation report (/session-flow:orient)."
 argument-hint: "[topic-slug]"
 user-invocable: true
 disable-model-invocation: false
@@ -12,35 +12,21 @@ metadata:
 
 # Show options
 
-The operator cannot hold ~200 installed skills in their head. This turns the catalog from something
-they must remember into something they consult: a menu of what fits *this* moment, ranked, with
-nothing withheld.
-
 **The human decides.** This skill's judgment goes into *rank* and *annotations*. It never goes into
 *presence*.
 
 ## The two rules
 
-Both are load-bearing, and one without the other fails:
-
 1. **Never omit a candidate's name.** Not because a step looks already done, not because it looks
    unnecessary, not to keep the output short. A skill the evidence says already ran is ranked
    normally and annotated `(ran this session)`.
-2. **Never invent a candidate.** Every name rendered must come from the resolved catalog. Rule 1
-   creates pressure to fill buckets from a thin source; filling them with plausible-sounding names
-   is the worse failure, because a menu that confidently routes to something that does not exist is
-   worse than a short menu.
-
-Rule 1 is not novel here. It is this plugin's existing doctrine. The
-[`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md)
-**"Every section is always present"** rule holds that a section with nothing to report says so
-explicitly, because "a cold reader cannot otherwise tell 'nothing to report' from 'the author
-forgot', and the absence is itself load-bearing." Same reasoning, applied to options.
+2. **Never invent a candidate.** Every name rendered must come from the resolved catalog. A thin
+   source yields a short menu, never one filled with plausible-sounding names: a menu that routes
+   to something that does not exist is worse than a short menu.
 
 ### Omit irrelevant, never unnecessary
 
-These are one word apart and the whole output size turns on the difference, so the test is written
-rather than left to judgment:
+The output size turns on this test:
 
 - **Irrelevant → omit.** The skill's *domain* does not apply to this session at all: songwriting
   skills in a code session, Kindle tooling in a research session. No reasonable operator would
@@ -66,9 +52,8 @@ changes). Ladder:
 1. `/harness-ops:inventory`, if that plugin is enabled. It owns whole-fleet enumeration and its
    bundled script already reports every installed skill including manual-only ones; reuse it rather
    than walking the plugin cache, whose layout is undocumented and version-keyed. **Read its output
-   from stdout, never pass `--out` into the consuming project**, whose documented example writes
-   `./claude-inventory.json` into the working directory; this skill writes nothing but its Spotlight
-   ledger, and littering a consumer's repo to render a menu would break that. **Reconcile installed
+   from stdout, never pass `--out` into the consuming project**: this skill writes nothing but its
+   Spotlight ledger. **Reconcile installed
    against enabled**. Inventory reports `installed_plugins` and `enabled_plugins` as distinct sets
    and asks callers to say which they used; a skill in an installed-but-disabled plugin is named
    with an `(plugin not enabled)` annotation rather than silently listed as runnable or silently
@@ -90,15 +75,13 @@ a thin catalog without breaking rule 1.
 
 **Disclose a degraded pool.** When the pool came from rung 3, or enrichment was unavailable, say so
 in the output. Presenting a truncated pool as complete is the green-with-hidden-findings failure
-`docs/conventions/liveness-assertion/` (in the consuming marketplace) exists to forbid: a surface
-fails loud or routes its findings somewhere visible, never both green and silent.
+`docs/conventions/liveness-assertion/` (in the consuming marketplace) forbids.
 
 ## Read the trajectory
 
-**Durable state is the primary signal; the conversation is secondary.** This inverts the intuitive
-order for a reason: a long session is exactly when the operator most needs this skill and exactly
-when the conversation is least reliable, because compaction drops the early turns and need not
-keep every skill this session loaded.
+**Durable state is the primary signal; the conversation is secondary.** A long session is when the
+operator most needs this skill and when the conversation is least reliable: compaction drops the
+early turns and need not keep every skill this session loaded.
 
 - **Pointer**: [Extend Claude with skills § Skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle),
   for which skills compaction re-attaches.
@@ -108,7 +91,7 @@ keep every skill this session loaded.
 **Do not build a probe.** `/session-flow:orient` already reads branch and git state, handoff
 save-points, workflow checklists, running-retro ledgers, open PRs, and work-items, a superset of
 what this skill needs, in this plugin. Invoke it, or consume its briefing if it already ran this
-session. A separate probe here would duplicate that read.
+session.
 
 **Slug selection** for artifact-grounded reads: an explicit argument wins; else the
 most-recently-modified topic slice; else the branch-derived slug. Resolve every path from the
@@ -135,17 +118,14 @@ Full derivation rules and rendering: [`context/buckets.md`](context/buckets.md).
 **`Later` is the catch-all that makes rule 1 true.** Without it, a skill that is in-domain but
 downstream, testing and review skills early in a session, fits no bucket and would have to be
 dropped, silently breaking the never-omit rule. It renders **tier 2 only**: bare names with a count,
-roughly one wrapped line. That is what lets the catch-all exist without recreating the 60-row
-dumping ground an earlier cut of this design had. Anything genuinely out-of-domain is still omitted
+roughly one wrapped line. Anything genuinely out-of-domain is still omitted
 under the irrelevant test above; `Later` catches relevance, not everything.
 
 `Skipped upstream` is deliberately artifact-grounded: "everything upstream" is definitionally the
-whole early catalog and carries no information. `workflow` already sets this precedent. Verify a
+whole early catalog and carries no information. Verify a
 stage from its artifact, not from conversation vibes.
 
-`Spotlight` exists because ranking alone re-shows the same five skills forever, which serves a
-decision but teaches nothing. Rotation forces encounters with different corners of the catalog over
-time. It reads and writes one small ledger of what it last surfaced. Path and record shape are
+`Spotlight` rotates so ranking alone does not re-show the same five skills forever. It reads and writes one small ledger of what it last surfaced. Path and record shape are
 fixed in [`context/buckets.md`](context/buckets.md) so two sessions cannot pick different ones and
 lose the rotation. It is deliberately **not** in `${CLAUDE_PLUGIN_DATA}`: a fixed filename there
 would be one file per *machine*, and a spotlight shown in one repository would suppress it in
@@ -164,8 +144,7 @@ Per bucket:
   `Also live now (23): /a:b, /c:d, …`
 
 **Budget: the shape is the cap.** Five ranked options per bucket at three lines each, plus one
-wrapped tier-2 line per bucket, is the whole output. Rendering every option in full is the
-generated cheat sheet with an extra column, which an operator reads once and never again.
+wrapped tier-2 line per bucket, is the whole output. Never render every option in full.
 
 One word expands any tier-2 roster to full treatment (`expand now`, `spotlight all`). That is
 progressive disclosure, not filtering: nothing was withheld, only deferred a keystroke.
@@ -190,7 +169,6 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
 - **Does not decide.** It ranks and annotates. Picking is the operator's.
 - **Does not filter by merit.** "Already done" and "unnecessary" never remove an option. See the two
   rules. A design that ranks-then-truncates reintroduces the same gatekeeping through the cutoff.
-- **Does not invent names.** A thin catalog yields a short menu, never a plausible one.
 - **Does not build its own durable-state probe.** It routes to `/session-flow:orient`, invoked via the Skill tool.
 - **Does not execute what you pick.** Presentation only; invoking the choice is a separate act.
 - **Does not enumerate a catalog in its own body.** The candidate set is resolved at runtime; an
@@ -198,10 +176,6 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
 
 ## Gotchas
 
-- Our premise: the skills most worth surfacing are the ones the listing serves worst (record:
-  [candidate-ladder § Why the in-context listing cannot be the sole source](context/candidate-ladder.md#why-the-in-context-listing-cannot-be-the-sole-source);
-  as of 2026-10-11; recheck trigger: that section's pointer record or its recheck trigger
-  changes). Sourcing names from the listing alone quietly inverts this skill's purpose.
 - A skill turned off via `skillOverrides` can still appear in a catalog but cannot run.
   Recommending it hands the operator a dead option. Annotate it if the override is visible.
   - **Pointer**: [Extend Claude with skills § Override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings)

@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: me-orphans-by-namespace
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: two-messages
+    type: regex
+    pattern: '^(?=[\s\S]*"id"\s*:\s*"Billing\.Contracts\.OrderPlaced")(?=[\s\S]*"id"\s*:\s*"Shipping\.Contracts\.OrderPlaced")'
+    target: { source: file, path: docs/architecture/events.json }
+  - name: orphans-both-ways
+    type: regex
+    pattern: '^(?=[\s\S]*"kind"\s*:\s*"orphan-consumer"\s*,\s*"contract"\s*:\s*"Shipping\.Contracts\.OrderPlaced")(?=[\s\S]*"kind"\s*:\s*"orphan-publisher"\s*,\s*"contract"\s*:\s*"Billing\.Contracts\.OrderPlaced")'
+    target: { source: file, path: docs/architecture/events.json }
+  - name: unresolved-publish-kept
+    type: regex
+    pattern: '"kind"\s*:\s*"unresolved"[^\n]*src/Billing/CheckoutService\.cs:16'
+    target: { source: file, path: docs/architecture/events.json }
+  - name: reply-keeps-namespaces
+    type: regex
+    pattern: '^(?=[\s\S]*\bBilling\.Contracts\.OrderPlaced\b)(?=[\s\S]*\bShipping\.Contracts\.OrderPlaced\b)'
+    target: last_message

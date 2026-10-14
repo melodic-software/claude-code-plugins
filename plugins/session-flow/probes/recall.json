@@ -1,0 +1,130 @@
+{
+  "skill": "session-flow:recall",
+  "plugin": "session-flow",
+  "skill_dir": "plugins/session-flow/skills/recall",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are orient, find-handoff, audit-sessions, retro and discovery:trace-intent for design rationale.",
+  "competitors": [
+    "session-flow:orient",
+    "session-flow:find-handoff",
+    "session-flow:audit-sessions",
+    "discovery:trace-intent",
+    "session-flow:retro"
+  ],
+  "competitor_dirs": {
+    "session-flow:orient": "plugins/session-flow/skills/orient",
+    "session-flow:find-handoff": "plugins/session-flow/skills/find-handoff",
+    "session-flow:audit-sessions": "plugins/session-flow/skills/audit-sessions",
+    "discovery:trace-intent": "plugins/discovery/skills/trace-intent",
+    "session-flow:retro": "plugins/session-flow/skills/retro"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Have we already tried to fix the flaky checkout test? What happened?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Why did that caching change get reverted last month?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What did we try for the slow startup, and what stuck?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Search our past sessions for attempts at migrating the config format."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What happened the last time we touched the auth middleware?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Did anyone already attempt a rewrite of the importer? What came of it?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Look through old transcripts and closed PRs for earlier tries at this feature."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I think we did this before and backed it out. Find out what went wrong."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "History of our attempts at reducing the bundle size, please."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Recall what we tried on the retry logic."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "what did we try for the memory leak"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where do we stand on the current migration?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why was this retry logic designed this way originally?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find my lost handoff."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which of my sessions wasted the most tokens?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a retro of today's session."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is the plan I wrote last week still valid?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What does this function do?"
+    }
+  ]
+}

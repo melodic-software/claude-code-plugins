@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git fetch origin main"
+          }
+        }
+      ],
+      "why": "explicit base"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git fetch --quiet origin main && git rev-list --count HEAD..FETCH_HEAD"
+          }
+        }
+      ],
+      "why": "fetch then count"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w fetch origin refs/heads/main"
+          }
+        }
+      ],
+      "why": "full ref with -C"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git fetch"
+          }
+        }
+      ],
+      "why": "bare fetch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git fetch --all --prune"
+          }
+        }
+      ],
+      "why": "fetch all"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git fetch origin && git rev-list --count HEAD..main"
+          }
+        }
+      ],
+      "why": "main only in a later command"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-list --count HEAD..origin/main"
+          }
+        }
+      ],
+      "why": "stale tracking ref, no fetch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git fetch origin mainline"
+          }
+        }
+      ],
+      "why": "a different branch"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: mp-unresolved-not-matched
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: missing-reference-unresolved
+    type: regex
+    pattern: '"to"\s*:\s*"\.\./Shared/Shared\.csproj"[^\n]*"status"\s*:\s*"unresolved"'
+    target: { source: file, path: docs/architecture/dependency-graph.json }
+  - name: not-matched-by-name
+    type: regex
+    pattern: '"to"\s*:\s*"legacy/Shared/Shared\.csproj"'
+    match: 'not_contains'
+    target: { source: file, path: docs/architecture/dependency-graph.json }
+  - name: edge-cites-declaration
+    type: regex
+    pattern: '"to"\s*:\s*"src/Domain/Domain\.csproj"[^\n]*"evidence"\s*:\s*"src/Api/Api\.csproj: <ProjectReference Include=\\"\.\./Domain/Domain\.csproj\\"'
+    target: { source: file, path: docs/architecture/dependency-graph.json }
+  - name: reply-names-unresolved
+    type: regex
+    pattern: '(?<!\bnot\s)(?<!\bno longer\s)(?<!n''t\s)\bunresolved\b[\s\S]{0,160}?\.\./Shared/Shared\.csproj|\.\./Shared/Shared\.csproj[\s\S]{0,160}?(?<!\bnot\s)(?<!\bno longer\s)(?<!n''t\s)\bunresolved\b'
+    flags: 'i'
+    target: last_message
+  - name: reply-unresolved-not-negated
+    type: regex
+    pattern: '\b(?:nothing|none)\s+(?:is\s+|was\s+|are\s+|were\s+)?(?:left\s+)?unresolved\b|(?:\bnot|n''t)\s+unresolved\b|\bunresolved\s*(?:\*\*)?\s*:\s*(?:\*\*)?\s*(?:none|0|nothing)\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message

@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 --version"
+          }
+        }
+      ],
+      "why": "interpreter probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/skills/audit-friction/reference/classes.md"
+          }
+        }
+      ],
+      "why": "a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/skills/audit-sessions/scripts/collect.py\" collect --data-dir \"/d\""
+          }
+        }
+      ],
+      "why": "collect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/p/skills/audit-friction/scripts/friction.py\" mine --data-dir \"/d\" --days 7 --format md"
+          }
+        }
+      ],
+      "why": "mine"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /p && command python3 scripts/friction.py mine --days 7"
+          }
+        }
+      ],
+      "why": "mine through command"
+    }
+  ]
+}

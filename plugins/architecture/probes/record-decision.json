@@ -1,0 +1,124 @@
+{
+  "skill": "architecture:record-decision",
+  "plugin": "architecture",
+  "skill_dir": "plugins/architecture/skills/record-decision",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are improve (design interview that may produce a decision worth recording) and map-landscape (a record of systems, not decisions). record-decision writes an ADR into the repo's existing convention and skips lifecycle work like supersession and indexes.",
+  "competitors": [
+    "architecture:improve",
+    "architecture:map-landscape"
+  ],
+  "competitor_dirs": {
+    "architecture:improve": "plugins/architecture/skills/improve",
+    "architecture:map-landscape": "plugins/architecture/skills/map-landscape"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write an ADR for our decision to use Postgres instead of DynamoDB."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We just decided to split the monolith by bounded context; capture that decision."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Record why we chose event sourcing for the ledger."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Document why we picked Kafka over RabbitMQ so the next person knows."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you turn this design discussion into an architecture decision record?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Add a decision record to the repo for adopting vertical slices."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We resolved the open question about auth tokens. Save the decision and its rationale."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Capture our choice of Terraform over Pulumi in the docs/adr folder."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Log this architecture decision: we are moving to a single shared database for now."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make an ADR for the API versioning approach we agreed in the interview."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Mark ADR 0007 as superseded by ADR 0012."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Regenerate the ADR index page."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Change the status of this ADR from proposed to accepted."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find shallow modules in the codebase."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Rename the staging bucket; no need to write anything down."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Draw a C4 landscape of our systems."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write release notes for version 2.3."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a design doc proposing a new caching layer."
+    }
+  ]
+}

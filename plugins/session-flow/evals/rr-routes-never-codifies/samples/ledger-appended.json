@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": [".work/running-retros/20261013T120000Z-running-retro-build-fix.md"],
+      "why": "ledger with the topic"
+    },
+    {
+      "answer": [".work/.gitignore", ".work/running-retros/20261013T120000Z-running-retro-session.md"],
+      "why": "guard file plus an inferred topic"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [".work/running-retros/notes.md"],
+      "why": "not the ledger name"
+    },
+    {
+      "answer": [".claude/rules/dist.md"],
+      "why": "a rule instead of a ledger"
+    }
+  ]
+}

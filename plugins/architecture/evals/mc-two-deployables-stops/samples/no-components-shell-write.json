@@ -1,0 +1,232 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <plugin>/skills/map-components/scripts/collect-components.sh --root . 2>&1 | head -40",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/architecture/components.md 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"print(open('docs/architecture/components.md').read())\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read-only interpreter call"
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/view.md docs/architecture/components.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cp into components.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '# Components\\n' > docs/architecture/components.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "dd if=/tmp/v.md of=docs/architecture/components.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "dd"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'bash render.sh --dialect none' | bash",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pipe to shell"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "tee docs/architecture/components.md < /tmp/v.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf x > \"docs/architecture/components.md\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/v.md \"docs/architecture/components.md\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted cp target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "perl -pi -e s/a/b/ docs/architecture/components.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "perl in-place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"open('docs/architecture/components.md','w').write('x')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; Path('docs/architecture/components.md').write_text('x')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter write after a semicolon"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"require('fs').writeFileSync('docs/architecture/components.md','x')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "node write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import shutil; shutil.move('/tmp/x.md','docs/architecture/components.md')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter move"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"require('fs').copyFileSync('/tmp/x.md','docs/architecture/components.md')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; Path('/tmp/x.md').replace('docs/architecture/components.md')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib replace"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; Path('/tmp/x.md').replace(Path('docs/architecture/components.md'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib replace with Path argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; dst='docs/architecture/components.md'; p=Path('/tmp/x.md'); p.replace(dst)\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib replace with variable target"
+    }
+  ]
+}
