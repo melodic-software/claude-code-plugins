@@ -17,6 +17,10 @@
     {
       "answer": "../Shared/Shared.csproj is not unresolved: it binds to legacy/Shared/Shared.csproj.",
       "why": "negated"
+    },
+    {
+      "answer": "It isn't unresolved — the edge to `../Shared/Shared.csproj` matched `legacy/Shared/Shared.csproj` by name.",
+      "why": "contraction before the path"
     }
   ]
 }

@@ -83,6 +83,78 @@
         }
       ],
       "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf x > \"docs/architecture/components.md\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/v.md \"docs/architecture/components.md\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted cp target"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "perl -pi -e s/a/b/ docs/architecture/components.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "perl in-place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"open('docs/architecture/components.md','w').write('x')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; Path('docs/architecture/components.md').write_text('x')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "interpreter write after a semicolon"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"require('fs').writeFileSync('docs/architecture/components.md','x')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "node write"
     }
   ]
 }
