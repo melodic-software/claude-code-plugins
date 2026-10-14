@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:scrutinize-dont-coast",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/scrutinize-dont-coast",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the devil's-advocate and quality-gate skills, the do-your-research and reason-dont-recite siblings, and the verification confirm skill.",
+  "competitors": [
+    "planning:devils-advocate",
+    "review:quality-gate",
+    "discipline:do-your-research",
+    "discipline:reason-dont-recite",
+    "verification:confirm"
+  ],
+  "competitor_dirs": {
+    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
+    "review:quality-gate": "plugins/review/skills/quality-gate",
+    "discipline:do-your-research": "plugins/discipline/skills/do-your-research",
+    "discipline:reason-dont-recite": "plugins/discipline/skills/reason-dont-recite",
+    "verification:confirm": "plugins/verification/skills/confirm"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Hang on. How certain are you about that fix?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You're rushing ahead. Argue against your own last change."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Look for weaknesses in the thing you just finished before we go on."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Second-guess this answer; it feels too confident."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Take a skeptical look at the work from the last hour with fresh eyes."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I don't think that's sound. Re-examine it without leaning on your earlier reasoning."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Challenge your own output, particularly the migration step."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "That looked confident but is it correct? Have another pass check it blind."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Hold on. Try to break the thing you just built."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Stop coasting. Look at the last few edits critically and tell me what's wrong."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Stress-test my plan for the new queue before implementation."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review this branch before I open the PR."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Prove that the change achieved its intended outcome."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why is this convention here, and is it justified?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What could go wrong with my proposal to switch the CI provider?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Do a security and architecture review of the diff."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Did the fix actually work? Verify."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Challenge the inherited folder layout; is it actually right?"
+    }
+  ]
+}

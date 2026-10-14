@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/scripts/transcript_dirs.sh\" --scope worktree"
+          }
+        }
+      ],
+      "why": "worktree"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/transcript_dirs.sh --scope repo"
+          }
+        }
+      ],
+      "why": "repo"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls ~/.claude/projects"
+          }
+        }
+      ],
+      "why": "listed by hand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /p/skills/recall/scripts/recall_scan.py --dir /x invoice"
+          }
+        }
+      ],
+      "why": "scan only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline"
+          }
+        }
+      ],
+      "why": "git only"
+    }
+  ]
+}

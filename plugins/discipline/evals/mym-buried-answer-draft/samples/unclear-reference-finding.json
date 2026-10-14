@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Manner: 'it means it changes whenever that happens' has three pronouns with no clear referent."
+    },
+    {
+      "answer": "The sentence 'It has worked well...' is ambiguous: `it` could mean the policy or the build tool."
+    },
+    {
+      "answer": "Unclear reference in paragraph 1; replaced with 'the support window'."
+    },
+    {
+      "answer": "Manner: in 'it means it changes whenever that happens', each 'it' has no clear antecedent."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The history paragraph is too long; cut it.",
+      "why": "length only"
+    },
+    {
+      "answer": "Audit clean.",
+      "why": "no finding"
+    },
+    {
+      "answer": "Nothing ambiguous; the references are clear.",
+      "why": "negation: nothing ambiguous"
+    },
+    {
+      "answer": "No pronoun problems found.",
+      "why": "negation: no pronoun"
+    }
+  ]
+}

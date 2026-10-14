@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": "Native rung: `structuredClone` (Node 17+, engines pins >=20) covers plain data and Date."
+    },
+    {
+      "answer": "Use structuredClone(base) instead of adding lodash."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "lodash.cloneDeep is the right choice here.",
+      "why": "kept the reflex"
+    },
+    {
+      "answer": "Use JSON.parse(JSON.stringify(base)).",
+      "why": "a different hand-rolled option"
+    },
+    {
+      "answer": "Do not use structuredClone; keep lodash.",
+      "why": "negation"
+    },
+    {
+      "answer": "Keep lodash instead of structuredClone.",
+      "why": "rejected in favor of lodash"
+    },
+    {
+      "answer": "structuredClone is not an option here, so lodash stays.",
+      "why": "negated after the name"
+    }
+  ]
+}

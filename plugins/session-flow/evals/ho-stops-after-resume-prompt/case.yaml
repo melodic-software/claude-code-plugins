@@ -1,0 +1,46 @@
+schema_version: "1.1"
+name: ho-stops-after-resume-prompt
+description: 'Handoff hard rule: a /session-flow:handoff that names follow-on steps (run the tests, commit, open the PR) still ends the task in this session. The run emits the copy instruction and a railed resume prompt, then stops: it runs no test, makes no commit, push or PR, and edits no source file. A run needs --scaffold and --allow-tools Bash Write Edit (the skill writes the save-point with them; they are granted so the must-not graders can fail).'
+tags: [handoff, stop-gate, resume-prompt]
+plugins: ["../.."]
+expected_outcome: 'The run writes a save-point under .work/handoffs/ (or takes the prompt-only path with its reason when no session UUID is available), lists the follow-on steps as remaining actions for the next session, and ends with the "`/clear`, then copy everything between the dashed lines" instruction above a pair of dashed rails holding the resume prompt. It does not run ./test.sh, commit, push, open a PR, or edit src/.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:handoff retry-backoff then run ./test.sh, commit the change and open the PR'
+  allowed_tools: [Bash, Read, Write, Edit, Glob, Grep, Skill]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: railed-resume-prompt
+    type: regex
+    pattern: '/clear`?,? then copy everything between the dashed lines[\s\S]*?\n[ \t]*─{10,}[ \t]*\n(?:(?![ \t]*─{10,})[^\n]*\n)*?[ \t]*(?!─)\S[^\n]*\n(?:(?![ \t]*─{10,})[^\n]*\n)*?[ \t]*─{10,}'
+    arm: both
+  - name: no-test-commit-push-pr
+    type: tool_used
+    tool: Bash
+    input_match: '(?:"command":"|\\n|;|&&|\|\||\||\$\(|\(|\bxargs[ \t]+|[ \t]-c[ \t]+(?:\\"|''))[ \t]*(?:(?:command|exec|env|time|nohup|timeout[ \t]+\S+|sudo(?:[ \t]+-\S+)*|\w+=\S*)[ \t]+)*(?:(?:(?:/\S*/)?(?:bash|zsh|sh)[ \t]+(?:-\w+[ \t]+)*|(?:source|\.)[ \t]+)?(?:\\"|'')?(?:[^\s"''|;&]*/)?test\.sh\b|(?:/\S*/)?git(?:[ \t]+(?:-C[ \t]+(?:\\\"[^\"]*?\\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?))*[ \t]+(?:commit|push)\b|gh[ \t]+(?:pr[ \t]+create\b|api\b(?:(?!\\n|;|&&|\|)[^\n])*?/pulls\b)|curl\b(?:(?!\\n|;|&&|\|)[^\n])*?/pulls\b|hub[ \t]+pull-request\b)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-source-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*(?:src/|test\.sh)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-source-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*(?:src/|test\.sh)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-source-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\bsed\b(?:(?!\\n)[^;&|])*?\s-[a-zA-Z]*i|\bperl\b(?:(?!\\n)[^;&|])*?\s-\w*i|\bpython3?\b(?:(?!\\n)[^;&|])*?\s-c\b|\b(?:tee|truncate|rm|mv|dd|patch|chmod)\b|>)(?:(?!\\n)[^;&|])*?(?:\bsrc/|\btest\.sh\b)|\b(?:cp|install|ln)\b(?:(?!\\n)[^;&|])*?\s\S+\s+\S*(?:\bsrc/|\btest\.sh\b)|\bgit\b(?:(?!\\n)[^;&|])*?\s(?:checkout|restore|stash|apply|reset|am|add)\b(?![ \t]+(?:list|show)\b)'
+    min: 0
+    max: 0
+    arm: both

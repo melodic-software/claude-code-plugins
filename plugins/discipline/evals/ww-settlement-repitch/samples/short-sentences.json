@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Here is the same point again, in steps.\n\n1. A capture joins a settlement batch. The cutoff is the last time a capture can join today's batch.\n2. The payment service provider (PSP) moved the cutoff to 17:00 UTC.\n3. A capture after 17:00 UTC on Friday joins Monday's settlement batch.\n4. T+2 means the money arrives two business days after the batch closes. Monday plus two business days is Wednesday.\n5. Reconciliation marks these payments as late until the ledger records them.\n"
+    },
+    {
+      "answer": "The cutoff moved. Late captures join the next batch."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The payout run slipped because the PSP moved the cutoff, so anything captured after 17:00 UTC rolls into the next batch and lands T+2 from that close rather than from today's, which is why Friday's captures show up Wednesday instead of Tuesday, and reconciliation will flag them as late until the ledger catches up.",
+      "why": "one 60-word sentence"
+    },
+    {
+      "answer": "Because the provider moved the cutoff earlier in the day the captures that happen after the new time on a Friday afternoon do not make it into that day's batch and instead wait for the Monday batch which then settles two business days later on Wednesday",
+      "why": "long run-on with no punctuation"
+    }
+  ]
+}

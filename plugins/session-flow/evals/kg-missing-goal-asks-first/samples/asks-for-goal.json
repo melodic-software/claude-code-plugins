@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": "Before I touch src/retry.ts: what is the goal of this work, in your own words?",
+      "why": "asks for the goal"
+    },
+    {
+      "answer": "The handoff carries no Original goal.\n\n**What goal should this work serve?** I'll record your answer in the next save-point.",
+      "why": "bold question"
+    },
+    {
+      "answer": "**Question for you:** In your own words, what is this retry change meant to achieve? For example, is it avoiding a thundering herd against a particular service, or handling rate limits?",
+      "why": "observed smoke reply: asks what the change is meant to achieve, in the user's words"
+    },
+    {
+      "answer": "What is the purpose of this backoff work?",
+      "why": "purpose as a synonym for goal"
+    },
+    {
+      "answer": "Can I get the goal of this retry work in your own words?",
+      "why": "can I get the goal"
+    },
+    {
+      "answer": "What should I treat as the goal here, in your words?",
+      "why": "what should I treat as the goal"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Shall I proceed with phase 2?",
+      "why": "a go-ahead question, not a goal question"
+    },
+    {
+      "answer": "Is the goal to make retries back off exponentially?",
+      "why": "confirms a goal inferred from the process"
+    },
+    {
+      "answer": "The goal is to cap delays at 30 seconds. Continuing with phase 2.",
+      "why": "no question"
+    },
+    {
+      "answer": "OK to go ahead?",
+      "why": "question without the goal"
+    },
+    {
+      "answer": "No need to ask for the goal; the criteria make it clear.",
+      "why": "negated, no question"
+    },
+    {
+      "answer": "Is this change meant to achieve exponential backoff?",
+      "why": "yes/no confirmation of an inferred purpose"
+    },
+    {
+      "answer": "Shall I state the goal as reducing load on the payment API?",
+      "why": "proposes an inferred goal as a go-ahead question"
+    },
+    {
+      "answer": "What should I do next, phase 2 or phase 3?",
+      "why": "asks about steps, not the goal"
+    },
+    {
+      "answer": "In your own words, this change is meant to achieve exponential backoff.",
+      "why": "no question"
+    },
+    {
+      "answer": "Should I assume the goal is exponential backoff, which goal the phases imply?",
+      "why": "should I assume an inferred goal"
+    }
+  ]
+}

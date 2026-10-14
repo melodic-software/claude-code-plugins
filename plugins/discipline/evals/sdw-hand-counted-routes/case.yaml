@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: sdw-hand-counted-routes
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-a-counting-tool
+    type: regex
+    pattern: '\"name\":\"Bash\",\"input\":\{[^}]*?\"command\":\"(?:[^\"\\\n]|\\.){0,400}?\b(?:grep|wc|diff|comm|awk|sort|uniq|python3?|node|rg|jq)\b|\"name\":\"Grep\",\"input\":\{[^}]*\"output_mode\":\"count\"'
+    target: trace
+  - name: route-total-13
+    type: regex
+    pattern: '(?<![:#])\b(?:13|thirteen)\b[^\n]{0,40}\broutes?\b(?!\.js)|\broutes?\b(?!\.js)[^\n]{0,60}(?<![:#])\b(?:13|thirteen)\b'
+    flags: 'i'
+    target: last_message
+  - name: post-count-6
+    type: regex
+    pattern: '\b(?:6|[Ss]ix)\b[^\n]{0,30}(?<!\.)\b(?:POST|[Pp]ost (?:routes?|endpoints?|handlers?))\b|(?<!\.)\b(?:POST|[Pp]ost (?:routes?|endpoints?|handlers?))\b[^\n]{0,40}\b(?:6|six)\b'
+    target: last_message
+  - name: added-count-3
+    type: regex
+    pattern: '\b(?:3|three)\b[^\n]{0,40}\b(?:added|adds|new|additions?)\b|\b(?:adds|added|additions?)\b[^\n]{0,40}\b(?:3|three)\b'
+    flags: 'i'
+    target: last_message
+  - name: dropped-host-named
+    type: regex
+    pattern: '(?<!\bnot )(?<!n''t )\b(?:drop(?:s|ped)?|remove[sd]?|missing|gone|no longer|absent|deleted?|v1[- ]only|only in v1)\b(?![ \t]+(?:none|nothing|no)\b)[^\n]{0,60}\breports\.internal\b|\breports\.internal\b[^\n]{0,60}(?<!\bnot )(?<!n''t )(?<!\bwas not )\b(?:drop(?:s|ped)?|removed?|missing|gone|no longer|absent|deleted?|only in v1)\b'
+    flags: 'i'
+    target: last_message

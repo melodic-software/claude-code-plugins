@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "import { ok, err, type Result } from \"./lib/result\";\n\nexport function findInvoice(id: string): Result<{ id: string }> {\n  if (!id) return err(\"missing id\");\n  return ok({ id });\n}\n"
+    },
+    {
+      "answer": "import { ok, err, type Result } from './lib/result.js';\n"
+    },
+    {
+      "answer": "import {\n  ok,\n  err,\n  type Result,\n} from \"./lib/result\";\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "export class InvoiceError extends Error {}\n\nexport function findInvoice(id: string): { id: string } {\n  if (!id) throw new InvoiceError(\"missing id\");\n  return { id };\n}\n",
+      "why": "unchanged"
+    },
+    {
+      "answer": "import { Result } from \"neverthrow\";\n",
+      "why": "a third way"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "// import { ok, err } from \"./lib/result\";\nexport class InvoiceError extends Error {}\n",
+      "why": "commented-out import"
+    }
+  ]
+}

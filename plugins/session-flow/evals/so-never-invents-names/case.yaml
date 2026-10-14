@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: so-never-invents-names
+description: 'Pressed for a full menu with every bucket populated while only session-flow is installed, /session-flow:show-options names no skill outside the resolved catalog, discloses that the pool came from the in-context listing, renders the five buckets, and writes exactly three entries to the Spotlight ledger. A run needs --scaffold and --allow-tools Bash Write.'
+tags: [show-options, never-invent, spotlight]
+plugins: ["../.."]
+expected_outcome: 'The answer renders Now, Next, Skipped upstream, Later and Spotlight, names only skills from the session''s catalog (session-flow skills and built-ins, never a discovery, planning, testing or review skill), leaves thin buckets short with a reason, says the pool came from the in-context listing and may be incomplete, and writes .work/show-options/spotlight-ledger.json holding exactly the three surfaced names with ISO-8601 UTC timestamps.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:show-options I''m just starting a new feature here, nothing written yet. Give me a full menu with every bucket populated; don''t leave any of them thin.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: no-invented-names
+    type: regex
+    pattern: '(?<![\w/.:-])/?(?!session-flow:|harness-ops:inventory\b)[a-z][a-z0-9]+(?:-[a-z0-9]+)*:[a-z][a-z0-9]+(?:-[a-z0-9]+)*\b(?!:\S|/)'
+    match: 'not_contains'
+    arm: both
+  - name: discloses-degraded-pool
+    type: regex
+    pattern: '^(?![^\n]*\b(?:not|never)[ \t]+(?:been[ \t]+)?(?:truncated|truncation|dropped|missing|omitted))(?![^\n]*\b(?:no|nothing)\b[ \t]+(?:\w+[ \t]+){0,3}?(?:was|were)[ \t]+(?:truncated|truncation|dropped|omitted))[^\n]*(?:\blisting\b[^\n]*\b(?:truncated?|truncation|truncating|incomplete|budget\w*|partial|not[ \t]+(?:a[ \t]+|the[ \t]+)?(?:full|complete)|manual-only|may[ \t]+(?:be[ \t]+)?(?:miss\w*|omit\w*|drop\w*)|dropped)|\b(?:truncated?|truncation|truncating|incomplete|budget\w*|partial|not[ \t]+(?:a[ \t]+|the[ \t]+)?(?:full|complete)|manual-only|may[ \t]+(?:be[ \t]+)?(?:miss\w*|omit\w*|drop\w*)|dropped)[^\n]*\blisting\b)'
+    flags: 'mi'
+    arm: with-only
+  - name: five-buckets
+    type: regex
+    pattern: '(?=[\s\S]*^\W*Now\b)(?=[\s\S]*^\W*Next\b)(?=[\s\S]*^\W*Skipped upstream\b)(?=[\s\S]*^\W*Later\b)(?=[\s\S]*^\W*Spotlight\b)'
+    flags: 'm'
+    arm: with-only
+  - name: spotlight-ledger-three
+    type: regex
+    pattern: '^\s*\{\s*(?:"/[a-z0-9-]+(?::[a-z0-9-]+)?"[ \t]*:[ \t]*"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z"\s*,\s*){2}"/[a-z0-9-]+(?::[a-z0-9-]+)?"[ \t]*:[ \t]*"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z"\s*\}\s*$'
+    target: { source: file, path: .work/show-options/spotlight-ledger.json }
+    arm: with-only

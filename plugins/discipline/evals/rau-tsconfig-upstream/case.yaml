@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: rau-tsconfig-upstream
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: pinned-version-resolved
+    type: regex
+    pattern: '\b5\.4(?:\.5)?\b'
+    target: last_message
+  - name: deprecated-flag-is-gap
+    type: regex
+    pattern: 'importsNotUsedAsValues(?:(?!useDefineForClassFields|\bstrict\b)[\s\S]){0,200}?(?<!\bnot )(?<!n''t )(?<!not yet )(?<!\bno )(?<!\bnever )(?<!nothing )\b(?:deprecated|deprecation|removed|replaced by|superseded|gap)\b|(?<!\bnot )(?<!n''t )(?<!not yet )(?<!\bno )(?<!\bnever )(?<!nothing )\b(?:deprecated|gap)\b(?:(?!useDefineForClassFields|\bstrict\b)[\s\S]){0,120}?importsNotUsedAsValues|\b(?:replace|swap|migrate|switch)\b[^\n]{0,40}importsNotUsedAsValues[^\n]{0,60}verbatimModuleSyntax|verbatimModuleSyntax[^\n]{0,40}\b(?:replaces|supersedes|instead of)\b[^\n]{0,20}importsNotUsedAsValues|importsNotUsedAsValues[^\n]{0,20}(?:->|→|=>)[^\n]{0,20}verbatimModuleSyntax'
+    flags: 'i'
+    target: last_message
+  - name: adr-divergence-classified
+    type: regex
+    pattern: '\bstrict\b(?:(?!useDefineForClassFields|importsNotUsedAsValues)[\s\S]){0,250}?(?<!\bnot )(?<!n''t )(?<!not yet )(?<!\bno )(?<!\bnever )(?<!nothing )\b(?:deliberate|ADR[- ]?0003|0003|intentional|recorded rationale)\b|(?<!\bnot )(?<!n''t )(?<!not yet )(?<!\bno )(?<!\bnever )(?<!nothing )\b(?:deliberate|ADR[- ]?0003|intentional)\b(?:(?!useDefineForClassFields|importsNotUsedAsValues)[\s\S]){0,250}?\bstrict\b'
+    flags: 'i'
+    target: last_message
+  - name: undocumented-divergence-surfaced
+    type: regex
+    pattern: 'useDefineForClassFields(?:(?!importsNotUsedAsValues|\bstrict\b)[\s\S]){0,300}?(?<!\bnot )\b(?:undocumented|unrecorded|no (?:recorded |written |documented )?rationale|without (?:a |any )?(?:recorded |written |documented )?rationale|your call|human''?s call|you decide|decide whether)\b|(?<!\bnot )\b(?:undocumented|unrecorded)\b(?:(?!importsNotUsedAsValues|\bstrict\b)[\s\S]){0,300}?useDefineForClassFields'
+    flags: 'i'
+    target: last_message
+  - name: adr-backed-setting-kept
+    type: regex
+    pattern: '\"strict\"[ \t]*:[ \t]*false'
+    target: { source: file, path: tsconfig.json }
+  - name: undocumented-setting-left
+    type: regex
+    pattern: '\"useDefineForClassFields\"[ \t]*:[ \t]*false'
+    target: { source: file, path: tsconfig.json }

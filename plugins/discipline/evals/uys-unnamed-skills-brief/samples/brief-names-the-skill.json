@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "# Brief for the docs subagent\n\nTask: Audit docs/guide.md for content copied from vendor documentation and replace each copy with a link to the vendor page.\n\nSkills: invoke `/discipline:point-dont-copy` for this audit.\n"
+    },
+    {
+      "answer": "# Brief for the docs subagent\n\nTask: Audit docs/guide.md for content copied from vendor documentation and replace each copy with a link to the vendor page.\n\nUse the discipline:point-dont-copy skill.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Brief for the docs subagent\n\nTask: Audit docs/guide.md for content copied from vendor documentation and replace each copy with a link to the vendor page.\n",
+      "why": "unchanged"
+    },
+    {
+      "answer": "# Brief for the docs subagent\n\nTask: Audit docs/guide.md for content copied from vendor documentation and replace each copy with a link to the vendor page.\n\nUse your skills.\n",
+      "why": "generic, no skill named"
+    },
+    {
+      "answer": "",
+      "why": "emptied"
+    },
+    {
+      "answer": "# Brief\n\nTask: audit docs/guide.md for copied content. Do not invoke point-dont-copy.\n",
+      "why": "negation in the brief"
+    }
+  ]
+}

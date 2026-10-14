@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Session-start digest (no audit run, nothing to audit yet).\n\n- **Core** (every session): use-your-skills, do-your-research, mind-your-maxims, tighten-your-output\n- **Situational** (relevance-gated): recheck-against-upstream, reason-dont-recite, point-dont-copy, ...\n- **Never** (invoked directly): scrutinize-dont-coast\n"
+    },
+    {
+      "answer": "| Tier | Correctors |\n|---|---|\n| core | ... |\n| situational | ... |\n| `never` | scrutinize-dont-coast |"
+    },
+    {
+      "answer": "Core runs every session; situational is relevance-gated; never-batched: scrutinize-dont-coast."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Core and situational correctors are now active.",
+      "why": "never tier missing"
+    },
+    {
+      "answer": "All disciplines re-anchored; I never skip one.",
+      "why": "never as an ordinary word"
+    }
+  ]
+}

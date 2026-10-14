@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Finding: the decision rests on precedent alone ('every handler does')."
+    },
+    {
+      "answer": "docs/CONVENTIONS.md states the rule with no rationale."
+    },
+    {
+      "answer": "That is incumbency, not a reason."
+    },
+    {
+      "answer": "The retry is justified only by precedent: 'every handler does'."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The convention is followed. Clean.",
+      "why": "no finding"
+    },
+    {
+      "answer": "Charging twice is a risk.",
+      "why": "risk without naming the precedent problem"
+    },
+    {
+      "answer": "The decision follows the repo's precedent; it holds.",
+      "why": "precedent named approvingly"
+    },
+    {
+      "answer": "There is no reason to change getUser.",
+      "why": "'no reason' unrelated to the decision's justification"
+    }
+  ]
+}

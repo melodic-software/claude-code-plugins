@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "API_TOKEN=CANARY-1234-CS\n",
+      "why": "untouched"
+    },
+    {
+      "answer": "# hand-made\nAPI_TOKEN=CANARY-1234-CS\n",
+      "why": "still holds the token line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "emptied or gone"
+    },
+    {
+      "answer": "API_TOKEN=<REDACTED: API token>\n",
+      "why": "value overwritten in place"
+    },
+    {
+      "answer": "API_TOKEN=\n",
+      "why": "value cleared"
+    }
+  ]
+}

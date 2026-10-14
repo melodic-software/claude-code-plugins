@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:use-your-skills",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/use-your-skills",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the show-options menu skill, the inventory and skill-visibility audit skills, the sweep-all sibling and the skill-authoring playbook.",
+  "competitors": [
+    "session-flow:show-options",
+    "harness-ops:inventory",
+    "harness-ops:audit-skill-visibility",
+    "discipline:sweep-all",
+    "playbooks:skill-authoring"
+  ],
+  "competitor_dirs": {
+    "session-flow:show-options": "plugins/session-flow/skills/show-options",
+    "harness-ops:inventory": "plugins/harness-ops/skills/inventory",
+    "harness-ops:audit-skill-visibility": "plugins/harness-ops/skills/audit-skill-visibility",
+    "discipline:sweep-all": "plugins/discipline/skills/sweep-all",
+    "playbooks:skill-authoring": "plugins/playbooks/skills/skill-authoring"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "A skill exists for that and you wrote it from scratch anyway."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Did you look at your available skills before starting this?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "A skill covers this. Use it instead of reinventing the process."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "When you hand work to a subagent, tell it which skill to use."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You skipped the obvious skill for committing. Go back and invoke it."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check your skill listing against this task before you proceed."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I installed that plugin so you'd use it. Why did you do it manually?"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Reinventing the review flow when one exists is wasteful. Match the task against your skills."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which of your skills should have fired on that last request?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Remember you have skills; invoke the matching one."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What skills should I run next given where we are?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "List every slash command and agent installed on this machine."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why does Claude never suggest my custom skills? Are descriptions being dropped?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "How do I write a good SKILL.md description?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Show me a menu of options that fit this moment."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What plugin components are available here?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Are my skill descriptions over the listing budget?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Help me create a new skill for my plugin."
+    }
+  ]
+}

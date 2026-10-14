@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: pdc-setup-guide-copies
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: public-contract-cited
+    type: regex
+    pattern: '\bmake[ \t]+index\b'
+    target: { source: file, path: docs/setup-guide.md }
+  - name: internal-script-gone
+    type: regex
+    pattern: '_internal/|\bbuild-index(?:\.sh)?\b'
+    match: not_contains
+    target: { source: file, path: docs/setup-guide.md }
+  - name: copied-flag-table-gone
+    type: regex
+    pattern: '^[ \t]*\|[ \t]*`?-{1,2}[A-Za-z]|--max-columns-preview|--sort-files|Search case insensitively|Do not print lines longer|Print a preview for lines|Sort results by file path'
+    flags: 'm'
+    match: not_contains
+    target: { source: file, path: docs/setup-guide.md }
+  - name: points-at-ripgrep-source
+    type: regex
+    pattern: '\brg[ \t]+(?:--help|-h)\b|\bman[ \t]+rg\b|github\.com/BurntSushi/ripgrep|\bripgrep\b[^\n]{0,60}\b(?:docs|documentation|guide|manual|man page|help|GUIDE\.md|README|reference)\b'
+    flags: 'i'
+    target: { source: file, path: docs/setup-guide.md }
+  - name: closed-list-reopened
+    type: regex
+    pattern: '\b(?:exactly|only|just)[ \t]+(?:these[ \t]+)?(?:three|3)[ \t]+things\b|\bcan do (?:three|3) things\b'
+    flags: 'i'
+    match: not_contains
+    target: { source: file, path: docs/setup-guide.md }
+  - name: observed-error-kept
+    type: regex
+    pattern: 'EACCES[^\n]{0,40}mkdir[^\n]{0,10}/cache'
+    target: { source: file, path: docs/setup-guide.md }

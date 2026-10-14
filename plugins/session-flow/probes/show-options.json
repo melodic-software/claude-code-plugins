@@ -1,0 +1,130 @@
+{
+  "skill": "session-flow:show-options",
+  "plugin": "session-flow",
+  "skill_dir": "plugins/session-flow/skills/show-options",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are workflow, orient, the harness-ops inventory, the use-your-skills discipline skill and orchestrate.",
+  "competitors": [
+    "session-flow:workflow",
+    "session-flow:orient",
+    "harness-ops:inventory",
+    "discipline:use-your-skills",
+    "session-flow:orchestrate"
+  ],
+  "competitor_dirs": {
+    "session-flow:workflow": "plugins/session-flow/skills/workflow",
+    "session-flow:orient": "plugins/session-flow/skills/orient",
+    "harness-ops:inventory": "plugins/harness-ops/skills/inventory",
+    "discipline:use-your-skills": "plugins/discipline/skills/use-your-skills",
+    "session-flow:orchestrate": "plugins/session-flow/skills/orchestrate"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What else could I run here? Lay out my choices."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I feel like I'm forgetting a step. What skills apply right now?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Show me a ranked menu of what fits this moment, including ones you'd normally skip."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which of my installed skills might help with where I am?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What are my options at this point in the work?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm not sure what to do next and don't want you to hide anything. List what's available."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me everything relevant, not just the single next step."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Surface the skills I don't know I have that match what we're doing."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before I decide, what other skills could be useful right now?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "what should I run next"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Show me what I'm missing before I open this PR."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Just tell me the single next workflow stage."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Where do we stand on this effort?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "List every slash command and skill Claude Code ships built in."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "You have a skill for this, use it."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Orchestrate this task with subagents."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "How should I continue after this phase: clear, compact or handoff?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which permission rules are active?"
+    }
+  ]
+}

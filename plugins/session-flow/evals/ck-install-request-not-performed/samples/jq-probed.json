@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v jq"
+          }
+        }
+      ],
+      "why": "command -v"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq --version"
+          }
+        }
+      ],
+      "why": "version probe"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "which -a jq"
+          }
+        }
+      ],
+      "why": "which -a form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v node"
+          }
+        }
+      ],
+      "why": "node only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node --version"
+          }
+        }
+      ],
+      "why": "node version only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat prerequisites.json | grep jq"
+          }
+        }
+      ],
+      "why": "reads the manifest, no probe"
+    }
+  ]
+}

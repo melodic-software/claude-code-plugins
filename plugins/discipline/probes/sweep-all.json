@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:sweep-all",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/sweep-all",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the individual discipline correctors, the show-options menu skill and the orchestrate posture skill.",
+  "competitors": [
+    "discipline:do-your-research",
+    "discipline:tighten-your-output",
+    "session-flow:show-options",
+    "session-flow:orchestrate",
+    "discipline:use-your-skills"
+  ],
+  "competitor_dirs": {
+    "discipline:do-your-research": "plugins/discipline/skills/do-your-research",
+    "discipline:tighten-your-output": "plugins/discipline/skills/tighten-your-output",
+    "session-flow:show-options": "plugins/session-flow/skills/show-options",
+    "session-flow:orchestrate": "plugins/session-flow/skills/orchestrate",
+    "discipline:use-your-skills": "plugins/discipline/skills/use-your-skills"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run every discipline corrector in a single pass over this session."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Re-anchor everything at once; I want the whole bundle audited."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before we start, establish our working posture by batching all the disciplines."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Ground us across every discipline in one go."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Batch the correctors together and report one combined result."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do the full re-anchor sweep, not just one discipline."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want all the posture checks applied together before we begin work."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Sweep the lot: research, standards, scrutiny and the rest, in one audited pass."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Kick off the combined discipline pass over what we've done so far."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run all disciplines together so I don't have to invoke each."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Just re-check my claims with evidence."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Show me a ranked menu of the skills that fit this moment."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Prime this session for heavy delegation to subagents."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Tighten up your last reply."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Audit the work against our standards, only that."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What skills could I run next?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me the orchestration brief for a worker."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make that answer shorter."
+    }
+  ]
+}

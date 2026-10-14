@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "v2 adds 3 hosts (audit, cdn, ledger) and drops 1."
+    },
+    {
+      "answer": "3 hosts added: audit.internal, cdn.internal, ledger.internal"
+    },
+    {
+      "answer": "Additions: three."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "v2 adds 2 hosts and drops none.",
+      "why": "kept the hand count"
+    },
+    {
+      "answer": "v2 adds 4 hosts.",
+      "why": "wrong number"
+    }
+  ]
+}

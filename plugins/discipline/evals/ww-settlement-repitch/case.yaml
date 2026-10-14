@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: ww-settlement-repitch
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-the-glossary
+    type: regex
+    pattern: '"name":"(?:Read|Grep)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:glossary)|^(?=[^\n]*"type":"tool_result")[^\n]*?(?:pays out to us in one bank transfer|Do not call it a)'
+    flags: 'm'
+    target: trace
+  - name: project-term-used
+    type: regex
+    pattern: '\bsettlement batch(?:es)?\b'
+    flags: 'i'
+    target: last_message
+  - name: missing-context-added
+    type: regex
+    pattern: '(?=[\s\S]*(?:\b(?:two|2) (?:business|working|bank(?:ing)?) days\b|\bT\+2\b[^\n]{0,40}\b(?:two|2)\b[^\n]{0,20}\bdays\b))(?=[\s\S]*\bpayment (?:service |processing )?(?:provider|processor)\b)'
+    flags: 'i'
+    target: last_message
+  - name: short-sentences
+    type: regex
+    pattern: '(?:[^\s.!?;:|]+[ \t]+){34,}[^\s.!?;:|]+'
+    match: not_contains
+    target: last_message

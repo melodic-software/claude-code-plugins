@@ -1,5 +1,5 @@
 ---
-description: "Batch this plugin's discipline correctors into ONE pass; needs fork subagents (`subagent_type: fork`), else (and at conversation start) it reports only a posture digest and audits nothing. Use when: 'sweep all disciplines', 'ground ourselves', 're-anchor everything', 'run the whole re-anchor bundle', 'posture batch', 'set our posture before we start', 'batch the correctors', or at conversation start to set posture across every discipline at once. For one discipline, invoke that corrector."
+description: "Batches this plugin's discipline correctors into ONE pass; needs fork subagents (`subagent_type: fork`), else (and at conversation start) reports only a posture digest and audits nothing. Use when: 'sweep all disciplines', 'ground ourselves', 're-anchor everything', 'run the whole re-anchor bundle', 'posture batch', 'set our posture before we start', 'batch the correctors', or at conversation start to set posture across every discipline at once. For one discipline, invoke that corrector."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -9,14 +9,13 @@ metadata:
 
 # Sweep all disciplines
 
-A **declared second species** in this plugin: NOT a corrector. Every sibling
-skill re-anchors ONE discipline; this one carries no discipline of its own. It is a pure router that COMPOSES the correctors into a single batched
-re-anchor pass. It holds zero discipline text: the disciplines live in the
-correctors, the shared method lives in
+A **declared second species** in this plugin: NOT a corrector. It carries no
+discipline of its own; it is a pure router that COMPOSES the correctors into a
+single batched re-anchor pass. The disciplines live in the correctors, the
+shared method lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md),
 and membership + order live in each corrector's own tier metadata. This skill
-names no members. It globs and reads them, so the bundle cannot drift from a
-hand-maintained list.
+names no members: it globs and reads them.
 
 ## Two modes
 
@@ -119,19 +118,14 @@ never/core/unknown promote warning in that report, never silently drop them.
 
 ## What this skill does NOT do
 
-- **Not a corrector.** It owns no discipline and re-anchors nothing itself.
 - **Not `use-your-skills`.** That corrector routes to the ONE skill fitting a
   task; this composes the whole posture bundle.
 - **Not a session or SDLC orchestrator.** Staged navigation and session
   lifecycle belong to the `session-flow` plugin; this only sequences the
   re-anchor correctors.
-- **Does not batch the `never` tier**. Correctors that declare
-  `discipline-batch: never` are invoked directly.
-- **Does not define membership by inline names**. Membership is each
-  corrector's own tier metadata (glob + read). Inline names elsewhere in this
-  file illustrate rank-order intent or overlay examples, never the member set.
-- **Does not silently accept a non-situational `batch_promote`**. Never,
-  core, and unknown promote entries warn and are not promoted.
+- **Does not define membership by inline names**. Inline names elsewhere in
+  this file illustrate rank-order intent or overlay examples, never the
+  member set.
 
 ## Gotchas
 

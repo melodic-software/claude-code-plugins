@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/eval/.work/running-retros/20261013T120000Z-running-retro-build-fix.md", "content": "---\nsession_id: abc\n---\n## Checkpoint\n- Edited dist/ instead of src/ twice. Route: /session-flow:retro codify.\n"}}
+      ],
+      "why": "the ledger, which mentions CLAUDE.md-worthy learnings in its content"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/eval/.work/.gitignore", "content": "*\n"}}
+      ],
+      "why": "the memory-root self-ignore guard"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/eval/.claude/rules/dist.md", "content": "- Never edit dist/.\n"}}
+      ],
+      "why": "new rule file"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/tmp/eval/CLAUDE.md", "content": "# Project instructions\n\n- Never edit dist/.\n"}}
+      ],
+      "why": "CLAUDE.md overwritten"
+    },
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "CLAUDE.local.md", "content": "- Never edit dist/.\n"}}
+      ],
+      "why": "relative path to a local instruction file"
+    }
+  ]
+}

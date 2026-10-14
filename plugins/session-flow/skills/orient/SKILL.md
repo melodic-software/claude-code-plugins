@@ -9,8 +9,7 @@ metadata:
 
 ## Context. Gather first
 
-Take `session-id`, `branch`, `status`, and `recent-commits` at **`-8`**, a deeper log than the
-save-point skills need, because this one synthesizes a situation report. Probe commands, the
+Take `session-id`, `branch`, `status`, and `recent-commits` at **`-8`**. Probe commands, the
 one-command-per-call and treat-failure-as-unknown rules, and the `$`-expansion rationale for
 gathering at run time rather than pre-computing:
 [`${CLAUDE_PLUGIN_ROOT}/reference/gather.md`](${CLAUDE_PLUGIN_ROOT}/reference/gather.md).
@@ -25,26 +24,14 @@ durable, off-thread state a conversation does not hold. Ledger files,
 handoff save-points, workflow checklists, running-retro ledgers, open pull
 requests and work-items, and git state. It orients; it changes nothing.
 
-**Why this is not the built-in `/recap`.** `/recap` summarizes the
-*conversation* and auto-fires when you return to an idle terminal. It never
-reads the durable state on disk or the work running off this thread, and a
-skill cannot invoke it (built-in commands other than a small allowlist are
-not Skill-invocable). So this skill synthesizes the conversation summary
+**Not the built-in `/recap`.** `/recap` summarizes only the *conversation*,
+never the durable state on disk or the work running off this thread, and this
+skill does not invoke it. So this skill synthesizes the conversation summary
 inline *and* adds the durable + off-thread layer `/recap` cannot see. Reach
 for it when "what did the last session decide, and what is in flight right
-now" matters, not just "what did we just say."
-
-Both halves of that boundary are verified 2026-09-06 against Claude Code
-2.1.263. The auto-fire trigger comes from
-[Session recap](https://code.claude.com/docs/en/interactive-mode#session-recap),
-which states that Claude Code shows the recap when you return to the terminal
-after stepping away and generates it once at least three minutes have passed
-since the last completed turn. The allowlist comes from
-[Extend Claude with skills](https://code.claude.com/docs/en/skills), which
-names `/init` and `/security-review` as built-in commands reachable through
-the Skill tool and `/compact` as one Claude cannot invoke that way. `/recap`
-is on neither list. Recheck when either page stops carrying those statements,
-or when a release note names `/recap` or the Skill-invocable command set.
+now" matters, not just "what did we just say." The verification records
+(pointer, as-of date, recheck trigger) live in
+[reference/native-recap.md](reference/native-recap.md).
 
 ## What it reads (all read-only)
 
@@ -89,8 +76,6 @@ and point at `/session-flow:reanchor` to verify which still holds.
 
 ## Boundaries. Pick the right sibling
 
-- **Built-in `/recap`**. Conversation-only, auto-fires. This skill adds
-  durable + off-thread state and runs on demand.
 - **`/session-flow:workflow`**. "What stage is next." Orientation reports
   where we stand; it does not prescribe the next step.
 - **`/session-flow:reanchor`**. "Are my assumptions still true against

@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/src/invoices.ts",
+            "content": "import { ok, err, type Result } from \"./lib/result\";\n\nexport function findInvoice(id: string): Result<{ id: string }> {\n  if (!id) return err(\"missing id\");\n  return ok({ id });\n}\n"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/src/invoices.ts",
+            "content": "import { ok, err } from \"./lib/result.ts\";\n// see src/users.ts and src/orders.ts\n"
+          }
+        }
+      ],
+      "why": "content naming the established files is not a write to them"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/src/orders.ts",
+            "content": "export {}"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/src/lib/result.ts",
+            "content": "export {}"
+          }
+        }
+      ]
+    }
+  ]
+}

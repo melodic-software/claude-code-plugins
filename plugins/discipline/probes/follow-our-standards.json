@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:follow-our-standards",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/follow-our-standards",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the documentation-writing skill, the review quality gate, the reuse-or-replace sibling, the upstream recheck sibling and the instruction-audit skill.",
+  "competitors": [
+    "docs-hygiene:write-for-humans",
+    "review:quality-gate",
+    "discipline:reuse-or-replace",
+    "discipline:recheck-against-upstream",
+    "harness-config:audit-instructions"
+  ],
+  "competitor_dirs": {
+    "docs-hygiene:write-for-humans": "plugins/docs-hygiene/skills/write-for-humans",
+    "review:quality-gate": "plugins/review/skills/quality-gate",
+    "discipline:reuse-or-replace": "plugins/discipline/skills/reuse-or-replace",
+    "discipline:recheck-against-upstream": "plugins/discipline/skills/recheck-against-upstream",
+    "harness-config:audit-instructions": "plugins/harness-config/skills/audit-instructions"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Does this PR match how our team does things? Check it against the standards in the repo."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Your code is wandering away from the org rules we agreed on; bring it back in line."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Audit what you've written against the standards folder and cite the doc for each problem."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before you write more code, load our engineering standards and stick to them."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This naming doesn't look like our usual style. Compare with the shared conventions and fix it."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Are we compliant with the team's engineering guidelines in this change?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Reread the standards docs for this repo and apply them to what you just produced."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Where in this diff do we break our own written rules? Point at the doc section."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Get yourself aligned with the company standards before touching this module."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I feel like you ignored our house conventions. Check and correct."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write the README for the new CLI so it follows the Diataxis style."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review this diff for correctness and security issues before I open the PR."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "We already have a helper for retries; why did you add another one?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check whether our CLAUDE.md contains stale or conflicting instructions."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a how-to guide for onboarding new engineers."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run the quality gate on my branch."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "You added a second logging wrapper next to the existing one. Pick one."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Audit our rules and skills text for outdated Claude Code behavior."
+    }
+  ]
+}

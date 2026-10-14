@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:script-the-deterministic-work",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/script-the-deterministic-work",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the self-scrutiny sibling, the size-audit and toolchain-check skills, the measurement skill and the wizard generator.",
+  "competitors": [
+    "discipline:scrutinize-dont-coast",
+    "code-metrics:audit-size",
+    "toolchain:check",
+    "verification:measure",
+    "wizard:generate"
+  ],
+  "competitor_dirs": {
+    "discipline:scrutinize-dont-coast": "plugins/discipline/skills/scrutinize-dont-coast",
+    "code-metrics:audit-size": "plugins/code-metrics/skills/audit-size",
+    "toolchain:check": "plugins/toolchain/skills/check",
+    "verification:measure": "plugins/verification/skills/measure",
+    "wizard:generate": "plugins/wizard/skills/generate"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You counted those occurrences by hand and got it wrong. Use a tool."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Don't eyeball the diff between these two files; run a real diff."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'd rather you compute the total than estimate it in your head."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "You hand-tallied the routes. Write a script to count them and read its output."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Stop guessing at the arithmetic; run it."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "This is a mechanical rename in forty places. Build a helper for it, or just hand-edit each?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "A script was the right way to do that transformation, not rewriting each line yourself."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Why did you manually compare the JSON files instead of diffing them?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Line-by-line reformatting by you is error-prone. Use a script."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Every number in that report should come from a command, not from you."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "How many lines long is each file in this change?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run the build and tests for the files I changed."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Prove the function got faster with a before and after benchmark."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write an interactive script I can run to set up my credentials."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Report which files are over a thousand lines."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Does it compile and do the tests pass?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Capture a baseline so we can claim the speedup honestly."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Generate a guided bash wizard for the manual console steps."
+    }
+  ]
+}

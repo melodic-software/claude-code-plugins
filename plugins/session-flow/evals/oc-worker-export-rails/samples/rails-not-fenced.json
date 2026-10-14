@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Paste the text between the rails into the spawn prompt.\n\n──────────────────────────────────────────────────────────\nYou are a spawned worker and did NOT inherit the parent session's context or the repo's conditional rules, these instructions are your only copy.\n\nORCHESTRATION BRIEF — standing instructions for the whole task, regardless of which model or tool runs you.\n\nAt each decision boundary, evaluate these and ACT on a match without waiting to be told:\n1. DELEGATE / FAN OUT. Start with one agent.\n2. SPEC EVERY SPAWN. Every brief states why.\n3. FRESH-CONTEXT VERIFY, hand it to a separate verifier.\n4. RUN WORKERS WELL. Dispatch without blocking.\n5. NESTED SUBAGENTS, a worker may spawn its own workers.\n6. SURFACE DRIFT, flag it in one line.\n7. CALIBRATE TO CONDITIONS. Size the orchestration to conditions.\n\nDiscipline: trigger-evaluation is mandatory; the ACTION stays calibrated.\n──────────────────────────────────────────────────────────\n\nNothing was spawned.",
+      "why": "bare rails"
+    },
+    {
+      "answer": "Run it with:\n```bash\necho hi\n```\n\nPaste the text between the rails into the spawn prompt.\n\n──────────────────────────────────────────────────────────\nYou are a spawned worker and did NOT inherit the parent session's context or the repo's conditional rules, these instructions are your only copy.\n\nORCHESTRATION BRIEF — standing instructions for the whole task, regardless of which model or tool runs you.\n\nAt each decision boundary, evaluate these and ACT on a match without waiting to be told:\n1. DELEGATE / FAN OUT. Start with one agent.\n2. SPEC EVERY SPAWN. Every brief states why.\n3. FRESH-CONTEXT VERIFY, hand it to a separate verifier.\n4. RUN WORKERS WELL. Dispatch without blocking.\n5. NESTED SUBAGENTS, a worker may spawn its own workers.\n6. SURFACE DRIFT, flag it in one line.\n7. CALIBRATE TO CONDITIONS. Size the orchestration to conditions.\n\nDiscipline: trigger-evaluation is mandatory; the ACTION stays calibrated.\n──────────────────────────────────────────────────────────\n\nNothing was spawned.",
+      "why": "a fence elsewhere"
+    },
+    {
+      "answer": "──────────────────────────────────────────────────────────\nYou are a spawned worker and did NOT inherit the parent session's context or the repo's conditional rules, these instructions are your only copy.\nORCHESTRATION BRIEF\n\n1. Imperative 1.\n2. Imperative 2.\n3. Imperative 3.\n4. Imperative 4.\n5. Imperative 5.\n6. Imperative 6.\n7. Imperative 7.\n\nDiscipline: trigger-evaluation is mandatory.\n──────────────────────────────────────────────────────────\n\nThen run:\n```bash\necho spawn\n```\n",
+      "why": "fence below the rails with prose between"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```text\n──────────────────────────────────────────────────────────\nYou are a spawned worker and did NOT inherit the parent session's context or the repo's conditional rules, these instructions are your only copy.\n\nORCHESTRATION BRIEF — standing instructions for the whole task, regardless of which model or tool runs you.\n\nAt each decision boundary, evaluate these and ACT on a match without waiting to be told:\n1. DELEGATE / FAN OUT. Start with one agent.\n2. SPEC EVERY SPAWN. Every brief states why.\n3. FRESH-CONTEXT VERIFY, hand it to a separate verifier.\n4. RUN WORKERS WELL. Dispatch without blocking.\n5. NESTED SUBAGENTS, a worker may spawn its own workers.\n6. SURFACE DRIFT, flag it in one line.\n7. CALIBRATE TO CONDITIONS. Size the orchestration to conditions.\n\nDiscipline: trigger-evaluation is mandatory; the ACTION stays calibrated.\n──────────────────────────────────────────────────────────\n```\n",
+      "why": "rails inside a text fence"
+    },
+    {
+      "answer": "```\n──────────────────────────────────────────────────────────\nx\n──────────────────────────────────────────────────────────\n```",
+      "why": "plain fence"
+    },
+    {
+      "answer": "```\n\n──────────────────────────────────────────────────────────\nx\n──────────────────────────────────────────────────────────\n```",
+      "why": "blank line inside the fence"
+    },
+    {
+      "answer": "──────────────────────────────────────────────────────────\n```text\nYou are a spawned worker and did NOT inherit the parent session's context or the repo's conditional rules, these instructions are your only copy.\nORCHESTRATION BRIEF\n\n1. Imperative 1.\n2. Imperative 2.\n3. Imperative 3.\n4. Imperative 4.\n5. Imperative 5.\n6. Imperative 6.\n7. Imperative 7.\n\nDiscipline: trigger-evaluation is mandatory.\n```\n──────────────────────────────────────────────────────────\n",
+      "why": "fence markers inside the rails"
+    },
+    {
+      "answer": "~~~\n──────────────────────────────────────────────────────────\nYou are a spawned worker and did NOT inherit the parent session's context or the repo's conditional rules, these instructions are your only copy.\nORCHESTRATION BRIEF\n\n1. Imperative 1.\n2. Imperative 2.\n3. Imperative 3.\n4. Imperative 4.\n5. Imperative 5.\n6. Imperative 6.\n7. Imperative 7.\n\nDiscipline: trigger-evaluation is mandatory.\n──────────────────────────────────────────────────────────\n~~~\n",
+      "why": "tilde fence"
+    }
+  ]
+}

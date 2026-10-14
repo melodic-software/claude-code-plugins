@@ -1,0 +1,145 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --short"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -5 2>/dev/null"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git stash list"
+          }
+        }
+      ],
+      "why": "read-only git"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "./test.sh >/dev/null 2>&1; echo $?"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n setTimeout src/retry.ts"
+          }
+        }
+      ],
+      "why": "check and search"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --stat && cat src/retry.ts"
+          }
+        }
+      ],
+      "why": "diff and cat"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/1000/2000/' src/retry.ts"
+          }
+        }
+      ],
+      "why": "sed -i"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'x' | tee src/retry.ts"
+          }
+        }
+      ],
+      "why": "tee into a file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat <<'EOF' > src/retry.ts\nexport {}\nEOF"
+          }
+        }
+      ],
+      "why": "redirect into a file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C . commit -am 'feat: backoff'"
+          }
+        }
+      ],
+      "why": "commit with -C"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "perl -pi -e 's/1000/2000/' src/retry.ts"
+          }
+        }
+      ],
+      "why": "perl -pi"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rm .work/handoffs/20261012T153000Z-handoff-retry-backoff.md"
+          }
+        }
+      ],
+      "why": "rm of the handoff"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/retry.ts src/retry.ts"
+          }
+        }
+      ],
+      "why": "cp over the source"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add -A"
+          }
+        }
+      ],
+      "why": "git add stages"
+    }
+  ]
+}

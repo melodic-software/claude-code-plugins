@@ -1,0 +1,130 @@
+{
+  "skill": "session-flow:orchestrate",
+  "plugin": "session-flow",
+  "skill_dir": "plugins/session-flow/skills/orchestrate",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the workflow and show-options routers, planning:plan, the dispatch skill and the multi-agent assess skill.",
+  "competitors": [
+    "session-flow:workflow",
+    "session-flow:show-options",
+    "planning:plan",
+    "implementation:implement-dispatch",
+    "multi-agent:assess"
+  ],
+  "competitor_dirs": {
+    "session-flow:workflow": "plugins/session-flow/skills/workflow",
+    "session-flow:show-options": "plugins/session-flow/skills/show-options",
+    "planning:plan": "plugins/planning/skills/plan",
+    "implementation:implement-dispatch": "plugins/implementation/skills/implement-dispatch",
+    "multi-agent:assess": "plugins/multi-agent/skills/assess"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm about to run a big refactor with lots of subagents. Get this session into orchestrator mode first."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Prime the session for heavy delegation before we start."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a brief I can paste into a worker's prompt so it knows how to behave as a subagent."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We're going to fan this out across a dozen workers. Set the ground rules for how you delegate and verify."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Arm yourself for an orchestration-heavy task: delegate, spec every spawn, verify with fresh context."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write the preamble I should give every subagent I spawn for this migration."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Switch to orchestrator posture; I want you coordinating, not doing everything inline."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Export your delegation rules as a short worker brief."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "This task is huge. Before touching code, adopt the practices for running many agents well."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want you to delegate and spot-check the results from now on, not do it all yourself."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "orchestration brief"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Should this be a workflow or just a couple of subagents?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Split this approved plan into worker tasks and dispatch them."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What skill should I run next?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which workflow stage am I on?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Plan the implementation of this feature."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which model and effort should each agent role use?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Fan the review out across all the reviewer agents."
+    }
+  ]
+}

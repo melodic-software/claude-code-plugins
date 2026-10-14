@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor research discipline; audit and correct the work and pending recommendations, or fan out to verify every session claim. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', 'go research and update your recommendations', 'are these recommendations grounded', 're-check what you recommended', 'fact-check everything', 'verify every claim', 'audit all our claims', 'deep research pass', or at conversation start."
+description: "Re-anchors research discipline: audits and corrects work and pending recommendations, or fans out to verify every session claim. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', 'go research and update your recommendations', 'are these recommendations grounded', 're-check what you recommended', 'fact-check everything', 'verify every claim', 'audit all our claims', 'deep research pass', or at conversation start."
 argument-hint: "[tiered|full]"
 user-invocable: true
 disable-model-invocation: false
@@ -12,9 +12,8 @@ metadata:
 
 # Do your research
 
-A drift corrector for research discipline. The method, re-anchor, audit
-the work in flight, correct forward, report, and the tone that firing this
-is not an accusation, lives in
+A drift corrector for research discipline. The shared method (re-anchor, audit
+the work in flight, correct forward, report) lives in
 [`${CLAUDE_PLUGIN_ROOT}/context/re-anchor-audit-correct.md`](../../context/re-anchor-audit-correct.md).
 Read it; this file adds only what is specific to research discipline.
 
@@ -53,9 +52,8 @@ What clears each dimension resolves down the same ladder as the discipline
 itself: what the consuming project declares wins; failing that, the contract
 `/discovery:research` states as mandatory disciplines, when the `discovery`
 plugin is installed; failing both, the floor below. The floor is this skill's
-own baseline, not a copy of a heavier tier's numbers. It is deliberately
-lighter, because this tier settles one claim mid-conversation rather than
-running a research pass:
+own baseline, deliberately lighter than a research pass's numbers, because it
+settles one claim mid-conversation:
 
 - **Tier**. At least one source fetched THIS turn: the live environment, tool
   output, or the upstream artifact itself. Recall, and a summary of a source
@@ -75,19 +73,16 @@ running a research pass:
 Whichever rung resolves, hold all three dimensions and cite the rung that
 actually applied.
 
-## Two directions. Grounding, and checking what was already said
+## Two directions: grounding, and checking what was already said
 
-This corrector runs in both directions. They share the discipline and fail
-differently, so knowing which one fired tells you what to look for:
-
-- **Preventive**. Grounding a claim BEFORE it is asserted. Fires at the moment
-  of assertion; skipping it ships a wrong claim.
+- **Preventive**. Grounding a claim BEFORE it is asserted. Skipping it ships a
+  wrong claim.
 - **Detective**. Checking claims ALREADY asserted, which is what "fact-check
-  that" asks for. Fires after the fact; skipping it leaves a wrong claim
-  standing while later work builds on it.
+  that" asks for. Skipping it leaves a wrong claim standing while later work
+  builds on it.
 
 Direction is not the tier boundary. DEPTH is. Both directions run in the
-inline audit and in the fan-out tier below; neither tier owns one direction.
+inline audit and in the fan-out tier below.
 
 ## Audit. What to look for
 
@@ -124,8 +119,8 @@ fetches inline. Report each as old → new → why when the evidence moved it,
 or unchanged with why, in one of the contract's three outcomes:
 `Basis: verified`, `Basis: judgment` (never on a consequential one), or
 withheld as an open question naming the evidence that would settle it.
-This runs inside the
-loop's audit and correct-forward steps, so it is not a step delta.
+This runs inside the loop's audit and correct-forward steps, so it is not a
+step delta.
 
 ## The fan-out tier
 
@@ -158,13 +153,10 @@ Then read [reference/fan-out-tier.md](reference/fan-out-tier.md) before
 enumerating: it owns the typed inventory, the throttled dispatch, and the
 per-item ledger, and replaces the inline audit and correct-forward steps.
 
-## What this skill does NOT do
+## Out of scope
 
-- **Not about code cleanliness.** Clean-implementation and comment
-  verbosity are out of scope, a simplification or comment-hygiene tool
-  fits those.
-- **Does not fabricate a citation or a violation.** An honest "nothing to
-  correct" or "this stays unverified" is the right output when true.
+Clean-implementation and comment verbosity; a simplification or
+comment-hygiene tool fits those.
 
 ## Next
 

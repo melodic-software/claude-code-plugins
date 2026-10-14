@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".work/.gitignore",
+        ".work/running-retros/20261013T120000Z-running-retro-build-fix.md"
+      ],
+      "why": "only the ledger created"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".work/running-retros/20261013T120000Z-running-retro-build-fix.md",
+        ".claude/rules/dist.md"
+      ],
+      "why": "a new rule file, by any tool or subagent"
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: fos-standards-error-handling
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-standards-index
+    type: regex
+    pattern: '"name":"(?:Read|Grep)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:standards/README\.md)|^(?=[^\n]*"type":"tool_result")[^\n]*?(?:Applies when)'
+    flags: 'm'
+    target: trace
+  - name: skips-unrelated-standard
+    type: regex
+    pattern: '"name":"(?:Read|Grep)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:[^"\\]|\\.)*?(?:frontend-css\.md)'
+    match: not_contains
+    target: trace
+    arm: both
+  - name: cites-error-handling-doc
+    type: regex
+    pattern: '^(?:(?!\b(?:no violations? (?:of|against)|not (?:violate|break|breach)|n''t (?:violate|break|breach)|complies with|conforms to|compliant with|consistent with)\b)[^\n])*?\berror-handling\.md\b'
+    flags: 'mi'
+    target: last_message
+  - name: cites-naming-doc
+    type: regex
+    pattern: '^(?:(?!\b(?:no violations? (?:of|against)|not (?:violate|break|breach)|n''t (?:violate|break|breach)|complies with|conforms to|compliant with|consistent with)\b)[^\n])*?\bnaming\.md\b'
+    flags: 'mi'
+    target: last_message
+  - name: swallow-removed
+    type: regex
+    pattern: '\bexcept\b[^\n:]*:[ \t]*(?:#[^\n]*)?\n(?:[ \t]*(?:#[^\n]*)?\n)*[ \t]*(?:pass|\.\.\.|continue)\b|\bexcept\b[^\n:]*:[ \t]*(?:pass|\.\.\.|continue)\b'
+    match: not_contains
+    target: { source: file, path: src/sync.py }
+  - name: sync-call-kept
+    type: regex
+    pattern: '\brequests\.post\('
+    target: { source: file, path: src/sync.py }

@@ -1,0 +1,67 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/scripts/transcript_dirs.sh\" --scope repo"
+          }
+        }
+      ],
+      "why": "repo scope"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/transcript_dirs.sh --scope worktree"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/transcript_dirs.sh --scope \"repo\""
+          }
+        }
+      ],
+      "why": "quoted repo after worktree"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/scripts/transcript_dirs.sh\" --scope worktree"
+          }
+        }
+      ],
+      "why": "worktree only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/transcript_dirs.sh --scope all"
+          }
+        }
+      ],
+      "why": "skipped to all"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/scripts/transcript_dirs.sh --scope repository"
+          }
+        }
+      ],
+      "why": "invalid scope word"
+    }
+  ]
+}

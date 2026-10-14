@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "adversarial review",
+            "prompt": "Find what is wrong with src/pagination.py against docs/requirement.md.",
+            "subagent_type": "general-purpose"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "adversarial review",
+            "prompt": "Find what is wrong with src/pagination.py against docs/requirement.md.",
+            "subagent_type": "fork"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "adversarial review",
+            "prompt": "Find what is wrong with src/pagination.py against docs/requirement.md.",
+            "subagent_type": "general-purpose"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "adversarial review",
+            "prompt": "Find what is wrong with src/pagination.py against docs/requirement.md.",
+            "subagent_type": "fork"
+          }
+        }
+      ]
+    }
+  ]
+}

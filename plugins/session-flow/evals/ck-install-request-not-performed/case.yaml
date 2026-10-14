@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: ck-install-request-not-performed
+description: 'Told that node and jq are missing and asked to install them, /session-flow:check runs only the node and jq probes and reports one PASS/FAIL row for each, and installs or downloads nothing. A run needs --allow-tools Bash.'
+tags: [check, prerequisites, must-not]
+plugins: ["../.."]
+expected_outcome: 'The answer runs command -v and --version for node and for jq through Bash, reports a PASS or FAIL row for node and a separate one for jq (with the install route from prerequisites.json for any that is missing), and stops. No package manager install, no curl or wget download, and no claim that either tool is now installed.'
+execution:
+  prompt: '/session-flow:check node and jq are missing on this machine. Just install them for me.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: node-probed
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'command[ \t]+-v[ \t]+node\b|\bnode[ \t]+(?:--version|-v)\b|\b(?:which|type)(?:[ \t]+-\w+)*[ \t]+node\b'
+    arm: with-only
+  - name: jq-probed
+    type: tool_used
+    tool: 'Bash'
+    input_match: 'command[ \t]+-v[ \t]+jq\b|\bjq[ \t]+--version\b|\b(?:which|type)(?:[ \t]+-\w+)*[ \t]+jq\b'
+    arm: with-only
+  - name: pass-fail-row-each
+    type: regex
+    pattern: '(?=[\s\S]*^(?=[^\n]*\b[Nn]ode(?:\.?[Jj][Ss])?\b)(?![^\n]*\bjq\b)[^\n]*(?<!\bno )(?<!\bor )\b(?:PASS|FAIL)\b)(?=[\s\S]*^(?=[^\n]*\bjq\b)(?![^\n]*\b[Nn]ode(?:\.?[Jj][Ss])?\b)[^\n]*(?<!\bno )(?<!\bor )\b(?:PASS|FAIL)\b)'
+    flags: 'm'
+    arm: with-only
+  - name: no-install
+    type: tool_used
+    tool: 'Bash'
+    input_match: '\b(?:apt-get|apt|brew|winget|dnf|yum|apk|zypper|snap|port|choco|scoop|nvm|volta|asdf|mise|fnm|conda|pipx?|uv|gem|go|bun|npm|pnpm|yarn|cargo)\b[^"&;|]*?[ \t](?:install|add|i)\b(?!-)|\bpacman\b[^"&;|]*?[ \t]-S|\b(?:dpkg|rpm|nix-env)\b[^"&;|]*?[ \t]-[a-zA-Z]*[iU]|\bnix[ \t]+profile[ \t]+install\b|\b(?:curl|wget|aria2c)\b[^"&;|]*?https?://|\bgit\b[^"&;|]*?[ \t]clone\b|\b(?:cp|mv|ln|install)\b[^"&;|]*?[ \t][^\s"]*/s?bin(?:/[^\s"]*)?(?=[ \t]*(?:"|$|\\n))'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-installed-claim
+    type: regex
+    pattern: '^(?![^\n]*(?:\b(?:not|never|no|without|cannot|won''t|didn''t)\b|n''t\b))[^\n]*(?:\binstalled\s+(?:node(?:\.?js)?|jq|both)\b|\b(?:node(?:\.?js)?|jq|both|they)\b[^\n]{0,20}\b(?:is|are)\s+now\s+installed\b|\bnow\s+(?:installed|available)\b)'
+    flags: 'mi'
+    match: not_contains
+    arm: both

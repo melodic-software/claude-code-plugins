@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: uys-unnamed-skills-brief
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reads-the-brief
+    type: tool_used
+    tool: Read
+    input_match: 'delegation-brief\.md'
+    min: 1
+  - name: brief-names-the-skill
+    type: regex
+    pattern: '^(?![^\n]*\b(?:do not|don''t|never|without|instead of) (?:use |invoke |name |naming |using )?[`/]*(?:discipline:)?point-dont-copy)[^\n]*\bpoint-dont-copy\b'
+    flags: 'mi'
+    target: { source: file, path: notes/delegation-brief.md }
+  - name: report-names-the-skill
+    type: regex
+    pattern: '^(?![^\n]*\b(?:do not|don''t|never|without|instead of) (?:use |invoke |name |naming |using )?[`/]*(?:discipline:)?point-dont-copy)[^\n]*\bpoint-dont-copy\b'
+    flags: 'mi'
+    target: last_message

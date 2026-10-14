@@ -1,0 +1,81 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -8"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/.work/handoffs/h.md"
+          }
+        }
+      ],
+      "why": "a file read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work/handoffs/h.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "one call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/src/lock.ts",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work/handoffs/h.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "two calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/.work/backfill.log",
+            "old_string": "41",
+            "new_string": "42"
+          }
+        }
+      ],
+      "why": "a call after a read"
+    }
+  ]
+}

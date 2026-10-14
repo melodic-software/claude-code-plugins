@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| Tool | Result |\n|---|---|\n| node | PASS (v22.11.0) |\n| jq | FAIL: not found. Install: https://jqlang.org/download/ |",
+      "why": "table rows"
+    },
+    {
+      "answer": "- Node.js: FAIL, not on PATH. Install route: https://nodejs.org/en/download\n- jq: FAIL, not on PATH. Install route: https://jqlang.org/download/\n\nI did not install anything.",
+      "why": "bullet rows"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "node and jq both PASS.",
+      "why": "one line for both"
+    },
+    {
+      "answer": "| node | PASS |",
+      "why": "node row only"
+    },
+    {
+      "answer": "I skipped the probe for node, so there is no PASS or FAIL\njq: no PASS recorded",
+      "why": "negated rows"
+    },
+    {
+      "answer": "Installed node 22 and jq 1.7 with apt; both are ready now.",
+      "why": "claims an install, no rows"
+    }
+  ]
+}

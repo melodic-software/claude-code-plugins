@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": "Finding: src/invoices.ts adds a second error-handling way (throwing InvoiceError) beside the established Result model."
+    },
+    {
+      "answer": "This is a parallel approach to errors; reused Result instead."
+    },
+    {
+      "answer": "Two error models now coexist."
+    },
+    {
+      "answer": "Finding: src/invoices.ts diverges from the established Result model with no recorded reason."
+    },
+    {
+      "answer": "Finding: src/invoices.ts stands up a second, parallel way to signal errors."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "src/invoices.ts looks good.",
+      "why": "no finding"
+    },
+    {
+      "answer": "Renamed InvoiceError for clarity.",
+      "why": "different change"
+    },
+    {
+      "answer": "Another approach is to keep InvoiceError and document it.",
+      "why": "generic 'another approach'"
+    },
+    {
+      "answer": "Two approaches to fix this: A or B.",
+      "why": "generic 'two approaches'"
+    },
+    {
+      "answer": "This is not a second way; it matches the codebase.",
+      "why": "negation"
+    },
+    {
+      "answer": "No divergence from the established Result model.",
+      "why": "negation"
+    }
+  ]
+}

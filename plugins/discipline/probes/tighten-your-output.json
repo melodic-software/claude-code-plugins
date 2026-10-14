@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:tighten-your-output",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/tighten-your-output",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the writing conciseness skill, the markdown compress skill, the ADHD output-shape skill, the comment dissolver and the mind-your-maxims sibling.",
+  "competitors": [
+    "writing:be-concise",
+    "docs-hygiene:compress",
+    "adhd:shape",
+    "code-tidying:dissolve-comments",
+    "discipline:mind-your-maxims"
+  ],
+  "competitor_dirs": {
+    "writing:be-concise": "plugins/writing/skills/be-concise",
+    "docs-hygiene:compress": "plugins/docs-hygiene/skills/compress",
+    "adhd:shape": "plugins/adhd/skills/shape",
+    "code-tidying:dissolve-comments": "plugins/code-tidying/skills/dissolve-comments",
+    "discipline:mind-your-maxims": "plugins/discipline/skills/mind-your-maxims"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "That reply was bloated. Say it in half the words."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Cut the wordiness out of what you've been producing."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This function is longer than it needs to be; write it in a simpler form."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Too verbose. Trim it without losing anything meaningful."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Keep your responses lean from here on."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make your answers more concise and your code shorter where it stays readable."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "You are padding everything. Tighten the last three messages."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is there a smaller way to write this script? Same behavior, fewer lines."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Review your own output for unnecessary words and fix them."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "These docs you wrote ramble. Compress them."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Rewrite this ticket so a busy product owner can scan it with the bottom line first."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Compress the onboarding.md file while keeping every rule intact."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Switch to action-first output with numbered steps for the rest of the session."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Remove the comments that merely restate the code."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Shorten the PR description for reviewers."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run a markdown compression pass on the docs folder."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Lead each answer with the next action and cap lists."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Strip the zero-information comments from this file."
+    }
+  ]
+}

@@ -854,7 +854,11 @@ function validateAdmissionStructure(admission) {
     findings.push("admission: must be an object");
     return;
   }
-  checkAllowedKeys(admission, ["classification", "rules", "autonomous_concurrency", "items_per_run"], "admission");
+  checkAllowedKeys(
+    admission,
+    ["classification", "rules", "autonomous_concurrency", "items_per_run", "rule_admission"],
+    "admission",
+  );
   for (const key of ["classification", "rules", "autonomous_concurrency", "items_per_run"]) {
     if (!Object.hasOwn(admission, key)) findings.push(`admission.${key}: required key missing`);
   }
@@ -912,6 +916,46 @@ function validateAdmissionStructure(admission) {
       findings.push(`admission.${cap}: must be an integer >= 1`);
     }
   }
+
+  if (Object.hasOwn(admission, "rule_admission")) validateRuleAdmission(admission.rule_admission);
+}
+
+// Owner-written rules that admit an issue to C1 or C2 from the intake-triage
+// lane's proposed class (admission-policy leaf, "Rule admission"). Only C1 and
+// C2 may be rule-admitted, and one proposed class names one rule, so an issue
+// never matches two.
+function validateRuleAdmission(rules) {
+  if (!Array.isArray(rules)) {
+    findings.push("admission.rule_admission: must be an array of rule-admission entries");
+    return;
+  }
+  const ids = new Set();
+  const proposed = new Set();
+  rules.forEach((rule, index) => {
+    const where = `admission.rule_admission[${index}]`;
+    if (!isPlainObject(rule)) {
+      findings.push(`${where}: must be an object`);
+      return;
+    }
+    checkAllowedKeys(rule, ["id", "work_class", "proposed_class"], where);
+    if (typeof rule.id !== "string" || !/^R[1-9][0-9]*$/.test(rule.id)) {
+      findings.push(`${where}.id: must match R<n> (R1, R2, ...)`);
+    } else if (ids.has(rule.id)) {
+      findings.push(`${where}.id: duplicate rule id ${JSON.stringify(rule.id)}`);
+    } else {
+      ids.add(rule.id);
+    }
+    checkEnum(rule.work_class, ["C1", "C2"], `${where}.work_class`);
+    if (typeof rule.proposed_class !== "string" || !/^work-class: [a-z0-9-]+$/.test(rule.proposed_class)) {
+      findings.push(`${where}.proposed_class: must be a "work-class: <name>" label`);
+    } else if (proposed.has(rule.proposed_class)) {
+      findings.push(
+        `${where}.proposed_class: ${JSON.stringify(rule.proposed_class)} is already bound by another rule; one proposed class maps to one rule`,
+      );
+    } else {
+      proposed.add(rule.proposed_class);
+    }
+  });
 }
 
 // The TEMPORAL home is keyed by ROUTINE IDENTITY, and every entry must be the
@@ -2149,8 +2193,57 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   if (isPlainObject(binding.admission) && Array.isArray(binding.admission.rules)) {
     checkAdmissionSemantics(binding.admission.rules);
   }
+  if (isPlainObject(binding.admission) && Array.isArray(binding.admission.rule_admission)) {
+    checkRuleAdmissionGate(binding.admission, autonomous);
+  }
 
   return verdicts;
+}
+
+// A rule admits past neither the posture nor the decision table. A
+// rule-admitted issue is a tracker-vcs-event whose provenance cannot be
+// trusted (an agent files issues under the operator's token), so its class
+// must be autonomous-eligible for every provenance.
+function checkRuleAdmissionGate(admission, autonomous) {
+  if (admission.rule_admission.length === 0) return;
+  if (!autonomous) {
+    findings.push(
+      "admission.rule_admission: dispatch_posture human-gated-only gates every dispatch, so no rule may admit; remove rule_admission or declare autonomous-enabled",
+    );
+    return;
+  }
+  const rules = Array.isArray(admission.rules) ? admission.rules : [];
+  admission.rule_admission.forEach((rule, index) => {
+    if (!isPlainObject(rule) || !["C1", "C2"].includes(rule.work_class)) return;
+    const gated = PROVENANCES.map((provenance) => [
+      provenance,
+      resolveDisposition(rules, "tracker-vcs-event", provenance, rule.work_class),
+    ]).filter(([, disposition]) => disposition !== "autonomous-eligible");
+    if (gated.length > 0) {
+      findings.push(
+        `admission.rule_admission[${index}]: work_class ${rule.work_class} resolves to ${gated.map(([p, d]) => `${d} for provenance ${p}`).join(", ")} on tracker-vcs-event in admission.rules; a rule cannot admit what the decision table gates`,
+      );
+    }
+  });
+}
+
+// Most-specific-wins over the decision table; no match is human-gated, and a
+// tie with different dispositions is "ambiguous".
+function resolveDisposition(rules, signalClass, provenance, workClass) {
+  const bound = (rule) => [rule.signal_class, rule.provenance, rule.work_class].filter((axis) => axis !== "*").length;
+  const matching = rules.filter(
+    (rule) =>
+      isPlainObject(rule) &&
+      [
+        [rule.signal_class, signalClass],
+        [rule.provenance, provenance],
+        [rule.work_class, workClass],
+      ].every(([axis, value]) => axis === "*" || axis === value),
+  );
+  if (matching.length === 0) return "human-gated";
+  const top = Math.max(...matching.map(bound));
+  const dispositions = new Set(matching.filter((rule) => bound(rule) === top).map((rule) => rule.disposition));
+  return dispositions.size === 1 ? [...dispositions][0] : "ambiguous";
 }
 
 function checkAdmissionSemantics(rules) {

@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "1. `start = page * size` treats page as 0-based; the requirement says 1-based, so page 1 skips the first page."
+    },
+    {
+      "answer": "Off-by-one: use `(page - 1) * size`."
+    },
+    {
+      "answer": "Page numbering is one-based per docs/requirement.md."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The paging math is correct.",
+      "why": "coasted"
+    },
+    {
+      "answer": "Looks good to merge.",
+      "why": "no finding"
+    }
+  ]
+}

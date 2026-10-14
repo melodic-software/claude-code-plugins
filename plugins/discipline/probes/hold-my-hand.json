@@ -1,0 +1,130 @@
+{
+  "skill": "discipline:hold-my-hand",
+  "plugin": "discipline",
+  "skill_dir": "plugins/discipline/skills/hold-my-hand",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the ADHD output-posture and message-clarify skills, the human-run wizard script generator, the workflow stage navigator and the planning skill.",
+  "competitors": [
+    "adhd:shape",
+    "adhd:clarify",
+    "wizard:generate",
+    "session-flow:workflow",
+    "planning:plan"
+  ],
+  "competitor_dirs": {
+    "adhd:shape": "plugins/adhd/skills/shape",
+    "adhd:clarify": "plugins/adhd/skills/clarify",
+    "wizard:generate": "plugins/wizard/skills/generate",
+    "session-flow:workflow": "plugins/session-flow/skills/workflow",
+    "planning:plan": "plugins/planning/skills/plan"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I've never set up a TLS cert before. Take it in small pieces and pause for me between them."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Hold my hand through the database migration, please."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Walk me through the release, keeping later steps hidden until I report this one finished."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Guide me through configuring the VPN exactly, with what I should see after each step."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I get overwhelmed by long lists. Give me just the first thing to do and tell me what to type back when it's finished."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Please take me through the whole OAuth setup in separate phases, pausing after each."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Break this install into phases and only show me the current one."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Tell me the exact steps for the current stage and what output to expect, nothing beyond that."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Handle this as a guided process; I'll reply 'next' when ready."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Step me through the Azure deploy without spoiling the later parts."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make every response action-first with a numbered list and no preamble from now on."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "That last message was a wall of text. Can you restructure it so I can decide?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write me a bash script that prompts me through creating the Cloudflare tokens."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What is the next workflow stage after review?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me the full list of all eight steps up front so I can plan my afternoon."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Cut the closers and recaps from your replies for the rest of the session."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Generate an interactive wizard script I can run in my terminal to set the secrets."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Produce an implementation plan with test strategy for this feature."
+    }
+  ]
+}

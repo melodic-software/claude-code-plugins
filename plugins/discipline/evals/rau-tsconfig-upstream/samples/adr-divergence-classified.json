@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "`strict: false`: deliberate divergence (ADR 0003). The rationale still holds: src/legacy/ exists."
+    },
+    {
+      "answer": "Deliberate: strict off per ADR-0003; not changed."
+    },
+    {
+      "answer": "| strict | false | deliberate (docs/adr/0003) |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Gap: strict is false; turned it on.",
+      "why": "corrected a recorded divergence"
+    },
+    {
+      "answer": "strict should be true per the docs.",
+      "why": "no classification"
+    },
+    {
+      "answer": "strict: false is not deliberate; no ADR covers it. Gap.",
+      "why": "negation"
+    },
+    {
+      "answer": "strict: gap, turned on.\nuseDefineForClassFields: looks intentional but undocumented.",
+      "why": "intentional belongs to another setting"
+    }
+  ]
+}

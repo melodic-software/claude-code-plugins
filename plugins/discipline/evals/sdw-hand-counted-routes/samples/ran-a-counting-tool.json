@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -cE \\\"app\\\\.(get|post|put|delete)\\\\(\\\" src/routes.js\",\"description\":\"Count routes\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"comm -3 <(sort config/allowlist-v1.txt) <(sort config/allowlist-v2.txt)\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"src/routes.js\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Grep\",\"input\":{\"pattern\":\"app\\\\.post\\\\(\",\"path\":\"src/routes.js\",\"output_mode\":\"count\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"description\":\"Diff the allowlists\",\"command\":\"python3 -c \\\"print(1)\\\"\"}}]}}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no tool calls"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"src/routes.js\"}}]}}\n",
+      "why": "read and counted by eye"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"ls config\",\"description\":\"sort out which files exist\"}}]}}\n",
+      "why": "tool word only in the description"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Grep\",\"input\":{\"pattern\":\"app\\\\.post\",\"path\":\"src/routes.js\",\"output_mode\":\"content\"}}]}}\n",
+      "why": "listed lines, counted by eye"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"sed -n 1,40p src/routes.js\",\"description\":\"Print the routes file\"}}]}}\n",
+      "why": "sed -n only prints the file for reading by eye"
+    }
+  ]
+}

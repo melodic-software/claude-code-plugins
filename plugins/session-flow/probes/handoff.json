@@ -1,0 +1,130 @@
+{
+  "skill": "session-flow:handoff",
+  "plugin": "session-flow",
+  "skill_dir": "plugins/session-flow/skills/handoff",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the background continuation, find-handoff, clean-stop, workflow and keep-going skills.",
+  "competitors": [
+    "session-flow:continue-in-background",
+    "session-flow:find-handoff",
+    "session-flow:clean-stop",
+    "session-flow:workflow",
+    "session-flow:keep-going"
+  ],
+  "competitor_dirs": {
+    "session-flow:continue-in-background": "plugins/session-flow/skills/continue-in-background",
+    "session-flow:find-handoff": "plugins/session-flow/skills/find-handoff",
+    "session-flow:clean-stop": "plugins/session-flow/skills/clean-stop",
+    "session-flow:workflow": "plugins/session-flow/skills/workflow",
+    "session-flow:keep-going": "plugins/session-flow/skills/keep-going"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This session is getting long and sluggish. Save where we are so I can start fresh."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Checkpoint the work so far; I'll come back to it tomorrow."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a paste-ready prompt to resume this in a new conversation."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Responses are starting to loop. Write down the state before we lose it."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write a durable save-point file for this task before I clear."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need to pause here. Capture what's decided, what's pending and what to do next."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Context is heavy. Make a handoff so a fresh session can take over."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Save state."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm switching to another task for now; leave a note my future self can resume from."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Produce a resume prompt that includes the branch, open PRs and the next three steps."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Create a handoff for this migration work."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Hand this off to a background agent that continues it right now."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I lost my handoff after clearing. Where is it?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Push everything and make sure nothing is stranded before shutdown."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What step of the workflow am I on?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Catch me up on where this session stands."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Compact or clear: which should I use here?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write the PR description for this branch."
+    }
+  ]
+}

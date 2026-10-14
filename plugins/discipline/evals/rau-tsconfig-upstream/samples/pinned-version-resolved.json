@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "Compared against the TypeScript 5.4 docs (package.json pins 5.4.5)."
+    },
+    {
+      "answer": "Pinned: typescript `5.4.5`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Compared against the latest TypeScript docs.",
+      "why": "no pinned version"
+    }
+  ]
+}

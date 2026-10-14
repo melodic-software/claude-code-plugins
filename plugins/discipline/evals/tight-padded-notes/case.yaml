@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: tight-padded-notes
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: notes-rules-kept
+    type: regex
+    pattern: '(?=[\s\S]*(?:\b(?:never|not)\b[^.]{0,40}\bFridays?\b|\bFridays?\b[^.]{0,20}\b(?:never|no|not)\b))(?=[\s\S]*(?:\bat least|\bminimum of|\bno fewer than|>=|≥)\s*(?:3|three)\s+replicas)(?=[\s\S]*\bafter\b[^.]{0,40}\bbackup)'
+    flags: 'i'
+    target: { source: file, path: docs/deploy-notes.md }
+  - name: notes-filler-cut
+    type: regex
+    pattern: '\bit is (?:worth noting|important to note)\b|\bas previously mentioned\b|\bbasically\b|\bin order to\b'
+    flags: 'i'
+    match: not_contains
+    target: { source: file, path: docs/deploy-notes.md }
+  - name: code-unused-param-cut
+    type: regex
+    pattern: '\blegacy_mode\b'
+    match: not_contains
+    target: { source: file, path: src/util.py }
+  - name: code-dead-branch-cut
+    type: regex
+    pattern: '\belse[ \t]*:[ \t]*(?:#[^\n]*)?\n(?:[ \t]*(?:#[^\n]*)?\n)*[ \t]*(?:pass|\.\.\.)\b|\belse[ \t]*:[ \t]*(?:pass|\.\.\.)\b'
+    match: not_contains
+    target: { source: file, path: src/util.py }
+  - name: code-boundary-check-kept
+    type: regex
+    pattern: '\braise[ \t]+TypeError\b'
+    target: { source: file, path: src/util.py }

@@ -5,6 +5,16 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.20.0] - 2026-10-14
+
+### Added
+
+- Fifteen outcome eval cases under `evals/`, one per model-invoked skill plus `wait-what`, and frozen trigger-probe sets for the fourteen model-invoked skills under `probes/`.
+
+### Changed
+
+- Tighter bodies for the fourteen model-invoked skills (twelve correctors, `hold-my-hand` and `sweep-all`), and descriptions reworded to third person except for `mind-your-maxims`, `scrutinize-dont-coast` and `script-the-deterministic-work`, which keep theirs. Every gate, route, stop and report line stays. `setup` and `wait-what` are unchanged.
+
 ## [0.19.0] - 2026-10-13
 
 ### Added

@@ -1,0 +1,51 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/skills/*/SKILL.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "audit fork",
+            "prompt": "audit",
+            "subagent_type": "fork"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "canary",
+            "prompt": "canary",
+            "subagent_type": "fork"
+          }
+        },
+        {
+          "tool": "Agent",
+          "input": {
+            "description": "canary",
+            "prompt": "canary",
+            "subagent_type": "fork"
+          }
+        }
+      ]
+    }
+  ]
+}

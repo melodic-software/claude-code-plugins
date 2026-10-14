@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# Project instructions\n\nBuild with `npm run build`; it writes dist/ from src/.\n",
+      "why": "the scaffolded file"
+    },
+    {
+      "answer": "# Project instructions\n\nBuild with `npm run build`; it writes dist/ from src/.\n",
+      "why": "read back after the run, unchanged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Project instructions\n\nBuild with `npm run build`; it writes dist/ from src/.\n\n- Never edit dist/; edit src/ and rebuild.\n",
+      "why": "learning appended"
+    },
+    {
+      "answer": "# Project instructions\n\n- Never edit dist/ by hand.\n\nBuild with `npm run build`; it writes dist/ from src/.\n",
+      "why": "learning inserted"
+    },
+    {
+      "answer": "Never edit dist/; edit src/ and rebuild.\n",
+      "why": "overwritten"
+    },
+    {
+      "answer": "",
+      "why": "emptied"
+    }
+  ]
+}

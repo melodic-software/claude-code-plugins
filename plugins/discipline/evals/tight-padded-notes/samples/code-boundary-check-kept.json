@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "def normalize_names(names):\n    \"\"\"Return the names stripped and lower-cased, skipping blanks.\"\"\"\n    if not isinstance(names, list):\n        raise TypeError(\"names must be a list\")\n    return [cleaned for name in names if (cleaned := name.strip().lower())]\n"
+    },
+    {
+      "answer": "def normalize_names(names, legacy_mode=False):\n    if not isinstance(names, list):\n        raise TypeError(\"names must be a list\")\n    result = []\n    for name in names:\n        cleaned = name.strip().lower()\n        if cleaned != \"\":\n            result.append(cleaned)\n        else:\n            pass\n    return result\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def normalize_names(names):\n    return [n.strip().lower() for n in names if n.strip()]\n",
+      "why": "boundary check cut for brevity"
+    },
+    {
+      "answer": "",
+      "why": "file emptied"
+    }
+  ]
+}

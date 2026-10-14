@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Found one candidate:\n- Path: `.work/handoffs/20261012T153000Z-handoff-billing-retry.md`\n- Topic: billing-retry, 2026-10-12",
+      "why": "repo-relative path"
+    },
+    {
+      "answer": "Path: /tmp/<user>/w/.work/handoffs/20261012T153000Z-handoff-billing-retry.md\nResume this one? (yes/no)",
+      "why": "absolute path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Found your billing-retry handoff from 2026-10-12. Resume it? (yes/no)",
+      "why": "no path"
+    },
+    {
+      "answer": "Path: .work/handoffs/<TS>-handoff-billing-retry.md",
+      "why": "template placeholder"
+    },
+    {
+      "answer": "No handoff found under .work/handoffs/.",
+      "why": "miss"
+    }
+  ]
+}

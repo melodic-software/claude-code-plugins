@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --all --no-ext-diff --regexp-ignore-case --fixed-strings --grep='rate limiter' --format='%h %ad %s' --date=short"
+          }
+        }
+      ],
+      "why": "term search"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w log --all --grep='This reverts commit' --format='%h %s%n%b'"
+          }
+        }
+      ],
+      "why": "git -C log"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        }
+      ],
+      "why": "status only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git show HEAD"
+          }
+        }
+      ],
+      "why": "show only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr list --state closed --search limiter"
+          }
+        }
+      ],
+      "why": "gh only"
+    }
+  ]
+}

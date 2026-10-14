@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Searched this worktree (1 directory, 0 transcripts) and the repository's other worktrees: no match for pagination cursor.\n\nShould I search other projects' transcripts too? That reads every project on this machine.",
+      "why": "asks after repo scope"
+    },
+    {
+      "answer": "Nothing in this repository. Do you want me to widen to all projects on the machine (--scope all)?",
+      "why": "all projects"
+    },
+    {
+      "answer": "No match in this worktree or the repository's other worktrees. The next step, --scope all, reads other projects' transcripts.\n\nWant me to run it?",
+      "why": "mention then a separate ask line"
+    },
+    {
+      "answer": "Nothing found at --scope repo. Should I widen to --scope all?",
+      "why": "scope all named in the question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I searched every project on the machine and found nothing. Want me to look anywhere else?",
+      "why": "widened without asking"
+    },
+    {
+      "answer": "Nothing found in this repository for pagination cursor.",
+      "why": "no offer"
+    },
+    {
+      "answer": "I can also search other projects' transcripts if you want.",
+      "why": "statement, no question"
+    },
+    {
+      "answer": "Shall I proceed?",
+      "why": "bare question"
+    },
+    {
+      "answer": "Should I search other projects? I already searched all projects and found nothing.",
+      "why": "asked after searching"
+    },
+    {
+      "answer": "Other projects' transcripts were not read.\nAnything else?",
+      "why": "mention then an unrelated question"
+    }
+  ]
+}

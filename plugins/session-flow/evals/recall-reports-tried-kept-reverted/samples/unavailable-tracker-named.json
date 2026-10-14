@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Pull requests: not searched, no GitHub remote. Tracker: not searched, /work-items:track not available.",
+      "why": "both sources named on one line"
+    },
+    {
+      "answer": "- gh: could not list closed pull requests (no GitHub remote)\n- Tracker: skipped",
+      "why": "tracker on its own line"
+    },
+    {
+      "answer": "- Work items: /work-items:track is unavailable in this session.",
+      "why": "work items with the skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "gh: unavailable",
+      "why": "only the pull-request outcome"
+    },
+    {
+      "answer": "Pull requests: not searched, no GitHub remote.\n\n**Still open**\n- none",
+      "why": "tracker silently skipped"
+    },
+    {
+      "answer": "Pull requests: skipped. Tracker: 2 open items, listed below.",
+      "why": "the outcome belongs to the pull-request sentence"
+    },
+    {
+      "answer": "Searched the tracker and found 2 open items.",
+      "why": "tracker searched, no unavailable outcome"
+    }
+  ]
+}
