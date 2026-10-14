@@ -105,9 +105,13 @@ say(skill.with?.allowed_bots === "${{ inputs.dispatcher-run-id != '' && 'github-
 say(/--setting-sources user/.test(args) && /--permission-mode dontAsk/.test(args) && !/bypass/i.test(args),
   "the skill loads user settings only, under dontAsk");
 const stage = readFileSync(".github/actions/collect-base-activity/action.yml", "utf8");
+// The one exception: an activity's `checks`, each a read-only base-copy wrapper
+// the skill may run with no arguments.
 const allowedLines = stage.split("\n").filter((l) => /allowed="\$allowed|allowed="Skill/.test(l));
-say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l)),
-  "the runner grants the skill no Bash (only the skill's own allowed-tools can)");
+say(allowedLines.length > 0 && allowedLines.every((l) => !/Bash/.test(l) || l.trim() === 'allowed="$allowed,Bash($wrapper)"'),
+  "the runner grants the skill no Bash but its check wrappers (only the skill's own allowed-tools can)");
+say(/chmod -R a-w "\$CHECKS_DIR"/.test(stage) && /disallowed="\$disallowed,Edit\(\/\$CHECKS_DIR\/\*\*\),Write\(\/\$CHECKS_DIR\/\*\*\)"/.test(stage),
+  "the check wrappers and their base copy are read-only to the skill");
 
 // The report-escalation script reads the base's tracker config.
 const tracker = at((s) => s.id === "tracker-config");

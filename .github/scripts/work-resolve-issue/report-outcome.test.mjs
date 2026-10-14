@@ -149,7 +149,8 @@ test("the model's text is cut to the length caps after escaping", () => {
   assert.ok(!/&l?t?$|&lt$/m.test(plan.body.split("## Fix")[0].trim()), "no half-cut entity");
 });
 
-// CommonMark decodes `&commat;` to `@` and `&num;` to `#`; GitHub links GH-12.
+// CommonMark decodes `&commat;` to `@` and `&num;` to `#`, and GitHub links a
+// `GH-` prefix followed by an issue number.
 test("entities, GH- references and link definitions in model text stay inert", () => {
   const plan = decideDone({
     outcome: { ...done, summary: "&commat;octocat Closes &num;12, fixes GH-13\n[x]: https://evil \"hidden\"" },
