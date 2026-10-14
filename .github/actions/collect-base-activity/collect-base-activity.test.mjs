@@ -227,7 +227,7 @@ test("web-access with a domain list allows a fetch to those domains only", () =>
   assert.ok(allowed.includes("WebSearch"), allowed.join(" | "));
 });
 
-for (const domains of [["code.claude.com,WebFetch"], ["evil.com)"], ["*"], ["any"], ["a b.com"], [], "all"]) {
+for (const domains of [["code.claude.com,WebFetch"], ["evil.com)"], ["*"], ["any"], ["=any"], [""], ["a b.com"], [], "all"]) {
   test(`web-access with malformed domains fails red: ${JSON.stringify(domains)}`, () => {
     const { status, stdout, args } = withWebAccess({ enabled: true, domains });
     assert.notEqual(status, 0);

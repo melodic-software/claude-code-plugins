@@ -191,7 +191,7 @@ Each leaf declares:
   a list of host names (`*.` allowed as a prefix). When on, a skill with an effect other than
   `read` may search the web, fetch those domains, and run the research skills
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). An activity that turns it on must
-  set `reads-untrusted: true`.
+  set `reads-untrusted: true` and an effect other than `read`.
 - `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
   runner derives ordering from it, takes the token grant from
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a

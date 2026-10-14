@@ -78,6 +78,11 @@ for (const domains of ["all", [], ["*"], ["any"], ["code.claude.com,x"], ["Code.
   });
 }
 
+// Only the write runner grants the web, so a read skill cannot ask for it.
+test("web-access on with effect read fails the schema", () => {
+  rejected({ effect: "read", "reads-untrusted": true, "web-access": { enabled: true, domains: "any" } });
+});
+
 test("web-access with an unknown key fails the schema", () => {
   rejected({ "reads-untrusted": true, "web-access": { enabled: true, domains: "any", bash: true } });
 });

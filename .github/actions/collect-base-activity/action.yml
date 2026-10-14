@@ -191,14 +191,14 @@ runs:
             # read raw pages with.
             disallowed="WebFetch,WebSearch"
             if [ "$(jq -r '.selected["web-access"].enabled // false' "$RESOLVED")" = true ]; then
-              domains=$(jq -r '.selected["web-access"].domains
-                | if . == "any" then "=any"
-                  elif type == "array" and length > 0 and all(type == "string") then .[]
-                  else error("bad") end' "$RESOLVED") ||
-                fail "web-access: domains must be any or a list of host names"
-              if [ "$domains" = =any ]; then
+              # `any` is tested on its own, so no list entry can stand for it.
+              if jq -e '.selected["web-access"].domains == "any"' "$RESOLVED" >/dev/null; then
                 allowed="$allowed,WebFetch(domain:*)"
               else
+                domains=$(jq -r '.selected["web-access"].domains
+                  | if type == "array" and length > 0 and all(type == "string") then .[]
+                    else error("bad") end' "$RESOLVED") ||
+                  fail "web-access: domains must be any or a list of host names"
                 host='^(\*\.)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
                 while IFS= read -r domain; do
                   [[ $domain =~ $host ]] || fail "web-access: a domain is not a host name"

@@ -285,12 +285,13 @@ runner allows `WebSearch`, one `WebFetch(domain:<host>)` rule per listed domain
 `/knowledge:docpage-digest` and `/knowledge:map-corpus`; installs the `discovery` and `knowledge`
 plugins from the base marketplace copy beside the skill's own; and says so in
 `--append-system-prompt`. A `domain:` rule also adds its domain to the sandbox's network allowlist,
-so the skill's sandboxed shell commands, which the research skills read raw pages with, reach the
-same domains
+so every sandboxed shell command the skill runs, not only the research skills' raw page reads, can
+send requests of any kind to the same domains
 ([permissions: WebFetch](https://code.claude.com/docs/en/permissions#webfetch),
 [sandboxing: network isolation](https://code.claude.com/docs/en/sandboxing#network-isolation);
 as of 2026-10-14; recheck when either page changes what a `domain:` rule adds to the sandbox).
-Without it, `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` runs every shell command sandboxed and
+`/discovery:research` can also start its `discovery:research-sweep` workflow, whose subagents run
+under the same grant. Without `web-access`, `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` runs every shell command sandboxed and
 `--permission-mode dontAsk` refuses every host outside the empty allowlist. Fetched pages are
 untrusted text, so the activity must set `reads-untrusted: true`. No rule limits which files it changes: with its
 token it can change, commit and push any file in the repository, and claude-code-action writes
