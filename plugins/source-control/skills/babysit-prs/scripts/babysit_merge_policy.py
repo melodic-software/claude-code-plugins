@@ -1242,16 +1242,17 @@ def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
 
 
 def _lane_class(
-    owner: str, name: str, number: int, labels: list[str]
+    owner: str, name: str, number: int, labels: list[str], identity: str | None
 ) -> tuple[str | None, str | None]:
     """(work class, refusal) from the pull request's own `work-class:` labels.
 
     Until agents act as their own App (D14), a person's token may be an
-    agent's, so only label events by a CI identity (a `Bot` actor) are
-    replayed and any other actor's, the owner account's included, are
-    ignored. A label present now or standing in that replay can only make the
-    class stricter. The strictest class must be C2, present now and standing
-    in the replay."""
+    agent's, so only label events by the lane identity's App (the CI
+    identity that labels lane pull requests) are replayed. Any other actor's
+    are ignored: the owner account's, and another bot's, since a workflow on
+    a branch an agent pushed labels as `github-actions`. A label present now
+    or standing in that replay can only make the class stricter. The
+    strictest class must be C2, present now and standing in the replay."""
     events = sorted(
         (
             e
@@ -1265,7 +1266,12 @@ def _lane_class(
     )
     trusted: set[str] = set()
     for event in events:
-        if json_object(event.get("actor")).get("type") != "Bot":
+        actor = json_object(event.get("actor"))
+        if (
+            not identity
+            or actor_key({"__typename": actor.get("type"), "login": actor.get("login")})
+            != identity.strip().casefold()
+        ):
             continue
         label = str(json_object(event.get("label")).get("name"))
         if event.get("event") == "labeled":
@@ -1315,11 +1321,17 @@ def _denied_path_refusal(
 
 
 def lane_eligibility(
-    repo: str, number: int, *, pr: Mapping[str, Any], denied_paths: Collection[str]
+    repo: str,
+    number: int,
+    *,
+    pr: Mapping[str, Any],
+    denied_paths: Collection[str],
+    agent_identity: str | None,
 ) -> Eligibility:
     """Whether the pr-merge lane may consider a pull request (plan Design
     "Eligibility"): not a fork or a dependency manager's, a C2 class by
-    `_lane_class`, and a diff touching no `merge.diff-check.denied-paths`.
+    `_lane_class` with `agent_identity` as the trusted labeler, and a diff
+    touching no `merge.diff-check.denied-paths`.
     `pr` is the REST record, whose `changed_files` the file listing must
     reach. Holds (the `do-not-merge` label, a `Hold:` line) are the gate's."""
     owner, name = _split_repo(repo)
@@ -1334,7 +1346,7 @@ def lane_eligibility(
         labels = _label_names(node)
         if labels is None:
             return Eligibility(False, "labels-unreadable")
-        work_class, refusal = _lane_class(owner, name, number, labels)
+        work_class, refusal = _lane_class(owner, name, number, labels, agent_identity)
         if refusal is None:
             refusal = _denied_path_refusal(
                 owner, name, number, pr.get("changed_files"), denied_paths
@@ -1344,7 +1356,9 @@ def lane_eligibility(
     return Eligibility(refusal is None, refusal, work_class)
 
 
-def recheck_lane_class(repo: str, number: int) -> str | None:
+def recheck_lane_class(
+    repo: str, number: int, *, agent_identity: str | None
+) -> str | None:
     """The lane's class read again right before the enqueue: a label removed
     or made stricter since the eligibility read refuses."""
     owner, name = _split_repo(repo)
@@ -1354,7 +1368,7 @@ def recheck_lane_class(repo: str, number: int) -> str | None:
         labels = _label_names(node) if node else None
         if labels is None:
             return "labels-unreadable"
-        return _lane_class(owner, name, number, labels)[1]
+        return _lane_class(owner, name, number, labels, agent_identity)[1]
     except PolicyReadError as exc:
         return f"unreadable: {exc}"
 
@@ -2173,7 +2187,11 @@ def assess(
     if lane:
         promo = Promotion(None, "not-read-in-pr-merge-lane")
         eligible = lane_eligibility(
-            repo, number, pr=pr, denied_paths=config.denied_paths
+            repo,
+            number,
+            pr=pr,
+            denied_paths=config.denied_paths,
+            agent_identity=identity,
         )
         promoted = True
     else:

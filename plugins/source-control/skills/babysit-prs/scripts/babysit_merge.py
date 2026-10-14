@@ -92,7 +92,7 @@ Contract enforced here (encoded as code, not convention):
   acting login is the policy's configured agent identity, or cannot be read
   while one is configured. `--authority pr-merge` runs it as the CI pr-merge
   lane: `merge.authority` must read pr-merge, eligibility is a C2 class label
-  a CI identity applied on a diff off `merge.diff-check.denied-paths`, no
+  the identity's App applied on a diff off `merge.diff-check.denied-paths`, no
   promotion evidence is read, and while `merge.report-only` is true `--merge`
   runs as a check that writes nothing.
 
@@ -3042,7 +3042,7 @@ def unattended_enqueue(
     # read again here: a removal (or a removal and a non-human re-add) since
     # the eligibility read refuses.
     if inputs.get("authority") == merge_policy.PR_MERGE:
-        opt_in = merge_policy.recheck_lane_class(repo, number)
+        opt_in = merge_policy.recheck_lane_class(repo, number, agent_identity=identity)
     else:
         opt_in = merge_policy.recheck_opt_in(
             repo,

@@ -382,8 +382,9 @@ except three:
   label on the pull request, and a diff where no path, either side of a rename, matches
   `merge.diff-check.denied-paths`. No linked issue, opt-in label or lane claim is read.
 - **Who labels.** Until agents act as their own App, a person's token may be an agent's, so only
-  label events by a `Bot` actor (a CI identity) count, and the owner account's label events and
-  body edits are ignored. A class label anyone adds can still only make the class stricter.
+  label events by `merge.agent-identity` (the lanes App) count. The owner account's label events
+  and body edits are ignored, and so are another bot's, since a workflow on a pushed branch labels
+  as `github-actions[bot]`. A class label anyone adds can still only make the class stricter.
 - **Promotion.** No promotion evidence is read. The lane starts with `merge.report-only: true`;
   the owner reads its reports and sets `false` to let it merge.
 

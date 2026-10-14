@@ -2310,7 +2310,9 @@ class LaneEligibility(unittest.TestCase):
             "number": 7,
             "changed_files": len(self.paths) if changed is None else changed,
         }
-        return policy.lane_eligibility(REPO, 7, pr=pr, denied_paths=LANE_DENIED)
+        return policy.lane_eligibility(
+            REPO, 7, pr=pr, denied_paths=LANE_DENIED, agent_identity=IDENTITY
+        )
 
     def test_a_ci_applied_mechanical_label_on_an_allowed_diff_is_eligible(
         self,
@@ -2330,6 +2332,22 @@ class LaneEligibility(unittest.TestCase):
         result = self.eligibility()
         self.assertFalse(result.eligible)
         self.assertEqual(result.reason, "class-label-not-ci-applied")
+
+    def test_another_bot_label_is_ignored(self) -> None:
+        # A workflow on a branch an agent pushed can label as github-actions.
+        for login in ("github-actions[bot]", "other-app[bot]"):
+            with self.subTest(login):
+                actor = {"login": login, "type": "Bot"}
+                self.fake(
+                    events=[
+                        label_event(
+                            "labeled", MECHANICAL, actor, "2026-10-12T12:01:00Z"
+                        )
+                    ]
+                )
+                self.assertEqual(
+                    self.eligibility().reason, "class-label-not-ci-applied"
+                )
 
     def test_an_owner_account_removal_of_a_stricter_ci_label_is_ignored(self) -> None:
         lanes = {"login": "agent-lanes[bot]", "type": "Bot"}
@@ -2387,15 +2405,33 @@ class LaneEligibility(unittest.TestCase):
     def test_no_denied_paths_configured_refuses(self) -> None:
         self.fake()
         result = policy.lane_eligibility(
-            REPO, 7, pr={"number": 7, "changed_files": 1}, denied_paths=()
+            REPO,
+            7,
+            pr={"number": 7, "changed_files": 1},
+            denied_paths=(),
+            agent_identity=IDENTITY,
         )
         self.assertEqual(result.reason, "denied-paths-unset")
 
+    def test_no_identity_trusts_no_label(self) -> None:
+        self.fake()
+        result = policy.lane_eligibility(
+            REPO,
+            7,
+            pr={"number": 7, "changed_files": 1},
+            denied_paths=LANE_DENIED,
+            agent_identity=None,
+        )
+        self.assertEqual(result.reason, "class-label-not-ci-applied")
+
     def test_the_enqueue_recheck_reads_the_class_again(self) -> None:
         self.fake()
-        self.assertIsNone(policy.recheck_lane_class(REPO, 7))
+        self.assertIsNone(policy.recheck_lane_class(REPO, 7, agent_identity=IDENTITY))
         self.fake(labels=[])
-        self.assertEqual(policy.recheck_lane_class(REPO, 7), "class-label-removed")
+        self.assertEqual(
+            policy.recheck_lane_class(REPO, 7, agent_identity=IDENTITY),
+            "class-label-removed",
+        )
 
 
 class LaneEnabledSince(unittest.TestCase):
