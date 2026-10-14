@@ -1,0 +1,49 @@
+---
+type: overengineering-findings
+schema: 2
+mode: walk
+date: 20261009T141522Z
+scope: agent-hooks, agent-instructions, repo-hooks, vcs-hooks, ci-lanes, gate-scripts, satellite-workflows, branch-protection, forge-apps, external-integrations
+branch: main
+---
+
+# Overengineering findings
+
+## Evidence availability
+
+- tier 1: unavailable (probe: no workflow telemetry sink is configured in this checkout)
+- tier 2: present (probe: `git rev-parse --is-shallow-repository` answered false; full history)
+- tier 3: unavailable (probe: no incident or post-incident records in the repository)
+- tier 4: unavailable (probe: no operator attestation recorded)
+- tier 5: present (probe: workflow names read)
+
+## Summary
+
+| Layer | RETIRE |
+|---|---|
+| ci-lanes | 1 |
+
+## Findings
+
+### a71e0c94d3b25f18
+
+- **Layer:** ci-lanes
+- **Artifact:** .github/workflows/stale.yml
+- **Verdict:** RETIRE
+- **Status:** OPEN
+
+- **Basis:** measured
+- **Evidence:** tier 2: the workflow runs daily on its schedule; the issue history shows no issue it marked stale or closed in the last 180 days.
+- **Liveness:** source posture: present. Wiring: scheduled daily through `on.schedule`. Runtime enforcement: runs every day, acts on nothing.
+- **Intent:** close abandoned issues; confidence MEDIUM.
+- **Rediscovery:** Deferred — no tech-drift check claimed
+- **Cost:** a daily scheduled run and a third-party action to keep pinned; removal is one file.
+- **Owner:** operator (last resort).
+
+## Suppressed
+
+None.
+
+## Closed since last run
+
+None.

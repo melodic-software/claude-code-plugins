@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [], "why": "stopped before loading"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/plugins/overengineering/context/findings-artifact.md"}}], "why": "the contract doc is not the artifact"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git symbolic-ref --quiet --short HEAD"}}], "why": "branch call only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "/w/.work/overengineering/main/findings.md"}}], "why": "loaded the artifact"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/w/.work/overengineering/head/findings.md"}}], "why": "keyed a home off HEAD"}
+  ]
+}

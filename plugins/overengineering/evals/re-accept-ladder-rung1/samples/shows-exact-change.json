@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "The exact change:\n\n```diff\n-  schedule:\n-    - cron: \"0 3 * * *\"\n+  workflow_dispatch:\n```\n"},
+    {"answer": "Exact change: run `gh workflow disable stale.yml`."}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "I'll make a small change to the workflow file.", "why": "no concrete change shown"},
+    {"answer": "```\nls .github/workflows\n```\n", "why": "code block without the change"}
+  ]
+}

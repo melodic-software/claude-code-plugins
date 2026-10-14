@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Detached checkout, no logical ref supplied; no branch identity, so nothing will be executed."},
+    {"answer": ""}
+  ],
+  "fail": [
+    {"answer": "Detached, but here is the queue: 3f9a1c07b2e48d65 (RETIRE) and a71e0c94d3b25f18 (DOWNGRADE).", "why": "presents both ids"},
+    {"answer": "Finding a71e0c94d3b25f18 is a DOWNGRADE on stale.yml.", "why": "one id is enough to fail"}
+  ]
+}

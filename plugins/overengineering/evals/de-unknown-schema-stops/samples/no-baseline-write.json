@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing written"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/w/.work/overengineering/main/spine-baseline.md"}}], "why": "reading the baseline home"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/.work/overengineering/main/spine-baseline.md", "content": "---\ntype: overengineering-spine-baseline\n"}}], "why": "captured a baseline"}
+  ]
+}

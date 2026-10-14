@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "no calls"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/.work/overengineering/main/findings.md", "content": "---\n"}}], "why": "status write to the artifact"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "/w/.github/workflows/stale.yml", "content": "name: stale\n"}}], "why": "rewrote the workflow before change approval"}
+  ]
+}

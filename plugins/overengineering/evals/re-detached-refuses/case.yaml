@@ -1,0 +1,60 @@
+schema_version: "1.1"
+name: re-detached-refuses
+description: Realign on a detached checkout refuses because there is no branch identity, presents no queue, and changes nothing
+tags: [overengineering, realign, outcome, refusal, branch-identity]
+runs: 3
+expected_outcome: The scaffold leaves HEAD detached with a findings artifact for main on disk. The run refuses because the checkout has no branch identity, never reads the artifact or presents its findings, and makes no Write or Edit call and no destructive Bash command.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/overengineering:realign work through the open findings."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+  - name: no-destructive-bash
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:\brm\b|\bmv\b|\bcp\b|\bchmod\b|\bunlink\b|\bshred\b|\btruncate\b|\btee\b|\bsed\b(?:[^"\\]|\\.)*?\s-i|\bperl\b(?:[^"\\]|\\.)*?\s-[a-z]*i|-delete\b|\bgit\s+(?:-C\s+\S+\s+)?(?:checkout|restore|reset|clean|commit|update-index|apply|am)\b|\bgh\s+workflow\s+(?:disable|enable)\b|\bgit\s+(?:-C\s+\S+\s+)?config\b(?!(?:[^"\\]|\\.)*?(?:--get|--list|--show|\s-l\b))\s+(?:(?:--[a-z-]+|-[a-z])\s+)*(?:--(?:unset|unset-all|add|replace-all|remove-section|rename-section|edit)\b|[^\s"\\;&|-][^\s"\\;&|]*\s+(?![0-9]*[<>&|;])[^\s"\\])|(?<![\w./-])ln\s|\bpython[0-9.]*\b(?:[^"\\]|\\.)*?(?:\bopen\((?:[^"\\]|\\.)*?(?:''|\\")(?:w|a|wb|ab|x)\b|\.write_(?:text|bytes)\()|(?<![0-9&>])>{1,2}\s*(?!/dev/null)[^\s&|;])'
+    min: 0
+    max: 0
+  - name: no-artifact-read
+    type: tool_used
+    tool: Read
+    input_match: 'findings\.md'
+    min: 0
+    max: 0
+  - name: no-artifact-shell-read
+    type: tool_used
+    tool: Bash
+    input_match: 'findings\.md'
+    min: 0
+    max: 0
+  - name: no-artifact-grep
+    type: tool_used
+    tool: Grep
+    input_match: '\.work\b'
+    min: 0
+    max: 0
+  - name: says-no-branch-identity
+    type: regex
+    pattern: '(?<!not )(?<!n''t )\bdetached\b|\bno branch identity\b|\bno (?:branch|ref) (?:name|resolved)\b|\bbranch identity\b[^\n]{0,40}\b(?:unresolved|did not resolve|didn''t resolve|not resolved|cannot be (?:resolved|verified)|can''t be (?:resolved|verified))'
+    flags: i
+  - name: states-refusal
+    type: regex
+    pattern: '\bnothing (?:will be|is|was|gets) (?:executed|run|changed|written|presented)\b|\b(?:will not|won''t|cannot|can''t|not going to|am not going to|refuse to) (?:execute|proceed|run|act|present|work through|walk|touch)\b|(?<!won''t )(?<!not )(?<!n''t )\brefus(?:e|es|ed|ing)\b|(?<!won''t )(?<!not )(?<!n''t )\bstopp(?:ed|ing)\b'
+    flags: i
+  - name: no-queue-presented
+    type: regex
+    pattern: '\b(?:3f9a1c07b2e48d65|a71e0c94d3b25f18)\b'
+    match: not_contains

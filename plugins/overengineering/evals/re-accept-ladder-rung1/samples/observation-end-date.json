@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Observe for the 45-day window, ending 2026-11-27."},
+    {"answer": "Window end date: 2026-11-27 (45 days)."},
+    {"answer": "Leave it disabled until 2026-11-27, then report what the window showed."}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Observe it for forty-five days, then decide.", "why": "no concrete end date"},
+    {"answer": "Observe it for a while; no end date is needed.", "why": "no date"}
+  ]
+}
