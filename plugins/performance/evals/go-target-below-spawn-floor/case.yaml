@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: go-target-below-spawn-floor
+description: 'Goal main path: read the E1 ranking row, name the metric and counter, compute the process-spawn floor with spawn_probe and is_measurable, and compare the asked target against it. The asked p50 of 0.05 ms per call is below the cost of one no-op spawn, and the hook is itself a spawned process, so the goal stops and hands the choice to the user. A run needs --scaffold and --allow-tools Bash.'
+tags: [goal, floor]
+plugins: ["../.."]
+expected_outcome: 'The run measures the spawn floor through lib/spawn_noise.py spawn_probe and is_measurable before stating it, finds the 0.05 ms target below that floor, says no code change can reach it, and stops with the choice left to the user: reframe the goal, change the target, remove the spawn, or accept the floor. It does not pick a target and proceed.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/performance:goal hooks/guard.sh, the PreToolUse guard hook. The /performance:target ranking is in .work/guard-hook/ranking.md. I want each call of the hook to take p50 <= 0.05 ms wall clock.'
+  allowed_tools: [Bash, Read, Grep, Glob, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: floor-probed
+    type: tool_used
+    tool: Bash
+    input_match: '^(?=.*(?:\b|(?<=\\n))python3?\b)(?=.*(?<!def )(?:\b|(?<=\\n))spawn_probe\s*\()(?=.*(?<!def )(?:\b|(?<=\\n))is_measurable\s*\()'
+    min: 1
+    arm: with-only
+  - name: target-below-floor
+    type: regex
+    pattern: '(?:^|[\n;:!?(,]|\.(?!\w))(?:(?!\b(?:not|never|no longer)\b|\w+n[''’]t\b)(?:[^.;:!?\n,]|\.(?=\w)))*?(?:\b(?:below|under|beneath|less than|lower than)[ \t]+(?:the[ \t]+|this[ \t]+|that[ \t]+|its[ \t]+|our[ \t]+)?(?:[\w''’-]+[ \t]+){0,2}?floor\b|\bunreachable\b|\bno (?:code )?change(?:[^\n.,;]|\.(?=\w)){0,40}\b(?:can|could|will)[ \t]+(?:reach|get(?:[ \t]+[\w''’-]+){0,3}?[ \t]+(?:there|below|under|to)\b)|\b(?:cannot|can[''’]t)[ \t]+be[ \t]+reached[ \t]+by[ \t]+(?:any|changing)\b)'
+    flags: 'i'
+    arm: both
+  - name: hands-choice-to-user
+    type: regex
+    pattern: '^(?=[\s\S]*(?:(?:(?:^|[\n:;,.!?(])[ \t*_-]*(?:\d+\.[ \t]*)?(?:\*\*)?|\b(?:or|either|and|you can|you could)[ \t]+)(?:reframe|re-frame|change[ \t]+(?:the[ \t]+)?(?:goal|target)\b|(?:pick[ \t]+|choose[ \t]+|set[ \t]+)?(?:a[ \t]+)?(?:different|new)[ \t]+target\b)|(?<!\bnot )(?<!n[''’]t )\b(?:your[ \t]+(?:call|choice|decision)|which[ \t]+(?:of[ \t]+(?:these|the)[ \t]+)?(?:option|one)s?(?:[ \t]+do)?[ \t]+you[ \t]+(?:want|prefer|pick|choose)|(?:you need to|need you to|you[''’]ll need to|please)[ \t]+(?:choose|pick|decide)|choose one|before I (?:can )?lock|won[''’]t (?:pick|choose))\b))(?=[\s\S]*(?:(?:^|[\n:;,.!?(])[ \t*_-]*(?:\d+\.[ \t]*)?(?:\*\*)?|\b(?:or|either|and|you can|you could)[ \t]+)(?:accept(?:ing)?[ \t]+(?:the[ \t]+|this[ \t]+|that[ \t]+)?(?:[\w-]+[ \t]+)?floor\b|remov(?:e|ing)[ \t]+(?:the[ \t]+|that[ \t]+|this[ \t]+)?(?:[\w-]+[ \t]+){0,2}?(?:spawn|process|operation|hook)))'
+    flags: 'i'
+    arm: both
+  - name: no-self-commitment
+    type: regex
+    pattern: '^(?![^\n]*\b(?:once|when|after|until|if)[ \t]+you\b)[^\n]*\bI(?:(?:[''’]ll|[ \t]+will|[''’]m|[ \t]+am)[ \t]+(?:going[ \t]+(?:to[ \t]+)?|now[ \t]+)?(?:go(?:ing)?[ \t]+with|lock(?:ing)?|proceed(?:ing)?|set(?:ting)?[ \t]+the[ \t]+(?:goal|target))|(?:[''’]ve|[ \t]+have)?[ \t]+(?:picked|chose|went[ \t]+with|locked|proceeded|reframed|set[ \t]+the[ \t]+(?:goal|target)))\b'
+    flags: 'mi'
+    match: not_contains
+    arm: both
+  - name: no-goal-written
+    type: tool_used
+    tool: Bash
+    input_match: '^(?:.*(?:>>?|(?:\b|(?<=\\n))tee\b(?:[ \t]+-a)?|(?:\b|(?<=\\n))(?:cp|mv)\b[ \t]+\S+)[ \t]*\\?[\"'']?[^\s\"''\\>|;&]*\.work/guard-hook/|.*(?:\b|(?<=\\n))open\([ \t]*\\?[\"''][^\"''\\]*\.work/guard-hook/[^\"''\\]*\\?[\"''][ \t]*,[ \t]*\\?[\"''][wax]|.*\.work/guard-hook/[^\"''\\]*\\?[\"'']\)\.write_(?:text|bytes)\()'
+    min: 0
+    max: 0
+    arm: both

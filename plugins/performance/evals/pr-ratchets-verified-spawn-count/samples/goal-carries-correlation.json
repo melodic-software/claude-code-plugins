@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"counters\": [{\"name\": \"guard-spawns\", \"field\": \"spawns\", \"ceiling\": 1, \"goal\": \"guard.sh deny path 4 -> 1 spawns, verified MET. Correlation: unproven: no duration rig run yet\"}]}\n",
+      "why": "goal ends with the Correlation value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"counters\": [{\"name\": \"guard-spawns\", \"field\": \"spawns\", \"ceiling\": 1, \"goal\": \"guard.sh deny path 4 -> 1 spawns\"}]}\n",
+      "why": "no Correlation value"
+    },
+    {
+      "answer": "{\"counters\": [{\"name\": \"guard-spawns\", \"field\": \"spawns\", \"ceiling\": 1, \"goal\": \"guard.sh 4 -> 1. Correlation: proven by verify\"}]}\n",
+      "why": "Correlation upgraded beyond the goal's value"
+    }
+  ]
+}

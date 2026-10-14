@@ -1,0 +1,130 @@
+{
+  "skill": "performance:goal",
+  "plugin": "performance",
+  "skill_dir": "plugins/performance/skills/goal",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the neighboring performance phases (target before it, snapshot after it, verify at the end) and verification:measure for a baseline-and-compare claim.",
+  "competitors": [
+    "performance:target",
+    "performance:snapshot",
+    "performance:verify",
+    "verification:measure",
+    "planning:draft-goal-condition"
+  ],
+  "competitor_dirs": {
+    "performance:target": "plugins/performance/skills/target",
+    "performance:snapshot": "plugins/performance/skills/snapshot",
+    "performance:verify": "plugins/performance/skills/verify",
+    "verification:measure": "plugins/verification/skills/measure",
+    "planning:draft-goal-condition": "plugins/planning/skills/draft-goal-condition"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We picked the report renderer as the thing to speed up. Help me pin down the metric, the command, and a realistic and ideal target."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is a 50 ms cold start achievable for this CLI, or is that below what the runtime alone costs?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before anyone touches the code, tell me the floor for this benchmark and whether my target is under it."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Define done for optimizing the search indexer in a way the numbers can decide."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Turn 'make the build faster' into a concrete goal: which counter, which command, what number."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Pick a number for the checkout flow speed work that we can actually measure against."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My manager wants requests under 2 ms. Check whether that's even physically possible before we commit to it."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What's the lowest this test suite's runtime could possibly go, and what target should we aim for?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write up the goal for this optimization: metric, how to measure it, stretch target and realistic one."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We need a measurable success criterion for reducing allocations in the decoder before we start."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What should we optimize in this service? I don't know where the bottleneck is."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Capture the baseline for the decoder benchmark now."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Verify the speedup I claimed in the PR description is real."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Prove my refactor improved throughput compared to the baseline I took yesterday."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "This page feels slow. Find what's worth optimizing."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run the interleaved A/B for the old and new allocator."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Our goal was 30% fewer queries. Independently re-derive the result and say met or not met."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Set a /goal so Claude keeps working until all tests pass."
+    }
+  ]
+}

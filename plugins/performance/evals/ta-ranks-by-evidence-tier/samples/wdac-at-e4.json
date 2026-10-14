@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 3 | WDAC code-integrity checks | E4 | a plausible mechanism, no measurement | spawn-cost spread across identical no-op spawns | spawn_probe |\n",
+      "why": "WDAC at E4"
+    },
+    {
+      "answer": "| 3 | WDAC slows spawns | **E4, suspicion** | nothing measured | spread ratio | spawn_probe |\n",
+      "why": "bold tier"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| 2 | WDAC code-integrity checks | E3 | policy is enabled, so every spawn is checked | spawns | none |\n",
+      "why": "a mechanism promoted to structural inference"
+    },
+    {
+      "answer": "WDAC is E4 and goes last.",
+      "why": "not in the ranked table"
+    }
+  ]
+}

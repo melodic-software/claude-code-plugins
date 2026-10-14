@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<EOF\nimport json\njson.dump({\"argv\":[\"bash\",\"{{subject}}\",\"{{mode}}\",\"{{corpus}}\"],\"matrix\":{\"mode\":[\"strict\",\"lenient\"]},\"corpus\":open(\"arms/corpus.txt\").read().splitlines(),\"timeout\":30},open(\"/tmp/d/cfg.json\",\"w\"))\nEOF\npython3 $S/differential.py --baseline arms/before/guard.sh --candidate arms/after/guard.sh --config /tmp/d/cfg.json; echo exit=$?"
+          }
+        }
+      ],
+      "why": "observed: config with both modes, then the run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<EOF\nimport json\njson.dump({\"argv\":[\"bash\",\"{{subject}}\",\"{{mode}}\",\"{{corpus}}\"],\"matrix\":{\"mode\":[\"strict\",\"lenient\"]},\"corpus\":open(\"arms/corpus.txt\").read().splitlines(),\"timeout\":30},open(\"/tmp/d/cfg.json\",\"w\"))\nEOF\nBASE=$PWD/arms/before/guard.sh; CAND=$PWD/arms/after/guard.sh; D=/plugins/performance/scripts/differential.py\nfor n in real ext; do $P $D --baseline $BASE --candidate $CAND --config /tmp/d/$n.json; done"
+          }
+        }
+      ],
+      "why": "observed: interpreter and script in variables"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n 1,80p /plugins/performance/scripts/differential.py"
+          }
+        }
+      ],
+      "why": "reading the script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugins/performance/scripts/differential.py --help"
+          }
+        }
+      ],
+      "why": "help only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<EOF\nimport json\njson.dump({\"matrix\":{\"mode\":[\"strict\"]},\"corpus\":[\"rm -rf /tmp/build\"]},open(\"/tmp/d/cfg.json\",\"w\"))\nEOF\npython3 /plugins/performance/scripts/differential.py --baseline arms/before/guard.sh --candidate arms/after/guard.sh --config /tmp/d/cfg.json"
+          }
+        }
+      ],
+      "why": "strict mode only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for m in strict lenient; do bash arms/before/guard.sh $m 'rm -rf /tmp/build'; bash arms/after/guard.sh $m 'rm -rf /tmp/build'; done"
+          }
+        }
+      ],
+      "why": "a hand loop, not the bundled differential"
+    }
+  ]
+}

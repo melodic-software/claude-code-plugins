@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Awaiting:  human approval of the files above",
+      "why": "template line"
+    },
+    {
+      "answer": "- **Awaiting:** your approval of .performance/ratchets.json, .performance/ratchet.py and the ci.yml step",
+      "why": "bold bullet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Awaiting:  nothing; approved and merged",
+      "why": "nothing awaited"
+    },
+    {
+      "answer": "Awaiting: no approval needed, the files are committed",
+      "why": "negated approval"
+    },
+    {
+      "answer": "Shall I proceed and open the PR?",
+      "why": "a question, no Awaiting line"
+    }
+  ]
+}

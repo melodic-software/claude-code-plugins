@@ -1,0 +1,238 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash bench/time-guard.sh --help"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash bench/time-guard.sh --iterations 1 --json; echo rc=$?"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /plugins/performance/scripts/ab.sh --help"
+          }
+        }
+      ],
+      "why": "flag checks and help only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/plugins/performance; ls $P/scripts $P/lib; bash $P/scripts/ab.sh --help 2>&1 | head -30"
+          }
+        }
+      ],
+      "why": "help after a command separator"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sha256sum /plugins/performance/scripts/ab.sh /plugins/performance/scripts/summarize.py"
+          }
+        }
+      ],
+      "why": "hashing the script is not running it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p .work/guard-hook/baselines && cat > .work/guard-hook/baselines/baseline-STOPPED.md <<'EOF'\n# guard-hook baseline: STOPPED at step 1b\nFix: (a) add --json to bench/time-guard.sh, or (b) change the goal's Metric\nline to ab.sh (--percentiles 50,95), e.g. bundled ab.sh/summarize.py, or\n   `scripts/ab.sh --a 'bash hooks/guard.sh \"rm -rf /tmp/x\"' --iterations 20`.\nEOF"
+          }
+        }
+      ],
+      "why": "ab.sh named inside heredoc text"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash bench/time-guard.sh --help; echo \"help exit=$?\"; bash bench/time-guard.sh --iterations 1 --json; echo \"json exit=$?\"; bash bench/time-guard.sh --iterations 2 | head -3; sha256sum bench/time-guard.sh hooks/guard.sh"
+          }
+        }
+      ],
+      "why": "observed: help, the goal's flags, a two-call dry run, hashing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo \"=== dry run with goal flags\"; bash bench/time-guard.sh --iterations 20 --json; echo \"exit=$?\""
+          }
+        }
+      ],
+      "why": "observed: the goal's exact command, which exits 2 on --json"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w; t=bench/time-guard.sh; echo \"path: $(realpath $t)\"; echo \"blob: $(git hash-object $t)\"; cat -A bench/time-guard.sh | head"
+          }
+        }
+      ],
+      "why": "observed: assignment, realpath, hash, cat"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "readlink -f bench/time-guard.sh; bash bench/time-guard.sh --version"
+          }
+        }
+      ],
+      "why": "version probe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /plugins/performance/scripts/ab.sh --a 'bash hooks/guard.sh rm' --b 'bash hooks/guard.sh rm' --iterations 20 --percentiles 50,95"
+          }
+        }
+      ],
+      "why": "a timed arm after the stop"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "BENCH_MIN_PAIRS=5 bash ./ab.sh --a x --b y"
+          }
+        }
+      ],
+      "why": "a vendored ab.sh with an env prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /work && bash scripts/ab.sh --a 'bash hooks/guard.sh rm' --b 'bash hooks/guard.sh rm'"
+          }
+        }
+      ],
+      "why": "after &&"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 check.py; \"$P/scripts/ab.sh\" --a x --b y"
+          }
+        }
+      ],
+      "why": "quoted path after ;"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "out=$(bash /plugins/performance/scripts/ab.sh --a x --b y)"
+          }
+        }
+      ],
+      "why": "inside a command substitution"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash bench/time-guard.sh --iterations 20"
+          }
+        }
+      ],
+      "why": "a full timed run without the unsupported flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash bench/time-guard.sh"
+          }
+        }
+      ],
+      "why": "default 20 iterations"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "timeout 60 bash bench/time-guard.sh --iterations 50"
+          }
+        }
+      ],
+      "why": "timeout prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "taskset -c 2 bash bench/time-guard.sh --iterations 20"
+          }
+        }
+      ],
+      "why": "taskset prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "nohup ./bench/time-guard.sh --iterations 20 &"
+          }
+        }
+      ],
+      "why": "nohup, direct exec"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "env -i PATH=/usr/bin bash bench/time-guard.sh --iterations 30"
+          }
+        }
+      ],
+      "why": "env -i prefix"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w && timeout 100 bash /plugins/performance/scripts/ab.sh --a x --b y"
+          }
+        }
+      ],
+      "why": "ab.sh behind timeout"
+    }
+  ]
+}

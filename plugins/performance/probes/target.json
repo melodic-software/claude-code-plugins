@@ -1,0 +1,132 @@
+{
+  "skill": "performance:target",
+  "plugin": "performance",
+  "skill_dir": "plugins/performance/skills/target",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the whole-process sweep and the goal phase in the same plugin, debugging skills for an observed failure, and improvement:find for a cross-dimension ranking.",
+  "competitors": [
+    "performance:go-faster",
+    "performance:goal",
+    "debugging:debug",
+    "debugging:analyze-profile",
+    "improvement:find",
+    "code-metrics:audit-complexity"
+  ],
+  "competitor_dirs": {
+    "performance:go-faster": "plugins/performance/skills/go-faster",
+    "performance:goal": "plugins/performance/skills/goal",
+    "debugging:debug": "plugins/debugging/skills/debug",
+    "debugging:analyze-profile": "plugins/debugging/skills/analyze-profile",
+    "improvement:find": "plugins/improvement/skills/find",
+    "code-metrics:audit-complexity": "plugins/code-metrics/skills/audit-complexity"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The reports page is sluggish. Where's the bottleneck, and is any of it measured yet?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is the CSV exporter worth optimizing, or are we guessing?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Rank what we could speed up in the ingest service by how good the evidence is."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here is our tracing telemetry. Which hot spot comes first?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Builds have been dragging all week. Which part is the real hot spot?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I suspect the ORM layer is the slow part but nothing's instrumented. What should we optimize?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Find the bottleneck in src/render before we pick a goal."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which of these candidates actually deserves optimization effort: the cache, the serializer, or the queue consumer?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Things feel slow in this module. Tell me what to instrument first if we have no numbers."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Look at the pain from this session and rank which slow step is worth fixing."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Sweep our whole development process with Claude for ways to go faster."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The import job crashes with a timeout every few runs. Reproduce it and fix it."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "We already chose the serializer and measured it. Set a realistic target and the floor."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Here's a heap snapshot; what's keeping all this memory alive?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What should we improve across the codebase, product and config?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "How complex are the functions in the render module?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "This endpoint started returning 500s after the deploy. Why?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Speed up this whole session: git, hooks, everything."
+    }
+  ]
+}

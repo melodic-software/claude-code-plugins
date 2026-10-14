@@ -1,5 +1,5 @@
 ---
-description: "Identify and rank optimization targets by evidence quality, so an unmeasured system yields 'instrument this first' instead of a guess. Accepts session pain, a named path, or telemetry. Use when: 'what should we optimize', 'find the bottleneck', 'this feels slow', 'is X worth optimizing'. Hands off to /performance:goal. Skip: a whole-process sweep is /performance:go-faster. Skip when the target is already chosen and measured, or when a failure needs debugging rather than a candidate ranking."
+description: "Ranking of optimization targets by evidence quality, from session pain, a named path or telemetry, so an unmeasured system yields 'instrument this first' instead of a guess. Use when: 'what should we optimize', 'find the bottleneck', 'this feels slow', 'is X worth optimizing'. Skip: a whole-process sweep is /performance:go-faster. Skip when the target is already chosen and measured, or when a failure needs debugging rather than a candidate ranking."
 user-invocable: true
 argument-hint: "[<path|component|'session'|'telemetry'>]"
 disable-model-invocation: false
@@ -14,14 +14,13 @@ metadata:
 
 Answers **"what should we optimize, and how much do we actually know about it?"**
 
-The failure this prevents is picking a target because its mechanism sounds expensive. Take a
-diagnosis of WDAC code-integrity enforcement as the cause of slow process spawns: the mechanism is
-real and the policy may genuinely be enabled, and it is still the wrong answer when the data says
-otherwise. A spread of min 180.5 ms / median 1107.7 ms / max 2841.3 ms across *identical* no-op
-spawns is a contention signature, because a fixed policy check cannot produce a 15x spread.
+Never pick a target because its mechanism sounds expensive. A diagnosis blaming WDAC
+code-integrity enforcement for slow process spawns is wrong when the data says otherwise, even with
+the policy enabled: a spread of min 180.5 ms / median 1107.7 ms / max 2841.3 ms across *identical*
+no-op spawns is a contention signature, because a fixed policy check cannot produce a 15x spread.
 **The bimodality is the diagnosis; the plausible mechanism is a distraction.**
 
-So this skill ranks by evidence, and says so when there is none.
+Rank by evidence, and say so when there is none.
 
 ## Inputs it accepts
 
@@ -56,10 +55,9 @@ the hot interaction, and events tagged with the
 When a candidate spans layers (a shell wrapper around a Python program; a route through an ORM
 through a driver), attribute cost *across the layers* before picking one to optimize.
 
-The instinct is to optimize the largest layer: a 1903-line Python guard body over the 125-line shell
-wrapper that execs it. Measurement routinely inverts that, and a wrapper this size can carry roughly
-88% of the cost while the body it wraps is not the bottleneck. Layer attribution is cheap and
-reorders the candidate list.
+Do not pick the largest layer by size: a 125-line shell wrapper can carry roughly 88% of the cost
+while the 1903-line Python guard body it execs is not the bottleneck. Layer attribution is cheap
+and reorders the candidate list.
 
 Trace past the headline event too: work no metric covers (background reloads, idle-state work)
 still costs. For a field report with a recording, follow the diagnosis ladder before theorizing.
@@ -77,14 +75,13 @@ syscalls, queries, allocations, bytes, round trips. A counter is reproducible on
 clock is not.
 
 The [counter catalog](../../reference/techniques.md#c-lab-measurement-and-rigs) lists
-deterministic counters to try before timing. If no counter exists for a candidate, say so explicitly. That is a real property of the target and
-it changes what `/performance:goal` can promise.
+deterministic counters to try before timing. If no counter exists for a candidate, say so
+explicitly: it changes what `/performance:goal` can promise.
 
-Grounding: the counts-over-wall-clock rationale is stated in the literature for **instruction
-counts** specifically (Valgrind's Cachegrind manual; Iai). Extending it to spawns, syscalls and
-queries is this plugin's own generalization, not a sourced claim, and Valgrind's own manual argues
-the other side too: execution time "is a better metric than instruction counts because it's what
-users perceive". Present a counter as *reproducible*, never as *more truthful*.
+Counts over wall clock is sourced only for **instruction counts** (Valgrind's Cachegrind manual;
+Iai); extending it to spawns, syscalls and queries is this plugin's own generalization, and
+Valgrind's manual also argues execution time "is a better metric than instruction counts because
+it's what users perceive". Present a counter as *reproducible*, never as *more truthful*.
 
 ## Output
 

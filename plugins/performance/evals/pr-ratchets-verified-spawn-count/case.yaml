@@ -1,0 +1,53 @@
+schema_version: "1.1"
+name: pr-ratchets-verified-spawn-count
+description: 'Protect main path: /performance:verify reported MET on a 4-to-1 spawn counter. /review:ratchet is not loaded, so the run takes §2-§4 itself: ratchet.py add measures the cold counter twice and writes .performance/ratchets.json with the measured ceiling and the goal''s Correlation value, the CI check goes inside the required ci-status job, and the Output block ends awaiting human approval. Nothing is merged or pushed. A run needs --scaffold and --allow-tools Bash Write Edit.'
+tags: [protect, ratchet]
+plugins: ["../.."]
+expected_outcome: 'ratchet.py add runs from the repository root and records guard-spawns with ceiling 1 (the measured value, no headroom) and a goal that ends with Correlation: unproven. The answer proposes ratchet.py check inside the ci-status job, a same-PR tightening plan, and an Output block whose Ceiling line is 1 and whose Awaiting line asks for human approval. No push and no merge.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/performance:protect the 4-to-1 spawn reduction in hooks/guard.sh. The verify report is .work/guard-hook/verify.md.'
+  allowed_tools: [Bash, Read, Write, Edit, Grep, Glob, Skill]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: ratchet-add-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'ratchet\.py\S*\s+add\b(?!.*--help).*--command'
+    min: 1
+    arm: with-only
+  - name: ceiling-is-measured-value
+    type: regex
+    pattern: '\{[^{}]*\"name\"\s*:\s*\"guard-spawns\"[^{}]*\"ceiling\"\s*:\s*1\s*[,}]|\{[^{}]*\"ceiling\"\s*:\s*1\s*,[^{}]*\"name\"\s*:\s*\"guard-spawns\"'
+    target: { source: file, path: .performance/ratchets.json }
+    arm: with-only
+  - name: goal-carries-correlation
+    type: regex
+    pattern: '"goal"\s*:\s*"[^"]*Correlation:\s*unproven'
+    target: { source: file, path: .performance/ratchets.json }
+    arm: with-only
+  - name: ci-check-proposed
+    type: regex
+    pattern: '^([ \t]*)ci-status:[ \t]*(?:#[^\n]*)?\n(?:\1[ \t]+[^\n]*\n|[ \t]*\n)*?\1[ \t]+(?!#)[^\n#]*\bratchet\.py["'']?[ \t]+check\b'
+    target: { source: file, path: .github/workflows/ci.yml }
+    flags: 'm'
+    arm: both
+  - name: output-ceiling-line
+    type: regex
+    pattern: '^\W*Ceiling:\W*1\b(?![.,]\d)'
+    flags: 'm'
+    arm: both
+  - name: awaits-human-approval
+    type: regex
+    pattern: '^\W*Awaiting:\W*(?![^\n]*\b(?:no|not|nothing|none)\b)[^\n]*\bapprov'
+    flags: 'mi'
+    arm: both
+  - name: no-push-or-merge
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\b|(?<=\\n))gh[ \t]+pr[ \t]+(?:merge|ready)\b|(?:\b|(?<=\\n))git(?:[ \t]+(?:-C[ \t]+(?:\\\"[^\"]*?\\\"|''[^'']*''|\S+)|-c[ \t]+\S+|--[\w-]+(?:=\S+)?|-[A-Za-z]))*[ \t]+(?:push|merge)\b(?!-)|(?:\b|(?<=\\n))gh[ \t]+api\b(?:(?!\\n|;|&&|\|)[^\n])*?/merges?\b'
+    min: 0
+    max: 0
+    arm: both

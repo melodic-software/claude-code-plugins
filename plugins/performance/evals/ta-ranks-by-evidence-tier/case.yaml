@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: ta-ranks-by-evidence-tier
+description: 'Target main path: three candidates arrive with different evidence (a census that attributes 4 of 7 spawns to the shell wrapper, a large Python body the user bets on, and a WDAC suspicion). The run places each in one evidence tier, ranks the attributed measurement first, keeps the suspicion at E4, fills the ranked table with the settling counter, and names the recommendation with its tier. A run needs --scaffold.'
+tags: [target, evidence-tier]
+plugins: ["../.."]
+expected_outcome: 'A ranked table with Rank, Candidate, Tier, What is known, Counter that would settle it and Cheapest next instrument columns. Rank 1 is an E1 candidate backed by the census; the WDAC idea sits at E4 with an instrument named; the line count of guard_body.py does not earn it a higher tier. One closing line names the recommended target and the E1 tier it rests on.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/performance:target hooks/. Three candidates: the guard.sh wrapper; guard_body.py, which is nearly 1,900 lines so I bet it is the bottleneck; and I suspect WDAC code-integrity checks slow every spawn. There is a spawn census in measurements/spawn-census.txt. Rank them.'
+  allowed_tools: [Read, Grep, Glob, Skill]
+  max_turns: 15
+  timeout_seconds: 400
+graders:
+  - name: table-has-tier-and-counter
+    type: regex
+    pattern: '^\|[^\n]*\bTier\b[^\n]*\bCounter\b[^\n]*\|'
+    flags: 'mi'
+    arm: both
+  - name: e1-ranked-first
+    type: regex
+    pattern: '^\|[ \t]*(?:\*\*)?#?1(?:\*\*)?[ \t]*\|(?:[^|\n]*\|)?(?![^|\n]*guard_body)[^|\n]*\bguard\.sh\b[^|\n]*\|[ \t]*(?:\*\*)?E1\b'
+    flags: 'm'
+    arm: both
+  - name: wdac-at-e4
+    type: regex
+    pattern: '^\|[^\n]*\bWDAC\b[^|\n]*\|[ \t]*(?:\*\*)?E4\b'
+    flags: 'm'
+    arm: both
+  - name: recommendation-rests-on-e1
+    type: regex
+    pattern: '^(?=[^\n]*\brecommend)(?![^\n]*\brecommend\w*\b[^\n]{0,30}\binstrument)(?![^\n]*\b(?:no|not|nothing|never|none)\b[^\n]{0,25}\bE1\b)(?![^\n]*\brecommend\w*\b(?:(?!guard\.sh|wrapper)[^\n]){0,60}?guard_body)(?=[^\n]*(?:\bguard\.sh\b|\bwrapper\b))[^\n]*\bE1\b'
+    flags: 'mi'
+    arm: both

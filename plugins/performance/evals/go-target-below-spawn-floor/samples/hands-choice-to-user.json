@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "Your target of p50 <= 0.05 ms is below the measured floor. You decide: reframe the goal around the external-process counter, change the target, remove the spawn, or accept the floor.",
+      "why": "the four options"
+    },
+    {
+      "answer": "Blocked on you. Either pick a different target above 0.4 ms, or accept this floor and measure the counter instead.",
+      "why": "different target plus accept the floor"
+    },
+    {
+      "answer": "Options:\n1. Reframe the goal to the external-command counter (4 -> 0).\n2. Remove the hook process entirely, for example by moving the check into the tool runner.",
+      "why": "reframe plus remove the process"
+    },
+    {
+      "answer": "**Your options** (this is your call; the goal phase always needs a person to decide):\n\n1. **Target the process count plus a realistic time (recommended).** Cut processes per call from 5 to 1.\n2. **Also make the startup cheaper.** Rewrite the hook in plain POSIX `sh`.\n3. **Measure something else.** Time only the allow/deny logic.\n4. **Accept the floor** and set a target at or above it.",
+      "why": "your call plus accept the floor, no reframe wording"
+    },
+    {
+      "answer": "## Your options\n\n1. **Change what's measured to the counter (my recommendation).** External processes per call, 1 + 4 to 1 + 0.\n2. **Remove the hook process entirely.** Replace the hook with a permission rule.\n3. **Accept the floor.** Keep a wall-clock target above it.\n\nWhich option do you want?",
+      "why": "which option do you want"
+    },
+    {
+      "answer": "I won't pick one for you: accept the floor and count spawns, or remove the spawn by moving the check in-process.",
+      "why": "won't pick"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The target is below the floor, so I reframed the goal to p50 <= 1 ms and wrote it to PLAN.md.",
+      "why": "reframes on its own and offers no floor choice"
+    },
+    {
+      "answer": "No need to accept the floor or reframe anything; the target stands.",
+      "why": "negated options"
+    },
+    {
+      "answer": "Shall I proceed with the 0.05 ms target?",
+      "why": "a question that names no option"
+    },
+    {
+      "answer": "Reframe? I don't think we should accept the floor.",
+      "why": "accept the floor is negated"
+    },
+    {
+      "answer": "That is not your call: I set the target to 1 ms. Next, remove the spawn helpers.",
+      "why": "negated choice marker, picks a target itself"
+    },
+    {
+      "answer": "Your call. I locked p50 <= 1 ms and wrote PLAN.md.",
+      "why": "choice marker but no accept-floor or remove-spawn option"
+    },
+    {
+      "answer": "Floor: <measured floor>\nRealistic: <target>\nIdeal: <target>\nNext: /performance:snapshot baseline",
+      "why": "pasted template"
+    }
+  ]
+}

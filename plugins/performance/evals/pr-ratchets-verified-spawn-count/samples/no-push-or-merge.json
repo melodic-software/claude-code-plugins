@@ -1,0 +1,150 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /plugins/performance/scripts/ratchet.py .performance/ratchet.py"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 .performance/ratchet.py check --file .performance/ratchets.json"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --short"
+          }
+        }
+      ],
+      "why": "vendoring and checking only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -3; git merge-base HEAD main; git status --short"
+          }
+        }
+      ],
+      "why": "merge-base is not a merge"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr merge 12 --squash"
+          }
+        }
+      ],
+      "why": "merge"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git push -u origin perf/ratchet-guard-spawns"
+          }
+        }
+      ],
+      "why": "push"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /w merge --no-ff perf/ratchet"
+          }
+        }
+      ],
+      "why": "local merge with -C"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api -X PUT repos/o/r/pulls/12/merge"
+          }
+        }
+      ],
+      "why": "merge through the API"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh pr ready 12"
+          }
+        }
+      ],
+      "why": "marking ready"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -c credential.helper= push origin perf/ratchet"
+          }
+        }
+      ],
+      "why": "git -c k=v push"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git --no-pager push origin HEAD"
+          }
+        }
+      ],
+      "why": "git --no-pager push"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C \"/a b\" push"
+          }
+        }
+      ],
+      "why": "git -C with a quoted path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh api -X PUT \"repos/o/r/pulls/1/merge\""
+          }
+        }
+      ],
+      "why": "gh api with a quoted merge path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /w\ngit push -u origin perf/ratchet"
+          }
+        }
+      ],
+      "why": "push at a line start"
+    }
+  ]
+}

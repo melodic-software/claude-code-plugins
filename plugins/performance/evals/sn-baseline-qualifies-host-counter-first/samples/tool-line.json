@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Writing the baseline.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Write\",\"input\":{\"file_path\":\".work/guard-hook/baselines/baseline-2026-10-13.md\",\"content\":\"# guard-hook baseline\\n\\n```text\\nTool: scripts/ab.sh @ sha256:efab16ce69d9355d (0.9.1) flags-ok: yes (--a --b --iterations --percentiles) behind-upstream: not determinable column-ok: yes (p50, p95, raw samples, rc)\\n```\\n\"}}]},\"parent_tool_use_id\":null}",
+      "why": "written into the baseline file"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Recording the baseline.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > .work/guard-hook/baselines/baseline-2026-10-13.md <<'EOF'\\nTool: performance plugin scripts/ (not a git checkout; hashes) ab.sh efab16ce69d9355d, summarize.py 48c9e99da6fc5cb5,\\n  ratio.py 6d5c42a4c1a99546 flags-ok: yes behind-upstream: not determinable column-ok: yes\\nEOF\",\"description\":\"Write the baseline\"}}]},\"parent_tool_use_id\":null}",
+      "why": "heredoc, fields wrapped onto an indented continuation line"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"- **Tool:** `/plugins/performance/scripts/ab.sh` @ sha256:91ac flags-ok: yes behind-upstream: not determinable column-ok: yes\",\"stop_reason\":\"end_turn\"}",
+      "why": "bulleted bold form in the reply"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Writing the baseline.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Write\",\"input\":{\"file_path\":\".work/guard-hook/baselines/baseline-2026-10-13.md\",\"content\":\"```text\\nTool: <plugin>/scripts/ab.sh @ sha256:efab16ce69d9 (performance 0.9.1) flags-ok: yes (--a --b --iterations) behind-upstream: not determinable column-ok: yes (p50, p95)\\n```\\n\"}}]},\"parent_tool_use_id\":null}",
+      "why": "plugin root abbreviated in angle brackets, real flag check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Tool: hooks/guard.sh\",\"stop_reason\":\"end_turn\"}",
+      "why": "no flag check recorded"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"I checked the tool and its flags are fine.\",\"stop_reason\":\"end_turn\"}",
+      "why": "no Tool: record"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Tool: scripts/spawn-census.sh\\n\\nflags-ok: yes\",\"stop_reason\":\"end_turn\"}",
+      "why": "flags-ok not part of the Tool record"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Writing the baseline.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Write\",\"input\":{\"file_path\":\".work/guard-hook/baselines/baseline-2026-10-13.md\",\"content\":\"Tool: <path> @ <rev|hash> (<version>) flags-ok: <yes|no — list missing> behind-upstream: <n|not determinable> column-ok: <yes|no — name missing>\\nPath (<arm>): <intended path from goal> -> <observed path | unobserved> (evidence: <marker | exit | processes>; state: reset | recorded <values>)\\nCapture: assisted by /verification:measure\\nCapture: unassisted, verification absent\\nCapture: unassisted, verification present and skipped because <reason>\"}}]},\"parent_tool_use_id\":null}",
+      "why": "pasted template"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_01\",\"content\":\"Tool: <path> @ <rev|hash> (<version>) flags-ok: <yes|no — list missing> behind-upstream: <n|not determinable> column-ok: <yes|no — name missing>\\nPath (<arm>): <intended path from goal> -> <observed path | unobserved> (evidence: <marker | exit | processes>; state: reset | recorded <values>)\\nCapture: assisted by /verification:measure\\nCapture: unassisted, verification absent\\nCapture: unassisted, verification present and skipped because <reason>\"}]}}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Baseline written.\",\"stop_reason\":\"end_turn\"}",
+      "why": "template only in the skill text a tool returned"
+    }
+  ]
+}

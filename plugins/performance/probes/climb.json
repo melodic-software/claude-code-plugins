@@ -1,0 +1,130 @@
+{
+  "skill": "performance:climb",
+  "plugin": "performance",
+  "skill_dir": "plugins/performance/skills/climb",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling performance skills a loop request borders (snapshot, verify, goal) and verification:measure for a one-off before/after claim.",
+  "competitors": [
+    "performance:snapshot",
+    "performance:verify",
+    "performance:goal",
+    "verification:measure",
+    "improvement:improve"
+  ],
+  "competitor_dirs": {
+    "performance:snapshot": "plugins/performance/skills/snapshot",
+    "performance:verify": "plugins/performance/skills/verify",
+    "performance:goal": "plugins/performance/skills/goal",
+    "verification:measure": "plugins/verification/skills/measure",
+    "improvement:improve": "plugins/improvement/skills/improve"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Baseline is captured for the allocation count in the parser. Now keep trying changes one at a time and keep only the ones that actually lower it."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Hill-climb the startup benchmark: one idea per commit, re-measure both arms each time, revert anything that doesn't beat the rule."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Set up an optimization loop on the frozen harness for the cache-miss counter and let it run attempts until we hit the goal."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want an automated try-measure-keep-or-revert cycle on this benchmark, logging every attempt, in a separate worktree so my checkout stays clean."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Iterate on the JSON serializer until the instruction count target from the goal file is met."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run attempts against the syscall counter until it drops below 4,000, reverting each change that doesn't help."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We have a baseline snapshot. Start iterating on the query count now, discarding anything that does not help."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Grind on this hot path: propose a change, commit it, measure old vs new, keep or roll back, repeat."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you do repeated optimization attempts on the render benchmark with a keep rule decided up front?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Loop over candidate tweaks to the regex engine until the counter stops improving, and log every try outside the repo."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Capture a baseline of the build's page-fault count before I start changing things."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I made one change to the hashing code. Compare before and after once and tell me if it's faster."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Re-check the numbers my last optimization run reported, in a fresh context, and say whether the target was met."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Define what done looks like for speeding up the importer, and tell me the floor before we start."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Benchmark the sort function before and after my refactor and tell me if complexity went down."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Just make this function faster and open a PR with the improvement."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is a 5 ms p50 target for the login endpoint even reachable given the network round trip?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Take the post-change snapshot for the tokenizer and hand it to verification."
+    }
+  ]
+}

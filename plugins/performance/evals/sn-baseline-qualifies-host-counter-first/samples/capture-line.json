@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Writing the baseline.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Write\",\"input\":{\"file_path\":\".work/guard-hook/baselines/baseline-2026-10-13.md\",\"content\":\"# guard-hook baseline\\n\\nCapture: unassisted, verification absent (`/verification:measure` not in this session's skill list)\\n\"}}]},\"parent_tool_use_id\":null}",
+      "why": "written into the baseline file"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"- **Capture:** `Capture: unassisted, verification absent`. `/verification:measure` isn't in this session's skill list.\",\"stop_reason\":\"end_turn\"}",
+      "why": "the line quoted inside a bold label"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Capture: unassisted, verification present and skipped because the user asked for a raw run\",\"stop_reason\":\"end_turn\"}",
+      "why": "skipped with a reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"- **Capture:** unassisted. I haven't checked whether `/verification:measure` is in this session.\",\"stop_reason\":\"end_turn\"}",
+      "why": "no verification disposition"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The header line would be `Capture: unassisted, verification absent`.\",\"stop_reason\":\"end_turn\"}",
+      "why": "hypothetical, not a record line"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Writing the baseline.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Write\",\"input\":{\"file_path\":\".work/guard-hook/baselines/baseline-2026-10-13.md\",\"content\":\"Tool: <path> @ <rev|hash> (<version>) flags-ok: <yes|no — list missing> behind-upstream: <n|not determinable> column-ok: <yes|no — name missing>\\nPath (<arm>): <intended path from goal> -> <observed path | unobserved> (evidence: <marker | exit | processes>; state: reset | recorded <values>)\\nCapture: assisted by /verification:measure\\nCapture: unassisted, verification absent\\nCapture: unassisted, verification present and skipped because <reason>\"}}]},\"parent_tool_use_id\":null}",
+      "why": "pasted template"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Capture: unassisted, verification present and skipped because <reason>\",\"stop_reason\":\"end_turn\"}",
+      "why": "placeholder reason"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Capture: assisted\",\"stop_reason\":\"end_turn\"}",
+      "why": "incomplete form"
+    }
+  ]
+}

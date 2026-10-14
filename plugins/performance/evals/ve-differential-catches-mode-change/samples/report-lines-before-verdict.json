@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The verdict is **NOT MET**. In lenient mode, `rm -rf /tmp/build` now gets `ask` where it got `deny`.\\n\\n```text\\nTarget:      0 / 0        Floor: 0\\nCounter:     3 -> 0   [headline] [unproven]\\nCorrelation: unproven\\nLimiter:     the bash interpreter exec; the after arm uses only builtins\\nRuled out:   failed work: every differential run exited 0\\nVerdict:     NOT MET\\nBehavior:    CHANGED: lenient + recursive rm, deny -> ask (differential: 6 inputs x {strict, lenient}, 1 mismatch)\\nNot covered: wall-clock timing; inputs outside the 6-line corpus\\n```\\n\",\"stop_reason\":\"end_turn\"}",
+      "why": "template order, Not covered last"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"- **Limiter:** unknown\\n- **Ruled out:** unknown\\n- **Verdict:** NOT MET\\n- **Not covered:** the limiter was not profiled\",\"stop_reason\":\"end_turn\"}",
+      "why": "unknown lines, not MET"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The verifier is still running. I'll write the report when it finishes.\",\"stop_reason\":\"end_turn\"}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The verdict is **NOT MET**. In lenient mode, `rm -rf /tmp/build` now gets `ask` where it got `deny`.\\n\\n```text\\nTarget:      0 / 0        Floor: 0\\nCounter:     3 -> 0   [headline] [unproven]\\nCorrelation: unproven\\nDeployed:    n/a (no install record for this subject)\\nLimiter:     the bash interpreter exec; the after arm uses only builtins\\nRuled out:   failed work: every differential run exited 0\\nVerdict:     NOT MET\\nBehavior:    CHANGED: lenient + recursive rm, deny -> ask (differential: 6 inputs x {strict, lenient}, 1 mismatch)\\nNot covered: wall-clock timing; inputs outside the 6-line corpus\\n```\",\"stop_reason\":\"end_turn\"}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"That notification was only the wait timer finishing. The verification report above is complete and unchanged.\",\"stop_reason\":\"end_turn\"}",
+      "why": "report in an earlier result turn"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Verdict: MET\\nLimiter: bash startup\\nRuled out: warm cache\\nNot covered: none\",\"stop_reason\":\"end_turn\"}",
+      "why": "verdict before the limiter"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Limiter: bash startup\\nRuled out: warm cache\\nVerdict: MET\",\"stop_reason\":\"end_turn\"}",
+      "why": "no Not covered line"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Limiter: bash startup\\nVerdict: MET\\nNot covered: none\",\"stop_reason\":\"end_turn\"}",
+      "why": "no Ruled out line"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Limiter: bash startup\\nRuled out: warm cache\\nVerdict: mostly met\\nNot covered: none\",\"stop_reason\":\"end_turn\"}",
+      "why": "a verdict outside the three values"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"```text\\nDeployed:    same as measured\\nLimiter:     <what bounds the result>\\nRuled out:   <what was excluded>\\nVerdict:     MET | NOT MET | UNMEASURABLE\\nBehavior:    UNCHANGED (differential: N inputs, modes covered: <list>)\\nNot covered: <list>\\n```\",\"stop_reason\":\"end_turn\"}",
+      "why": "pasted template"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_01\",\"content\":\"```text\\nDeployed:    same as measured\\nLimiter:     <what bounds the result>\\nRuled out:   <what was excluded>\\nVerdict:     MET\\nBehavior:    UNCHANGED (differential: N inputs, modes covered: <list>)\\nNot covered: <list>\\n```\"}]}}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Report written to .work/guard-hook/verify.md.\",\"stop_reason\":\"end_turn\"}",
+      "why": "report lines only in a tool result"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The spawn count dropped from 3 to 0 on the deny path.\\n\\nVerdict: MET. Reproduced by an independent verifier: yes.\",\"stop_reason\":\"end_turn\"}",
+      "why": "skips the report block"
+    }
+  ]
+}

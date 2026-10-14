@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: sn-baseline-qualifies-host-counter-first
+description: 'Snapshot main path for a baseline: qualify the host with spawn_probe and is_measurable, record the measuring tool''s identity, count spawns with the bundled census, record the path each arm took, and state its Capture line. Only the performance plugin is loaded, so /verification:measure is absent. The eval workspace sits under /tmp, where the census refuses every shim directory, so the case grades the census call but not its spawns= count or a stored baseline. A run needs --scaffold and --allow-tools Bash.'
+tags: [snapshot, baseline]
+plugins: ["../.."]
+expected_outcome: 'The run calls spawn_probe and is_measurable before any timing, records a Tool: line, runs the bundled spawn census, records a Path (<arm>): line with the observed path and its evidence, and states Capture: unassisted, verification absent (or another of the three Capture forms).'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/performance:snapshot baseline guard-hook. The goal is in .work/guard-hook/PLAN.md.'
+  allowed_tools: [Bash, Read, Grep, Glob, Skill]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: host-qualified
+    type: tool_used
+    tool: Bash
+    input_match: '^(?=.*(?:\b|(?<=\\n))python3?\b)(?=.*(?<!def )(?:\b|(?<=\\n))spawn_probe\s*\()(?=.*(?<!def )(?:\b|(?<=\\n))is_measurable\s*\()'
+    min: 1
+    arm: with-only
+  - name: bundled-census-ran
+    type: tool_used
+    tool: Bash
+    input_match: '(?:run-)?spawn-census\.sh\b(?!\s+--help)'
+    min: 1
+    arm: with-only
+  - name: tool-line
+    type: regex
+    target: trace
+    pattern: '^(?=[^\n]*"type":"(?:assistant|result)")[^\n]*?(?:\\n|")[^\w<\\]*Tool:(?:(?!\\n)[^\n])*?(?:\\n[ \t]+(?:(?!\\n)[^\n])*?){0,4}?\bflags-ok:(?![ \t]*<)'
+    flags: 'm'
+    arm: both
+  - name: path-line
+    type: regex
+    target: trace
+    pattern: '^(?=[^\n]*"type":"(?:assistant|result)")[^\n]*?(?:\\n|")[^\w<\\]*Path[ \t]*\((?!<)(?:(?!\\n)[^)\n])+\)[^\w<\\]*:(?:(?!\\n)[^\n])*?(?:->|→)(?![ \t*_`]*(?:unobserved|<))(?:(?!\\n)[^\n])*?\bevidence\b'
+    flags: 'mi'
+    arm: both
+  - name: capture-line
+    type: regex
+    target: trace
+    pattern: '^(?=[^\n]*"type":"(?:assistant|result)")(?![^\n]*skipped because <)[^\n]*?(?:\\n|")[^\w<\\]*Capture:[^\w<\\]*(?:Capture:[^\w<\\]*)?(?:assisted by /verification:measure|unassisted, verification (?:absent|present and skipped because (?!<)\S))'
+    flags: 'mi'
+    arm: both

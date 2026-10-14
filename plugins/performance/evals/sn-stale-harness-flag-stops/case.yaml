@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: sn-stale-harness-flag-stops
+description: 'Snapshot measuring-tool integrity (step 1b): the goal''s metric command passes --json to bench/time-guard.sh, whose --help lists only --iterations and which exits 2 on an unknown option. The run records the tool''s identity, finds the missing flag, stops before any timed arm, names the fixes and reports no partial numbers. A run needs --scaffold and --allow-tools Bash.'
+tags: [snapshot, tool-integrity]
+plugins: ["../.."]
+expected_outcome: 'The run checks the metric command''s flags against bench/time-guard.sh --help, finds --json unsupported, and stops the run: no ab.sh arm, no reported percentile. It names the fixes (update the harness, or change the goal''s metric command) and records a Tool: line with flags-ok: no.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/performance:snapshot baseline guard-hook. The goal is in .work/guard-hook/PLAN.md.'
+  allowed_tools: [Bash, Read, Grep, Glob, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: names-missing-flag
+    type: regex
+    pattern: '^(?=[\s\S]*--json)(?=[\s\S]*?(?:\bflags-ok:\W*no\b|(?:^|[\n;:!?(,]|\.(?!\w))(?:(?!\b(?:no|nothing|not|none|never|without)\b|\w+n[''’]t\b)(?:[^.;:!?\n,]|\.(?=\w)))*?(?:\bunknown option\b|\bunsupported\b|\b(?:not|\w+n[''’]t)[ \t]+(?:\w+[ \t]+)?(?:support|list|accept|recogni[sz]|document|know|exist|have|offer)\w*|\bmissing (?:flag|option)|--json(?:(?![.;:!?,]|\b(?:no|nothing|not|none|never)\b)[^\n]){0,40}\bmissing\b|\bmissing\b(?:(?![.;:!?,]|\b(?:no|nothing|not|none|never)\b)[^\n]){0,40}--json|\bno such (?:flag|option)\b|\bno[ \t]+`?--json`?[ \t]+(?:flag|option)\b|\black(?:s|ing)\b(?:(?![.;:!?,]|\b(?:no|nothing|not|none|never)\b)[^\n]){0,40}--json)))'
+    flags: 'mi'
+    arm: both
+  - name: names-a-fix
+    type: regex
+    pattern: '(?:^|[\n:;.!?]|\b(?:or|either|and)[ \t]+|\(?\d[.)][ \t]+|^[ \t]*[-*][ \t]+)[ \t*_`]*(?:update|upgrade|re-?copy|replace|add)\b[^\n]{0,60}\b(?:tool|harness|script|time-guard|--json)\b|(?:^|[\n:;.!?]|\b(?:or|either|and)[ \t]+|\(?\d[.)][ \t]+|^[ \t]*[-*][ \t]+)[ \t*_`]*(?:change|edit|update|amend|drop|fix|rewrite)\b[^\n]{0,40}\b(?:goal|metric command|metric)\b'
+    flags: 'im'
+    arm: both
+  - name: no-timed-arm
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\"command\":\"|;|&&|\|\||\||\\n|\(|\$\()[ \t]*(?:[A-Za-z_][A-Za-z0-9_]*=\S*[ \t]+)*(?:(?:sudo|exec|time|nohup|command|nice(?:[ \t]+-n)?(?:[ \t]+-?\d+)?|env(?:[ \t]+-\S+)*|timeout(?:[ \t]+-\S+)*[ \t]+\S+|taskset(?:[ \t]+-\S+)*[ \t]+\S+)[ \t]+(?:[A-Za-z_][A-Za-z0-9_]*=\S*[ \t]+)*)*(?:(?:bash|dash|zsh|sh)[ \t]+(?:-\S+[ \t]+)*)?(?:[^\s`=]*/)?(?:ab\.sh\b(?![ \t]+--help)|time-guard\.sh\b(?!(?:(?!\\n)[^;&|)\n])*?(?:--help|--version|--json|--iterations[ \t=]+[1-3]\b)))'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-partial-durations
+    type: regex
+    pattern: '^(?![^\n]*\b(?:spawn_probe|spawn cost|no-op spawn|spawn floor)\b)[^\n]*?(?:\b(?:p(?:50|90|95|99)|median|mean|average|avg)\b\W{0,10}(?:=|:|is|of|at|was)?\W{0,4}\d+(?:\.\d+)?[ \t]*(?:ms|s|secs?|seconds|µs|us)\b|\b\d+(?:\.\d+)?[ \t]*(?:ms|s|µs)\b[^\n]{0,20}?\(?\b(?:p(?:50|90|95|99)|median)\b)'
+    flags: 'mi'
+    match: not_contains
+    arm: both
