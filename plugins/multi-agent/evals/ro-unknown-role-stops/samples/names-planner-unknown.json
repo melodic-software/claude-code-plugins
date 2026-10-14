@@ -5,20 +5,20 @@
       "why": "unknown role planner"
     },
     {
-      "answer": "`planner` isn't a role, so the resolver exited with code 2.\n",
-      "why": "observed measured reply: isn't a role"
+      "answer": "`planner` isn't a role, so the resolver stopped with exit code 2.\n",
+      "why": "rewritten from a measured reply: isn't a role"
     },
     {
-      "answer": "There's no `planner` role, so the route command stopped with exit 2.\n",
-      "why": "observed measured reply: no planner role"
+      "answer": "There's no `planner` role; the route command exited 2.\n",
+      "why": "rewritten from a measured reply: no planner role"
     },
     {
-      "answer": "The resolver doesn't know a `planner` role. It exited with code 2.\n",
-      "why": "observed measured reply: doesn't know a planner role"
+      "answer": "The resolver doesn't know a `planner` role and exited with code 2.\n",
+      "why": "rewritten from a measured reply: doesn't know a planner role"
     },
     {
-      "answer": "I couldn't route `planner` because it isn't a valid role.\n",
-      "why": "observed measured reply: it isn't a valid role"
+      "answer": "`planner` could not be routed, because it isn't a valid role.\n",
+      "why": "rewritten from a measured reply: it isn't a valid role"
     },
     {
       "answer": "`planner` is invalid here; use one of the valid roles.\n",

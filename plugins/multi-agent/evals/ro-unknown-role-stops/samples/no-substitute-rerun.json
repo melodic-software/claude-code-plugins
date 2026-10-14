@@ -20,11 +20,11 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh planner session=opus; echo \"exit=$?\""
+            "command": "/home/<user>/.claude/plugins/multi-agent/skills/route/scripts/route.sh planner session=opus; echo \"status=$?\""
           }
         }
       ],
-      "why": "observed: exit code echoed in quotes"
+      "why": "rewritten from a measured call: exit code echoed in quotes"
     }
   ],
   "fail": [

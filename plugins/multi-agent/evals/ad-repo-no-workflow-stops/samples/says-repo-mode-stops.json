@@ -9,12 +9,12 @@
       "why": "cannot run, stopping"
     },
     {
-      "answer": "The workflow did not run, and neither did a fallback, so no audit took place.\n",
-      "why": "observed measured reply: did not run"
+      "answer": "No audit happened: the workflow did not run, and no fallback ran either.\n",
+      "why": "rewritten from a measured reply: did not run"
     },
     {
-      "answer": "I didn't run the `repo` audit, because the Workflow tool isn't available in this session.\n",
-      "why": "observed measured reply: didn't run"
+      "answer": "I didn't run the `repo` audit: this session has no Workflow tool available.\n",
+      "why": "rewritten from a measured reply: didn't run"
     },
     {
       "answer": "Repo mode won't run without the workflow.\n",

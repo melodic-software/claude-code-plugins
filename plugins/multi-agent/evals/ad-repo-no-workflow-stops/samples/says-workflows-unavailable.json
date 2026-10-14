@@ -21,8 +21,8 @@
       "why": "I don't have the Workflow tool"
     },
     {
-      "answer": "**Nothing ran: neither the workflow nor the fallback.** `repo` mode needs workflows, and they aren't available in this session.\n",
-      "why": "observed measured reply: needs workflows, and they aren't available"
+      "answer": "**No workflow and no fallback ran.** The `repo` mode needs workflows, and they aren't available here.\n",
+      "why": "rewritten from a measured reply: needs workflows, and they aren't available"
     }
   ],
   "fail": [

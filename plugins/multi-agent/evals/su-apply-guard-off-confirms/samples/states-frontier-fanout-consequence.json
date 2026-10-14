@@ -31,8 +31,8 @@
       "why": "states what the guard prevents"
     },
     {
-      "answer": "Normally, when several agents run in parallel under a Fable session, each agent that would run on a frontier model is moved to `opus`.\n",
-      "why": "observed guard-on sentence alone: what the guard does today"
+      "answer": "Today, under a Fable session, any parallel agent that would land on a frontier model is moved to `opus` instead.\n",
+      "why": "rewritten from a measured reply, guard-on sentence alone: what the guard does today"
     },
     {
       "answer": "Do you want fan-out stages to run on the frontier session model?\n",

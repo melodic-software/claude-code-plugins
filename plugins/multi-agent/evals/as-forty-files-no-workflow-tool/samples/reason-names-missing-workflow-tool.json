@@ -13,8 +13,8 @@
       "why": "workflows unavailable"
     },
     {
-      "answer": "verdict: subagent\nreason: 42 independent files get the identical one-line edit, which would call for a workflow. The script reports `not-off`, but the `Workflow` tool isn't callable in this session, so the verdict drops to subagent. Batch the files across a few subagents instead of using 42 workers.\nshape: sections\n",
-      "why": "observed smoke reply: backticked tool name, isn't callable"
+      "answer": "verdict: subagent\nreason: The same one-line edit lands on 42 independent files, a workflow-shaped job. The switch script prints `not-off`, yet the `Workflow` tool isn't callable in this session, so the verdict falls back to subagent. Spread the files over a handful of subagents rather than 42 workers.\nshape: sections\n",
+      "why": "rewritten from a smoke reply: backticked tool name, isn't callable"
     },
     {
       "answer": "verdict: subagent\nreason: 42 independent items; the Workflow tool wasn't available, so subagents\nshape: sections\n",
@@ -25,12 +25,12 @@
       "why": "not in this session's tools"
     },
     {
-      "answer": "verdict: subagent\nreason: 42 independent files that all get the same edit would normally be a workflow, but none is possible here: the switch check says `not-off`, yet the `Workflow` tool isn't one I can call, so this drops to subagent. The count of 42 is from the task; no src/handlers/ exists under the current directory, so I couldn't count the files.\nshape: sections\n",
-      "why": "observed measured reply: isn't one I can call"
+      "answer": "verdict: subagent\nreason: The same edit across 42 independent files would usually be a workflow, but that is ruled out here: the switch check reports `not-off`, yet the `Workflow` tool isn't one I can call, so it falls to subagent. The 42 comes from the task; src/handlers/ is absent from the current directory, so I could not count the files myself.\nshape: sections\n",
+      "why": "rewritten from a measured reply: isn't one I can call"
     },
     {
-      "answer": "verdict: subagent\nreason: 42 identical, independent per-file edits would call for a workflow, but I don't have the Workflow tool in this session (the off-switch script printed `not-off`), so this drops to subagent. src/handlers/ doesn't exist in this working directory, so 42 is your count, not one I checked.\nshape: sections\n",
-      "why": "observed measured reply: I don't have the Workflow tool"
+      "answer": "verdict: subagent\nreason: 42 identical edits, one per independent file, would suit a workflow, but I don't have the Workflow tool in this session (the off-switch script reported `not-off`), so the verdict drops to subagent. There is no src/handlers/ here, so 42 is the task's count, not mine.\nshape: sections\n",
+      "why": "rewritten from a measured reply: I don't have the Workflow tool"
     },
     {
       "answer": "verdict: subagent\nreason: 42 same-step items; I can't call the `Workflow` tool here, so subagents\nshape: sections\n",

@@ -16,11 +16,11 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "S=/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh; \"$S\" check session=opus; echo \"--- exit $?\"; \"$S\" apply --layer user fanout.frontier_guard=false roles.worker.effort=high; echo \"--- exit $?\""
+            "command": "SCRIPT=/home/<user>/.claude/plugins/multi-agent/skills/setup/scripts/setup.sh; \"$SCRIPT\" check session=opus; echo \"-- rc $?\"; \"$SCRIPT\" apply --layer user fanout.frontier_guard=false roles.worker.effort=high; echo \"-- rc $?\""
           }
         }
       ],
-      "why": "observed measured call: script path in a shell variable"
+      "why": "rewritten from a measured call: script path in a shell variable"
     },
     {
       "answer": [

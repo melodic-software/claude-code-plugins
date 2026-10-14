@@ -13,8 +13,8 @@
       "why": "hold until"
     },
     {
-      "answer": "verdict: subagent\nreason: Three agents each write a fix for one test file, so the work fits a few delegated tasks in one turn. \"Keep one of the fixes\" doesn't say how to choose the winner. Don't start the race until a rule is stated, such as \"the first fix where the test passes 50 runs in a row.\" Choosing after reading the fixes would let the fixes decide the rule.\nshape: race (no selection rule stated)\n",
-      "why": "observed measured reply: a later sentence ends in a period, not a question"
+      "answer": "verdict: subagent\nreason: Three agents each fix one test file, which fits a few delegated tasks in a single turn. \"Keep one of the fixes\" gives no way to pick the winner. Don't start the race until a rule is stated, for example \"the first fix whose test passes 50 runs in a row.\" Picking after reading the fixes would let the fixes set the rule.\nshape: race (no selection rule stated)\n",
+      "why": "rewritten from a measured reply: a later sentence ends in a period, not a question"
     },
     {
       "answer": "verdict: subagent\nreason: three fixes for one test; the agents must not start until the selection criteria are stated.\nshape: race (no selection rule stated)\n",
