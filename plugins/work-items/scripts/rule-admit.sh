@@ -160,7 +160,7 @@ SHA="$(sha_of "$BINDING" | cut -c1-12)"
 # $edited (GraphQL lastEditedAt, "" when never edited), $rules, $sha, $n.
 # shellcheck disable=SC2016 # jq program, not shell expansion
 EVAL='
-def deny: "(\\.github|\\b(hooks?|guard(rail)?s?|permissions?|(allow|deny)[- ]?lists?|workflows?|rulesets?|codeowners|secrets?|tokens?|credentials?|pin(s|ned|ning)?|sha(s|1|256)?|checksums?|admission|work-class(es)?|label-provenance|autonomy|security|merg(e|es|ed|ing)|sandbox(es|ed|ing)?|auto[- ]mode|bindings?|trust(ed|s|ing)?|ci)\\b)";
+def deny: "(\\.github|\\b(hooks?|guard(rail)?s?|permissions?|(allow|deny)[- ]?lists?|workflows?|rulesets?|codeowners|secrets?|tokens?|credentials?|pins?|pinned|pinning|sha(s|1|256)?|checksums?|admission|work-class(es)?|label-provenance|autonomy|security|merg(e|es|ed|ing)|sandbox(es|ed|ing)?|auto[- ]mode|bindings?|trust(ed|s|ing)?|ci)\\b)";
 def row($verdict; $rule; $proposed; $reason):
   {issue: $n, verdict: $verdict, rule: ($rule.id // null), work_class: ($rule.work_class // null),
    constraint: (if $rule == null then null else "human-merge" end),

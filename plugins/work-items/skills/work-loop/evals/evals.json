@@ -434,6 +434,35 @@
         "Never applies the loop-lane: first-drain-ratified label itself",
         "Treats #900 as lane infrastructure, outside the drain exit test, and stops cleanly"
       ]
+    },
+    {
+      "id": 31,
+      "name": "work-loop-rule-admission-admits-only-exit-zero-admit-rows-under-human-merge",
+      "narration": true,
+      "prompt": "/work-items:work-loop\n\nCycle on github, repo acme/widgets. Snapshot items #41 and #42 are not in flight and carry no autonomous-eligible role label. The security binding resolves through /autonomy:setup to /bindings/security.json with posture and decision table allowing rule admission. scripts/rule-admit.sh --repo acme/widgets --binding /bindings/security.json --issue 41 --issue 42 exits 0 and prints two rows: #41 {\"verdict\": \"admit\", \"rule\": \"docs-typos\", \"work_class\": \"C2\", \"constraint\": \"human-merge\", \"reason\": \"admitted-by-rule: docs-typos@abc123\"} and #42 {\"verdict\": \"refuse\"}. scripts/merge-hold.sh for #41 exits 1.",
+      "expected_output": "The lane runs rule-admit.sh with the resolved binding and admits only #41, the exit-0 admit row. It writes no label on #41 (no autonomous-eligible role label, no work-class: label) and records 'admitted-by-rule: docs-typos@abc123' in the cycle report as the admission of record. It dispatches #41 to /work-items:work stating the PR body carries 'Hold: a human merges this', expecting ready to flip the PR out of draft while the merge gate refuses it, so a person merges. #42 changes nothing and appears only in the refused count. #41 still passes the hard gates and the item cap.",
+      "files": [],
+      "expectations": [
+        "Invokes rule-admit.sh with --repo acme/widgets, the resolved binding path, and both issues",
+        "Admits #41 only and does not admit or dispatch #42",
+        "Applies no autonomous-eligible role label and no work-class: label to #41",
+        "Reports admitted-by-rule: docs-typos@abc123 as #41's admission of record",
+        "Dispatches #41 with the PR body carrying 'Hold: a human merges this' and does not claim ready will refuse the flip",
+        "Reports #42 only as part of a refused count, changing none of its labels"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "work-loop-rule-admission-nonzero-exit-admits-nothing",
+      "narration": true,
+      "prompt": "/work-items:work-loop\n\nCycle on github, repo acme/widgets. Snapshot item #43 is not in flight and carries no autonomous-eligible role label. The security binding resolves to /bindings/security.json. scripts/rule-admit.sh --repo acme/widgets --binding /bindings/security.json --issue 43 exits 4 and its stdout still contains a row {\"issue\": 43, \"verdict\": \"admit\"}.",
+      "expected_output": "Exit 4 admits nothing, whatever rows the output holds: #43 is not admitted, not dispatched, and none of its labels change. The lane continues the cycle with the other candidates.",
+      "files": [],
+      "expectations": [
+        "Does not admit or dispatch #43 despite the admit row in stdout",
+        "Changes no label on #43",
+        "Continues the cycle rather than stopping"
+      ]
     }
   ]
 }
