@@ -62,6 +62,17 @@ activities:
     gating: advisory
     reads-untrusted: false
     inputs: [pr, head-sha]
+  merge-pr:
+    # Runs the merge gate on one PR and, when it passes, adds the PR to the
+    # merge queue at the head it checked. No model. .github/workflows/pr-merge.yml
+    # runs it for each candidate PR.
+    script: plugins/source-control/scripts/source-control-babysit-merge
+    args: --unattended --authority pr-merge --merge
+    effect: merge
+    gating: advisory
+    # Reads PR bodies, labels and comments for holds.
+    reads-untrusted: true
+    inputs: [pr, head-sha]
 
 lanes:
   # Started by the agent-ready label on an issue (.github/workflows/work-resolve-issue.yml).
@@ -81,6 +92,10 @@ lanes:
       - activity: resolve-conflicts
       - activity: report-escalation
         needs: [resolve-conflicts]
+  pr-merge:
+    stage: merge
+    slots:
+      - activity: merge-pr
 
 merge:
   # The lane auto-merges only PRs labeled `work-class: mechanical` (C2):
@@ -97,6 +112,8 @@ merge:
       - ".github/**"
       - "docs/conventions/**"
       - "plugins/source-control/skills/babysit-prs/**"
+      # The gate's wrapper, which pr-merge.yml runs under the lane token.
+      - "plugins/source-control/scripts/**"
       - ".claude/**"
       - "plugins/*/skills/**"
       - "plugins/*/agents/**"

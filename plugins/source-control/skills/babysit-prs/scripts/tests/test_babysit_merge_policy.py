@@ -2410,6 +2410,8 @@ class LaneEligibility(unittest.TestCase):
             "plugins/foo/hooks/hooks.json",
             "plugins/foo/.claude-plugin/plugin.json",
             "scripts/check-convention-yaml.sh",
+            # The wrapper pr-merge.yml runs under the lane token (#7476 review).
+            "plugins/source-control/scripts/source-control-babysit-merge",
         ):
             with self.subTest(path):
                 self.fake(files=["docs/guide.md", path])

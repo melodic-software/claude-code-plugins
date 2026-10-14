@@ -390,6 +390,11 @@ except three:
 - **Promotion.** No promotion evidence is read. The lane starts with `merge.report-only: true`;
   the owner reads its reports and sets `false` to let it merge.
 
+`.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
+checkout. A finished `ci-status` or review run, a label, body or ready change on a PR, a manual
+dispatch and an hourly schedule each only wake it; it lists the candidates from the API and runs the
+gate on each under the lanes App token the broker mints for that file on `main`.
+
 ## Trust-root paths
 
 A lane's token grant and the rules it is judged by come from these default-branch paths, so a
