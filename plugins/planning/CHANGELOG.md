@@ -3,6 +3,20 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.74.0] - 2026-10-14
+
+### Added
+
+- `/planning:interview` page surface round tooling (#6050): a yes/no question flagged `"binary": true` carries exactly one alternative, refused when it repeats or contains the recommendation; `add-round --check` runs every refusal and warning and writes nothing; `add-round --sync-ledger '<ledger>'` posts the round and syncs the register in one command, refusing a ledger without exactly one register heading before anything is written, and when the sync fails after the write it keeps the round and names the `sync-ledger` command to rerun; and a question added after a later round was posted records `addedInRound`, shown on the page as `Added in round N` and in the register's round cell, which `import-ledger` reads back. `context/surface.md` documents the round fields, the one-command round step with literal single-quoted paths, and editing a round file with the Write or Edit tool before `add-round` or `revise` ops after it.
+
+### Changed
+
+- `/planning:interview` routes a continuation that outgrows the session (a pause, branches outgrowing it, or a worsened context zone) through `/session-flow:workflow`, handing it the ledger, Brief and first open branch, instead of choosing a handoff and clear itself.
+
+### Fixed
+
+- `/planning:interview` page surface (#6050): `add-round` names the question and the missing field when it refuses one without `id`, `short` or `title`.
+
 ## [0.73.0] - 2026-10-13
 
 ### Added
