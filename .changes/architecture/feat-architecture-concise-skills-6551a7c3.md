@@ -5,7 +5,7 @@ bump: minor
 ### Changed
 
 - Shorter descriptions for all eleven model-invoked skills, every quoted trigger phrase and "Skip when" route kept. Tighter bodies for `map-data`, `map-deployment` and `map-flow`, with every gate, command, claim and report line kept; the other bodies are unchanged.
-- The `improve` eval cases' `says-already-deep` and `states-no-candidates` graders no longer pass on negated or unrelated "no" text.
+- The `improve` eval cases' `says-already-deep` and `states-no-candidates` graders reject more negated and unrelated text.
 
 ### Added
 

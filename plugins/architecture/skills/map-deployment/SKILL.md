@@ -15,9 +15,8 @@ The current repository is both the CONSUMER, whose convention home declares wher
 and the DEFAULT SUBJECT, whose tracked IaC declares the topology.
 
 Collect with an **individual** Bash call, one command per call: the project root,
-`git rev-parse --show-toplevel`. A failure (not a repository, git unavailable) is an unknown value;
-carry on. `${CLAUDE_PROJECT_DIR}` is the
-resolver's `--root` either way.
+`git rev-parse --show-toplevel`. Treat a failure (not a repository, git unavailable) as an unknown
+value and carry on; `${CLAUDE_PROJECT_DIR}` is the resolver's `--root` either way.
 
 ## Purpose
 
@@ -155,8 +154,7 @@ Shipped readers, every one that is present:
   Environments come from parameter files, one per environment, in either JSON shape (the
   `ParameterKey`/`ParameterValue` array, or `{"Parameters": {}}`): `<stem>.<env>.json` or
   `<stem>.parameters.<env>.json` beside `<stem>.<ext>`, else, when the repository holds exactly
-  one template, `<env>.json` or `parameters.<env>.json` anywhere. These pairing rules are this
-  skill's own; no upstream document names a per-environment file convention. With no parameter
+  one template, `<env>.json` or `parameters.<env>.json` anywhere. With no parameter
   file the environment is the directory name (`default` at the repository root). A `Ref` to a
   template parameter and a `Sub` over parameters resolve, from the parameter file and then the
   parameter `Default`. A `Transform` (SAM, a macro) refuses as
@@ -429,16 +427,14 @@ destination comes from the `medium` cascade key. Procedure:
   live. **As of**: 2026-10-04. **Recheck trigger**: a read of any of those pages diverges from the
   placement above.
 - **Terraform values are resolved, never evaluated.** `var.X` resolves from a module call argument,
-  then the environment's `<env>.tfvars`, then `*.auto.tfvars` and `*.auto.tfvars.json`, then
-  `terraform.tfvars.json`, then `terraform.tfvars`, then the variable `default`, and `${var.X}`
-  inside a string the same way. A variable declared `sensitive = true`, or named for a credential,
-  is redacted wherever it lands. Everything else,
-  such as locals, functions other than `jsonencode`, conditionals, for-expressions, `file()`, and
-  `templatefile()`, is recorded as `unresolved:<expression>`. `count` and `for_each` are not
-  expanded (the resource is placed once), a `dynamic` block is not read, and an env list built by
-  an expression records no parameters. A container app, Cloud Run service, or Kubernetes workload
-  whose containers are a `dynamic` block or an expression places one container named for the
-  resource, its image `unresolved:dynamic container` (`containers` for Cloud Run) or
+  then the root's tfvars files, then the variable `default`, and `${var.X}` inside a string the
+  same way. A variable declared `sensitive = true`, or named for a credential, is redacted wherever
+  it lands. Everything else, such as locals, functions other than `jsonencode`, conditionals,
+  for-expressions, `file()`, and `templatefile()`, is recorded as `unresolved:<expression>`. `count`
+  and `for_each` are not expanded (the resource is placed once), a `dynamic` block is not read, and
+  an env list built by an expression records no parameters. A container app, Cloud Run service, or
+  Kubernetes workload whose containers are a `dynamic` block or an expression places one container
+  named for the resource, its image `unresolved:dynamic container` (`containers` for Cloud Run) or
   `unresolved:container`; a `dynamic` block beside plain ones adds a second, `<name>.dynamic`. An
   ECS task definition with no `container_definitions` places one container, its image
   `unresolved:container_definitions`. A resource with an empty body (`resource "aws_s3_bucket" "b" {}`)
