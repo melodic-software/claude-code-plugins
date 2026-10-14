@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.1] - 2026-10-14
+
+### Fixed
+
+- `/work-items:work` and `/work-items:ship run` carry a human-merge hold into the PR body before the ready flip: when a commenter with write access on the item asked for `Hold: a human merges this`, the new `scripts/merge-hold.sh` prints that line and the orchestrator adds it to the body, so the babysit merge gate holds the merge. A failed read leaves the PR a draft.
+
 ## [2.2.0] - 2026-10-13
 
 ### Changed
