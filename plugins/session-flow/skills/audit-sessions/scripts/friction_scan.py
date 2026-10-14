@@ -56,6 +56,12 @@ POLL_RE = re.compile(r"\bsleep\s+\d|\buntil\b.*\bdo\b|\bwhile\b.*\bdo\b|--watch\
 CI_WAIT_RE = re.compile(r"\bgh\s+(run\s+watch|pr\s+checks\b.*--watch)|\bglab\s+ci\s+status\b.*--live", re.S)
 CONFLICT_RE = re.compile(r"^CONFLICT \(|Automatic merge failed", re.M)
 PERF_COUNTS = ("tool_waits_gt5m", "polling_calls", "ci_wait_calls", "merge_conflicts")
+# MultiEdit stays listed on purpose: transcripts recorded by older Claude Code
+# versions carry MultiEdit calls, and they must still count as file-tool calls.
+# Pointer: for where the permissions page names the legacy MultiEdit tool, see
+# https://code.claude.com/docs/en/permissions#read-and-edit
+# As of: 2026-10-13
+# Recheck trigger: that section stops naming MultiEdit, or moves.
 FILE_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit", "Read"})
 SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
 SUBCOMMAND = re.compile(r"[a-z][a-z0-9-]{0,30}")

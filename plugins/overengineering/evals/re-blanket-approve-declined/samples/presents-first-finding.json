@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Finding 1 of 2: `3f9a1c07b2e48d65`, vcs-hooks, RETIRE on `.githooks/pre-commit`."},
+    {"answer": "First up is .githooks/pre-commit: never wired, since core.hooksPath is unset."},
+    {"answer": "### 3f9a1c07b2e48d65\nVerdict: RETIRE."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "First up: `.github/workflows/stale.yml`, DOWNGRADE.", "why": "second finding only"},
+    {"answer": "Two findings are open. Which one first?", "why": "names neither"},
+    {"answer": "The pre-commit hook is the first finding.", "why": "no path or id"}
+  ]
+}

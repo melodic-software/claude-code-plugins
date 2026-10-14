@@ -260,7 +260,7 @@ END {
   # a settings file can still carry a rule naming it, and that rule is dead.
   # Pointer: for where the permissions page names the legacy MultiEdit tool, see
   # https://code.claude.com/docs/en/permissions#read-and-edit
-  # As of: 2026-10-02
+  # As of: 2026-10-13
   # Recheck trigger: that section stops naming MultiEdit, or moves.
   split("Write NotebookEdit Glob MultiEdit", uncovered_list, " ")
   for (i in uncovered_list) uncovered[uncovered_list[i]] = 1

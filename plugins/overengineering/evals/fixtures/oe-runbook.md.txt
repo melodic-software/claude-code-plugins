@@ -1,0 +1,17 @@
+# Runbook
+
+## Deploy
+
+Run `scripts/build.sh`, then restart the service.
+
+## Notes
+
+Restarts take about a minute; the health check reports green once the cache is warm.
+
+## Rollback
+
+Redeploy the previous tag.
+
+## Notes
+
+Rollbacks after a schema migration need the down migration run first.

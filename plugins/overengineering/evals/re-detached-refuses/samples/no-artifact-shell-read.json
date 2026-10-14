@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [], "why": "no shell"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git symbolic-ref --quiet --short HEAD"}}], "why": "branch call only"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls docs"}}], "why": "unrelated listing"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "cat .work/overengineering/main/findings.md"}}], "why": "cat the artifact"},
+    {"answer": [{"tool": "Bash", "input": {"command": "head -20 .work/overengineering/main/findings.md"}}], "why": "head the artifact"},
+    {"answer": [{"tool": "Bash", "input": {"command": "test -f .work/overengineering/main/findings.md && echo yes"}}], "why": "probe the artifact"}
+  ]
+}
