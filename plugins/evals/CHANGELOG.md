@@ -1,5 +1,21 @@
 # Changelog: evals
 
+## [0.9.1] - 2026-10-14
+
+### Changed
+
+- plugin-eval: rechecked the worktree-isolation refusal of `claude plugin eval` on Claude Code 2.1.296; still refused, verification row refreshed.
+
+## [0.9.0] - 2026-10-14
+
+### Added
+
+- Nine outcome eval cases with deterministic graders under `evals/` (`pe-`, `de-`, `me-`, `va-`), and frozen trigger-probe sets for all four skills under `probes/`.
+
+### Changed
+
+- `plugin-eval` has a shorter description and hub: the dated observation behind each record moves to `reference/records.md`, and each record's pointer, as-of date and recheck trigger sits in a `## Sources` table. `validate` has a shorter description, and `methodology` a shorter body. Outcome eval cases and held-out trigger probes measured each change against the old text before it shipped.
+
 ## [0.8.0] - 2026-10-13
 
 ### Added

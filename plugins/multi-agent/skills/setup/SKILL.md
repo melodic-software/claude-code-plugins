@@ -1,5 +1,5 @@
 ---
-description: "Configure the multi-agent role map for a person or a repository: check prints the resolved map (model and effort per role, single and fan-out variants, the layer behind each value) and whether the personal overlay is gitignored; apply writes the keys you confirm into the user-global, team or local multi-agent.yaml layer, showing the map before and after. Use when: 'set up multi-agent', 'configure model routing', 'change the worker effort for this repo', 'turn off the fan-out guard', 'which layer sets the verifier model', 'multi-agent setup'. Re-runnable."
+description: "Check the multi-agent role map (model and effort per role and the layer behind each value) or write confirmed keys into the user, team or local multi-agent.yaml layer."
 argument-hint: "[check|apply] [--layer user|team|local] [<key>=<value> ...] [session=<alias>]"
 user-invocable: true
 disable-model-invocation: true
@@ -14,12 +14,11 @@ defaults, `~/.claude/multi-agent.yaml`, the team layer and
 `.claude/multi-agent.local.yaml`. This skill shows what those layers resolve to
 and writes one of them. All three consumer layers absent is a valid state: the
 bundled defaults apply. Keys, values, layer paths and the fan-out guard are
-owned by
+defined in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
 
-No argument means `check`. `apply` runs `check`, proposes, asks, writes, and
-runs `check` again. It installs nothing; the resolver needs only Bash, awk and
-git.
+No argument means `check`. It installs nothing; the resolver needs only Bash,
+awk and git.
 
 ## `check` (read-only)
 
@@ -29,20 +28,20 @@ ${CLAUDE_SKILL_DIR}/scripts/setup.sh check session=<alias>
 
 Pass `session=<alias>` with the family in your own model ID (`opus`, `sonnet`,
 `haiku`, `fable`); omit it when you cannot tell, and the map is resolved as
-under a frontier session. The script runs the route wrapper, so the JSON is the
-one `/multi-agent:route all` prints. Show:
+under a frontier session. The JSON is the one `/multi-agent:route all` prints.
+Show:
 
 1. one line per role: `single <model> @ <effort>; fanout <model> @ <effort>`,
    with `inherit` written as `inherit: omit the model option`, and the layer
    in `source` for each value;
 2. the `layers` rows (read, absent, skipped, or not applicable at a home or
-   non-repository root) and every entry of `notes` as written;
+   non-repository root) and every entry of `notes` as written; each note (a
+   skipped layer, a rejected value, an ignored key) is a finding to report;
 3. the overlay row: PASS when `.claude/multi-agent.local.yaml` is gitignored,
    else WARN with the recommended line `.claude/**/*.local.*`. Recommend the
    line; do not edit `.gitignore`.
 
-It modifies nothing. A note in `notes` (a skipped layer, a rejected value, an
-ignored key) is a finding to report.
+It modifies nothing.
 
 ## `apply`
 
@@ -97,11 +96,10 @@ every agent of the stage on the frontier model (rates:
 [Pricing: model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing); usage:
 [Manage costs: Track your costs](https://code.claude.com/docs/en/costs#track-your-costs);
 as of 2026-10-11, recheck when either page moves the section linked here).
-Before writing
-it, say this and ask the user to confirm that specific key, separately from the
-rest of the change. Recommend the narrowest layer that covers what they mean:
-`local` for one checkout, `user` for one machine, `team` only when the whole
-team has agreed.
+Before writing it, say this and ask the user to confirm that specific key,
+separately from the rest of the change. Recommend the narrowest layer that
+covers what they mean: `local` for one checkout, `user` for one machine, `team`
+only when the whole team has agreed.
 
 ## What this skill does NOT do
 

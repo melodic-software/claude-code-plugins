@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: ro-unknown-role-stops
+graders:
+  - name: 'relays-all-valid-roles'
+    type: 'regex'
+    pattern: '^(?=[\s\S]*\borchestrator\b)(?=[\s\S]*\bworker\b)(?=[\s\S]*\bverifier\b)(?=[\s\S]*\bretrieval\b)'
+    target: 'last_message'
+  - name: 'names-planner-unknown'
+    type: 'regex'
+    pattern: '(?:\b(?:unknown|invalid|unrecogni[sz]ed)[ \t]+(?:role[ \t]+)?[`''\"*]*planner[`''\"*]*(?!\w)|[`''\"*]*planner[`''\"*]*[^\n.?]{0,40}?\b(?:is[ \t]+not|isn[''’]t)[ \t]+(?:a[ \t]+|one[ \t]+)?(?:valid[ \t]+|known[ \t]+|recogni[sz]ed[ \t]+)?role\b|[`''\"*]*planner[`''\"*]*[ \t]+(?:role[ \t]+)?is[ \t]+(?:an[ \t]+)?(?:unknown|invalid)\b|\b(?:no|not[ \t]+a)[ \t]+[`''\"*]*planner[`''\"*]*[ \t]+role\b|\b(?:does(?:n[''’]t|[ \t]+not)|did(?:n[''’]t|[ \t]+not))[ \t]+(?:know|recogni[sz]e)[ \t]+(?:a[ \t]+|the[ \t]+|any[ \t]+)?[`''\"*]*planner[`''\"*]*(?!\w))(?![^\n.!?]*\?)'
+    flags: 'i'
+    target: 'last_message'
+  - name: 'no-role-map'
+    type: 'regex'
+    pattern: '"roles"\s*:|"session_model"|^[ \t]*(?:[-*][ \t]+)?`?(?:orchestrator|worker|verifier|retrieval|planner): single\b|^[ \t]*\|(?=[^\n]*\b(?:orchestrator|worker|verifier|retrieval|planner)\b)(?=[^\n]*@)'
+    flags: 'm'
+    match: 'not_contains'
+    target: 'last_message'
+  - name: 'no-substitute-rerun'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: 'route\.sh(?:[^"\\]|\\.)*?\b(?:orchestrator|worker|verifier|retrieval|all)\b'
+    min: 0
+    max: 0

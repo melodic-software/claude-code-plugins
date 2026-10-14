@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "`.efkefc` is Effekseer's format, not a pixel sheet.",
+      "why": "both"
+    },
+    {
+      "answer": "MZ's native effect format is Effekseer.",
+      "why": "Effekseer only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is your fire spell sheet: out/fire/sheet.png",
+      "why": "no mention"
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "pass": [
+    {
+      "answer": "Settings:\n- `code_writing: dispatch (docs/conventions/implementation.yaml)`\n- integration_posture: plan governs\n\nPhase 1 goes to `/implementation:implement-dispatch` as a worker row for `implementation:implementer`; I stopped before dispatching it."
+    },
+    {
+      "answer": "**code_writing**: `dispatch` (`docs/conventions/implementation.yaml`), so phase 1 is handed to implement-dispatch.",
+      "why": "markdown emphasis"
+    },
+    {
+      "answer": "code_writing: dispatch (from docs/conventions/implementation.yaml)",
+      "why": "from prefix"
+    },
+    {
+      "answer": "| Key | Value | Layer |\n|---|---|---|\n| `code_writing` | `dispatch` | `docs/conventions/implementation.yaml` |",
+      "why": "settings table row"
+    },
+    {
+      "answer": "| Setting | Value | Layer that supplied it |\n|---|---|---|\n| `code_writing` | **dispatch** | `docs/conventions/implementation.yaml`. The user option is unset. |",
+      "why": "table row, bold value, trailing note"
+    },
+    {
+      "answer": "code_writing: dispatch (repository: docs/conventions/implementation.yaml)",
+      "why": "repository prefix"
+    },
+    {
+      "answer": "code_writing: dispatch (./docs/conventions/implementation.yaml)",
+      "why": "dot-slash path"
+    },
+    {
+      "answer": "`code_writing` is `dispatch` (docs/conventions/implementation.yaml).",
+      "why": "is form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "code_writing: inline (default)\n\nI would edit ledger/fees.py directly.",
+      "why": "repository value ignored"
+    },
+    {
+      "answer": "code_writing: dispatch (user option)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "code_writing: dispatch (default)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "The repository asks for dispatch, so phase 1 goes to a worker.",
+      "why": "no setting line"
+    },
+    {
+      "answer": "code_writing is not set in docs/conventions/implementation.yaml; dispatch was not chosen.",
+      "why": "negated"
+    },
+    {
+      "answer": "| `code_writing` | `dispatch` | default (docs/conventions/implementation.yaml not read) |",
+      "why": "table row with the default layer"
+    },
+    {
+      "answer": "`code_writing` is `dispatch` (the default).",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "`code_writing` is `inline` (docs/conventions/implementation.yaml).",
+      "why": "wrong value"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: ro-worker-mechanical-fable
+graders:
+  - name: 'ran-route-script'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?route\.sh(?:[^"\\]|\\.)*?\bworker\b'
+    min: 1
+  - name: 'fenced-json-block'
+    type: 'regex'
+    pattern: '```json[ \t]*\n\s*\{[\s\S]*"roles"[\s\S]*\}\s*\n```'
+    target: 'last_message'
+  - name: 'worker-line-sonnet'
+    type: 'regex'
+    pattern: '^[ \t]*(?:[-*][ \t]+)?`?worker: single sonnet @ medium; fanout sonnet @ medium \(basis: model upstream, fanout model upstream, effort upstream\)`?[ \t]*$'
+    flags: 'm'
+    target: 'last_message'
+  - name: 'hard-cap-line-verbatim'
+    type: 'regex'
+    pattern: '^[ \t]*`?Effort above maxEffortLevel runs at the cap; see reference/config\.md "Hard cap"\.`?[ \t]*$'
+    flags: 'm'
+    target: 'last_message'

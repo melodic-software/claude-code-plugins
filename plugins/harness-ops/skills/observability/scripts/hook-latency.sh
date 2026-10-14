@@ -4,7 +4,7 @@
 #
 # Usage:
 #   bash hook-latency.sh [--days N | --since YYYY-MM-DD] [--budget EVENT=MS]...
-#                        [--min-fires N] [--min-sessions N]
+#                        [--min-fires N] [--min-sessions N] [--transcript PATH]...
 #
 #   --days N          window starts now minus N days (default 7)
 #   --since DATE      window starts DATE 00:00 UTC
@@ -12,6 +12,8 @@
 #   --min-fires N     fires one session needs on an event before its slope counts (default 20)
 #   --min-sessions N  sessions with a slope an event needs before it can be slope-flagged
 #                     (default 5, minimum 3: the sign test cannot flag fewer)
+#   --transcript PATH with no duckdb or no store, read hook durations from this session
+#                     transcript instead (hook-transcript-timing.sh --latency); repeatable
 #
 # Reads the hot store only: fires older than `clean` keeps hot sit in the cold tier and are
 # not included. A full read of a large store takes about a minute: run it on demand or from
@@ -19,14 +21,14 @@
 #
 # Exit: 0 nothing flagged, 1 at least one row flagged, 2 cannot evaluate (no duckdb, no store,
 # or no hook_execution_complete rows in the window). Those three exits name two routes forward:
-# turning telemetry on, and the stop_hook_summary transcript records for Stop hooks.
+# turning telemetry on, and --transcript, whose transcript the first two then read instead.
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OTEL_DIR="$SCRIPT_DIR/../otel"
 
-usage() { sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 die() {
   printf 'hook-latency: %s\n' "$1" >&2
   exit 2
@@ -36,12 +38,20 @@ routes() {
 hook-latency: routes to hook latency:
   1. Turn telemetry on: CLAUDE_CODE_ENABLE_TELEMETRY=1 with OTEL_LOGS_EXPORTER=otlp to the
      collector at http://127.0.0.1:4318; see the observability skill's context/operator-setup.md.
-  2. Stop hooks, no telemetry needed: the stop_hook_summary records in session transcripts; see
+  2. No telemetry needed: rerun with --transcript <session>.jsonl to read the stop_hook_summary
+     records and sampled hook attachments in a session transcript; see
      /harness-ops:audit-performance, gotcha "Never time a hook by running it".
 EOF
 }
 cannot_evaluate() {
   printf 'hook-latency: %s\n' "$1" >&2
+  if ((${#transcripts[@]})); then
+    printf 'hook-latency: reading the transcript instead: lane unknown; sampled rows get no budget and no slope\n' >&2
+    local pair pairs args=()
+    IFS=, read -ra pairs <<<"$budgets"
+    for pair in "${pairs[@]}"; do args+=(--budget "$pair"); done
+    exec bash "$SCRIPT_DIR/hook-transcript-timing.sh" --latency "${args[@]}" -- "${transcripts[@]}"
+  fi
   routes
   exit 2
 }
@@ -54,41 +64,47 @@ readonly KNOWN_EVENTS=" SessionStart Setup UserPromptSubmit UserPromptExpansion 
 since_sql="make_timestamp(epoch_us(now())) - INTERVAL (7) DAY"
 min_fires=20
 min_sessions=5
+transcripts=()
 
 while (($#)); do
   case "$1" in
-  --days)
-    [[ "${2:-}" =~ ^[0-9]+$ ]] || die "--days needs a whole number"
-    since_sql="make_timestamp(epoch_us(now())) - INTERVAL ($2) DAY"
-    shift 2
-    ;;
-  --since)
-    [[ "${2:-}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || die "--since needs YYYY-MM-DD"
-    since_sql="TIMESTAMP '$2 00:00:00'"
-    shift 2
-    ;;
-  --budget)
-    [[ "${2:-}" =~ ^([A-Za-z]+)=([0-9]+)$ ]] || die "--budget needs EVENT=MS"
-    [[ "$KNOWN_EVENTS" == *" ${BASH_REMATCH[1]} "* ]] ||
-      printf 'hook-latency: warning: %s is not a known hook event; its budget applies only if it appears\n' "${BASH_REMATCH[1]}" >&2
-    budgets+="$2,"
-    shift 2
-    ;;
-  --min-fires)
-    [[ "${2:-}" =~ ^([2-9]|[1-9][0-9]+)$ ]] || die "--min-fires needs a whole number >= 2"
-    min_fires="$2"
-    shift 2
-    ;;
-  --min-sessions)
-    [[ "${2:-}" =~ ^([3-9]|[1-9][0-9]+)$ ]] || die "--min-sessions needs a whole number >= 3"
-    min_sessions="$2"
-    shift 2
-    ;;
-  -h | --help)
-    usage
-    exit 0
-    ;;
-  *) die "unknown argument: $1 (see --help)" ;;
+    --days)
+      [[ "${2:-}" =~ ^[0-9]+$ ]] || die "--days needs a whole number"
+      since_sql="make_timestamp(epoch_us(now())) - INTERVAL ($2) DAY"
+      shift 2
+      ;;
+    --since)
+      [[ "${2:-}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || die "--since needs YYYY-MM-DD"
+      since_sql="TIMESTAMP '$2 00:00:00'"
+      shift 2
+      ;;
+    --budget)
+      [[ "${2:-}" =~ ^([A-Za-z]+)=([0-9]+)$ ]] || die "--budget needs EVENT=MS"
+      [[ "$KNOWN_EVENTS" == *" ${BASH_REMATCH[1]} "* ]] ||
+        printf 'hook-latency: warning: %s is not a known hook event; its budget applies only if it appears\n' "${BASH_REMATCH[1]}" >&2
+      budgets+="$2,"
+      shift 2
+      ;;
+    --min-fires)
+      [[ "${2:-}" =~ ^([2-9]|[1-9][0-9]+)$ ]] || die "--min-fires needs a whole number >= 2"
+      min_fires="$2"
+      shift 2
+      ;;
+    --transcript)
+      [[ -n "${2:-}" ]] || die "--transcript needs a path"
+      transcripts+=("$2")
+      shift 2
+      ;;
+    --min-sessions)
+      [[ "${2:-}" =~ ^([3-9]|[1-9][0-9]+)$ ]] || die "--min-sessions needs a whole number >= 3"
+      min_sessions="$2"
+      shift 2
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *) die "unknown argument: $1 (see --help)" ;;
   esac
 done
 

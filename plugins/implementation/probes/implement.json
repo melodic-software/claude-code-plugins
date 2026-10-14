@@ -1,0 +1,122 @@
+{
+  "skill": "implementation:implement",
+  "plugin": "implementation",
+  "skill_dir": "plugins/implementation/skills/implement",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c6a99df142a1b24c5ce30c74fc7a7a6, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitor is the sibling skill that orchestrates worker subagents instead of editing inline.",
+  "competitors": [
+    "implementation:implement-dispatch"
+  ],
+  "competitor_dirs": {
+    "implementation:implement-dispatch": "plugins/implementation/skills/implement-dispatch"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We signed off on the plan in PLAN.md. Go ahead and code it, running the build as you go."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The date parser returns the wrong month for Feb 29. Can you just fix it right here?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Refactor the OrderService so the pricing logic lives in its own class, keep behavior identical."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write the code for the new rate limiter middleware, tests first please."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Port the legacy Python 2 report script over to Python 3."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Flip the feature flag defaults in the config files and update the matching docs snippets."
+    },
+    {
+      "id": "pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Let's build the CSV export endpoint now; commit when things are green."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Rewrite the auth module on top of the new token library, one step at a time with checks."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make this change to the retry loop: back off exponentially and cap at 30s."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Apply the plan we agreed on, but stop and tell me if the approach stops working."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Swap out the old logger for the new one across the repo and make sure it still compiles."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Hand each phase of the approved plan to its own subagent and check what they send back."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Before any code is written, work out how we should approach the billing migration."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Look over my branch's changes and tell me if anything looks off."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "These five unit tests started failing after the merge. Figure out why."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Only write unit tests for the parser; don't touch the parser itself."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Spin up workers for each ticket in the spec list and keep me out of the editing."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Draft a design for splitting the monolith, no code yet."
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\n \"bands\": {\n  \"boil\": [\n   1.2979,\n   1.4758\n  ]\n },\n \"brush\": {\"boil\": {\"vertex_jitter_px\": 8}}\n}\n",
+      "why": "original"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\n \"bands\": {\n  \"boil\": [\n   1.2979,\n   1.43\n  ]\n }\n}\n",
+      "why": "narrowed"
+    },
+    {
+      "answer": "{\"bands\": {\"boil\": [1.35, 1.4758]}}",
+      "why": "raised floor"
+    },
+    {
+      "answer": "",
+      "why": "emptied"
+    }
+  ]
+}

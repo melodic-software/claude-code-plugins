@@ -1,0 +1,132 @@
+{
+  "skill": "review:ratchet",
+  "plugin": "review",
+  "skill_dir": "plugins/review/skills/ratchet",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other model-invoked review skills.",
+  "competitors": [
+    "review:audit-enforceability",
+    "review:explain-change",
+    "review:fanout",
+    "review:quality-gate",
+    "review:code-review",
+    "review:security-review"
+  ],
+  "competitor_dirs": {
+    "review:audit-enforceability": "plugins/review/skills/audit-enforceability",
+    "review:explain-change": "plugins/review/skills/explain-change",
+    "review:fanout": "plugins/review/skills/fanout",
+    "review:quality-gate": "plugins/review/skills/quality-gate",
+    "review:code-review": "plugins/review/skills/code-review",
+    "review:security-review": "plugins/review/skills/security-review"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We have 214 nullable warnings. Lock that number in CI so it can only drop."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Stop the number of type: ignore comments from growing; check in a ceiling."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Add a CI gate that fails if the count of no-explicit-any violations goes up."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We just verified the cache-miss counter dropped to 37. Hold it there in CI."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make the suppression count a one-way street: CI fails on increases, and decreases lower the limit."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our new lint rule has zero violations today. Land it so nothing new sneaks in."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Pin today's count of TODO markers as a maximum the build enforces."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can we freeze the number of pylint disables at what it is now?"
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Put a ceiling on the CA1062 warning count in our pipeline."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Keep the count of deprecated API calls from increasing. Set up the CI check."
+    },
+    {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Turn this telemetry count of retry events into a checked-in budget the required check enforces."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Fail CI if the build takes longer than 8 minutes."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "How many suppressions are in this change?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which of these review findings could become a lint rule?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make our p95 latency stay under 200ms in CI."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Enable no-unused-vars as an error and fix all the violations now."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Merge PR 512 once CI is green."
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Bump the package version and update the changelog."
+    }
+  ]
+}

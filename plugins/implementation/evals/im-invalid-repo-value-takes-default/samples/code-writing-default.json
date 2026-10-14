@@ -1,0 +1,69 @@
+{
+  "pass": [
+    {
+      "answer": "Settings resolved before the first edit:\n\n- `code_writing: inline (default)`. `docs/conventions/implementation.yaml` sets `code_writing: parallel`, which is not one of `inline` or `dispatch`, so that layer is dropped.\n- `integration_posture: minimal (docs/conventions/implementation.yaml)`\n\nMode: fix. Stopping before any edit."
+    },
+    {
+      "answer": "Invalid value: docs/conventions/implementation.yaml, key code_writing, value parallel. Dropped.\ncode_writing: inline (default; no approved plan, so the inline cadence runs)\nintegration_posture: minimal (docs/conventions/implementation.yaml)",
+      "why": "default with a note inside the parentheses"
+    },
+    {
+      "answer": "**code_writing**: `inline` (default)\n  The repository file docs/conventions/implementation.yaml has\n  code_writing = parallel, an invalid value; I ignored that layer.\n**integration_posture**: `minimal` (`docs/conventions/implementation.yaml`)",
+      "why": "bold key, backticked value"
+    },
+    {
+      "answer": "- **`code_writing`:** `inline` (default). `docs/conventions/implementation.yaml` sets `parallel`, which is not `inline` or `dispatch`.",
+      "why": "bold backticked key, colon inside the emphasis"
+    },
+    {
+      "answer": "code_writing: inline (the default)",
+      "why": "the default"
+    },
+    {
+      "answer": "code_writing: inline (built-in default; the repository value is invalid)",
+      "why": "built-in default"
+    },
+    {
+      "answer": "| Key | Value | Layer |\n|---|---|---|\n| `code_writing` | `inline` | default |",
+      "why": "table row"
+    },
+    {
+      "answer": "`code_writing` is `inline` (default).",
+      "why": "is form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "code_writing: parallel (docs/conventions/implementation.yaml)",
+      "why": "invalid value resolved"
+    },
+    {
+      "answer": "code_writing: dispatch (default)",
+      "why": "wrong value"
+    },
+    {
+      "answer": "code_writing: inline (docs/conventions/implementation.yaml)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "code_writing would be inline (default) only if the file were missing; it resolves parallel.",
+      "why": "hypothetical default"
+    },
+    {
+      "answer": "code_writing: is not set; inline (default) applies to integration_posture.",
+      "why": "value not on the key"
+    },
+    {
+      "answer": "**`code_writing`:** `parallel` (docs/conventions/implementation.yaml)",
+      "why": "invalid value resolved from the repository layer"
+    },
+    {
+      "answer": "| `code_writing` | `inline` | `docs/conventions/implementation.yaml` |",
+      "why": "table row, wrong layer"
+    },
+    {
+      "answer": "`code_writing` is `parallel` (default).",
+      "why": "wrong value"
+    }
+  ]
+}

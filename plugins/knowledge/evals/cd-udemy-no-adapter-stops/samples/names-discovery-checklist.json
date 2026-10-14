@@ -1,0 +1,40 @@
+{
+  "pass": [
+    {
+      "answer": "Adding a Udemy adapter starts at reference/adapters/discovery-checklist.md."
+    },
+    {
+      "answer": "To add one, follow the Provider Discovery Checklist, then implement the five adapter methods."
+    },
+    {
+      "answer": "Udemy is not supported yet, so use the discovery checklist to add an adapter.",
+      "why": "negation in an earlier clause"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "You don't need the discovery checklist; I'll write the adapter now.",
+      "why": "negated"
+    },
+    {
+      "answer": "Skipping the discovery checklist and writing adapters/udemy.js.",
+      "why": "skipping"
+    },
+    {
+      "answer": "No adapter exists for Udemy. Stopping.",
+      "why": "no pointer"
+    },
+    {
+      "answer": "The discovery checklist is not needed for this.",
+      "why": "negated after"
+    },
+    {
+      "answer": "The discovery checklist won't be needed here.",
+      "why": "review finding"
+    },
+    {
+      "answer": "Ignore the discovery checklist.",
+      "why": "review finding"
+    }
+  ]
+}

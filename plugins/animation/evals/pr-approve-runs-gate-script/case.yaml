@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: pr-approve-runs-gate-script
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-approve-with-note
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:(?=(?:[^"\\]|\\.)*?\b([A-Za-z_]\w*)=\\?["'']?[^\s"''\\]*/produce\.py\b)(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|else)\s))?\s*(?:(?:\w+=(?:(?!\\n)[^\s;&|])*|(?:\S*/)?(?:env|nohup|time|exec|sudo|command)|timeout\s+\S+|(?:\S*/)?(?:bash|zsh|dash|sh)\s+(?:-\S+\s+)*-c)\s+\\?["'']?)*(?:(?:\S*/)?python(?:3(?:\.\d+)?)?\s+(?:-\S+\s+)*(?:\\?["'']?\S*pydeps\.py\\?["'']?\s+run\s+(?:(?!--\s)\S+\s+)*--\s+(?:(?:\S*/)?python(?:3(?:\.\d+)?)?\s+(?:-\S+\s+)*)?)?)?\\?["'']?\$\{?\1\b\}?|(?:(?:[^"\\]|\\.)*?(?:[;&|(`{]|\\n|\$\(|\b(?:do|then|else)\s))?\s*(?:(?:\w+=(?:(?!\\n)[^\s;&|])*|(?:\S*/)?(?:env|nohup|time|exec|sudo|command)|timeout\s+\S+|(?:\S*/)?(?:bash|zsh|dash|sh)\s+(?:-\S+\s+)*-c)\s+\\?["'']?)*(?:(?:\S*/)?python(?:3(?:\.\d+)?)?\s+(?:-\S+\s+)*(?:\\?["'']?\S*pydeps\.py\\?["'']?\s+run\s+(?:(?!--\s)\S+\s+)*--\s+(?:(?:\S*/)?python(?:3(?:\.\d+)?)?\s+(?:-\S+\s+)*)?)?)?\\?["'']?(?:[^\s"''\\]*/)?produce\.py)\\?["'']?\s+approve\b(?:[^"\\]|\\.)*?--note(?:[^"\\]|\\.)*?[Hh]eavy [Bb]lacks'
+    min: 1
+  - name: approval-note-recorded
+    type: regex
+    pattern: '"note":\s*"[^"\n]*[Hh]eavy [Bb]lacks'
+    target: { source: file, path: film/boards/approval.json }
+  - name: no-approval-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?approval\.json"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-approval-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?approval\.json"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-shell-approval-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*approval\.json)(?:[^"\\]|\\.)*?(?:\bsed\s+(?:-\S+\s+)*-[a-zA-Z]*i|\bperl\s+-\S*i|>>?\s*\\?["'']?\S*approval\.json|\btee\s+(?:-\S+\s+)*\\?["'']?\S*approval\.json|\b(?:cp|mv|install|rsync)\s+(?:[^"\\]|\\.)*?\S*approval\.json\\?["'']?(?=\s*(?:[;&|)]|\\n|"))|json\.dump\(|\.write_text\(|\.write\()'
+    min: 0
+    max: 0
+    arm: 'both'

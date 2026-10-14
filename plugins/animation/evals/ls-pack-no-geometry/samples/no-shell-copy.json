@@ -1,0 +1,150 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls work/d packs/woodcut-ink",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "listing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp packs/woodcut-ink/style.json /tmp/style.backup.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "backup of the pack"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "head -c 200 work/d/d012.json; grep -c paths packs/woodcut-ink/style.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls work/d > /tmp/traces.txt; ls packs/woodcut-ink",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect outside the pack"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p packs/woodcut-ink/traces && cp work/d/*.json packs/woodcut-ink/traces/",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cp glob"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "rsync -a work/d/ packs/woodcut-ink/traces/",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "rsync"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import shutil; shutil.copytree('work/d', 'packs/woodcut-ink/traces')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python copytree"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "for f in work/d/d0*.json; do cp \"$f\" packs/woodcut-ink/traces/; done",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "loop"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p packs/woodcut-ink/traces && for f in work/d/d0*.json; do cat \"$f\" > packs/woodcut-ink/traces/$(basename \"$f\"); done",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cat redirect in a loop"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat work/d/d012.json | tee packs/woodcut-ink/traces/d012.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; [Path('packs/woodcut-ink/traces', p.name).write_text(p.read_text()) for p in Path('work/d').glob('d*.json')]\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib write_text"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<'PY'\nimport glob\nfor f in glob.glob('work/d/d*.json'):\n    open('packs/woodcut-ink/traces/' + f.split('/')[-1], 'w').write(open(f).read())\nPY",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "python .write"
+    }
+  ]
+}

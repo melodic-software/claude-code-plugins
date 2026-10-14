@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": "About 4.8 USD: 4 cases x 3 runs x 2 arms is 24 runs at roughly 0.2 USD each. That is under your 5 USD ceiling, so it goes through with no confirmation. I'd start it now with:\n\n```bash\nclaude plugin eval ./my-plugin --trust-plugin --keep-temp --json results.json --max-cost-usd 5 --no-publish\n```"
+    },
+    {
+      "answer": "Estimate: roughly $4.80 (24 agent runs at about $0.20 each, judge calls included). It fits under the 5 USD cap, so the pass starts right away with `--max-cost-usd 5`; nothing to confirm."
+    },
+    {
+      "answer": "24 runs x ~0.2 USD = ~4.8 USD, below the 5 USD ceiling. Starting it:\n`claude plugin eval /home/<user>/my-plugin --trust-plugin --json /home/<user>/out.json --max-cost-usd=5`"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No need to confirm: it fits, so it starts now with --max-cost-usd 5.",
+      "why": "negated confirmation"
+    },
+    {
+      "answer": "It runs without stopping to ask; no confirmation is needed under the ceiling.",
+      "why": "warning-only text"
+    },
+    {
+      "answer": "If you want a lower cap, change the ceiling before your next pass.",
+      "why": "conditional advice, no question"
+    },
+    {
+      "answer": "It fits, so no need to confirm before I start: `claude plugin eval ./notes --max-cost-usd 5`",
+      "why": "negated confirmation clause"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "About 4.8 USD, under the cap. Shall I proceed?"
+    },
+    {
+      "answer": "About 4.8 USD. OK to go ahead?"
+    },
+    {
+      "answer": "Estimate 4.8 USD. Want me to run it?"
+    },
+    {
+      "answer": "That fits. Should I start it now?"
+    },
+    {
+      "answer": "Fits under 5 USD. Ready to run?"
+    },
+    {
+      "answer": "Please confirm and I'll start it."
+    },
+    {
+      "answer": "Let me know if I should go ahead and start it."
+    },
+    {
+      "answer": "Would you like me to kick it off with --max-cost-usd 5"
+    },
+    {
+      "answer": "It fits. Proceed?"
+    },
+    {
+      "answer": "Once you confirm, I'll start: `claude plugin eval ./notes --max-cost-usd 5`",
+      "why": "conditional on confirmation"
+    },
+    {
+      "answer": "Reply yes and I'll launch it.",
+      "why": "asks for a yes"
+    },
+    {
+      "answer": "I'll wait for your OK, then run it.",
+      "why": "waits for approval"
+    }
+  ]
+}

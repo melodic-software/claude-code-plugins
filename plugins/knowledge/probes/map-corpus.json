@@ -1,0 +1,128 @@
+{
+  "skill": "knowledge:map-corpus",
+  "plugin": "knowledge",
+  "skill_dir": "plugins/knowledge/skills/map-corpus",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other four knowledge skills: book-distill, course-digest, docpage-digest, video-digest.",
+  "competitors": [
+    "knowledge:book-distill",
+    "knowledge:course-digest",
+    "knowledge:docpage-digest",
+    "knowledge:video-digest"
+  ],
+  "competitor_dirs": {
+    "knowledge:book-distill": "plugins/knowledge/skills/book-distill",
+    "knowledge:course-digest": "plugins/knowledge/skills/course-digest",
+    "knowledge:docpage-digest": "plugins/knowledge/skills/docpage-digest",
+    "knowledge:video-digest": "plugins/knowledge/skills/video-digest"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We need the Kubernetes docs and the enhancements repo in our knowledge base. Figure out what's in there and what to ingest first."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here are five seed URLs on OpenTelemetry; survey and classify the full set of pages before we digest anything."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want all of the Bicep documentation ingested, not just one page. Plan it out: https://learn.microsoft.com/azure/azure-resource-manager/bicep/"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Build an inventory of the Claude Code docs pages and give me an approved list to digest one by one."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Topic is GitHub Actions security. Seeds: https://docs.github.com/en/actions/security-guides and https://securitylab.github.com. Scope what we should pull in."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before we ingest the Rust reference and the RFCs repo, classify everything there and verify what we found."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Survey the whole Stripe API docs plus their OpenAPI spec repo and produce a queue of pages to process."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Plan an ingestion of several resources at once: the Postgres manual, the wiki, and the mailing-list FAQ."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Lay out the structure of the Terraform AWS provider docs site so we can decide which pages to digest."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I have a dozen documentation URLs about OAuth 2.1 across different hosts. Organize them into a verified set before ingesting."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Digest just this one page: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Distill this EPUB on distributed systems into reference files."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Summarize this Dometrain course for our team."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw a C4 container diagram of our services."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Watch this talk on x.com and tell me what applies: https://x.com/example/status/9876543210"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Research the current best practice for Docker image signing."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write user docs for the CLI's new subcommand."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Crawl example.com and tell me if any links are broken."
+    }
+  ]
+}

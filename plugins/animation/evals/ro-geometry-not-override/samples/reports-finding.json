@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Reported as a finding: the arm in drawing 12 needs a trace fix.",
+      "why": "as a finding"
+    },
+    {
+      "answer": "Finding: drawing 12 elbow traced backwards.",
+      "why": "finding label"
+    },
+    {
+      "answer": "I logged it under findings in learnings.md.",
+      "why": "findings"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Added the coordinates to overrides.json.",
+      "why": "no finding"
+    },
+    {
+      "answer": "This is not a finding; I fixed the override.",
+      "why": "negated"
+    },
+    {
+      "answer": "No findings.",
+      "why": "no findings"
+    }
+  ]
+}

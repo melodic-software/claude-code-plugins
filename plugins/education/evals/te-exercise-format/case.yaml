@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: te-exercise-format
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: read-mission
+    type: regex
+    pattern: '\bweekly (?:sales )?reports?\b|\bsales reports?\b|\bfan-?out\b|\bduplicated[- ]totals?\b|\bSuccess Looks Like\b'
+    flags: 'i'
+    target: last_message
+  - name: header-fields
+    type: regex
+    pattern: '^#\s+Exercise:[^\n]+[\s\S]*?^\*\*Concept(?::\*\*|\*\*:)[^\n]+[\s\S]*?^\*\*Difficulty(?::\*\*|\*\*:)\s*(?:beginner|intermediate|advanced)\b[\s\S]*?^\*\*Prerequisites(?::\*\*|\*\*:)'
+    flags: 'mi'
+    target: last_message
+  - name: sections-in-order
+    type: regex
+    pattern: '^##\s+Setup\b[\s\S]*?^##\s+Task\b[\s\S]*?^##\s+Hints\b[\s\S]*?^##\s+Solution\b'
+    flags: 'mi'
+    target: last_message
+  - name: three-progressive-hints
+    type: regex
+    pattern: '^##\s+Hints\b[^\n]*\n(?:(?!^##\s)[\s\S])*?^\s*1[.)](?:(?!^##\s)[\s\S])*?^\s*2[.)](?:(?!^##\s)[\s\S])*?^\s*3[.)]'
+    flags: 'm'
+    target: last_message
+  - name: mission-tables
+    type: regex
+    pattern: '^(?=[\s\S]*\borders\b)(?=[\s\S]*\bcustomers\b)'
+    flags: 'i'
+    target: last_message
+  - name: left-join-practiced
+    type: regex
+    pattern: '\bLEFT\s+(?:OUTER\s+)?JOIN\b'
+    flags: 'i'
+    target: last_message

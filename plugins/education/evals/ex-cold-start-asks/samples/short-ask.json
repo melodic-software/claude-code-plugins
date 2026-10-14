@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "What would you like explained? Nothing has been said in this conversation yet, so there is no earlier message for me to put in plain words. Name the concept, code, error or text.",
+      "why": "short"
+    },
+    {
+      "answer": "There's no previous response to work from. Which concept or message should I explain?",
+      "why": "short"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "What would you like explained? Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. Here is a long explanation of caching anyway. ",
+      "why": "asks, then lectures at length"
+    }
+  ]
+}

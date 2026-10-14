@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {"answer": "No findings artifact exists at `.work/overengineering/feat-ci-cleanup/findings.md`, so there is nothing to realign. Run `overengineering:audit` to walk the enforcement surface, or `overengineering:justify` for one artifact."},
+    {"answer": "Stopping: the findings artifact at .work/overengineering/feat-ci-cleanup/findings.md does not exist."},
+    {"answer": "`findings.md` is missing from the resolved home `.work/overengineering/feat-ci-cleanup/`."},
+    {"answer": "There is no artifact to work from, so I changed nothing."},
+    {"answer": "I found no `findings.md` under `.work/overengineering/feat-ci-cleanup/`."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "I did not find an audit, so I walked the CI myself and retired lint.yml.", "why": "negated audit, no artifact statement"},
+    {"answer": "If no artifact exists I would stop, but this one loaded fine. Presenting finding 1.", "why": "conditional warning only"},
+    {"answer": "Loaded the findings artifact at .work/overengineering/feat-ci-cleanup/findings.md with 2 open findings.", "why": "claims an artifact"},
+    {"answer": "The audit is not set up for this repository yet; retiring `.githooks/pre-commit` cannot be undone, shall I proceed?", "why": "warning-only text, no artifact statement"}
+  ]
+}

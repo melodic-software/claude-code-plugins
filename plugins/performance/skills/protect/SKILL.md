@@ -1,5 +1,5 @@
 ---
-description: "Lock in a verified performance win: ratchet its counter in CI with a checked-in ceiling, so a regression fails the build and a lower count proposes a lower ceiling by PR. Proposes files; a human approves and merges. Use when: 'protect this win', 'ratchet this counter', 'stop this regressing', 'add a performance guardrail to CI'. Runs once after /performance:verify reports MET on a counter. Skip when the result is a duration only, or NOT MET."
+description: "Checked-in CI ceiling on the counter of a performance win /performance:verify reported MET: a regression fails the build and a lower count proposes a lower ceiling by PR. Proposes files; a human approves and merges. Use when: 'protect this win', 'ratchet this counter', 'stop this regressing', 'add a performance guardrail to CI'. Not for a duration-only or NOT MET result."
 user-invocable: true
 argument-hint: "[<counter or claim>]"
 disable-model-invocation: false
@@ -14,9 +14,8 @@ metadata:
 
 Answers **"what keeps this win from eroding?"**
 
-Performance wins decay in a codebase that keeps moving: nothing asserts the new cost, so the next
-change that adds it back passes every test. A checked-in counter ceiling, checked in CI, turns the
-win into a build failure the next regression has to answer.
+Nothing asserts a new cost, so the next change that adds it back passes every test. A checked-in
+counter ceiling, checked in CI, makes that change fail the build.
 
 Run it once, after `/performance:verify` reports **MET** on a counter. For a change shipped behind
 a flag, run it only after the field read that verify's Next routes to shows the gain; if the read
@@ -50,8 +49,6 @@ Check whether `/review:ratchet` is among the available skills in this session.
   proposes one, and writes the CI step and the tightening plan. Then continue at §5.
 - **It is not available:** run §2-§4 below against `.performance/ratchets.json` with
   `${CLAUDE_PLUGIN_ROOT}/scripts/ratchet.py`. Nothing here needs the review plugin.
-
-Either way, the Output block names the ceilings file and which path ran.
 
 ## 2. The ceilings file
 

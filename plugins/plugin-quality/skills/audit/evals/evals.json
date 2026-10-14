@@ -377,6 +377,21 @@
         "Does not accept tier-1 on self-attestation",
         "Falls back to open-question or re-dispatches to save the fetched bytes"
       ]
+    },
+    {
+      "id": 29,
+      "name": "batched-research-keeps-per-finding-records",
+      "prompt": "A medium-effort audit has three findings at or above the severity floor, and the ledger is in audit-notes-1.md. Rather than three separate research calls, run the research seam once for all three. Describe how the sources are saved, how each finding's research line is written, and where the updated ledger goes.",
+      "expected_output": "Uses one batched research pass, which the skill allows at two or more qualifying findings, with one call per finding as the default. Every fetched source is saved under one directory inside the packet. Each finding still gets its own research: tier-0 or tier-1 record with a primary and at least two independent corroborators, each as url saved=path span=, and a finding the pass cannot ground stays open-question. The updated ledger is a new packet file, the next unused audit-notes-<n>.md, never an edit of audit-notes-1.md, graded again with collect-categories.sh. It notes that one research context can anchor corroborators across findings, which the collector does not catch, so it confirms each corroborator's span supports that finding's own claim.",
+      "files": [],
+      "expectations": [
+        "Treats the batched pass as allowed because two or more findings qualify, not as the default",
+        "Saves the fetched sources under one directory inside the packet",
+        "Writes a separate research record per finding with its own primary and two corroborators",
+        "Leaves a finding the pass cannot ground at open-question",
+        "Writes the updated ledger as a new audit-notes-<n>.md, not an edit of audit-notes-1.md",
+        "Grades the new ledger with collect-categories.sh"
+      ]
     }
   ]
 }

@@ -8,4 +8,4 @@ allowed_tools: [Read, Glob, Grep, Skill, Agent, Bash, Write]
 expected_outcome: "The review reports, as a finding, that average_rating no longer handles a product with no reviews (an empty list), which now raises ZeroDivisionError on the product page"
 ---
 
-/review:quality-gate self I finished a small cleanup on this branch. Review it before I open the PR.
+/review:quality-gate self I finished a small cleanup on this branch. Review it before I open the PR. No pull request is open for this branch yet.

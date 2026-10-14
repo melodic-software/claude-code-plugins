@@ -1,0 +1,78 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/gallery.py\" out/potion",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "documented form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugin/scripts/backends.py s.json --out o && python3 /plugin/scripts/gallery.py o",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "chained"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/plugin/scripts\npython3 $S/gallery.py .",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "run on a new line after a variable assignment"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /plugin/scripts/gallery.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls out/potion/index.html",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "no run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/plugin/scripts\nless $S/gallery.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "new line, but reads the script instead of running it"
+    }
+  ]
+}

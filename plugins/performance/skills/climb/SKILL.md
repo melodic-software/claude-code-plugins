@@ -1,5 +1,5 @@
 ---
-description: "Run a keep-or-revert loop on a frozen harness: one hypothesis and one commit per attempt, both arms re-measured every time, the keep decision taken from a rule written before the first attempt, and every attempt logged outside the tree. Works in its own worktree and branch, never in your checkout. Use when: 'keep trying changes until this counter drops', 'hill-climb this benchmark', 'iterate on this until the target is met', 'run an optimization loop'. After /performance:snapshot baseline, before /performance:verify. Skip when: the score comes from an eval set for an LLM app (`/claude-api hillclimb`); one before-and-after comparison (`/performance:snapshot`)."
+description: "Keep-or-revert loop on a frozen harness: one hypothesis and one commit per attempt, both arms re-measured every time, kept by a rule written before the first attempt, logged outside the tree, in its own worktree and branch. Use when: 'keep trying changes until this counter drops', 'hill-climb this benchmark', 'iterate on this until the target is met', 'run an optimization loop'. After /performance:snapshot baseline, before /performance:verify. Skip when: the score comes from an eval set for an LLM app (`/claude-api hillclimb`); one before-and-after comparison (`/performance:snapshot`)."
 user-invocable: true
 argument-hint: "[<goal-slug>]"
 disable-model-invocation: false
@@ -14,9 +14,8 @@ metadata:
 
 Answers **"which of these changes actually moved the number, and how far can it go?"**
 
-One change measured alone can be judged; three changes measured together cannot. This skill
-repeats a fixed cycle (hypothesis, change, commit, measure both arms, apply the rule, keep or
-revert, log) until the goal is met, and it keeps every judgment out of reach of the attempt being
+Measure one change at a time: hypothesis, change, commit, measure both arms, apply the rule, keep
+or revert, log, until the goal is met. Keep every judgment out of reach of the attempt being
 judged: the rule is written first, the harness is frozen, and the baseline is re-measured beside
 each attempt.
 
@@ -26,8 +25,8 @@ before the first attempt.
 ## Inputs, or stop
 
 1. **A goal from `/performance:goal`** with its floor, its Realistic target and `min_attempts`. A
-   goal without `min_attempts` goes back to `/performance:goal`; this skill never picks one, since
-   goal is human-gated.
+   goal without `min_attempts` goes back to `/performance:goal`; never pick one here, since goal is
+   human-gated.
 2. **A harness `/performance:snapshot` froze**: the command, the commit it was frozen at, and its
    discrimination result. Send the run back to `/performance:snapshot baseline` when no harness is
    frozen, or when its output carries neither tally. Each harness run must print three numbers: the
@@ -59,8 +58,6 @@ before the first attempt.
    stop and say which number differed.
 
 ## One attempt
-
-Repeat for each attempt:
 
 1. **Read the log**: `python3 "${CLAUDE_PLUGIN_ROOT}/skills/climb/scripts/climb_log.py" show --log <slice>/log.tsv`.
    Do not retry a mechanism already reverted unless the new attempt says what differs.
@@ -113,9 +110,8 @@ Repeat for each attempt:
 
 A budget is optional. Without one, the last row is what ends a run that never reaches its target.
 
-`min_attempts` is a floor on evidence, not a formality: the first mechanism kept is usually the
-most obvious one, and the attempts after it show whether the counter has more room. The goal, the
-keep rule and the budget stay as written until the run ends.
+`min_attempts` is a floor on evidence: the attempts after the first kept one show whether the
+counter has more room. The goal, the keep rule and the budget stay as written until the run ends.
 
 ## Choosing the next hypothesis
 

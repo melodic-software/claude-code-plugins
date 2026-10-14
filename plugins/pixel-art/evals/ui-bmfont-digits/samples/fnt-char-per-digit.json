@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "info face=\"digits\" size=8\ncommon lineHeight=9 base=8 scaleW=40 scaleH=16 pages=1\npage id=0 file=\"sheet.png\"\nchars count=10\nchar id=48 x=0 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=49 x=4 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=50 x=8 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=51 x=12 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=52 x=16 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=53 x=20 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=54 x=24 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=55 x=28 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=56 x=32 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=57 x=36 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\n",
+      "why": "ids 48-57"
+    },
+    {
+      "answer": "info face=\"digits\" size=8\ncommon lineHeight=9 base=8 scaleW=40 scaleH=16 pages=1\npage id=0 file=\"sheet.png\"\nchars count=10\nchar id=57 x=36 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=56 x=32 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=55 x=28 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=54 x=24 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=53 x=20 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=52 x=16 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=51 x=12 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=50 x=8 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=49 x=4 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=48 x=0 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\n",
+      "why": "any order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "info face=\"digits\" size=8\ncommon lineHeight=9 base=8 scaleW=40 scaleH=16 pages=1\npage id=0 file=\"sheet.png\"\nchars count=1\nchar id=48 x=0 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\n",
+      "why": "one entry"
+    },
+    {
+      "answer": "info face=\"digits\" size=8\ncommon lineHeight=9 base=8 scaleW=40 scaleH=16 pages=1\npage id=0 file=\"sheet.png\"\nchars count=9\nchar id=48 x=0 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=49 x=4 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=50 x=8 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=51 x=12 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=52 x=16 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=53 x=20 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=54 x=24 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=55 x=28 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=56 x=32 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\n",
+      "why": "nine digits, 57 missing"
+    },
+    {
+      "answer": "info face=\"digits\" size=8\ncommon lineHeight=9 base=8 scaleW=40 scaleH=16 pages=1\npage id=0 file=\"sheet.png\"\nchars count=10\nchar id=0 x=-192 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=1 x=-188 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=2 x=-184 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=3 x=-180 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=4 x=-176 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=5 x=-172 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=6 x=-168 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=7 x=-164 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=8 x=-160 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=9 x=-156 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\n",
+      "why": "indexes, not char codes"
+    },
+    {
+      "answer": "info face=\"digits\" size=8\ncommon lineHeight=9 base=8 scaleW=40 scaleH=16 pages=1\npage id=0 file=\"sheet.png\"\nchars count=10\nchar id=48 x=0 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=49 x=4 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=50 x=8 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=51 x=12 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=52 x=16 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=530 x=20 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=54 x=24 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=55 x=28 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=56 x=32 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\nchar id=57 x=36 y=0 width=4 height=8 xoffset=0 yoffset=0 xadvance=5 page=0 chnl=15\n",
+      "why": "a mangled id"
+    }
+  ]
+}

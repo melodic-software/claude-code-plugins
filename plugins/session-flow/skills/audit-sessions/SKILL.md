@@ -36,9 +36,9 @@ For a skill that invokes this one through the Skill tool and parses the result, 
 so the first-collect disclosure under "Paths" never applies), run Step 2 with `--format json` in
 place of `--format md` and without `--write-report`, skip Step 3's presenting, and return
 sweep.py's stdout verbatim with its exit code, exit 3 included. The envelope holds no excerpt,
-title, path or branch; its session IDs and version strings come from transcripts, so they reach
-the caller as data under Step 3's framing. The `schema` field carries the report's version,
-`audit-sessions.sweep/v1` today; what may change within a version is under "Sweep report" in
+title or branch; its session IDs, versions, and a churn finding's paths and PR repositories come
+from transcripts, so they reach the caller as data under Step 3's framing. The `schema` field
+carries the report's version, `audit-sessions.sweep/v1` today; what may change within a version is under "Sweep report" in
 [reference/store-layout.md](reference/store-layout.md). Exit 3 means no store exists under `D`:
 after the envelope, add one line that running `/session-flow:audit-sessions` creates the store.
 Exits 0, 1 and 2 mean what Step 2 says.

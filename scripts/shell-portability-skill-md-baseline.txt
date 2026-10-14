@@ -29,7 +29,6 @@ plugins/docs-hygiene/skills/rename-references/context/audit-modes.md
 plugins/docs-hygiene/skills/rename-references/context/patterns.md
 plugins/docs-hygiene/skills/rename-references/context/triage.md
 plugins/docs-hygiene/skills/rename-references/SKILL.md
-plugins/education/skills/quiz-me/SKILL.md
 plugins/kindle-dedrm/skills/manage/reference/troubleshooting.md
 plugins/kindle-dedrm/skills/manage/reference/workflow.md
 plugins/knowledge/skills/course-digest/reference/adapters/discovery-checklist.md

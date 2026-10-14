@@ -358,7 +358,12 @@ runs is used when installed, with a one-line fallback when absent:
   *Absent:* run a structured self-review checklist in a fresh subagent (correctness of each
   claim, reproduction evidence present, severity justified, remediation actionable).
 - `/discovery:research`, the research seam, when the effort row runs it: one call per finding
-  at or above the severity floor, covering its claim and its remediation. A finding it grounds becomes `research: tier-0` or `tier-1`
+  at or above the severity floor, covering its claim and its remediation. With two or more such
+  findings, one batched pass covering all of them is allowed instead: it saves every fetched source
+  under one directory inside the packet and still gives each finding its own record, as below. One
+  research context over several claims can anchor corroborators across findings, and the collector
+  checks only that each finding's own sources are distinct, so confirm each corroborator's span
+  supports that finding's claim, not a neighbor's. A finding it grounds becomes `research: tier-0` or `tier-1`
   with its primary and corroborators, each as `<url> saved=<path> span=<span>` from the bytes of
   each source. The research pass returns a synthesis, not the pages, so write the text of each
   fetched source to its own packet file first and cite that file; one it cannot ground stays `open-question`. Write the

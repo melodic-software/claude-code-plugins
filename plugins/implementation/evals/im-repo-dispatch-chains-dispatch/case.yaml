@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: im-repo-dispatch-chains-dispatch
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: chains-dispatch
+    type: tool_used
+    tool: Skill
+    input_match: 'implement-dispatch'
+    arm: both
+  - name: config-read-before-chain
+    type: tool_order
+    before:
+      tool: Read
+      input_match: 'docs/conventions/implementation\.yaml'
+    after:
+      tool: Skill
+      input_match: 'implement-dispatch'
+  - name: reports-repo-layer
+    type: regex
+    pattern: '\bcode_writing\b(?:[`*]*[ \t]*[:=][`* \t]*|[`*]*[ \t]+(?:is|resolves to|resolved to)[ \t]+[`*]*)dispatch\b[`*.]*[ \t]*\([ \t]*(?:from |(?:the )?repo(?:sitory)?(?: file| layer)?[:,]?[ \t]*)?`?(?:\./)?(?:docs/conventions/)?implementation\.yaml|\|[ \t]*[`*]*code_writing[`*]*[ \t]*\|[ \t]*[`*]*dispatch[`*]*[ \t]*\|[ \t]*[`*(]*(?:from |(?:the )?repo(?:sitory)?(?: file| layer)?[:,]?[ \t]*)?`?(?:\./)?(?:docs/conventions/)?implementation\.yaml'
+    flags: 'i'
+    target: last_message

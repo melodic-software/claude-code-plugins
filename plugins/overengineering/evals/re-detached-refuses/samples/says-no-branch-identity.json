@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Detached checkout, no logical ref supplied; no branch identity, so the artifact's branch cannot be verified and nothing will be executed."},
+    {"answer": "HEAD is detached, so I'm stopping before reading any findings."},
+    {"answer": "The branch identity did not resolve (`git symbolic-ref` failed), so I refuse to run."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "HEAD is not detached; you are on main. Presenting finding 1.", "why": "negated"},
+    {"answer": "Branch: main. Two open findings to work through.", "why": "claims a branch"},
+    {"answer": "The branch is HEAD, which matches the artifact.", "why": "accepts HEAD as an identity"}
+  ]
+}

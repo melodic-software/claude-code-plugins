@@ -1,5 +1,5 @@
 ---
-description: "Extract and synthesize online video courses into repo-applicable recommendations. Use when: 'course digest', 'digest this course', 'analyze course', 'Dometrain', 'watch this course for me', 'course takeaways', 'extract from course', 'summarize course', or a Dometrain/Pluralsight/Udemy course URL. Single public YouTube videos use /knowledge:video-digest."
+description: "Online video course (Dometrain, Teachable) extracted lesson by lesson and synthesized into recommendations for the current repository; Pluralsight and Udemy URLs are recognized but have no adapter yet. Use when the user gives a course URL or asks to digest a course, to analyze an already extracted course, or to check or resume a course digest in progress. One public video goes to /knowledge:video-digest."
 argument-hint: "[extract|analyze|status|resume|continue] [url|slug]"
 user-invocable: true
 disable-model-invocation: false

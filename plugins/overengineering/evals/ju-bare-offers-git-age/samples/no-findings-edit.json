@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing edited"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/w/.work/.gitignore", "old_string": "", "new_string": "*"}}], "why": "guard edit"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/w/.work/overengineering/main/findings.md", "old_string": "## Findings", "new_string": "## Findings\n\n### 0123456789abcdef"}}], "why": "merged a row"}
+  ]
+}

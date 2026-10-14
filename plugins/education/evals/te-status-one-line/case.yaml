@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: te-status-one-line
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: superseded-probe
+    type: tool_used
+    tool: Grep
+    input_match: 'superseded'
+    arm: both
+  - name: names-workspace
+    type: regex
+    pattern: '^(?=[\s\S]*\bsql-joins\b)(?=[\s\S]*\btopic\b)'
+    flags: 'i'
+    target: last_message
+  - name: record-count-two
+    type: regex
+    pattern: '(?:\b2\b|\btwo\b)[^\n|]{0,30}\b(?:learning[- ])?records?\b|\brecords?\b\W{0,3}(?:\b2\b|\btwo\b)|^[^\n]*sql-joins[^\n]*\|\s*(?:2|two)\b[^\n|]*\|'
+    flags: 'im'
+    target: last_message
+  - name: frontier-left-join
+    type: regex
+    pattern: '\bLEFT\s+(?:OUTER\s+)?JOIN\b|\bleft-join\b'
+    flags: 'i'
+    target: last_message
+  - name: due-flag
+    type: regex
+    pattern: '\bdue[- ]for[- ]review\b|\breview[- ]due\b|\breview\b[^\n]{0,40}\bdue\b|\bdue\b[^\n]{0,40}\breview\b'
+    flags: 'i'
+    target: last_message
+  - name: no-record-bodies
+    type: regex
+    pattern: '\bblank\s+editor\b|\bwithout\s+hints\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Checked first: the quiz-me report library for this repository. It holds no report on the auth rate-limit ordering change, and the library holds only work that was quizzed, so a change nobody was quizzed on is not in it.\n\nFallback: git history. This directory is not a git repository, so there is no commit log to search, and no tracker is configured. Neither source answered.",
+      "why": "only work that was quizzed"
+    },
+    {
+      "answer": "No report in the library matches (it only retains quizzed changes).\n\nFalling back to the git log: commit c40e8f2 \"move rateLimit ahead of auth\" made the change. Answered by: git history.",
+      "why": "only retains quizzed changes"
+    },
+    {
+      "answer": "This change was never quizzed, so the library cannot hold it.",
+      "why": "never quizzed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The report library holds every change we have made, and it has no entry for this, so nothing was done on it. Git history was not needed.",
+      "why": "implies the library is complete"
+    },
+    {
+      "answer": "The library is not limited to quizzed work; it found nothing. Git history is empty too.",
+      "why": "denies the boundary"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".claude/skills/retry-patterns/SKILL.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "Phase 1.1 skeleton"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/data/proj-1a2b3c4d/retry-patterns/field-notes-progress.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".claude/skills/retry-patterns/reference/backoff-author.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/data/proj/retry-patterns/evil.txt",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/abs/project/.claude/skills/retry-patterns/reference/idempotency.md",
+            "content": "x"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "x",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

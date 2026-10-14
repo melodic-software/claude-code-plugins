@@ -3,6 +3,16 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-10-14
+
+### Added
+
+- Seven outcome eval cases (`as-`, `ro-`, `ad-`, `su-`) and frozen trigger-probe sets for `assess`, `audit-defaults`, `check` and `route`.
+
+### Changed
+
+- `assess` and `route` have shorter descriptions and bodies with the same rules, output templates and stop gates. `setup` has a one-line description and a shorter body. `audit-defaults` and `check` are unchanged.
+
 ## [0.9.0] - 2026-10-13
 
 ### Added

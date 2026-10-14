@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [], "why": "no shell"},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls .work/overengineering/main/spine-baseline.md 2>/dev/null"}}], "why": "existence probe"},
+    {"answer": [{"tool": "Bash", "input": {"command": "date -u +%Y%m%dT%H%M%SZ"}}], "why": "timestamp read"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "grep -E '^(###|- \\*\\*)' .work/overengineering/main/findings.md > .work/overengineering/main/spine-baseline.md"}}], "why": "redirect capture"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cp .work/overengineering/main/findings.md .work/overengineering/main/spine-baseline.md"}}], "why": "copy capture"},
+    {"answer": [{"tool": "Bash", "input": {"command": "touch .work/overengineering/main/spine-baseline.md"}}], "why": "empty file"}
+  ]
+}

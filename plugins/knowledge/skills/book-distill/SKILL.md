@@ -1,5 +1,5 @@
 ---
-description: "Distill a technical book (PDF or EPUB) into concept-organized skill reference files. Use when: 'distill this book', 'book to skill', 'PDF to skill', 'EPUB to skill', 'read this book for me', 'extract knowledge from this book', 'book distillation', 'turn this book into a skill', 'extract from PDF', or the user provides a PDF/EPUB path. Output is structured developer-facing context, not an ad-hoc summary. Docs pages go to /knowledge:docpage-digest."
+description: "Technical book (PDF or EPUB file) distilled into concept-organized reference files for a named target skill, a few chapters per session. Use when the user provides a PDF or EPUB path, asks to turn a book into a skill, or continues a book distillation from its continuation prompt. A single docs page goes to /knowledge:docpage-digest."
 argument-hint: "[path to PDF/EPUB] [target skill name]"
 user-invocable: true
 disable-model-invocation: false
@@ -9,7 +9,7 @@ disable-model-invocation: false
 
 Transform technical books into structured skill reference files that provide the WHY behind decisions during development. This is a multi-session process. Each session handles ~3 chapters. The skill produces concept-organized reference files with author attribution, suitable for progressive disclosure in Claude Code skills.
 
-The reference files are written into a **target skill**, either an existing skill you extend or a new one you create, inside the consuming project (`${CLAUDE_PROJECT_DIR}/.claude/skills/<target-slug>/`). Name the target skill when you invoke the tool. **Slugify the target name** (lowercase alphanumerics and hyphens only. Strip `/`, `\`, and `..`) before building any path, and verify the resolved directory stays under `${CLAUDE_PROJECT_DIR}/.claude/skills/` before writing.
+Write the files into the **target skill** named at invocation, an existing skill to extend or a new one, at `${CLAUDE_PROJECT_DIR}/.claude/skills/<target-slug>/`. **Slugify the target name** (lowercase alphanumerics and hyphens only; strip `/`, `\`, and `..`) before building any path, and verify the resolved directory stays under `${CLAUDE_PROJECT_DIR}/.claude/skills/` before writing.
 
 The `context/` and `templates/` files write the plugin data directory as `<plugin-data>`. Put the `${CLAUDE_PLUGIN_DATA}` path this body shows in its place before a path from those files goes into a command or a file write.
 
@@ -43,9 +43,9 @@ Run this phase once at the start of a new book.
 
 ### 1.1 Identify the target
 
-Determine whether this extends an existing skill or creates a new one. One skill per discipline, a testing skill for testing knowledge, a domain-design skill for domain design, not a mega catch-all skill.
+Extend an existing skill when the book's discipline matches one; otherwise create one. Keep one skill per discipline, never a catch-all.
 
-When the target skill does NOT yet exist, bootstrap it now, before any reference file is written: create `${CLAUDE_PROJECT_DIR}/.claude/skills/{target-skill-slug}/` with an empty `reference/` subdirectory and a minimal `SKILL.md` (frontmatter `name` + `description` naming the discipline, plus an empty routing table for Phase 4 to extend). Phase 2 writes into `reference/` and Phase 4 updates the routing table, so both fail or orphan files if the skeleton is missing.
+When the target skill does not exist, create it before writing any reference file: `${CLAUDE_PROJECT_DIR}/.claude/skills/{target-skill-slug}/` with an empty `reference/` subdirectory and a minimal `SKILL.md` (frontmatter `name` + `description` naming the discipline, plus an empty routing table for Phase 4 to extend). Without this skeleton, Phase 2 and Phase 4 fail or orphan files.
 
 ### 1.2 Survey the book
 
@@ -101,7 +101,7 @@ When the source is EPUB:
 
 <!-- spellchecker:off -->
 <!-- OPF below is the EPUB package-document format, not a typo -->
-1. **Unzip once, safely** into `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-epub/` (reuse across sessions; do not re-unzip if the directory already exists). The archive is untrusted: list entries first (`unzip -l`) and ABORT if any entry path is absolute or contains `..`; after extraction, delete any symlink entries (`find <cache-dir> -type l -delete`) before reading, a crafted symlink could otherwise point a later Read outside the cache
+1. **Unzip once, safely** into `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-epub/`; reuse it across sessions and never re-unzip when it exists. The archive is untrusted: list entries first (`unzip -l`) and ABORT if any entry path is absolute or contains `..`. After extraction, delete symlink entries (`find <cache-dir> -type l -delete`) before reading, so no symlink points a later Read outside the cache
 2. **Locate content via the package document**. `META-INF/container.xml` → `rootfile/@full-path` names the package document (an `.opf`), NOT chapter XHTML. Read the OPF: its `manifest` lists the content files and its `spine` gives reading order; chapter XHTML usually lives under `OEBPS/` or `OPS/`. The XML values are book-controlled too: before reading ANY `full-path` or manifest `href`, require it to resolve to a regular non-symlink file INSIDE the EPUB cache directory. Reject absolute paths and any path whose resolved form escapes the cache (`..` segments)
 3. **Build a chapter map** in the progress file with chapter titles and XHTML file paths (not PDF page numbers). Order chapters by the OPF `spine`, falling back to the EPUB TOC (`nav.xhtml` or `toc.ncx`) for titles
 4. **Read chapter files** with the Read tool. One chapter (or logical section) per batch, same read-write interleave as PDF

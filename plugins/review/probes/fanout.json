@@ -1,0 +1,132 @@
+{
+  "skill": "review:fanout",
+  "plugin": "review",
+  "skill_dir": "plugins/review/skills/fanout",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other model-invoked review skills.",
+  "competitors": [
+    "review:audit-enforceability",
+    "review:explain-change",
+    "review:quality-gate",
+    "review:ratchet",
+    "review:code-review",
+    "review:security-review"
+  ],
+  "competitor_dirs": {
+    "review:audit-enforceability": "plugins/review/skills/audit-enforceability",
+    "review:explain-change": "plugins/review/skills/explain-change",
+    "review:quality-gate": "plugins/review/skills/quality-gate",
+    "review:ratchet": "plugins/review/skills/ratchet",
+    "review:code-review": "plugins/review/skills/code-review",
+    "review:security-review": "plugins/review/skills/security-review"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Throw every reviewer we have at this branch and merge the results into one ranked list."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want this change reviewed wide, from all angles: code, security, architecture, docs, and our project criteria."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run the full review sweep across all reviewer agents and save the deduplicated findings to disk."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go apply the findings from the combined review we persisted earlier."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I mark this ready, get me one severity-sorted report from every review surface, not just one lens."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run all the review plugins in parallel against main...HEAD and dedupe what they say."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Do a review from every side on this PR and consolidate it into a single report."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Now work through the merged findings list from the last review run and fix them."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "All reviewers simultaneously, please. I want the complete picture on this diff."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Run the criteria docs our project keeps for each concern plus the reviewer agents over this change and rank everything together."
+    },
+    {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Kick off run-everything review mode on my feature branch."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Just do a quick self-review of my changes."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Do an architecture review of the new module boundaries."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explain PR 220 and where I should focus."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which of the findings in merged.json could a linter catch instead of a model?"
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Hunt for bugs in the payments folder."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Audit CI run 99881 for masked failures and skipped jobs."
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Rename the fetchUser function to loadUser everywhere."
+    }
+  ]
+}

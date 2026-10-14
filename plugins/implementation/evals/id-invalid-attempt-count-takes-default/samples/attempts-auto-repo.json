@@ -1,0 +1,60 @@
+{
+  "pass": [
+    {
+      "answer": "Settings for phase 2:\n\n- competing_attempts: auto (docs/conventions/implementation.yaml)\n- competing_attempt_count: 3 (default). docs/conventions/implementation.yaml sets competing_attempt_count: 7, which is invalid (not a whole number from 2 to 5), so that layer is dropped.\n- drain_cadence: batched (docs/conventions/implementation.yaml)\n\nPhase 2 is marked multi-shape, so it would get 3 attempts."
+    },
+    {
+      "answer": "Invalid: `docs/conventions/implementation.yaml` key `competing_attempt_count` value `7` is outside 2 to 5.\n`competing_attempt_count: 3` (default)\n`competing_attempts: auto` (`docs/conventions/implementation.yaml`)\n\nPhase 2 gets 3 attempts."
+    },
+    {
+      "answer": "**competing_attempts**: auto (from docs/conventions/implementation.yaml)\n**competing_attempt_count**: 3 (default)\n  docs/conventions/implementation.yaml has a value of 7 for competing_attempt_count,\n  which is out of range; the repository layer is dropped for that key.\n",
+      "why": "from prefix"
+    },
+    {
+      "answer": "- **`competing_attempts`:** `auto` (`docs/conventions/implementation.yaml`).",
+      "why": "bold backticked key, colon inside the emphasis"
+    },
+    {
+      "answer": "competing_attempts: auto (repository: docs/conventions/implementation.yaml)",
+      "why": "repository prefix"
+    },
+    {
+      "answer": "competing_attempts: auto (./docs/conventions/implementation.yaml)",
+      "why": "dot-slash path"
+    },
+    {
+      "answer": "| `competing_attempts` | `auto` | `docs/conventions/implementation.yaml` |",
+      "why": "table row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "competing_attempts: suggest (default)",
+      "why": "repository value ignored"
+    },
+    {
+      "answer": "competing_attempts: auto (default)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "competing_attempts: auto (user option)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "Should I run competing attempts for phase 2? Shall I proceed?",
+      "why": "a question, no setting line"
+    },
+    {
+      "answer": "**`competing_attempts`:** `auto` (default)",
+      "why": "wrong layer"
+    },
+    {
+      "answer": "| `competing_attempts` | `auto` | default |",
+      "why": "table row, wrong layer"
+    },
+    {
+      "answer": "`competing_attempts` is `suggest` (docs/conventions/implementation.yaml).",
+      "why": "wrong value"
+    }
+  ]
+}

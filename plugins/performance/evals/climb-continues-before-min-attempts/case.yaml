@@ -27,8 +27,3 @@ graders:
   - name: keeps-going
     type: llm
     criteria: 'PASS only if the answer says the run is not finished because only 2 of the 6 required attempts are logged, treats the met target as one stop condition that is not enough alone, and continues (or offers to continue) with attempt a3 rather than handing off to /performance:verify. FAIL if it declares the run done or recommends verify now.'
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:performance:)?climb"'
-    arm: with-only

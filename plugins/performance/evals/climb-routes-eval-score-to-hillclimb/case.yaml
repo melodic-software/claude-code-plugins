@@ -1,18 +1,21 @@
 schema_version: "1.1"
 name: climb-routes-eval-score-to-hillclimb
-description: 'A request to raise an LLM app''s pass rate on a graded eval set by iterating on its system prompt is routed to /claude-api hillclimb, which the person starts; no climb worktree, branch or keep rule is created.'
+description: 'A request to raise an LLM app''s pass rate on a graded eval set by iterating on its system prompt is not a climb: the climb skill does not fire and no climb worktree, branch, keep rule or log is created. The run routes to the bundled /claude-api hillclimb workflow instead, by invoking it, reading its eval-hillclimb guide, or naming it in the reply.'
 tags: [climb, routing]
 plugins: ["../.."]
-expected_outcome: 'The answer routes the work to the bundled /claude-api hillclimb workflow, says the person types that command, and creates no worktree, branch, keep rule or log.'
+expected_outcome: 'The climb skill does not fire, and the run creates no climb worktree, branch, keep rule or log. The run routes to /claude-api hillclimb: it invokes the claude-api skill with hillclimb, reads the eval-hillclimb workflow file, or names /claude-api hillclimb in its reply.'
 execution:
   prompt: 'Our support chatbot passes 84 of our 120 graded eval cases. Set up a loop that keeps changing its system prompt and keeps whatever raises the pass rate.'
   allowed_tools: [Bash, Read, Grep, Glob, Skill]
   max_turns: 15
   timeout_seconds: 600
 graders:
-  - name: names-hillclimb
-    type: regex
-    pattern: '/claude-api hillclimb'
+  - name: climb-not-invoked
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:performance:)?climb"'
+    min: 0
+    max: 0
     arm: both
   - name: no-climb-setup
     type: tool_used
@@ -21,6 +24,9 @@ graders:
     min: 0
     max: 0
     arm: both
-  - name: routes-not-climbs
-    type: llm
-    criteria: 'PASS only if the answer sends this eval-score work to /claude-api hillclimb, says the person starts it by typing the command, and does not offer to run a code-performance keep-or-revert loop on a counter instead. FAIL otherwise.'
+  - name: routes-to-hillclimb
+    type: regex
+    target: trace
+    pattern: '^(?=[^\n]*"type":"(?:assistant|result)")[^\n]*?(?:"name":"Skill","input":\{(?=[^}]*"skill":"claude-api")(?=[^}]*"args":"[^"]*\bhillclimb\b)|"name":"Read","input":\{"file_path":"[^"]*/eval-hillclimb\.md"|(?:"text":"|"result":"|\\n|[.,;:!?])(?:(?!\\n|\b(?:not|never|no|avoid|skip|instead of|rather than)\b|\w+n[''’]t\b)[^\n.,;:!?])*?/claude-api[ \t]+hillclimb\b)'
+    flags: 'mi'
+    arm: both

@@ -8,8 +8,9 @@
 #
 # A green run on the current repo tree proves nothing about the gate -- the
 # tree is green by construction once the drift is fixed. These fixtures prove
-# it goes RED on an enabled id no catalog entry backs, on unsorted keys and on
-# a bootstrap naming another marketplace; and that an explicit `false` and a
+# it goes RED on an enabled id no catalog entry backs, on unsorted keys, on
+# a bootstrap naming another marketplace and on settings redeclaring the
+# catalog's marketplace; and that an explicit `false` and a
 # catalogued plugin with no key both pass, because the settings block carries
 # deltas only.
 set -uo pipefail
@@ -32,11 +33,15 @@ SUT="$TMP/scripts/check-plugin-catalog-enablement.sh"
 MARKETPLACE="$TMP/.claude-plugin/marketplace.json"
 SETTINGS="$TMP/.claude/settings.json"
 
+# The marketplace name the fixture catalog declares; the gate reads it from
+# marketplace.json, so the settings keys and the bootstrap follow it.
+market_name=fixture
+
 write_marketplace() {
   # plugin names, one per argument
   {
     echo '{'
-    echo '  "name": "fixture-marketplace",'
+    printf '  "name": "%s",\n' "$market_name"
     echo '  "owner": {"name": "fixture"},'
     echo '  "plugins": ['
     local first=1 name
@@ -63,9 +68,6 @@ write_settings() {
       printf '    "%s@fixture": %s' "$name" "$value"
     done
     echo
-    echo '  },'
-    echo '  "extraKnownMarketplaces": {'
-    echo '    "fixture": {"source": {"source": "directory", "path": "./"}}'
     echo '  }'
     echo '}'
   } >"$SETTINGS"
@@ -86,18 +88,21 @@ run() {
   )
 }
 
-# Every fixture below declares the "fixture" marketplace unless it overrides
-# this, so the identity check agrees by default and each case exercises only
-# the drift class it names.
+# Every fixture below uses the "fixture" marketplace unless it overrides this,
+# so the identity check agrees by default and each case exercises only the
+# drift class it names. No settings fixture declares extraKnownMarketplaces
+# unless a case says so: the project settings carry none.
 write_bootstrap fixture
 
-# --- 1. Happy path: catalog and enabledPlugins name the same set. -----------
+# --- 1. Happy path: catalog and enabledPlugins name the same set, and the ---
+# settings declare no extraKnownMarketplaces.
 write_marketplace alpha beta gamma
 printf 'alpha true\nbeta true\ngamma true\n' | write_settings
 out="$(run)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q 'none orphaned; keys sorted' <<<"$out"; then
-  ok "catalog and enabledPlugins in agreement passes"
+if [[ $rc -eq 0 ]] && grep -q 'none orphaned; keys sorted' <<<"$out" &&
+  ! grep -q extraKnownMarketplaces "$SETTINGS"; then
+  ok "catalog and enabledPlugins in agreement pass with no extraKnownMarketplaces in settings"
 else
   fail "happy path should pass (rc=$rc): $out"
 fi
@@ -149,10 +154,8 @@ else
 fi
 
 # --- 6. Keys of another marketplace are none of this gate's business. -------
-# Only the declared marketplace's suffix is compared; a foreign key must not
-# read as an orphan. Two declared marketplaces is a different (fatal) case,
-# covered in 7 -- here the second id is simply a suffix this repo's single
-# marketplace does not own.
+# Only this marketplace's suffix is compared; a foreign key must not read as
+# an orphan.
 write_marketplace alpha beta
 {
   echo '{'
@@ -160,9 +163,6 @@ write_marketplace alpha beta
   echo '    "alpha@fixture": true,'
   echo '    "beta@fixture": true,'
   echo '    "zeta@other-market": true'
-  echo '  },'
-  echo '  "extraKnownMarketplaces": {'
-  echo '    "fixture": {"source": {"source": "directory", "path": "./"}}'
   echo '  }'
   echo '}'
 } >"$SETTINGS"
@@ -181,6 +181,7 @@ fi
 # key and the genuine 'alpha@melodic.software' entry goes unnoticed -- the
 # gate reporting drift that does not exist while missing the shape it exists
 # to catch.
+market_name='melodic.software'
 write_marketplace alpha
 write_bootstrap 'melodic.software'
 {
@@ -188,9 +189,6 @@ write_bootstrap 'melodic.software'
   echo '  "enabledPlugins": {'
   echo '    "alpha@melodic.software": true,'
   echo '    "beta@melodicXsoftware": true'
-  echo '  },'
-  echo '  "extraKnownMarketplaces": {'
-  echo '    "melodic.software": {"source": {"source": "directory", "path": "./"}}'
   echo '  }'
   echo '}'
 } >"$SETTINGS"
@@ -201,13 +199,14 @@ if [[ $rc -eq 0 ]]; then
 else
   fail "'.' in the marketplace name must not match any character (rc=$rc): $out"
 fi
+market_name=fixture
 write_bootstrap fixture
 
 # --- 6c. The bootstrap must install the marketplace the gate checks. --------
 # .claude/cloud-bootstrap.sh hardcodes `marketplace_name` and selects its
-# install set with endswith("@" + $n), while this gate derives the suffix from
-# extraKnownMarketplaces. A rename that updates settings and catalog but not
-# the bootstrap leaves `wanted` empty -- cloud sessions install none of the
+# install set with endswith("@" + $n), while this gate reads the name from
+# marketplace.json. A rename that updates settings and catalog but not the
+# bootstrap leaves `wanted` empty -- cloud sessions install none of the
 # catalog -- with this lane green over it.
 write_marketplace alpha beta
 printf 'alpha true\nbeta true\n' | write_settings
@@ -241,23 +240,60 @@ else
 fi
 write_bootstrap fixture
 
-# --- 7. Ambiguous input is fatal, not a guess. ------------------------------
+# --- 7. The marketplace name comes from marketplace.json, not settings. ----
+# Settings that declare other marketplaces, none named like this catalog,
+# change nothing: the gate still holds the "fixture" keys against the catalog.
 write_marketplace alpha
 {
   echo '{'
   echo '  "enabledPlugins": {"alpha@fixture": true},'
   echo '  "extraKnownMarketplaces": {'
-  echo '    "fixture": {"source": {"source": "directory", "path": "./"}},'
+  echo '    "other": {"source": {"source": "directory", "path": "./"}},'
   echo '    "second": {"source": {"source": "github", "repo": "o/r"}}'
   echo '  }'
   echo '}'
 } >"$SETTINGS"
 out="$(run)"
 rc=$?
-if [[ $rc -eq 2 ]] && grep -q 'expected exactly one entry' <<<"$out"; then
-  ok "two declared marketplaces is fatal rather than a guess"
+if [[ $rc -eq 0 ]] && grep -q "for 'fixture'" <<<"$out"; then
+  ok "the marketplace name is read from marketplace.json, not extraKnownMarketplaces"
 else
-  fail "ambiguous marketplace set should exit 2 (rc=$rc): $out"
+  fail "settings marketplaces should not decide the name (rc=$rc): $out"
+fi
+
+# --- 7b. Settings must not redeclare the catalog's own marketplace. --------
+# A declared source that differs from the user's registration makes Claude
+# Code refetch from it, so a project entry under this name shadows the
+# marketplace local sessions resolve.
+write_marketplace alpha
+{
+  echo '{'
+  echo '  "enabledPlugins": {"alpha@fixture": true},'
+  echo '  "extraKnownMarketplaces": {'
+  echo '    "fixture": {"source": {"source": "directory", "path": "./"}},'
+  echo '    "other": {"source": {"source": "github", "repo": "o/r"}}'
+  echo '  }'
+  echo '}'
+} >"$SETTINGS"
+out="$(run)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'SHADOWED MARKETPLACE' <<<"$out" && grep -q "'fixture'" <<<"$out"; then
+  ok "settings redeclaring the catalog's marketplace in extraKnownMarketplaces fails the gate"
+else
+  fail "extraKnownMarketplaces naming the catalog's marketplace should fail (rc=$rc): $out"
+fi
+
+# A catalog with no name leaves nothing to hold the keys against: fatal.
+market_name=''
+write_marketplace alpha
+market_name=fixture
+printf 'alpha true\n' | write_settings
+out="$(run)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'declares no name' <<<"$out"; then
+  ok "a marketplace.json with an empty name exits 2"
+else
+  fail "a nameless marketplace.json should exit 2 (rc=$rc): $out"
 fi
 
 # --- 8. Unreadable inputs are fatal, not silently green. --------------------

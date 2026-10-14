@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# How src/retry.js decides when to give up\n\nA failed call to the billing API is tried again only while attempts remain and the error is one a retry can fix.\n\n## 1. The attempt cap comes first\n\n1. Call fails\n2. Attempt count checked\n3. Stop at 4 attempts\n\n```mermaid\nflowchart LR\n  s1[\"Call fails\"] --> s2[\"Attempt count checked\"] --> s3[\"Stop at 4 attempts\"]\n```\n\n**Takeaway:** once MAX_ATTEMPTS (4) calls have failed, shouldRetry gives up whatever the status code.\n\n## 2. The status code decides the rest\n\n- 429 Too Many Requests: retry\n- Other 4xx: give up\n- 5xx: retry\n\n```mermaid\nflowchart TD\n  c[\"Status code\"] --> a[\"429: retry\"]\n  c --> b[\"Other 4xx: give up\"]\n  c --> d[\"5xx: retry\"]\n```\n\n**Takeaway:** a client error other than 429 will fail the same way again, so it is not retried.\n\n## Terms\n\n- **status code**: the number the server sends back to say how the call went.\n\n## Sources\n\n- src/retry.js\n",
+      "why": "two diagrams"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# How src/retry.js gives up\n\n```mermaid\nflowchart TD\n  a[\"Fail\"] --> b{\"attempt >= MAX_ATTEMPTS?\"} --> c[\"429 or 5xx: retry; 4xx: stop\"]\n```\n\nSources: src/retry.js\n",
+      "why": "one crowded diagram"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    }
+  ]
+}

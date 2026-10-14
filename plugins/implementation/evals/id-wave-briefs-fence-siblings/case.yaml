@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: id-wave-briefs-fence-siblings
+graders:
+  - name: escalation-clause-in-both
+    type: regex
+    pattern: '(?:if\s+an\s+assumption\s+in\s+this\s+brief\s+proves\s+wrong\s+or\s+the\s+task\s+requires\s+touching\s+anything\s+[*_`]*FORBIDDEN[*_`]*,\s+STOP\s+and\s+report[.;]\s*Do\s+not\s+improvise[\s\S]*?){2}'
+    flags: 'i'
+    target: last_message
+  - name: rounding-row-forbids-tax
+    type: regex
+    pattern: '(?:FORBIDDEN|Forbidden)(?![ \t]*,)(?:[*_`:]*[ \t]*\n[ \t]*\n)?(?:[^\n]|\n(?![ \t]*\n)(?![ \t>*_-]*(?:\d+[.)][ \t]*)?[*_`]*(?:#|(?:ALLOWED|Allowed|ACCEPTANCE|Acceptance|GOAL|Goal|REASON|Reason|STRUCTURE|Structure|DESIGN|Design|COMMIT|Commit|DIVERGENCE|Divergence|ASSUMPTIONS?|Assumptions?|RETURN|Return|TASK|Task|WORKTREE|Worktree)\b))){0,600}?billing/tax\.py'
+    target: last_message
+  - name: tax-row-forbids-rounding
+    type: regex
+    pattern: '(?:FORBIDDEN|Forbidden)(?![ \t]*,)(?:[*_`:]*[ \t]*\n[ \t]*\n)?(?:[^\n]|\n(?![ \t]*\n)(?![ \t>*_-]*(?:\d+[.)][ \t]*)?[*_`]*(?:#|(?:ALLOWED|Allowed|ACCEPTANCE|Acceptance|GOAL|Goal|REASON|Reason|STRUCTURE|Structure|DESIGN|Design|COMMIT|Commit|DIVERGENCE|Divergence|ASSUMPTIONS?|Assumptions?|RETURN|Return|TASK|Task|WORKTREE|Worktree)\b))){0,600}?billing/rounding\.py'
+    target: last_message
+  - name: no-catch-all-forbidden
+    type: regex
+    pattern: '(?:FORBIDDEN|Forbidden)[*_`]*[ \t]*:?[*_`]*[ \t]*(?:\n(?:[ \t]*\n)?)?[ \t>*+-]*[*_`]*(?:(?:Everything|everything) else|[Aa]ll other (?:files|paths)|[Ee]very other (?:file|path)s?|[Aa]nything else|[Aa]nything outside (?:the )?ALLOWED(?: (?:list|set|paths|files))?)(?: in the (?:repo(?:sitory)?|worktree))?[*_`.]*[ \t]*(?=\n(?![ \t]*[-*+][ \t])(?![ \t]+\S)|(?![\s\S]))'
+    flags: 'm'
+    match: not_contains
+    target: last_message

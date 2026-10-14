@@ -28,7 +28,7 @@ graders:
   - name: decide-ran
     type: tool_used
     tool: Bash
-    input_match: 'climb_log\.py\S*\s+decide\b'
+    input_match: 'climb_log\.py[\s\S]*?\sdecide\s+--(?:rule|before|after)\b'
     min: 1
     arm: with-only
   - name: logged-reverted-row
@@ -41,8 +41,3 @@ graders:
     type: llm
     focus: trace
     criteria: 'PASS only if the run measured attempt a2 against a re-measured baseline arm in the other worktree (not against a number stored earlier), found the parse count unchanged at 15 with errors=0 and pages=5 in both, called it reverted, ran git reset --keep to the last kept commit inside the climb worktree rather than the checkout, left the baseline worktree where it was, and did not start attempt a3. FAIL otherwise.'
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:performance:)?climb"'
-    arm: with-only

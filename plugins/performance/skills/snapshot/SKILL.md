@@ -15,18 +15,17 @@ metadata:
 Answers **"what does this cost, and is this machine even able to tell me?"**
 
 Read [`${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md`](${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md) before writing any harness
-here. It is not optional background: a harness that returns a confident wrong answer looks exactly
-like one that works, and a check written specifically to avoid being fooled is not exempt.
+here, including a check written to avoid being fooled: a harness that returns a confident wrong
+answer looks exactly like one that works.
 
 ## Phase order, and why it is this order
 
 ### 1. Qualify the host, before measuring anything
 
-The lib is plugin-bundled, not installed, so it needs its directory on `sys.path` before the
-import. A bare `from spawn_noise import ...` raises `ModuleNotFoundError` unless the caller happens
-to already be in `lib/`. Anchor to the plugin root this body names, which is substituted with the
-installed version's directory when the skill loads, rather than to the working directory, a
-`__file__` level count, or a hardcoded cache path that breaks on the next plugin version:
+The lib is plugin-bundled, not installed: put its directory on `sys.path` before the import, or a
+bare `from spawn_noise import ...` raises `ModuleNotFoundError`. Anchor to the plugin root this
+body names (substituted with the installed version's directory at load), never to the working
+directory, a `__file__` level count, or a hardcoded cache path:
 
 ```python
 import sys
@@ -42,13 +41,13 @@ measurable, why = is_measurable(summary)
 `is_measurable()` returns a verdict and its basis. A `False` is a **hard refusal to report a
 wall-clock number**, subject only to the recorded override below.
 
-The refusal names what it can still report. That matters: an unexplained refusal gets overridden
-reflexively. On a host that fails `is_measurable()`, the durable result is a deterministic spawn
+The refusal names what it can still report, since an unexplained refusal gets overridden
+reflexively: on a host that fails `is_measurable()`, the durable result is a deterministic spawn
 count of 4 -> 1, not a duration.
 
-**Say plainly that this refusal is a house rule.** No surveyed benchmarking tool refuses above a
-variance threshold: pyperf, Criterion, JMH and benchstat all warn and print the number anyway.
-Presenting this refusal as consensus would be a miscitation.
+**Say plainly that this refusal is a house rule, not consensus.** No surveyed benchmarking tool
+refuses above a variance threshold: pyperf, Criterion, JMH and benchstat all warn and print the
+number anyway.
 
 - **Pointer**: when you need pyperf's own stability thresholds, fetch
   [pyperf check](https://pyperf.readthedocs.io/en/latest/cli.html#check-cmd) live. **As of**:
@@ -81,8 +80,8 @@ after **every** change.
 
 For a process-spawn count, run the bundled census rather than writing one:
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/run-spawn-census.sh" --shim-dir <stable-dir> --before <cmd>
---after <cmd>`. It takes the rule 1 two-run proof itself and refuses a temporary shim directory,
-the harness that once measured its own randomization. `spawn-census.sh` beside it counts one arm.
+--after <cmd>`. It takes the rule 1 two-run proof itself and refuses a temporary shim directory.
+`spawn-census.sh` beside it counts one arm.
 Report the census as **`spawns=` (PATH-shim accounting)** in the snapshot; when the goal instead
 tracks a Windows Job Object or other host counter, state that label explicitly and cite the MSYS
 +2-per-external-command rule from
@@ -278,9 +277,9 @@ Capture: unassisted, verification absent
 Capture: unassisted, verification present and skipped because <reason>
 ```
 
-The dependency is a preference for reuse, not a hard requirement: this skill's own gates (host
-qualification, interleaving, the counter, the refusal) work either way, and refusing to measure
-because a sibling plugin is missing would be a worse failure than the duplication it avoids.
+The dependency is a preference for reuse, not a requirement: never refuse to measure because
+`/verification:measure` is missing; this skill's own gates (host qualification, interleaving, the
+counter, the refusal) work either way.
 
 A counter ceiling that `/performance:protect` checks in is not a baseline: it is a limit on a
 deterministic count, and no duration is ever committed.

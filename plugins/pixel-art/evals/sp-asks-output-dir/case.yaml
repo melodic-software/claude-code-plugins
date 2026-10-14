@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: sp-asks-output-dir
+graders:
+  - name: no-render-before-answer
+    type: tool_used
+    tool: Bash
+    input_match: '(?:\b|(?<=\\n))(?:python[0-9.]*|uv run(?: python[0-9.]*)?)\s+(?:-\S+\s+)*\\?["'']?[^\s"''\\]*\b(?:backends|render)\.py\b|(?:"command":"|[;&|(]\s*|\\n\s*|(?:\b|(?<=\\n))(?:then|do)\s+)\\?["'']?(?:\./|/|\$\{?\w+\}?/)[^\s"''\\]*\b(?:backends|render)\.py\b|^(?!.*(?:__doc__|help\())(?=.*(?:\b|(?<=\\n))(?:import\s+(?:backends|render)\b|from\s+(?:backends|render)\s+import\b))'
+    min: 0
+    max: 0
+  - name: asks-where-to-write
+    type: regex
+    pattern: '\b(?:where|which|what)\b[^\n?.!]{0,80}\b(?:folder|directory|dir|path|location)s?\b[^\n?]{0,80}\?|\bwhere\b[^\n?.!]{0,80}\b(?:save|put|write|place|store|go|land|live|keep)\b[^\n?]{0,80}\?|\b(?:(?:shall|should|can|may)\s+I|do you want|would you like|want me to)\b[^\n?]{0,80}(?:\b(?:folder|directory|dir|path|location)s?\b|\./|~/|\b[\w-]+/)[^\n?]{0,80}\?|\b(?:ok|okay|alright|fine)\b[^\n?]{0,60}(?:\b(?:folder|directory|dir|path|location)s?\b|\./|~/|\b[\w-]+/)[^\n?]{0,60}\?'
+    flags: 'i'
+    target: last_message
+  - name: no-sheet-before-answer
+    type: file_exists
+    path: '**/sheet.png'
+    exists: false

@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "{\"overrides\": [{\"k\": [0, 30], \"brush\": {\"bias\": 0.18}}, {\"k\": [40, 50], \"levels\": [40, 80, 170, 215], \"why\": \"muddy tones\"}]}",
+      "why": "one line"
+    },
+    {
+      "answer": "{\n  \"overrides\": [\n    {\n      \"k\": [\n        40,\n        50\n      ],\n      \"levels\": [\n        40,\n        80,\n        170,\n        215\n      ]\n    }\n  ]\n}\n",
+      "why": "indented"
+    },
+    {
+      "answer": "{\"overrides\": [{\"why\": \"muddy\", \"levels\": [40, 80, 170, 215], \"k\": [40, 50]}]}",
+      "why": "keys reversed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\n  \"overrides\": [\n    {\n      \"k\": [\n        0,\n        30\n      ],\n      \"brush\": {\n        \"bias\": 0.18,\n        \"blur\": 0.7\n      },\n      \"why\": \"sparse line art, replica too thin\"\n    }\n  ]\n}\n",
+      "why": "unchanged"
+    },
+    {
+      "answer": "{\"overrides\": [{\"k\": [40, 45], \"levels\": [40, 80, 170, 215]}]}",
+      "why": "wrong range"
+    },
+    {
+      "answer": "{\"overrides\": [{\"k\": [40, 50], \"levels\": [50, 90, 165, 205]}]}",
+      "why": "default levels"
+    },
+    {
+      "answer": "{\"overrides\": [{\"k\": [40, 50], \"brush\": {\"tones\": [40, 80, 170, 215]}}]}",
+      "why": "levels under brush"
+    }
+  ]
+}

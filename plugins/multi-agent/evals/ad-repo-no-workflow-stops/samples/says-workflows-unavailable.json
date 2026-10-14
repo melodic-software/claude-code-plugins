@@ -1,0 +1,70 @@
+{
+  "pass": [
+    {
+      "answer": "Workflows are unavailable in this session (the Workflow tool is not callable), so `repo` mode stops here: it needs the `multi-agent:drift-audit` workflow and does not sweep the repository on the main thread.\n",
+      "why": "unavailable"
+    },
+    {
+      "answer": "No Workflow tool in this session, so repo mode cannot run. Stopping.\n",
+      "why": "no Workflow tool"
+    },
+    {
+      "answer": "The `Workflow` tool isn't callable in this session, so repo mode stops.\n",
+      "why": "backticked tool, isn't callable"
+    },
+    {
+      "answer": "I didn't run the `repo` audit: the `Workflow` tool isn't one I can call in this session, and repo mode needs the `multi-agent:drift-audit` workflow.\n",
+      "why": "isn't one I can call"
+    },
+    {
+      "answer": "I don't have the Workflow tool in this session, so `repo` mode stops without sweeping the repository.\n",
+      "why": "I don't have the Workflow tool"
+    },
+    {
+      "answer": "**No workflow and no fallback ran.** The `repo` mode needs workflows, and they aren't available here.\n",
+      "why": "rewritten from a measured reply: needs workflows, and they aren't available"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The Workflow tool is callable, so I launched drift-audit in repo mode.\n",
+      "why": "claims available"
+    },
+    {
+      "answer": "The `Workflow` tool isn't missing, so I launched drift-audit in repo mode.\n",
+      "why": "negated: isn't missing"
+    },
+    {
+      "answer": "Workflows are not-off per settings; here are the findings.\n",
+      "why": "not-off read as available"
+    },
+    {
+      "answer": "Repo mode needs a workflow. Stopping.\n",
+      "why": "no availability statement"
+    },
+    {
+      "answer": "The Workflow tool is callable, so I launched drift-audit. [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off) lists the switches.\n",
+      "why": "only the Turn workflows off link title"
+    },
+    {
+      "answer": "Is the Workflow tool unavailable here? I launched drift-audit in repo mode anyway.\n",
+      "why": "asked, not stated"
+    },
+    {
+      "answer": "Repo mode can run without workflow support, so I swept the docs by reading them directly.\n",
+      "why": "review: without workflow support"
+    },
+    {
+      "answer": "No switch has workflows off, so I launched drift-audit in repo mode.\n",
+      "why": "review: workflows not switched off"
+    },
+    {
+      "answer": "I swept the docs without workflow overhead.\n",
+      "why": "review: without workflow overhead"
+    },
+    {
+      "answer": "Repo mode needs workflows, and they aren't optional, so I launched drift-audit.\n",
+      "why": "pronoun form, not about availability"
+    }
+  ]
+}

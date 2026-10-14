@@ -1,5 +1,21 @@
 # Changelog: session-flow plugin
 
+## [0.57.0] - 2026-10-14
+
+### Added
+
+- **`/session-flow:audit-sessions` sweep reports edit churn per linked PR (`edits.churn_per_pr`).** It sums each path's stored edits over the sessions that link exactly one PR and raises a `churn` finding, routed to `/session-flow:retro`, for every path within a PR edited more than this machine's threshold (5, the p90 of a 320-session spike). Each evidence entry names the PR's `repo` and `number`, the `path`, its `edits` and the `sessions` behind them, and the markdown report lists those sessions too. Each path is joined onto its session's working directory before counting, so sessions started in different directories agree on a file, and paths stored as the `<suppressed>` or `<too-long>` placeholder are not counted. Sessions linking several PRs are left out, no PR review outcome is read, and records without `prs` or `edits` sweep as before; the store schema stays v1. A rule may now carry a `caveat`, listed under the report's Unchecked section.
+
+### Changed
+
+- `scripts/transcript_reader.py` is now a generated copy of the repository canonical `lib/transcript_reader.py`; its imports and behavior are unchanged. The added generated-file header changes the file's bytes, so audit-sessions' collector digest changes once and the next collect re-ingests every transcript in full.
+
+## [0.56.1] - 2026-10-14
+
+### Changed
+
+- The audit-sessions collector and friction scan record why they still accept the legacy `MultiEdit` tool from old transcripts, with a permissions-docs pointer and a check date.
+
 ## [0.56.0] - 2026-10-13
 
 ### Added

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "name: ci\non:\n  pull_request:\npermissions:\n  contents: read\njobs:\n  ci-status:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          persist-credentials: false\n      - name: Shell tests\n        run: bash hooks/guard.sh 'rm -rf /tmp/x' | grep -qx deny\n      - name: Check performance counter ceilings\n        run: python3 .performance/ratchet.py check --file .performance/ratchets.json\n",
+      "why": "the step appended to the ci-status job"
+    },
+    {
+      "answer": "name: ci\non:\n  pull_request:\npermissions:\n  contents: read\njobs:\n  ci-status:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          persist-credentials: false\n      - name: Shell tests\n        run: bash hooks/guard.sh 'rm -rf /tmp/x' | grep -qx deny\n      - name: Ratchet\n        run: |\n          python3 .performance/ratchet.py check\n",
+      "why": "multi-line run block"
+    },
+    {
+      "answer": "name: ci\non:\n  pull_request:\npermissions:\n  contents: read\njobs:\n  lint:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo lint\n  ci-status:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          persist-credentials: false\n      - name: Shell tests\n        run: bash hooks/guard.sh 'rm -rf /tmp/x' | grep -qx deny\n      - name: Check performance counter ceilings\n        run: python3 .performance/ratchet.py check --file .performance/ratchets.json\n",
+      "why": "ci-status is not the first job"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "name: ci\non:\n  pull_request:\npermissions:\n  contents: read\njobs:\n  ci-status:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          persist-credentials: false\n      - name: Shell tests\n        run: bash hooks/guard.sh 'rm -rf /tmp/x' | grep -qx deny\n",
+      "why": "the scaffolded workflow, unchanged"
+    },
+    {
+      "answer": "name: ci\non:\n  pull_request:\npermissions:\n  contents: read\njobs:\n  ci-status:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          persist-credentials: false\n      - name: Shell tests\n        run: bash hooks/guard.sh 'rm -rf /tmp/x' | grep -qx deny\n  ratchet:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: python3 .performance/ratchet.py check\n",
+      "why": "the check in a separate job outside ci-status"
+    },
+    {
+      "answer": "name: ci\non:\n  pull_request:\npermissions:\n  contents: read\njobs:\n  ci-status:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          persist-credentials: false\n      - name: Shell tests\n        run: bash hooks/guard.sh 'rm -rf /tmp/x' | grep -qx deny\n      # - run: python3 .performance/ratchet.py check\n",
+      "why": "commented out"
+    },
+    {
+      "answer": "name: ci\non:\n  pull_request:\npermissions:\n  contents: read\njobs:\n  ci-status:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          persist-credentials: false\n      - name: Shell tests\n        run: bash hooks/guard.sh 'rm -rf /tmp/x' | grep -qx deny\n      - run: python3 .performance/ratchet.py add --name guard-spawns --command 'bash bench/count-spawns.sh'\n",
+      "why": "add, not check"
+    },
+    {
+      "answer": "name: ci\non:\n  pull_request:\npermissions:\n  contents: read\njobs:\n  ci-status:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          persist-credentials: false\n      - name: Shell tests\n        run: bash hooks/guard.sh 'rm -rf /tmp/x' | grep -qx deny\n      - name: <ratchet step>\n        run: <command>\n",
+      "why": "pasted template"
+    }
+  ]
+}

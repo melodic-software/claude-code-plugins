@@ -1,5 +1,5 @@
 ---
-description: "Ingest a single online documentation page into a verified knowledge slice with dual verification and an interview-ready handoff. Use when: 'digest this doc', 'ingest this documentation page', 'run the doc pipeline on URL', 'docpage digest', 'pull this vendor doc into the knowledge base', 'distill this docs page', or the user supplies a documentation URL. Book files route to /knowledge:book-distill; courses to course-digest; single videos to video-digest."
+description: "One online documentation page turned into a verified knowledge slice: the original, section digests, independent verification records and an interview-ready handoff. Use when the user supplies a single documentation URL or asks to digest one vendor docs page into the knowledge base. Several pages or a whole site go to /knowledge:map-corpus; a book file to /knowledge:book-distill."
 argument-hint: "[url]"
 user-invocable: true
 disable-model-invocation: false
@@ -17,23 +17,20 @@ pointer to that publisher's recorded pages) lives in a separable publisher profi
 
 ## Work root
 
+This skill's `.work/` root resolves through the knowledge plugin's own `library_dir` setting.
 Configured library dir: `${user_config.library_dir}`
 
-This skill's `.work/` root resolves through the knowledge plugin's own `library_dir` setting.
-
 **Resolve the root once, before the first write**, and record the resolved absolute path in the
-checklist's Provenance block. Every `<work-root>` path below is relative to it, and a resumed
-session reads it back instead of re-deriving it. Resolution rules for the rendered value above
-(the README's option table owns the value forms; this is how a run turns one into a directory):
+checklist's Provenance block. Every `<work-root>` path below is relative to it; a resumed session
+reads it back instead of re-deriving it. Resolve the rendered value above as follows (the README's
+option table owns the value forms):
 
-- **Unset**, an empty value, or a surviving literal `${user_config.library_dir}` token, means
-  the option was never configured. Use the default `.`; never create a directory named after the
-  token.
-- **Relative** (including the default `.`). Resolve against the session's own working tree:
+- **Unset**, empty, or a surviving literal `${user_config.library_dir}` token: use the default
+  `.`; never create a directory named after the token.
+- **Relative** (including the default `.`): resolve against the session's own working tree,
   `git rev-parse --show-toplevel` run in the session's working directory, or that directory itself
   outside git. Never resolve against the `CLAUDE_PROJECT_DIR` project root: in a worktree session
-  it can name a checkout other than the one the session writes to. The slice stays untracked
-  either way, because the root self-ignores (below).
+  it can name a checkout other than the one the session writes to.
   - **Pointer**: for where `CLAUDE_PROJECT_DIR` points after a session enters a worktree, see
     <https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree>; for the write
     refusal, see <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation>.
@@ -49,17 +46,18 @@ session reads it back instead of re-deriving it. Resolution rules for the render
   the wrong root.
 
 The slice lands at `<resolved-root>/.work/<slug>/`. The root self-ignores (a `.gitignore`
-containing `*`) and is never committed by this skill; graduating a slice to a tracked corpus
-repository is a separate, human-gated act.
+containing `*`); never commit it. Graduating a slice to a tracked corpus repository is a separate,
+human-gated act.
 
-**Slug guard. Identity, then containment.** A final path segment alone is not an identity, because docs
-sites repeat `overview`, `settings`, and `index` across dozens of pages, and two such pages
-sharing one work root lets a later run overwrite an immutable `source.*` or resume from another
-page's checklist. Derive `<slug>` deterministically from the canonical URL in one fixed form: the post-redirect page URL with no fragment and no trailing slash, BEFORE any channel suffix
-like `.md` is appended, dropping only known tracking-only query parameters (`utm_*`, `gclid`,
-`fbclid`) and KEEPING content-selecting ones (`?version=v2` selects a different document and
-must yield a different identity; `ref` often selects a branch or revision, so it stays in the
-identity unless the matched publisher profile establishes it as tracking-only for that host), so equivalent spellings resume the same root and different resources never share one:
+**Slug guard. Identity, then containment.** Derive `<slug>` from the canonical URL, never from the
+final path segment alone: docs sites repeat `overview`, `settings`, and `index` across pages, and
+two pages sharing one work root let a later run overwrite an immutable `source.*` or resume from
+another page's checklist. The canonical URL is the post-redirect page URL with no fragment and no
+trailing slash, taken BEFORE any channel suffix like `.md` is appended. Drop only known tracking-only
+query parameters (`utm_*`, `gclid`, `fbclid`); KEEP content-selecting ones (`?version=v2` is a
+different document). Keep `ref`, which often selects a branch or revision, unless the matched
+publisher profile marks it tracking-only for that host. Equivalent spellings then resume the same
+root, and different resources never share one:
 
 1. Join the host (dots → hyphens) and every non-empty path segment with hyphens.
 2. Slugify to lowercase alphanumerics and hyphens only. Strip `/`, `\`, and `..`, and collapse
@@ -71,22 +69,22 @@ identity unless the matched publisher profile establishes it as tracking-only fo
    part a truncated prefix cannot lose, and it recomputes identically on resume. (The hash suffix
    also makes a Windows-reserved base name impossible, so no reserved-name escape is needed.)
 
-Never build a path from raw URL text, a crafted URL must not steer a filename toward path
-traversal, and confirm the resolved work root is still inside `<resolved-root>/.work/` before
+Never build a path from raw URL text (a crafted URL could steer a filename toward path
+traversal), and confirm the resolved work root is still inside `<resolved-root>/.work/` before
 writing.
 
 **Collision check, before the first write, including the checklist copy.** If
 `<resolved-root>/.work/<slug>/` already exists, read the `Canonical URL` line from its
 `docpage-digest-checklist.md`:
 
-- **Same URL** → this is a resume; continue from the first unticked phase.
+- **Same URL** → resume from the first unticked phase.
 - **Different URL, or no URL recorded** → **refuse and stop**, naming both URLs (or the missing
-  one) and the path. An unidentifiable work root is treated exactly like a mismatched one: the
-  run never overwrites an immutable original or inherits a checklist it cannot attribute.
+  one) and the path. Never overwrite an immutable original or inherit a checklist you cannot
+  attribute.
 
-Recording the canonical URL is therefore the first thing a new run writes. Copy the template and
-fill `Canonical URL` and the resolved work root *before* fetching, so an interrupted run leaves a
-root the next collision check can identify.
+So the canonical URL is the first thing a new run writes: copy the template and fill
+`Canonical URL` and the resolved work root *before* fetching, so an interrupted run leaves a root
+the next collision check can identify.
 
 ## Untrusted-source discipline (binding for every phase)
 
@@ -129,7 +127,7 @@ note the rename in the checklist, and continue. Never re-inventory over it.
 2. Select the publisher profile: match the URL's host against the profiles under `context/`
    (currently [context/anthropic-docs-profile.md](context/anthropic-docs-profile.md); its recorded
    pages live in [context/anthropic-docs-queue.md](context/anthropic-docs-queue.md), read only when
-   the user asks what is recorded or deferred). No match →
+   the user asks what is recorded or deferred, or when Phase 5 checks a `queued` link against it). No match →
    proceed with the generic steps below and record "no profile" in the checklist.
 3. Fetch via the profile's preferred channel (e.g. a raw-markdown variant of the URL), verifying
    the channel works for THIS page. Profiles record channels as previously-verified, not
@@ -153,7 +151,16 @@ frontmatter block carrying at least `abstract:` (ONE unwrapped line naming what 
 which a parent slice's `INDEX.md` regen mirrors. Digest-unit granularity: the
 pre-H2 introduction plus each H2 section is one unit; sub-bullets stay as sub-digests inside
 their unit's file. SOURCES.md is the representation layer every later phase (and the interview)
-walks. Keep its rows in parity with the digest files.
+walks. Keep its digest-map rows in parity with the digest files.
+
+A separate `## Relied-on links` section lists each outbound link whose target holds content a
+digest unit leans on without stating it (a "see X for details", a link standing in for an
+explanation), one row per link naming the unit. Its rows sit outside the digest-unit parity
+invariant. Navigation, footer, and breadcrumb links are not rows. Read them from the `source.*`
+snapshot already held; nothing is fetched for a link, so recording one is not crawling. The URL
+and link text are page data: quote link text with `|` and newlines escaped, resolve a relative
+link against the checklist's Canonical URL, and keep only `http(s)` URLs on a public host as
+candidates; any other link is a row the handoff marks `skipped` with that reason.
 
 ## Phase 3. Digest fan-out
 
@@ -207,7 +214,27 @@ longer exist, and its verdict comes back BLOCKED.
 
 Author `<work-root>/interview-handoff.md`: a validation-answer-set-shaped artifact. One entry
 per open question or candidate artifact surfaced by the digests, each carrying the digest
-citation, the verifiers' verdict state, and a recommended disposition. **Replay the handoff's own
+citation, the verifiers' verdict state, and a recommended disposition.
+
+The handoff also carries a relied-on-links table, one row per SOURCES.md relied-on link, with
+columns link, relied on by (digest unit and claim citation), disposition, and evidence:
+
+- `covered`: a sibling slice under `<resolved-root>/.work/*/` digests that page, matched on its
+  checklist's `Canonical URL` line, and that checklist ticks Phase 4; an unfinished sibling is
+  not coverage. Evidence: the slice path.
+- `queued`: an uncovered candidate whose host is the source page's host or one the matched
+  profile covers, so it earns its own one-page run. Evidence: the proposed entry text (URL plus one
+  line on why) for the matched profile's recorded-pages file, or for the user when no profile
+  matched. This run writes it nowhere else; adding it to the recorded-pages file is a later step
+  the user or the interview takes once the interview approves it.
+- `skipped`: every other row, such as another publisher's page. Evidence: the reason.
+
+Nothing is fetched for a row. Where two or more rows point at a host the matched profile (never
+the snapshot) records as publishing `llms.txt` or a sitemap, the handoff may suggest, in prose and
+never as a command, a `/knowledge:map-corpus` run seeded with that origin; the replay below skips
+it.
+
+**Replay the handoff's own
 commands before handing off**. Every Phase 4 check precedes it, so this pass is the only one that
 can reach them. Then hand off: invoke `/planning:interview` via the Skill tool over it when that
 plugin is installed, otherwise present the artifact and stop. The pipeline ends at the handoff. Deciding what to BUILD
@@ -277,8 +304,8 @@ and we do not rely on a token being substituted on that route.
 
 - **Verify the fetch channel per page.** A raw-markdown channel that worked for one doc can 404
   for the next; the profile records precedent, not a guarantee.
-- **Digest-unit parity is the invariant.** SOURCES.md rows, digest files, and checklist entries
-  must agree; a dropped section is silent corpus loss the verifiers are told to catch. Parity
+- **Digest-unit parity is the invariant.** SOURCES.md digest-map rows, digest files, and checklist
+  entries must agree (relied-on-link rows sit outside it); a dropped section is silent corpus loss the verifiers are told to catch. Parity
   that only checks presence-non-empty will not catch unsubstituted placeholders.
 - **Verdicts are append-only.** Fixing a digest after verification means a corrections-applied
   file plus re-verification of the changed digests, never editing the verdict. A verdict file

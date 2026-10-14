@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "Point me at the whole file (`docs/runbook.md`) or rename one of the headings."},
+    {"answer": "Or retitle one section, for example `## Rollback notes`, and point at that."},
+    {"answer": "Give a whole-file target or a disambiguating rename of the heading."},
+    {"answer": "Make the second heading unique, then run justify again: a unique heading name gives each section its own id."}
+  ],
+  "fail": [
+    {"answer": ""},
+    {"answer": "No rename is needed; judging the first one.", "why": "negated"},
+    {"answer": "Point me at the whole file instead.", "why": "whole file only"},
+    {"answer": "I renamed nothing and wrote nothing.", "why": "rename not offered"}
+  ]
+}

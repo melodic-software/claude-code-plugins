@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nCounter:   guard-spawns = 1 (spawns), deterministic across 2 runs\nCeiling:   1 in .performance/ratchets.json, written by protect §2-§4\n```",
+      "why": "template line"
+    },
+    {
+      "answer": "- **Ceiling:** 1 in `.performance/ratchets.json`",
+      "why": "bold bullet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Ceiling:   2 in .performance/ratchets.json (one spawn of headroom)",
+      "why": "headroom"
+    },
+    {
+      "answer": "Ceiling:   10 in .performance/ratchets.json",
+      "why": "round number starting with 1"
+    },
+    {
+      "answer": "Ceiling:   1.5 in .performance/ratchets.json",
+      "why": "fractional"
+    },
+    {
+      "answer": "Ceiling: one spawn",
+      "why": "spelled-out number"
+    }
+  ]
+}

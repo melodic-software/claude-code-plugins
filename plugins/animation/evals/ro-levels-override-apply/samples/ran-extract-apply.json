@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/scripts/pydeps.py run --data-dir \"/opt/plugin-data/animation\" -- /opt/plugins/animation/skills/rotoscope/scripts/extract.py work --apply",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pydeps launch"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "R=/opt/plugins/animation/skills/rotoscope/scripts; python3 $R/extract.py /tmp/eval-ws/work --apply --only 40-50",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "variable path, --only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/eval-ws && python3 \"/opt/plugins/animation/skills/rotoscope/scripts/extract.py\" work --apply 2>&1 | tail -5",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cd chain, quoted path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n -- --apply /opt/plugins/animation/skills/rotoscope/scripts/extract.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/skills/rotoscope/scripts/extract.py work --video clip.mp4",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "full extract, no --apply"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat /opt/plugins/animation/skills/rotoscope/scripts/extract.py | head",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads script"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ]
+}

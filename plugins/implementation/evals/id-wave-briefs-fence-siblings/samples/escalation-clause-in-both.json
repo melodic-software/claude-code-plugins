@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": "## Brief: phase 1, row A\n\nWorktree: /srv/dev/wt/rounding. Use `git -C /srv/dev/wt/rounding` for every git command.\n\nALLOWED: billing/rounding.py, tests/test_rounding.py\nFORBIDDEN: billing/tax.py, tests/test_tax.py, opening a PR\n\nDivergence: if an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\nAcceptance: round_half_even(2.675) == 2.68, round_half_even(2.665) == 2.66, pytest tests/test_rounding.py passes.\n\n## Brief: phase 1, row B\n\nWorktree: /srv/dev/wt/tax.\n\nALLOWED: billing/tax.py, tests/test_tax.py\nFORBIDDEN: billing/rounding.py, tests/test_rounding.py, opening a PR\n\nDivergence: \"If an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\"\n",
+      "why": "clause in each brief, second capitalized and quoted"
+    },
+    {
+      "answer": "### Row A brief\n\n**ALLOWED**\n- `billing/rounding.py`\n- `tests/test_rounding.py`\n\n**FORBIDDEN**\n- `billing/tax.py`\n- `tests/test_tax.py`\n- any other file\n\nif an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\n### Row B brief\n\n**ALLOWED**\n- `billing/tax.py`\n- `tests/test_tax.py`\n\n**FORBIDDEN**\n- `billing/rounding.py`\n- `tests/test_rounding.py`\n\nif an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n"
+    },
+    {
+      "answer": "| Row | ALLOWED | FORBIDDEN |\n|---|---|---|\n| A | billing/rounding.py, tests/test_rounding.py | billing/tax.py, tests/test_tax.py |\n| B | billing/tax.py, tests/test_tax.py | billing/rounding.py, tests/test_rounding.py |\n\nBoth briefs: if an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\nRow B: if an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.",
+      "why": "clause stated twice"
+    },
+    {
+      "answer": "## Row A\n```text\nIf an assumption in this brief proves wrong or the task requires touching\nanything FORBIDDEN, STOP and report. Do not improvise.\n```\n## Row B\n```text\nand report it. If an assumption in this brief proves wrong or the task requires\ntouching anything FORBIDDEN, STOP and report. Do not improvise.\n```",
+      "why": "observed smoke reply: the clause hard-wrapped inside fences"
+    },
+    {
+      "answer": "## Row A\nIf an assumption in this brief proves wrong or the task requires touching anything **FORBIDDEN**, STOP and report. Do not improvise.\n## Row B\nIf an assumption in this brief proves wrong or the task requires touching anything `FORBIDDEN`, STOP and report. Do not improvise.",
+      "why": "emphasis around FORBIDDEN"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Row A\n\nif an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\n## Row B\n\nIf an assumption proves wrong, stop and report.",
+      "why": "verbatim only once, paraphrased in the second"
+    },
+    {
+      "answer": "## Row A\nIf anything in this brief is wrong, STOP and report. Do not improvise.\n## Row B\nIf anything in this brief is wrong, STOP and report. Do not improvise.",
+      "why": "paraphrase in both"
+    },
+    {
+      "answer": "Both rows share this clause: if an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.",
+      "why": "one match where both briefs need it"
+    },
+    {
+      "answer": "## Row A\nIf an assumption proves wrong or you need a FORBIDDEN file, STOP and report. Do not improvise.\n## Row B\nIf an assumption proves wrong or you need a FORBIDDEN file, STOP and report. Do not improvise.",
+      "why": "close paraphrase, not verbatim"
+    },
+    {
+      "answer": "## Row A\nIf an assumption in this brief proves wrong or the task requires touching\nany FORBIDDEN file, STOP and report. Do not improvise.\n## Row B\nIf an assumption in this brief proves wrong or the task requires touching\nany FORBIDDEN file, STOP and report. Do not improvise.",
+      "why": "wrapped paraphrase in both briefs"
+    }
+  ]
+}

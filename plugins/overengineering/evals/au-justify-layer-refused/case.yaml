@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: au-justify-layer-refused
+description: Audit asked for the documents layer refuses it as a justification-lane layer, names overengineering:justify, and writes no findings artifact
+tags: [overengineering, audit, outcome, refusal, layer-scope]
+runs: 3
+expected_outcome: documents is one of the five justification-lane layers. The run refuses that layer scope, names /overengineering:justify as its owner, and writes no findings.md.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/overengineering:audit documents"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: no-findings-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*findings\.md"'
+    min: 0
+    max: 0
+  - name: no-findings-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*findings\.md"'
+    min: 0
+    max: 0
+  - name: no-findings-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<![0-9&>])>{1,2}|\btee\b|\bmv\b|\bcp\b)(?:[^"\\]|\\.)*?findings\.md'
+    min: 0
+    max: 0
+  - name: names-justify
+    type: regex
+    pattern: '\boverengineering:justify\b'
+  - name: refuses-documents-layer
+    type: regex
+    pattern: '\bdocuments\b`?[^\n]{0,120}(?:\bjustification(?:-| )(?:lane|layers?)\b|\bnot (?:an? |one of the (?:ten )?)?enforcement layers?\b|\bisn''t (?:an? )?enforcement layer\b|\boutside (?:this|the audit''s|the (?:ten )?enforcement)\b|(?<!not )(?<!n''t )\bbelongs to\b[^\n]{0,40}\bjustify\b|(?<!won''t )(?<!not )(?<!n''t )\b(?:refus|declin)\w*)|(?<!won''t )(?<!not )(?<!n''t )\b(?:refus|declin)\w*\b[^\n]{0,120}\bdocuments\b|\b(?:can''t|cannot|can not|won''t|will not)\s+(?:run|walk|audit)\b[^\n]{0,40}\bdocuments\b'
+    flags: i

@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.14.6] - 2026-10-14
+
+### Changed
+
+- audit-permission-state's `C6-uncoveredPath` check re-dates its `MultiEdit` pointer, and its criteria row gains an as-of date and recheck trigger.
+
 ## [1.14.5] - 2026-10-13
 
 ### Changed

@@ -1,5 +1,5 @@
 ---
-description: "Build animated pixel-art scenes as one self-contained HTML file (Canvas 2D, no libraries, no external assets): cutscenes, title screens, dialogue beats, ambient loops, short pixel films, card reveals, and backgrounds with parallax, particles, lighting by palette steps, bitmap text and dither transitions. Reuses sprite specs from /pixel-art:sprite and /pixel-art:animate, takes an optional audio file, and reviews itself through browser screenshots when a browser tool is present. Use when: 'pixel-art scene', 'cutscene', 'title screen', 'animated pixel background', 'pixel-art short', 'make it a little pixel-art movie', 'intro sequence', 'ambient loop'. Not for a single sprite (use /pixel-art:sprite), a sprite sheet for an engine (use /pixel-art:animate), or hand-drawn or ink-style animation and a general video file."
+description: "Pixel-art scenes as one self-contained HTML file (cutscenes, title screens, dialogue, ambient loops), with optional audio. Use when asked for a 'pixel-art scene', 'cutscene', 'title screen', 'animated pixel background', 'pixel-art short', 'make it a little pixel-art movie', 'intro sequence', or 'ambient loop'. One sprite: /pixel-art:sprite; a sprite sheet: /pixel-art:animate; not hand-drawn animation or video."
 argument-hint: "<scene description> [resolution] [duration] [audio file]"
 user-invocable: true
 disable-model-invocation: false
@@ -37,26 +37,24 @@ the first build.
 Follow [`scene-canvas.md`](${CLAUDE_PLUGIN_ROOT}/reference/scene-canvas.md). Write a template HTML
 file beside the output:
 
-- Characters come from sprite specs: embed them with `/*EMBED:relative/path.json*/null` and build
+- Characters come from sprite specs: embed each with `/*EMBED:relative/path.json*/null` and build
   one offscreen canvas per frame at load, so sprites stay the same source the engine sheet uses.
-  Missing characters: author them first with `/pixel-art:sprite` or `/pixel-art:animate`.
+  Author missing characters first with `/pixel-art:sprite` or `/pixel-art:animate`.
 - Beats are a timeline or state machine driven by a fixed 60 Hz step; sprite cadence stays 8 to 12
   fps; every draw lands on integer coordinates.
 - Light and fades step through palette colors or Bayer-dither patterns; never alpha, gradients or
   blur.
-- Audio, when given: put `/*WAV:relative/file.wav*/null` in the template. `embed.py` inlines a
-  `data:audio/wav;base64,...` URL (the output stays one file). Play it with WebAudio: this plugin
-  starts it on the first click and rewinds the scene clock on that click, so the picture and the
-  loop share a start. Also set `audio` on `window.__pixelScene` to that same URL so `--record` can
-  mux it. Browser behavior and its record: `scene-canvas.md` Audio.
+- Audio, when given: put `/*WAV:relative/file.wav*/null` in the template, which `embed.py` inlines
+  as a `data:audio/wav;base64,...` URL so the output stays one file. Play it with WebAudio,
+  starting on the first click, and rewind the scene clock on that click so the picture and the
+  loop share a start. Set `window.__pixelScene.audio` to the same URL so `--record` can mux it.
+  Why playback waits for a click: `scene-canvas.md` Audio.
+- Expose `window.__pixelScene` (`seek`, `frameDataURL`, `play`, `duration`) as `scene-canvas.md`
+  Review capture describes, so the review command can land on a timeline point.
 
 A worked example is `${CLAUDE_PLUGIN_ROOT}/examples/campfire/scene.html` (title card, dithered sky,
 parallax, fire particles, walking character, typed dialogue); copy the folder into the working
 directory before adapting it.
-
-Expose `window.__pixelScene` as [`scene-canvas.md`](${CLAUDE_PLUGIN_ROOT}/reference/scene-canvas.md)
-describes under Review capture (`seek`, `frameDataURL`, `play`, `duration`) so the review command
-can land on a timeline point.
 
 Then inline the embeds into one file:
 

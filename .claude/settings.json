@@ -78,13 +78,5 @@
     "retro-audio@melodic-software": false,
     "skill-quality@melodic-software": true,
     "speech@melodic-software": false
-  },
-  "extraKnownMarketplaces": {
-    "melodic-software": {
-      "source": {
-        "source": "directory",
-        "path": "./"
-      }
-    }
   }
 }

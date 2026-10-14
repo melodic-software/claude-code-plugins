@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": "About 4.8 USD: 4 cases x 3 runs x 2 arms is 24 runs at roughly 0.2 USD each. That is under your 5 USD ceiling, so it goes through with no confirmation. I'd start it now with:\n\n```bash\nclaude plugin eval ./my-plugin --trust-plugin --keep-temp --json results.json --max-cost-usd 5 --no-publish\n```"
+    },
+    {
+      "answer": "Estimate: roughly $4.80 (24 agent runs at about $0.20 each, judge calls included). It fits under the 5 USD cap, so the pass starts right away with `--max-cost-usd 5`; nothing to confirm."
+    },
+    {
+      "answer": "24 runs x ~0.2 USD = ~4.8 USD, below the 5 USD ceiling. Starting it:\n`claude plugin eval /home/<user>/my-plugin --trust-plugin --json /home/<user>/out.json --max-cost-usd=5`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Run it with --max-cost-usd 10 to be safe."
+    },
+    {
+      "answer": "Pass --max-cost-usd with your ceiling."
+    },
+    {
+      "answer": "It fits under the 5 USD ceiling; start it with no cost flag."
+    },
+    {
+      "answer": "--max-cost-usd 5.5",
+      "why": "different value"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls -la .work 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work/x/course-digest-checklist.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p .work/ab3de5fgh7i",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf -- '- [ ] Phase 1\\n' > .work/ab3de5fgh7i/course-digest-checklist.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "review finding"
+    }
+  ]
+}

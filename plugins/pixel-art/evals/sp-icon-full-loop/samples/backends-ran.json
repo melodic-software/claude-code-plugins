@@ -1,0 +1,210 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/backends.py\" out/potion/potion.json --out out/potion --scale 8",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "documented form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /home/<user>/.claude/plugins/cache/pixel-art/scripts/backends.py out/potion/potion.json --out out/potion",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "expanded path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd out/potion && python3 -u /plugin/scripts/backends.py potion.json --out .",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "after cd, with a flag"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > spec.json <<'EOF'\n{\"palette\": \"pico-8\"}\nEOF\nS=/home/<user>/.claude/plugins/cache/pixel-art/scripts\npython3 $S/backends.py spec.json --out . --scale 8 && python3 $S/gallery.py . ; ls",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "observed: run on a new line after a variable assignment"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<'EOF'\nimport sys\nsys.path.insert(0, '/plugin/scripts')\nimport backends\nbackends.main(['spec.json', '--out', '.'])\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "import on a new line inside a heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd out/digits && python3 digits.py /home/<user>/.claude/plugins/pixel-art/scripts/backends.py && python3 /home/<user>/.claude/plugins/pixel-art/scripts/gallery.py .",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "observed: a generator script runs backends.py passed as its argument"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > gen.py <<'EOF'\nimport subprocess, sys\nsubprocess.run([sys.executable, \"/plugin/scripts/backends.py\", \"spec.json\", \"--out\", \".\"], check=True)\nEOF\npython3 gen.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "observed shape: a generator runs backends.py through subprocess with --out"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/render.py\" out/potion/potion.json --out out/potion",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "render.py, not backends.py"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -n 1,40p \"${CLAUDE_PLUGIN_ROOT}/scripts/backends.py\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read, not run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugin/scripts/prebackends.py spec.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "different script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/plugin/scripts\nless $S/backends.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "new line, but reads the script instead of running it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<'EOF'\nimport sys\nimport backends_helper\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "new line, different module"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m py_compile /plugin/scripts/backends.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "compiles backends.py without running it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 gen.py spec.json\nls /plugin/scripts/backends.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "backends.py only listed on a later line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /plugin/scripts/backends.py --help",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "help only, no render"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > probe.py <<'EOF'\nimport subprocess, sys\nsubprocess.run([sys.executable, \"/plugin/scripts/backends.py\", \"--help\"])\nEOF\npython3 probe.py",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "subprocess asks for help, no --out"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugin/scripts/backends.py --help; ls --out",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "direct exec for help; --out belongs to a later command"
+    }
+  ]
+}

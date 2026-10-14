@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Deployed:    n/a (no install record for this subject)\",\"stop_reason\":\"end_turn\"}",
+      "why": "template form"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"- **Deployed:** n/a, guard.sh is a plain script with no install record\",\"stop_reason\":\"end_turn\"}",
+      "why": "bold bullet"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The verifier is still running. I'll write the report when it finishes.\",\"stop_reason\":\"end_turn\"}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The verdict is **NOT MET**. In lenient mode, `rm -rf /tmp/build` now gets `ask` where it got `deny`.\\n\\n```text\\nTarget:      0 / 0        Floor: 0\\nCounter:     3 -> 0   [headline] [unproven]\\nCorrelation: unproven\\nDeployed:    n/a (no install record for this subject)\\nLimiter:     the bash interpreter exec; the after arm uses only builtins\\nRuled out:   failed work: every differential run exited 0\\nVerdict:     NOT MET\\nBehavior:    CHANGED: lenient + recursive rm, deny -> ask (differential: 6 inputs x {strict, lenient}, 1 mismatch)\\nNot covered: wall-clock timing; inputs outside the 6-line corpus\\n```\",\"stop_reason\":\"end_turn\"}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"That notification was only the wait timer finishing. The verification report above is complete and unchanged.\",\"stop_reason\":\"end_turn\"}",
+      "why": "in an earlier result turn"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Deployed:    same as measured\",\"stop_reason\":\"end_turn\"}",
+      "why": "claims an install that does not exist"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Deployed: differs: 0.5.0 at ~/.claude/plugins/cache, re-measure after install\",\"stop_reason\":\"end_turn\"}",
+      "why": "invents an install record"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"No install record exists for this subject.\",\"stop_reason\":\"end_turn\"}",
+      "why": "no Deployed line"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Deployed: not n/a, the plugin is installed\",\"stop_reason\":\"end_turn\"}",
+      "why": "negated"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Deployed:    <same as measured | n/a>\",\"stop_reason\":\"end_turn\"}",
+      "why": "pasted template placeholder"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_01\",\"content\":\"with no install record gets `Deployed: n/a (no install record for this subject)`\"}]}}\n{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Verdict: MET.\",\"stop_reason\":\"end_turn\"}",
+      "why": "line only in the skill text a tool returned"
+    }
+  ]
+}

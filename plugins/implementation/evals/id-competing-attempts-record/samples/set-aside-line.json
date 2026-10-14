@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": "Selection rule: Prefer the attempt that adds no new dependency; among those, prefer the one with the fewest changed lines.\n\nattempt 3: chosen by adds no new dependency\nattempt 1: set aside by adds no new dependency\n\nAttempt 2 failed verification and gets no record line. Verifier gap: criterion 2, `round_total(2.665)` returned 2.67, expected 2.66.\n\nNext: fast-forward `feat/invoice-rounding` to `feat/invoice-rounding-attempt-3`."
+    },
+    {
+      "answer": "```text\nPrefer the attempt that adds no new dependency; among those, prefer the one with the fewest changed lines.\nattempt 3: chosen by prefer the attempt that adds no new dependency\nattempt 1: set aside by prefer the attempt that adds no new dependency\n```\n\nNot in selection: attempt 2 (verifier FAIL on criterion 2)."
+    },
+    {
+      "answer": "- Attempt 3: chosen by \"adds no new dependency\"\n- Attempt 1: set aside by \"adds no new dependency\"\n\nAttempt 2 failed criterion 2 (2.665 rounded to 2.67)."
+    },
+    {
+      "answer": "attempt 3: chosen by the no-new-dependency clause\nattempt 1: set aside by the no-new-dependency clause",
+      "why": "hyphenated clause name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "attempt 3: chosen by adds no new dependency",
+      "why": "only the chosen line; the passing attempt 1 needs its own record"
+    },
+    {
+      "answer": "attempt 1: set aside by fewest changed lines",
+      "why": "wrong clause: attempt 1 has fewer lines"
+    },
+    {
+      "answer": "attempt one: set aside by adds no new dependency",
+      "why": "spelled-out number"
+    },
+    {
+      "answer": "attempt 1: set aside (adds py-moneyed)",
+      "why": "no rule clause"
+    },
+    {
+      "answer": "attempt 1: set aside by fewest changed lines (it also adds a new dependency)",
+      "why": "deciding clause is the wrong one"
+    }
+  ]
+}

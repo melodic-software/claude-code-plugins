@@ -4,6 +4,22 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.23.0] - 2026-10-14
+
+### Added
+
+- Eight outcome eval cases under `evals/` (two each for `book-distill`, `course-digest` and `video-digest`, one each for `docpage-digest` and `map-corpus`), and frozen trigger-probe sets for the five model-invoked skills under `probes/`.
+
+### Changed
+
+- `book-distill`, `course-digest`, `docpage-digest`, `map-corpus` and `video-digest` have shorter descriptions, one trigger per use, measured against the old text by held-out trigger probes. `book-distill`, `docpage-digest`, `map-corpus` and `video-digest` also have tighter text in the body sections the new outcome cases reach, measured by those cases. `setup` has a one-line description; its body is unchanged.
+
+## [0.22.0] - 2026-10-14
+
+### Added
+
+- `docpage-digest` lists the outbound links a page's digests rely on in `SOURCES.md`, read from the snapshot with no fetch, and its interview handoff gives each one a disposition: covered (a verified sibling slice's path), queued (a same-publisher page, with proposed recorded-pages entry text for its own one-page run), or skipped with a reason.
+
 ## [0.21.2] - 2026-10-13
 
 ### Changed

@@ -1,0 +1,128 @@
+{
+  "skill": "knowledge:video-digest",
+  "plugin": "knowledge",
+  "skill_dir": "plugins/knowledge/skills/video-digest",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other four knowledge skills: book-distill, course-digest, docpage-digest, map-corpus.",
+  "competitors": [
+    "knowledge:book-distill",
+    "knowledge:course-digest",
+    "knowledge:docpage-digest",
+    "knowledge:map-corpus"
+  ],
+  "competitor_dirs": {
+    "knowledge:book-distill": "plugins/knowledge/skills/book-distill",
+    "knowledge:course-digest": "plugins/knowledge/skills/course-digest",
+    "knowledge:docpage-digest": "plugins/knowledge/skills/docpage-digest",
+    "knowledge:map-corpus": "plugins/knowledge/skills/map-corpus"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me the transcript and the main points of https://www.youtube.com/watch?v=abc123XYZ."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you watch https://youtu.be/xyz789ABC and tell me what's relevant to this repo?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "There's a conference talk on YouTube about structured concurrency; here's the link https://www.youtube.com/watch?v=def456UVW. What should we take from it?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Pull the transcript and any links mentioned in this video: https://youtu.be/qwe321RTY"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This x.com post has a video demo of a new CLI tool: https://x.com/example/status/1112223334. What does the video show and does it apply to us?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Watch the clip in https://twitter.com/example/status/5556667778 and give me takeaways."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I don't have 45 minutes for this keynote, so recap it and map anything useful to our codebase: https://www.youtube.com/watch?v=key999NOTE"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Grab the captions from this YouTube tutorial and summarize the steps: https://www.youtube.com/watch?v=tut111ORL"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What does the speaker recommend in this video? https://youtu.be/rec222MND"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check this public YouTube walkthrough and tell me whether the approach fits our project: https://www.youtube.com/watch?v=wlk333THR"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Go through this Pluralsight course and give me recommendations: https://app.pluralsight.com/library/courses/example-course"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Read the text of this X post, there's no video in it: https://x.com/example/status/4445556667"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Ingest this docs page into the knowledge base: https://docs.docker.com/build/cache/"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Turn this PDF book on Go concurrency into reference files."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Summarize this blog article: https://example.com/blog/release-notes"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Map the React docs site before we ingest it."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a script for a short product demo video."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find me YouTube channels that teach system design."
+    }
+  ]
+}

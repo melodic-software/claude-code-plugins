@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/knowledge/skills/course-digest/extraction/setup-deps.mjs\" --data-dir \"/data/knowledge\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/ab3de5fgh7i/course-digest-checklist.md",
+            "content": "- [ ] Phase 1"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/x/course.json",
+            "content": "{}"
+          }
+        }
+      ]
+    }
+  ]
+}

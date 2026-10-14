@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/packs/woodcut-ink/STYLE.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "STYLE.md"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/eval-ws/packs/woodcut-ink/style.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "rewrote the pack"
+    }
+  ]
+}

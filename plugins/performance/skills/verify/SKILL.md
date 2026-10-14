@@ -1,5 +1,5 @@
 ---
-description: "Re-derive a performance result in a fresh context that does not inherit the implementer's numbers, then report the target as met or not met without rounding a miss into a win. Use when: 'verify this speedup', 'is this result real', 'independent verification', 'write up the performance result'. Final phase after /performance:snapshot post. Skip when no baseline exists, or when reviewing a diff for general quality rather than a measured claim."
+description: "Fresh-context re-derivation of a performance result that does not inherit the implementer's numbers, reporting the target as met or not met without rounding a miss into a win. Use when: 'verify this speedup', 'is this result real', 'independent verification', 'write up the performance result'. Final phase after /performance:snapshot post. Skip when no baseline exists, or when reviewing a diff for general quality rather than a measured claim."
 user-invocable: true
 argument-hint: "[<claim or target>]"
 disable-model-invocation: false
@@ -14,9 +14,9 @@ metadata:
 
 Answers **"is this result real, and what does it actually say?"**
 
-This phase is where **blocking correctness defects that the implementer, the implementer's own test
-suite, and a full green CI run all missed** get caught. That is why it is a separate phase from
-measurement and not a step inside it.
+This phase catches **blocking correctness defects that the implementer, the implementer's own test
+suite, and a full green CI run all missed**, so it is a separate phase, not a step inside
+measurement.
 
 Read [`${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md`](${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md) first.
 
@@ -40,8 +40,8 @@ target.
 
 ## 2. Prove behavior did not change, with a differential
 
-**A passing test suite is not a behavior proof.** It proves nothing asserted broke. It does not prove
-behavior is unchanged, because it only checks what someone thought to assert.
+**A passing test suite is not a behavior proof.** It proves nothing asserted broke, not that
+behavior is unchanged.
 
 Run a differential: the pre-change and post-change subject over a harvested corpus of real inputs,
 requiring **byte-identical output**. Use the bundled one rather than writing one:
@@ -51,10 +51,10 @@ produced output. Run it from the Bash tool, whose shell resolves `python3` (`com
 the one it found); a bare name inside another process's `subprocess` call searches a different
 `PATH` (harness-integrity rule 6). The module docstring documents the config.
 
-**Cover every MODE the subject runs in.** A differential that covers one of two modes misses a real
-deny -> ask downgrade in the other and still reports byte-identical output. Enumerate the modes first
-and record which the differential actually exercised; an unexercised mode is an unverified mode, and
-it is reported as such rather than assumed fine.
+**Cover every MODE the subject runs in.** A differential that covers one of two modes can miss
+a deny -> ask downgrade in the other and still report byte-identical output. Enumerate the modes
+first and record which the differential actually exercised; an unexercised mode is an unverified
+mode, and it is reported as such rather than assumed fine.
 
 ## 3. Record whether the measured build is the deployed build
 
@@ -83,14 +83,11 @@ proceeds, so a target-agnostic run is not blocked.
    `/performance:verify` again). With an open follow-up the report says the change is measured,
    never that it is done, shipped, or live.
 
-Claim: Claude Code records each plugin install in `<plugins root>/installed_plugins.json` with its
-`scope`, `installPath`, and `version`; user scope is under `~/.claude`, and a project-scope install
-is a separate record in the same file carrying a `projectPath`. Basis: the plugin loading reference,
-<https://code.claude.com/docs/en/plugins/loading> ("Check which stage a plugin reached" and "Find
-plugins on disk"), documents the file, those three fields, and the `CLAUDE_CODE_PLUGIN_CACHE_DIR`
-root; the `projectPath` field and one record per scope are observed in a local
-`installed_plugins.json`, not documented there. As-of: 2026-09-29. Recheck: when that page changes
-what the file records, or a Claude Code release changes its layout.
+- **Pointer**: for the install record's file, fields and cache-dir root, read
+  <https://code.claude.com/docs/en/plugins/loading> ("Check which stage a plugin reached" and "Find
+  plugins on disk"); the `projectPath` field and one record per scope are observed in a local
+  `installed_plugins.json`, not documented there. **As of**: 2026-09-29. **Recheck trigger**: that
+  page changes what the file records, or a Claude Code release changes its layout.
 
 ## 4. Check the harness before believing the result
 
@@ -121,10 +118,9 @@ Nothing in a printed figure tells a sound run from a broken one. Before the repo
   removed may not have been the one holding the number.
 - **`Ruled out:`** at least one other thing the number could reflect, each with the evidence that
   excludes it. Spread between runs is checked against the snapshot's interleaved pairs; arms on
-  different build modes or flags against the snapshot's `Rig:` line, and arms that took different code
-  paths against its `Path (<arm>):` lines; a cache
-  the after arm found warm against a cold-start run of each arm; failed or skipped work against
-  the error and work counts
+  different build modes or flags against the snapshot's `Rig:` line, and arms that took different
+  code paths against its `Path (<arm>):` lines; a cache the after arm found warm against a
+  cold-start run of each arm; failed or skipped work against the error and work counts
   ([harness-integrity rule 8](${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md#8-read-the-failure-and-completion-tallies-before-the-timing)).
 
 Check the bound with arithmetic too: the saving is capped by how long the changed code ran in the
@@ -186,15 +182,13 @@ Rules that bind the report:
 - **`Limiter:` and `Ruled out:` come before the verdict.** When the limiter is something other
   than the change, the report says so: a result held by the harness or a shared resource is not
   evidence about the change.
-- **`Deployed:` is required and never changes the verdict.** `MET`, `NOT MET`, and `UNMEASURABLE`
-  describe the measurement. When `Deployed:` differs, the report carries the `Open follow-up:` line
-  and no done, shipped, or live language until a post-install re-measurement agrees. A worktree-only
-  win with an older install still live is reported as measured, not live.
+- **`Deployed:` is required and never changes the verdict.** When it differs, the report carries
+  the `Open follow-up:` line and no done, shipped, or live language until a post-install
+  re-measurement agrees.
 - **A correctness regression outranks any speedup** and is stated separately, above the performance
   claim, never folded into it.
 - **The counter is the headline; the duration is context.** On a host that failed
   `is_measurable()`, there is no duration line at all, only the refusal and its reason.
-- **An unexercised mode is reported under `Not covered:`, not omitted.**
 - **Say which claims rest on the plugin's own conventions** rather than on sourced practice: the
   p50/p95-over-20 default, the refusal threshold, and counts-over-wall-clock for anything other than
   instruction counts.

@@ -1,5 +1,5 @@
 ---
-description: "Validate the education plugin's configuration: the quiz, report-library and teach workspace-root userConfig values, and the repository's docs/conventions/education.yaml; write that file after confirmation. Use when: 'set up education', 'configure education', 'education setup', 'set explain_starting_rung for this repo', quiz offers feel wrong, report recall cannot find prior quizzes, or teach workspaces land somewhere unexpected. Actions: check (read-only, default), apply (writes docs/conventions/education.yaml only; userConfig changes route through Claude Code's plugin configuration prompt)."
+description: "Check the education plugin's userConfig values and the repository's docs/conventions/education.yaml, and write that file after confirmation."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true

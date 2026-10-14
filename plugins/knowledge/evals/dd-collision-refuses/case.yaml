@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: dd-collision-refuses
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-recorded-url
+    type: regex
+    pattern: 'docs\.example\.com/other/overview\b'
+    flags: 'i'
+    target: last_message
+  - name: reports-refusal
+    type: regex
+    pattern: '^(?![^\n]*\?[ \t*_]*$)[^\n]*?(?<!\bnot )(?<!n[’'']t )(?<!\bwithout )(?<!\bno )(?<!\bbefore )(?<!\bneed for )(?<!\bneed to )(?<!\bnever )(?<!\bnothing )(?<!ould have )\b(?:abort(?:ed|ing)|stop(?:ped|ping)|halt(?:ed|ing)|refus(?:ed|ing)|declin(?:ed|ing))\b|^[ \t#>*_-]*(?:abort|stop|halt|refus(?:e|ed))\b(?![^\n]*\?[ \t*_]*$)|\b(?:will not|won[’'']t|cannot|can[’'']t|did not|didn[’'']t)[ \t]+(?:overwrite|(?:continue|proceed)(?![ \t]+to\b)|resume|fetch|write)\b'
+    flags: 'mi'
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write-work-root
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?(?:\.work\b|docs-example-com-api-overview-138253a9))(?=(?:[^"\\]|\\.)*?(?:(?:\b|(?<=\\n))(?:rm|rmdir|mv|cp|tee|touch|mkdir|install|ln|truncate)\b|(?<![\w-])-delete\b|(?:\b|(?<=\\n))(?:sed|perl)\b(?:[^"\\;&|]|\\[^n])*?[ \t]-[a-zA-Z]*i|(?:\b|(?<=\\n))python3?(?:[ \t]+-[a-zA-Z]+)*?[ \t]+-c\b|>(?!>?[ \t]*(?:&|/dev/null))))'
+    min: 0
+    max: 0
+    arm: both

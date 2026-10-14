@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "`out/spark/sheet.png` (1x strip), `sheet.json`, `out/spark/spark.gif`.",
+      "why": "listed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Files: out/spark/preview.png and spark.gif",
+      "why": "no sheet"
+    },
+    {
+      "answer": "Files: out/spark/spritesheet.png",
+      "why": "other name"
+    }
+  ]
+}

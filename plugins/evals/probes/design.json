@@ -1,0 +1,126 @@
+{
+  "skill": "evals:design",
+  "plugin": "evals",
+  "skill_dir": "plugins/evals/skills/design",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other three evals skills.",
+  "competitors": [
+    "evals:methodology",
+    "evals:plugin-eval",
+    "evals:validate"
+  ],
+  "competitor_dirs": {
+    "evals:methodology": "plugins/evals/skills/methodology",
+    "evals:plugin-eval": "plugins/evals/skills/plugin-eval",
+    "evals:validate": "plugins/evals/skills/validate"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I built a skill that summarizes pull requests and I want a proper set of evals for it. Can you help me put one together?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We're shipping a support-bot feature that calls Claude's API. Walk me through defining what good looks like and scaffold the test cases."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Set up an eval suite for my prompt that extracts invoice fields, with a criteria doc and a handful of cases."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I have no tests for my release-notes skill at all. Create the evals folder and starter cases for it."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Interview me about what success means for our classifier and then generate the eval cases and graders."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Build me a batch of test inputs for my customer-email rewrite prompt, and pick how each criterion should be graded."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Scaffold evals for this plugin's three skills so we can measure them later."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I need to turn 'the answers should be helpful' into something checkable and then have the case files written into the repo."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Help me get proper testing in place for our chatbot: criteria, graders, and eval cases in the repo."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run my plugin evals and tell me what the delta is."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Why is exact match worse than an LLM judge for grading summaries? I'm trying to understand the tradeoffs in general."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check my case.yaml files for mistakes before I run anything."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "How many eval cases is enough for a classifier, as a rule of thumb?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Can you validate the evals.json file for my skill-creator skill against its schema?"
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write unit tests for my parseConfig function."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Did my last change make the skill better? Compare these two aggregate-result.json files."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Measure whether the rules in my CLAUDE.md actually change the model's behavior."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What's the cost estimate for running this eval suite on my machine?"
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "out/fire/fire.json",
+            "content": "{\"note\": \"not an .efkefc\"}"
+          }
+        }
+      ],
+      "why": "a spec that mentions it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "out/fire/fire.efkefc",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "efkefc written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/ws/effects/Fire.efkefc",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "absolute path"
+    }
+  ]
+}

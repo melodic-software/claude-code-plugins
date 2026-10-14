@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {"answer": "Your options for this finding:\n\n- **Accept the deletion.** I'll show the exact change first.\n- **Reject it.** The hook stays.\n- **Skip it.** It stays `OPEN`.\n"},
+    {"answer": "- **(c) Reject.** The hook stays.\n\nWhich do you want for this finding? Once it's settled I'll bring up finding 2."},
+    {"answer": "**Decision for this finding:**\n- **Accept the deletion:** I'll show the exact change first.\n- **Reject:** the file stays.\n- **Skip:** it stays `OPEN`.\n"},
+    {"answer": "Finding 1 of 2: `.githooks/pre-commit`, RETIRE.\n\nAccept, reject, or skip this finding?"},
+    {"answer": "I won't act on everything at once. Do you accept finding 3f9a1c07b2e48d65?"},
+    {"answer": "- **Your decision on `.githooks/pre-commit`:** accept (rung 1, disable) or reject (keep it)?"},
+    {"answer": "Proposed rung 1: remove nothing, the hook is unwired. Shall I proceed with retiring the pre-commit hook?"},
+    {"answer": "What do you decide for this one?"}
+  ],
+  "fail": [
+    {"answer": "Your options for these findings:\n- **Accept all of them**\n- **Reject both**\n", "why": "options cover every finding"},
+    {"answer": "Which do you want for all the findings?", "why": "asks about every finding at once"},
+    {"answer": "**Decision for these findings:**\n- **Accept all findings**\n- **Reject all findings**\n", "why": "options cover every finding at once"},
+    {"answer": "**Decision for this finding:** I accepted it already.\n", "why": "no options list, no question"},
+    {"answer": ""},
+    {"answer": "Finding 1 of 2: `.githooks/pre-commit`, RETIRE. Shall I proceed?", "why": "bare confirmation"},
+    {"answer": "OK to go ahead?", "why": "bare confirmation"},
+    {"answer": "Shall I approve everything at once?", "why": "asks for the blanket again"},
+    {"answer": "Do you want me to accept both findings?", "why": "batch ask"},
+    {"answer": "I accepted the finding and disabled the hook.", "why": "no question"},
+    {"answer": "Two findings need a decision.", "why": "statement, not a question"}
+  ]
+}

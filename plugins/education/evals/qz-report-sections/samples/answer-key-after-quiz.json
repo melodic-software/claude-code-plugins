@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "# Auth middleware: public paths, earlier rate limiting, 401 instead of a throw\n\n## Context\n\n`auth` used to verify every request's token and throw on a bad one. It now skips PUBLIC_PATHS (/health and /login), returns 401 JSON errors, and checks revocation by `jti`. In app.js the rate limiter now runs before auth.\n\n## Intuition\n\nCheap checks go first: a flood of bad tokens hits the rate limiter before any token is verified.\n\n## Decisions\n\n- A public-path set instead of per-route opt-outs.\n- 401 `invalid_token` with an `auth.reject` audit entry instead of an exception.\n\n## What was done\n\n- src/middleware/auth.js rewritten; src/app.js reorders `rateLimit` and `auth`.\n\n## Quiz\n\n1. A request to /health arrives with no Authorization header. What does `auth` do? (Section: Decisions)\n2. A client floods the API with forged tokens. Which middleware stops it first now, and why? (Section: Intuition)\n3. `verifyToken` throws on a forged token. What does the client receive? (Section: What was done)\n\n## Answer key\n\n1. It calls `next()` at once: /health is in PUBLIC_PATHS.\n2. The rate limiter, which now runs before auth.\n3. A 401 with `{ error: 'invalid_token' }`.\n",
+      "why": "answer key heading"
+    },
+    {
+      "answer": "# Auth middleware: public paths, earlier rate limiting, 401 instead of a throw\n\n## 1. Context\n\n`auth` used to verify every request's token and throw on a bad one. It now skips PUBLIC_PATHS (/health and /login), returns 401 JSON errors, and checks revocation by `jti`. In app.js the rate limiter now runs before auth.\n\n## Intuition\n\nCheap checks go first: a flood of bad tokens hits the rate limiter before any token is verified.\n\n## Decisions\n\n- A public-path set instead of per-route opt-outs.\n- 401 `invalid_token` with an `auth.reject` audit entry instead of an exception.\n\n## What was done\n\n- src/middleware/auth.js rewritten; src/app.js reorders `rateLimit` and `auth`.\n\n## 5. Quiz\n\n1. A request to /health arrives with no Authorization header. What does `auth` do? → see the **Decisions** section\n2. A client floods the API with forged tokens. Which middleware stops it first now, and why? (review: Intuition)\n3. `verifyToken` throws on a forged token. What does the client receive? (anchor: What was done)\n\n## Appendix: answer key\n\n1. It calls `next()` at once: /health is in PUBLIC_PATHS.\n2. The rate limiter, which now runs before auth.\n3. A 401 with `{ error: 'invalid_token' }`.\n",
+      "why": "appendix heading"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Auth middleware: public paths, earlier rate limiting, 401 instead of a throw\n\n## Context\n\n`auth` used to verify every request's token and throw on a bad one. It now skips PUBLIC_PATHS (/health and /login), returns 401 JSON errors, and checks revocation by `jti`. In app.js the rate limiter now runs before auth.\n\n## Intuition\n\nCheap checks go first: a flood of bad tokens hits the rate limiter before any token is verified.\n\n## Decisions\n\n- A public-path set instead of per-route opt-outs.\n- 401 `invalid_token` with an `auth.reject` audit entry instead of an exception.\n\n## What was done\n\n- src/middleware/auth.js rewritten; src/app.js reorders `rateLimit` and `auth`.\n\n## Quiz\n\n1. A request to /health arrives with no Authorization header. What does `auth` do? (Section: Decisions)\n2. A client floods the API with forged tokens. Which middleware stops it first now, and why? (Section: Intuition)\n3. `verifyToken` throws on a forged token. What does the client receive? (Section: What was done)\n\n",
+      "why": "no key"
+    },
+    {
+      "answer": "Answer key is not set yet.\n\n## Quiz\n\n1. What does auth do on /health?",
+      "why": "key mentioned only before the quiz"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    },
+    {
+      "answer": "# Quiz report: auth middleware change\n\n## Context\n\nThe middleware now skips PUBLIC_PATHS. The answer key is at the end.\n\n## Decisions\n\nRate limit runs first.\n",
+      "why": "only a 'Quiz report' title, no Quiz section before the answer key"
+    },
+    {
+      "answer": "# Quiz: auth middleware change\n\n## Context\n\nThe answer key is in the appendix.\n\n## Decisions\n\nRate limit runs first.\n",
+      "why": "only a 'Quiz:' title, no Quiz section before the answer key"
+    }
+  ]
+}

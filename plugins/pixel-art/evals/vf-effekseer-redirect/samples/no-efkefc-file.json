@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ["out/fire/sheet.png", "out/fire/sheet.json", "out/fire/fire.gif", ".git/index"],
+      "why": "cell sheet only; git bookkeeping does not match"
+    },
+    {
+      "answer": [],
+      "why": "asked first, wrote nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["out/fire/fire.efkefc"],
+      "why": "efkefc written"
+    },
+    {
+      "answer": ["out/fire/sheet.png", "/tmp/ws/out/fire/fire_spell.efkefc"],
+      "why": "efkefc written beside the sheet by any tool"
+    }
+  ]
+}

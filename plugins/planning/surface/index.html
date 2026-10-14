@@ -604,6 +604,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   };
   const stageLabel = s => ((S.doc.meta || {}).stages || {})[s] || (s ? s[0].toUpperCase() + s.slice(1).replace(/([a-z])(\d)/gi, "$1 $2") : "");
   const roundLabel = q => "Round " + (q.round ?? 1) + (q.stage ? " \u00b7 " + stageLabel(q.stage) : "");
+  const addedChip = q => q.addedInRound ? '<span class="chip plain">Added in round ' + esc(String(q.addedInRound)) + "</span>" : "";
   function headRound(){ // the highest round among live questions of the newest question's stage
     const qs = S.doc.questions, last = qs[qs.length - 1]; if (!last) return "";
     const same = qs.filter(q => (q.stage || "") === (last.stage || "") && stateOf(q) !== "arch");
@@ -769,6 +770,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const sent = lastEventSeq(q.id);
     if (sent && !answered(q, sent)) chips.push('<span class="chip plain">' + (unheard() && !delivered(events().find(e => e.seq === sent)) ? NOT_LISTENING : "Sent to Claude") + "</span>");
     if (sec && sec.pin && q.group) chips.push('<span class="chip plain">' + esc(groupTitle(q.group)) + "</span>");
+    chips.push(addedChip(q));
     const gone = p => Q[p].supersededBy ? " (superseded by " + Q[p].supersededBy + ")" : stateOf(Q[p]) === "arch" ? " (archived)" : "";
     const met = p => '<span class="metmark" role="img" aria-label="' + (gone(p) ? "left the path" : "answered") + '" title="' + (gone(p) ? "Left the path" : "Answered") + '">\u2713</span>';
     const needs = upOf(q).length ? '<span class="needsrow">' + upOf(q).map(p => '<span class="needs' + (parentMet(p) ? " met" : " unmet") + '">needs ' + esc(p + gone(p)) + (parentMet(p) ? met(p) : "") + "</span>").join("") + "</span>" : "";
@@ -1090,7 +1092,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const st = stateOf(q), d = decisionOf(q), aa = live(q) && afterAnswer(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [];
     const marks = (S.doc.meta || {}).emojiMarkers === true;
     let h = checkpointBanner();
-    h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + (g ? "<span>" + esc(g.title) + "</span>" : "") +
+    h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + addedChip(q) + (g ? "<span>" + esc(g.title) + "</span>" : "") +
       '<span class="chip s-' + st + '">' + LABEL[st] + '</span><span class="grow"></span>' +
       (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + inline(q.title) + "</h3>" +
       (counted(q) ? '<p class="youans">' + esc(answerLine(q)) + (aa ? ' <span class="chip hot">' + esc(afterText(aa)) + "</span>" : "") + "</p>" : "") + (waitingReply(q) ? '<p class="youans"><span class="chip hot">Waiting for Claude\'s reply</span></p>' : "") + "</div>";

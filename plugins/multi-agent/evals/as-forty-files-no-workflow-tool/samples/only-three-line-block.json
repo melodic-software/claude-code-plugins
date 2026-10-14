@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: subagent\nreason: 42 independent files with the same edit would suit a workflow, but the Workflow tool is not callable in this session, so downgraded to subagent; 42 workers, 4 at a time\nshape: sections\n",
+      "why": "three lines"
+    },
+    {
+      "answer": "```text\nverdict: subagent\nreason: 42 independent same-step items; no Workflow tool in this session, downgraded to subagents\nshape: sections\n```\n",
+      "why": "three lines in a text fence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I ran the availability check.\n\nverdict: subagent\nreason: 42 independent files with the same edit would suit a workflow, but the Workflow tool is not callable in this session, so downgraded to subagent; 42 workers, 4 at a time\nshape: sections\n",
+      "why": "preamble"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 independent files with the same edit would suit a workflow, but the Workflow tool is not callable in this session, so downgraded to subagent; 42 workers, 4 at a time\nshape: sections\n\nNext: /session-flow:orchestrate\n",
+      "why": "trailing text"
+    },
+    {
+      "answer": "verdict: subagent\nshape: sections\n",
+      "why": "reason line missing"
+    },
+    {
+      "answer": "verdict: subagent\nreason: x\n",
+      "why": "shape line missing"
+    }
+  ]
+}

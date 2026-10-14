@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Writing the baseline.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Write\",\"input\":{\"file_path\":\".work/guard-hook/baselines/baseline-2026-10-13.md\",\"content\":\"## Code path (step 2b)\\n\\n```text\\nPath (base-1): deny path for rm -rf -> deny path (evidence: stdout \\\"deny\\\", exit 0; state: recorded: none)\\n```\\n\"}}]},\"parent_tool_use_id\":null}",
+      "why": "written into the baseline file"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Recording the baseline.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > .work/guard-hook/baselines/baseline-2026-10-13.md <<'EOF'\\nPath (A1/A2): deny path for rm -rf -> deny, exit 0 (evidence: stdout \\\"deny\\\", rc={0:30}; state: no state files, none to reset)\\nEOF\",\"description\":\"Write the baseline\"}}]},\"parent_tool_use_id\":null}",
+      "why": "heredoc"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"- **Path (baseline):** deny path for rm -rf → deny (evidence: stdout `deny`, exit 0)\",\"stop_reason\":\"end_turn\"}",
+      "why": "arrow character in the reply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"Path (A): deny path -> unobserved (evidence: none)\",\"stop_reason\":\"end_turn\"}",
+      "why": "path not observed"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"id\":\"msg_01\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Writing the baseline.\"},{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Write\",\"input\":{\"file_path\":\".work/guard-hook/baselines/baseline-2026-10-13.md\",\"content\":\"Tool: <path> @ <rev|hash> (<version>) flags-ok: <yes|no — list missing> behind-upstream: <n|not determinable> column-ok: <yes|no — name missing>\\nPath (<arm>): <intended path from goal> -> <observed path | unobserved> (evidence: <marker | exit | processes>; state: reset | recorded <values>)\\nCapture: assisted by /verification:measure\\nCapture: unassisted, verification absent\\nCapture: unassisted, verification present and skipped because <reason>\"}}]},\"parent_tool_use_id\":null}",
+      "why": "pasted template"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"- **Path (baseline):** the intended path is the deny path for `rm -rf`. Observed: stdout `deny`, exit 0.\",\"stop_reason\":\"end_turn\"}",
+      "why": "no intended -> observed record"
+    },
+    {
+      "answer": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"num_turns\":9,\"result\":\"The census refused the shim directory, so no baseline was written.\",\"stop_reason\":\"end_turn\"}",
+      "why": "skips the path record"
+    }
+  ]
+}

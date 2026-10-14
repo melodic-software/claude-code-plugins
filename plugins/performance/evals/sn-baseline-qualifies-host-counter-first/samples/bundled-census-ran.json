@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "bash \"/plugins/performance/scripts/run-spawn-census.sh\" --shim-dir .work/guard-hook/shims --before \"bash hooks/guard.sh strict 'rm -rf /tmp/x'\" --after \"bash hooks/guard.sh strict 'rm -rf /tmp/x'\""}}
+      ],
+      "why": "the two-run census over the deny path"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "bash /plugins/performance/scripts/spawn-census.sh --shim-dir .work/guard-hook/shims --label baseline -- bash hooks/guard.sh strict 'rm -rf /tmp/x'"}}
+      ],
+      "why": "the one-arm census"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "bash /plugins/performance/scripts/run-spawn-census.sh --help"}}
+      ],
+      "why": "help output is not a census"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "strace -f -e trace=execve bash hooks/guard.sh strict 'rm -rf /tmp/x' 2>&1 | grep -c execve"}}
+      ],
+      "why": "a hand-rolled count instead of the bundled census"
+    }
+  ]
+}

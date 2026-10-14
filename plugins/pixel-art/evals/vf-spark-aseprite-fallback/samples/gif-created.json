@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ["out/spark/sheet.png", "out/spark/spark.gif"],
+      "why": "gif rendered"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ["out/spark/sheet.png", "out/spark/preview.png"],
+      "why": "no gif"
+    },
+    {
+      "answer": ["out/spark/spark.gif.txt"],
+      "why": "not a gif"
+    }
+  ]
+}

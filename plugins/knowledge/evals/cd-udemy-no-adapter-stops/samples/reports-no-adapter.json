@@ -1,0 +1,48 @@
+{
+  "pass": [
+    {
+      "answer": "Udemy has no adapter in the course-digest extraction pipeline, so I stopped here."
+    },
+    {
+      "answer": "There is no Udemy adapter yet. Adding one starts at reference/adapters/discovery-checklist.md."
+    },
+    {
+      "answer": "Udemy is not supported: the pipeline only ships Dometrain and Teachable adapters.",
+      "why": "not supported"
+    },
+    {
+      "answer": "The pipeline doesn't have a Udemy adapter, so extraction cannot start.",
+      "why": "doesn't have"
+    },
+    {
+      "answer": "**Unsupported platform.** Stopping.",
+      "why": "unsupported"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The Udemy adapter loaded; discovering course structure.",
+      "why": "adapter present"
+    },
+    {
+      "answer": "Udemy is supported through adapters/udemy.js. Starting extraction.",
+      "why": "claims support"
+    },
+    {
+      "answer": "Is there no adapter for Udemy? Let me check the adapters directory.",
+      "why": "question"
+    },
+    {
+      "answer": "No need for an adapter; I'll scrape the lessons directly.",
+      "why": "no need"
+    },
+    {
+      "answer": "Starting the full pipeline for the Udemy course.",
+      "why": "silent"
+    },
+    {
+      "answer": "I'll proceed anyway; there is no Udemy adapter, so I wrote adapters/udemy.js.",
+      "why": "review finding"
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/education/skills/setup/scripts/setup-apply.mjs\" --check",
+            "description": "Check the repository file"
+          }
+        }
+      ],
+      "why": "check only"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/education/skills/setup/scripts/setup-apply.mjs\" --check",
+            "description": "Check the repository file"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/education/skills/setup/scripts/setup-apply.mjs\" explain_starting_rung=plain",
+            "description": "Write"
+          }
+        }
+      ],
+      "why": "ran apply"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/education/skills/setup/scripts/setup-apply.mjs\" --yes explain_starting_rung=peer",
+            "description": "Write"
+          }
+        }
+      ],
+      "why": "confirmed a write"
+    }
+  ]
+}

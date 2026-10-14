@@ -1,0 +1,128 @@
+{
+  "skill": "performance:protect",
+  "plugin": "performance",
+  "skill_dir": "plugins/performance/skills/protect",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de459bcc8e94f3954802ce0982fbaa7c9b, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are review:ratchet, the general counter-ceiling mechanism, performance:verify that precedes it, and verification:measure.",
+  "competitors": [
+    "review:ratchet",
+    "performance:verify",
+    "verification:measure",
+    "performance:climb"
+  ],
+  "competitor_dirs": {
+    "review:ratchet": "plugins/review/skills/ratchet",
+    "performance:verify": "plugins/performance/skills/verify",
+    "verification:measure": "plugins/verification/skills/measure",
+    "performance:climb": "plugins/performance/skills/climb"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Verification says MET on the query count. Lock that win in so CI fails if it creeps back up."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We cut syscalls from 9k to 3k and it's verified. Commit a max value for it that CI enforces."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Protect this speedup: the allocation counter went down and I don't want anyone regressing it."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Wire the instruction count we just verified into the pipeline so it cannot get worse."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make sure the verified drop in cache misses can't silently come back; propose the CI files."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The verified result was MET on the page-fault counter. Ratchet it."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Stop this performance improvement from regressing in future PRs."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Freeze the verified DB round-trip count as a CI limit that tightens itself when the count improves."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Now that the optimization is confirmed, put a guard in CI on the counter it improved."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "How do we keep the new lower allocation count from sliding back? Set up the check."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Ratchet our eslint violation count so it can only go down."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Freeze the number of noqa suppressions in CI."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is the speedup in my branch real? Re-measure it independently."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a CI check that fails if the p95 latency goes above 200 ms."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Stop the count of TODO comments from growing; add a ceiling to CI."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Our goal came back NOT MET. Lock in what we have anyway."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Keep trying changes until the counter drops below the target."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Benchmark before and after this commit and report the difference."
+    }
+  ]
+}
