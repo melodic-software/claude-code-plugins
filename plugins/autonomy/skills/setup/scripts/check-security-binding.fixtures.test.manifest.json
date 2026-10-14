@@ -993,6 +993,20 @@
       ],
       "credential_roots": "/home/runner"
     },
+    "rule-admission-human-gated-only.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.rule_admission: dispatch_posture human-gated-only gates every dispatch, so no rule may admit"
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "rule-admission-gated-class.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "admission.rule_admission[1]: work_class C2 resolves to human-gated for provenance agent on tracker-vcs-event in admission.rules; a rule cannot admit what the decision table gates"
+      ],
+      "credential_roots": "/home/runner"
+    },
     "auto-merge-advisory-checkers.json": {
       "exit": 1,
       "findings_substrings": [

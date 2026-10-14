@@ -14,16 +14,29 @@
         "user": { "login": "github-actions[bot]", "type": "Bot" },
         "author_association": "NONE",
         "updated_at": "2026-10-10T12:00:00Z",
-        "body": "<!-- claude-lane intake-triage -->\nProposed work class: work-class: read-only\nBasis: automated intake triage; a maintainer confirms or changes it.\n\nThe install table needs two rows reworded.\n\n<sub>Automated triage. A maintainer reviews it.</sub>"
+        "body": "<!-- claude-lane intake-triage -->\nProposed work class: work-class: mechanical\nBasis: automated intake triage; a maintainer confirms or changes it.\n\nThe install table needs two rows reworded.\n\n<sub>Automated triage. A maintainer reviews it.</sub>"
       }
     ],
     "last_edited_at": ""
   },
   "cases": [
     {
-      "name": "owner issue proposed read-only admits R1",
-      "source": "draft test results: admitted C1 (#7248 shape)",
-      "expect": { "verdict": "admit", "rule": "R1", "constraint": "no-push" }
+      "name": "owner issue proposed mechanical admits R2",
+      "source": "draft test results: admitted C2 (#6532 shape); R2 keeps human merge",
+      "expect": { "verdict": "admit", "rule": "R2", "constraint": "human-merge" }
+    },
+    {
+      "name": "owner issue proposed read-only never admits under the C1 rule",
+      "source": "owner disposition of security finding 1: C1 rule admission stays off until a mechanical no-push exists",
+      "comments": [
+        {
+          "user": { "login": "github-actions[bot]", "type": "Bot" },
+          "author_association": "NONE",
+          "updated_at": "2026-10-10T12:00:00Z",
+          "body": "<!-- claude-lane intake-triage -->\nProposed work class: work-class: read-only\nBasis: automated intake triage; a maintainer confirms or changes it.\n"
+        }
+      ],
+      "expect": { "verdict": "refuse", "reason": "C1 rule admission is not enabled (R1)" }
     },
     {
       "name": "member issue proposed mechanical with a member comment admits R2",
@@ -91,7 +104,7 @@
       "name": "terms inside other words do not hit",
       "source": "deny terms are words (ci, SHA, pin); decision, specific, shape and spinner contain them only as substrings",
       "issue": { "title": "Decision table shape for a specific spinner" },
-      "expect": { "verdict": "admit", "rule": "R1" }
+      "expect": { "verdict": "admit", "rule": "R2" }
     },
     {
       "name": "existing work-class label is left untouched",
@@ -223,7 +236,7 @@
       "name": "body edited before the lane comment admits",
       "source": "P0 body-edit rule compares against the lane comment",
       "last_edited_at": "2026-10-09T09:00:00Z",
-      "expect": { "verdict": "admit", "rule": "R1" }
+      "expect": { "verdict": "admit", "rule": "R2" }
     },
     {
       "name": "a proposed class no rule names refuses",

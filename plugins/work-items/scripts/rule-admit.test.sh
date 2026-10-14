@@ -118,6 +118,23 @@ binding_case "a C3 rule" '{"admission": {"rule_admission": [{"id": "R1", "work_c
 binding_case "a verified term" '{"admission": {"rule_admission": [{"id": "R1", "work_class": "C1", "proposed_class": "work-class: read-only", "verified": true}]}}'
 binding_case "duplicate proposed classes" '{"admission": {"rule_admission": [{"id": "R1", "work_class": "C1", "proposed_class": "work-class: read-only"}, {"id": "R2", "work_class": "C2", "proposed_class": "work-class: read-only"}]}}'
 binding_case "unparsable JSON" '{'
+
+# The posture and the decision table gate rule admission (owner disposition of
+# security finding 3): R2 here is valid, so only the gate can stop it.
+R2='"rule_admission": [{"id": "R2", "work_class": "C2", "proposed_class": "work-class: mechanical"}]'
+C2_ELIGIBLE='{"signal_class": "*", "provenance": "*", "work_class": "C2", "disposition": "autonomous-eligible"}'
+binding_case "dispatch_posture human-gated-only" "{\"dispatch_posture\": \"human-gated-only\", \"admission\": {\"rules\": [$C2_ELIGIBLE], $R2}}"
+binding_case "no decision-table rules" "{\"admission\": {$R2}}"
+binding_case "no decision-table rule for C2 (default human-gated)" "{\"admission\": {\"rules\": [], $R2}}"
+binding_case "C2 human-gated for agent provenance, most specific wins" "{\"admission\": {\"rules\": [$C2_ELIGIBLE, {\"signal_class\": \"tracker-vcs-event\", \"provenance\": \"agent\", \"work_class\": \"C2\", \"disposition\": \"human-gated\"}], $R2}}"
+# Control: a narrower rule for another signal class leaves issues admissible.
+printf '%s\n' "{\"admission\": {\"rules\": [$C2_ELIGIBLE, {\"signal_class\": \"temporal\", \"provenance\": \"*\", \"work_class\": \"C2\", \"disposition\": \"human-gated\"}], $R2}}" >"$WORK/binding.json"
+if bash "$CHECK" --repo "$REPO" --binding "$WORK/binding.json" --issue 1 >"$WORK/out" 2>/dev/null &&
+  jq -e '.verdict == "admit" and .rule == "R2"' "$WORK/out" >/dev/null; then
+  pass "a C2 gate on another signal class still admits an issue"
+else
+  fail "a C2 gate on another signal class still admits an issue (got: $(cat "$WORK/out"))"
+fi
 bash "$CHECK" --repo "$REPO" --binding "$WORK/missing.json" --issue 1 >/dev/null 2>&1
 rc=$?
 if [[ $rc -eq 4 ]]; then pass "a missing binding exits 4"; else fail "a missing binding exits 4 (got $rc)"; fi

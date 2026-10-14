@@ -2193,8 +2193,57 @@ function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   if (isPlainObject(binding.admission) && Array.isArray(binding.admission.rules)) {
     checkAdmissionSemantics(binding.admission.rules);
   }
+  if (isPlainObject(binding.admission) && Array.isArray(binding.admission.rule_admission)) {
+    checkRuleAdmissionGate(binding.admission, autonomous);
+  }
 
   return verdicts;
+}
+
+// A rule admits past neither the posture nor the decision table. A
+// rule-admitted issue is a tracker-vcs-event whose provenance cannot be
+// trusted (an agent files issues under the operator's token), so its class
+// must be autonomous-eligible for every provenance.
+function checkRuleAdmissionGate(admission, autonomous) {
+  if (admission.rule_admission.length === 0) return;
+  if (!autonomous) {
+    findings.push(
+      "admission.rule_admission: dispatch_posture human-gated-only gates every dispatch, so no rule may admit; remove rule_admission or declare autonomous-enabled",
+    );
+    return;
+  }
+  const rules = Array.isArray(admission.rules) ? admission.rules : [];
+  admission.rule_admission.forEach((rule, index) => {
+    if (!isPlainObject(rule) || !["C1", "C2"].includes(rule.work_class)) return;
+    const gated = PROVENANCES.map((provenance) => [
+      provenance,
+      resolveDisposition(rules, "tracker-vcs-event", provenance, rule.work_class),
+    ]).filter(([, disposition]) => disposition !== "autonomous-eligible");
+    if (gated.length > 0) {
+      findings.push(
+        `admission.rule_admission[${index}]: work_class ${rule.work_class} resolves to ${gated.map(([p, d]) => `${d} for provenance ${p}`).join(", ")} on tracker-vcs-event in admission.rules; a rule cannot admit what the decision table gates`,
+      );
+    }
+  });
+}
+
+// Most-specific-wins over the decision table; no match is human-gated, and a
+// tie with different dispositions is "ambiguous".
+function resolveDisposition(rules, signalClass, provenance, workClass) {
+  const bound = (rule) => [rule.signal_class, rule.provenance, rule.work_class].filter((axis) => axis !== "*").length;
+  const matching = rules.filter(
+    (rule) =>
+      isPlainObject(rule) &&
+      [
+        [rule.signal_class, signalClass],
+        [rule.provenance, provenance],
+        [rule.work_class, workClass],
+      ].every(([axis, value]) => axis === "*" || axis === value),
+  );
+  if (matching.length === 0) return "human-gated";
+  const top = Math.max(...matching.map(bound));
+  const dispositions = new Set(matching.filter((rule) => bound(rule) === top).map((rule) => rule.disposition));
+  return dispositions.size === 1 ? [...dispositions][0] : "ambiguous";
 }
 
 function checkAdmissionSemantics(rules) {

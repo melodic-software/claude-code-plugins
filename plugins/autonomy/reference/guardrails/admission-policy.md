@@ -81,8 +81,9 @@ rejected and not re-gated.
 
 The table above decides a disposition once an item has a class; a person stamps that class by
 applying the autonomous-eligible label and a `work-class:` label. Owner-written rules in the
-binding's optional `admission.rule_admission[]` let a no-model evaluator admit an issue to C1 or
-C2 without that label, from the intake-triage lane's proposed class. Each entry is
+binding's optional `admission.rule_admission[]` let a no-model evaluator admit an issue to C2
+without that label, from the intake-triage lane's proposed class; C1 rules are accepted but admit
+nothing yet (below). Each entry is
 `{id, work_class, proposed_class}`: `id` is `R<n>`, `work_class` is `C1` or `C2`, and
 `proposed_class` is the `work-class:` label the lane must propose. The evaluator writes no label;
 an admit is recorded as `admitted-by-rule: <id>@<binding sha>`.
@@ -114,9 +115,22 @@ metadata or lane output, never from text an agent controls:
 Untrusted text can only refuse: the title and body scan is a deny list, and the proposed class is
 model output, so it admits only beside the author and comment tests issue text cannot change.
 
-Each rule carries a dispatch constraint. A rule-admitted C1 gets no push or PR authority, and any
-diff escalates. A rule-admitted C2 is human-merged: its PR carries `Hold: a human merges this`, so
-it never takes a gate-proven C2 auto-merge rung until that rung's promotion evidence exists.
+Rule admission never bypasses the binding's own gates. The evaluator admits nothing, and the
+validator reports the binding invalid, unless `dispatch_posture` is `autonomous-enabled` and the
+decision table resolves each rule's class to `autonomous-eligible` for `tracker-vcs-event` under
+every provenance (`human`, `agent` and `system`), since provenance is not trusted (see the accepted
+risk below).
+
+Only C2 admits today. A rule-admitted C2 is human-merged: its PR carries
+`Hold: a human merges this`, so it never takes a gate-proven C2 auto-merge rung until that rung's
+promotion evidence exists. C1 rule admission is not yet enabled: C1 needs a no-push constraint,
+and the work skill always pushes, so nothing enforces no-push mechanically. A C1 rule stays valid
+in the binding but refuses every issue until a mechanical no-push exists.
+
+Accepted risk: author association does not separate a person from an agent. Agents file issues
+under the operator's token, so an agent-filed issue reads as owner-authored and passes the
+author test. The owner accepts this: the agent already acts with the operator's authority, the
+trust-surface scan and the lane's proposal still apply, and every rule-admitted PR is human-merged.
 
 ## Binding and fail-closed behavior
 
