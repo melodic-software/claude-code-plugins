@@ -1258,9 +1258,9 @@ def _lane_class(
             e
             for e in _timeline(owner, name, number, {})
             if e.get("event") in ("labeled", "unlabeled")
-            and str(json_object(e.get("label")).get("name") or "").startswith(
-                WORK_CLASS_PREFIX
-            )
+            and str(json_object(e.get("label")).get("name") or "")
+            .casefold()
+            .startswith(WORK_CLASS_PREFIX)
         ),
         key=lambda e: _time(e.get("created_at")),
     )
@@ -1273,12 +1273,14 @@ def _lane_class(
             != identity.strip().casefold()
         ):
             continue
-        label = str(json_object(event.get("label")).get("name"))
+        # GitHub label names are case-insensitive.
+        label = str(json_object(event.get("label")).get("name")).casefold()
         if event.get("event") == "labeled":
             trusted.add(label)
         else:
             trusted.discard(label)
-    current = {label for label in labels if label.startswith(WORK_CLASS_PREFIX)}
+    folded = (label.casefold() for label in labels)
+    current = {label for label in folded if label.startswith(WORK_CLASS_PREFIX)}
     seen = current | trusted
     if not seen:
         return None, "class-missing"

@@ -2373,6 +2373,9 @@ class LaneEligibility(unittest.TestCase):
         # A person's stricter label is not trusted to grant, but it restricts.
         self.fake(labels=[MECHANICAL, "work-class: scoped"])
         self.assertEqual(self.eligibility().reason, "class-not-mechanical:C3")
+        # GitHub label names are case-insensitive: another case is the same label.
+        self.fake(labels=[MECHANICAL, "Work-Class: Structural"])
+        self.assertEqual(self.eligibility().reason, "class-not-mechanical:C4")
 
     def test_a_denied_path_pr_refuses(self) -> None:
         for path in (
