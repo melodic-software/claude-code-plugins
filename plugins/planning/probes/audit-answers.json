@@ -1,0 +1,128 @@
+{
+  "skill": "planning:audit-answers",
+  "plugin": "planning",
+  "skill_dir": "plugins/planning/skills/audit-answers",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the interview that produces the ledger, devils-advocate for attacking a plan, and the review gate for checking finished code.",
+  "competitors": [
+    "planning:interview",
+    "planning:devils-advocate",
+    "review:quality-gate",
+    "discovery:research"
+  ],
+  "competitor_dirs": {
+    "planning:interview": "plugins/planning/skills/interview",
+    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
+    "review:quality-gate": "plugins/review/skills/quality-gate",
+    "discovery:research": "plugins/discovery/skills/research"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I just went through the interview and took every recommended answer. Can you get a few agents to double-check those answers independently?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Spin up subagents to second-guess each answer in the brief ledger without seeing why we picked it."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I accepted all your suggestions on the questions. Now have something verify them and only show me the shaky ones."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run a blind check over the answered questions in the interview file for the caching task."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I lock this, I want fresh eyes on each answer we recorded during the Q&A rounds."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go ahead and auto-answer the remaining interview questions, then have agents validate the whole set."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can some agents re-derive the answers in our interview ledger and flag the ones they disagree with?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I rubber-stamped the recommendations from the interview. Please have them independently re-checked."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Validate the filled-in answers for the auth migration brief; I only want to see the questionable ones."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Have a separate agent look at each recorded answer cold and tell me which ones don't hold up."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check my interview responses with independent reviewers before we move on to the plan."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Interview me about the new export feature before we start."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Poke holes in this migration plan before we commit to it."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review the code I just wrote for the parser."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Research whether Postgres 17 supports this index type."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Ask me questions until the requirements for the billing change are clear."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What could go wrong with switching our queue to Kafka?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check that this PR matches the issue it closes."
+    }
+  ]
+}

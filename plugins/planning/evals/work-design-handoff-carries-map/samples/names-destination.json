@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Map context: a push-based shipment-status feed replacing the nightly partner CSV, live before the 2027 Q3 peak.",
+      "why": "destination named"
+    },
+    {
+      "answer": "Destination: replace the CSV drop with a push feed for Northwind Freight, Blue Heron and Kestrel Couriers.",
+      "why": "partners and CSV drop named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Question: which wire format should the change feed use? Speak to delivery guarantees and schema evolution.",
+      "why": "\"Speak\" contains peak but names no destination; the old unbounded pattern accepted it"
+    },
+    {
+      "answer": "Question: pick the change-feed wire format. Return a recommendation with sources.",
+      "why": "item only, no destination"
+    }
+  ]
+}

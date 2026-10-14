@@ -17,6 +17,10 @@
     {
       "answer": "You said: \"Put it behind the fee chair flag but turn it on for staff first.\" Confirm?",
       "why": "a quotation is not a read-back in the agent's words"
+    },
+    {
+      "answer": "Q2: behind the fee chair flag, but turn it on for staff first.",
+      "why": "echo with an added comma; the old exact-phrase pattern missed it"
     }
   ]
 }

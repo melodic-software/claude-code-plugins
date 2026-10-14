@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "## Confirmed by both validators\n\n- D1. Redis counter store: CONFIRMED\n- D3. HTTP 429 with Retry-After: CONFIRMED\n\n## Needs your answer\n\n1. D2. 600 requests per minute is CHALLENGED: docs/sla.md allows 20 requests per second (1,200 per minute) per key.\n",
+      "why": "bullet list with uppercase verdicts"
+    },
+    {
+      "answer": "| Decision | Verdict |\n|---|---|\n| D1 Redis store | CONFIRMED |\n| D2 600 req/min | CHALLENGED |\n| D3 429 + Retry-After | CONFIRMED |\n",
+      "why": "verdict table"
+    },
+    {
+      "answer": "Redis for the counters was confirmed by both validators. The 429 response was confirmed too. The 600 per minute limit was challenged: it is half the 20 per second the SLA grants.\n",
+      "why": "prose, lowercase verdicts"
+    },
+    {
+      "answer": "**1. D2: limit value (600 requests per minute). Both validators challenged it.**\n\n**2. D1: counter store (the existing session Redis). Both validators challenged it.**\n\n## Confirmed by both validators\n\n- **D3: 429 with a `Retry-After` header.** It meets acceptance criterion (a).\n",
+      "why": "observed smoke reply: D3's verdict sits in a heading two lines above it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "D2. 600 requests per minute: CHALLENGED, it is below the SLA's 20 per second.\n",
+      "why": "one verdict where three are required"
+    },
+    {
+      "answer": "D1 Redis: CONFIRMED\nD2 600 per minute: CHALLENGED\n",
+      "why": "D3 has no verdict"
+    },
+    {
+      "answer": "| Decision | Verdict |\n|---|---|\n| <decision> | CONFIRMED / CHALLENGED / RECLASSIFIED-TO-HUMAN |\n",
+      "why": "pasted the verdict template without doing the work"
+    },
+    {
+      "answer": "The validators had no concerns with the Brief. Shall I proceed?\n",
+      "why": "no per-answer verdict"
+    },
+    {
+      "answer": "**1. D2: limit value (600 requests per minute). Both validators challenged it.**\n\n**2. D1: counter store (the existing session Redis). Both validators challenged it.**\n\n## Not yet reviewed\n\nThe validators ran out of turns.\n\nSome other notes here.\n\nAnd more.\n\n- **D3: 429 with a `Retry-After` header.**\n",
+      "why": "D3 carries no verdict; the nearest verdict word is too far above"
+    }
+  ]
+}

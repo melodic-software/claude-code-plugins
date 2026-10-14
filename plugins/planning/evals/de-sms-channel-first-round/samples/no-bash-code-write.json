@@ -1,0 +1,101 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat notifications/dispatcher.py",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m pytest tests/test_dispatcher.py -q",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp notifications/email_sender.py /tmp/email_sender.copy",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "running tests and copying code out leave it untouched"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p .work/sms-notifications/design && printf '# threads' > .work/sms-notifications/design/design-threads.md",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "a design artifact, not code"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > notifications/sms_sender.py <<'PY'\nclass SmsSender: ...\nPY",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "heredoc write of code"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/self._email = email/self._channels = channels/' notifications/dispatcher.py",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "in-place sed edit of code"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'class SmsSender: ...' | tee notifications/sms_sender.py",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "tee into code"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 - <<'PY'\nopen('notifications/sms_sender.py', 'w').write('class SmsSender: ...')\nPY",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "interpreter write"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "1. Fan-out. Recommend a sender list.\n   Basis: verified, notifications/dispatcher.py:9.\n2. Twilio. Recommend contain now.\n   Basis: judgment.\n", "why": "two plain Basis lines"},
+    {"answer": "- **Basis:** verified (tests/test_dispatcher.py:13 fakes the sender)\n- **Basis:** `judgment`\n", "why": "bold labels, code-formatted value"},
+    {"answer": "Basis: Verified against notifications/email_sender.py:11. ... Basis: Judgment, non-consequential.\n", "why": "capitalized values"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "1. Fan-out. Recommend a sender list.\n   Basis: verified, notifications/dispatcher.py:9.\n2. Twilio. Recommend contain now.\n", "why": "one Basis line where every recommendation needs one"},
+    {"answer": "Basis: none given.\nBasis: TBD.\n", "why": "Basis label with no verified or judgment value"},
+    {"answer": "Every recommendation should carry a Basis: line.\n", "why": "names the rule, does not do it"}
+  ]
+}

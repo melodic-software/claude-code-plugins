@@ -11,17 +11,17 @@ execution:
 graders:
   - name: probes-second-run
     type: regex
-    pattern: 'twice|second run|runs? again|re-?runs?\b|re-?execut|overlapping run|starts? again' # spellchecker:disable-line
+    pattern: '(?<!\bno )(?<!\bnot )(?<!\bnever )(?<!\bwithout )(?<!\bno risk of )(?<!\bno risk of a )\b(?:twice|second run|runs? again|re-?runs?|re-?execut\w*|overlapping runs?|runs? (?:can |could |may |might )?overlap|two (?:runs|instances|copies)|concurrent (?:runs?|executions?)|another run|start(?:s|ed)? again)\b' # spellchecker:disable-line
     flags: i
     arm: both
   - name: probes-half-finished-run
     type: regex
-    pattern: '(?:crash|kill|dies|died|interrupt|fail)\w*[^.\n]{0,120}(?:before|after|between|mid|part ?way|halfway)|(?:part ?way|halfway|mid-?run)[^.\n]{0,120}(?:crash|kill|die|interrupt|fail)'
+    pattern: '(?<!\bno )(?<!\bnot )(?<!\bnever )(?<!\bcannot )(?<!n''t )(?<!\balert on )(?<!\balerting on )(?<!\balerts on )\b(?:crash|kill|dies|died|interrupt|fail|stop)\w*[^.\n]{0,120}\b(?:before|after|between|mid(?:way|-run|-write|-upload)?|part ?way|halfway)\b|\b(?:part ?way|halfway|mid-?run)\b[^.\n]{0,120}\b(?:crash|kill|die|interrupt|fail|stop)|\bhalf-finished (?:run|state|import|write)'
     flags: i
     arm: both
   - name: reconciliation-mitigation
     type: regex
-    pattern: 'reconcil'
+    pattern: '(?<!\bno )(?<!\bnot )(?<!\bwithout )(?<!\bskip )(?<!\bskip the )(?<!\bskip a )\breconcil\w*(?![^\n.]{0,20}\b(?:is|are|isn''t|seems|would be)\s+(?:not\b|unnecessary|overkill|unneeded))'
     flags: i
     arm: both
   - name: skill-fired
@@ -32,4 +32,4 @@ graders:
   - name: re-execution-finding
     type: llm
     arm: both
-    criteria: "PASS only if the review (1) asks what happens when the job starts again over the same inbox, such as an overlapping run or a rerun after success producing duplicate expenses.csv rows or uploads, AND (2) asks what happens when the job stops between two of its writes and names a concrete half-finished state (for example the CSV row written but the PDF never moved to done/, so the next run adds it again), AND (3) proposes as mitigation a step at the start of each run that reads what already exists (rows already in expenses.csv, files already on the drive or in done/) and acts only on what is missing, with at least one concrete technique. FAIL if any of the three is missing, or if the plan is waved through because it is one script in one environment."
+    criteria: "PASS only if the review (1) asks or states what happens when the job starts again over the same inbox, such as an overlapping run or a rerun after success producing duplicate expenses.csv rows or uploads, AND (2) asks or states what happens when the job stops between two of its writes and names a concrete half-finished state (for example the CSV row written but the PDF never moved to done/, so the next run adds it again), AND (3) proposes as mitigation a step at the start of each run that reads what already exists (rows already in expenses.csv, files already on the drive or in done/) and acts only on what is missing, with at least one concrete technique. FAIL if any of the three is missing, or if the plan is waved through because it is one script in one environment."

@@ -3,6 +3,10 @@
     {
       "answer": "This change fits in one sentence: rename `cnt` to `count` on the three lines of `tally()` in utils/stats.py. Do you still want a plan for it?",
       "why": "the sentence and the question, no plan sections"
+    },
+    {
+      "answer": "This fits in one sentence, so it needs no test strategy or blast radius section: in tally(), cnt becomes count. Plan it anyway?",
+      "why": "names the skipped sections in prose; the old substring pattern rejected it"
     }
   ],
   "fail": [
@@ -13,6 +17,10 @@
     {
       "answer": "It fits in one sentence, but here it is anyway. Approve this plan to proceed to execution, or provide feedback to revise.",
       "why": "requests approval of a plan the user never confirmed they wanted"
+    },
+    {
+      "answer": "## Plan: rename cnt\n\n## Blast-radius\nLOW: one file.",
+      "why": "hyphenated section heading; the old pattern missed it"
     }
   ]
 }

@@ -15,6 +15,10 @@
     {
       "answer": "Q3: Should it retry in production, or alert on the first failure?",
       "why": "production as context inside a failure-handling choice"
+    },
+    {
+      "answer": "Q2: Does the export need to retry before it alerts?",
+      "why": "a failure-handling question with need to"
     }
   ],
   "fail": [
@@ -33,6 +37,10 @@
     {
       "answer": "Q1: What quality bar are we targeting here?",
       "why": "asks the quality bar by name"
+    },
+    {
+      "answer": "Q1: Does this need to be production-ready from day one?",
+      "why": "re-asks the bar with does-this-need-to-be"
     }
   ]
 }

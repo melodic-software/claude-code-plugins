@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The map is closed and its destination is a PLAN, so close the map issue and run `/planning:design` ahead of `/planning:plan`.",
+      "why": "the skill's own hand-off"
+    },
+    {
+      "answer": "Don't restart charting. Run planning:plan next to write the implementation plan.",
+      "why": "negation about charting, plan step named without the slash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Your map's destination is an implementation plan, but first restart charting with /planning:wayfind chart to check nothing was missed.",
+      "why": "restates the destination and restarts charting; the old pattern matched 'implementation plan'"
+    },
+    {
+      "answer": "Don't run /planning:plan yet; go back to /planning:interview and re-check the decisions.",
+      "why": "negated plan step; the old pattern matched it"
+    },
+    {
+      "answer": "Run /planning:wayfind work to pick the next frontier item.",
+      "why": "keeps working the map"
+    }
+  ]
+}

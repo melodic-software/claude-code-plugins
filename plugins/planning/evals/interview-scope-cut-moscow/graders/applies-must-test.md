@@ -1,6 +1,6 @@
 ---
 type: regex
-pattern: '^(?=[\s\S]*\bmust\b)(?=[\s\S]*\b(?:cancel\w*|work(?:ed|ing)? ?around)\b)'
+pattern: '\bmust\b[\s\S]{0,300}?\b(?:cancel\w*|work(?:ed|ing)?[- ]?around|fails? without)\b|\b(?:cancel\w*|work(?:ed|ing)?[- ]?around|fails? without)\b[\s\S]{0,300}?\bmust\b'
 flags: i
 arm: both
 ---

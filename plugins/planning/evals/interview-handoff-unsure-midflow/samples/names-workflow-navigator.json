@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Run /session-flow:workflow; it reads the ledger and Brief on disk and names the stage you are in.",
+      "why": "names the navigator"
+    },
+    {
+      "answer": "Since you are unsure what was settled, start with session-flow:workflow before picking a step.",
+      "why": "named without the slash"
+    },
+    {
+      "answer": "Use the workflow skill to work out the next stage.",
+      "why": "workflow skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Run /planning:plan next; the Brief is probably written.",
+      "why": "guesses a pipeline step"
+    },
+    {
+      "answer": "Don't bother with /session-flow:workflow; just run /planning:plan.",
+      "why": "negated navigator"
+    },
+    {
+      "answer": "You are at an unknown workflow stage, so run /planning:design.",
+      "why": "mentions a workflow stage but not the navigator"
+    }
+  ]
+}

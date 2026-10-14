@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "```text\n/goal Every test under tests/ passes: show the full output of `pytest tests/` ending in a passed summary with 0 failed, and show `ruff check .` printing \"All checks passed!\" in this session.\n```\n",
+      "why": "fenced paste-ready line"
+    },
+    {
+      "answer": "Paste this:\n\n/goal The latest `ruff check .` run shown in the conversation reports no errors and the latest `pytest` run shows every test under tests/ passing.\n",
+      "why": "bare line, ruff named first"
+    },
+    {
+      "answer": "> /goal pytest output shown here has 0 failures and 0 errors, and ruff check . output shown here reports no errors\n",
+      "why": "quoted line"
+    },
+    {
+      "answer": "/goal `pytest tests/` output shown in this session reports 0 failed, and `ruff check .` output shown here reports no errors.\n",
+      "why": "both checks required; the old grader also accepted it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "/goal Every test under tests/ passes with pytest, shown in the conversation.\n",
+      "why": "names pytest only"
+    },
+    {
+      "answer": "/goal <condition>\n",
+      "why": "pasted the output template without drafting"
+    },
+    {
+      "answer": "Run /goal with a condition that mentions pytest and ruff.\n",
+      "why": "advice, not a paste-ready line"
+    },
+    {
+      "answer": "/goal clear\n\nThen run pytest and ruff yourself.\n",
+      "why": "the clear subcommand"
+    },
+    {
+      "answer": "Use /loop 10m to rerun pytest and ruff until both pass.\n",
+      "why": "routed to a different lever"
+    },
+    {
+      "answer": "/goal Every test under tests/ passes with pytest, shown in the conversation, without running ruff.\n",
+      "why": "ruff named only to exclude it, which the old grader accepted"
+    }
+  ]
+}

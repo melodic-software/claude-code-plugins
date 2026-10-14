@@ -11,6 +11,10 @@
     {
       "answer": "Q4: Should we port the page to React now?",
       "why": "asks about moving the page to React"
+    },
+    {
+      "answer": "Q2: React rewrite: in this change or a separate follow-up?",
+      "why": "colon after the keyword, still one question"
     }
   ],
   "fail": [
@@ -33,6 +37,10 @@
     {
       "answer": "Q1: Is the admin page currently written in React?",
       "why": "asks about the current stack, not the rewrite"
+    },
+    {
+      "answer": "The React rewrite is out of scope; which columns should the CSV include?",
+      "why": "a rewrite statement then an unrelated question on one line"
     }
   ]
 }

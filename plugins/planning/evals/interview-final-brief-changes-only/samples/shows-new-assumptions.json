@@ -3,6 +3,10 @@
     {
       "answer": "New assumptions from the sweep:\n- Exports run synchronously in the request.\n- The export respects the user's row-level permissions.",
       "why": "both assumptions"
+    },
+    {
+      "answer": "New assumptions: the export runs sync in the request; row-level permissions apply.",
+      "why": "sync shorthand, which the old grader wrongly rejected"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "New assumption: the export respects row-level permissions.",
       "why": "missing the synchronous assumption"
+    },
+    {
+      "answer": "New assumption: exports run synchronously in the request. Do I have your permission to lock this?",
+      "why": "permission means consent here, which the old grader accepted"
     }
   ]
 }

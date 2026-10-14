@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Next: /implementation:implement. The acceptance criteria already are the plan.",
+      "why": "names the implement skill"
+    },
+    {
+      "answer": "No need to run /planning:plan or /planning:design; go straight to implementation.",
+      "why": "negated plan step, straight to implementation"
+    },
+    {
+      "answer": "Skip planning and start coding: the Brief lists every file and the exact wording.",
+      "why": "start coding"
+    },
+    {
+      "answer": "The contract is the plan, so proceed directly to implementation with `implementation:implement`.",
+      "why": "skill named without the slash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Run /planning:plan to plan the implementation, then implement it.",
+      "why": "adds a planning step first"
+    },
+    {
+      "answer": "Next: `/planning:design`, then `/implementation:implement`.",
+      "why": "adds a design step"
+    },
+    {
+      "answer": "Don't go straight to /implementation:implement; write a plan first.",
+      "why": "negated implementation"
+    },
+    {
+      "answer": "Write an implementation plan for the rename.",
+      "why": "implementation named only as a plan"
+    }
+  ]
+}

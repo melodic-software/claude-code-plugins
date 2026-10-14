@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work/webhook-retry/design/design-threads.md",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls .work/webhook-retry/ && test -f .work/webhook-retry/PLAN.md && cat .work/webhook-retry/PLAN.md",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "checking for and reading PLAN.md is not a write"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat >> .work/webhook-retry/PLAN.md <<'MD'\n## Design\nMD",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "heredoc append to PLAN.md on a failed gate"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '## Design\\n' | tee .work/webhook-retry/PLAN.md",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "tee into PLAN.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i '$a ## Design' .work/webhook-retry/PLAN.md",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "in-place sed edit of PLAN.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp .work/webhook-retry/design/design-threads.md .work/webhook-retry/PLAN.md",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "copied over PLAN.md"
+    }
+  ]
+}

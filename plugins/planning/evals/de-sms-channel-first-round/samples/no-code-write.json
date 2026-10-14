@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/sms-notifications/design/design-threads.md", "content": "# Design threads\n"}}], "why": "a design artifact is allowed"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "notifications/sms_sender.py", "content": "class SmsSender: ...\n"}}], "why": "wrote code"}
+  ]
+}

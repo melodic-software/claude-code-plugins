@@ -1,0 +1,132 @@
+{
+  "skill": "planning:design",
+  "plugin": "planning",
+  "skill_dir": "plugins/planning/skills/design",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are design-handoff (the gate after design), plan (the step after), brainstorm (before scope), architecture:record-decision, and naming for one undecided name.",
+  "competitors": [
+    "planning:design-handoff",
+    "planning:plan",
+    "planning:brainstorm",
+    "architecture:record-decision",
+    "naming:name-it-better",
+    "implementation:implement"
+  ],
+  "competitor_dirs": {
+    "planning:design-handoff": "plugins/planning/skills/design-handoff",
+    "planning:plan": "plugins/planning/skills/plan",
+    "planning:brainstorm": "plugins/planning/skills/brainstorm",
+    "architecture:record-decision": "plugins/architecture/skills/record-decision",
+    "naming:name-it-better": "plugins/naming/skills/name-it-better",
+    "implementation:implement": "plugins/implementation/skills/implement"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Help me model the types for a subscription billing domain before we plan anything."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How should I split this library into packages, and what goes in each?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Work through the interfaces between the scheduler and the worker pool with me."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need to figure out the right abstractions for the plugin loader. Let's talk it through."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What contract should the event bus expose to consumers?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Let's design the data model for multi-tenant permissions."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Where should the boundary sit between the API layer and the domain core?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Talk me through how to structure the types for parsed config files."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before writing a plan, I want to settle the module layout for the new sync service."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Let's work out what the public interface of this SDK should be."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "How do we represent order states so illegal transitions can't compile?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The design rounds are done. Is it ready to hand to planning?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write the implementation plan for the sync service."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Record the decision to use event sourcing as an ADR."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Suggest better names for this OrderManagerHelper class."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Implement the repository interface we agreed on."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me a few rough ideas for reducing build times."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Package up the finished design so the planner can pick it up."
+    }
+  ]
+}

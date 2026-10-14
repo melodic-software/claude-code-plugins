@@ -1,0 +1,74 @@
+{
+  "pass": [
+    {
+      "answer": "Counter: `chars=187 limit=4000 status=ok`\n",
+      "why": "raw counter output"
+    },
+    {
+      "answer": "The condition is 187 characters, within the 4000-character limit (checked with goal-condition-length.sh).\n",
+      "why": "prose with the count"
+    },
+    {
+      "answer": "Length: 187/4000 characters.\n",
+      "why": "ratio form"
+    },
+    {
+      "answer": "It fits under the limit (187 characters, counted by the script).\n",
+      "why": "verdict first, count in parentheses"
+    },
+    {
+      "answer": "Length: 1,240/4,000 characters, counted by the script.\n",
+      "why": "ratio form with thousands separators; the old grader also accepted it"
+    },
+    {
+      "answer": "ProposeGoal cap: 187/500 chars, so the native tool can take it too.\n",
+      "why": "ratio against the 500-character tool cap"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "The condition is roughly 190 characters, well within the limit.\n",
+      "why": "estimated, not counted"
+    },
+    {
+      "answer": "The condition is about two hundred characters, so it fits within the limit.\n",
+      "why": "spelled-out estimate"
+    },
+    {
+      "answer": "chars=4210 limit=4000 status=over\n",
+      "why": "over the limit"
+    },
+    {
+      "answer": "The draft is 4210 characters, over the limit; tightening below.\n",
+      "why": "states it is over"
+    },
+    {
+      "answer": "The limit is not set, so no need to count characters.\n",
+      "why": "negated, no count"
+    },
+    {
+      "answer": "It fits within the limit.\n",
+      "why": "claims a fit with no number"
+    },
+    {
+      "answer": "Length: 4210/4000 characters, so it must be cut.\n",
+      "why": "ratio over the limit, which the old grader accepted"
+    },
+    {
+      "answer": "The draft is 4210 characters and won't fit under the limit.\n",
+      "why": "negated with won't, which the old grader accepted"
+    },
+    {
+      "answer": "It is not within the limit (4210 characters).\n",
+      "why": "negated verdict before the count, which the old grader accepted"
+    },
+    {
+      "answer": "Length: 4,210/4,000 characters.\n",
+      "why": "ratio over the limit with thousands separators"
+    }
+  ]
+}

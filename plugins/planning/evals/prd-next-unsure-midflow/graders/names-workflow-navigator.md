@@ -1,6 +1,6 @@
 ---
 type: regex
-pattern: '/?session-flow:workflow\b|\bworkflow (?:skill|stage|navigat\w*|router)\b|\bnext (?:stage|step) (?:in|of) the workflow\b'
+pattern: '(?:^|[.;,!?\n—–])(?:(?!(?:\b(?:never|not|avoid|no need for)\b|n[''’]t\b)[^.;,!?\n—–]{0,15}(?:/?session-flow:workflow\b|\bsession[- ]flow workflow\b|\bworkflow (?:skill|navigat\w*|router)\b))[^.;,!?\n—–])*?(?:/?session-flow:workflow\b|\bsession[- ]flow workflow\b|\bworkflow (?:skill|navigat\w*|router)\b)'
 flags: i
 arm: both
 ---

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": ".work/export-rate-limit/PLAN.md"}}], "why": "read only"},
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/export-rate-limit/audit-notes.md", "content": "validator verdicts"}}], "why": "a scratch note beside the Brief is not a write-back"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/export-rate-limit/PLAN.md", "content": "# Export API rate limiting\n"}}], "why": "rewrote the Brief before the human confirmed"},
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/export-rate-limit/interview-checklist.md", "content": "D2 answered"}}], "why": "wrote the ledger"}
+  ]
+}

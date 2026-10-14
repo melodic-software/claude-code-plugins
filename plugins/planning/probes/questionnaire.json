@@ -1,0 +1,130 @@
+{
+  "skill": "planning:questionnaire",
+  "plugin": "planning",
+  "skill_dir": "plugins/planning/skills/questionnaire",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are interview (the user answers), audit-answers, prd, work-items:track for filing an issue, and session-flow:handoff.",
+  "competitors": [
+    "planning:interview",
+    "planning:audit-answers",
+    "planning:prd",
+    "work-items:track",
+    "session-flow:handoff"
+  ],
+  "competitor_dirs": {
+    "planning:interview": "plugins/planning/skills/interview",
+    "planning:audit-answers": "plugins/planning/skills/audit-answers",
+    "planning:prd": "plugins/planning/skills/prd",
+    "work-items:track": "plugins/work-items/skills/track",
+    "session-flow:handoff": "plugins/session-flow/skills/handoff"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I can't answer the retention questions; legal has to. Write something I can send them."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Put together a list of questions for our DBA about the partitioning plan that she can fill in later."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The client owns this call. Make me a doc they can answer async."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Draft questions for the security team about storing tokens in the browser."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our vendor needs to tell us their rate limits and SLA. Make a form-style doc for them."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Turn the open hosting decision into something the ops lead can fill out on his own time."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "No idea on that one, finance owns it. Can you write it up for them?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Make a markdown questionnaire for the product owner about the export scope."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write questions I can email to the client about which payment providers they need."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The infra team has to weigh in on this. Prepare something they can respond to."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Package these open decisions so the compliance officer can answer them without a meeting."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Interview me about the export scope."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a PRD for the export feature."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "File an issue for the token storage bug."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Have agents double-check the answers I gave in the interview."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Save a checkpoint so I can pick this up after lunch."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Ask me clarifying questions before you plan this."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Research what PCI DSS says about storing card tokens."
+    }
+  ]
+}

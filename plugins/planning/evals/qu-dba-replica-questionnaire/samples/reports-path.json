@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Wrote the questionnaire to `.work/reporting-replica/questionnaire-dba.md`. Send it to Priya however you like; I won't send anything.\n",
+      "why": "relative path"
+    },
+    {
+      "answer": "Done: /home/<user>/work/app/.work/reporting-replica/questionnaire-postgres-dba.md (3 questions, most important first).\n",
+      "why": "absolute path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here are the questions for Priya:\n\n1. When is the nightly maintenance window?\n2. How much replica lag is tolerable?\n3. How long are backups retained?\n",
+      "why": "questions in chat, no file path"
+    },
+    {
+      "answer": "Before I write it: what is the maintenance window today, and roughly how much lag do you think is fine?\n",
+      "why": "quizzes the user on the subject instead of writing"
+    },
+    {
+      "answer": "Saved to questionnaire-dba.md.\n",
+      "why": "a path outside the memory slice"
+    },
+    {
+      "answer": "I could not write .work/reporting-replica/questionnaire-dba.md because Write was denied; here are the questions instead.\n",
+      "why": "negated: the file was not written, but the old pattern matched the path"
+    }
+  ]
+}

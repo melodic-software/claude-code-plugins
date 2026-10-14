@@ -1,5 +1,5 @@
 ---
-description: "Resolve design decisions (types, contracts, package topology, module boundaries) in discussion rounds before /planning:plan, producing design artifacts. Use when: 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', 'what should the types look like', 'how should I structure this', 'where do the module boundaries go', or entering /planning:plan without exploring the design space. Handoff gate: /planning:design-handoff."
+description: "Resolve design decisions (types, contracts, package topology, module boundaries) in discussion rounds before /planning:plan, as design artifacts. Use when: 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', 'what should the types look like', 'how should I structure this', 'where do the module boundaries go', or entering /planning:plan without exploring the design space. Handoff gate: /planning:design-handoff."
 argument-hint: "[library|module|data|integration|system] [status|thread <name>|discuss|terminology|handoff]"
 user-invocable: true
 disable-model-invocation: false
@@ -8,19 +8,19 @@ metadata:
   summary: Resolve types, contracts, and module boundaries before planning
 ---
 
-**Arguments.** `[library|module|data|integration|system] [status|thread <name>|discuss|terminology|handoff]`. e.g., /planning:design library, /planning:design module, /planning:design status, /planning:design discuss, /planning:design handoff
+**Arguments.** `[library|module|data|integration|system] [status|thread <name>|discuss|terminology|handoff]`.
+e.g., /planning:design library, /planning:design module, /planning:design status, /planning:design discuss,
+/planning:design handoff
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+Collect these with **individual** Bash calls, one command per call, never combined:
 
 - Current branch, `git branch --show-current`
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the worktree skill's
+body Bash calls, not pre-compute lines: a worktree-isolated session refuses a compound command that
+contains git, and the pre-compute block runs as one. Record: the worktree skill's
 [reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
 "The pre-compute block runs as one shell invocation".
 
@@ -30,21 +30,26 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Design exploration answers WHAT before `/planning:plan` answers HOW. Without it, implementation plans are built on unexamined assumptions: the wrong types, wrong boundaries, wrong package topology, the shape **underspecification** takes once the task contract is set but the design is not. This skill structures the exploratory work so that every `/planning:plan` plan starts from a design the user has validated through iterative discussion.
+Design answers WHAT before `/planning:plan` answers HOW: types, boundaries and package topology the
+user has validated through discussion. Exploration maps existing code, research gathers external
+facts, this skill turns both into a design. When the PROBLEM is still rough and no approach is
+chosen, diverge first via `/planning:brainstorm` (cheapest→most-ambitious candidates, user
+reacts), then design the direction that resonated.
 
-This is the step between research and planning: exploration maps existing code, research gathers external facts, this skill synthesizes both into a concrete design, and `/planning:plan` plans implementation of that design. Upstream: when the PROBLEM itself is still rough and no approach has been chosen, diverge first via `/planning:brainstorm` (cheapest→most-ambitious candidates, user reacts), then design the direction that resonated.
+Depth scales to the work:
 
-The depth of design exploration scales to the work:
-
-- Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`, and reason. Then proceed by invoking `/planning:design-handoff` via the Skill tool, which writes PLAN.md's one-line `## Design` record and hands off to `/planning:plan`
+- Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`,
+  and reason. Then invoke `/planning:design-handoff` via the Skill tool, which writes PLAN.md's
+  one-line `## Design` record and hands off to `/planning:plan`
 - New module → light-form (1-2 discussion rounds, basic type sketch)
 - Large library or system → full-form (multiple sessions, all phases, all artifact types)
 
-Early-exit is diagnostic, not failure. The stage always runs; depth scales to signal. **Gate artifact:** Tier C and light Tier B early-exits MUST produce `design-resolution.md` in the topic's design slice (`<memory_dir>/<topic-slug>/design/`, default `.work/`) so `/planning:plan`'s prerequisite check can verify the gate without relying on conversation memory.
+The stage always runs; early-exit is a valid outcome. **Gate artifact:** Tier C and light Tier B
+early-exits MUST produce `design-resolution.md` in the topic's design slice
+(`<memory_dir>/<topic-slug>/design/`, default `.work/`) so `/planning:plan`'s prerequisite check
+can verify the gate without conversation memory.
 
 ### design-resolution.md (early-exit artifact)
-
-Minimal frontmatter + body when full design exploration is not required:
 
 ```markdown
 ---
@@ -61,9 +66,18 @@ Tier B (required): the type sketch, inline or as a link to type-inventory.md.
 
 These hold after a compaction re-attach. Later sections say how to carry them out.
 
-- **Collaborative always.** Never autonomously decide design. Ask in frontier rounds (Key behaviors).
-- **Abstract is never the agent's pick.** A variation-point verdict of abstract comes only from the user: interactively ask, recommending contain; unattended, apply contain and record the question as a human decision. Full rule: [`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md) "Autonomy".
-- **Every recommendation carries a `Basis:` line**: `verified` with the `file:line`, tool output, or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo, shared infrastructure, irreversible, or security) is grounded before it is presented; one research cannot settle is withheld, recorded as a `deferred` thread whose research tag names the evidence that would settle it rather than presented as a recommendation.
+- **Collaborative always.** Never autonomously decide design. Ask in frontier rounds (Key
+  behaviors).
+- **Abstract is never the agent's pick.** A variation-point verdict of abstract comes only from the
+  user: interactively ask, recommending contain; unattended, apply contain and record the question
+  as a human decision. Full rule:
+  [`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md)
+  "Autonomy".
+- **Every recommendation carries a `Basis:` line**: `verified` with the `file:line`, tool output,
+  or URL it rests on, or `judgment` (non-consequential only). A consequential one (cross-repo,
+  shared infrastructure, irreversible, or security) is grounded before it is presented; one
+  research cannot settle is withheld, recorded as a `deferred` thread whose research tag names
+  the evidence that would settle it.
 
 ## Action Router
 
@@ -71,95 +85,152 @@ Parse `$ARGUMENTS` for scope and action:
 
 | Argument | Action |
 |----------|--------|
-| *(empty)* | **Auto-detect**. Read the PLAN.md Brief + conversation context to determine scope and current phase. Resume if design artifacts exist. Ask if ambiguous |
+| *(empty)* | **Auto-detect**. Read the PLAN.md Brief + conversation to determine scope and phase. Resume if design artifacts exist. Ask if ambiguous |
 | `library` | **Library/API design**. Packages, types, contracts, dependency graph |
-| `module` | **Module design**. Domain model, boundaries, contracts. Suggest a domain-event workshop (e.g. EventStorming) for domain event discovery when the environment provides one |
+| `module` | **Module design**. Domain model, boundaries, contracts. Suggest a domain-event workshop (e.g. EventStorming) when the environment provides one |
 | `data` | **Data model design**. Entities, relationships, schema decisions |
 | `integration` | **Integration design**. Cross-system contracts, sequence flows, error handling |
 | `system` | **System design**. Components, communication patterns, deployment topology |
-| `status` | **Status report**. Show resolution state per thread and question |
-| `thread <name>` | **Deep-dive**. Focus on one specific design thread |
+| `status` | **Status report**. Resolution state per thread and question |
+| `thread <name>` | **Deep-dive**. One design thread |
 | `discuss` | **Discussion round**. Systematic gap-finding across all artifacts |
 | `terminology` | **Naming review**. Cross-cutting naming pass over the full type inventory (see "Terminology pass") |
-| `handoff` | **Handoff gate**. In-session shortcut; delegates to `/planning:design-handoff` (see "Handoff gate") |
+| `handoff` | **Handoff gate**. Delegates to `/planning:design-handoff` (see "Handoff gate") |
 
 ## Phases
 
-Design exploration is iterative, not strictly sequential. Phases may interleave. Track which phases have produced artifacts and which have outstanding questions.
+Phases may interleave. Track which have produced artifacts and which have open questions.
 
-All artifacts live in `<memory_dir>/<topic-slug>/design/` (default `.work/`), never committed: the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs stay together, because `/planning:plan`'s gate reads them from there. Placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). `/planning:design-handoff` writes the design's durable content (module layout, contracts, variation verdicts, conventions followed) into PLAN.md's `## Design` section, the copy that reaches the plan, the implementer's brief, and the pull request body or linked issue where PLAN.md is published. Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:interview` and `/planning:plan`). Skip artifact creation for read-only actions (`status`).
+All artifacts live in `<memory_dir>/<topic-slug>/design/` (default `.work/`), never committed;
+`/planning:plan`'s gate reads the gate files (`design-threads.md`, `design-resolution.md`) from
+there. Placement:
+[`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
+`/planning:design-handoff` writes the durable content (module layout, contracts, variation
+verdicts, conventions followed) into PLAN.md's `## Design`, the copy that reaches the plan, the
+implementer's brief, and the pull request body or linked issue where PLAN.md is published. Derive
+`<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:interview` and `/planning:plan`). Skip
+artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition
 
-Break the domain into capabilities or concerns. For each one:
+Scan the whole problem space broadly before diving into any single capability. For each capability
+or concern:
 
 - Domain concepts (nouns, verbs, relationships)
 - Invariants (rules that must always hold)
 - Storage needs (stateless? persistent? app-specific?)
-- Cross-app reuse potential. Decide shared-library-worthy vs app-specific per capability, following the consuming project's own library-organization and dependency-preference conventions when it declares them
+- Cross-app reuse: shared-library-worthy vs app-specific, following the consuming project's
+  library-organization and dependency-preference conventions when it declares them
 
-When the work adds a requirement to code that already exists, ask one question before Phase 3: had this requirement been known when the code was first written, which types and boundaries would it have? Take that answer as the target shape, rather than the current shape with the requirement attached to its side.
+When the work adds a requirement to existing code, ask before Phase 3: had this requirement been
+known when the code was first written, which types and boundaries would it have? Take that answer
+as the target shape, not the current shape with the requirement bolted on.
 
 Produce: `capability-matrix.md` (library scope) or equivalent per scope.
 
-Survey-then-deep: broad scan of the problem space before diving into any single capability.
-
 ### Phase 2: Design Threads
 
-Identify cross-cutting design decisions that affect multiple capabilities. For each thread:
+Identify cross-cutting decisions that affect multiple capabilities. For each thread: name the
+decision, list concrete options with tradeoffs, and resolve through discussion or defer with
+rationale + research tag. Status: **resolved** (decision made), **directional** (direction agreed,
+details deferred), **deferred** (needs research).
 
-- Name the decision
-- List concrete options with tradeoffs
-- Resolve through discussion or defer with rationale + research tag
+**Two-candidate step.** Take it when the codebase has nothing to copy for the thread, more than one
+approach is workable, and the decision is hard to reverse (a public contract, a stored format, a
+boundary other modules will build on):
 
-Track resolution status: **resolved** (decision made), **directional** (direction agreed, details deferred), **deferred** (needs research).
+1. Write the criteria the candidates will be judged by into the thread before drafting any
+   candidate.
+2. Draft at least two candidates that differ in structure: who owns the state, where the module
+   split falls, or what shape the contract takes. A renamed or reordered copy of the first is not a
+   second candidate.
+3. Judge each against the written criteria, and record the rejected ones with the reason in
+   `design-threads.md`.
 
-**Two-candidate step.** A thread takes this step when the codebase has nothing to copy for it, more than one approach is workable, and the decision is hard to reverse later (a public contract, a stored format, a boundary other modules will build on):
+When the thread is about how a screen or interaction looks or feels, invoke
+`/prototype:explore-directions` via the Skill tool when it is among the available skills, after
+confirming the scope of the throwaway with the user; otherwise run the three steps here, describing
+each candidate in prose.
 
-1. Write the criteria the candidates will be judged by into the thread before drafting any candidate.
-2. Draft at least two candidates that differ in structure: who owns the state, where the module split falls, or what shape the contract takes. A copy of the first candidate with renamed or reordered parts is not a second candidate.
-3. Judge each candidate against the written criteria, and record the rejected ones with the reason in `design-threads.md`.
+Open these threads when their trigger holds:
 
-When the thread is about how a screen or interaction looks or feels, invoke `/prototype:explore-directions` via the Skill tool when it is among the available skills, after confirming the scope of the throwaway with the user; otherwise run the three steps here, describing each candidate in prose.
+- **Shared-state**: a type can be read and changed by more than one concurrent actor (threads,
+  processes, overlapping requests, background jobs). Cover which actors write it, what a reader
+  sees halfway through an update, and whether the type is confined to one owner, immutable, or
+  guarded.
+- **Tenancy posture** (early): SaaS or B2B org-scoped products. Single- vs multi-tenant, isolation
+  model, shared vs tenant-scoped data catalog.
+- **Refactoring posture**: exploration surfaces high coupling, large types, or multi-responsibility
+  files (refactor or strangler scope). Characterization-test strategy, seam map, incremental
+  extract order, change budget.
+- **Test-seam posture**: any feature with a testable surface. Sketch where its tests will attach;
+  reuse an existing seam before adding one, put any new seam as high in the stack as it can go, and
+  aim for the fewest seams that cover the surface. The change→test-type mapping lives in
+  `/testing:plan`'s classification table; cite it when the `testing` plugin is enabled, otherwise
+  apply standard test-design judgment. Confirm the seam sketch with the user before design output
+  is finalized.
 
-When a type can be read and changed by more than one concurrent actor (threads, processes, overlapping requests, background jobs), open a **shared-state** thread: which actors write it, what a reader sees halfway through an update, and whether the type is confined to one owner, made immutable, or guarded.
-
-For SaaS or B2B org-scoped products, open a **tenancy posture** thread early: single- vs multi-tenant, isolation model, shared vs tenant-scoped data catalog.
-
-When exploration surfaces high coupling, large types, or multi-responsibility files (refactor or strangler scope), open a **refactoring posture** thread: characterization-test strategy, seam map, incremental extract order, change budget.
-
-**Variation-point pass.** For `integration`, `module`, and `system` scopes, always run it; for `library` and `data`, run it when the design touches an external system or a domain category. List every variation point (every external integration is one), ask the two questions (likelihood of a second variant, cost of change after shipping), and open one thread per point that resolves to a verdict: abstract now, contain now and abstract later (the default for anything external), or leave inline (internal one-offs only). Run the leak test on every abstraction and every contained boundary, and place seams where the solution's existing architecture style already puts them. Questions, verdicts, leak test, autonomy rule, and canonical sources: [`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md). An intent answer from `/planning:interview` is a settled prerequisite, never re-asked.
-
-For any feature with a testable surface, open a **test-seam posture** thread: sketch where the feature's tests will attach. Reuse a seam that already exists before adding one; put any new seam as high in the stack as it can go; aim for the smallest set of seams that covers the surface. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table. When the `testing` plugin is enabled, cite it rather than restating; otherwise apply standard test-design judgment for the seam-altitude call. Confirm the seam sketch with the user before design output is finalized.
+**Variation-point pass.** Always for `integration`, `module`, and `system`; for `library` and
+`data`, when the design touches an external system or a domain category. List every variation
+point (every external integration is one), ask the two questions (likelihood of a second variant,
+cost of change after shipping), and open one thread per point that resolves to a verdict: abstract
+now, contain now and abstract later (the default for anything external), or leave inline (internal
+one-offs only). Run the leak test on every abstraction and contained boundary, and place seams
+where the solution's existing architecture style already puts them. Questions, verdicts, leak test,
+autonomy rule, and sources:
+[`${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md`](${CLAUDE_PLUGIN_ROOT}/reference/variation-points.md).
+An intent answer from `/planning:interview` is settled, never re-asked.
 
 Produce: `design-threads.md`
 
 ### Phase 3: Type Modeling
 
-This phase ends with a `type-inventory.md` in which every type traces back to a call site that needs it, and each type's shape is set by the operations its busiest paths run on it. Two checks prove that outcome. First, call sites exist before types do: from consumer code, sketch two or three brief calls into the new contract, written as its users will write them, before any type has a name; when the contract is a library or API, at least one of those calls sits inside the importing package. A type enters the inventory only if those calls need it, given the capabilities. Second, each entry carries its operations (lookup by key, ordered walk, append, bulk replace) with the ones on the busiest paths flagged, and the structure chosen for that type is the one the flagged operations favor. Apply the rules in [`reference/type-discipline.md`](reference/type-discipline.md). When the repository has a `tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files, also read [`reference/type-discipline/typescript.md`](reference/type-discipline/typescript.md).
+The phase ends with a `type-inventory.md` in which every type traces to a call site that needs it,
+and each type's shape is set by the operations its busiest paths run on it. Two checks prove it:
+
+- **Call sites before types.** From consumer code, sketch two or three brief calls into the new
+  contract, written as its users will write them, before any type has a name; for a library or
+  API, at least one sits inside the importing package. A type enters the inventory only if those
+  calls need it, given the capabilities.
+- **Operations set structure.** Each entry lists its operations (lookup by key, ordered walk,
+  append, bulk replace) with the busiest-path ones flagged, and its structure is the one those
+  flagged operations favor.
+
+Apply [`reference/type-discipline.md`](reference/type-discipline.md). When the repository has a
+`tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files, also read
+[`reference/type-discipline/typescript.md`](reference/type-discipline/typescript.md).
 
 - Records, enums, strongly-typed IDs, value objects
 - Contracts: interfaces with method signatures
-- Follow the consuming project's naming conventions (interface naming, context-relative naming, name-collision avoidance with common library types, namespace conventions). Read its rules before naming
-- Follow the project's codified design principles (e.g. Law of Demeter, dependency direction, disambiguating overloaded terms) where it declares them; otherwise apply standard low-coupling/high-cohesion defaults
-- Invoke `/domain-driven-design:curate-language` via the Skill tool (if that plugin is enabled) the moment a
-  domain term resolves so the active glossary owner applies the consumer's existing format,
+- Read and follow the consuming project's naming conventions (interface naming, context-relative
+  naming, collisions with common library types, namespaces) before naming
+- Follow the project's codified design principles (e.g. Law of Demeter, dependency direction,
+  disambiguating overloaded terms) where declared; otherwise low-coupling/high-cohesion defaults
+- Invoke `/domain-driven-design:curate-language` via the Skill tool (if that plugin is enabled)
+  the moment a domain term resolves, so the glossary owner applies the consumer's format,
   placement, and context routing; without it, record the resolved term and rejected synonyms in
-  the design artifacts directly
+  the design artifacts
 
 Produce: `type-inventory.md`
 
-Close Phase 3 by auditing the inventory: take each type in turn and follow one of its values from where it is made to where it is read. A fault found at any stop sends that type back to the design threads.
+Close Phase 3 by auditing the inventory: for each type, follow one value from where it is made to
+where it is read. A fault at any stop sends that type back to the design threads.
 
-1. **Where it is made.** When a schema, spec or migration already describes the shape, the entry derives from it instead of drawing it again. When the value comes from outside the program, it becomes this type at the place it arrives, and nothing further in validates that input again.
-2. **What it holds.** Try to write a mix of field values the domain forbids; a type that accepts it is too loose. For each type the design strengthened, name the function that would fail on part of its input without the extra strength. With no such function, the strength guards nothing that can go wrong, and that is a fault too.
-3. **Where it is read.** Picture one more variant: every site that reads the type must then fail to compile, not keep running silently. On the same path, every cast, assertion or suppression has a check in front of it.
+1. **Where it is made.** When a schema, spec or migration already describes the shape, the entry
+   derives from it instead of redrawing it. A value from outside the program becomes this type
+   where it arrives, and nothing further in validates that input again.
+2. **What it holds.** Try to write a mix of field values the domain forbids; a type that accepts it
+   is too loose. For each type the design strengthened, name the function that would fail on part
+   of its input without the extra strength; with none, the strength guards nothing, and that is a
+   fault too.
+3. **Where it is read.** Picture one more variant: every reading site must then fail to compile,
+   not keep running silently. On the same path, every cast, assertion or suppression has a check
+   in front of it.
 
-Once type modeling stabilizes, run the `terminology` action for the cross-cutting naming review of the full inventory. Per-type naming during modeling is not a substitute for the whole-inventory pass.
+Once type modeling stabilizes, run the `terminology` action over the whole inventory; per-type
+naming during modeling does not replace it.
 
 ### Phase 4: Package/Module Topology
-
-Define the structural layout:
 
 - Package or module structure with dependency graph
 - What goes where (abstractions vs implementation vs service defaults)
@@ -168,58 +239,91 @@ Define the structural layout:
 
 Produce: `library-topology.md` (library scope) or equivalent per scope.
 
-When the dependency graph reads more clearly visually than in markdown, optionally also emit a self-contained HTML topology view. Write it to the OS temp directory, never beside `library-topology.md`, which stays the record. Placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
+When the dependency graph reads more clearly visually, optionally also emit a self-contained HTML
+topology view to the OS temp directory, never beside `library-topology.md`, which stays the record.
+Rules:
+[`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
 
 ### Phase 5: Discussion Rounds
 
-Systematic gap-finding. For each round:
+Each round:
 
-1. Re-read all design artifacts
-2. Identify underspecified types, missing contracts, boundary friction, pattern concerns, and design-default gaps (configurability, extension axes, observability, testability). Record these as design threads
-3. Present findings to user for discussion, ordered by tweak likelihood (the same presentation default `/planning:plan` Step 5 documents): the threads the user is most likely to redirect, meaning public contracts, data shapes, and user-facing surfaces, lead the round; settled-looking mechanical threads sit at the bottom. Presentation order only; thread dependencies still govern what can resolve when
-4. When discussion surfaces project-wide principles, suggest codifying them immediately in the project's own rules
+1. Re-read all design artifacts.
+2. Record as design threads: underspecified types, missing contracts, boundary friction, pattern
+   concerns, and design-default gaps (configurability, extension axes, observability,
+   testability).
+3. Present findings ordered by tweak likelihood (the presentation default `/planning:plan` Step 5
+   documents): public contracts, data shapes, and user-facing surfaces lead; settled-looking
+   mechanical threads sit at the bottom. Order only; thread dependencies still govern what can
+   resolve when.
+4. When discussion surfaces project-wide principles, suggest codifying them in the project's own
+   rules.
 
-Continue rounds until no new gaps surface. Then run the `handoff` action, which invokes `/planning:design-handoff` via the Skill tool for the binary gate and plan-ready summary.
+Continue until no new gaps surface, then run the `handoff` action.
 
 ## Terminology pass (`terminology` action)
 
-A cross-cutting naming review of the full type inventory, run once type modeling stabilizes:
+Over the full type inventory, once type modeling stabilizes:
 
 1. Check interface-naming form and context-relative naming against the project's conventions
-2. Check collisions with common library/framework type names (e.g. a bare `Result<T>` when the stack already ships one)
-3. Check overloaded-term disambiguation and domain accuracy against the project's domain vocabulary
+2. Check collisions with common library/framework type names (e.g. a bare `Result<T>` when the
+   stack already ships one)
+3. Check overloaded-term disambiguation and domain accuracy against the project's domain
+   vocabulary
 4. Record decisions in a terminology table inside `type-inventory.md`
-5. Invoke `/domain-driven-design:curate-language` via the Skill tool (if enabled) to sync resolved terms and
-   rejected synonyms into the consuming project's active glossary; the terminology table above is
-   the standalone fallback
+5. Invoke `/domain-driven-design:curate-language` via the Skill tool (if enabled) to sync resolved
+   terms and rejected synonyms into the project's glossary; the table above is the standalone
+   fallback
 
 ## Handoff gate (`handoff` action)
 
-The in-session shortcut to the design→plan gate. Invoke `/planning:design-handoff` via the Skill tool. The single canonical gate implementation: it applies the binary check against `design-threads.md` (or the `design-resolution.md` early-exit artifact), and on PASS emits the plan-ready summary and resume prompt. This skill carries no gate criteria of its own; criteria changes land in `/planning:design-handoff` only.
+Invoke `/planning:design-handoff` via the Skill tool. It is the only gate implementation: it checks
+`design-threads.md` (or the `design-resolution.md` early-exit artifact) and on PASS emits the
+plan-ready summary and resume prompt. This skill carries no gate criteria of its own; criteria changes land in
+`/planning:design-handoff` only.
 
-**Stub files (`scaffold_stubs`)**. Before invoking the gate, resolve `scaffold_stubs`, lowest layer first: the default `false`; the plugin's user config (`${user_config.scaffold_stubs}`, where a literal unexpanded value means unset); then the `scaffold_stubs` key of the repository's `docs/conventions/planning.yaml`, which wins when set, read only when the working directory's git root is neither `$HOME` nor an ancestor of it. Only the bare booleans `true` and `false` are valid: any other value, a quoted `"true"` included, is named with its file (or user config), key and value, and that layer is dropped, so a valid higher layer still wins and otherwise the key is `false`. Report one line naming the value and its layer, e.g. `scaffold_stubs: true (docs/conventions/planning.yaml)`. Keys and layers: [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
+**Stub files (`scaffold_stubs`)**. Before invoking the gate, resolve `scaffold_stubs`, lowest layer
+first: the default `false`; the plugin's user config (`${user_config.scaffold_stubs}`, where a
+literal unexpanded value means unset); then the `scaffold_stubs` key of the repository's
+`docs/conventions/planning.yaml`, which wins when set, read only when the working directory's git
+root is neither `$HOME` nor an ancestor of it. Only the bare booleans `true` and `false` are valid:
+any other value, a quoted `"true"` included, is named with its file (or user config), key and
+value, and that layer is dropped, so a valid higher layer still wins and otherwise the key is
+`false`. Report one line naming the value and its layer, e.g.
+`scaffold_stubs: true (docs/conventions/planning.yaml)`. Keys and layers:
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
 
-With `true`, add a `## Stub scaffold` section to `design-threads.md` (or to `design-resolution.md` on an early exit) listing every new file the design introduces, each with the signatures it will declare (types, function and method signatures, exported constants), taken from the resolved type inventory and contracts. Each stub body is the language's ordinary not-implemented form (for example `raise NotImplementedError` in Python or `todo!()` in Rust); pick it from the language at hand, with no per-language reference file. After the gate passes, the handoff output names those files and signatures so `/planning:plan` can place the stub phase. With `false`, write no such section and name no stubs.
+With `true`, add a `## Stub scaffold` section to `design-threads.md` (or to `design-resolution.md`
+on an early exit) listing every new file the design introduces, each with the signatures it will
+declare (types, function and method signatures, exported constants), from the resolved type
+inventory and contracts. Each stub body is the language's ordinary not-implemented form (for
+example `raise NotImplementedError` in Python or `todo!()` in Rust), with no per-language reference
+file. After the gate passes, the handoff output names those files and signatures so
+`/planning:plan` can place the stub phase. With `false`, write no such section and name no stubs.
 
 ## Scope-specific artifacts
 
 | Scope | Primary artifacts | Typed artifact | Dialect |
 |-------|-------------------|----------------|---------|
-| `library` | capability-matrix.md, type-inventory.md, library-topology.md, design-threads.md | none | none, since it emits no typed artifact and therefore no scope label |
-| `module` | domain-model.md, module-boundary.md, contracts.md, design-threads.md | none | none, since it emits no typed artifact and therefore no scope label |
+| `library` | capability-matrix.md, type-inventory.md, library-topology.md, design-threads.md | none | none (no typed artifact, so no scope label) |
+| `module` | domain-model.md, module-boundary.md, contracts.md, design-threads.md | none | none (no typed artifact, so no scope label) |
 | `data` | entity-relationships.md, schema-decisions.md, design-threads.md | `entity-relationships.md` | mermaid `erDiagram` by default; DBML when `diagram_dialect.data` resolves to `dbml` |
 | `integration` | contract-spec.md, sequence-flows.md, design-threads.md | `sequence-flows.md`, `contract-spec.md` | mermaid `sequenceDiagram` for the flows; an OpenAPI 3.1 sketch for the contract spec |
-| `system` | component-map.md, communication-patterns.md, design-threads.md | `component-map.md`, and only when `diagram_dialect.system` names a dialect | a C4 container view in LikeC4 or C4-PlantUML. Mermaid's own C4 support is experimental and is never used here |
+| `system` | component-map.md, communication-patterns.md, design-threads.md | `component-map.md`, and only when `diagram_dialect.system` names a dialect | a C4 container view in LikeC4 or C4-PlantUML. Never Mermaid's experimental C4 support |
 
-`design-threads.md` is common across all scopes. Cross-cutting decisions always arise.
+`design-threads.md` is common across all scopes.
 
 ### Typed artifacts: dialect and scope label
 
-Typing adds a declared dialect and a scope label to artifacts this skill already emits. It introduces no new artifact and no new file. Everything the **Typed artifact** column does not name, meaning `schema-decisions.md`, `communication-patterns.md`, and every `library` and `module` artifact, stays prose exactly as today: no dialect, no scope label. `component-map.md` is likewise untyped whenever `diagram_dialect.system` is unset; it is written as today's prose, carries no scope label, and a downstream lookup finds nothing rather than an unlabeled diagram.
+Typing adds a declared dialect and a scope label to artifacts this skill already emits; no new
+file. Everything the **Typed artifact** column does not name (`schema-decisions.md`,
+`communication-patterns.md`, every `library` and `module` artifact) stays prose with no dialect and
+no scope label. `component-map.md` is likewise untyped prose with no scope label whenever
+`diagram_dialect.system` is unset, so a downstream lookup finds nothing rather than an unlabeled
+diagram.
 
-`library` and `module` emit no typed artifact and therefore carry no scope label. Their artifacts are type inventories, boundaries, and topology, none of which has a diagram dialect to select.
-
-**The scope label.** Every typed artifact opens with frontmatter naming the scope that produced it and the dialect its fenced block is written in:
+**The scope label.** Every typed artifact opens with frontmatter naming the producing scope and the
+dialect of its fenced block:
 
 ```markdown
 ---
@@ -228,9 +332,17 @@ dialect: mermaid
 ---
 ```
 
-`scope` is one of `data`, `integration`, `system`, naming the scope of the session that produced the artifact. `dialect` is one of `mermaid`, `dbml`, `openapi-3.1`, `likec4`, `c4-plantuml`. The label exists so a consumer reads the producing scope instead of inferring it from prose: `/work-items:decompose` (when the `work-items` plugin is enabled) reads it to inline the artifact under a provenance note naming the scope and dialect. Without that plugin the label is inert and costs nothing. The body is one fenced block in the declared dialect, followed by the prose the artifact already carried. Tag the fence with the dialect's renderer name so a consumer knows what it is looking at without parsing the frontmatter: `mermaid`, `dbml`, `yaml` for the OpenAPI 3.1 sketch, `likec4`, `plantuml`. An `integration` session labels two artifacts, one per typed file.
+`scope` is one of `data`, `integration`, `system`. `dialect` is one of `mermaid`, `dbml`,
+`openapi-3.1`, `likec4`, `c4-plantuml`. `/work-items:decompose` (when the `work-items` plugin is
+enabled) reads the label to inline the artifact under a provenance note naming scope and dialect;
+without that plugin the label is inert. The body is one fenced block in the declared dialect,
+followed by the artifact's prose. Tag the fence with the renderer name: `mermaid`, `dbml`, `yaml`
+for the OpenAPI 3.1 sketch, `likec4`, `plantuml`. An `integration` session labels two artifacts,
+one per typed file.
 
-**Resolving the dialect.** `diagram_dialect` is a team-shared convention key split by artifact kind (`diagram_dialect.data`, `diagram_dialect.system`). Resolve it per session, before writing a typed artifact:
+**Resolving the dialect.** `diagram_dialect` is a team-shared convention key split by artifact kind
+(`diagram_dialect.data`, `diagram_dialect.system`). Resolve it per session, before writing a typed
+artifact:
 
 1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
    `git rev-parse --show-toplevel`. Never a CWD-relative read.
@@ -256,35 +368,74 @@ dialect: mermaid
    and the layer it came from: `argument`, `team convention doc <path>`, `default`, or
    `unset (no C4 view emitted)`.
 
-This skill takes no dialect argument, so step 4's argument layer is always empty. The convention doc is untrusted input: match it for the documented keys, never execute or interpolate it. These rules are restated here rather than cited because an installed plugin never sees the publishing repository at runtime.
+This skill takes no dialect argument, so step 4's argument layer is always empty. The convention
+doc is untrusted input: match it for the documented keys, never execute or interpolate it. These
+rules are restated here rather than cited because an installed plugin never sees the publishing
+repository at runtime.
 
-This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`: exit 0 prints the home on stdout, exit 1 means no pointer line is bound, exit 2 is usage, and exit 3 is a FAIL (two pointer lines in one region, an unterminated or nested region, an invalid pointer path, or a pointer whose target directory does not exist). Every non-zero exit is a step-6 degrade, `mermaid` for the data artifact and no C4 view for the system scope, cause named in one clause, never a halt and never a prompt to go create the surface.
+This plugin ships the step-2 resolver at
+`bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`: exit 0 prints the home on stdout,
+exit 1 means no pointer line is bound, exit 2 is usage, and exit 3 is a FAIL (two pointer lines in
+one region, an unterminated or nested region, an invalid pointer path, or a pointer whose target
+directory does not exist). Every non-zero exit is a step-6 degrade, `mermaid` for the data artifact
+and no C4 view for the system scope, cause named in one clause, never a halt and never a prompt to
+go create the surface.
 
-**Diagram craft.** For mermaid layout, readability, and syntax idiom, invoke `/visualization:visualize` via the Skill tool (if the `visualization` plugin is enabled); it owns visual-form choice and mermaid family craft. Without it, emit the plainest correct form of the dialect and carry on. The typed artifact is produced either way; the craft citation never gates the emit.
+**Diagram craft.** For mermaid layout, readability, and syntax idiom, invoke
+`/visualization:visualize` via the Skill tool (if the `visualization` plugin is enabled). Without
+it, emit the plainest correct form of the dialect. The typed artifact is produced either way.
 
 ## Key behaviors
 
-- **Frontier rounds.** Every open thread whose prerequisites are settled surfaces in the same numbered round, each with a recommendation; a thread that depends on an unresolved thread waits for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is independent questions that fit one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>, as of 2026-10-11; recheck when that section changes the per-call question limit). Inline prose otherwise
-- **Grounding steps.** Ground a consequential recommendation in the affected code plus its consumers and in external research that reads official docs first, routed to the exploration and research capabilities (`/discovery:explore`, `/discovery:research` if enabled). A recommendation that changes is restated as old → new → why. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md)
-- **Self-answer before asking.** Each candidate question first passes [`${CLAUDE_PLUGIN_ROOT}/context/self-answer.md`](../../context/self-answer.md): a fact it settles is stated with its basis and source tag, not asked
-- **Track resolution status.** Every question and thread gets a status: resolved / directional / deferred. Deferred items carry a research tag describing what external investigation is needed
-- **Codify rules when discovered.** When discussion surfaces a principle that applies project-wide, suggest codifying it immediately in the project's own rules files
-- **Incremental artifacts.** Don't produce all artifacts at once. Build them as discussion progresses. Update existing artifacts as decisions evolve. Multi-turn shared artifacts (`design-threads.md` and peers): re-read from disk before every write. Another turn or agent may have modified them. And prefer appending or refining over wholesale rewrites
-- **Dependency order awareness.** Note which decisions block others. Surface these dependencies to the user so `/planning:plan` can sequence phases correctly
-- **Resume from prior state.** When design artifacts exist in the topic's design directory, resume from them. Read artifacts, summarize current state, identify remaining gaps
-- **Suggest adjacent skills.** When a domain-event workshop fits better for domain modeling, suggest it if available. When external research is needed for a deferred item, suggest the research capability (`/discovery:research` if enabled). When the session tail is reached, suggest the `terminology` then `handoff` actions
-- **Design defaults (non-trivial scopes only).** For `library`, `module`, `data`, `integration`, and `system` scopes, when discussion touches configurability, extension points, observability, or testability, open a design thread for it. Extension points start from the Phase 2 variation-point pass, which runs unconditionally for `integration`, `module`, and `system`. Skip on early-exit, `status`, or trivial single-file work
+- **Frontier rounds.** Every open thread whose prerequisites are settled surfaces in the same
+  numbered round, each with a recommendation; a thread that depends on an unresolved thread waits
+  for the round after it resolves. Render a round via `AskUserQuestion` only when the plugin's
+  `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round
+  is independent questions that fit one `AskUserQuestion` call (the per-call question limit:
+  <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>, as of 2026-10-11; recheck
+  when that section changes the per-call question limit). Inline prose otherwise
+- **Grounding steps.** Ground a consequential recommendation in the affected code plus its
+  consumers and in external research that reads official docs first, routed to
+  `/discovery:explore` and `/discovery:research` if enabled. A recommendation that changes is
+  restated as old → new → why. Contract:
+  [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md)
+- **Self-answer before asking.** Each candidate question first passes
+  [`${CLAUDE_PLUGIN_ROOT}/context/self-answer.md`](../../context/self-answer.md): a fact it settles
+  is stated with its basis and source tag, not asked
+- **Track resolution status.** Every question and thread is resolved / directional / deferred.
+  Deferred items carry a research tag naming the external investigation needed
+- **Codify rules when discovered.** When discussion surfaces a project-wide principle, suggest
+  codifying it immediately in the project's own rules files
+- **Incremental artifacts.** Build artifacts as discussion progresses and update them as decisions
+  evolve. Re-read multi-turn shared artifacts (`design-threads.md` and peers) from disk before
+  every write, since another turn or agent may have changed them, and prefer appending or refining
+  over wholesale rewrites
+- **Dependency order awareness.** Surface which decisions block others so `/planning:plan` can
+  sequence phases
+- **Resume from prior state.** When design artifacts exist in the topic's design directory, read
+  them, summarize current state, and identify remaining gaps
+- **Suggest adjacent skills.** When a domain-event workshop fits better for domain modeling,
+  suggest it if available. Suggest `/discovery:research` (if enabled) for a deferred item needing
+  external research, and the `terminology` then `handoff` actions at the session tail
+- **Design defaults (non-trivial scopes only).** For `library`, `module`, `data`, `integration`,
+  and `system` scopes, when discussion touches configurability, extension points, observability,
+  or testability, open a design thread for it. Extension points start from the Phase 2
+  variation-point pass. Skip on early-exit, `status`, or trivial single-file work
 
 ## What this skill does NOT do
 
-- **Implementation planning**. That's `/planning:plan` (phases, sanity checks, file-level work items)
-- **Code writing**. That's the implementation stage
-- **External research**. That's the research capability (this skill synthesizes research results into design decisions)
-- **Diagram craft**. This skill selects the dialect a typed artifact is written in; it teaches no dialect. Layout, readability, and syntax idiom route to the visualization capability (`/visualization:visualize` if that plugin is enabled); without it, the plainest correct form of the dialect is emitted
-- **UI/UX design**. User research, flows and information architecture are `/user-experience:shape` (if enabled); look and response are `/user-interface:design` (if enabled)
-- **Domain event workshops**. A dedicated EventStorming-style capability covers that methodology; this skill covers broader design and may suggest it within module design
-- **Product intent**. That's `/planning:prd` (problem, users, success metrics)
-- **Intent contract**. That's `/planning:interview` (goal, constraints, acceptance criteria)
+- **Implementation planning**: `/planning:plan` (phases, sanity checks, file-level work items)
+- **Code writing**: the implementation stage
+- **External research**: the research capability; this skill synthesizes its results
+- **Diagram craft**: this skill selects the dialect; layout and idiom route to
+  `/visualization:visualize` if enabled, else the plainest correct form is emitted
+- **UI/UX design**: user research, flows and information architecture are
+  `/user-experience:shape` (if enabled); look and response are `/user-interface:design` (if
+  enabled)
+- **Domain event workshops**: an EventStorming-style capability; this skill may suggest it within
+  module design
+- **Product intent**: `/planning:prd` (problem, users, success metrics)
+- **Intent contract**: `/planning:interview` (goal, constraints, acceptance criteria)
 
 ## Next
 
@@ -294,11 +445,11 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 
 | Skill | Relationship |
 |-------|-------------|
-| `/planning:interview` | **Before.** `/planning:interview` locks the brief (scope + constraints). `/planning:design` explores the solution space within those constraints |
-| `/domain-driven-design:curate-language` | **During.** Owns active project-glossary updates whenever design resolves domain language; it does not own type or boundary design |
-| `/visualization:visualize` (if enabled) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block; this skill selects the dialect and emits the plainest correct form when that plugin is not enabled |
-| `/work-items:decompose` (if enabled) | **After.** Reads a typed artifact's `scope` and `dialect` label to inline the artifact into the spec container with a provenance note, and quotes each slice's part of PLAN.md's `## Design` into that slice's body |
-| `/discovery:explore` (if enabled) | **Before.** Exploration maps existing code. `/planning:design` creates what SHOULD exist |
-| `/discovery:research` (if enabled) | **Before + parallel.** Research gathers external facts. `/planning:design` synthesizes them. Deferred research items can run in parallel |
-| `/planning:design-handoff` | **The gate.** Owns the design→plan gate criteria and the plan-ready summary; this skill's `handoff` action delegates to it |
-| `/planning:plan` | **After the handoff gate.** `/planning:design` produces WHAT. `/planning:plan` produces HOW (implementation plan with phases). When design artifacts exist, `/planning:plan` consumes them instead of re-deriving design inline |
+| `/planning:interview` | **Before.** Locks the brief (scope + constraints); design explores the solution space within them |
+| `/domain-driven-design:curate-language` | **During.** Owns project-glossary updates when design resolves domain language; not type or boundary design |
+| `/visualization:visualize` (if enabled) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block |
+| `/work-items:decompose` (if enabled) | **After.** Reads a typed artifact's `scope` and `dialect` label to inline it into the spec container with a provenance note, and quotes each slice's part of PLAN.md's `## Design` into that slice's body |
+| `/discovery:explore` (if enabled) | **Before.** Maps existing code; design creates what SHOULD exist |
+| `/discovery:research` (if enabled) | **Before + parallel.** Gathers external facts; deferred research items can run in parallel |
+| `/planning:design-handoff` | **The gate.** Owns the design→plan gate criteria and the plan-ready summary |
+| `/planning:plan` | **After the handoff gate.** Produces HOW; when design artifacts exist it consumes them instead of re-deriving design |

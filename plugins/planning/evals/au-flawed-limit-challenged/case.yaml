@@ -1,0 +1,74 @@
+schema_version: "1.1"
+name: au-flawed-limit-challenged
+description: Auditing a fully answered three-decision Brief dispatches one to three fresh validators blind to each answer's rationale, surfaces the rate limit that contradicts the SLA as challenged, carries the USER-RESERVED question forward, and writes nothing back before the human confirms
+tags: [audit-answers, outcome, scaffold]
+expected_outcome: One to three non-fork Agent validators run, and no validator prompt carries a recorded rationale. The reply gives a verdict for each of D1 (Redis), D2 (600 per minute) and D3 (429), shows D2 as challenged against the 20-requests-per-second SLA, lists Q4 as a USER-RESERVED carry-forward, and no Write or Edit touches PLAN.md.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the audit-answers skill from the planning plugin on the topic export-rate-limit. The interview is fully answered; its Brief is in .work/export-rate-limit/PLAN.md. Have agents check the answers, then show me what needs my attention."
+  allowed_tools: [Read, Glob, Grep, Skill, Agent, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?audit-answers"'
+    arm: with-only
+  - name: validators-dispatched
+    type: tool_used
+    tool: Agent
+    min: 1
+    max: 3
+    arm: both
+  - name: no-fork-validator
+    type: tool_used
+    tool: Agent
+    input_match: '"subagent_type"\s*:\s*"fork"'
+    min: 0
+    max: 0
+    arm: both
+  - name: rationale-withheld
+    type: tool_used
+    tool: Agent
+    input_match: 'babysits|traffic at p99 with headroom|Stripe convention'
+    min: 0
+    max: 0
+    arm: both
+  - name: verdict-per-answer
+    type: regex
+    pattern: '^(?=[\s\S]*(?:Redis[^\n]*\b(?:CONFIRMED|CHALLENGED|RECLASSIFIED)\b|\b(?:CONFIRMED|CHALLENGED|RECLASSIFIED)\b[^\n]*Redis|\b(?:CONFIRMED|CHALLENGED|RECLASSIFIED)\b[^\n]*\n(?:[^\n]*\n){0,2}[^\n]*Redis))(?=[\s\S]*(?:\b600\b[^\n]*\b(?:CONFIRMED|CHALLENGED|RECLASSIFIED)\b|\b(?:CONFIRMED|CHALLENGED|RECLASSIFIED)\b[^\n]*\b600\b|\b(?:CONFIRMED|CHALLENGED|RECLASSIFIED)\b[^\n]*\n(?:[^\n]*\n){0,2}[^\n]*\b600\b))(?=[\s\S]*(?:\b429\b[^\n]*\b(?:CONFIRMED|CHALLENGED|RECLASSIFIED)\b|\b(?:CONFIRMED|CHALLENGED|RECLASSIFIED)\b[^\n]*\b429\b|\b(?:CONFIRMED|CHALLENGED|RECLASSIFIED)\b[^\n]*\n(?:[^\n]*\n){0,2}[^\n]*\b429\b))'
+    flags: i
+    arm: both
+  - name: limit-challenged
+    type: regex
+    pattern: '\b600\b(?:(?!\b(?:not|never|no|neither|nor|without|CONFIRMED)\b|n''t\b)[^\n]){0,200}\bCHALLENGED\b|^(?:(?!\b(?:not|never|no|neither|nobody|none)\b|n''t\b)[^\n])*?\bCHALLENGED\b(?:(?!\bCONFIRMED\b|\bD[13]\b)[^\n]){0,200}\b600\b(?!(?:(?!\bD[13]\b)[^\n]){0,40}\bCONFIRMED\b)'
+    flags: mi
+    arm: both
+  - name: reserved-carried-forward
+    type: regex
+    pattern: '^(?=[^\n]*USER-RESERVED)(?=[^\n]*\b(?:enterprise|exempt\w*|Q4)\b)(?![^\n]*?(?<!not )(?<!never )\b(?:resolved|answered|removed|dropped|accepted|validated|confirmed|recommend\w*)\b)[^\n]*'
+    flags: mi
+    arm: both
+  - name: no-write-back
+    type: tool_used
+    tool: Write
+    input_match: 'PLAN\.md|interview-checklist'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit-back
+    type: tool_used
+    tool: Edit
+    input_match: 'PLAN\.md|interview-checklist'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-bash-write-back
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?:>>?|\btee\b(?:\s+-{1,2}[\w-]+)*)\s*(?:\\"|'')?[^\s"''|;&<>]*(?:PLAN\.md|interview-checklist)|\b(?:sed|perl)\b(?:[^"\\|;&]|\\.)*?\s(?:-[a-zA-Z]*i|--in-place)\b(?:[^"\\|;&]|\\.)*?(?:PLAN\.md|interview-checklist)|\b(?:mv|rm|truncate)\b(?:[^"\\|;&]|\\.)*?(?:PLAN\.md|interview-checklist)|\b(?:cp|install|ln)\b(?:[^"\\|;&]|\\.)*?\s(?:\\"|'')?[^\s"''|;&]*(?:PLAN\.md|interview-checklist)(?:\\"|'')?\s*(?:"|[|;&)]|\\n)|\bdd\b(?:[^"\\|;&]|\\.)*?\bof=[^\s"]*(?:PLAN\.md|interview-checklist)|(?:PLAN\.md|interview-checklist)(?:[^"\\]|\\.)*?\|\s*(?:bash|zsh|dash|sh)\b|\b(?:python3?|node|ruby|deno|bun|perl)\b(?=(?:[^"\\]|\\.)*?(?:PLAN\.md|interview-checklist))(?=(?:[^"\\]|\\.)*?(?:write|[''"][wa]\+?[''"]|\\"[wa]\+?\\"|rename|unlink|replace\(|appendFile)))'
+    min: 0
+    max: 0
+    arm: both

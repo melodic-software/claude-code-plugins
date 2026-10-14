@@ -1,0 +1,16 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "bash /home/<user>/.claude/plugins/cache/planning/scripts/goal-condition-length.sh --limit 4000 --file /tmp/goal-draft.txt"}}], "why": "file form"},
+    {"answer": [{"tool": "Bash", "input": {"command": "printf '%s' \"All tests pass\" | bash plugins/planning/scripts/goal-condition-length.sh --limit 4000"}}], "why": "stdin form"},
+    {"answer": [
+      {"tool": "Write", "input": {"file_path": "/tmp/goal-draft.txt", "content": "draft"}},
+      {"tool": "Bash", "input": {"command": "bash \"$CLAUDE_PLUGIN_ROOT/scripts/goal-condition-length.sh\" --limit=4000 --file /tmp/goal-draft.txt"}}
+    ], "why": "limit with an equals sign"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no tool call: the length was estimated"},
+    {"answer": [{"tool": "Bash", "input": {"command": "wc -m /tmp/goal-draft.txt"}}], "why": "ad hoc count, not the plugin counter"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash plugins/planning/scripts/goal-condition-length.sh --help"}}], "why": "printed usage, never counted"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash plugins/planning/scripts/goal-condition-length.sh --file /tmp/goal-draft.txt"}}], "why": "no limit passed"}
+  ]
+}

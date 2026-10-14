@@ -7,12 +7,20 @@
     {
       "answer": "Grounded in the repo, cheapest to most ambitious:\n\n### 1. Batched loads\n`etl/load.py` inserts row by row because `BATCH_SIZE = 1` in `etl/config.py`.\n\n### 2. Index the customer lookup\n`etl/transform.py` does a linear scan of customers per order.\n\n### 3. Stop the nightly full reload\n`TRUNCATE fact_orders` in load.py plus `SELECT *` in extract.py reload the whole table each night.\n\nMark which of these you want to pursue and I will scope it.",
       "why": "cites row-by-row inserts and the full reload"
+    },
+    {
+      "answer": "Cheapest first:\n\n1. `etl/load.py` commits after every row, because the batch size is one.\n2. `etl/transform.py` scans the whole customers list once for every order.\n3. Add workers.\n\nWhich of these resonate?",
+      "why": "commit-per-row and the full-list scan in other words, which the old pattern rejected"
     }
   ],
   "fail": [
     {
       "answer": "Nightly ETL usually speeds up with a few standard moves:\n\n- A bigger warehouse tier gives more compute for the load step.\n- More workers let extract and transform overlap.\n- Indexes on the join keys help the warehouse.\n\nMy recommendation is the bigger warehouse, since it needs no code change.",
       "why": "general ETL folklore with no observed fact"
+    },
+    {
+      "answer": "1. Raise `BATCH_SIZE` in `etl/config.py`.\n2. Get a bigger warehouse tier.\n3. Add more workers.\n\nWhich of these resonate?",
+      "why": "one observed fact for three candidates; the old single-match pattern accepted it"
     }
   ]
 }

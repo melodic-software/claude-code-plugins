@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": ".work/export-rate-limit/PLAN.md"}}], "why": "read only"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/export-rate-limit/PLAN.md", "old_string": "600 requests per minute", "new_string": "1200 requests per minute"}}], "why": "applied the challenge before the human confirmed"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/export-rate-limit/interview-checklist.md", "old_string": "open", "new_string": "answered"}}], "why": "edited the ledger"}
+  ]
+}

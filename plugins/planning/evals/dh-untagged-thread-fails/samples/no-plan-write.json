@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": ".work/webhook-retry/design/design-threads.md"}}], "why": "read only"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/webhook-retry/PLAN.md", "content": "## Design\n"}}], "why": "wrote the Design section on a failed gate"}
+  ]
+}

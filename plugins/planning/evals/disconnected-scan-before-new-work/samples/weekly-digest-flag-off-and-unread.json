@@ -7,6 +7,10 @@
     {
       "answer": "Already built, not yet connected (cheapest first):\n\n1. `build_digest` is imported in `app/notifier.py` but unused; the builder in `app/digest.py` is ready to call.\n2. The `weekly_digest` feature flag defaults to False in `app/config.py` and is never read anywhere.\n3. The `delivery_receipts` table in `db/schema.sql` has no reader and no writer: nothing reads or writes it.\n\nNew work, after those:\n\n4. A weekly scheduler that batches notifications per recipient.\n5. A tracking pixel service with its own store.\n\nTell me which of these stand out, and I will scope the ones that do.",
       "why": "flag defaults to False and is never read"
+    },
+    {
+      "answer": "2. **Turn on `weekly_digest`.**\n   - `app/config.py` sets it to False.\n   - Nothing reads it.\n",
+      "why": "facts on indented sub-bullets; the old grader also accepted it"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "1. Add a `weekly_digest` flag to `app/config.py` so the summary can roll out gradually.\n\nWhich of these resonate?",
       "why": "proposes the flag as new work, missing that it exists, is off and is unread"
+    },
+    {
+      "answer": "1. `weekly_digest` is read in `send_pending`.\n2. `delivery_receipts` is never read, and the old `legacy_flag` defaults to False.\n",
+      "why": "the off and unread facts belong to other items, which the old grader accepted"
     }
   ]
 }

@@ -13,27 +13,27 @@ execution:
 graders:
   - name: unused-build-digest-import
     type: regex
-    pattern: '(?=[\s\S]*build_digest)(?=[\s\S]*notifier)(?=[\s\S]*(?:unused|never (?:call|use|invoke)|not (?:called|used)|nothing (?:calls|uses)|unreferenced|imported but|dead import))'
-    flags: i
+    pattern: '(?<![\s\S])(?=[\s\S]*notifier)[\s\S]*?^(?=(?:[^\n]|\n(?=[ \t]|(?![ \t]*(?:\d+[.)]|[-*+][ \t]|#|\|))[^\n]))*?build_digest)(?=(?:[^\n]|\n(?=[ \t]|(?![ \t]*(?:\d+[.)]|[-*+][ \t]|#|\|))[^\n]))*?(?:(?<!not )unused|never (?:call|use|invoke)|not (?:called|used)|nothing (?:calls|uses)|unreferenced|imported but|dead import))'
+    flags: mi
     arm: both
   - name: weekly-digest-flag-off-and-unread
     type: regex
-    pattern: '(?=[\s\S]*weekly_digest)(?=[\s\S]*(?:False|defaults? (?:to )?(?:off|false)|disabled))(?=[\s\S]*(?:never (?:read|checked|referenced|consulted)|not (?:read|checked|referenced)|nothing (?:reads|checks)|no (?:code|caller|module)\b[^.\n]{0,20}(?:reads|checks)|no reader|unread))'
-    flags: i
+    pattern: '^(?=(?:[^\n]|\n(?=[ \t]|(?![ \t]*(?:\d+[.)]|[-*+][ \t]|#|\|))[^\n]))*?weekly_digest)(?=(?:[^\n]|\n(?=[ \t]|(?![ \t]*(?:\d+[.)]|[-*+][ \t]|#|\|))[^\n]))*?(?:False|defaults? (?:to )?(?:off|false)|disabled))(?=(?:[^\n]|\n(?=[ \t]|(?![ \t]*(?:\d+[.)]|[-*+][ \t]|#|\|))[^\n]))*?(?:never (?:read|checked|referenced|consulted)|not (?:read|checked|referenced)|nothing (?:reads|checks)|no (?:code|caller|module)\b[^.\n]{0,20}(?:reads|checks)|no reader|unread))'
+    flags: mi
     arm: both
   - name: delivery-receipts-has-no-reader
     type: regex
-    pattern: '(?=[\s\S]*delivery_receipts)(?=[\s\S]*(?:nothing (?:reads|writes|queries|references)|no (?:reader|writer|consumer|code)|never (?:read|written|queried|referenced|used)|not (?:read|written|queried|referenced|used)|unused|orphan))'
-    flags: i
+    pattern: '^(?=(?:[^\n]|\n(?=[ \t]|(?![ \t]*(?:\d+[.)]|[-*+][ \t]|#|\|))[^\n]))*?delivery_receipts)(?=(?:[^\n]|\n(?=[ \t]|(?![ \t]*(?:\d+[.)]|[-*+][ \t]|#|\|))[^\n]))*?(?:nothing (?:reads|writes|queries|references)|no (?:reader|writer|consumer|code)|never (?:read|written|queried|referenced|used)|not (?:read|written|queried|referenced|used)|(?<!not )unused|orphan))'
+    flags: mi
     arm: both
   - name: invites-reaction
     type: regex
-    pattern: '(?:resonat|react|mark (?:which|what|the)|stand out|appeal)[\s\S]{0,500}$'
+    pattern: '(?:\bresonat\w*|(?<!\bno need to )\breact(?:ion|ions)?\b(?![ \t]+(?:app|component|frontend|front-end|dashboard|UI|page|hook|framework))|\bmark (?:which|what|the)|\bstand out|\bappeal\w*|\bwhich (?:of these|ones?|numbers?)\b[^\n]{0,80}\?)[\s\S]{0,500}$'
     flags: i
     arm: both
   - name: no-unilateral-pick
     type: regex
-    pattern: '\bI(?: have|''ve)? (?:chose|chosen|picked|selected)\b|\bI(?: will|''ll) (?:go with|proceed with|start implementing)\b'
+    pattern: '\bI(?: have|''ve)? (?:chose|chosen|picked|selected)\b|\bI(?: will|''ll) (?:go with|proceed with|start implementing|implement|wire (?:it|up|them))\b|\bI(?:''m| am) going with\b'
     match: not_contains
     flags: i
     arm: both

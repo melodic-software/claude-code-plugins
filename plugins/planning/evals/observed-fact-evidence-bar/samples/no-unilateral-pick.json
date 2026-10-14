@@ -13,6 +13,14 @@
     {
       "answer": "1. Batch inserts in `etl/load.py`.\n2. Index the customer lookup.\n\nI chose option 1 and will start implementing it.",
       "why": "chooses for the user and starts"
+    },
+    {
+      "answer": "1. Batch inserts in `etl/load.py`.\n2. Index the customer lookup.\n\nI'm going with option 1 and starting now.",
+      "why": "I'm going with; the old pattern missed it"
+    },
+    {
+      "answer": "1. Batch inserts in `etl/load.py`.\n2. Index the customer lookup.\n\nI’ll go with option 1.",
+      "why": "curly apostrophe; the old pattern missed it"
     }
   ]
 }

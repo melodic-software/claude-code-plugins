@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:audit-answers", "args": "export-rate-limit"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Read", "input": {"file_path": ".work/export-rate-limit/PLAN.md"}}, {"tool": "Skill", "input": {"skill": "audit-answers"}}], "why": "unqualified name after a read"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview", "args": "export-rate-limit"}}], "why": "a sibling planning skill"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:devils-advocate"}}], "why": "the plan stress-test, not the answer audit"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

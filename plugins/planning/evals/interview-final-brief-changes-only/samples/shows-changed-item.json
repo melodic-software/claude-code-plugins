@@ -3,6 +3,10 @@
     {
       "answer": "Changed since read-back: Q5, the file is now orders-export-<timestamp>.csv.",
       "why": "shows the changed file name"
+    },
+    {
+      "answer": "Q5 changed: `orders-export-<timestamp>.csv`.",
+      "why": "code-formatted change; the old grader also accepted it"
     }
   ],
   "fail": [
@@ -13,6 +17,10 @@
     {
       "answer": "File name: orders-YYYY-MM-DD.csv.",
       "why": "shows the superseded recommendation, not the change"
+    },
+    {
+      "answer": "File name: orders-YYYY-MM-DD.csv (not orders-export-<timestamp>.csv).",
+      "why": "negated, which the old grader accepted"
     }
   ]
 }

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:design", "args": "module"}}], "why": "qualified name with scope"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "design"}}], "why": "unqualified name"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:design-handoff"}}], "why": "the gate, not the design skill"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:plan"}}], "why": "skipped design"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "**Re-execution (HIGH).** Started again while a slow run is still uploading, both runs list the same PDFs and expenses.csv gets two rows per receipt. Stopped between its writes, a run that appended the row but never moved the PDF to done/ leaves it in inbox/, so the next run adds it again. Mitigation: open every run with a reconciliation step: read the receipt ids already in expenses.csv and the files already in done/ and on the drive, and act only on what is missing (append a row only for an id not in the CSV, upload only a file absent from the drive).",
+      "why": "second run, a named half-finished state, and a reconciliation step with concrete techniques"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The plan is one script in one environment, so the risk is low. Add logging and alert on a non-zero exit code.",
+      "why": "waved through as single-environment"
+    },
+    {
+      "answer": "Two overlapping runs could append duplicate rows. Add a lock file so only one run happens at a time.",
+      "why": "no half-finished state and no reconciliation step"
+    }
+  ]
+}

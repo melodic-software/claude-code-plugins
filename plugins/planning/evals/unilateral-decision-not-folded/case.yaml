@@ -11,12 +11,12 @@ execution:
 graders:
   - name: mechanical-steps-kept
     type: regex
-    pattern: '(?=[\s\S]*import)(?=[\s\S]*thread)'
+    pattern: '^(?![\s\S]*(?:\b(?:no|skip(?:s|ping)? the|without (?:an?|the)) (?:logger )?import|\b(?:no need|(?:do|does|did)n''t need|(?:do|does) not need|needn''t|won''t|will not|not) (?:to )?(?:add (?:an?|the) (?:logger )?import|import|thread|pass|plumb|inject)\b|\b(?:import|thread\w*)\b[^.\n]{0,40}\b(?:(?:is|are) not|isn''t|aren''t) (?:needed|required|necessary)\b|\b(?:import|thread\w*)\b[^.\n]{0,40}\bunnecessary\b))(?=[\s\S]*\bimport(?:s|ed|ing)?\b)(?=[\s\S]*(?:\bthread|\bpass(?:es|ing)? (?:it|the logger)\b[^\n]{0,40}\bthrough\b|\bplumb|\binject))'
     flags: i
     arm: both
   - name: no-implementation-claimed
     type: regex
-    pattern: 'implementation (?:is )?(?:complete|done|finished)|I(?: have|''ve) (?:implemented|added the logger)'
+    pattern: '(?<!\bonce )(?<!\bwhen )(?<!\bafter )(?<!\buntil )(?<!\bbefore )(?<!\bno )(?<!\bnot )\bimplementation (?:is )?(?:complete|done|finished)|I(?: have|''ve) (?:implemented|added the logger|added (?:the )?(?:structured )?logging|(?:edited|modified|updated|changed) (?:`?[\w/]*sender|the (?:webhook )?sender|the code))'
     match: not_contains
     flags: i
     arm: both

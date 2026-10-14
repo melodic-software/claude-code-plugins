@@ -7,6 +7,10 @@
     {
       "answer": "Run planning:questionnaire for the deferred key-type question.",
       "why": "names the skill without the slash"
+    },
+    {
+      "answer": "Next: /planning:plan, and run `/planning:questionnaire` for the ops lead's SSH key question.",
+      "why": "questionnaire in backticks"
     }
   ],
   "fail": [
@@ -21,6 +25,14 @@
     {
       "answer": "Email the partner's ops lead and ask which key type they accept, then run /planning:plan.",
       "why": "advises asking but never names the skill"
+    },
+    {
+      "answer": "Next: /planning:plan. No need for /planning:questionnaire; email the ops lead.",
+      "why": "negated questionnaire"
+    },
+    {
+      "answer": "Run /planning:plan without /planning:questionnaire.",
+      "why": "without the questionnaire"
     }
   ]
 }

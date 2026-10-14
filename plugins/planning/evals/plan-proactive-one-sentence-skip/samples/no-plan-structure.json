@@ -3,6 +3,10 @@
     {
       "answer": "Three lines in `tally()` change: `cnt = 0` becomes `count = 0`, `cnt += 1` becomes `count += 1`, and `return cnt` becomes `return count`.",
       "why": "the change only, no plan sections"
+    },
+    {
+      "answer": "Small enough to skip the plan, its test strategy and its blast radius. In tally(), lines 2, 5 and 6 change: cnt becomes count.",
+      "why": "says the plan is skipped in prose; the old substring pattern rejected it"
     }
   ],
   "fail": [
@@ -13,6 +17,10 @@
     {
       "answer": "Execution shape: single phase, main session. Rename cnt to count in tally().",
       "why": "carries plan machinery for a one-sentence change"
+    },
+    {
+      "answer": "### Test-strategy\nRun the stats tests after renaming cnt to count.",
+      "why": "hyphenated section heading; the old pattern missed it"
     }
   ]
 }

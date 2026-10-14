@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Product intent is locked, the engineering scope is clear and the one library is understood, so nothing is left for an interview or research to settle. Run `/planning:design` next: with no design question open it records a one-line early exit and hands off to `/planning:plan`.",
+      "why": "the plan path, with the skipped detours named only as not needed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /planning:interview to lock the engineering contract, then /discovery:explore to map the export job queue, then /planning:plan.",
+      "why": "interview and exploration detours before the plan"
+    },
+    {
+      "answer": "You could run /planning:interview, /discovery:research or /planning:plan next, depending on how you feel.",
+      "why": "lists options without choosing the plan path"
+    }
+  ]
+}

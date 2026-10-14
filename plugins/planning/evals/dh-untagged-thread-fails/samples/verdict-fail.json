@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "**Gate: FAIL.** Two threads in design-threads.md are not ready for planning.\n",
+      "why": "bold verdict"
+    },
+    {
+      "answer": "Verdict: FAIL\n\nT2 Retry backoff policy is open with no research tag.\n",
+      "why": "verdict line"
+    },
+    {
+      "answer": "The design gate failed: T2 is open and untagged, and T3 records a decision with no rationale.\n",
+      "why": "prose, gate failed"
+    },
+    {
+      "answer": "Verdict: **FAIL**. Route back to /planning:design.\n",
+      "why": "bold verdict; the old grader also accepted it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "**Gate: PASS.** Every thread is resolved, directional, or tagged.\n",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "The gate does not fail; T2 is a minor gap, so I'll treat it as a warning and hand off.\n",
+      "why": "a FAIL softened into a warning"
+    },
+    {
+      "answer": "No FAIL: the coverage gaps are advisory only.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "The gate would FAIL if a thread were untagged; here it passes.\n",
+      "why": "conditional, not a verdict"
+    },
+    {
+      "answer": "Ready to hand off to /planning:plan. Shall I proceed?\n",
+      "why": "confirmation question in place of a verdict"
+    },
+    {
+      "answer": "**Gate: PASS.** Every thread clears the PASS/FAIL check.\n",
+      "why": "FAIL only inside a PASS/FAIL label, which the old grader accepted"
+    }
+  ]
+}

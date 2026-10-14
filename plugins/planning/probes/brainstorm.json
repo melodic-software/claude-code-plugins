@@ -1,0 +1,132 @@
+{
+  "skill": "planning:brainstorm",
+  "plugin": "planning",
+  "skill_dir": "plugins/planning/skills/brainstorm",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the sibling scoping skills (interview, design, plan, wayfind) and discovery:explore for mapping existing code.",
+  "competitors": [
+    "planning:interview",
+    "planning:design",
+    "planning:plan",
+    "planning:wayfind",
+    "discovery:explore",
+    "implementation:implement"
+  ],
+  "competitor_dirs": {
+    "planning:interview": "plugins/planning/skills/interview",
+    "planning:design": "plugins/planning/skills/design",
+    "planning:plan": "plugins/planning/skills/plan",
+    "planning:wayfind": "plugins/planning/skills/wayfind",
+    "discovery:explore": "plugins/discovery/skills/explore",
+    "implementation:implement": "plugins/implementation/skills/implement"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our CI takes 40 minutes. Give me a range of ideas for cutting that down, from cheap to ambitious."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What are the different ways we could tackle duplicate notifications? Nothing is decided yet."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Throw out some approaches for making onboarding less painful in this repo."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I have a vague problem: users keep losing drafts. Where in the code could we step in?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Let's brainstorm how to reduce memory use in the importer."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before we scope anything, list a handful of options for handling rate limits from the vendor API."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm not sure how to approach flaky deploys. What options do we have?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me several candidate fixes for slow search, cheapest first."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We want better offline support but nothing is pinned down. What could we try?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Ideas for cutting down the noise in our alert channel?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What are a few places in the code we could hook in to add audit logging?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write an implementation plan for the retry queue we agreed on."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Implement option B from yesterday, the cache in front of the DB."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Show me how the payment module is wired together today."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Ask me questions until the scope for the export feature is locked."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Mock up three layout variations for the settings page."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Fix the null reference in the order service."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What should the types for the invoice domain look like?"
+    }
+  ]
+}

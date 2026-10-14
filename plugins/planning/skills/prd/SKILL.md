@@ -12,23 +12,13 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect these with **individual** Bash calls, one command per call, never combined into a single
-invocation:
+Collect these with **individual** Bash calls, one command per call, never combined:
 
 - Current branch, `git branch --show-current`
 - Recent commits, `git log --oneline -5`
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
-
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
-separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
-block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the worktree skill's
-[reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
-"The pre-compute block runs as one shell invocation".
+Keep the pipe in the command: a read-time cap bounds nothing, since the Bash tool returns the full output first. Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as body Bash calls, not pre-compute lines: the pre-compute block runs as one shell invocation, and a worktree-isolated session refuses a compound command that contains git. Dated record: the worktree skill's [reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md), "The pre-compute block runs as one shell invocation".
 
 ## Variables
 
@@ -36,15 +26,13 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Most product-feature rework comes from skipping the *what for whom and why* layer and jumping straight to *how*. `/planning:prd` produces the lockable product intent contract: what we are building, for which users, against what measurable success, before any engineering plan, exploration, or research begins.
+`/planning:prd` produces the lockable product-intent contract: what we are building, for which users, against what measurable success, before any engineering plan, exploration, or research. It runs **upstream of exploration and `/planning:plan`**, before or alongside `/planning:interview`:
 
-This is the **product-intent** stage. **Upstream of exploration**, **upstream of `/planning:plan`**, and may run **before or alongside `/planning:interview`** depending on task shape:
+- `/planning:prd` answers *what should we build, for whom, and why*. Required for new user-facing features, business-driven changes, cross-team initiatives
+- `/planning:interview` answers *what is the engineering contract for this task*. Required whenever intent is fuzzy or underspecified, regardless of source
+- A product feature usually wants both: `/planning:prd` → `/planning:interview` → exploration → research → `/planning:design` → `/planning:plan`. Engineering-internal work skips `/planning:prd`
 
-- `/planning:prd`. Answers *what should we build, for whom, and why*. Outcome-focused. Required for new user-facing features, business-driven changes, cross-team initiatives
-- `/planning:interview`. Answers *what is the engineering contract for this task*. Constraint and acceptance-criteria focused. Required whenever intent is fuzzy or underspecified, regardless of source
-- Complementary, not redundant. A product feature usually wants both: `/planning:prd` (product intent) → `/planning:interview` (engineering contract) → exploration → research → `/planning:design` → `/planning:plan`. Engineering-internal work skips `/planning:prd` entirely
-
-The PRD is **never an implementation plan**. Boundaries: problem, users, success. Yes. Architecture, files, tests, code shapes. No. That is `/planning:plan`'s job. If the user pulls toward implementation mid-PRD, anchor back to *what for whom* and let `/planning:plan` pick up after.
+The PRD is **never an implementation plan**: problem, users, success, yes; architecture, files, tests, code shapes, no. If the user pulls toward implementation mid-PRD, anchor back to *what for whom* and let `/planning:plan` pick up after.
 
 **Cost framing**: locking product intent up-front is the cheapest version of the conversation. Every later session that runs against a written PRD costs less than one that infers product goals from a half-formed thought.
 
@@ -52,9 +40,9 @@ The PRD is **never an implementation plan**. Boundaries: problem, users, success
 
 Invoke `/planning:prd` when ALL of these are true:
 
-- The work has a **user-facing surface**. New feature, new screen, new flow, new public API, new external behavior
-- The change is **business- or product-driven**. Solves a user problem, opens a market, hits a metric. Not engineering-internal cleanup
-- **Alignment matters**. Multiple stakeholders, cross-team work, or you want a written reference to point the future agent at
+- The work has a **user-facing surface**: new feature, screen, flow, public API, or external behavior
+- The change is **business- or product-driven**: solves a user problem, opens a market, hits a metric. Not engineering-internal cleanup
+- **Alignment matters**: multiple stakeholders, cross-team work, or a written reference for future agents
 
 ## Skip conditions. When to NOT invoke `/planning:prd`
 
@@ -63,16 +51,16 @@ If ANY of these hold, do NOT write a PRD. Tell the user explicitly: *"This is en
 - **Refactors** (no behavior change)
 - **Infrastructure** (build, CI, hooks, config, dependency bumps, lockfiles)
 - **Conventions** (rules files, doc updates, lint rules, analyzers)
-- **Bug fixes** (a bug already implies the desired behavior. Fix the gap, no PRD)
+- **Bug fixes** (a bug already implies the desired behavior)
 - **Single-team engineering work** with no user-visible surface
 - **Tooling**, scripts, internal automation
 - **Documentation-only** changes
 
-If ambiguous (could go either way), surface the question once and let the user pick. Never silently write a PRD for an engineering-internal task.
+If ambiguous, surface the question once and let the user pick. Never silently write a PRD for an engineering-internal task.
 
 ## Action Router
 
-Read `$ARGUMENTS` whole to determine the action. If its first word is one of the tier words in the table (`one-pager`, `consumer`, `consumer-feature`, `b2b`, `b2b-internal`, `synthesize`, `review`), that row wins and the rest of `$ARGUMENTS` is the task. Any other first word is the start of the task description, not a tier. When `$ARGUMENTS` is empty, no arguments were passed: ask for the tier (surface rules below).
+Read `$ARGUMENTS` whole. If its first word is one of the tier words in the table (`one-pager`, `consumer`, `consumer-feature`, `b2b`, `b2b-internal`, `synthesize`, `review`), that row wins and the rest of `$ARGUMENTS` is the task. Any other first word starts the task description, not a tier. When `$ARGUMENTS` is empty, ask for the tier (surface rules below).
 
 | Argument | Action | Use case |
 |----------|--------|----------|
@@ -81,10 +69,10 @@ Read `$ARGUMENTS` whole to determine the action. If its first word is one of the
 | `one-pager <task>` | **Tier 1. Thin one-pager** | Small feature, single team, fast lock. ~½ page. |
 | `consumer <task>` or `consumer-feature <task>` | **Tier 2. Consumer feature** | User-facing app feature with metrics, user stories, risk surface. ~1 page. |
 | `b2b <task>` or `b2b-internal <task>` | **Tier 3. B2B / internal** | Stakeholders, compliance, integration, rollout, change-management. ~2 pages. |
-| `synthesize <task>` | **Synthesis-only PRD** | Skip Q&A. Produce PRD from existing conversation context. Use when conversation already has rich product context and re-asking would waste the user's time. Still runs skip-condition check (Step 1) and survey (Step 2). |
+| `synthesize <task>` | **Synthesis-only PRD** | Skip Q&A. Produce PRD from existing conversation context when it already holds rich product context. Still runs skip-condition check (Step 1) and survey (Step 2). |
 | `review` | **PRD review** | Critique an existing PRD.md against template + skip-conditions. |
 
-Tier choice rationale lives in [`context/templates.md`](context/templates.md). When tier is unclear from the task description, present the three tiers with one-line descriptions. Via `AskUserQuestion` when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on (the side-by-side rendering helps the user choose without skimming docs), numbered inline prose otherwise.
+Tier choice rationale: [`context/templates.md`](context/templates.md). When the tier is unclear from the task description, present the three tiers with one-line descriptions: via `AskUserQuestion` when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on, numbered inline prose otherwise.
 
 ## The PRD process
 
@@ -92,7 +80,8 @@ Tier choice rationale lives in [`context/templates.md`](context/templates.md). W
 
 Before any other work, run this mandatory check: validate the request matches the trigger conditions. If it matches the skip conditions, STOP and tell the user:
 
-> *"This looks engineering-internal (`<reason>`). PRDs add cost without value here. Recommend: `/planning:interview` for fuzzy intent OR `/planning:plan` directly if scope is clear."*
+> *"This looks engineering-internal (`<reason>`). PRDs add cost without value here. Recommend:
+> `/planning:interview` for fuzzy intent OR `/planning:plan` directly if scope is clear."*
 
 Do not proceed unless the user explicitly overrides ("write the PRD anyway") OR clarifies the user-facing/business framing.
 
@@ -101,15 +90,15 @@ Do not proceed unless the user explicitly overrides ("write the PRD anyway") OR 
 Spend the first turn grounding yourself, in parallel:
 
 - Take product direction and current modules from the project's always-loaded instructions (root `CLAUDE.md` / `AGENTS.md`), already in context; read a nested `AGENTS.md` under the area the topic touches, since those load only when a file they cover is read
-- Climb to the nearest domain-vocabulary file (e.g. `UBIQUITOUS-LANGUAGE.md`) if the project keeps one and the topic touches a known module. Walk UP from the relevant directory toward repo root and stop at the first match
+- If the project keeps a domain-vocabulary file (e.g. `UBIQUITOUS-LANGUAGE.md`) and the topic touches a known module, walk UP from the relevant directory toward the repo root and read the first match
 - `Glob` and `Grep` for keywords from `$ARGUMENTS` to spot existing surfaces
 - `git log --oneline -20` for recent product direction
 - List the project's own rules files that govern the area (architecture, modules, conventions)
-- Note what the topic's memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) already contains: prior PRD, PLAN, design artifacts, exploration and research artifacts
+- Note what `<memory_dir>/<topic-slug>/` (default `.work/`) already contains: prior PRD, PLAN, design, exploration and research artifacts
 
-If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite. PRD.md is never committed, so the restart note is its only history; the copy pasted into the pull request body or the linked issue carries it).
+If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite; PRD.md is never committed, so the restart note is its only history, carried by the copy pasted into the pull request body or linked issue).
 
-Survey output is a one-paragraph summary in your reply. Then transition to frontier-rounds Q&A.
+Survey output is a one-paragraph summary in your reply. Then move to frontier-rounds Q&A.
 
 ### Step 3. Pick the template tier
 
@@ -121,23 +110,21 @@ If not specified in `$ARGUMENTS`, surface the tier choice (card only under the `
 | **2. Consumer-feature** | User-facing app feature with metrics, 1-2 user stories, risk surface. ~1 page. Full sections. |
 | **3. B2B-internal** | Internal/B2B feature with stakeholders, compliance, integration, rollout, change-management. ~2 pages. Full sections + stakeholders, rollout, dependencies/integrations. |
 
-Tier governs section depth, not section presence. All three tiers cover the same seven required sections (problem, goals, non-goals, users + user stories, success metrics, dependencies/risks, open questions). The difference is verbosity.
+Tier governs section depth, not section presence: all three tiers cover the same seven required sections (problem, goals, non-goals, users + user stories, success metrics, dependencies/risks, open questions).
 
-Full templates: [`context/templates.md`](context/templates.md). Read on demand. Keep main context light.
+Full templates: [`context/templates.md`](context/templates.md). Read on demand.
 
 ### Step 3.5. Synthesis-only path (`synthesize`)
 
-When invoked with `synthesize`, skip Step 4 Q&A entirely. Produce the PRD from existing conversation context. Prior discussion, explored files, research findings, user statements already captured in the session. Still runs Step 1 (skip-condition check) and Step 2 (survey grounding).
-
-Use when conversation already contains rich product context and re-asking would waste time. The user is signaling "I've told you enough. Write it." Respect that signal.
+With `synthesize`, skip Step 4 Q&A and produce the PRD from existing conversation context: prior discussion, explored files, research findings, user statements already captured. Steps 1 and 2 still run.
 
 `synthesize` also skips the always-on coverage prompt and reports it unexamined, per "Acceptance-criteria capture" below.
 
-If after the survey (Step 2) a required section has NO answerable content in the conversation, note it as an open question rather than forcing Q&A. The PRD with open questions is still useful. `/planning:interview` or `/planning:plan` picks them up downstream.
+If after the survey a required section has NO answerable content in the conversation, record it as an open question rather than forcing Q&A; `/planning:interview` or `/planning:plan` picks it up downstream.
 
 ### Step 4. Drive frontier-rounds Q&A
 
-**Skipped when `synthesize` action was invoked**. Go directly to Step 5.
+**Skipped when `synthesize` was invoked**. Go directly to Step 5.
 
 Ask in frontier rounds: each round surfaces every open question whose prerequisites are settled as one numbered set (grouped by PRD section), each with a recommendation; a question that depends on another still open waits for the round after its prerequisite resolves. Render a round via `AskUserQuestion` only when the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`) is on and the round is independent questions that fit one `AskUserQuestion` call (the per-call question limit: <https://code.claude.com/docs/en/agent-sdk/user-input#limitations>, as of 2026-10-11; recheck when that section changes the per-call question limit). Inline prose otherwise.
 
@@ -163,7 +150,7 @@ Stop asking once every required section has either a resolved answer or an expli
 
 ### Step 5. Persist the PRD
 
-Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars). The same slug `/planning:interview`, `/planning:design`, and `/planning:plan` will use for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md lives alongside `PLAN.md` (the plan skill's output) and the topic's design artifacts.
+Derive `<topic-slug>` from the task description or current branch name (kebab-case, ≤40 chars), the same slug `/planning:interview`, `/planning:design`, and `/planning:plan` use for this topic. Write to `<memory_dir>/<topic-slug>/PRD.md` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Once it locks, paste the PRD into the pull request body or the linked issue. PRD.md lives alongside `PLAN.md` (the plan skill's output) and the topic's design artifacts.
 
 When a PRD.md already exists for the topic, never silently overwrite it: offer resume, revise, or start fresh. If scope shifted, append a dated restart note capturing why before rewriting.
 
@@ -178,7 +165,7 @@ updated: <ISO-8601 UTC, e.g. 2026-06-04T14:30:00Z>
 ---
 ```
 
-Required sections (every tier. Verbosity varies):
+Required sections (every tier; verbosity varies):
 
 1. **Problem**. What is broken, missed, or unmet for users today
 2. **Goals**. Outcome-level, not implementation-level
@@ -190,24 +177,22 @@ Required sections (every tier. Verbosity varies):
 
 Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
-**Durability over precision.** Describe the product through its interfaces, types, and behavior contracts, not file paths or line numbers, which change sooner than the PRD does. Assume the code's present layout can change; the PRD should still be accurate after a refactor.
+**Durability over precision.** Describe the product through its interfaces, types, and behavior contracts, not file paths or line numbers; the PRD should still be accurate after a refactor.
 
 **Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled; otherwise apply that discipline inline. The seven required sections, the tier's depth, and every metric, threshold, and open question stay as they are.
 
-**Non-goals graduation edge.** A non-goal that is a permanent, deliberate rejection, not a deferral, outlives the PRD: graduate it to the consuming repo's rejected-concept ledger at `docs/out-of-scope/<concept>.md`, one file per concept, accreting a "Prior requests" log entry each time the concept resurfaces, so future proposals of the same concept get answered by the ledger instead of relitigated. This is a consumer convention with graceful degrade: create the file lazily on first permanent rejection; when the consumer keeps no ledger, the plain Non-goals list suffices.
+**Non-goals graduation edge.** A non-goal that is a permanent, deliberate rejection, not a deferral, graduates to the consuming repo's rejected-concept ledger at `docs/out-of-scope/<concept>.md`, one file per concept, accreting a "Prior requests" log entry each time the concept resurfaces, so future proposals are answered by the ledger instead of relitigated. Create the file lazily on first permanent rejection; when the consumer keeps no ledger, the plain Non-goals list suffices.
 
-Test-seam sketching (where the feature will be tested, and at how few seams) is not a PRD concern. It happens in `/planning:design` as a design thread.
-
-Full template structures: [`context/templates.md`](context/templates.md).
+Test-seam sketching (where the feature will be tested, and at how few seams) is not a PRD concern; it happens in `/planning:design` as a design thread.
 
 Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`; placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
 
 ### Step 6. Hand off
 
-After writing the PRD, recommend the next step. The recommendation depends on remaining ambiguity:
+After writing the PRD, recommend the next step by remaining ambiguity:
 
-- **Engineering scope still fuzzy** (constraints, untouchable areas, perf budget unclear) → clear context, then `/planning:interview` (it will read the topic's `PRD.md` as scope)
-- **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` if enabled, otherwise whatever codebase-exploration capability the environment provides
+- **Engineering scope still fuzzy** (constraints, untouchable areas, perf budget unclear) → clear context, then `/planning:interview` (it reads the topic's `PRD.md` as scope)
+- **Engineering scope is clear, codebase grounding needed** → `/discovery:explore` if enabled, otherwise the environment's codebase-exploration capability
 - **Need external research (libs, APIs, comparables)** → `/discovery:research` if enabled, otherwise the strongest research capability available
 - **Engineering scope clear and externals understood** → `/planning:design`, which records a one-line early exit when no design question is open and hands off to `/planning:plan`
 - **The locked PRD is one unit of work that a later session, an AFK lane or another person picks up** → `/work-items:track add --agent-ready`, one tracker item carrying the PRD's acceptance criteria
@@ -217,39 +202,21 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 ## Acceptance-criteria capture
 
-Two behaviors ride on the moment this PRD turns product intent into verifiable statements, the
-Step 4 success-metrics and user-story rows and any acceptance criterion the run writes down. The
-first is always on; the second fires only when the consuming team's convention selects it.
+Two behaviors apply when this PRD turns product intent into verifiable statements (the Step 4 success-metrics and user-story rows and any acceptance criterion the run writes down). The first is always on; the second fires only when the consuming team's convention selects it.
 
 ### Coverage prompt. Always on, asked once
 
-While capturing those verifiable statements, ask ONE question: are they missing an
-**unwanted-behavior** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven**
-case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion
-interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs
-whatever the acceptance-criteria format resolves to, and with no convention surface present at all;
-it is a coverage check, not a format. A product PRD reaches for the happy path by construction, and
-this is the one question that asks what must NOT happen.
+While capturing those verifiable statements, ask ONE question: are they missing an **unwanted-behavior** case (an `IF <trigger>, THEN <response>` criterion) and a **state-driven** case (a `WHILE <state>, <response>` criterion)? One prompt covering both, never a per-criterion interrogation, and **"neither applies" is a valid answer** that closes it for the session. This runs whatever the acceptance-criteria format resolves to, and with no convention surface present at all; it is a coverage check, not a format.
 
 ### Non-interactive runs skip the ask and say so
 
-The **`synthesize` action skips it**, along with any run that has nobody to answer: a dispatched
-worker, a forked subagent, a headless invocation, or any caller that declared the run unattended. In
-every one of those the ask is SKIPPED rather than blocking, and the returned summary states that
-**unwanted-behavior and state-driven coverage went unexamined**. Record the same line in the PRD's
-**Open questions** section so it outlives the summary. A prompt nobody can answer must not stall the
-run and must not silently vanish.
+The **`synthesize` action skips it**, along with any run that has nobody to answer: a dispatched worker, a forked subagent, a headless invocation, or any caller that declared the run unattended. In every one of those the ask is SKIPPED rather than blocking, and the returned summary states that **unwanted-behavior and state-driven coverage went unexamined**. Record the same line in the PRD's **Open questions** section so it outlives the summary.
 
-The unattended condition is **declared by the caller, never sniffed**. There is no supported way for
-a session to observe that it is non-interactive, so never read an environment variable to decide it;
-`synthesize` is an explicit argument, which is a declaration.
+The unattended condition is **declared by the caller, never sniffed**: never read an environment variable to decide it; `synthesize` is an explicit argument, which is a declaration.
 
 ### EARS tags, when the convention selects them
 
-Resolve `acceptance_criteria_format` per the ladder below. Under `free-text`, the default and every
-degrade, every section is emitted exactly as today, untagged and byte-comparable in shape to a run
-with no convention surface at all. Under `ears`, each acceptance criterion this run emits carries a
-bracketed pattern prefix on a plain bullet:
+Resolve `acceptance_criteria_format` per the ladder below. Under `free-text`, the default and every degrade, every section is emitted untagged, the same shape as a run with no convention surface at all. Under `ears`, each acceptance criterion this run emits carries a bracketed pattern prefix on a plain bullet:
 
 | Tag | Pattern |
 |---|---|
@@ -264,23 +231,13 @@ bracketed pattern prefix on a plain bullet:
 - [unwanted-behavior] IF the upload fails, THEN the partial manifest is discarded
 ```
 
-The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, and
-`optional-feature`. A downstream reader matches the literal name, so a variant spelling,
-`unwanted_behavior`, `unwanted`, `event`, is not a near miss; it is an untagged criterion that looks
-tagged, and it fails silently.
+The five names are exactly `ubiquitous`, `event-driven`, `state-driven`, `unwanted-behavior`, and `optional-feature`. A downstream reader matches the literal name, so a variant spelling (`unwanted_behavior`, `unwanted`, `event`) is an untagged criterion that looks tagged and fails silently.
 
-**Scope, stated plainly.** The seven required sections carry no acceptance-criteria list of their
-own, and this change adds none: the **Success metrics** table is a measurement with a threshold and
-a window, not an EARS pattern, and it stays a table under both formats. Tags attach to acceptance
-criteria this run writes as plain bullets, and the durable home for tagged criteria is the Brief
-`/planning:interview` locks downstream. What this skill owes is the coverage question, the exact
-vocabulary, and the same resolution, so that a PRD-then-interview pipeline does not change its
-answer halfway through.
+**Scope.** The seven required sections carry no acceptance-criteria list of their own, and this skill adds none: the **Success metrics** table is a measurement with a threshold and a window, not an EARS pattern, and it stays a table under both formats. Tags attach to acceptance criteria this run writes as plain bullets; the durable home for tagged criteria is the Brief `/planning:interview` locks downstream. This skill owes the coverage question, the exact vocabulary, and the same resolution, so a PRD-then-interview pipeline does not change its answer halfway through.
 
 ### Resolution ladder for `acceptance_criteria_format`
 
-Restated here rather than cited: an installed plugin never sees the publishing repository's
-convention docs, so a path citation would make that publisher a runtime dependency of this session.
+Restated here rather than cited: an installed plugin never sees the publishing repository's convention docs, so a path citation would make that publisher a runtime dependency of this session.
 
 ```markdown
 1. Anchor at the repository root: `${CLAUDE_PROJECT_DIR}` when set, otherwise
@@ -305,35 +262,29 @@ convention docs, so a path citation would make that publisher a runtime dependen
    and the layer it came from — `argument`, `team convention doc <path>`, or `default`.
 ```
 
-This plugin ships the step-2 resolver at
-`bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`: exit 0 prints the home on stdout,
-exit 1 means no pointer line is bound, exit 2 is usage, and exit 3 is a FAIL (two pointer lines
-in one region, an unterminated or nested region, an invalid pointer path, or a pointer whose
-target directory does not exist). Every non-zero exit is a
-step-6 degrade, `free-text`, cause named in one clause, never a halt and never a prompt to go create
-the surface.
+This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh"`: exit 0 prints the home on stdout, exit 1 means no pointer line is bound, exit 2 is usage, and exit 3 is a FAIL (two pointer lines in one region, an unterminated or nested region, an invalid pointer path, or a pointer whose target directory does not exist). Every non-zero exit is a step-6 degrade, `free-text`, cause named in one clause, never a halt and never a prompt to go create the surface.
 
 ## PRD review mode (`review`)
 
 When invoked with `review`:
 
-1. Locate the topic's `PRD.md` (use slug derivation above)
+1. Locate the topic's `PRD.md` (slug derivation above)
 2. Evaluate against the seven required sections. Flag any missing or fuzzy
-3. Evaluate against skip-conditions. Should this PRD even exist? If engineering-internal, recommend supersession with a `/planning:interview` brief
+3. Evaluate against skip-conditions. If engineering-internal, recommend supersession with a `/planning:interview` brief
 4. Check goals are *outcomes*, not implementations (the most common failure mode)
 5. Check success metrics have a *measurement window* and *threshold*, not vague language
 6. Present findings: what's strong, what's missing, what to revise
 
-Complementary to `/planning:devils-advocate`. Review checks structure and convention; stress-test (run later against `/planning:plan`'s plan, not the PRD) checks failure modes.
+Review checks structure and convention; `/planning:devils-advocate` (run later against `/planning:plan`'s plan, not the PRD) checks failure modes.
 
 ## What this skill does NOT do
 
-- **Does not plan implementation**. The PRD is *what for whom and why*. Architecture, files, tests, code is `/planning:plan`'s job. If you find yourself writing "we'll add `XHandler` to module Y", stop and move that to the open-questions section as an architecture decision for later
-- **Does not run exploration or research**. Step 2's survey is a *fast grounding pass*, not deep work. If product framing requires deep external research (competitive analysis, market data), pause the PRD and recommend the research capability first
-- **Does not gate other skills**. Engineering-internal tasks skip `/planning:prd` entirely. Even product features can skip if intent is already locked elsewhere (existing roadmap doc, recent ADR, prior PRD)
-- **Does not adversarially attack the user's product idea**. Not the PRD's role. If the proposed feature has obvious product risk, surface it once in the *risks* section and continue. Pushback belongs in product review, not PRD authoring
-- **Does not write code, run tests, or modify anything outside the topic's memory slice**, apart from pasting the locked PRD into the pull request body or linked issue. Pure product-intent skill
-- **Does not export Gherkin**. Named as a deferred extension point so its absence reads as a decision rather than an oversight: nothing here emits `.feature` files or `Given`/`When`/`Then` scenarios, and the EARS tags are a bracketed prefix vocabulary on a plain bullet, not a step grammar. A Gherkin export is a separate slice against a separate contract, and none of it is built here
+- **Does not plan implementation**. Architecture, files, tests, code is `/planning:plan`'s job. If you find yourself writing "we'll add `XHandler` to module Y", move that to open questions as an architecture decision for later
+- **Does not run exploration or research**. Step 2's survey is a fast grounding pass. If product framing requires deep external research (competitive analysis, market data), pause the PRD and recommend the research capability first
+- **Does not gate other skills**. Engineering-internal tasks skip `/planning:prd`; product features can skip it if intent is already locked elsewhere (roadmap doc, recent ADR, prior PRD)
+- **Does not adversarially attack the user's product idea**. Surface obvious product risk once in the *risks* section and continue. Pushback belongs in product review, not PRD authoring
+- **Does not write code, run tests, or modify anything outside the topic's memory slice**, apart from pasting the locked PRD into the pull request body or linked issue
+- **Does not export Gherkin**. Nothing here emits `.feature` files or `Given`/`When`/`Then` scenarios; the EARS tags are a bracketed prefix vocabulary on a plain bullet, not a step grammar. A Gherkin export is a separate slice against a separate contract
 
 ## Composition with other skills
 
@@ -348,8 +299,6 @@ Complementary to `/planning:devils-advocate`. Review checks structure and conven
 | Plan the implementation | `/planning:plan` | Reads PRD + PLAN + explore + research findings |
 | Stress-test the plan | `/planning:devils-advocate` | Adversarial pass on `/planning:plan` output (not the PRD) |
 
-`/planning:prd` is sister to `/planning:plan`: one resolves *what for whom and why*; the other resolves *how*. They share the topic slug and the memory slice, and feed each other.
-
 ## Next
 
 - PRD locked: /planning:interview for the engineering contract, or /planning:design when the Brief already exists.
@@ -359,7 +308,7 @@ Complementary to `/planning:devils-advocate`. Review checks structure and conven
 
 ## Gotchas
 
-- **Goals as outcomes, never implementations.** "Add a search box" is not a goal; "users can find a song from any of its lyrics in <2 seconds" is. Most common PRD failure: goals that pre-decide the architecture
-- **Success metrics need a window.** "Increase engagement" is not a metric; "DAU/MAU rises from X to Y over 30 days post-launch" is. If a metric has no number and no window, it can't validate the feature
-- **Tier governs verbosity, not which sections exist.** All three tiers have the same seven required sections. Tier-1 is one line per section; tier-3 is a full paragraph. Don't drop sections to "save time". Drop words
-- **The PRD is never an architecture document.** When discussion drifts to implementation, anchor back to *what for whom*. Capture architecture questions in the **open questions** section for `/planning:plan` to resolve
+- **Goals as outcomes, never implementations.** "Add a search box" is not a goal; "users can find a song from any of its lyrics in <2 seconds" is. Goals that pre-decide the architecture are the most common PRD failure
+- **Success metrics need a window.** "Increase engagement" is not a metric; "DAU/MAU rises from X to Y over 30 days post-launch" is
+- **Tier governs verbosity, not which sections exist.** Tier-1 is one line per section; tier-3 is a full paragraph. Don't drop sections; drop words
+- **The PRD is never an architecture document.** When discussion drifts to implementation, anchor back to *what for whom* and capture architecture questions under **open questions** for `/planning:plan`

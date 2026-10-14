@@ -17,7 +17,7 @@ graders:
     arm: both
   - name: no-plan-structure
     type: regex
-    pattern: 'Blast radius|Approve this plan|Execution shape|Test strategy'
+    pattern: '(?:^|\n)[ \t]*(?:#{1,6}[ \t]*|[-*][ \t]+|\|[ \t]*)?(?:\*\*)?(?:Blast[- ]radius|Test[- ]strategy|Execution[- ]shape)\b[^\n]{0,3}?(?:\*\*)?[ \t]*(?:[:|—–]|\n|$)|\*\*(?:Blast[- ]radius|Test[- ]strategy|Execution[- ]shape)[^*\n]{0,3}\*\*|Approve this plan'
     match: not_contains
     flags: i
     arm: both

@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/reporting-replica/questionnaire-dba.md", "content": "# Read replica for reporting\n\n**Purpose:** decide whether dashboards can read from a replica.\n\n## Context\n\nWe want the reporting dashboards off the primary.\n\n## How to answer\n\nBy Friday, about 10 minutes. \"I don't know\" is useful.\n\n## Operations\n\n### When is the nightly maintenance window?\n\n>\n\n## Anything else?\n\nAnything we didn't ask that we should know?\n\n>\n"}}], "why": "the template's sections and stubs"},
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/reporting-replica/questionnaire-postgres-dba.md", "content": "# Replica questions\n\n## Context\n\nShort orientation.\n\n## How to answer\n\nPartial answers are fine.\n\n### How far can the replica lag?\n\n> \n\n## Anything else we should know?\n\n>\n"}}], "why": "stub with a trailing space, longer final heading"}
+  ],
+  "fail": [
+    {"answer": [], "why": "nothing written"},
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/reporting-replica/questionnaire-dba.md", "content": "1. When is the maintenance window?\n2. How much lag is OK?\n3. How long are backups retained?\n"}}], "why": "a bare list, no template sections or stubs"},
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/reporting-replica/questionnaire-dba.md", "content": "## Context\n\n<One paragraph orienting a recipient>\n\n## How to answer\n\n<Deadline and rough effort>\n\n## <Theme heading>\n\n### <One-idea question?>\n\n## Anything else?\n"}}], "why": "pasted the template headings with no answer stubs or questions"}
+  ]
+}

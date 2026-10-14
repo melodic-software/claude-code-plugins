@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": ".work/webhook-retry/design/design-threads.md"}}], "why": "read only"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/webhook-retry/design/notes.md", "old_string": "a", "new_string": "b"}}], "why": "an edit elsewhere is not a PLAN.md edit"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/webhook-retry/PLAN.md", "old_string": "## Design", "new_string": "## Design\n\n### Module layout\n"}}], "why": "edited the Design section on a failed gate"}
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Since you don't know where the map stands, run `/session-flow:workflow`; it works out the next stage for you.",
+      "why": "the skill's own pointer"
+    },
+    {
+      "answer": "Unsure where this leaves the work? Use the workflow navigator (session-flow:workflow) to find the next stage.",
+      "why": "named without the slash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I can't tell which workflow stage you are in, so run /planning:wayfind work and pick the next frontier item.",
+      "why": "guesses a step; the old pattern matched 'workflow stage'"
+    },
+    {
+      "answer": "No need for /session-flow:workflow here; run /planning:wayfind chart.",
+      "why": "negated pointer; the old pattern matched it"
+    },
+    {
+      "answer": "Run /planning:wayfind work.",
+      "why": "a guessed pipeline step"
+    }
+  ]
+}

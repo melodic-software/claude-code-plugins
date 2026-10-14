@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "4. **Test-seam posture.** Recommend reusing the existing fake-sender seam in tests/test_dispatcher.py for a FakeSms.\n", "why": "hyphenated thread name"},
+    {"answer": "T5 test seam: tests attach at Dispatcher's constructor, as they do today.\n", "why": "spaced wording"},
+    {"answer": "Open thread: where the SMS tests will attach. Recommend the dispatcher constructor.\n", "why": "the skill's attach wording"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "No test seam is needed for this change.\n", "why": "negated"},
+    {"answer": "We'll add tests later during implementation.\n", "why": "tests mentioned with no seam thread"},
+    {"answer": "1. Opt-in storage. Recommend a flag.\n2. Twilio verdict. Recommend contain now.\n", "why": "a round without the test-seam thread"}
+  ]
+}
