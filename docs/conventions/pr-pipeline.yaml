@@ -112,6 +112,8 @@ merge:
       - ".github/**"
       - "docs/conventions/**"
       - "plugins/source-control/skills/babysit-prs/**"
+      # The gate's wrapper, which pr-merge.yml runs under the lane token.
+      - "plugins/source-control/scripts/**"
       - ".claude/**"
       - "plugins/*/skills/**"
       - "plugins/*/agents/**"
