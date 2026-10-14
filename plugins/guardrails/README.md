@@ -543,10 +543,11 @@ out of scope until such a signal exists.
   Windows host and one operator, so it is evidence about this deployment and
   weaker evidence about others; it contains no `MultiEdit` or `NotebookEdit`
   entries at all. `NotebookEdit` is covered by the contract suite and the shared
-  matcher, not by the sweep; the matcher no longer names the legacy `MultiEdit`. **The ratio considered acceptable for
-  this surface is a false-positive rate near zero, and the justification is that
-  the cost of a wrong block here is unusually low**: the agent gets a stderr
-  line naming `%TEMP%` and reissues the write, which is a second of friction,
+  matcher, not by the sweep; the matcher no longer names the legacy `MultiEdit`.
+  **The ratio considered acceptable for this surface is a false-positive rate
+  near zero, and the justification is that the cost of a wrong block here is
+  unusually low**: the agent gets a stderr line naming `%TEMP%` and reissues
+  the write, which is a second of friction,
   against a missed write that is silent by construction and was found only by
   noticing litter on a volume root days later. The near-misses that would
   falsify the ratio (`%TEMP%` paths, `/var/tmp`, `docs/tmp`, `./tmp`, `foo/tmp`,
