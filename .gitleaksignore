@@ -22,3 +22,5 @@ bf5e54fb3c1f180d10e2dcff580d411a3dea0b5d:plugins/display-redaction/hooks/mask.te
 # A dummy bearer token in test case 41 (redaction check), a test fixture on PR #7165's
 # branch. Remove once that commit is unreachable.
 cbd6129e6b7ef353095fd4b6d0d35de41136829e:plugins/performance/scripts/findings.test.sh:curl-auth-header:1128
+# The fake GitHub token in the hook timing redaction test. Commit-less, so it survives the squash merge.
+plugins/harness-ops/skills/observability/scripts/hook-transcript-timing.test.sh:github-pat:99

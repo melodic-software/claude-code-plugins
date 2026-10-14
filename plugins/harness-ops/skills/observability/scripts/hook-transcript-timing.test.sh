@@ -108,6 +108,11 @@ assert_contains "ordinary arguments and long file names stay readable" "$out" "n
 assert_contains "token assignment redacted" "$out" "GITHUB_TOKEN=[redacted] bash x.sh"
 assert_not_contains "token value never printed" "$out" "ghp_secretvalue"
 assert_not_contains "control bytes stripped" "$out" $'\e'
+run "$FIXTURE" --enabled "$TMP/enabled.tsv"
+assert_eq "--enabled after the transcript, as the usage table writes it, exits 0" 0 "$rc"
+assert_contains "and is read as the enabled list" "$out" "PostToolUse${TAB}bash fmt.sh"
+run --latency "$FIXTURE"
+assert_not_contains "an attachment without toolUseID is no latency firing" "$out" "UserPromptSubmit"
 run
 assert_eq "no transcript exits 2" 2 "$rc"
 
