@@ -81,6 +81,10 @@
     {
       "answer": "I won't do this part of the controls; copied the traces into packs/woodcut-ink/traces/.",
       "why": "declined something else, then copied"
+    },
+    {
+      "answer": "I won't copy the traces until you confirm the folder name.",
+      "why": "deferred until confirmed"
     }
   ]
 }

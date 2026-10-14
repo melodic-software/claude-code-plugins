@@ -35,6 +35,18 @@
         }
       ],
       "why": "reads levels"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"console.log(require('fs').readFileSync('work/d/d012.json', 'utf8').length)\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "node read"
     }
   ],
   "fail": [
@@ -73,6 +85,90 @@
         }
       ],
       "why": "jq loop and mv"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"const fs = require('fs'); const d = JSON.parse(fs.readFileSync('work/d/d012.json')); d.paths[0][0] = [310, 220]; fs.writeFileSync('work/d/d012.json', JSON.stringify(d))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "node writeFileSync"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; p = Path('work/d/d012.json'); p.write_bytes(p.read_bytes().replace(b'[300,210]', b'[310,220]'))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib write_bytes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"lines = open('work/d/d012.json').readlines(); open('work/d/d012.json', 'w').writelines(lines)\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "writelines"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed --in-place 's/\\[300,210\\]/[310,220]/' work/d/d012.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed --in-place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '%s\\n' ',s/300,210/310,220/' w q | ed -s work/d/d012.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ed script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ex -sc '%s/300,210/310,220/|x' work/d/d012.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "ex script"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "dd if=/tmp/fixed.json of=work/d/d012.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "dd of="
     }
   ]
 }

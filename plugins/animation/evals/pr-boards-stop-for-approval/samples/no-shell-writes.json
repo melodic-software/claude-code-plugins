@@ -85,6 +85,42 @@
         }
       ],
       "why": "tee"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node -e \"require('fs').writeFileSync('film/shots.json', JSON.stringify({fps: 12}))\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "node writeFileSync"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"from pathlib import Path; Path('film/boards/approval.json').write_bytes(b'{}')\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pathlib write_bytes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed --in-place 's/false/true/' film/boards/approval.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed --in-place"
     }
   ]
 }

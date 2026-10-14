@@ -35,6 +35,18 @@
         }
       ],
       "why": "gate only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "R=/opt/plugins/animation/scripts/render.py\npython3 $R film/boards/models/keeper.js film/boards/models/out --drawings 0",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "variable form, model sheet render"
     }
   ],
   "fail": [
@@ -73,6 +85,42 @@
         }
       ],
       "why": "sheet then film"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "R=/opt/plugins/animation/scripts/render.py\npython3 $R film/scenes/film.js film/frames --fps 12",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "script path in a shell variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/scripts/render.py film/scenes/film.js film/frames; echo --drawings",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "--drawings outside the render call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 /opt/plugins/animation/scripts/render.py film/scenes/film.js film/frames && echo done --drawings 0",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "--drawings after &&"
     }
   ]
 }

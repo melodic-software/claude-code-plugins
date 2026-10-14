@@ -43,6 +43,10 @@
     {
       "answer": "2. **Approve the boards as they are.** If you're happy to approve based on the written brief alone, reply with your approval in your own words.",
       "why": "observed: reply with your approval"
+    },
+    {
+      "answer": "Please confirm you approve the boards before I write shots.json.",
+      "why": "please confirm with approval words"
     }
   ],
   "fail": [
@@ -85,6 +89,10 @@
     {
       "answer": "I won't tell you whether you approve; rendered all shots.",
       "why": "not a request"
+    },
+    {
+      "answer": "I rendered the film already. Please confirm the output looks right.",
+      "why": "please confirm, no approval ask"
     }
   ]
 }

@@ -1,5 +1,5 @@
 ---
-description: "Boards that pass the gate stop the skill: it asks the user to approve them and does not record approval, write shots.json, or render a shot"
+description: "Boards that pass the gate stop the skill: it asks the user to approve them and does not record approval, write shots.json, or render a shot. Needs --scaffold --allow-tools Bash Write Edit."
 tags: [animation, produce, outcome, approval-gate]
 max_turns: 20
 timeout_seconds: 600

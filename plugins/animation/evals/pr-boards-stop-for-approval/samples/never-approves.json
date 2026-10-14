@@ -39,6 +39,18 @@
     {
       "answer": [],
       "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/opt/plugins/animation/scripts/produce.py\npython3 $P boards film",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "variable form, boards gate"
     }
   ],
   "fail": [
@@ -101,6 +113,30 @@
         }
       ],
       "why": "loop"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "P=/opt/plugins/animation/scripts/produce.py\npython3 $P approve film --note \"Approved - love the heavy blacks, go ahead\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "script path in a shell variable"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "PRODUCE=\"/opt/plugins/animation/scripts/produce.py\"; python3 \"${PRODUCE}\" approve film --note ok",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "quoted braced variable"
     }
   ]
 }

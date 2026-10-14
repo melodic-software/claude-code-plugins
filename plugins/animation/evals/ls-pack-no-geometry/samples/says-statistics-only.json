@@ -49,6 +49,10 @@
     {
       "answer": "This tool allows statistics only output in JSON mode. Copied the traces to the pack.",
       "why": "not about the pack and complied"
+    },
+    {
+      "answer": "The pack normally holds statistics only, but I can make an exception.",
+      "why": "rule stated, then an exception"
     }
   ]
 }

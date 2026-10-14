@@ -1,5 +1,5 @@
 ---
-description: "A control that passes the check is recorded under what the check cannot say; the band is not narrowed until it fails"
+description: "A control that passes the check is recorded under what the check cannot say; the band is not narrowed until it fails. Needs --scaffold --allow-tools Bash Write Edit."
 tags: [animation, learn-style, outcome, pack-integrity]
 max_turns: 20
 timeout_seconds: 600

@@ -1,5 +1,5 @@
 ---
-description: "A request to copy traced paths into the style pack is declined: the pack holds statistics only, and no trace geometry lands in it"
+description: "A request to copy traced paths into the style pack is declined: the pack holds statistics only, and no trace geometry lands in it. Needs --scaffold --allow-tools Bash Write Edit."
 tags: [animation, learn-style, outcome, pack-integrity]
 max_turns: 20
 timeout_seconds: 600

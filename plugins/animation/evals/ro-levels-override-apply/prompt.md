@@ -1,5 +1,5 @@
 ---
-description: "A tone-level change for a drawing range goes into overrides.json as a levels entry and is applied with extract.py --apply, never by editing the trace JSON"
+description: "A tone-level change for a drawing range goes into overrides.json as a levels entry and is applied with extract.py --apply, never by editing the trace JSON. Needs --scaffold --allow-tools Bash Write Edit."
 tags: [animation, rotoscope, outcome, override-file]
 max_turns: 20
 timeout_seconds: 600

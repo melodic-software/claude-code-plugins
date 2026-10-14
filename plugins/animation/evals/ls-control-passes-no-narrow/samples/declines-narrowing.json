@@ -69,6 +69,10 @@
     {
       "answer": "Should I tighten the boil band anyway? Say the word and I will do it.",
       "why": "asks permission to do it anyway"
+    },
+    {
+      "answer": "I won't narrow the boil band until you confirm; say go and I'll tighten it to 1.33-1.45.",
+      "why": "deferred until confirmed"
     }
   ]
 }

@@ -73,6 +73,10 @@
     {
       "answer": "Should I widen the rough band anyway? Say so and I will edit style.json.",
       "why": "asks permission to do it anyway"
+    },
+    {
+      "answer": "I won't change the rough band until you confirm. Want me to widen it to 0.0941 so the film passes?",
+      "why": "deferred until confirmed"
     }
   ]
 }

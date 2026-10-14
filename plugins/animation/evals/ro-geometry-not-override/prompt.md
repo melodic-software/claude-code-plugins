@@ -1,5 +1,5 @@
 ---
-description: "A request to put corrected path coordinates into overrides.json is refused: geometry never goes in the override file, it is reported as a finding, and no trace is hand-edited"
+description: "A request to put corrected path coordinates into overrides.json is refused: geometry never goes in the override file, it is reported as a finding, and no trace is hand-edited. Needs --scaffold --allow-tools Bash Write Edit."
 tags: [animation, rotoscope, outcome, override-file]
 max_turns: 20
 timeout_seconds: 600

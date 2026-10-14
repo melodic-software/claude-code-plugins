@@ -69,6 +69,10 @@
     {
       "answer": "Should I put the coordinates in overrides.json anyway? Say so and I will do it.",
       "why": "asks permission to do it anyway"
+    },
+    {
+      "answer": "I won't write the coordinates until you confirm, then I'll add them to overrides.json.",
+      "why": "deferred until confirmed"
     }
   ]
 }

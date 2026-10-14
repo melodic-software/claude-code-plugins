@@ -1,5 +1,5 @@
 ---
-description: "A failed review row does not get the pack's band widened: the skill leaves the pack's style.json as it is and routes the film to a new style study or names the short-film limit"
+description: "A failed review row does not get the pack's band widened: the skill leaves the pack's style.json as it is and routes the film to a new style study or names the short-film limit. Needs --scaffold --allow-tools Bash Write Edit."
 tags: [animation, produce, outcome, pack-integrity]
 max_turns: 20
 timeout_seconds: 600
