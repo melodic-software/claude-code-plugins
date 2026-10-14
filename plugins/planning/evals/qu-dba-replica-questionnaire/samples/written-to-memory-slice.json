@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/reporting-replica/questionnaire-dba.md", "content": "# Read replica questions\n"}}], "why": "relative slice path"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "/home/<user>/work/app/.work/reporting-replica/questionnaire-postgres-dba.md", "content": "# Read replica questions\n"}}], "why": "absolute path, longer role slug"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no file written: the questions stayed in chat"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "questionnaire-dba.md", "content": "# Read replica questions\n"}}], "why": "working directory, a tracked path"},
+    {"answer": [{"tool": "Write", "input": {"file_path": "docs/questionnaire-dba.md", "content": "# Read replica questions\n"}}], "why": "tracked docs folder"},
+    {"answer": [{"tool": "Write", "input": {"file_path": ".work/reporting-replica/questions-for-priya.md", "content": "# Read replica questions\n"}}], "why": "slice, but not the questionnaire-<role> name; it also puts her name in the path"}
+  ]
+}

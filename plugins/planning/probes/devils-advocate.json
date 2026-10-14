@@ -1,0 +1,130 @@
+{
+  "skill": "planning:devils-advocate",
+  "plugin": "planning",
+  "skill_dir": "plugins/planning/skills/devils-advocate",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are audit-answers (validating interview answers), plan review, debugging for code bugs, review:quality-gate for pre-PR checks, and discovery:research.",
+  "competitors": [
+    "planning:audit-answers",
+    "planning:plan",
+    "debugging:debug",
+    "review:quality-gate",
+    "discovery:research"
+  ],
+  "competitor_dirs": {
+    "planning:audit-answers": "plugins/planning/skills/audit-answers",
+    "planning:plan": "plugins/planning/skills/plan",
+    "debugging:debug": "plugins/debugging/skills/debug",
+    "review:quality-gate": "plugins/review/skills/quality-gate",
+    "discovery:research": "plugins/discovery/skills/research"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Here's my plan to move us onto a monorepo. Tear it apart before I start."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Argue against adding Redis as a dependency here."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What could break if we switch the build from webpack to esbuild?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Take the opposing side on this migration proposal and find the weak assumptions."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We've used Jenkins for years. Is there something better now, or should we keep it?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Find the failure modes in this rollout plan before we touch production."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Be skeptical of this architecture change and tell me where it falls over."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Challenge the plan in PLAN.md hard. I want the risks before anyone writes code."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Should we still be using our homegrown ORM, or has the ecosystem moved past it?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What am I not seeing in this proposal to split the service in two?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Pressure-test the idea of adding a message broker between these modules."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The login endpoint returns 500 intermittently. Find out why."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review my diff before I open the PR."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Have agents double-check the answers in my interview ledger."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write the implementation plan for the broker change."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Run the tests and confirm the change works."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Compare Kafka and RabbitMQ using current docs."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find the bug that makes the cart total wrong."
+    }
+  ]
+}

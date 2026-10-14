@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Agent", "input": {"description": "validator 1", "prompt": "Audit each decision below on its merits. D1: Redis counter store. D2: 600 requests per minute. D3: 429 with Retry-After.", "subagent_type": "general-purpose"}}], "why": "one validator"},
+    {"answer": [
+      {"tool": "Agent", "input": {"description": "validator 1", "prompt": "Audit every answer.", "subagent_type": "general-purpose"}},
+      {"tool": "Agent", "input": {"description": "validator 2", "prompt": "Audit every answer.", "subagent_type": "general-purpose"}},
+      {"tool": "Agent", "input": {"description": "validator 3", "prompt": "Audit every answer.", "subagent_type": "general-purpose"}}
+    ], "why": "three validators, the upper bound"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no validator: the orchestrator graded its own answers"},
+    {"answer": [{"tool": "Read", "input": {"file_path": ".work/export-rate-limit/PLAN.md"}}], "why": "read the Brief, dispatched nothing"},
+    {"answer": [
+      {"tool": "Agent", "input": {"description": "D1", "prompt": "Audit D1.", "subagent_type": "general-purpose"}},
+      {"tool": "Agent", "input": {"description": "D2", "prompt": "Audit D2.", "subagent_type": "general-purpose"}},
+      {"tool": "Agent", "input": {"description": "D3", "prompt": "Audit D3.", "subagent_type": "general-purpose"}},
+      {"tool": "Agent", "input": {"description": "Q4", "prompt": "Audit Q4.", "subagent_type": "general-purpose"}}
+    ], "why": "four agents, one per answer: sharded and over the bound"}
+  ]
+}

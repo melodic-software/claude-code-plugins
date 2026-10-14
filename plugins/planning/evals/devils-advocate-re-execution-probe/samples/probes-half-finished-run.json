@@ -7,12 +7,28 @@
     {
       "answer": "An upload that fails partway leaves the receipt in the CSV with no copy on the drive.",
       "why": "names a half-finished state"
+    },
+    {
+      "answer": "Stopped between any two of its writes, the next start trips over the CSV row it left behind.",
+      "why": "the skill's stopped-between wording, which the old grader wrongly rejected"
+    },
+    {
+      "answer": "A half-finished run leaves the row written but the PDF still in inbox/.",
+      "why": "half-finished wording the old grader wrongly rejected"
     }
   ],
   "fail": [
     {
       "answer": "Two runs can overlap every 15 minutes and both append rows for the same receipts.",
       "why": "covers overlap only, never a stop between writes"
+    },
+    {
+      "answer": "Add alerting on failures after each run and log every upload.",
+      "why": "monitoring advice, which the old grader accepted"
+    },
+    {
+      "answer": "A run never fails between writes, since each step is atomic.",
+      "why": "negated, which the old grader accepted"
     }
   ]
 }

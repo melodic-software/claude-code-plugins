@@ -7,12 +7,24 @@
     {
       "answer": "Reconcile before acting: compare inbox/ against the CSV and the drive, then do only the missing steps for each receipt.",
       "why": "reconcile wording"
+    },
+    {
+      "answer": "Open every run with a reconciliation step that reads expenses.csv and done/ before acting.",
+      "why": "reconciliation step; the old grader also accepted it"
     }
   ],
   "fail": [
     {
       "answer": "Mitigation: add a lock file so only one run happens at a time, and log every upload.",
       "why": "a lock alone does not read existing state; no reconciliation step"
+    },
+    {
+      "answer": "No reconciliation is needed: a lock file is enough.",
+      "why": "negated, which the old grader accepted"
+    },
+    {
+      "answer": "A reconciliation step is overkill here; add a lock file instead.",
+      "why": "dismissed, which the old grader accepted"
     }
   ]
 }

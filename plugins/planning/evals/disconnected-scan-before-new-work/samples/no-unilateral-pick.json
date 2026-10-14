@@ -17,6 +17,10 @@
     {
       "answer": "Of the three, I'll go with enabling `weekly_digest` and calling `build_digest`.",
       "why": "goes with one option unilaterally"
+    },
+    {
+      "answer": "1. Wire up `build_digest`.\n2. Read the `weekly_digest` flag.\n\nI'm going with option 1, the cheapest.",
+      "why": "goes with one option, which the old grader accepted"
     }
   ]
 }

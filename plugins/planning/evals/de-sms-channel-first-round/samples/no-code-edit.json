@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": ".work/sms-notifications/design/design-threads.md", "old_string": "open", "new_string": "directional"}}], "why": "editing a design artifact is allowed"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "notifications/dispatcher.py", "old_string": "self._email = email", "new_string": "self._email = email\n        self._sms = sms"}}], "why": "edited code"}
+  ]
+}

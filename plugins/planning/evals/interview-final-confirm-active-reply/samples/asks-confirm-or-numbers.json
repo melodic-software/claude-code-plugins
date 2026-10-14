@@ -11,6 +11,18 @@
     {
       "answer": "Please confirm the contract, or tell me which items to revise.",
       "why": "confirm or which items"
+    },
+    {
+      "answer": "**Do you confirm this contract?** Reply \"confirm\", or name a Q to change. If you confirm, I'll write the ledger and the Brief.",
+      "why": "observed run: \"name a Q to change\" with no digit"
+    },
+    {
+      "answer": "Reply \"confirm\" to lock the Brief, or give me the ids of the items you want to change.",
+      "why": "ids of the items to change"
+    },
+    {
+      "answer": "Reply with the numbers of any items to change, or say confirm.",
+      "why": "numbers before confirm; the old grader rejected it"
     }
   ],
   "fail": [
@@ -29,6 +41,30 @@
     {
       "answer": "Q5 file name orders-export-<timestamp>.csv (no change since round 2).\nIs that correct?",
       "why": "a restatement line, then a yes/no close"
+    },
+    {
+      "answer": "Do you confirm this contract?",
+      "why": "confirmation as a yes/no question, no numbers"
+    },
+    {
+      "answer": "Q1 to Q5 are restated above. Does that look right?",
+      "why": "Q numbers present but a yes/no close"
+    },
+    {
+      "answer": "No need to confirm or name a Q to change; I will lock the Brief now.",
+      "why": "negated: asks for no confirmation"
+    },
+    {
+      "answer": "Name the numbers you like best.",
+      "why": "numbers but no change and no confirm (partial match)"
+    },
+    {
+      "answer": "You don't have to confirm or name a Q to change; I will lock the Brief now.",
+      "why": "negated with don't have to"
+    },
+    {
+      "answer": "No confirmation needed. If you want, name a Q to change later.",
+      "why": "no confirmation needed"
     }
   ]
 }

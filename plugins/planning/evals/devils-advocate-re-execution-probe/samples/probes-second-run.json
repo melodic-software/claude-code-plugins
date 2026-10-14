@@ -7,12 +7,24 @@
     {
       "answer": "If someone reruns import_receipts.sh by hand after a success, nothing stops it adding the rows again.",
       "why": "names a rerun"
+    },
+    {
+      "answer": "Two runs can overlap every 15 minutes and both append rows for the same receipts.",
+      "why": "overlap wording the old grader wrongly rejected"
+    },
+    {
+      "answer": "Started again straight after a clean finish, does it add the same rows a second time?",
+      "why": "the skill's own wording; the old grader wrongly rejected started again"
     }
   ],
   "fail": [
     {
       "answer": "The plan looks fine for a single script on one server. Consider logging each upload and alerting on a non-zero exit code.",
       "why": "never asks what a second run does"
+    },
+    {
+      "answer": "There is no risk of a second run here, since cron waits for the job. Consider logging each upload.",
+      "why": "negated, which the old grader accepted"
     }
   ]
 }

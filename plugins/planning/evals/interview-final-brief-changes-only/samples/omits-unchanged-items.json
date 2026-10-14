@@ -13,6 +13,10 @@
     {
       "answer": "Changed: Q5. Also note the cap stays at 50000 rows.",
       "why": "re-shows the unchanged Q4 cap"
+    },
+    {
+      "answer": "Changed: Q5. Unchanged: UTC timestamps, a 50k cap, one audit log entry per export.",
+      "why": "re-lists Q3, Q4 and Q8 in words the old grader missed"
     }
   ]
 }

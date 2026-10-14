@@ -27,6 +27,10 @@
     {
       "answer": "Q1: Is the admin page currently written in React?\nMy recommendation: **No** - it uses server templates.",
       "why": "a current-stack question, not the rewrite"
+    },
+    {
+      "answer": "Q2: Should the rewrite be deferred to its own change?\nMy recommendation: **Defer it** - the export is small.",
+      "why": "defer question with a defer recommendation, so yes accepts it"
     }
   ],
   "fail": [
@@ -41,6 +45,18 @@
     {
       "answer": "Q3: Is a React rewrite part of this work?\nMy recommendation: **no, not in this change**.",
       "why": "lowercase no on a polar rewrite question"
+    },
+    {
+      "answer": "Q2: Should we rewrite the admin page in React while we're in there?\nMy recommendation: **Keep it out of scope** - a rewrite is a separate project.",
+      "why": "yes means rewriting, recommendation keeps it out"
+    },
+    {
+      "answer": "Q2: Should we rewrite the page in React?\nMy recommendation: **Not now** - ship the export first.",
+      "why": "Not now on a should-we-rewrite question"
+    },
+    {
+      "answer": "Q2: Should we rewrite the page in React?\n**My recommendation:** No.",
+      "why": "bold label around the recommendation marker"
     }
   ]
 }

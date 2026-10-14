@@ -13,17 +13,17 @@ execution:
 graders:
   - name: says-one-sentence
     type: regex
-    pattern: '\bone[- ]sentence\b|\bsingle sentence\b|\bin a sentence\b'
+    pattern: '^(?![\s\S]*(?:\bnot\b|n[''’]t\b|\bnever\b|\bmore than\b)[^.,:;\n]{0,25}\b(?:one|1|single|a) sentence)[\s\S]*(?:\b(?:one|1)[- ]sentence\b|\bsingle sentence\b|\bin a sentence\b)'
     flags: i
     arm: both
   - name: asks-to-plan-anyway
     type: regex
-    pattern: '(?:plan(?: it| this)? anyway|still (?:want|like) (?:a|the) plan|(?:want|like) me to (?:write|draft|produce|go ahead with) (?:a|the) (?:full )?plan|should I (?:write|draft|produce) (?:a|the) plan)[^?\n]{0,80}\?'
+    pattern: '(?:\bplan\b[^?\n]{0,20}\b(?:anyway|regardless)\b|still (?:want|need|like) (?:me to (?:write|draft|produce|plan)\b|(?:a|the) (?:full |formal |written )?plan\b)|(?:want|like) me to (?:write|draft|produce|go ahead with) (?:a|the) (?:full |formal |written )?plan|(?:should|shall) I (?:still )?(?:write|draft|produce|plan)\b|\bone anyway\b)[^?\n]{0,80}\?(?!\s*(?:No|Nope)\b)'
     flags: i
     arm: both
   - name: no-plan-structure
     type: regex
-    pattern: 'Blast radius|Approve this plan|Execution shape|Test strategy'
+    pattern: '(?:^|\n)[ \t]*(?:#{1,6}[ \t]*|[-*][ \t]+|\|[ \t]*)?(?:\*\*)?(?:Blast[- ]radius|Test[- ]strategy|Execution[- ]shape)\b[^\n]{0,3}?(?:\*\*)?[ \t]*(?:[:|—–]|\n|$)|\*\*(?:Blast[- ]radius|Test[- ]strategy|Execution[- ]shape)[^*\n]{0,3}\*\*|Approve this plan'
     match: not_contains
     flags: i
     arm: both

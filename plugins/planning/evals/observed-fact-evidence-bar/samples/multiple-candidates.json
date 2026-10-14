@@ -7,6 +7,14 @@
     {
       "answer": "Grounded in the repo, cheapest to most ambitious:\n\n### 1. Batched loads\n`etl/load.py` inserts row by row because `BATCH_SIZE = 1` in `etl/config.py`.\n\n### 2. Index the customer lookup\n`etl/transform.py` does a linear scan of customers per order.\n\n### 3. Stop the nightly full reload\n`TRUNCATE fact_orders` in load.py plus `SELECT *` in extract.py reload the whole table each night.\n\nMark which of these you want to pursue and I will scope it.",
       "why": "numbered headings"
+    },
+    {
+      "answer": "## Candidates, cheapest to most ambitious\n| # | What | Where | Effort |\n|---|------|-------|--------|\n| 1 | Add per-stage timing logs | `etl/run_nightly.py` | XS |\n| 2 | Raise `BATCH_SIZE` so commits happen per batch | `etl/config.py:2` | XS |\n| 3 | Build a `{id: customer}` dict once, replacing the linear scan | `etl/transform.py:2` | XS |\n\n## Which of these resonate?",
+      "why": "observed run: candidates numbered in a markdown table"
+    },
+    {
+      "answer": "| **1** | Batch the inserts |\n| **2** | Index the customer lookup |\n| **3** | Load incrementally |",
+      "why": "bold numbers in table cells"
     }
   ],
   "fail": [
@@ -17,6 +25,22 @@
     {
       "answer": "1. Set `BATCH_SIZE` above 1 in `etl/config.py`.\n2. Replace the linear scan in `etl/transform.py`.\n\nWhich of these resonate?",
       "why": "only two candidates"
+    },
+    {
+      "answer": "| # | What |\n|---|---|\n| 1 | Batch the inserts |\n| 2 | Index the customer lookup |",
+      "why": "table with only two candidates"
+    },
+    {
+      "answer": "| Candidate | Where |\n|---|---|\n| Batch the inserts | load.py |\n| Linear scan | transform.py |\n| Incremental load | extract.py |",
+      "why": "table rows carry no numbers"
+    },
+    {
+      "answer": "| Option | 1 | 2 | 3 |\n|---|---|---|---|\n| cost | low | mid | high |",
+      "why": "numbers only in a header row, not three candidates"
+    },
+    {
+      "answer": "1. Batch the inserts.\n3. Load incrementally.\n| 3 | Add workers |",
+      "why": "skips candidate 2 (partial match)"
     }
   ]
 }

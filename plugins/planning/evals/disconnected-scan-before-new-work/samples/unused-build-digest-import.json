@@ -7,6 +7,10 @@
     {
       "answer": "Already built, not yet connected (cheapest first):\n\n1. `build_digest` is imported in `app/notifier.py` but unused; the builder in `app/digest.py` is ready to call.\n2. The `weekly_digest` feature flag defaults to False in `app/config.py` and is never read anywhere.\n3. The `delivery_receipts` table in `db/schema.sql` has no reader and no writer: nothing reads or writes it.\n\nNew work, after those:\n\n4. A weekly scheduler that batches notifications per recipient.\n5. A tracking pixel service with its own store.\n\nTell me which of these stand out, and I will scope the ones that do.",
       "why": "says the import is unused"
+    },
+    {
+      "answer": "### build_digest\nImported by `app/notifier.py` but never called.\n\nWhich of these resonate?",
+      "why": "heading then a continuation line; the old grader also accepted it"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "1. Extend `build_digest` in `app/digest.py` and call it from `app/notifier.py` on a weekly schedule.\n\nWhich of these resonate?",
       "why": "names build_digest and notifier but never says the import sits unused"
+    },
+    {
+      "answer": "1. `build_digest` in `app/notifier.py` is called on every send.\n2. The `delivery_receipts` table is unused.\n\nWhich of these resonate?",
+      "why": "the unused finding is about another item, which the old grader accepted"
     }
   ]
 }

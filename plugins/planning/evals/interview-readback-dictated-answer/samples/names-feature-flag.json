@@ -7,6 +7,10 @@
     {
       "answer": "Q2 understood as: a feature-flag rollout, staff first.",
       "why": "hyphenated form"
+    },
+    {
+      "answer": "Q2: I took \"fee chair flag\" to mean a featureflag gate, staff first. Right?",
+      "why": "closed-up form"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "Q2 recorded: behind the fee chair flag, staff first.",
       "why": "keeps the dictation error and never names the feature flag"
+    },
+    {
+      "answer": "Q2 recorded as the fee chair flag, which is not a feature flag, staff first.",
+      "why": "names a feature flag only to deny it; the old pattern accepted it"
     }
   ]
 }

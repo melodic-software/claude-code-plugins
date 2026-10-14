@@ -15,6 +15,14 @@
     {
       "answer": "Before scoping, what quality level are you aiming for?",
       "why": "names the quality level directly"
+    },
+    {
+      "answer": "Q1: Is this an internal tool for the support leads, or going to production for customers?",
+      "why": "internal tool versus production, the old grader rejected it"
+    },
+    {
+      "answer": "Q1: How robust does this need to be?",
+      "why": "asks the bar in other words"
     }
   ],
   "fail": [
@@ -37,6 +45,10 @@
     {
       "answer": "This reads like a prototype, not production. Q1: Which ticket system holds the data?",
       "why": "names both ends in a statement, then asks something else"
+    },
+    {
+      "answer": "Assuming a prototype rather than production - Q1: Which ticket system holds the data?",
+      "why": "states the bar, then asks something else on the same line"
     }
   ]
 }

@@ -7,6 +7,10 @@
     {
       "answer": "Questions:\n1. Which accounting systems?",
       "why": "numbered list"
+    },
+    {
+      "answer": "### Q1\nWhich accounting systems must the first release support?",
+      "why": "heading form"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "Here is the locked brief. Goal: a nightly invoice export.",
       "why": "no round asked"
+    },
+    {
+      "answer": "Plan:\n1. Build the exporter\n2. Add retries\n3. Ship it",
+      "why": "a numbered list with no question"
     }
   ]
 }

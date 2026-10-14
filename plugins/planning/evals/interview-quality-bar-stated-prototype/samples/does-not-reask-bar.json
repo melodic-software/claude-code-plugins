@@ -15,6 +15,10 @@
     {
       "answer": "Q3: Should it retry in production, or alert on the first failure?",
       "why": "production as context inside a failure-handling choice"
+    },
+    {
+      "answer": "Since this is a throwaway prototype, should habits persist across reloads?\nMy recommendation: **localStorage**.",
+      "why": "states the bar as settled inside a scoping question"
     }
   ],
   "fail": [
@@ -33,6 +37,18 @@
     {
       "answer": "Q1: What quality bar are we targeting here?",
       "why": "asks the quality bar by name"
+    },
+    {
+      "answer": "Q1: Should this be production-ready, or is a rough demo fine?",
+      "why": "re-asks the bar with should; the old pattern missed it"
+    },
+    {
+      "answer": "Q1: Just to confirm, this stays a throwaway prototype?",
+      "why": "a confirmation question re-asks the stated bar; the old pattern missed it"
+    },
+    {
+      "answer": "Q1: So this is just a throwaway demo, right?",
+      "why": "a tag question re-asks the bar; the old pattern missed it"
     }
   ]
 }

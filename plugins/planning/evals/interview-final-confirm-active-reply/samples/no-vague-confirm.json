@@ -7,6 +7,10 @@
     {
       "answer": "",
       "why": "an empty reply holds no vague check; the other graders fail it"
+    },
+    {
+      "answer": "Reply \"confirm\" to lock it, or list the Q numbers you want to change.",
+      "why": "active request; the old grader also passed it"
     }
   ],
   "fail": [
@@ -21,6 +25,18 @@
     {
       "answer": "That's the contract. Any thoughts?",
       "why": "any thoughts"
+    },
+    {
+      "answer": "Contract restated above. Is that correct?",
+      "why": "is that correct, a yes/no close"
+    },
+    {
+      "answer": "That is the contract. Shall I proceed?",
+      "why": "shall I proceed, a yes/no close"
+    },
+    {
+      "answer": "Q1 to Q5 as above. Agreed?",
+      "why": "agreed, a yes/no close"
     }
   ]
 }

@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:wayfind",
+            "args": "work #300"
+          }
+        }
+      ],
+      "why": "qualified name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "wayfind"
+          }
+        }
+      ],
+      "why": "unqualified name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:design"
+          }
+        }
+      ],
+      "why": "the design sibling, not wayfind"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ]
+}

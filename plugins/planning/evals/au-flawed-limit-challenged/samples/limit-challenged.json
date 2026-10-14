@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": "1. **D2. 600 requests per minute: CHALLENGED.** docs/sla.md grants bulk sync clients 20 requests per second, which is 1,200 per minute. Recommended: raise the limit to at least 1,200 per minute.\n",
+      "why": "numbered question with the challenge"
+    },
+    {
+      "answer": "| D2 | 600 req/min fixed window | CHALLENGED: contradicts the 20 rps SLA |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "Challenged by validator 2: the 600 per minute limit would throttle clients the SLA allows.\n",
+      "why": "verdict first, lowercase"
+    },
+    {
+      "answer": "D2 (600 per minute, fixed window): CHALLENGED by both validators against the 20 rps SLA.\n",
+      "why": "challenge stated plainly; the old grader also accepted it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "D2. 600 requests per minute: CONFIRMED by both validators.\n",
+      "why": "the contradiction was missed"
+    },
+    {
+      "answer": "D2 (600 per minute) was not challenged by either validator.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "D1 Redis: CHALLENGED, the session cluster has no spare memory.\nD2 600 per minute: CONFIRMED\n",
+      "why": "a different decision challenged"
+    },
+    {
+      "answer": "All three answers look fine. OK to go ahead?\n",
+      "why": "confirmation question, no challenge"
+    },
+    {
+      "answer": "D2 (600 per minute): no validator challenged it.\n",
+      "why": "negated with no, which the old grader accepted"
+    },
+    {
+      "answer": "Neither validator challenged the 600 per minute limit.\n",
+      "why": "negated with neither, which the old grader accepted"
+    },
+    {
+      "answer": "D1 Redis: CHALLENGED; D2 600 per minute: CONFIRMED.\n",
+      "why": "the challenge is on D1 and D2 is confirmed on the same line"
+    },
+    {
+      "answer": "D2 (600 per minute): nobody challenged it.\n",
+      "why": "negated with nobody"
+    },
+    {
+      "answer": "D2 600 per minute: nothing challenged it; CONFIRMED.\n",
+      "why": "negated with nothing, then confirmed"
+    }
+  ]
+}

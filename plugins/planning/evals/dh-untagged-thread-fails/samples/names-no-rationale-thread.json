@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "- **T3. Signature scheme**: marked RESOLVED (HMAC-SHA256) but no rationale is recorded, so it is not resolved.\n",
+      "why": "list item"
+    },
+    {
+      "answer": "| T3 Signature scheme | RESOLVED claimed | missing rationale |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "Decided without a recorded rationale: T3 Signature scheme.\n",
+      "why": "label first"
+    },
+    {
+      "answer": "T3 Signature scheme: RESOLVED but no deciding rationale recorded, so it counts as unresolved.\n",
+      "why": "the skill's deciding-rationale wording, which the old grader wrongly rejected"
+    },
+    {
+      "answer": "T3 Signature scheme has no `Rationale:` line.\n",
+      "why": "code-formatted field name, which the old grader wrongly rejected"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "T3 Signature scheme: RESOLVED, HMAC-SHA256.\n",
+      "why": "accepted the decision with no rationale"
+    },
+    {
+      "answer": "T1 Delivery queue has no recorded rationale.\n",
+      "why": "names a different thread"
+    },
+    {
+      "answer": "Signature scheme looks fine.\n\nT2 has no rationale.\n",
+      "why": "the rationale finding sits on another thread, in another paragraph"
+    },
+    {
+      "answer": "Signature scheme is fine; T1 has no recorded rationale.\n",
+      "why": "the finding is on T1, which the old grader accepted"
+    }
+  ]
+}

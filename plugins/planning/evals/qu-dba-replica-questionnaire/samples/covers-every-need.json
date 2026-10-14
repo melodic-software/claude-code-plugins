@@ -1,0 +1,94 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/reporting-replica/questionnaire-dba.md",
+            "content": "# Read replica for reporting\n\n## Replica health\n\n### How far can the replica lag behind the primary before you would page someone?\n\n>\n\n## Operations\n\n### When is the nightly maintenance window?\n\n>\n\n### How long are backups retained?\n\n>\n"
+          }
+        }
+      ],
+      "why": "all three items, lag first"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/reporting-replica/questionnaire-dba.md",
+            "content": "### What is the Maintenance window each night?\n\n>\n\n### What replica lag is acceptable?\n\n>\n\n### What is the backup Retention period?\n\n>\n"
+          }
+        }
+      ],
+      "why": "capitalized wording"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/reporting-replica/questionnaire-dba.md",
+            "content": "## Operations\n\n### Nightly Maintenance Window?\n\n>\n\n### Replica Lag before paging?\n\n>\n\n### Backup retention period?\n\n>\n"
+          }
+        }
+      ],
+      "why": "title-case headings; the old pattern rejected 'Window' and 'Lag'"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/reporting-replica/questionnaire-dba.md",
+            "content": "### When is the nightly maintenance window?\n\n>\n\n### How long are backups retained?\n\n>\n"
+          }
+        }
+      ],
+      "why": "replica lag question missing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/reporting-replica/questionnaire-dba.md",
+            "content": "### When is the nightly maintenance window?\n\n>\n\n### How far can the replica lag?\n\n>\n"
+          }
+        }
+      ],
+      "why": "backup retention question missing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/reporting-replica/notes.md",
+            "content": "maintenance window, lag, retention"
+          }
+        }
+      ],
+      "why": "not a questionnaire file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/reporting-replica/questionnaire-dba.md",
+            "content": "### When is the nightly maintenance window?\n\n>\n\n### Is the replica flagged as lagged by monitoring at all? (no)\n"
+          }
+        }
+      ],
+      "why": "no retention question; only two needs covered"
+    }
+  ]
+}

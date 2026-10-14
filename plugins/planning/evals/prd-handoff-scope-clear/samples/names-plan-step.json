@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/planning:design` next. With no design question open, it records a one-line early exit and hands off to `/planning:plan`.",
+      "why": "names the design step with its early exit to the plan"
+    },
+    {
+      "answer": "Scope is clear and the externals are understood, so there is no need to interview again: go straight to /planning:plan.",
+      "why": "a negation about the interview, not the plan step"
+    },
+    {
+      "answer": "Next: write the implementation plan.",
+      "why": "names the plan step in prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Run /planning:interview to lock the engineering contract first.",
+      "why": "an interview detour with no plan step"
+    },
+    {
+      "answer": "Don't run /planning:plan yet. Start with /discovery:explore to ground the export job queue.",
+      "why": "names the plan step only to defer it; the old pattern accepted it"
+    }
+  ]
+}

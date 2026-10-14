@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: dg-pytest-ruff-condition
+description: A keep-working-until-green intent that fits /goal gets a paste-ready /goal line naming both checks, its length proved by the plugin's deterministic counter rather than estimated, and a note on what /clear and a resume do to the goal
+tags: [draft-goal-condition, outcome]
+expected_outcome: The plugin's goal-condition-length.sh counter runs with a --limit. The reply holds a paste-ready /goal line whose condition names both pytest and ruff, states the counted length as within the limit, and says what a resume and /clear do to an active goal.
+execution:
+  prompt: "Use the draft-goal-condition skill from the planning plugin. I want Claude to keep working in this one session until every test under tests/ passes with pytest and `ruff check .` reports no errors. If the /goal docs page can't be fetched from here, use what I copied from it this morning: a condition should state one end state Claude can show in the conversation (for example a command it ran and that command's output), plus any constraint on how to get there, and a condition can be at most 4000 characters."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, WebFetch]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?draft-goal-condition"'
+    arm: with-only
+  - name: counter-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'goal-condition-length\.sh.*?--limit[ =]\d+'
+    min: 1
+    arm: both
+  - name: goal-line-names-both-checks
+    type: regex
+    pattern: '^[ \t>`]*/goal[ \t]+(?!clear\b)(?=[^\n]*\bpytest\b)(?=[^\n]*\bruff\b)(?![^\n]*\b(?:without|not|skip\w*|ignore|ignores|ignored|ignoring|no need to)\s+(?:running\s+|run\s+)?`?(?:pytest|ruff)\b)[^\n]+'
+    flags: mi
+    arm: both
+  - name: length-within-limit
+    type: regex
+    pattern: 'chars=\d+[ \t]+limit=\d+[ \t]+status=ok|(?<!about )(?<!roughly )(?<!around )(?<!approximately )(?<!~)\b\d[\d,]*[ \t]*(?:characters|chars)\b(?:(?!\b(?:over|exceeds?|above|not|never|too)\b|n''t\b)[^\n.]){0,80}\b(?:within|under|below|fits)\b|(?<!~)(?<![\d,])\b(?:\d{1,3}[ \t]*/[ \t]*\d,?\d{3}|[1-3],?\d{3}[ \t]*/[ \t]*4,?000|[1-4]?\d{1,2}[ \t]*/[ \t]*500)[ \t]*(?:characters|chars)\b|(?<!\bnot )(?<!n''t )\b(?:within|under|below|fits)\b[^\n]{0,60}\([ \t]*\d[\d,]*[ \t]*(?:characters|chars)\b'
+    flags: i
+    arm: both
+  - name: session-note
+    type: regex
+    pattern: '^(?=[\s\S]*?^(?![^\n]*(?:\b(?:not|never|no)|n''t)\b[ \t]+(?:\w+[ \t]+){0,2}(?:go(?:ing)? into|get into|cover|discuss|explain|mention|describe|address|detail|say|talk about)\w*\b)(?=[^\n]*/clear\b)[^\n]*(?:\b(?:remov(?:e|es|ed|ing)|end(?:s|ed)?|drop(?:s|ped)?|wip(?:e|es|ed)|reset(?:s)?|discard(?:s|ed)?|los(?:e|es|t)|cancel(?:s|led|ed)?|surviv(?:e|es|ed)|keep(?:s)?|kept|restore[sd]?|persist(?:s|ed)?|carr(?:y|ies|ied)|retain(?:s|ed)?|delete[sd]?|stay(?:s|ed)?|remain(?:s|ed)?|gone|reload(?:s|ed)?|reinstat(?:e|es|ed)|re-?run|set (?:it )?again)\b|(?<!/)\bclear(?:s|ed)\b))(?=[\s\S]*?^(?![^\n]*(?:\b(?:not|never|no)|n''t)\b[ \t]+(?:\w+[ \t]+){0,2}(?:go(?:ing)? into|get into|cover|discuss|explain|mention|describe|address|detail|say|talk about)\w*\b)(?=[^\n]*\bresum(?:e|es|ed|ing)\b)[^\n]*(?:\b(?:remov(?:e|es|ed|ing)|end(?:s|ed)?|drop(?:s|ped)?|wip(?:e|es|ed)|reset(?:s)?|discard(?:s|ed)?|los(?:e|es|t)|cancel(?:s|led|ed)?|surviv(?:e|es|ed)|keep(?:s)?|kept|restore[sd]?|persist(?:s|ed)?|carr(?:y|ies|ied)|retain(?:s|ed)?|delete[sd]?|stay(?:s|ed)?|remain(?:s|ed)?|gone|reload(?:s|ed)?|reinstat(?:e|es|ed)|re-?run|set (?:it )?again)\b|(?<!/)\bclear(?:s|ed)\b))'
+    flags: mi
+    arm: both

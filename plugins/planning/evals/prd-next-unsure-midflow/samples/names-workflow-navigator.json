@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Run `/session-flow:workflow`. It reads where the work stands and names the next stage for you.",
+      "why": "names the navigator by its slash command"
+    },
+    {
+      "answer": "Since you're unsure how much engineering detail exists, use the workflow navigator (session-flow:workflow) to find the next stage.",
+      "why": "names the navigator in prose and without the slash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The next stage of the workflow is /planning:interview: run it to lock the engineering contract.",
+      "why": "a guessed specific step phrased as a workflow stage; the old pattern accepted it"
+    },
+    {
+      "answer": "You don't need /session-flow:workflow here. Run /planning:interview next.",
+      "why": "names the navigator only to dismiss it; the old pattern accepted it"
+    }
+  ]
+}

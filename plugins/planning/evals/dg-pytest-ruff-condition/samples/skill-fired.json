@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:draft-goal-condition", "args": "keep working until pytest and ruff pass"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "draft-goal-condition"}}], "why": "unqualified name"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "loop"}}], "why": "a different lever"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview"}}], "why": "a sibling planning skill"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

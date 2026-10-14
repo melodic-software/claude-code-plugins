@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Already built, not yet connected (cheapest first):\n\n1. `build_digest` is imported in `app/notifier.py` but unused; call it over a week of pending rows.\n2. The `weekly_digest` flag defaults to False in `app/config.py` and is never read; check it in `send_pending`.\n3. The `delivery_receipts` table in `db/schema.sql` has no reader and no writer; record opens there.\n\nNew work, after those:\n\n4. A weekly scheduler that batches notifications per recipient.\n5. A tracking pixel service with its own store.\n\nWhich of these resonate?",
+      "why": "the three disconnected items lead, framed as connecting what exists"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. A weekly cron job that emails one summary per recipient.\n2. An open-tracking pixel with a new table.\n3. An event pipeline with an analytics store.\n\nAlso, `build_digest`, the `weekly_digest` flag and the `delivery_receipts` table already exist and could be reused later.\n\nWhich of these resonate?",
+      "why": "greenfield options first, disconnected items as a footnote"
+    }
+  ]
+}

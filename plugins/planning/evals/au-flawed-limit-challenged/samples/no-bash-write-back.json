@@ -1,0 +1,101 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .work/export-rate-limit/PLAN.md",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp .work/export-rate-limit/PLAN.md /tmp/plan-copy.md",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -n 600 .work/export-rate-limit/PLAN.md 2>/dev/null",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "copying the Brief out and grepping it leave it untouched"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/600 requests per minute/1200 requests per minute/' .work/export-rate-limit/PLAN.md",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "in-place sed edit of the Brief"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > .work/export-rate-limit/PLAN.md <<'MD'\n# Export API rate limiting\nMD",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "heredoc redirect over the Brief"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo '- D2 answered' | tee -a .work/export-rate-limit/interview-checklist.md",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "tee onto the ledger"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c \"import pathlib; p=pathlib.Path('.work/export-rate-limit/PLAN.md'); p.write_text(p.read_text().replace('600','1200'))\"",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "interpreter write"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv /tmp/new-plan.md .work/export-rate-limit/PLAN.md",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "moved a file over the Brief"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:questionnaire", "args": "reporting-replica"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "questionnaire"}}], "why": "unqualified name"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:interview", "args": "reporting-replica"}}], "why": "the self-answerable sibling"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

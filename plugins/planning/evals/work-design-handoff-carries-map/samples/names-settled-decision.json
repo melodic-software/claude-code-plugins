@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Settled: the change source is Debezium on Postgres 16 logical replication.",
+      "why": "settled decision named"
+    },
+    {
+      "answer": "Settled decisions (do not reopen): Debezium reading Postgres logical replication.",
+      "why": "a negation that is not about the decision"
+    },
+    {
+      "answer": "Settled: one event per shipment status change.",
+      "why": "granularity decision named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "We have not yet decided on Debezium; the change source is still being compared.",
+      "why": "negated: the old pattern matched the bare name"
+    },
+    {
+      "answer": "The change source (Debezium) is not settled yet.",
+      "why": "named but called unsettled"
+    },
+    {
+      "answer": "Question: pick the change-feed wire format. Return a recommendation.",
+      "why": "no settled decision"
+    }
+  ]
+}

@@ -1,0 +1,132 @@
+{
+  "skill": "planning:interview",
+  "plugin": "planning",
+  "skill_dir": "plugins/planning/skills/interview",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are prd (product intent), plan, brainstorm (no scope yet), questionnaire (someone else answers), wayfind (too big for one session), and audit-answers.",
+  "competitors": [
+    "planning:prd",
+    "planning:plan",
+    "planning:brainstorm",
+    "planning:questionnaire",
+    "planning:wayfind",
+    "planning:audit-answers"
+  ],
+  "competitor_dirs": {
+    "planning:prd": "plugins/planning/skills/prd",
+    "planning:plan": "plugins/planning/skills/plan",
+    "planning:brainstorm": "plugins/planning/skills/brainstorm",
+    "planning:questionnaire": "plugins/planning/skills/questionnaire",
+    "planning:wayfind": "plugins/planning/skills/wayfind",
+    "planning:audit-answers": "plugins/planning/skills/audit-answers"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before you write any code, quiz me on what I actually want from this caching change."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This ticket is vague. Ask me whatever you need to pin it down."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Grill me on the requirements for the CSV importer."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Help me nail down goal, constraints, and done criteria for the retry logic."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm not sure we agree on what this refactor should achieve. Let's go back and forth until we do."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before you start the permissions rework, what info are you missing from me?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Quiz me before touching the webhook redesign; I don't want you guessing."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Interview me about this feature so we end up with a locked brief."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Work out with me what 'finished' means for the search rewrite."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I have a half-formed idea for a rate limiter. Pull the details out of me."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Let's get on the same page about this migration before we plan it."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Brainstorm some approaches to reduce our cloud bill."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a PRD for the new customer portal."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Have agents validate the answers in my interview file."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I need to send questions to our DBA about the schema change."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write the implementation plan for the rate limiter."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "This is a giant fuzzy program of work; map it out across sessions."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Fix the typo in the README."
+    }
+  ]
+}

@@ -11,6 +11,14 @@
     {
       "answer": "One sentence covers it: cnt becomes count inside tally(). Want me to draft a full plan regardless?",
       "why": "offers the plan as a question"
+    },
+    {
+      "answer": "One sentence covers it: in tally(), cnt becomes count. Do you want a plan for it anyway?",
+      "why": "words between plan and anyway; the old pattern rejected it"
+    },
+    {
+      "answer": "One sentence covers it: in tally(), cnt becomes count. Shall I still plan it?",
+      "why": "shall-I form; the old pattern rejected it"
     }
   ],
   "fail": [
@@ -21,6 +29,10 @@
     {
       "answer": "## Plan: rename cnt\n\n**Approach:** rename cnt to count. Approve this plan to proceed to execution, or provide feedback to revise.",
       "why": "writes the plan instead of asking"
+    },
+    {
+      "answer": "Should I write a plan? No: it fits in one sentence, so I skipped it. In tally(), cnt becomes count.",
+      "why": "a rhetorical question answered at once is not an ask; the old pattern accepted it"
     }
   ]
 }

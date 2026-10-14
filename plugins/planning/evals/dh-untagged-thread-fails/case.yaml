@@ -1,0 +1,58 @@
+schema_version: "1.1"
+name: dh-untagged-thread-fails
+description: The design gate read off design-threads.md fails on an open thread with no research tag and on a thread marked resolved with no recorded rationale, still emits the six-row coverage table, and writes no PLAN.md
+tags: [design-handoff, outcome, scaffold]
+expected_outcome: The reply gives a FAIL verdict naming T2 Retry backoff policy as unresolved and untagged and T3 Signature scheme as having no recorded rationale, shows a coverage table with what, how, where, who, when and why rows, and no Write or Edit touches PLAN.md.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the design-handoff skill from the planning plugin on the topic webhook-retry. The design artifacts are in .work/webhook-retry/design/. Is the design ready for planning?"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 20
+  timeout_seconds: 900
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?design-handoff"'
+    arm: with-only
+  - name: verdict-fail
+    type: regex
+    pattern: '(?<!not )(?<!Not )(?<!no )(?<!No )(?<!zero )(?<!Zero )(?<!never )(?<!Never )(?<!nothing )(?<!Nothing )(?<!n''t )(?<!would )(?<!could )(?<!/)\bFAIL(?:ED|S)?\b(?![^\n.]{0,20}\bif\b)|\b[Gg]ate\b(?:(?!\b(?:not|no|zero|never|nothing)\b|n''t\b)[^\n.;]){0,30}\b(?:fails|failed)\b'
+    arm: both
+  - name: names-untagged-thread
+    type: regex
+    pattern: 'retry backoff(?:(?!\bnot\b|\bnever\b|n''t\b|\bT[13-9]\b)[^\n]){0,200}\b(?:unresolved|untagged|no (?:research )?tag|silent gap|open and untagged)\b|(?<!not )(?<!\bno )(?<!never )\b(?:unresolved|untagged|silent gap)\b(?:(?!\bT[13-9]\b)[^\n]){0,200}retry backoff'
+    flags: i
+    arm: both
+  - name: names-no-rationale-thread
+    type: regex
+    pattern: 'signature scheme(?:(?!\bT[0-24-9]\b)[^\n]){0,200}(?:no [`*]*(?:recorded |deciding )?rationale|without (?:a |any )?(?:recorded |deciding )?rationale|rationale[`*:]* (?:is )?(?:missing|absent|not recorded|none)|missing (?:its |a )?(?:recorded |deciding )?rationale|lacks (?:a |any )?(?:recorded |deciding )?rationale|no (?:recorded )?why)|(?:no [`*]*(?:recorded |deciding )?rationale|without (?:a |any )?(?:recorded |deciding )?rationale|missing (?:its |a )?(?:recorded |deciding )?rationale|lacks (?:a |any )?(?:recorded |deciding )?rationale)(?:(?!\bT[0-24-9]\b)[^\n]){0,200}signature scheme'
+    flags: i
+    arm: both
+  - name: coverage-table
+    type: regex
+    pattern: '^(?=[\s\S]*^\|[ \t]*\**what\**[ \t]*\|)(?=[\s\S]*^\|[ \t]*\**how\**[ \t]*\|)(?=[\s\S]*^\|[ \t]*\**where\**[ \t]*\|)(?=[\s\S]*^\|[ \t]*\**who\**[ \t]*\|)(?=[\s\S]*^\|[ \t]*\**when\**[ \t]*\|)(?=[\s\S]*^\|[ \t]*\**why\**[ \t]*\|)'
+    flags: mi
+    arm: both
+  - name: no-plan-write
+    type: tool_used
+    tool: Write
+    input_match: 'PLAN\.md'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-plan-edit
+    type: tool_used
+    tool: Edit
+    input_match: 'PLAN\.md'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-bash-plan-write
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?:>>?|\btee\b(?:\s+-{1,2}[\w-]+)*)\s*(?:\\"|'')?[^\s"''|;&<>]*PLAN\.md|\b(?:sed|perl)\b(?:[^"\\|;&]|\\.)*?\s(?:-[a-zA-Z]*i|--in-place)\b(?:[^"\\|;&]|\\.)*?PLAN\.md|\b(?:mv|rm|truncate)\b(?:[^"\\|;&]|\\.)*?PLAN\.md|\b(?:cp|install|ln)\b(?:[^"\\|;&]|\\.)*?\s(?:\\"|'')?[^\s"''|;&]*PLAN\.md(?:\\"|'')?\s*(?:"|[|;&)]|\\n)|\bdd\b(?:[^"\\|;&]|\\.)*?\bof=[^\s"]*PLAN\.md|PLAN\.md(?:[^"\\]|\\.)*?\|\s*(?:bash|zsh|dash|sh)\b|\b(?:python3?|node|ruby|deno|bun|perl)\b(?=(?:[^"\\]|\\.)*?PLAN\.md)(?=(?:[^"\\]|\\.)*?(?:write|[''"][wa]\+?[''"]|\\"[wa]\+?\\"|rename|unlink|replace\(|appendFile)))'
+    min: 0
+    max: 0
+    arm: both

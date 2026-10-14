@@ -1,0 +1,130 @@
+{
+  "skill": "planning:draft-goal-condition",
+  "plugin": "planning",
+  "skill_dir": "plugins/planning/skills/draft-goal-condition",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are performance:goal (a performance target, not a /goal), plan, interview for acceptance criteria, and work-items:track for scheduling items.",
+  "competitors": [
+    "performance:goal",
+    "planning:plan",
+    "planning:interview",
+    "implementation:implement",
+    "work-items:track"
+  ],
+  "competitor_dirs": {
+    "performance:goal": "plugins/performance/skills/goal",
+    "planning:plan": "plugins/planning/skills/plan",
+    "planning:interview": "plugins/planning/skills/interview",
+    "implementation:implement": "plugins/implementation/skills/implement",
+    "work-items:track": "plugins/work-items/skills/track"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Should this be a /goal or a /loop? I want Claude to keep fixing lint errors until there are none."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write me a /goal condition for getting the test suite to green."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My /goal keeps getting rejected for length. Can you shorten it?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want the agent to keep going until every TODO in src is resolved. What's the right mechanism?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "For re-running this check every morning, should I use a hook on stop or a scheduled routine?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The goal I wrote isn't something the transcript can prove. Help me rewrite it."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which autonomy option fits: a loop, a workflow, or just one prompt?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Draft a completion condition Claude can check itself for the migration work."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "How do I make Claude not stop until all the type errors are gone?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Turn 'finish the refactor' into something /goal can actually verify."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Pick between /schedule and /loop for polling our deploy status."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Set a performance target for the API latency and tell me the floor."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write an implementation plan for the type-error cleanup."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a work item to re-check the deploy weekly."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Fix all the lint errors in src now."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What acceptance criteria should the export feature have?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is 10 ms p99 realistic for this endpoint?"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Break this plan into tickets on the tracker."
+    }
+  ]
+}

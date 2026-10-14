@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": "## Carry-forward (not audited)\n\n- Q4. Should enterprise-tier keys be exempt? USER-RESERVED (arbiter: product owner); re-confirms at the /planning:plan approval gate.\n", "why": "carry-forward list item"},
+    {"answer": "Q4 (enterprise exemption) stays deferred, USER-RESERVED, not resolved here.\n", "why": "negated resolution word is allowed"},
+    {"answer": "| Q4 | Enterprise keys exempt? | USER-RESERVED, carried to plan |\n", "why": "table row"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Q4 USER-RESERVED was answered: enterprise keys are exempt.\n", "why": "the reserved question was resolved"},
+    {"answer": "3. Q4 enterprise exemption (USER-RESERVED): recommend exempting them. Confirm?\n", "why": "turned into an audit question with a recommendation"},
+    {"answer": "Q4 about enterprise keys carries forward to /planning:plan.\n", "why": "arbiter tag dropped"},
+    {"answer": "USER-RESERVED questions: none.\n", "why": "names no reserved question"}
+  ]
+}

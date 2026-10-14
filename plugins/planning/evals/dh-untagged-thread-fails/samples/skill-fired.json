@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:design-handoff"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "design-handoff", "args": "webhook-retry"}}], "why": "unqualified name"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:design", "args": "handoff"}}], "why": "the design skill's shortcut, not the gate skill itself"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:plan"}}], "why": "skipped the gate"},
+    {"answer": [], "why": "no tool call"}
+  ]
+}

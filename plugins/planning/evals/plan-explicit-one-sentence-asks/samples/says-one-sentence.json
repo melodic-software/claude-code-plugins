@@ -7,12 +7,20 @@
     {
       "answer": "The whole diff is a single sentence: in tally(), cnt becomes count. Plan it anyway?",
       "why": "single-sentence wording"
+    },
+    {
+      "answer": "This doesn't need a plan: it fits in one sentence. In tally(), cnt becomes count. Plan it anyway?",
+      "why": "a negation in an earlier clause does not cancel the one-sentence claim"
     }
   ],
   "fail": [
     {
       "answer": "## Plan: rename cnt\n\n**Goal:** clearer naming in tally().\n\n**Approach:** rename cnt to count on lines 2, 5 and 6.",
       "why": "plans without saying the change fits one sentence"
+    },
+    {
+      "answer": "This change doesn't fit in one sentence, so here is the full plan.\n\n**Goal:** clearer naming in tally().",
+      "why": "denies the one-sentence fit; the old pattern accepted it"
     }
   ]
 }

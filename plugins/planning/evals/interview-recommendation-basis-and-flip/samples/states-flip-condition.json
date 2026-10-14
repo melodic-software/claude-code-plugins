@@ -11,6 +11,14 @@
     {
       "answer": "Recommendation: a sliding window, unless you need burst allowance.",
       "why": "unless"
+    },
+    {
+      "answer": "Q2: Per key or per IP?\nMy recommendation: per API key, as your partner terms state.\nIf anonymous traffic matters more than partners, I'd pick per IP instead.",
+      "why": "an I'd-pick-instead condition, which the old pattern rejected"
+    },
+    {
+      "answer": "Q1: Where should the counters live?\nMy recommendation: the existing Redis 7.\nBasis: you said it already serves sessions.\nRevisit if the session instance runs hot at the 2,000 rps peak.",
+      "why": "revisit if, which the old pattern rejected"
     }
   ],
   "fail": [
@@ -25,6 +33,14 @@
     {
       "answer": "Q1: Where should the counters live?\nMy recommendation: Redis.\nBasis: judgment\nI won't proceed unless you answer.",
       "why": "an unless that is not a flip condition"
+    },
+    {
+      "answer": "Q1: Where should the counters live?\nMy recommendation: Redis.\nBasis: judgment\nNothing would change this recommendation.",
+      "why": "denies any flip condition; the old pattern accepted would change"
+    },
+    {
+      "answer": "Q1: Where should the counters live?\nMy recommendation: Redis.\nBasis: judgment\nI don't see anything that flips it.",
+      "why": "negated flips; the old pattern accepted it"
     }
   ]
 }

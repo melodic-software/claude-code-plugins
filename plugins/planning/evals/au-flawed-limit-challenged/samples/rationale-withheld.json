@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Agent", "input": {"description": "validator", "prompt": "Goal: rate-limit /v2/exports per API key. Constraint: bulk sync clients may make 20 requests per second per key (docs/sla.md). Decisions: D1 counter store is the existing session Redis. D2 limit is 600 requests per minute per key, fixed window. D3 over-limit response is HTTP 429 with Retry-After. Return CONFIRMED, CHALLENGED or RECLASSIFIED-TO-HUMAN per decision with evidence.", "subagent_type": "general-purpose"}}], "why": "what was decided, never why"},
+    {"answer": [{"tool": "Agent", "input": {"description": "validator", "prompt": "Check D1-D3 against the code and docs; the rationales are withheld on purpose.", "subagent_type": "general-purpose"}}], "why": "mentions withholding without quoting a rationale"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Agent", "input": {"description": "validator", "prompt": "D1 Redis: zero extra ops burden because the platform team already babysits the session Redis.", "subagent_type": "general-purpose"}}], "why": "D1's rationale handed over"},
+    {"answer": [{"tool": "Agent", "input": {"description": "validator", "prompt": "D2: 600 per minute, which matches the busiest customer's traffic at p99 with headroom.", "subagent_type": "general-purpose"}}], "why": "D2's rationale handed over"},
+    {"answer": [{"tool": "Agent", "input": {"description": "validator", "prompt": "D3: 429 + Retry-After, the Stripe convention our SDK users already expect.", "subagent_type": "general-purpose"}}], "why": "D3's rationale handed over"}
+  ]
+}

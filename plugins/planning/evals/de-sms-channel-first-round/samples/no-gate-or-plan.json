@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:design", "args": "module"}}], "why": "only the design skill fired"},
+    {"answer": [], "why": "no tool call"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "planning:design", "args": "module"}}, {"tool": "Skill", "input": {"skill": "planning:design-handoff"}}], "why": "ran the gate after one round"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "plan"}}], "why": "jumped to planning"}
+  ]
+}

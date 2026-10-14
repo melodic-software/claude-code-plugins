@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "With the PRD locked and the engineering detail unknown, any single step I named would be a guess. Run `/session-flow:workflow`: it checks what exists (a Brief, design notes, a plan) and names the right next stage.",
+      "why": "recommends the navigator instead of guessing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run /planning:interview next to lock the engineering contract. If you get lost later, /session-flow:workflow can help.",
+      "why": "guesses a specific step and leaves the navigator as an aside"
+    },
+    {
+      "answer": "The PRD is locked, so the plan comes next: run /planning:plan.",
+      "why": "guesses the plan step with no navigator"
+    }
+  ]
+}

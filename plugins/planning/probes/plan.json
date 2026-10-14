@@ -1,0 +1,132 @@
+{
+  "skill": "planning:plan",
+  "plugin": "planning",
+  "skill_dir": "plugins/planning/skills/plan",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are interview (locks the brief first), design, devils-advocate, implementation:implement, and work-items:decompose for tickets.",
+  "competitors": [
+    "planning:interview",
+    "planning:design",
+    "planning:devils-advocate",
+    "implementation:implement",
+    "work-items:decompose",
+    "planning:design-handoff"
+  ],
+  "competitor_dirs": {
+    "planning:interview": "plugins/planning/skills/interview",
+    "planning:design": "plugins/planning/skills/design",
+    "planning:devils-advocate": "plugins/planning/skills/devils-advocate",
+    "implementation:implement": "plugins/implementation/skills/implement",
+    "work-items:decompose": "plugins/work-items/skills/decompose",
+    "planning:design-handoff": "plugins/planning/skills/design-handoff"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Plan how we're going to add SSO to the admin app before anyone starts coding."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Lay out steps, tests, and what it touches for building the bulk export."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write up a step-by-step approach for migrating the jobs to the new scheduler."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want a plan with test strategy and blast radius for the logging overhaul."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Check this PLAN.md and tell me what's missing."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What's our approach for splitting the monolith's billing module out?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before you touch anything, give me a plan for the cache invalidation fix and wait for my OK."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Architect the upgrade from Node 18 to 22 across the repo."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Draft a plan I can hand to a fresh session for the search reindex."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is this implementation plan complete? Review it."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Map out how we'd add pagination to every list endpoint, including what can run in parallel."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Execute the approved plan in PLAN.md."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Break this plan into tickets on the tracker."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Stress-test this plan and find what could go wrong."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What should the types for the invoice domain look like?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Ask me questions until the SSO requirements are locked."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Fix the failing date test in utils."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a PRD for the admin app SSO feature."
+    }
+  ]
+}

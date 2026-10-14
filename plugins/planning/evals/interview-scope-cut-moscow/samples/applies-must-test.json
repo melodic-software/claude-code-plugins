@@ -7,6 +7,10 @@
     {
       "answer": "Must test (would you cancel the portal without it?): service catalog yes.",
       "why": "Must and cancel"
+    },
+    {
+      "answer": "Q1: Scope cut. Must = the portal fails without it; everything else has a work-around for one quarter.",
+      "why": "fails-without wording and a hyphenated work-around"
     }
   ],
   "fail": [
@@ -21,6 +25,10 @@
     {
       "answer": "Which of these must ship this quarter?",
       "why": "must without the cancel or work-around test"
+    },
+    {
+      "answer": "You must chart this before locking anything. Eight capabilities for two engineers in one quarter is more than one interview can hold, and the decisions are still too foggy to phrase as sharp questions, so I recommend /planning:wayfind to map them as a decision tree and work the frontier one decision at a time until a Brief can be locked for the first slice of the portal.\n\nSide note: the incident timeline project from last year was cancelled.",
+      "why": "must and cancel appear far apart in unrelated sentences, with no Must test; the old pattern accepted it"
     }
   ]
 }

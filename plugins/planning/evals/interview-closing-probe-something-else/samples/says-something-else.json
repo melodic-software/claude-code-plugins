@@ -3,6 +3,10 @@
     {
       "answer": "Q1: How long should an expired token be kept before deletion?\nMy recommendation: delete at once.\n\nIs there something else about this job that would change these recommendations?",
       "why": "something-else probe as a question"
+    },
+    {
+      "answer": "Is there something else (e.g. a retention rule) that would change these recommendations?",
+      "why": "an abbreviation inside the probe; the old grader also accepted it"
     }
   ],
   "fail": [
@@ -17,6 +21,10 @@
     {
       "answer": "If something else comes up, tell me.",
       "why": "not asked as a question"
+    },
+    {
+      "answer": "If something else comes up, tell me. Ready for round 2?",
+      "why": "the question mark belongs to a later sentence, which the old grader accepted"
     }
   ]
 }

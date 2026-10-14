@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Agent", "input": {"description": "validator", "prompt": "Audit every answer.", "subagent_type": "general-purpose"}}], "why": "fresh general-purpose validator"},
+    {"answer": [{"tool": "Agent", "input": {"description": "validator", "prompt": "Audit every answer; do not fork."}}], "why": "default agent type; the word fork in prose is not a fork"},
+    {"answer": [], "why": "no dispatch at all is not a fork"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Agent", "input": {"description": "validator", "prompt": "Audit every answer.", "subagent_type": "fork"}}], "why": "a fork inherits the session's reasoning"},
+    {"answer": [
+      {"tool": "Agent", "input": {"description": "validator 1", "prompt": "Audit every answer.", "subagent_type": "general-purpose"}},
+      {"tool": "Agent", "input": {"description": "validator 2", "prompt": "Audit every answer.", "subagent_type": "fork"}}
+    ], "why": "one of two validators is a fork"}
+  ]
+}

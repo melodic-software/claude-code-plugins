@@ -7,12 +7,24 @@
     {
       "answer": "Grounded in the repo, cheapest to most ambitious:\n\n### 1. Batched loads\n`etl/load.py` inserts row by row because `BATCH_SIZE = 1` in `etl/config.py`.\n\n### 2. Index the customer lookup\n`etl/transform.py` does a linear scan of customers per order.\n\n### 3. Stop the nightly full reload\n`TRUNCATE fact_orders` in load.py plus `SELECT *` in extract.py reload the whole table each night.\n\nMark which of these you want to pursue and I will scope it.",
       "why": "asks the user to mark which to pursue"
+    },
+    {
+      "answer": "1. Batch the inserts.\n2. Index the customer lookup.\n3. Load incrementally.\n\nDo any of these resonate, or should I look somewhere else?",
+      "why": "do-any question form"
     }
   ],
   "fail": [
     {
       "answer": "Nightly ETL usually speeds up with a few standard moves:\n\n- A bigger warehouse tier gives more compute for the load step.\n- More workers let extract and transform overlap.\n- Indexes on the join keys help the warehouse.\n\nMy recommendation is the bigger warehouse, since it needs no code change.",
       "why": "ends on a recommendation, no invitation"
+    },
+    {
+      "answer": "1. Batch the inserts.\n2. Index the customer lookup.\n3. Load incrementally.\n\nThe batching fix has broad appeal, so we start there.",
+      "why": "appeal in a statement, not an invitation; the old pattern accepted it"
+    },
+    {
+      "answer": "1. Batch the inserts.\n2. Index the customer lookup.\n3. Load incrementally.\n\nBatching goes first because the other levers react to its timing.",
+      "why": "react in a statement; the old pattern accepted it"
     }
   ]
 }

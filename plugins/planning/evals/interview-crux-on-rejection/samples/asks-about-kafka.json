@@ -7,6 +7,14 @@
     {
       "answer": "Q2: Is there a consumer besides this tool that needs the Kafka topic?",
       "why": "question about the Kafka choice"
+    },
+    {
+      "answer": "Q2: one check would settle it: count the services that would consume publish events. With none, Kafka is still fine if you want it.",
+      "why": "a proposed settling check, which the expected outcome allows and the old grader wrongly rejected"
+    },
+    {
+      "answer": "Q2: what would have to be true for the Postgres queue to fall short here?",
+      "why": "crux question naming Postgres, which the old grader wrongly rejected"
     }
   ],
   "fail": [
@@ -25,6 +33,10 @@
     {
       "answer": "Q2: Kafka is overkill... Are you sure?",
       "why": "re-argues instead of asking the crux"
+    },
+    {
+      "answer": "Q2 recorded: Kafka. A check is not needed.",
+      "why": "no question and no settling check"
     }
   ]
 }

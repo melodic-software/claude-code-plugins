@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Note: the goal lasts for this session. Resuming the session restores it, and /clear removes it, so set it again after a clear.\n",
+      "why": "both effects"
+    },
+    {
+      "answer": "A resumed session keeps the active goal; running /clear clears it and you must re-run /goal.\n",
+      "why": "different wording"
+    },
+    {
+      "answer": "The goal doesn't survive /clear; a resumed session restores it.\n",
+      "why": "negation describing the effect, not declining to explain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Note: /clear removes the goal.\n",
+      "why": "names /clear only, no resume"
+    },
+    {
+      "answer": "A resumed session keeps the goal.\n",
+      "why": "names resume only, no /clear"
+    },
+    {
+      "answer": "/goal Every test under tests/ passes with pytest and ruff check . reports no errors.\n",
+      "why": "the line with no session note"
+    },
+    {
+      "answer": "I won't go into what /clear or a resume do.\n",
+      "why": "declines to give the note"
+    },
+    {
+      "answer": "See the docs for /clear and resumed sessions.\n",
+      "why": "names both terms without saying what either does to the goal"
+    },
+    {
+      "answer": "/clear and resume behavior is not covered here.\n",
+      "why": "declines with not covered"
+    }
+  ]
+}

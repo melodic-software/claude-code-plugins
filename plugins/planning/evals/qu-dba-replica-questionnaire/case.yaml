@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: qu-dba-replica-questionnaire
+description: With the recipient and the needed answers given up front, the questionnaire skill writes one template-shaped discovery questionnaire for the DBA into the topic's memory slice, covering every item the user named, and reports its path without quizzing the user on the subject
+tags: [questionnaire, outcome]
+expected_outcome: One Write creates .work/reporting-replica/questionnaire-<role>.md holding Context, How to answer and Anything else sections with answer stubs and a question on each of the maintenance window, tolerable replica lag and backup retention. No questionnaire is written outside .work/, and the reply names the path.
+execution:
+  prompt: "Use the questionnaire skill from the planning plugin, topic reporting-replica. We want to point the reporting dashboards at a Postgres read replica, but three things are our DBA's call, not mine. It goes to Priya, the DBA who owns the production Postgres cluster; she knows replication well but hasn't seen the dashboard work. I need back from her: the nightly maintenance window, how much replica lag the replica can run behind before she'd page someone, and how long backups are retained. Write the questionnaire."
+  allowed_tools: [Read, Glob, Grep, Skill, Write]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?questionnaire"'
+    arm: with-only
+  - name: written-to-memory-slice
+    type: tool_used
+    tool: Write
+    input_match: '"file_path"\s*:\s*"[^"]*\.work/[a-z0-9-]+/questionnaire-[a-z0-9-]+\.md"'
+    min: 1
+    arm: both
+  - name: not-in-tracked-path
+    type: tool_used
+    tool: Write
+    input_match: '"file_path"\s*:\s*"(?![^"]*\.work/)'
+    min: 0
+    max: 0
+    arm: both
+  - name: covers-every-need
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*questionnaire-[a-z0-9-]+\.md)(?=.*[Mm]aintenance [Ww]indow)(?=.*\b[Ll]ag(?:s|ged|ging)?\b)(?=.*[Rr]etention|.*[Rr]etain)'
+    min: 1
+    arm: both
+  - name: template-shape
+    type: tool_used
+    tool: Write
+    input_match: '^(?=.*questionnaire-[a-z0-9-]+\.md)(?=.*## Context)(?=.*## How to answer)(?=.*## Anything else)(?=.*\\n>)'
+    min: 1
+    arm: both
+  - name: reports-path
+    type: regex
+    pattern: '(?:^|[.!?;\n]\s*)(?:(?!\b(?:not|never|unable|failed|cannot)\b|n''t\b)[^.!?;\n])*\.work/[a-z0-9-]+/questionnaire-[a-z0-9-]+\.md'
+    arm: both

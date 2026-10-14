@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Next: `/planning:plan`. There is no design question open, so skip design rounds.",
+      "why": "names the plan step"
+    },
+    {
+      "answer": "Run /planning:design; with no design question open it records the one-line early exit and hands you to /planning:plan.",
+      "why": "design step's early exit then plan"
+    },
+    {
+      "answer": "Skip the design rounds and go to planning:plan.",
+      "why": "negation applies to design rounds, not the plan step"
+    },
+    {
+      "answer": "You don't need design rounds; write an implementation plan before any code.",
+      "why": "implementation plan"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Go straight to /implementation:implement.",
+      "why": "no plan step"
+    },
+    {
+      "answer": "Don't run /planning:plan; it is a small change, go straight to code.",
+      "why": "negated plan step"
+    },
+    {
+      "answer": "No need for /planning:design or /planning:plan here. Start coding.",
+      "why": "negated plan and design"
+    },
+    {
+      "answer": "/planning:plan isn't needed for this. Implement it directly.",
+      "why": "plan named then negated"
+    }
+  ]
+}

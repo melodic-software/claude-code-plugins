@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "- **T2. Retry backoff policy**: status open, no research tag. Unresolved and untagged, a silent gap.\n",
+      "why": "list item"
+    },
+    {
+      "answer": "| T2 Retry backoff policy | open | untagged |\n",
+      "why": "table row"
+    },
+    {
+      "answer": "Unresolved and untagged: T2 Retry backoff policy.\n",
+      "why": "label first"
+    },
+    {
+      "answer": "Silent gap: T2 Retry backoff policy is open with no research tag.\n",
+      "why": "label first; the old grader also accepted it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "T2 Retry backoff policy: RESOLVED, exponential backoff with jitter.\n",
+      "why": "claims it is resolved"
+    },
+    {
+      "answer": "Retry backoff policy is directional and not untagged.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "T4 Dead-letter retention is unresolved but tagged for legal research, so it passes.\n",
+      "why": "names a different thread"
+    },
+    {
+      "answer": "Threads that are unresolved and untagged: <thread name>.\n",
+      "why": "pasted template, no thread named"
+    },
+    {
+      "answer": "No untagged threads remain; T2 Retry backoff policy is resolved.\n",
+      "why": "negated label, which the old grader accepted"
+    },
+    {
+      "answer": "T2 Retry backoff policy is directional; T4 is unresolved but tagged.\n",
+      "why": "the unresolved finding is on T4, which the old grader accepted"
+    }
+  ]
+}

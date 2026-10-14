@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "| Dimension | Covered by | Status |\n| --- | --- | --- |\n| what | T1 Delivery queue | RESOLVED |\n| how | none | none |\n| where | T1 Delivery queue | RESOLVED |\n| who | T5 Endpoint ownership | RESOLVED |\n| when | none | none |\n| why | T1 Delivery queue | RESOLVED |\n", "why": "the six rows"},
+    {"answer": "Coverage (advisory):\n\n| Dimension | Covered by | Status |\n|---|---|---|\n| **What** | T1 | RESOLVED |\n| **How** | none | none |\n| **Where** | T1 | RESOLVED |\n| **Who** | T5 | RESOLVED |\n| **When** | none | none |\n| **Why** | T5 | RESOLVED |\n", "why": "bold, capitalized dimensions"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "| Dimension | Covered by | Status |\n| --- | --- | --- |\n| what | T1 | RESOLVED |\n| how | none | none |\n| where | T1 | RESOLVED |\n| who | T5 | RESOLVED |\n| why | T1 | RESOLVED |\n", "why": "five rows; when is missing"},
+    {"answer": "Coverage: what, how, where, who, when and why are all covered.\n", "why": "prose, no table"},
+    {"answer": "**Gate: FAIL.** T2 is untagged. Route back to /planning:design.\n", "why": "verdict only, no coverage report"}
+  ]
+}

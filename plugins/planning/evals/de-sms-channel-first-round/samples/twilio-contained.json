@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": "2. **Twilio variation point.** Recommend: contain now, abstract later. Keep every Twilio call inside one `TwilioSmsSender` module.\n",
+      "why": "the skill's verdict wording"
+    },
+    {
+      "answer": "| Twilio | second variant unlikely; contract is single-provider | contain |\n",
+      "why": "variation-point table row"
+    },
+    {
+      "answer": "Verdict for the SMS provider: contained behind notifications/sms_sender.py, no interface yet.\n",
+      "why": "contained, provider wording"
+    },
+    {
+      "answer": "Twilio verdict: contain now (not abstract now), every call inside one TwilioSmsSender module.\n",
+      "why": "names and rejects abstract now; the old grader wrongly rejected it"
+    },
+    {
+      "answer": "3. **Twilio.** Recommend contain now, abstract later.\n",
+      "why": "the skill's default wording; the old grader also accepted it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "2. **Twilio variation point.** Recommend: abstract now, with an SmsProvider interface so Twilio is contained.\n",
+      "why": "abstract picked by the agent"
+    },
+    {
+      "answer": "Twilio: leave inline in the dispatcher.\n",
+      "why": "no contain verdict"
+    },
+    {
+      "answer": "Twilio: we don't contain it; the dispatcher calls the client directly.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "Twilio is the provider.\n\nContain the email sender's SMTP details.\n",
+      "why": "contain is about a different line"
+    },
+    {
+      "answer": "Twilio: abstract now behind an SmsProvider interface rather than contain it.\n",
+      "why": "abstract picked without the word recommend, which the old grader accepted"
+    },
+    {
+      "answer": "Twilio: we won't contain it; the dispatcher calls the client inline.\n",
+      "why": "negated with won't, which the old grader accepted"
+    }
+  ]
+}

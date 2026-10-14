@@ -7,12 +7,20 @@
     {
       "answer": "Already built, not yet connected (cheapest first):\n\n1. `build_digest` is imported in `app/notifier.py` but unused; the builder in `app/digest.py` is ready to call.\n2. The `weekly_digest` feature flag defaults to False in `app/config.py` and is never read anywhere.\n3. The `delivery_receipts` table in `db/schema.sql` has no reader and no writer: nothing reads or writes it.\n\nNew work, after those:\n\n4. A weekly scheduler that batches notifications per recipient.\n5. A tracking pixel service with its own store.\n\nTell me which of these stand out, and I will scope the ones that do.",
       "why": "closes on which of these stand out"
+    },
+    {
+      "answer": "1. Wire up `build_digest`.\n2. Read the `weekly_digest` flag.\n\nWhich of these would you like to pursue?",
+      "why": "an open which-of-these question, which the old grader wrongly rejected"
     }
   ],
   "fail": [
     {
       "answer": "1. Wire up `build_digest`.\n2. Read the `weekly_digest` flag.\n3. Use `delivery_receipts`.\n\nRECOMMENDED: start with 1, then route to /planning:interview.",
       "why": "ends on a recommendation without asking the user to react"
+    },
+    {
+      "answer": "1. Wire up `build_digest`.\n2. A React dashboard that charts open rates.\n\nRECOMMENDED: start with 1.",
+      "why": "React the framework, no invitation, which the old grader accepted"
     }
   ]
 }

@@ -1,0 +1,130 @@
+{
+  "skill": "planning:prd",
+  "plugin": "planning",
+  "skill_dir": "plugins/planning/skills/prd",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are interview and plan (engineering-internal work), brainstorm, questionnaire, and work-items:decompose for turning a PRD into tickets.",
+  "competitors": [
+    "planning:interview",
+    "planning:plan",
+    "planning:brainstorm",
+    "planning:questionnaire",
+    "work-items:decompose"
+  ],
+  "competitor_dirs": {
+    "planning:interview": "plugins/planning/skills/interview",
+    "planning:plan": "plugins/planning/skills/plan",
+    "planning:brainstorm": "plugins/planning/skills/brainstorm",
+    "planning:questionnaire": "plugins/planning/skills/questionnaire",
+    "work-items:decompose": "plugins/work-items/skills/decompose"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write up the product requirements for the team-sharing feature before engineering plans it."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We need a doc that says who this onboarding redesign is for, what problem it solves, and how we'll measure it."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Draft a product brief for the mobile offline mode."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Spec out the customer-facing invoice download so product and eng agree."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Review this PRD for the referral program and tell me what's weak."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What are we really building with the new dashboard? Put it in writing for stakeholders."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Create a requirements doc for the self-serve refund flow."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Lock down the problem, target users, and success metrics for saved searches."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Product wants a lightweight spec for the notifications center. Write it."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before we plan the pricing page change, get the product intent written down."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write a full PRD for the partner API launch."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Turn this PRD into tickets with dependencies."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write the engineering plan for the refund flow."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Give me a few rough ideas for improving retention."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Interview me about the internal logging refactor."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Plan the database migration for saved searches."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Make a doc of questions for the client to answer about scope."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Implement the referral tracking endpoint."
+    }
+  ]
+}
