@@ -1,0 +1,107 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash <plugin>/skills/map-landscape/scripts/collect-landscape.sh --drift-against \"docs/architecture/landscape.json\" --edges-from . . 2>&1 | head -50",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq '.edges | map(select(.weight > 1)) | length' docs/architecture/landscape.json",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "read-only check"
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/new.json docs/architecture/landscape.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cp"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash collect-landscape.sh --edges-from . . > docs/architecture/landscape.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "redirect"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv landscape.new docs/architecture/landscape.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "mv"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/legacy-reports/pricing-engine/' docs/architecture/landscape.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "sed -i"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo 'bash render-it.sh' | bash",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pipe to shell"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "install -m 644 /tmp/l.json docs/architecture/landscape.json",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "install"
+    }
+  ]
+}

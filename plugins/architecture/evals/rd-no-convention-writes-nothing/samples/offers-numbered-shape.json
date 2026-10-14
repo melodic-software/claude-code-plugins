@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "1. `docs/adr/`, four-digit sequence (`0001-use-postgresql.md`), sections Status, Context, Decision, Consequences.\n2. `docs/decisions/`, date prefix (`YYYY-MM-DD-title.md`), MADR sections."
+    },
+    {
+      "answer": "Option A: doc/adr/NNNN-kebab-title.md with Context / Decision / Consequences."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Searched: .adr-dir, CLAUDE.md, AGENTS.md, docs/adr/, docs/decisions/, doc/adr/, adr/. Nothing found, so I wrote nothing."
+    },
+    {
+      "answer": "No ADR convention exists. Shall I proceed with docs/adr?"
+    }
+  ]
+}

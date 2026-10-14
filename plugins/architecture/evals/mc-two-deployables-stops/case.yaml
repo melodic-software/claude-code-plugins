@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: mc-two-deployables-stops
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-both-choices
+    type: regex
+    pattern: '^(?=[\s\S]*\bOrdersApi\b)(?=[\s\S]*\bOrdersWorker\b)'
+    target: last_message
+  - name: no-container-picked
+    type: tool_used
+    tool: 'Bash'
+    input_match: '--container'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-components-write
+    type: tool_used
+    tool: 'Write'
+    input_match: 'components\.md'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-components-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: 'components\.md'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-components-shell-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?:\bcp\b|\bmv\b|\binstall\b|\bdd\b|\bsed\s+-i|\btee\b|>>?)[^"|;&]*components\.md|\|\s*(?:bash|zsh|dash|sh)\b)'
+    min: 0
+    max: 0
+    arm: both

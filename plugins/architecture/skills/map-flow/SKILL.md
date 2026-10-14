@@ -1,5 +1,5 @@
 ---
-description: "Trace one C# entry point into a mermaid sequence diagram. Each hop cites a tracked call site. An interface, service-locator, or reflection hop stays unresolved, and Publish or Send is a hand-off to map-events. Use when: 'map flow', 'sequence diagram', 'trace this request', 'walk me through what happens', 'dynamic diagram from this endpoint'. Skip when: the question is who publishes which message (/architecture:map-events) or which repositories exist (/architecture:map-landscape)."
+description: "Sequence diagram of one C# entry point, each hop citing a tracked call site: an interface, service-locator, or reflection hop stays unresolved, and Publish or Send is a hand-off to map-events. Use when 'map flow', 'sequence diagram', 'trace this request', 'walk me through what happens', or 'dynamic diagram from this endpoint'. Skip when the question is who publishes which message (/architecture:map-events) or which repositories exist (/architecture:map-landscape)."
 argument-hint: "<entry point> [--depth N] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
@@ -12,19 +12,19 @@ metadata:
 ## Repository context
 
 The current repository is both the CONSUMER, whose convention home declares where artifacts land,
-and the DEFAULT SUBJECT, the repository whose tracked C# contains the entry point.
+and the DEFAULT SUBJECT, whose tracked C# contains the entry point.
 
 Collect with an **individual** Bash call, one command per call: the project root,
 `git rev-parse --show-toplevel`. Treat a failure (not a repository, git unavailable) as an unknown
 value and carry on; `${CLAUDE_PROJECT_DIR}` is the resolver's `--root` either way. The `<entry point>`
-argument is required. It is a route (with an optional leading HTTP verb), `Type.Method`, or a
-method name, not a second repository.
+argument is required: a route (with an optional leading HTTP verb), `Type.Method`, or a method name,
+not a second repository.
 
 ## Purpose
 
-Answer "what happens when this entry point runs" from call sites already in the tree. Every hop
-traces to a line in a tracked file. The scripts collect and render. Do not add a hop the script
-did not emit, and do not bind a call to a class that merely has a method of the same name.
+Answer "what happens when this entry point runs" from call sites in the tree. Every hop traces to a
+line in a tracked file. The scripts collect and render. Do not add a hop the script did not emit,
+and do not bind a call to a class that merely has a method of the same name.
 
 ## Resolve home
 
@@ -32,16 +32,15 @@ Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. This skill writes into `
 and reads no dialect key: the picture is always a mermaid `sequenceDiagram`.
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"` and
-follow the exit code. Never parse the root instruction file yourself. Exit 0 means read
-`<home>/architecture/README.md` for `architecture_dir`. Exit 1, 2, and 3 mean there is no declared
-home to read.
+follow the exit code; never parse the root instruction file yourself. Exit 0: read
+`<home>/architecture/README.md` for `architecture_dir`. Exit 1, 2, or 3: no declared home.
 
 In order: `--out <dir>` wins for this run alone, then a declared topic-doc value, then one
 question. `architecture_dir` has NO default. An undeclared and unconfirmed home, including every
 non-interactive run, STOPS and points at `/architecture:setup`.
 
-This skill never writes the consumer's root instruction file or its topic doc. `/architecture:setup
-apply` owns both.
+This skill never writes the consumer's root instruction file or its topic doc;
+`/architecture:setup apply` owns both.
 
 ## Build the record
 
@@ -51,18 +50,17 @@ apply` owns both.
   --generated-on "<YYYY-MM-DD>" --out "<architecture_dir>/flow.json"
 ```
 
-`--depth` defaults to 5 when the invocation omits it. Keep the `${CLAUDE_SKILL_DIR}` anchor;
+`--depth` defaults to 5. Keep the `${CLAUDE_SKILL_DIR}` anchor;
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md` § Script paths](${CLAUDE_PLUGIN_ROOT}/reference/config.md#script-paths)
 says why. **As of**: 2026-10-11. **Recheck trigger**: that section is renamed or removed, or its
 own recheck trigger fires.
 
-Exit 3 is a refusal. The message states the reason. Nothing was written. Report that reason and
+Exit 3 is a refusal whose message states the reason; nothing was written. Report the reason and
 stop. Do not draw a sequence from the files you can see.
 
-The record is schema_version 1 in the one-object-per-line layout the script writes. Each hop
-carries `file` and `line` of the call site, `resolution` (`statically-resolved`, `inferred`, or
-`unresolved`), `mechanism` (why a hop is unresolved), `sync` (`synchronous` or `asynchronous`),
-and `handoff`.
+The record is schema_version 1, one object per line. Each hop carries `file` and `line` of the call
+site, `resolution` (`statically-resolved`, `inferred`, or `unresolved`), `mechanism` (why a hop is
+unresolved), `sync` (`synchronous` or `asynchronous`), and `handoff`.
 
 The shipped adapter reads tracked `*.cs` only. The entry is one of:
 
@@ -85,18 +83,18 @@ handler, so a route entry matches only a string written whole on one handler. An
 block body (expression-bodied or abstract) is a refusal. A repository with no C# file is a
 refusal. That is the result. Do not fill it from another language.
 
-A call is followed only through its receiver's declared type. The script reads that type from a
-parameter or local of the enclosing method, then a field, property or primary-constructor
-parameter of the enclosing class, then its in-tree base classes; a type name written at the call
-(`Repository.Save`) is its own evidence. It follows the call, and walks the callee, only when the
-type is a class in the tree that declares the method. Never bind a call by method name alone.
-`resolution` records the evidence:
+A call is followed only through its receiver's declared type, read from a parameter or local of the
+enclosing method, then a field, property or primary-constructor parameter of the enclosing class,
+then its in-tree base classes; a type name written at the call (`Repository.Save`) is its own
+evidence. The script follows the call, and walks the callee, only when that type is a class in the
+tree that declares the method. Never bind a call by method name alone. `resolution` records the
+evidence:
 
 - `statically-resolved`: the type came from a declaration in the enclosing method or class, or is
   written at the call. The callee may be in another file.
 - `inferred`: the type came through a base class or a declaration in another file (a partial
   class), or the method is declared on a base class.
-- `unresolved`: anything else, and never followed. `mechanism` says why:
+- `unresolved`: anything else, never followed. `mechanism` says why:
 
 | `mechanism` | Cause |
 | --- | --- |
@@ -115,8 +113,8 @@ type is a class in the tree that declares the method. Never bind a call by metho
 `await`. Neither hand-off is dropped.
 
 Hops are recorded in call order: a followed callee's hops come right after the call that leads to
-it, before the caller's next call. An access modifier marks a declaration only as a whole word
-at the start of the line, so `_internalService.Run(x)` and `publicUrl = Build(x)` are calls.
+it, before the caller's next call. An access modifier marks a declaration only as a whole word at
+the start of the line, so `_internalService.Run(x)` and `publicUrl = Build(x)` are calls.
 
 `subject` is the github.com origin repository name when that remote resolves, otherwise the
 directory basename. The helper is inline in `collect-flow.sh`.
@@ -130,24 +128,23 @@ directory basename. The helper is inline in `collect-flow.sh`.
 
 Write `flow.json` first, then render from it. The script writes `flow.md`: a `sequenceDiagram`
 whose participants are architectural roles (transport, application, domain, infrastructure, or the
-directory name), not every class. Asynchronous hops use `-->>`. Synchronous hops use `->>`. A
-handoff names `/architecture:map-events`.
+directory name), not every class. Asynchronous hops use `-->>`, synchronous hops `->>`. A handoff
+names `/architecture:map-events`.
 
 Consecutive hops that share a role pair, sync, resolution, mechanism, and handoff collapse to one
-arrow. The artifact says how many were collapsed. The table keeps every cited call.
+arrow; the artifact says how many collapsed, and the table keeps every cited call.
 
-The script prints one summary line on stdout:
+The script prints one summary line on stdout. Keep it for the report:
 `flow: entry=<name> hops=<n> truncated=<yes|no> unresolved=<n> external=<n> di=<n> handoffs=<n>`.
 `unresolved` counts every unresolved hop. `external` counts the `external-call`,
 `receiver-type-unknown` and `callee-not-in-tree` hops, `di` the `interface` and
-`dependency-injection` hops; the rest are `ambiguous-method`, `reflection` and broker hops. Keep
-the line for the report.
+`dependency-injection` hops; the rest are `ambiguous-method`, `reflection` and broker hops.
 
 When `truncated=yes`, the artifact names the depth and says the sequence stopped. Do not describe
 that picture as the whole path.
 
-Exit 1 means the record is unreadable, not schema_version 1, or not in the one-object-per-line
-layout. Nothing was written. Report that message. Do not reformat the record by hand.
+Exit 1 means the record is unreadable, not schema_version 1, or not one object per line; nothing
+was written. Report that message. Do not reformat the record by hand.
 
 Parse `flow.md` before the report. Stdout is one JSON report with a `status` of `ok` or `error` per
 block; exit 1 means a block failed to parse:
@@ -176,9 +173,9 @@ End every run with this block, in this order, filled from the record and the scr
 
 ## Interactive view
 
-After the report, offer an interactive view of `flow.json` in one sentence. The markdown and the record stay
-authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs flow`, never hand-written; the
-publish destination comes from the `medium` cascade key. Procedure:
+After the report, offer an interactive view of `flow.json` in one sentence. The markdown and the
+record stay authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs flow`,
+never hand-written; the publish destination comes from the `medium` cascade key. Procedure:
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
 ## What this skill does NOT do
@@ -186,7 +183,7 @@ publish destination comes from the `medium` cascade key. Procedure:
 - Bind an interface, a service locator, or reflection to an implementation, or bind any call by
   method name alone.
 - Import graphs, timing, or an exhaustive call graph of every class.
-- Message topology. A `Publish` or `Send` is a hand-off, not a consumer list. That is
+- Message topology. A `Publish` or `Send` is a hand-off, not a consumer list; that is
   `/architecture:map-events`.
 - Read or add a dialect key.
 - Fetch anything, or edit a source file. The only writes are `flow.json` and `flow.md` under the
@@ -209,9 +206,9 @@ publish destination comes from the `medium` cascade key. Procedure:
   <https://c4model.com/diagrams/dynamic>, fetched 2026-09-28, and the supporting-diagram list at
   <https://c4model.com/diagrams>. As of: 2026-09-28. Recheck when the dynamic-diagram page changes
   the scope or the element rule, or the diagrams index adds or removes dynamic.
-- **The picture has no dialect key.** The authoring-formats convention keys only data diagrams
-  and C4 system views. A traced sequence is neither, so it stays an unkeyed mermaid
-  `sequenceDiagram`, as `/planning:design` draws its sequence flows. The decision is recorded in
+- **The picture has no dialect key.** The authoring-formats convention keys only data diagrams and
+  C4 system views, so a traced sequence stays an unkeyed mermaid `sequenceDiagram`, as
+  `/planning:design` draws its sequence flows. The decision is recorded in
   `${CLAUDE_PLUGIN_ROOT}/reference/config.md`.
 - **Participants are roles.** A controller directory is transport, `Application` is application,
   `Domain` is domain, and `Infrastructure` is infrastructure. Other directories keep their own

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"schema_version\": 1,\n  \"generated_on\": \"2026-10-13\",\n  \"subject\": \"mx-actors-stated-only\",\n  \"focal\": {\"name\":\"mx-actors-stated-only\",\"origin\":\"derived\"},\n  \"actors\": [\n    {\"name\":\"Shop Customer\",\"description\":\"Buys products through the storefront\",\"origin\":\"operator\"}\n  ],\n  \"externals\": [\n    {\"host\":\"api.partner-pay.example\",\"kind\":\"http\",\"port\":\"\",\"file\":\"src/Storefront/appsettings.json\",\"key\":\"Partner.BaseUrl\",\"origin\":\"derived\"},\n    {\"host\":\"sql-orders.example.net\",\"kind\":\"sql\",\"port\":\"1433\",\"file\":\"src/Storefront/appsettings.json\",\"key\":\"ConnectionStrings.Orders\",\"origin\":\"derived\"}\n  ]\n}\n"
+    },
+    {
+      "answer": "{\n  \"schema_version\": 1,\n  \"generated_on\": \"2026-10-13\",\n  \"subject\": \"mx-actors-stated-only\",\n  \"focal\": {\"name\":\"mx-actors-stated-only\",\"origin\":\"derived\"},\n  \"actors\": [\n    {\"name\":\"Shop Customer\",\"description\":\"Buys products through the storefront\",\"origin\":\"operator\"}\n  ],\n  \"externals\": [\n    {\"host\": \"api.partner-pay.example\",\"kind\":\"http\",\"port\":\"\",\"file\":\"src/Storefront/appsettings.json\",\"key\":\"Partner.BaseUrl\",\"origin\":\"derived\"},\n    {\"host\": \"sql-orders.example.net\",\"kind\":\"sql\",\"port\":\"1433\",\"file\":\"src/Storefront/appsettings.json\",\"key\":\"ConnectionStrings.Orders\",\"origin\":\"derived\"}\n  ]\n}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\n  \"schema_version\": 1,\n  \"generated_on\": \"2026-10-13\",\n  \"subject\": \"mx-actors-stated-only\",\n  \"focal\": {\"name\":\"mx-actors-stated-only\",\"origin\":\"derived\"},\n  \"actors\": [\n    {\"name\":\"Shop Customer\",\"description\":\"Buys products through the storefront\",\"origin\":\"operator\"}\n  ],\n  \"externals\": [\n    {\"host\":\"api.partner-pay.example\",\"kind\":\"http\",\"port\":\"\",\"file\":\"src/Storefront/appsettings.json\",\"key\":\"Partner.BaseUrl\",\"origin\":\"derived\"}\n  ]\n}\n"
+    },
+    {
+      "answer": "{\n  \"schema_version\": 1,\n  \"generated_on\": \"2026-10-13\",\n  \"subject\": \"mx-actors-stated-only\",\n  \"focal\": {\"name\":\"mx-actors-stated-only\",\"origin\":\"derived\"},\n  \"actors\": [\n    {\"name\":\"Shop Customer\",\"description\":\"Buys products through the storefront\",\"origin\":\"operator\"}\n  ],\n  \"externals\": [\n    {\"host\":\"api.partner-pay.example\",\"kind\":\"http\",\"port\":\"\",\"file\":\"src/Storefront/appsettings.json\",\"key\":\"\",\"origin\":\"derived\"},\n    {\"host\":\"sql-orders.example.net\",\"kind\":\"sql\",\"port\":\"1433\",\"file\":\"src/Storefront/appsettings.json\",\"key\":\"ConnectionStrings.Orders\",\"origin\":\"derived\"}\n  ]\n}\n"
+    }
+  ]
+}

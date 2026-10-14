@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "render-components.sh exited 3: several deployables.\n\n- **Artifacts**: none written (dependency-graph.json only)\n- **Container**: none selected. Choices:\n  - `OrdersApi` (src/OrdersApi/OrdersApi.csproj)\n  - `OrdersWorker` (src/OrdersWorker/OrdersWorker.csproj)\n\nWhich one should I chart? Re-run with `--container <name>`."
+    },
+    {
+      "answer": "**Container**: choice list, OrdersWorker or OrdersApi. This is a non-interactive run, so I stopped here."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Charted OrdersApi.\n\n- **Components**: components=2 edges=1 drawn_edges=1"
+    },
+    {
+      "answer": "Several deployables were found; pass --container to choose one."
+    },
+    {
+      "answer": "**Container**: OrdersWorker (the only host with a worker SDK)."
+    }
+  ]
+}

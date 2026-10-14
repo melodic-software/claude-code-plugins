@@ -25,6 +25,10 @@
     {
       "answer": "Candidate (Worth exploring): the pricing engine is not deep enough yet. Pull TaxTable out behind its own interface so callers can push tax lookups through it.",
       "why": "proposes deepening; mentions 'deep' and 'push' without judging it already deep"
+    },
+    {
+      "answer": "The pricing engine is not already deep; split it into TaxPolicy and RuleSet.",
+      "why": "negated"
     }
   ]
 }

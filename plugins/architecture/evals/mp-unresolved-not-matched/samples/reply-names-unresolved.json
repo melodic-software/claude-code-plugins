@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "- **Unresolved**: 1 project reference, `src/Api/Api.csproj: <ProjectReference Include=\"../Shared/Shared.csproj\" />`. It was not matched to legacy/Shared/Shared.csproj by name."
+    },
+    {
+      "answer": "`../Shared/Shared.csproj` (from Api) does not exist, so the edge stays unresolved."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- **Unresolved**: none.\n- Api depends on Domain and legacy/Shared/Shared.csproj."
+    },
+    {
+      "answer": "Api references Shared (legacy/Shared/Shared.csproj) and Domain."
+    },
+    {
+      "answer": "../Shared/Shared.csproj is not unresolved: it binds to legacy/Shared/Shared.csproj.",
+      "why": "negated"
+    }
+  ]
+}

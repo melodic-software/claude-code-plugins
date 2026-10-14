@@ -1,0 +1,116 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git branch --show-current",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status --porcelain | head -10",
+            "description": "run"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls docs 2>/dev/null",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p docs/adr",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '# 1. Use PostgreSQL\\n' > docs/adr/0001-use-postgresql.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /tmp/adr.md docs/adr/0001-use-postgresql.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "cp"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mv draft.txt docs/adr/0001-use-postgresql.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "mv"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo decision >> docs/decisions.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "append to txt"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'mkdir docs/adr' | sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "pipe to shell"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "dd if=/tmp/a of=docs/adr/0001.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "dd"
+    }
+  ]
+}

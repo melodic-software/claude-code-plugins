@@ -1,5 +1,5 @@
 ---
-description: "Draw an entity-relationship diagram from committed schema declarations, with no database connection. Prisma models win over a stated subset of Entity Framework fluent mappings, which win over SQL migrations read from a stated subset of statements, and a disagreement is reported. Use when: 'map data', 'ERD', 'entity relationship', 'schema diagram', 'cardinality from mappings', 'which tables relate'. Skip when: the question is deployment topology, runtime state, or data volume."
+description: "Entity-relationship diagram from committed schema declarations, with no database connection: Prisma models win over a stated subset of Entity Framework fluent mappings, which win over SQL migrations read from a stated subset of statements, and a disagreement is reported. Use when 'map data', 'ERD', 'entity relationship', 'schema diagram', 'cardinality from mappings', or 'which tables relate'. Skip when the question is deployment topology, runtime state, or data volume."
 argument-hint: "[--scope module|all|<module>] [--include-columns] [--dialect mermaid|dbml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
@@ -12,7 +12,7 @@ metadata:
 ## Repository context
 
 The current repository is both the CONSUMER, whose convention home declares where artifacts land,
-and the DEFAULT SUBJECT, the repository whose tracked files declare the schema.
+and the DEFAULT SUBJECT, whose tracked files declare the schema.
 
 Collect with an **individual** Bash call, one command per call: the project root,
 `git rev-parse --show-toplevel`. Treat a failure (not a repository, git unavailable) as an unknown
@@ -20,9 +20,9 @@ value and carry on; `${CLAUDE_PROJECT_DIR}` is the resolver's `--root` either wa
 
 ## Purpose
 
-Answer "what are the entities and how do they relate" from declarations already in the tree. Every
-entity and every cardinality traces to a named file. The scripts collect and render. Do not draw a
-box the script did not emit, and do not invent a cardinality the script did not record.
+Answer "what are the entities and how do they relate" from declarations in the tree. Every entity
+and every cardinality traces to a named file. The scripts collect and render. Do not draw a box the
+script did not emit, and do not invent a cardinality the script did not record.
 
 This is not a C4 diagram. The C4 set is system context, containers, components, and code, plus
 system landscape, dynamic, and deployment. An entity-relationship diagram is none of those.
@@ -30,13 +30,12 @@ system landscape, dynamic, and deployment. An entity-relationship diagram is non
 ## Resolve home and dialect
 
 Read `${CLAUDE_PLUGIN_ROOT}/reference/config.md` first. This skill writes into `architecture_dir`.
-It does not read `landscape_dialect` and it does not add a dialect key. The diagram dialect is
+It does not read `landscape_dialect` and adds no dialect key: the diagram dialect is
 `diagram_dialect.data` from the authoring-formats topic doc.
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"` and
-follow the exit code. Never parse the root instruction file yourself. Exit 0 means read
-`<home>/architecture/README.md` for `architecture_dir`. Exit 1, 2, and 3 mean there is no declared
-home.
+follow the exit code; never parse the root instruction file yourself. Exit 0: read
+`<home>/architecture/README.md` for `architecture_dir`. Exit 1, 2, or 3: no declared home.
 
 Per key, in order: `--out <dir>` wins for this run alone, then a declared `architecture_dir`, then
 one question. `architecture_dir` has NO default. An undeclared and unconfirmed home, including
@@ -81,10 +80,10 @@ This skill never writes the consumer's root instruction file or its topic doc.
 ```
 
 Pass `--generated-on` from `git -C <root> log -1 --format=%cs`, or `unknown` when that fails.
-Pass `--live` only when the invocation asked for a live connection. The script does not open one.
-It writes a refusal and does not read the schema.
+Pass `--live` only when the invocation asked for a live connection: the script opens none, writes a
+refusal, and does not read the schema.
 
-The record is schema_version 1, one object per line. `status` is `drawn` or `refused`. A refusal
+The record is schema_version 1, one object per line. `status` is `drawn` or `refused`; a refusal
 names `reason` and writes no relationships. Shipped tiers, first present wins the diagram:
 
 - **model / prisma.** `*.prisma` model blocks.
@@ -96,10 +95,10 @@ names `reason` and writes no relationships. Shipped tiers, first present wins th
   declared on the configured entity's class in the scanned `.cs` files (`ICollection`, `List`,
   `IList`, `IEnumerable` or `HashSet` of one identifier for a collection, `T` or `T?` for a
   reference). `HasForeignKey` and `HasPrincipalKey` take one string literal or one single-member
-  lambda. Requiredness is an explicit `IsRequired()`, `IsRequired(true)` or `IsRequired(false)`; with none, it is the
-  foreign-key property's declared type on the dependent class: `T?`, `Nullable<T>` and `string?`
-  are optional, and `int`, `uint`, `long`, `ulong`, `short`, `ushort`, `byte`, `sbyte`, `Guid`,
-  `DateTime` and `DateTimeOffset` are required.
+  lambda. Requiredness is an explicit `IsRequired()`, `IsRequired(true)` or `IsRequired(false)`;
+  with none, it is the foreign-key property's declared type on the dependent class: `T?`,
+  `Nullable<T>` and `string?` are optional, and `int`, `uint`, `long`, `ulong`, `short`, `ushort`,
+  `byte`, `sbyte`, `Guid`, `DateTime` and `DateTimeOffset` are required.
 - **migration / sql-migration.** `*.sql` under a `migrations` directory at any depth, including one
   at the repository root, replayed in path order. The readable statements are `CREATE TABLE`
   (with inline `REFERENCES`, table-level `FOREIGN KEY`, `UNIQUE` and `PRIMARY KEY`),
@@ -136,15 +135,15 @@ after that refusal. Do not pick a module. With more than one module in scope, ev
 `module/Entity`, so `orders/User` and `billing/User` stay two nodes.
 
 Mermaid writes an `erDiagram` inside `data-model.md`. DBML writes `data-model.dbml` and points at
-it from `data-model.md`. Column names and types appear in the diagram only with `--include-columns`.
-The relationship list and the mismatch list are not a column dump.
+it from `data-model.md`. Column names and types appear in the diagram only with `--include-columns`;
+the relationship list and the mismatch list are not a column dump.
 
 The script prints one summary line. Keep it:
 
 `data: status=<drawn|refused> reason=<reason|none> tier=<tier> tool=<tool> modules=<n> entities=<n> relationships=<n> mismatches=<n> columns=<yes|no> dialect=<mermaid|dbml> scope=<id|all|unresolved|none>`
 
-Exit 1 means the record is unreadable or not schema_version 1 in the one-object-per-line layout.
-Nothing was written. Report that message. Do not reformat the record by hand.
+Exit 1 means the record is unreadable or not schema_version 1 in the one-object-per-line layout;
+nothing was written. Report that message. Do not reformat the record by hand.
 
 ## Close with the report
 
@@ -161,9 +160,9 @@ End every run with this block, in this order:
 
 ## Interactive view
 
-After the report, offer an interactive view of `data-model.json` in one sentence. The markdown and the record
-stay authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs data`, never
-hand-written; the publish destination comes from the `medium` cascade key. Procedure:
+After the report, offer an interactive view of `data-model.json` in one sentence. The markdown and
+the record stay authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs data`,
+never hand-written; the publish destination comes from the `medium` cascade key. Procedure:
 [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
 
 ## What this skill does NOT do
@@ -176,10 +175,9 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   with `WithOne`, a navigation with no single declared type (an expression-bodied property, a
   positional record member, an undeclared name), two declarations of one class property in the
   same module, a file with zero or several `IEntityTypeConfiguration<T>` classes, an `IsRequired`
-  argument other than `true` or `false`, and, when
-  `IsRequired` is absent, a foreign key that is undeclared or has a plain `string`, enum or other
-  type, because its nullability depends on the project's nullable setting. A `[ForeignKey]`
-  annotation is not read.
+  argument other than `true` or `false`, and, when `IsRequired` is absent, a foreign key that is
+  undeclared or has a plain `string`, enum or other type, because its nullability depends on the
+  project's nullable setting. A `[ForeignKey]` annotation is not read.
 - Guess a cardinality the declaration does not state. Implicit Prisma many-to-many and a composite
   foreign key with no unique column set refuse.
 - Invent a home. No declared, no `--out`, and no confirmed `architecture_dir` is a stop.

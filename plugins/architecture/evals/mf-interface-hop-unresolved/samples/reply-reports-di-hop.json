@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "- **Flow**: hops=3 unresolved=3 external=1 di=1 handoffs=1 truncated=no\n- **Unresolved**: 3, split external=1, di=1 (the IOrderService call), and 1 broker hand-off; none was bound to a guessed implementation."
+    },
+    {
+      "answer": "**Unresolved**: three hops. One interface hop (`_service.Place` through IOrderService), one external call, and the Publish hand-off."
+    },
+    {
+      "answer": "- **Unresolved**: 3 (external: 1, DI: 1, other: 1)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- **Flow**: hops=4 unresolved=1 external=1 di=0 handoffs=1"
+    },
+    {
+      "answer": "The request goes OrdersController.Place -> OrderService.Place -> OrderRepository.Save, then publishes OrderPlaced."
+    },
+    {
+      "answer": "Not one interface hop was left: the call binds to OrderService.",
+      "why": "negated"
+    }
+  ]
+}

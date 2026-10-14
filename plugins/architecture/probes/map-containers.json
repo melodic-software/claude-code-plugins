@@ -1,0 +1,128 @@
+{
+  "skill": "architecture:map-containers",
+  "plugin": "architecture",
+  "skill_dir": "plugins/architecture/skills/map-containers",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are map-components (inside one deployable), map-landscape (which repositories exist), map-deployment (environment topology of nodes) and map-context (external systems around the whole system). map-containers charts the deployables plus stores and brokers they bind in configuration.",
+  "competitors": [
+    "architecture:map-components",
+    "architecture:map-landscape",
+    "architecture:map-deployment",
+    "architecture:map-context"
+  ],
+  "competitor_dirs": {
+    "architecture:map-components": "plugins/architecture/skills/map-components",
+    "architecture:map-landscape": "plugins/architecture/skills/map-landscape",
+    "architecture:map-deployment": "plugins/architecture/skills/map-deployment",
+    "architecture:map-context": "plugins/architecture/skills/map-context"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make a container diagram of our system showing the services and the databases they use."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What actually runs in this solution, and which broker does each service bind to?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Show the deployables and datastores for our modular monolith."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Which services talk to RabbitMQ and which to the SQL database, based on their config?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Draw the C4 container level for the shop: web, API, worker, cache, queue."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Chart the runnable apps in this repo and what each is wired to via appsettings."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I need a diagram of the processes and stores in the platform, derived from tracked configuration."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which deployables connect to Redis? Give me a C4 container view."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Generate a container model in c4-plantuml for the ordering system."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Map the apps and databases in this monolith and show the edges between them."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What is inside the API service at the module level?"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which repositories make up our platform?"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "How does production differ from staging in terms of infrastructure?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which external vendors does this system call?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Show an ER diagram of the orders schema."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Who publishes the OrderPlaced message?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Check the health of our running pods."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which projects reference which other projects?"
+    }
+  ]
+}
