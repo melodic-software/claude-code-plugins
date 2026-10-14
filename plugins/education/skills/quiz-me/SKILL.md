@@ -67,7 +67,9 @@ Each narrative field is a string or a list of paragraphs. `choices` is optional 
 free-answer question); with choices, `answer` is the correct choice's exact text. The builder
 shuffles choices per question, so author them in any order; the key names the rendered choice number. `section` is the anchor for a miss:
 one of `context`, `intuition`, `decisions`, `done`. `references` holds durable pointers, rendered
-as text, not links. Write stdout to the retention destination below. Do not hand-write the HTML,
+as text, not links. The builder escapes every field, renders the theme for light and dark, and
+stamps the generator marker the rendered-views validator checks. Write stdout to the retention
+destination below. Do not hand-write the HTML,
 do not pre-escape values, and do not add script.
 `${CLAUDE_SKILL_DIR}/scripts/build-report.mjs --check <file>` flags a page that bypassed the
 builder. With Node missing, write the markdown fallback and say the page was not built.
