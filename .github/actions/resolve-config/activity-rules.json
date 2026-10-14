@@ -2,6 +2,10 @@
   "resolve-conflicts": {
     "never": "Force-pushes, pushes .github/workflows changes, or runs head code"
   },
+  "report-outcome": {
+    "forbidden-effects": ["mutate-branch", "merge"],
+    "never": "Writes to a branch"
+  },
   "report-escalation": {
     "forbidden-effects": ["mutate-branch", "merge"],
     "never": "Writes to the branch"

@@ -6,7 +6,9 @@ description: >
   PR into the default branch runs, and only from a base the default branch
   already holds: a PR into another branch could otherwise choose the actions,
   config and trusted-actor list it is judged by. Contract:
-  docs/conventions/pr-pipeline/pr-run-activity.md, run job step 4.
+  docs/conventions/pr-pipeline/pr-run-activity.md, run job step 4. An
+  issues event has no PR and trusts the default branch tip, in mode
+  default-tip only.
 
 inputs:
   base-sha:
@@ -62,13 +64,25 @@ runs:
         pr-base | default-tip) ;;
         *) fail "mode must be pr-base or default-tip" ;;
         esac
+        [ -n "$DEFAULT_BRANCH" ] || fail "the event names no default branch"
+        # An issues lane has no PR, so no PR base to check: it trusts the
+        # default branch tip.
+        if [ "$EVENT_NAME" = issues ]; then
+          [ "$MODE" = default-tip ] || fail "an issues event has no PR base; it needs mode default-tip"
+          trusted=$(git -C "$BASE_PATH" rev-parse --verify "refs/remotes/origin/$DEFAULT_BRANCH^{commit}") ||
+            fail "could not resolve the default branch tip"
+          git -C "$BASE_PATH" checkout -q --detach "$trusted"
+          commit=$(git -C "$BASE_PATH" rev-parse HEAD)
+          echo "trusted-base-sha=$commit mode=$MODE event=issues"
+          echo "commit=$commit" >>"$GITHUB_OUTPUT"
+          exit 0
+        fi
         if [ "$EVENT_NAME" = pull_request ]; then
           base_ref=$EVENT_BASE_REF
         else
           base_ref=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .base.ref) ||
             fail "could not read the PR's base branch"
         fi
-        [ -n "$DEFAULT_BRANCH" ] || fail "the event names no default branch"
         [ "$base_ref" = "$DEFAULT_BRANCH" ] ||
           fail "the PR targets a branch other than the default branch; lanes run only on PRs into the default branch"
         [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] || fail "the gated base SHA is malformed"

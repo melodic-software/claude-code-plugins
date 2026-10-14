@@ -85,9 +85,10 @@ condition 1 and the actor and author parts of condition 2).
      repository is public, so making it private refuses every dispatched run until the calling
      job grants that permission.
 - **Actor-only mode (`require-pr: false`).** No PR is read and the PR outputs stay empty. Only
-  `push` and `workflow_dispatch` are handled; any other event stops with `no-pr`. A
-  `workflow_dispatch` checks `sender` (denied stops with `bot-actor`, unlisted with
-  `untrusted-actor`); both events check the re-runner below. With `require-kind: human`, the
+  `push`, `workflow_dispatch` and `issues` are handled; any other event stops with `no-pr`. A
+  `workflow_dispatch` or `issues` event checks `sender`, on `issues` the account that applied the
+  label (denied stops with `bot-actor`, unlisted with `untrusted-actor`); every event checks the
+  re-runner below. With `require-kind: human`, the
   sender and the re-runner must be listed as `kind: human` (the re-runner's login is mapped to its
   listed id). Any `require-pr` value other than `true` or `false`, or `require-kind` value other
   than empty or `human`, stops with `no-pr`.

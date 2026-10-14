@@ -1,6 +1,7 @@
 // `applies-when` over the facts of one run: every listed key must match, and
 // within a key any listed value matches, except `labels-absent`, which matches
-// only when none of its labels is on the PR.
+// only when none of its labels is on the PR or issue, and `labeled-after`, one
+// time an issue's label event must come after.
 import { posix } from "node:path";
 
 export class MissingFact extends Error {
@@ -30,6 +31,11 @@ const KEYS = [
   ],
   ["work-classes", "workClasses", any((cls, classes) => classes.includes(cls))],
   ["events", "event", any((event, current) => event === current)],
+  [
+    "labeled-after",
+    "labeledAt",
+    (after, labeledAt) => Date.parse(labeledAt) > Date.parse(after),
+  ],
   // null is unknown mergeability, which never matches.
   ["mergeable", "mergeable", any((state, current) => state === current)],
   ["draft", "draft", any((draft, current) => draft === current)],
@@ -63,6 +69,9 @@ const EVENTS = {
 };
 
 export function pipelineEvent(eventName, payload) {
+  if (eventName === "issues") {
+    return payload.action === "labeled" ? "labeled" : null;
+  }
   if (eventName === "pull_request") {
     if (payload.action === "opened") {
       return payload.pull_request?.draft === false ? "ready" : null;

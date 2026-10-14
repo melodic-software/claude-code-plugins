@@ -52,6 +52,7 @@ no renumbering.
 | Stage | What happens | Starts on |
 |---|---|---|
 | `intake` | Issues are triaged into work items. | issue events |
+| `work` | An agent works one issue a person labeled `agent-ready` to a draft PR, or hands it back ([Issue mode](pr-run-activity.md#issue-mode)). | the `agent-ready` label |
 | `pre-ready` | The implementer writes the change and may push draft checkpoints at any time. Local today; the design assumes no particular implementer. | the implementer |
 | `refine` | Behavior-preserving changes that make the PR review-ready: simplify, tidy, docs and format fixes. One push at the end. | ready (or opened ready) |
 | `verify` | Checks, reviews and outcome verification on the refined commit. Mechanical and judgment lanes start together; a failed mechanical gate cancels the running judgment lanes, and `pr-require-checks` aggregates the results into `ci-status`. | dispatch from `refine` |
@@ -206,9 +207,10 @@ Each leaf declares:
   activity skips with `not-applicable-paths`: `pr-refine / fix-docs` does not run on a PR whose
   only changed Markdown is instruction surfaces or CODEOWNERS paths, such as this directory.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, `labels-absent`, work
-  classes, events, `mergeable`, `draft`). `mergeable` is `conflicting` or `clean`, read from the
-  PR at the gated head SHA only; unknown mergeability never matches. `labels-absent` matches only
-  when none of its labels is on the PR.
+  classes, events, `mergeable`, `draft`, `labeled-after`). `mergeable` is `conflicting` or `clean`,
+  read from the PR at the gated head SHA only; unknown mergeability never matches. `labels-absent`
+  matches only when none of its labels is on the PR. `labeled-after`, a UTC time, is an issues
+  lane's go-live time: it matches only an issue labeled after it.
 
 An activity is idempotent: a rerun on the same commit gives the same verdict or reuses it, a
 mutating activity with nothing to change makes no commit, and each commit it makes names the

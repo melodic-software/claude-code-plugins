@@ -169,6 +169,14 @@ const promote = byId("promote");
 const ps = promote.with?.script ?? "";
 say(/COMMIT_SHA/.test(JSON.stringify(promote.env ?? {})) && /lane !== COMMIT_SHA/.test(ps) && /COMMIT_OUTCOME !== 'success'/.test(ps),
   "in merge-base mode promote requires the commit step's success and its commit at the lane ref");
+
+// Issue mode: only the skill run writes the outcome artifact, so the
+// report-outcome run downloads what the skill run left, never its own copy.
+const outcomeWriters = steps.filter((s) => /upload-artifact/.test(s.uses ?? "") && /work-outcome/.test(JSON.stringify(s.with ?? {})));
+const collect = steps.find((s) => s.name === "Collect the issue outcome");
+say(outcomeWriters.length === 1 && collect !== undefined
+  && [...outcomeWriters, collect].every((s) => /steps\.config\.outputs\.kind == 'skill'/.test(String(s.if ?? ""))),
+  "issue mode collects and uploads the outcome artifact only in a skill run");
 EOF
 )
 if [[ -z "$results" ]]; then

@@ -71,8 +71,23 @@ function stage(overrides) {
   const args = /^claude-args=(.*)$/m.exec(text)?.[1] ?? "";
   // The --allowedTools list itself, split at the top-level commas.
   const allowed = (/--allowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(/,(?![^(]*\))/);
-  return { status: result.status, stdout: result.stdout, args, allowed };
+  const prompt = /^prompt<<(\S+)\n([\s\S]*?)\n\1$/m.exec(text)?.[2] ?? "";
+  return { status: result.status, stdout: result.stdout, args, allowed, prompt };
 }
+
+test("an issue lane's prompt names the issue before the activity's args", () => {
+  const { status, prompt, args } = stage({ SKILL: "work-items:work", ISSUE_NUMBER: "77" });
+  assert.equal(status, 0);
+  assert.equal(prompt, "/work-items:work --issue 77 ci");
+  assert.match(args, /on an issue/);
+});
+
+test("a malformed issue number fails red before any output", () => {
+  const { status, stdout, prompt } = stage({ SKILL: "work-items:work", ISSUE_NUMBER: "7 --x" });
+  assert.notEqual(status, 0);
+  assert.match(stdout, /::error::the issue number is malformed/);
+  assert.equal(prompt, "");
+});
 
 test("a writing skill that can commit gets the commit tool and the instruction to commit", () => {
   const { status, args, allowed } = stage({});

@@ -59,6 +59,7 @@
     "stage": {
       "enum": [
         "intake",
+        "work",
         "pre-ready",
         "refine",
         "verify",
@@ -112,6 +113,11 @@
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/work-class" }
+        },
+        "labeled-after": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+          "description": "An issues lane's cutover, a UTC time such as 2026-10-20T00:00:00Z: matches only an issue labeled after it. Off an issues event it cannot be decided and fails the run."
         },
         "events": {
           "type": "array",

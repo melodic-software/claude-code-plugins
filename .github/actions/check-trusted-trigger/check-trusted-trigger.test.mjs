@@ -941,7 +941,29 @@ for (const eventName of ["pull_request", "workflow_run", "schedule"]) {
   });
 }
 
+// An issues event: the sender is the account that applied the label.
+test("actor-only: an issues label from a listed human proceeds without a PR", async () => {
+  const { outputs, calls } = await actorOnly({ eventName: "issues", requireKind: "human" });
+  assert.deepEqual(outputs, ACTORS_OK);
+  assert.deepEqual(calls, []);
+});
+
+test("actor-only: an issues label from an unlisted sender stops with untrusted-actor", async () => {
+  const { outputs } = await actorOnly({ eventName: "issues", event: { sender: STRANGER } });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
+
+test("actor-only: an issues label from a denied sender stops with bot-actor", async () => {
+  const { outputs } = await actorOnly({ eventName: "issues", deniedActorIds: "153232337" });
+  assert.deepEqual(outputs, STOPPED("bot-actor"));
+});
+
 const LISTED_BOT = { login: "claude[bot]", id: 209825114, type: "Bot" };
+
+test("require-kind: human refuses an issues label applied by a listed bot", async () => {
+  const { outputs } = await actorOnly({ eventName: "issues", event: { sender: LISTED_BOT }, requireKind: "human" });
+  assert.deepEqual(outputs, STOPPED("untrusted-actor"));
+});
 
 test("require-kind: empty keeps a listed bot sender acceptable in actor-only mode", async () => {
   const { outputs } = await actorOnly({
