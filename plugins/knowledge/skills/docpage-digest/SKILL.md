@@ -155,6 +155,12 @@ pre-H2 introduction plus each H2 section is one unit; sub-bullets stay as sub-di
 their unit's file. SOURCES.md is the representation layer every later phase (and the interview)
 walks. Keep its rows in parity with the digest files.
 
+SOURCES.md also lists the relied-on links: each outbound link whose target holds content a digest
+unit leans on without stating it (a "see X for details", a link standing in for an explanation),
+one row per link naming the unit. Navigation, footer, and breadcrumb links are not rows. Read
+them from the `source.*` snapshot already held; nothing is fetched for a link, so recording one
+is not crawling.
+
 ## Phase 3. Digest fan-out
 
 One subagent per digest unit, each writing `<work-root>/digests/NN-slug.md` with this fixed
@@ -207,7 +213,22 @@ longer exist, and its verdict comes back BLOCKED.
 
 Author `<work-root>/interview-handoff.md`: a validation-answer-set-shaped artifact. One entry
 per open question or candidate artifact surfaced by the digests, each carrying the digest
-citation, the verifiers' verdict state, and a recommended disposition. **Replay the handoff's own
+citation, the verifiers' verdict state, and a recommended disposition.
+
+The handoff also carries a relied-on-links table, one row per SOURCES.md relied-on link, with
+columns link, relied on by (digest unit and claim citation), disposition, and evidence:
+
+- `covered`: an existing slice digests that page. Evidence: the slice path.
+- `queued`: the page earns its own one-page run. Evidence: the entry for the matched profile's
+  queue record (URL plus one line on why), added there once the interview approves it; with no
+  profile, the entry stays in the handoff for the user to run.
+- `skipped`. Evidence: the reason.
+
+Nothing is fetched for a row. Where many rows point at a host known, from the profile or the
+snapshot, to publish `llms.txt` or a sitemap, the handoff may suggest a `/knowledge:map-corpus`
+run seeded with that origin.
+
+**Replay the handoff's own
 commands before handing off**. Every Phase 4 check precedes it, so this pass is the only one that
 can reach them. Then hand off: invoke `/planning:interview` via the Skill tool over it when that
 plugin is installed, otherwise present the artifact and stop. The pipeline ends at the handoff. Deciding what to BUILD

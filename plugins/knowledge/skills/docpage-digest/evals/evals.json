@@ -103,6 +103,20 @@
         "Keeps the rendered page as source.html and reads figure text from it",
         "On an HTML or failed .md response, falls back to extract_blog_body.py on source.html and names the extractor in the checklist"
       ]
+    },
+    {
+      "id": 10,
+      "name": "relied-on-links-table",
+      "narration": true,
+      "prompt": "During /knowledge:docpage-digest on a docs page, the snapshot shows three sections that each say 'see the linked page for details' instead of stating the content: one link points at a page an existing slice under the same work root already digests, one at an uncovered page on the same publisher, and one at a third-party marketing page. Dozens more in-body links point at the same docs host, which the profile records as publishing llms.txt. Phases 1 to 4 are done. Write the Phase 2 relied-on links and the Phase 5 handoff for them.",
+      "expected_output": "SOURCES.md lists the three relied-on links read from the snapshot already held, each with the digest unit that leans on it, and fetches none of them. interview-handoff.md carries a relied-on-links table with one row per link: the already-digested page is covered with the existing slice's path, the uncovered publisher page is queued as its own one-page run with an entry for the publisher's queue record pending interview approval, and the marketing page is skipped with a stated reason. The run stays one page. The handoff may suggest a /knowledge:map-corpus run seeded with the docs origin because the host publishes llms.txt, and starts none.",
+      "expectations": [
+        "No linked page is fetched or digested in this run; the one-page-per-run contract holds",
+        "Every relied-on link gets exactly one disposition: covered, queued, or skipped",
+        "A covered row cites the existing slice path; a skipped row states its reason",
+        "A queued row names the queue-record entry and leaves it as a separate one-page run",
+        "Any map-corpus suggestion is seeded with the origin and is not started by this run"
+      ]
     }
   ]
 }
