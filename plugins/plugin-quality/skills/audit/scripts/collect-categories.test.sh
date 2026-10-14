@@ -240,6 +240,37 @@ has "research-corroborators" "the url variant is not counted"
 run 1 "one corroborator does not meet the bar" --notes "$(tier_ledger t-one.md "$SRC_A" "$SRC_B")"
 has "research-corroborators" "the short corroborator count is named"
 
+# batch_ledger <name> <second finding's last corroborator> - two Errors findings
+# from one batched research pass, sources in one shared subdirectory.
+mkdir "$WORK/research"
+printf 'All hooks run in parallel.\n' >"$WORK/research/hooks.md"
+printf 'Release: hooks run in parallel.\n' >"$WORK/research/release.md"
+printf 'Hooks run in parallel, a post says.\n' >"$WORK/research/post.md"
+B_A="https://code.claude.com/docs/en/hooks saved=$WORK/research/hooks.md span=hooks run in parallel"
+B_B="https://code.claude.com/docs/en/changelog saved=$WORK/research/release.md span=hooks run in parallel"
+B_C="https://example.invalid/post saved=$WORK/research/post.md span=Hooks run in parallel"
+batch_ledger() {
+  {
+    printf '## Errors\n### first claim\nevidence: e1\nresearch: tier-1\n'
+    printf 'primary: %s\ncorroborator: %s\ncorroborator: %s\n' "$SRC_A" "$SRC_B" "$SRC_C"
+    printf '### second claim\nevidence: e2\nresearch: tier-1\n'
+    printf 'primary: %s\ncorroborator: %s\ncorroborator: %s\n' "$B_A" "$B_B" "$2"
+    printf '\n## Improvements\nnone\n\n## Quality of life\nnone\n\n## Standards alignment\nnone\n\n## Emitted findings\nnot-applicable\n'
+  } >"$WORK/$1"
+  printf '%s' "$WORK/$1"
+}
+
+run 0 "batched records for two findings with sources in a packet subdirectory complete" --notes "$(batch_ledger b-ok.md "$B_C")"
+has "status: complete" "a batched ledger completes"
+
+run 1 "a batched finding whose corroborator repeats its own primary is rejected" --notes "$(batch_ledger b-dup.md "https://code.claude.com/docs/en/hooks#x saved=$WORK/research/post.md span=Hooks run in parallel")"
+has "research-corroborators section=Errors title=second claim distinct-checked=1" "the batched finding short of corroborators is named"
+if [[ "$last_out" == *"title=first claim"* ]]; then
+  fail "the other batched finding is not named — output was: $last_out"
+else
+  pass "the other batched finding is not named"
+fi
+
 CLAIM_ONLY="$(
   notes claim-only.md <<'EOF'
 ## Errors
