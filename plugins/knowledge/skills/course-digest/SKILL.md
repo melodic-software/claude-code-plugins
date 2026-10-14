@@ -1,5 +1,5 @@
 ---
-description: "Online video course (Dometrain, Pluralsight, Udemy) extracted lesson by lesson and synthesized into recommendations for the current repository. Use when the user gives a course URL or asks to digest a course, to analyze an already extracted course, or to check or resume a course digest in progress. One public video goes to /knowledge:video-digest."
+description: "Online video course (Dometrain, Teachable) extracted lesson by lesson and synthesized into recommendations for the current repository; Pluralsight and Udemy URLs are recognized but have no adapter yet. Use when the user gives a course URL or asks to digest a course, to analyze an already extracted course, or to check or resume a course digest in progress. One public video goes to /knowledge:video-digest."
 argument-hint: "[extract|analyze|status|resume|continue] [url|slug]"
 user-invocable: true
 disable-model-invocation: false
