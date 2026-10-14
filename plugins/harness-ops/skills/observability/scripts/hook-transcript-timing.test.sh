@@ -97,14 +97,14 @@ cat >"$TMP/hostile.jsonl" <<'EOF'
 {"type":"system","subtype":"stop_hook_summary","hookInfos":[3,{"durationMs":4,"command":"bash y.sh"}]}
 {"type":"attachment","attachment":{"type":"hook_success","hookName":7,"durationMs":2}}
 {"type":"attachment","attachment":{"type":"hook_success","hookEvent":"Pre\u009bX\u202eY","durationMs":6,"command":"API_KEY=\"short pw\" api_key=lower curl https://u:pw@h/x ghp_Ab3dEf6hIj9lMn2pQr5tUv8xYz1bCd4fGh7k","toolUseID":"t2"}}
-{"type":"attachment","attachment":{"type":"hook_success","hookEvent":"PostToolUse","durationMs":7,"command":"node --auth-token=ghp_shortvalue123 --db-password=p/w+1 monkey=1 hooks/pre-tool-use-guard-for-bash-commands.sh","toolUseID":"t3"}}
+{"type":"attachment","attachment":{"type":"hook_success","hookEvent":"PostToolUse","durationMs":7,"command":"node --auth-token=ghp_shortvalue123 --db-password=p/w+1 --api-key=k1 --sort-key=name --cache-key=a monkey=1 hooks/pre-tool-use-guard-for-bash-commands.sh","toolUseID":"t3"}}
 EOF
 run "$TMP/hostile.jsonl"
 assert_eq "malformed hookInfos and hookName still read" 0 "$rc"
 assert_contains "the valid entry beside a malformed one is kept" "$out" "Stop${TAB}1${TAB}4${TAB}complete${TAB}bash y.sh"
 assert_contains "quoted, lowercase and URL credentials redacted" "$out" "PreXY${TAB}1${TAB}6${TAB}sampled${TAB}API_KEY=[redacted] api_key=[redacted] curl https://[redacted]@h/x [redacted-token]"
 assert_not_contains "a bare long token is never printed" "$out" "ghp_Ab3d"
-assert_contains "hyphenated credential flags redacted; other arguments and long file names stay readable" "$out" "node --auth-token=[redacted] --db-password=[redacted] monkey=1 hooks/pre-tool-use-guard-for-bash-commands.sh"
+assert_contains "credential flags redacted; --sort-key, --cache-key, other arguments and long file names stay readable" "$out" "node --auth-token=[redacted] --db-password=[redacted] --api-key=[redacted] --sort-key=name --cache-key=a monkey=1 hooks/pre-tool-use-guard-for-bash-commands.sh"
 assert_not_contains "a short flag token is never printed" "$out" "ghp_shortvalue123"
 assert_contains "token assignment redacted" "$out" "GITHUB_TOKEN=[redacted] bash x.sh"
 assert_not_contains "token value never printed" "$out" "ghp_secretvalue"
