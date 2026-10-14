@@ -3,7 +3,7 @@ name: qz-recall-library-first
 graders:
   - name: library-searched
     type: regex
-    pattern: '"name":"(?:Glob|Grep|Read|Bash)","input":\{[^}]*(?:quiz-me/reports|plugins/data|PLUGIN_DATA|report_library)'
+    pattern: '"name":"(?:Glob|Grep|Read)","input":\{[^}]*(?:quiz-me/reports|plugins/data|report_library)'
     target: trace
   - name: library-first
     type: regex
