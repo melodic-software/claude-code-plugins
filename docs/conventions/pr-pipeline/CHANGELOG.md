@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## 1.11.0 - 2026-10-14
+
+Schema: `merge.report-only` (boolean, default false). README "Merge authority" describes it and
+adds "The pr-merge lane": the babysit wrapper under `--authority pr-merge`. The live config gains a
+`merge:` block for the pr-merge lane with `report-only: true`. `version` stays 1.
+
 ## 1.10.5 - 2026-10-12
 
 README: `ci-status` on a draft passes its skipped lanes; the `ready_for_review` run tests the head

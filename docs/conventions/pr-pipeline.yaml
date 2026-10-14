@@ -49,3 +49,19 @@ lanes:
       - activity: resolve-conflicts
       - activity: report-escalation
         needs: [resolve-conflicts]
+
+merge:
+  rung: C2
+  authority: pr-merge
+  agent-identity: melodic-automation-lanes[bot]
+  # Reports each decision and writes nothing until the owner sets false.
+  report-only: true
+  diff-check:
+    denied-paths:
+      - ".github/**"
+      - "docs/conventions/**"
+      - "plugins/source-control/skills/babysit-prs/**"
+      - ".claude/**"
+      - "plugins/*/skills/**"
+      - "plugins/*/agents/**"
+    max-changed-lines: 400

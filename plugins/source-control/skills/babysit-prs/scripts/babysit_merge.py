@@ -90,7 +90,11 @@ Contract enforced here (encoded as code, not convention):
   `--allow-unpinned-head`, `--stacked-prs` and `--allow-unprotected`. Absent
   the flag the gate is unchanged, except that plain `--merge` refuses at exit 10 when the token's
   acting login is the policy's configured agent identity, or cannot be read
-  while one is configured.
+  while one is configured. `--authority pr-merge` runs it as the CI pr-merge
+  lane: `merge.authority` must read pr-merge, eligibility is a C2 class label
+  a CI identity applied on a diff off `merge.diff-check.denied-paths`, no
+  promotion evidence is read, and while `merge.report-only` is true `--merge`
+  runs as a check that writes nothing.
 
 Readiness is gated on GitHub's own `mergeStateStatus == CLEAN` (which integrates
 required checks, approvals, conversation resolution, and up-to-date where the
@@ -2756,6 +2760,7 @@ def assess_unattended(
     number: int,
     *,
     self_logins: frozenset[str],
+    authority: str = merge_policy.LOCAL_BABYSIT,
 ) -> merge_policy.UnattendedPolicy:
     """The unattended decision for one pull request, in the wiring order:
     identity, the credential chokepoint, the kill switch, a default-branch
@@ -2792,6 +2797,7 @@ def assess_unattended(
         self_logins=self_logins,
         post_merge=post_merge,
         promotion=promotion,
+        authority=authority,
     )
     return score_unattended(repo, number, policy, self_logins)
 
@@ -3032,15 +3038,19 @@ def unattended_enqueue(
         except (postmerge.PostMergeReadError, postmerge.PostMergeWriteError) as exc:
             step["dequeueError"] = str(exc)
         return hold(f"kill-switch:{kill.reason}")
-    # The opt-in, like the kill switch, is read again here: a removal (or a
-    # removal and a non-human re-add) since the eligibility read refuses.
-    opt_in = merge_policy.recheck_opt_in(
-        repo,
-        number,
-        agent_identity=identity,
-        self_logins=inputs.get("self_logins") or frozenset(),
-        permission=inputs.get("permission"),
-    )
+    # The opt-in (the pr-merge lane's class label), like the kill switch, is
+    # read again here: a removal (or a removal and a non-human re-add) since
+    # the eligibility read refuses.
+    if inputs.get("authority") == merge_policy.PR_MERGE:
+        opt_in = merge_policy.recheck_lane_class(repo, number)
+    else:
+        opt_in = merge_policy.recheck_opt_in(
+            repo,
+            number,
+            agent_identity=identity,
+            self_logins=inputs.get("self_logins") or frozenset(),
+            permission=inputs.get("permission"),
+        )
     step["optIn"] = opt_in
     if opt_in:
         return hold(f"ineligible:{opt_in}")
@@ -3305,6 +3315,18 @@ def main() -> int:
             "--auto, --allow-unpinned-head, --stacked-prs and --allow-unprotected"
         ),
     )
+    parser.add_argument(
+        "--authority",
+        choices=(merge_policy.LOCAL_BABYSIT, merge_policy.PR_MERGE),
+        default=None,
+        help=(
+            "with --unattended, the merge authority this run is (default "
+            "local-babysit); merge.authority at the base must name it. "
+            "pr-merge is the CI lane: a CI-labeled C2 pull request off the "
+            "denied paths, no promotion read, and nothing written while "
+            "merge.report-only is true"
+        ),
+    )
     args = parser.parse_args()
 
     def _refuse(message: str, code: int, **envelope: object) -> int:
@@ -3427,6 +3449,8 @@ def main() -> int:
 
     if args.auto and not (args.merge and args.expected_head):
         return _refuse("--auto requires --merge and --expected-head", 2)
+    if args.authority is not None and not args.unattended:
+        return _refuse("--authority is only meaningful with --unattended", 2)
 
     pending_path: Path | None = None
     if args.state_dir is not None:
@@ -3478,9 +3502,14 @@ def main() -> int:
                 repo,
                 number,
                 self_logins=bot_selves,
+                authority=args.authority or merge_policy.LOCAL_BABYSIT,
             )
         except (RuntimeError, ValueError, OSError) as exc:
             return _refuse(f"unattended merge policy unreadable: {exc}", 10)
+        # Report-only: the decision is reported and nothing is written, so
+        # `--merge` runs as a check.
+        if (unattended.details or {}).get("reportOnly"):
+            args.merge = False
         if args.merge:
             writes = unattended_writes(repo, number, unattended)
             unattended = replace(

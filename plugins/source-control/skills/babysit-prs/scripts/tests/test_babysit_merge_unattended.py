@@ -15,6 +15,7 @@ Network is stubbed at the gh seams and the readers; no real gh process runs.
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import io
 import json
 import pathlib
@@ -346,6 +347,9 @@ class Unattended(unittest.TestCase):
         self.opt_in_recheck: str | None = None
         # Raised by the lane evidence read in place of its answer.
         self.lane_error: Exception | None = None
+        # The pr-merge lane's eligibility and its re-read before the enqueue.
+        self.lane_eligible = policy.Eligibility(True, None, "C2")
+        self.lane_recheck: str | None = None
 
     def _lane_evidence(self, *args: Any) -> Any:
         if self.lane_error is not None:
@@ -437,6 +441,14 @@ class Unattended(unittest.TestCase):
             mock.patch.object(policy, "in_flight", return_value=self.flight),
             mock.patch.object(policy, "read_promotion", return_value=self.promotion),
             mock.patch.object(policy, "eligibility", return_value=self.eligible),
+            mock.patch.object(
+                policy, "lane_eligibility", return_value=self.lane_eligible
+            ),
+            mock.patch.object(
+                policy,
+                "recheck_lane_class",
+                side_effect=lambda *a, **k: self.lane_recheck,
+            ),
             mock.patch.object(policy, "changed_files", return_value=self.files),
             mock.patch.object(
                 policy,
@@ -510,6 +522,65 @@ class Unattended(unittest.TestCase):
         self.assertEqual(code, 10)
         self.async_merge.assert_not_called()
         self.assertNotIn("pin", self.log)
+
+
+class LaneMode(Unattended):
+    """`--authority pr-merge` (plan Phase 1): the CI lane's own authority, its
+    class re-read before the enqueue, and report-only writing nothing (D16)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.config = policy.PipelineConfig(
+            BASE, "C2", "pr-merge", IDENTITY, 200, (".github/**",), "c2-mechanical"
+        )
+        # The local opt-in re-read is not a lane rule: reaching it would hold.
+        self.opt_in_recheck = "not-lane-authored-or-opted-in"
+        # D16 replaces the local promotion read: an unpromoted cell must not hold.
+        self.promotion = policy.Promotion(None, "resolver-failed")
+
+    def test_the_lane_enqueues_at_the_pinned_head(self) -> None:
+        code, out = self.run_main("--authority", "pr-merge")
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertIsNone(out["unattended"]["reason"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+
+    def test_a_class_label_gone_before_the_enqueue_refuses(self) -> None:
+        self.lane_recheck = "class-label-removed"
+        code, out = self.run_main("--authority", "pr-merge")
+        self.assert_no_merge(code)
+        self.assertIn(
+            "unattended merge refused: ineligible:class-label-removed", out["blockers"]
+        )
+
+    def test_an_ineligible_pr_is_refused(self) -> None:
+        self.lane_eligible = policy.Eligibility(False, "denied-path:.github/x.yml")
+        code, out = self.run_main("--authority", "pr-merge")
+        self.assert_no_merge(code)
+        self.assertEqual(
+            out["unattended"]["reason"], "ineligible:denied-path:.github/x.yml"
+        )
+
+    def test_report_only_reports_the_decision_and_writes_nothing(self) -> None:
+        self.config = dataclasses.replace(self.config, report_only=True)
+        code, out = self.run_main("--authority", "pr-merge")
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(out["action"], "check")
+        self.assertIs(out["unattended"]["reportOnly"], True)
+        self.assertEqual(self.log, [])
+        self.capture.assert_not_called()
+        self.dequeue.assert_not_called()
+        self.async_merge.assert_not_called()
+
+    def test_authority_without_unattended_is_a_usage_error(self) -> None:
+        argv = ["babysit_merge.py", f"owner/repo#{PR}", "--allowed-owners", "owner"]
+        out = io.StringIO()
+        with (
+            mock.patch.object(sys, "argv", [*argv, "--authority", "pr-merge"]),
+            mock.patch.object(merge, "gh_capture", side_effect=AssertionError),
+            mock.patch.object(merge, "gh_json", side_effect=AssertionError),
+            contextlib.redirect_stdout(out),
+        ):
+            self.assertEqual(merge.main(), 2)
 
 
 class AllInputsGood(Unattended):

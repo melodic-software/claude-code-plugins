@@ -51,7 +51,7 @@ from babysit_gh import (
     gh_http_status,
     is_owner_repo_pair,
 )
-from babysit_risk import ChangedFile
+from babysit_risk import ChangedFile, glob_match
 from babysit_util import (
     is_json_array,
     is_json_object,
@@ -170,11 +170,7 @@ def resolve(repo: str, number: int | None = None) -> UnattendedPolicy:
     config = read_config_at(repo, sha)
     if config.error:
         raise PolicyReadError(f"{CONFIG_PATH} at {sha}: {config.error}")
-    reason = (
-        NOT_ASSESSED
-        if (config.authority or "pr-merge") == "local-babysit"
-        else AUTHORITY_UNCONFIGURED
-    )
+    reason = NOT_ASSESSED if enabled_authority(config) else AUTHORITY_UNCONFIGURED
     return UnattendedPolicy(reason, config.agent_identity, enabled=False)
 
 
@@ -409,6 +405,23 @@ class PipelineConfig:
     loop_merge: str | None
     error: str | None = None
     notes: tuple[str, ...] = ()
+    # `merge.report-only`: the gate reports and writes nothing. Absent is
+    # false; any value but true or false is true.
+    report_only: bool = False
+
+
+LOCAL_BABYSIT = "local-babysit"
+PR_MERGE = "pr-merge"
+
+
+def enabled_authority(config: PipelineConfig) -> str | None:
+    """The unattended authority the config enables, or None: local-babysit
+    as named, or pr-merge (also the meaning of an absent authority) once an
+    agent identity is set, since an unset identity leaves that path inert."""
+    authority = config.authority or PR_MERGE
+    if authority == LOCAL_BABYSIT or (authority == PR_MERGE and config.agent_identity):
+        return authority
+    return None
 
 
 def _file_at(owner: str, name: str, path: str, sha: str) -> str | None:
@@ -494,6 +507,7 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
             ("merge.agent-identity", False),
             ("merge.diff-check.max-changed-lines", False),
             ("merge.diff-check.denied-paths", True),
+            ("merge.report-only", False),
         ],
     )
     if values is None:
@@ -513,6 +527,9 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
     if lines is not None and not re.fullmatch(r"[0-9]+", lines):
         notes.append(f"merge.diff-check.max-changed-lines {lines!r} is not a count")
         rung, lines = "off", None
+    report_only = scalar("merge.report-only")
+    if report_only not in (None, "true", "false"):
+        notes.append(f"merge.report-only {report_only!r} is not true or false")
     return PipelineConfig(
         base_sha=base_sha,
         rung=rung,
@@ -522,6 +539,7 @@ def read_config_at(repo: str, base_sha: str) -> PipelineConfig:
         denied_paths=tuple(values["merge.diff-check.denied-paths"]),
         loop_merge=loop_merge,
         notes=tuple(notes),
+        report_only=report_only not in (None, "false"),
     )
 
 
@@ -1148,15 +1166,9 @@ def eligibility(
         pr = json_object(json_object(data.get("repository")).get("pullRequest"))
         if not pr:
             return Eligibility(False, "pull-request-unreadable")
-        author = json_object(pr.get("author"))
-        head_owner = json_object(pr.get("headRepositoryOwner")).get("login")
-        if (
-            pr.get("isCrossRepository") is not False
-            or str(head_owner).casefold() != owner.casefold()
-        ):
-            return Eligibility(False, "fork")
-        if is_dependency_author(str(author.get("login") or "")):
-            return Eligibility(False, "dependency-manager")
+        foreign = _foreign_refusal(pr, owner)
+        if foreign:
+            return Eligibility(False, foreign)
         timelines: dict[int, list[dict[str, Any]]] = {}
         lane_authored = _lane_authored(pr, agent_identity)
         opt_in = _opt_in_refusal(
@@ -1210,6 +1222,141 @@ def eligibility(
     except PolicyReadError as exc:
         return Eligibility(False, f"unreadable: {exc}")
     return Eligibility(True, None, work_class, issue_number)
+
+
+def _foreign_refusal(pr: dict[str, Any], owner: str) -> str | None:
+    """`fork` for a head outside this repository, `dependency-manager` for a
+    dependency manager's pull request, else None."""
+    head_owner = json_object(pr.get("headRepositoryOwner")).get("login")
+    if (
+        pr.get("isCrossRepository") is not False
+        or str(head_owner).casefold() != owner.casefold()
+    ):
+        return "fork"
+    if is_dependency_author(str(json_object(pr.get("author")).get("login") or "")):
+        return "dependency-manager"
+    return None
+
+
+# --- Eligibility in the pr-merge lane -----------------------------------------------------
+
+
+def _lane_class(
+    owner: str, name: str, number: int, labels: list[str]
+) -> tuple[str | None, str | None]:
+    """(work class, refusal) from the pull request's own `work-class:` labels.
+
+    Until agents act as their own App (D14), a person's token may be an
+    agent's, so only label events by a CI identity (a `Bot` actor) are
+    replayed and any other actor's, the owner account's included, are
+    ignored. A label present now or standing in that replay can only make the
+    class stricter. The strictest class must be C2, present now and standing
+    in the replay."""
+    events = sorted(
+        (
+            e
+            for e in _timeline(owner, name, number, {})
+            if e.get("event") in ("labeled", "unlabeled")
+            and str(json_object(e.get("label")).get("name") or "").startswith(
+                WORK_CLASS_PREFIX
+            )
+        ),
+        key=lambda e: _time(e.get("created_at")),
+    )
+    trusted: set[str] = set()
+    for event in events:
+        if json_object(event.get("actor")).get("type") != "Bot":
+            continue
+        label = str(json_object(event.get("label")).get("name"))
+        if event.get("event") == "labeled":
+            trusted.add(label)
+        else:
+            trusted.discard(label)
+    current = {label for label in labels if label.startswith(WORK_CLASS_PREFIX)}
+    seen = current | trusted
+    if not seen:
+        return None, "class-missing"
+    if any(label not in WORK_CLASS_LABELS for label in seen):
+        return None, "class-unknown"
+    strictest = max(seen, key=lambda label: int(WORK_CLASS_LABELS[label][1]))
+    work_class = WORK_CLASS_LABELS[strictest]
+    if work_class != "C2":
+        return work_class, f"class-not-mechanical:{work_class}"
+    if strictest not in current:
+        return work_class, "class-label-removed"
+    if strictest not in trusted:
+        return work_class, "class-label-not-ci-applied"
+    return work_class, None
+
+
+def _denied_path_refusal(
+    owner: str, name: str, number: int, changed: Any, denied: Collection[str]
+) -> str | None:
+    """Why the diff may not merge in the lane: no denied paths configured, a
+    file listing short of the pull request's changed-file count, or a path
+    (either side of a rename) matching a denied glob."""
+    if not denied:
+        return "denied-paths-unset"
+    listing = _paginated(
+        f"repos/{owner}/{name}/pulls/{number}/files?per_page=100", f"#{number} files"
+    )
+    if not isinstance(changed, int) or changed != len(listing):
+        return "changed-files-incomplete"
+    paths = sorted(
+        {
+            path
+            for entry in listing
+            for path in (entry.get("filename"), entry.get("previous_filename"))
+            if isinstance(path, str) and path
+        }
+    )
+    hits = [p for p in paths if any(glob_match(glob, p) for glob in denied)]
+    return f"denied-path:{','.join(hits)}" if hits else None
+
+
+def lane_eligibility(
+    repo: str, number: int, *, pr: Mapping[str, Any], denied_paths: Collection[str]
+) -> Eligibility:
+    """Whether the pr-merge lane may consider a pull request (plan Design
+    "Eligibility"): not a fork or a dependency manager's, a C2 class by
+    `_lane_class`, and a diff touching no `merge.diff-check.denied-paths`.
+    `pr` is the REST record, whose `changed_files` the file listing must
+    reach. Holds (the `do-not-merge` label, a `Hold:` line) are the gate's."""
+    owner, name = _split_repo(repo)
+    try:
+        data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
+        node = json_object(json_object(data.get("repository")).get("pullRequest"))
+        if not node:
+            return Eligibility(False, "pull-request-unreadable")
+        foreign = _foreign_refusal(node, owner)
+        if foreign:
+            return Eligibility(False, foreign)
+        labels = _label_names(node)
+        if labels is None:
+            return Eligibility(False, "labels-unreadable")
+        work_class, refusal = _lane_class(owner, name, number, labels)
+        if refusal is None:
+            refusal = _denied_path_refusal(
+                owner, name, number, pr.get("changed_files"), denied_paths
+            )
+    except PolicyReadError as exc:
+        return Eligibility(False, f"unreadable: {exc}")
+    return Eligibility(refusal is None, refusal, work_class)
+
+
+def recheck_lane_class(repo: str, number: int) -> str | None:
+    """The lane's class read again right before the enqueue: a label removed
+    or made stricter since the eligibility read refuses."""
+    owner, name = _split_repo(repo)
+    try:
+        data = _graphql(ELIGIBILITY, f"#{number}", o=owner, r=name, n=number)
+        node = json_object(json_object(data.get("repository")).get("pullRequest"))
+        labels = _label_names(node) if node else None
+        if labels is None:
+            return "labels-unreadable"
+        return _lane_class(owner, name, number, labels)[1]
+    except PolicyReadError as exc:
+        return f"unreadable: {exc}"
 
 
 # --- In flight -------------------------------------------------------------------------------
@@ -1602,13 +1749,14 @@ def pull_request(repo: str, number: int) -> dict[str, Any]:
 CONFIG_HISTORY_LIMIT = 100
 
 
-def enabled_since(repo: str, base_sha: str) -> datetime:
+def enabled_since(repo: str, base_sha: str, authority: str | None = None) -> datetime:
     """When the unattended path's current enabled run began: the committer
     date of the oldest commit in the unbroken run of pipeline-file commits,
-    newest first from `base_sha`, whose config sets `merge.authority:
-    local-babysit`. A later edit that keeps it enabled does not move the
-    floor, so no merge since enabling escapes the check. Commits reach the
-    default branch through the merge queue, whose squash commits GitHub dates.
+    newest first from `base_sha`, whose config enables `authority`
+    (`enabled_authority`; None means the one the config at `base_sha`
+    enables). A later edit that keeps it enabled does not move the floor, so
+    no merge since enabling escapes the check. Commits reach the default
+    branch through the merge queue, whose squash commits GitHub dates.
     Raises `PolicyReadError` when no start can be read."""
     owner, name = _split_repo(repo)
     status, commits = _get(
@@ -1621,7 +1769,9 @@ def enabled_since(repo: str, base_sha: str) -> datetime:
     for commit in map(json_object, commits):
         sha = str(commit.get("sha"))
         config = read_config_at(repo, sha)
-        if config.error or (config.authority or "pr-merge") != "local-babysit":
+        enabled = None if config.error else enabled_authority(config)
+        authority = authority or enabled
+        if enabled is None or enabled != authority:
             break
         start = commit
     else:
@@ -1635,12 +1785,15 @@ def enabled_since(repo: str, base_sha: str) -> datetime:
     return _time(str(committer.get("date")).replace("Z", "+00:00"))
 
 
-def merged_since_floor(repo: str, base_sha: str, demotion: Demotion) -> datetime:
-    """The post-merge floor: the later of the enabling commit and the newest
-    human close of a demotion record, so a human clear restarts the window
-    and a deleted or transferred record moves nothing. Raises
-    `PolicyReadError` when the enabling commit cannot be read."""
-    floor = enabled_since(repo, base_sha)
+def merged_since_floor(
+    repo: str, base_sha: str, demotion: Demotion, authority: str | None = None
+) -> datetime:
+    """The post-merge floor: the later of the enabling commit of `authority`
+    (`enabled_since`) and the newest human close of a demotion record, so a
+    human clear restarts the window and a deleted or transferred record moves
+    nothing. Raises `PolicyReadError` when the enabling commit cannot be
+    read."""
+    floor = enabled_since(repo, base_sha, authority)
     if demotion.cleared_at is not None:
         floor = max(floor, demotion.cleared_at)
     return floor
@@ -1901,8 +2054,14 @@ def assess(
     self_logins: Collection[str] = frozenset(),
     post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
     promotion: Callable[[datetime | None], Promotion] | None = None,
+    authority: str = LOCAL_BABYSIT,
 ) -> UnattendedPolicy:
     """The policy readers for one pull request, in the wiring order.
+
+    `authority` is the caller's: the local babysit lane, or the pr-merge CI
+    lane, which reads `lane_eligibility` in place of `eligibility` and no
+    promotion evidence (D16: report-only, then the owner's live flip). The
+    config at the base must enable that authority (`enabled_authority`).
 
     Config at the pull request's base SHA, then authority, identity, the
     credential chokepoint, the kill switch, a base that is the default
@@ -1928,12 +2087,18 @@ def assess(
     if config.error:
         raise PolicyReadError(f"{CONFIG_PATH} at {base_sha}: {config.error}")
     identity = config.agent_identity
-    details: dict[str, Any] = {"baseSha": base_sha}
-    inputs: dict[str, Any] = {"pr": pr, "config": config, "branch": base_ref}
+    lane = authority == PR_MERGE
+    details: dict[str, Any] = {"baseSha": base_sha, "reportOnly": config.report_only}
+    inputs: dict[str, Any] = {
+        "pr": pr,
+        "config": config,
+        "branch": base_ref,
+        "authority": authority,
+    }
     stopped = UnattendedPolicy(
         AUTHORITY_UNCONFIGURED, identity, details, enabled=False, inputs=inputs
     )
-    if (config.authority or "pr-merge") != "local-babysit":
+    if enabled_authority(config) != authority:
         return stopped
     if acting_login is None:
         try:
@@ -1982,7 +2147,7 @@ def assess(
         "records": list(demotion.records),
     }
     try:
-        floor = merged_since_floor(repo, base_sha, demotion)
+        floor = merged_since_floor(repo, base_sha, demotion, authority)
     except PolicyReadError as exc:
         return replace(stopped, reason=f"post-merge:floor-unreadable: {exc}")
     details["mergedSince"] = floor.isoformat()
@@ -2005,13 +2170,20 @@ def assess(
     flight = in_flight(
         repo, **readers, verified=gate.verified, branch=base_ref, merged_since=floor
     )
-    promo = (
-        promotion(demotion.newest_created)
-        if promotion is not None
-        else Promotion(None, "promotion-unread")
-    )
-    eligible = eligibility(repo, number, **readers)
-    promoted = promo.promoted(eligible.work_class)
+    if lane:
+        promo = Promotion(None, "not-read-in-pr-merge-lane")
+        eligible = lane_eligibility(
+            repo, number, pr=pr, denied_paths=config.denied_paths
+        )
+        promoted = True
+    else:
+        promo = (
+            promotion(demotion.newest_created)
+            if promotion is not None
+            else Promotion(None, "promotion-unread")
+        )
+        eligible = eligibility(repo, number, **readers)
+        promoted = promo.promoted(eligible.work_class)
     details.update(
         rung=rung.rung,
         rungInputs=dict(rung.inputs),
@@ -2044,7 +2216,7 @@ def assess(
         (rung.rung == "off", f"rung-off:{rung.limited_by}"),
         (not flight.clear, f"in-flight:{flight.reason}"),
         (
-            promo.cells is None,
+            promo.cells is None and not lane,
             f"promotion-unqualified:{promo.reason}",
         ),
         *own,
