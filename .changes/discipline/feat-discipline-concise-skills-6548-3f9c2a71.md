@@ -4,7 +4,7 @@ bump: minor
 
 ### Changed
 
-- Tighter bodies for the fourteen model-invoked skills (twelve correctors, `hold-my-hand` and `sweep-all`) and `setup`, descriptions reworded to third person, and `setup`'s description cut to one line because it is user-invoked. Every gate, route, stop and report line stays. `wait-what` is unchanged.
+- Tighter bodies for the fourteen model-invoked skills (twelve correctors, `hold-my-hand` and `sweep-all`), and descriptions reworded to third person except for `mind-your-maxims`, `scrutinize-dont-coast` and `script-the-deterministic-work`, which keep theirs. Every gate, route, stop and report line stays. `setup` and `wait-what` are unchanged.
 
 ### Added
 

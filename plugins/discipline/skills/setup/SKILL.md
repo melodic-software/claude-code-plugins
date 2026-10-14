@@ -1,5 +1,5 @@
 ---
-description: "Checks the discipline plugin's configuration (posture-batch overlay, research fan-out depth, lever_scope) and, with apply, writes docs/conventions/discipline.yaml after confirmation."
+description: "Validate the discipline plugin's configuration (the posture-batch overlay, do-your-research's fan-out verification depth, lever_scope and docs/conventions/discipline.yaml), explain how to change the personal options through Claude Code's plugin configuration prompt, and write the repository file after confirmation. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'what's in my posture batch', 'what's my deep-research depth', 'set lever_scope for this repo', or the user wants to adjust which correctors the batch runs, how deeply the research fan-out verifies, or when a repeated change gets a lever. Actions: check (read-only, default), apply (writes docs/conventions/discipline.yaml only)."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -19,8 +19,9 @@ Report discipline's effective configuration and write its one repository file. T
 plugin's personal options are native `userConfig`: three `sweep-all` batch-overlay
 options (`batch_exclude` / `batch_promote` / `batch_demote`), the verification-depth
 default of `do-your-research`'s fan-out tier (`research_deep_verification`) and
-`lever_scope`. Where Claude Code stores them and which settings scopes it reads: the
-official contract below.
+`lever_scope`. Claude Code prompts for them when the plugin is enabled, stores
+non-sensitive options in user settings, and ignores `pluginConfigs` entries in project
+and local settings on current releases (>= 2.1.207).
 
 The plugin owns one tracked consumer file, `docs/conventions/discipline.yaml`, the
 repository layer of `lever_scope` (keys, values and layers:
@@ -32,8 +33,6 @@ or `check` runs the check; `apply` runs the check, then writes. Re-running eithe
 the current state again.
 
 Official contract: <https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration>.
-As of 2026-10-14; recheck when that section changes when options are prompted for, where
-they are stored, or which settings scopes are read.
 
 ## `check` (read-only)
 
