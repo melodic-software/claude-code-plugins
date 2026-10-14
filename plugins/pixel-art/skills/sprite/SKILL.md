@@ -14,10 +14,12 @@ Produce a static sprite the user can drop into a game or project, and show it to
 
 ## 1. Brief
 
-Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md), the only copy of the fields
-(including 2 to 6 done criteria). Ask only what changes the output; state every unspecified field
-as a default in one line. Write `brief.md` beside the spec before the first render. A later run
-that finds it there reads it and does not ask again.
+Follow [`brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/brief.md). That file is the only copy of the
+fields: subject, style references, proportions, size, palette, view, mood, target, and 2 to 6 done
+criteria. Ask only what changes the output. State every unspecified field as a default in one line.
+
+Write `brief.md` beside the spec before the first render. A later run that finds it there reads it
+and does not ask again.
 
 When the request is vague or high-stakes, offer `/planning:interview` (if the planning plugin is
 installed). Planning owns a numbered-question brief. If planning is not installed, or the user does
