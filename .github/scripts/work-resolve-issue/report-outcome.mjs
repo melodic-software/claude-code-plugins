@@ -113,6 +113,7 @@ export function readOutcome(path) {
 // mentions anyone, and issue references are broken: squash merge copies the
 // body as plain text, so `#` becomes a full-width ＃, `GH-` and `/issues/` or
 // `/pull/` gain a space, and no closing keyword in it can close an issue.
+// `://` and `www.` gain a space too, so no bare URL autolinks.
 // Control characters other than newline go. The cap applies after escaping.
 const neutral = (value, cap) =>
   value
@@ -128,6 +129,8 @@ const neutral = (value, cap) =>
     .replaceAll("#", "＃")
     .replaceAll(/\bGH-/gi, "GH -")
     .replaceAll(/\/(issues|pull)\//gi, "/$1 /")
+    .replaceAll("://", ": //")
+    .replaceAll(/\bwww\./gi, "www .")
     .slice(0, cap)
     .replace(/&[a-z]*$|\\$/, "");
 

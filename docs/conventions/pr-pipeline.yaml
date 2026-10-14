@@ -35,7 +35,10 @@ activities:
     # branch, or stops and says why. The runner adds `--issue <number>`.
     skill: work-items:work
     args: --ci
-    # The release-record check the skill must pass before it reports done.
+    # Validates the format of every changelog fragment before the skill
+    # reports done. A missing fragment is caught on the PR by ci-status
+    # (--check-required needs committed work, and the lane commits through
+    # the API, not in the checkout).
     checks: ["scripts/check-changelog-fragments.sh --check"]
     effect: mutate-branch
     gating: advisory

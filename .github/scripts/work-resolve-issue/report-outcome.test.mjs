@@ -158,7 +158,13 @@ test("entities, GH- references and link definitions in model text stay inert", (
   const quote = section(plan.body, "Summary");
   assert.ok(quote.includes("&amp;commat;octocat Closes &amp;num;12"), quote);
   assert.ok(!/GH-13/.test(quote), quote);
-  assert.ok(quote.includes("> \\[x\\]: https://evil"), quote);
+  assert.ok(quote.includes("> \\[x\\]: https: //evil"), quote);
+});
+
+// GFM autolinks a bare `https://` or `www.` URL in a blockquote.
+test("a bare URL in model text does not autolink", () => {
+  const plan = decideDone({ outcome: { ...done, summary: "See https://evil.example and www.evil.example" } });
+  assert.ok(!/https:\/\/evil|www\.evil/.test(plan.body), plan.body);
 });
 
 test("a not_done item marked required counts even when it names nothing", () => {
