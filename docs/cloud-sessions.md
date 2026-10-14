@@ -210,16 +210,18 @@ they come from the VM image and the shared environment's setup script
 ### Plugins in sessions on this repo
 
 Being the marketplace doesn't make this repo's plugins active in a session: plugins load only
-when a marketplace is declared, enabled, **and installed**. `.claude/settings.json` declares the
-marketplace and carries this repo's deltas, the fleet list baked into the snapshot turns the
-catalog on, and the cloud bootstrap installs from the two together (see
+when a marketplace is registered, enabled, **and installed**. `.claude/settings.json` carries
+this repo's `enabledPlugins` deltas and declares no marketplace, the fleet list baked into the
+snapshot turns the catalog on, and the cloud bootstrap registers the marketplace and installs
+from the two together (see
 [Install and manage plugins](https://code.claude.com/docs/en/plugins/install) and
-[extraKnownMarketplaces](https://code.claude.com/docs/en/settings-reference#extraknownmarketplaces) /
 [enabledPlugins](https://code.claude.com/docs/en/settings-reference#enabledplugins)):
 
-- `extraKnownMarketplaces` declares this repo as its own marketplace via a `directory` source
-  with a relative path, so a session exercises the plugin code on the current branch rather than
-  published `main`. Local collaborators are prompted once they trust the folder. A cloud
+- The cloud bootstrap is the only place this checkout is registered as a `directory` marketplace
+  source, and it runs only in cloud sessions, so a cloud session exercises the plugin code on the
+  current branch rather than published `main`. Project settings declare no marketplace, so a
+  local session keeps the user's own registration of `melodic-software`; to test a branch's
+  plugin code locally, start Claude Code with `claude --plugin-dir ./plugins/<name>`. A cloud
   snapshot can already carry a marketplace of the same name registered from GitHub and tracking
   `main`; the bootstrap then never registers the checkout, every install resolves against that
   clone, and the session runs `main`'s plugin code. The bootstrap detects this from
@@ -370,9 +372,9 @@ catalog on, and the cloud bootstrap installs from the two together (see
   where nothing can be claimed, `claude plugin list --json` itself being unreadable, counts
   every plugin as failed and says so in one line rather than one per plugin.
 - **Consumer repos** should declare the marketplace with a `github` source,
-  `{"source": "github", "repo": "melodic-software/claude-code-plugins"}`, since the relative
-  `directory` source is specific to this repo, whose reason to exist is validating in-flight
-  plugin changes. Declaring it is necessary but, per the trust gate above, not sufficient in a
+  `{"source": "github", "repo": "melodic-software/claude-code-plugins"}`, since the `directory`
+  source is specific to this repo's cloud bootstrap, whose reason to exist is validating
+  in-flight plugin changes. Declaring it is necessary but, per the trust gate above, not sufficient in a
   cloud session; verify in a fresh session and add the same bootstrap-plus-hook setup if the
   catalog does not load.
 - This repo's cloud sessions install the plugins the catalog has on by default, plus this repo's

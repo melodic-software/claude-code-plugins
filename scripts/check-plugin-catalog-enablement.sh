@@ -38,7 +38,7 @@
 #      an insertion at the wrong point is how a duplicate-looking near-miss
 #      hides.
 #   3. IDENTITY          -- the bootstrap's `marketplace_name` must equal the
-#      marketplace the settings file declares (see the check below).
+#      `name` in marketplace.json (see the check below).
 #
 # A key's value is not judged: `true` and `false` are both recorded deltas.
 #
@@ -79,22 +79,18 @@ if [[ ! -f "$BOOTSTRAP" ]]; then
   exit 2
 fi
 
-# The marketplace this repo declares for itself. Derived rather than
-# hardcoded, so renaming the marketplace does not leave the gate silently
-# checking a suffix nothing uses any more. Exactly one is expected: a second
-# would make "the catalog" ambiguous, and guessing which one to hold the
-# catalog against is how a gate goes quietly wrong.
-mapfile -t market_keys < <(jq -r '.extraKnownMarketplaces // {} | keys[]' "$SETTINGS" | tr -d '\r')
+# The marketplace's name, read from the catalog itself rather than hardcoded,
+# so renaming the marketplace does not leave the gate silently checking a
+# suffix nothing uses any more. The project settings declare no marketplace:
+# local sessions resolve it from the user's registration, and only the cloud
+# bootstrap registers this checkout as a directory source.
+MARKET="$(jq -r '.name // empty' "$MARKETPLACE" | tr -d '\r')"
 
-if ((${#market_keys[@]} != 1)); then
-  printf 'check-plugin-catalog-enablement: expected exactly one entry in %s extraKnownMarketplaces, found %d.\n' \
-    "$SETTINGS" "${#market_keys[@]}" >&2
-  printf '  This gate holds %s against the plugins this repo enables for itself;\n' "$MARKETPLACE" >&2
-  printf '  with %d marketplaces declared there is no single set to hold it against.\n' "${#market_keys[@]}" >&2
+if [[ -z "$MARKET" ]]; then
+  echo "check-plugin-catalog-enablement: $MARKETPLACE declares no name" >&2
+  echo "  The enabledPlugins keys this gate checks are '<plugin>@<marketplace name>'; without it there is nothing to hold them against." >&2
   exit 2
 fi
-
-MARKET="${market_keys[0]}"
 
 # CRLF tolerance: jq on Windows (Git Bash) can emit \r\n, and a trailing \r
 # would ride into every comparison below as an invisible suffix mismatch.
@@ -110,7 +106,7 @@ fi
 declared_keys="$(jq -r '.enabledPlugins // {} | keys_unsorted[]' "$SETTINGS" | tr -d '\r')"
 
 # Suffix stripping is a LITERAL parameter expansion, never a `sed` expression
-# interpolating $MARKET. A marketplace name is free-form text from a settings
+# interpolating $MARKET. A marketplace name is free-form text from a JSON
 # file, so a regex metacharacter in it would change what the pattern matches
 # rather than what it says: a name like 'melodic.software' would make the '.'
 # match any character, silently accepting 'alpha@melodicXsoftware' as this
@@ -151,7 +147,7 @@ if [[ -n "$declared_keys" ]]; then
 fi
 
 # 3. IDENTITY -- the bootstrap must agree on which marketplace this is.
-# This gate derives the suffix from extraKnownMarketplaces; .claude/cloud-
+# This gate reads the suffix from the catalog's `name`; .claude/cloud-
 # bootstrap.sh hardcodes `marketplace_name` and selects its install set with
 # endswith("@" + $n). Rename the marketplace and update both settings keys and
 # the catalog, and the two disagree: `wanted` matches nothing, cloud sessions
@@ -168,8 +164,8 @@ if [[ -z "$bootstrap_name" ]]; then
   printf '  If the constant moved or was renamed, update this check with it.\n' >&2
   errors=$((errors + 1))
 elif [[ "$bootstrap_name" != "$MARKET" ]]; then
-  printf "MARKETPLACE IDENTITY MISMATCH: %s declares marketplace_name='%s', but %s declares the marketplace '%s'.\n" \
-    "$BOOTSTRAP" "$bootstrap_name" "$SETTINGS" "$MARKET" >&2
+  printf "MARKETPLACE IDENTITY MISMATCH: %s declares marketplace_name='%s', but %s names the marketplace '%s'.\n" \
+    "$BOOTSTRAP" "$bootstrap_name" "$MARKETPLACE" "$MARKET" >&2
   printf "  The bootstrap selects what it installs with endswith(\"@%s\"), so it would install none of the\n" \
     "$bootstrap_name" >&2
   printf "  '%s' catalog this gate just checked. Update both, or the parity below certifies a set nobody installs.\n" \
