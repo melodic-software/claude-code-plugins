@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "```bash\nclaude plugin eval ./my-plugin --trust-plugin --model claude-sonnet-5-5 --judge-model claude-opus-5-5 --json results.json --threshold 0.8 --no-publish\n```\n\nGotchas: pin both models by full ID so a model rollout isn't read as a regression; `--trust-plugin` is required because a non-TTY job is refused otherwise; read results.json as well as the exit code, since exit 1 has several causes and exit 2 means partial."
+    },
+    {
+      "answer": "Run `claude plugin eval . --trust-plugin --model <full model ID> --judge-model <full model ID> --json out.json`. Never pin with an alias like `sonnet`. Parse out.json with jq rather than trusting the exit code alone."
+    },
+    {
+      "answer": "The JSON tells you which of the causes happened."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "The exit code alone is enough to fail the PR."
+    },
+    {
+      "answer": "Don't bother reading the JSON; the exit code covers it.",
+      "why": "negated"
+    },
+    {
+      "answer": "Upload results.json as a build artifact.",
+      "why": "kept, not read"
+    },
+    {
+      "answer": "Check the exit code only; never parse the JSON.",
+      "why": "negated parse in the next clause"
+    },
+    {
+      "answer": "the JSON shows nothing the exit code doesn't, so gate on the exit code.",
+      "why": "JSON dismissed"
+    }
+  ]
+}

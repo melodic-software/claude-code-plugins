@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "No. Every run starts from a throwaway home with no CLAUDE.md, rules, settings or memory, so your rules never load, and a shim that re-injects them measures the shim. Use /harness-config:unhobble instead: strip the instructions on a branch, log where the model stumbles, and restore only what repeated evidence earns."
+    },
+    {
+      "answer": "No, `claude plugin eval` can't measure that. It only compares \"with this plugin\" against \"without it.\""
+    },
+    {
+      "answer": "Not directly. It compares a run with the plugin against one without it, and every run starts from a throwaway home."
+    },
+    {
+      "answer": "Don't A/B the rules; a run with and without them can't see CLAUDE.md anyway.",
+      "why": "negated"
+    },
+    {
+      "answer": "",
+      "why": "empty reply"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Sure. Runs start from a fresh home, so CLAUDE.md isn't loaded there. Copy the rules into the case prompt and A/B them; then strip a rule and see what breaks.",
+      "why": "A/B"
+    },
+    {
+      "answer": "Absolutely: measure with and without it. Or try /harness-config:unhobble.",
+      "why": "with and without"
+    },
+    {
+      "answer": "Run each case with the rules, then again without them, and compare.",
+      "why": "with then without"
+    }
+  ]
+}

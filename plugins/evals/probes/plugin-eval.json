@@ -1,0 +1,126 @@
+{
+  "skill": "evals:plugin-eval",
+  "plugin": "evals",
+  "skill_dir": "plugins/evals/skills/plugin-eval",
+  "ranking_note": "Authored from the before descriptions at commit c67216035c, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other three evals skills.",
+  "competitors": [
+    "evals:design",
+    "evals:methodology",
+    "evals:validate"
+  ],
+  "competitor_dirs": {
+    "evals:design": "plugins/evals/skills/design",
+    "evals:methodology": "plugins/evals/skills/methodology",
+    "evals:validate": "plugins/evals/skills/validate"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run the evals on my plugin and tell me whether the skill makes a real difference compared with no plugin."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can this machine even run claude plugin eval? I'm on WSL."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "How much is this eval run going to cost before I kick it off?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I changed my skill description. Did that make it better, or is the gain just noise?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Bash keeps refusing when I try to call claude plugin eval from a worktree. What do I do?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Help me read aggregate-result.json from the last run."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I want a CI gate that fails when the skill's eval score drops. How should it use the eval CLI?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Compare these two eval runs and tell me which is better."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Will my skill really get picked up when it should? I want to run the suite and see."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Design an eval suite from scratch for my summarizer prompt."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is my case.yaml valid? I just want a static check, no model calls."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What are good criteria for judging a chatbot's helpfulness?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Lint the graders in my suite for typos in option names."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run the unit tests for this repo."
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check my skill's evals.json against the skill-creator format."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "How do model-graded evals compare to code-graded ones in general?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Benchmark how fast my function runs before and after the refactor."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Measure how much of my CLAUDE.md the model actually follows."
+    }
+  ]
+}
