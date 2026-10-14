@@ -415,12 +415,17 @@ but it is overloaded across six causes and exit 2 means partial, so the JSON is 
 reader which one happened and whether the arms were comparable at all. This section's pointer
 record is the CI pins row under [Sources](#sources).
 
-## Boundary
+## Boundary, the built-in `plugin eval` command
 
-Success criteria and case design belong to `/evals:design`; come here once a suite exists.
-`evals/evals.json`, the skill-creator format, is a different, non-interchangeable format: validate
-it with `/skill-quality:check validate-evals` when the `skill-quality` plugin is installed;
-otherwise state that the file follows that format and validation was skipped.
+- The **CLI** (`plugin eval`, a built-in command) owns execution, grading, the ablation arms, the
+  JSON and the HTML report. It is gated by the version floor under Preflight, so this skill reads
+  the version and never assumes the command is available. This skill owns what surrounds a spend:
+  the preflight, the no-spend validation, the estimate and ceiling, target routing and the reading
+  discipline. It never re-implements grading and never simulates a run or a score.
+- Success criteria and case design belong to `/evals:design`; come here once a suite exists.
+- `evals/evals.json`, the skill-creator format, is a different, non-interchangeable format:
+  validate it with `/skill-quality:check validate-evals` when the `skill-quality` plugin is
+  installed; otherwise state that the file follows that format and validation was skipped.
 
 ## Next
 
