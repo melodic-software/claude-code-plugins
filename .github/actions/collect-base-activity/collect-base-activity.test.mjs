@@ -44,7 +44,11 @@ before(() => {
   writeFileSync(resolved, JSON.stringify({ selected: { args: "ci" } }));
 });
 
-after(() => rmSync(root, { recursive: true, force: true }));
+after(() => {
+  // The check copies are made read-only.
+  spawnSync("chmod", ["-R", "u+w", root]);
+  rmSync(root, { recursive: true, force: true });
+});
 
 function stage(overrides) {
   const runTemp = mkdtempSync(path.join(root, "temp-"));
@@ -105,6 +109,59 @@ test("prepare: merge-base leaves out the commit tool and the instruction to comm
   // Still a writing skill: it edits and stages its resolution.
   assert.match(args, /--allowedTools "Skill\(source-control:resolve-conflicts\),Read\([^)]*\),Edit,Write,Agent,Edit\(/);
   assert.ok(args.includes("--disallowedTools \"WebFetch,WebSearch\""), args);
+});
+
+// pr-run-activity.md, "Skill activities": each listed check runs from the base
+// copy against the checkout, through a wrapper that takes no arguments, and
+// that wrapper is the only Bash the runner grants.
+function withChecks(checks, overrides = {}) {
+  const dir = mkdtempSync(path.join(root, "checks-"));
+  const workspace = path.join(dir, "workspace");
+  mkdirSync(path.join(workspace, "scripts"), { recursive: true });
+  mkdirSync(path.join(base, "scripts"), { recursive: true });
+  const script = '#!/usr/bin/env bash\necho "from=$0 data=$CHECK_DATA_ROOT pwd=$PWD args=$*"\n';
+  writeFileSync(path.join(base, "scripts", "check-x.sh"), script, { mode: 0o755 });
+  writeFileSync(path.join(workspace, "scripts", "check-x.sh"), "#!/usr/bin/env bash\necho head code\n", { mode: 0o755 });
+  const file = path.join(dir, "resolved.json");
+  writeFileSync(file, JSON.stringify({ selected: { args: "ci", checks } }));
+  const checksDir = path.join(dir, "lane-checks");
+  return { workspace, checksDir, ...stage({ RESOLVED: file, CHECKS_DIR: checksDir, WORKSPACE: workspace, ...overrides }) };
+}
+
+test("a listed check gets a no-argument wrapper that runs the base copy against the checkout", () => {
+  const { status, allowed, args, workspace, checksDir } = withChecks(["scripts/check-x.sh --check"]);
+  assert.equal(status, 0);
+  const wrapper = path.join(checksDir, "bin", "check-x");
+  assert.deepEqual(
+    allowed.filter((rule) => rule.startsWith("Bash")),
+    [`Bash(${wrapper})`],
+  );
+  assert.ok(args.includes(wrapper), "the system prompt names the check");
+  const denied = (/--disallowedTools "([^"]*)"/.exec(args)?.[1] ?? "").split(",");
+  assert.ok(denied.includes(`Edit(/${checksDir}/**)`) && denied.includes(`Write(/${checksDir}/**)`), denied.join(" | "));
+  const write = spawnSync("bash", ["-c", 'echo x >>"$1"', "_", wrapper], { encoding: "utf8" });
+  assert.notEqual(write.status, 0, "the wrapper is read-only");
+  const run = spawnSync(wrapper, [], { cwd: root, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(
+    run.stdout.trim(),
+    `from=${path.join(checksDir, "scripts", "check-x.sh")} data=${workspace} pwd=${workspace} args=--check`,
+  );
+});
+
+for (const check of ["scripts/check-x.sh; rm -rf /", "../scripts/check-x.sh", "scripts/check-x.sh --x=$(id)", "plugins/a.sh"]) {
+  test(`a check outside the allowed shape fails red: ${check}`, () => {
+    const { status, stdout, args } = withChecks([check]);
+    assert.notEqual(status, 0);
+    assert.match(stdout, /::error::a check must be a scripts\/ script with fixed flags/);
+    assert.equal(args, "");
+  });
+}
+
+test("a read skill gets no check wrapper", () => {
+  const { status, allowed } = withChecks(["scripts/check-x.sh --check"], { EFFECT: "read" });
+  assert.equal(status, 0);
+  assert.ok(!allowed.some((rule) => rule.startsWith("Bash")), allowed.join(" | "));
 });
 
 test("an unknown prepare mode fails red before any output", () => {

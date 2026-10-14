@@ -127,6 +127,13 @@ test("live config: resolve-issue admits read-only and mechanical issues only", (
   );
 });
 
+// The run must pass the fragment format check before it reports done.
+test("live config: resolve-issue may run the changelog fragment check", () => {
+  assert.deepEqual(selected("work-resolve-issue", "resolve-issue", ISSUE).checks, [
+    "scripts/check-changelog-fragments.sh --check",
+  ]);
+});
+
 test("live config: resolve-issue may only write its branch; report-outcome may only write PRs and issues", () => {
   const grant = (activity) =>
     resolveGrant(FILES, { lane: "work-resolve-issue", activity, configPath: CONFIG_PATH });
