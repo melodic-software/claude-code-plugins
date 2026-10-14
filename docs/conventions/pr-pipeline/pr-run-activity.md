@@ -677,7 +677,8 @@ label on an issue runs `resolve-issue` (`/work-items:work --issue <n> --ci`), th
   `work-resolve-issue.yml`, the lane's only `statuses: write`, on its own `GITHUB_TOKEN`) posts a
   `pipeline/<activity>` commit status on the lane branch's head for `resolve-issue` and
   `report-outcome` (from their job results) and for each prep step the run reports in
-  `work-outcome.json`'s `steps` (`review`, `verify`, `checks`). No step is skipped on a
+  `work-outcome.json`'s `steps` (`review`, `verify`, `checks`). On `done`, a prep step the run
+  never reported posts `error`; one it reported `skipped` posts nothing. No step is skipped on a
   `pipeline/*` success, and no required check names one, but a `failure` or `error` status
   counts as a failing check, so it holds the pr-merge gate (fail closed). Descriptions are fixed text.
 

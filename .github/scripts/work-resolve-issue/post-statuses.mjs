@@ -28,7 +28,7 @@ const jobState = (result) => ({ success: "success", failure: "failure" })[result
 const DESCRIPTION = {
   success: "Passed in the work lane run.",
   failure: "Failed in the work lane run.",
-  error: "Did not finish in the work lane run.",
+  error: "Did not finish, or was not reported, in the work lane run.",
 };
 
 // The statuses to post, in order; none without a lane branch.
@@ -41,10 +41,21 @@ export function plan({ outcome, branch, resolveResult, reportResult }) {
     ["resolve-issue", resolve === "success" && outcome.exit !== "done" ? "failure" : resolve],
     ["report-outcome", jobState(reportResult)],
   ]);
-  for (const step of Array.isArray(outcome.steps) ? outcome.steps : []) {
-    const state = STEP_STATES[step?.result];
-    if (PREP_STEPS.has(step?.activity) && state) {
-      states.set(step.activity, state);
+  if (outcome.exit === "done") {
+    // A prep step the run never reported fails closed as error; one it
+    // reported `skipped` (prep skips steps a docs-only change does not owe)
+    // posts nothing.
+    const reported = new Map();
+    for (const step of Array.isArray(outcome.steps) ? outcome.steps : []) {
+      if (PREP_STEPS.has(step?.activity) && (STEP_STATES[step?.result] || step?.result === "skipped")) {
+        reported.set(step.activity, STEP_STATES[step.result] ?? null);
+      }
+    }
+    for (const activity of PREP_STEPS) {
+      const state = reported.has(activity) ? reported.get(activity) : "error";
+      if (state) {
+        states.set(activity, state);
+      }
     }
   }
   return [...states].map(([activity, state]) => ({

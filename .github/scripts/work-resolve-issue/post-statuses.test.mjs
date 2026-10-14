@@ -13,7 +13,8 @@ import { main, plan } from "./post-statuses.mjs";
 
 const BRANCH = "work-resolve-issue/issue-77-123-1";
 const SHA = "c".repeat(40);
-const done = { exit: "done", steps: [] };
+const SKIPPED = ["review", "verify", "checks"].map((activity) => ({ activity, result: "skipped" }));
+const done = { exit: "done", steps: SKIPPED };
 
 const byContext = (statuses) => Object.fromEntries(statuses.map((s) => [s.context, s.state]));
 
@@ -55,7 +56,7 @@ test("each prep step the run reported posts pass as success and fail as failure"
   assert.equal(byContext(statuses)["pipeline/checks"], "success");
 });
 
-test("a step outside the known prep steps, or a skipped one, posts nothing", () => {
+test("a done run that never reports a prep step posts error for it, failing closed", () => {
   const outcome = {
     exit: "done",
     steps: [
@@ -66,6 +67,16 @@ test("a step outside the known prep steps, or a skipped one, posts nothing", () 
     ],
   };
   const statuses = plan({ outcome, branch: BRANCH, resolveResult: "success", reportResult: "success" });
+  assert.deepEqual(byContext(statuses), {
+    "pipeline/resolve-issue": "success",
+    "pipeline/report-outcome": "success",
+    "pipeline/review": "error",
+    "pipeline/checks": "error",
+  });
+});
+
+test("a run that did not finish posts no prep status", () => {
+  const statuses = plan({ outcome: { exit: "stopped", steps: [] }, branch: BRANCH, resolveResult: "success", reportResult: "success" });
   assert.deepEqual(Object.keys(byContext(statuses)).sort(), ["pipeline/report-outcome", "pipeline/resolve-issue"]);
 });
 
@@ -121,7 +132,7 @@ const env = (dir) => ({
 });
 
 test("main posts each status on the lane branch's head SHA with the run as its target", async () => {
-  const outcome = { ...done, steps: [{ activity: "review", result: "pass" }] };
+  const outcome = { ...done, steps: [...SKIPPED, { activity: "review", result: "pass" }] };
   await withOutcome(
     { "work-outcome.json": JSON.stringify(outcome), "lane.json": JSON.stringify({ branch: BRANCH }) },
     async (dir) => {
