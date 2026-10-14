@@ -238,8 +238,8 @@ patterns live in the source spokes.
 ## Prerequisites
 
 The skill needs **Git Bash on Windows** (its `shell: bash` invocation fails before any command
-runs without bash) and **Node 20.11 or newer**, or 21.2+ on the 21 line (the runner reads
-`import.meta.dirname`). Pointers:
+runs without bash) and **Node 22 or newer** (the runner reads
+`import.meta.dirname`; Node 20 and 21 are past end of life). Pointers:
 [skills, injected commands](https://code.claude.com/docs/en/skills#how-injected-commands-run) and
 [Node `import.meta.dirname`](https://github.com/nodejs/node/blob/main/doc/api/esm.md#importmetadirname),
 as of 2026-10-10; recheck when either section changes.
