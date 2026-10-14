@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "# Quiz: auth middleware change\n\n## 1. Context {#context}\n\nAuth now skips PUBLIC_PATHS.\n\n## 2. Intuition {#intuition}\n\nCheap checks first.\n\n## 3. Decisions {#decisions}\n\nRate limit before auth.\n\n## 4. What was done {#done}\n\nRewrote auth.js.\n\n## 5. Quiz\n\n**Q1.** `GET /health` with no header: what happens?\n**Q2.** Lowercase `bearer`: what happens?\n**Q3.** Before this change, what did a failed `verifyToken` do?\n\n<details><summary>Appendix: Answer key</summary>\n\n| Q | Answer | Section if you missed it |\n|---|---|---|\n| 1 | c | [Decisions §1](#decisions) |\n| 2 | d | [What was done](#done) |\n| 3 | b | [Context](#context) |\n\n</details>\n",
+      "why": "observed shape: anchors as section links in the answer-key table"
+    },
+    {
+      "answer": "# Auth middleware change\n\n## Context\n\nAuth now skips PUBLIC_PATHS.\n\n## Intuition\n\nCheap checks first.\n\n## Decisions\n\nRate limit before auth.\n\n## What was done\n\nRewrote auth.js.\n\n## Quiz: answer these before you merge\n\n**Q1.** No header: what happened before?\n**Q2.** Lowercase bearer: what now?\n**Q3.** Which path writes no audit event?\n\n## Appendix: answer key\n\n| Q | Answer | Re-read section |\n| --- | --- | --- |\n| 1 | B | §1 Context |\n| 2 | B | §3 Decisions (strict prefix) |\n| 3 | C | §4 What was done |\n",
+      "why": "observed shape: section-number anchors"
+    },
+    {
+      "answer": "# Auth middleware change\n\n## Context\n\nAuth now skips PUBLIC_PATHS.\n\n## Intuition\n\nCheap checks first.\n\n## Decisions\n\nRate limit before auth.\n\n## What was done\n\nRewrote auth.js.\n\n## Quiz\n\n**Q1 (decisions).** Why is the audit subject null?\n**Q2 (done).** What does `Basic abc123` get?\n**Q3 (intuition).** Why does revocation follow verification?\n\n## Answer key (appendix)\n\n- **Q1:** B. The section is *decisions*.\n- **Q2:** C. The section is *done*.\n- **Q3:** The section is *intuition*.\n",
+      "why": "observed shape: section named after each answer"
+    },
+    {
+      "answer": "## Quiz\n\n**Q1.** Why null?\n**Q2.** Basic header?\n**Q3.** Why after verify?\n\n## Answer key\n\n- **Q1:** B. [decisions 3]\n- **Q2:** C. [what was done]\n- **Q3:** jti is verified first. [intuition, decisions 4]\n",
+      "why": "observed shape: bracketed section tags"
+    },
+    {
+      "answer": "## Quiz\n\n**Q1.** Public paths?\n**Q2.** Order?\n**Q3.** Audit?\n\n## Answer key\n\n| Q | Answer | Where it is taught |\n|---|---|---|\n| 1 | c | Decisions D1 |\n| 2 | b | Decisions D6 |\n| 3 | c | Decisions D2; What was done |\n",
+      "why": "observed shape: a section column in the key table"
+    },
+    {
+      "answer": "# Auth middleware: public paths, earlier rate limiting, 401 instead of a throw\n\n## Context\n\n`auth` used to verify every request's token and throw on a bad one. It now skips PUBLIC_PATHS (/health and /login), returns 401 JSON errors, and checks revocation by `jti`. In app.js the rate limiter now runs before auth.\n\n## Intuition\n\nCheap checks go first: a flood of bad tokens hits the rate limiter before any token is verified.\n\n## Decisions\n\n- A public-path set instead of per-route opt-outs.\n- 401 `invalid_token` with an `auth.reject` audit entry instead of an exception.\n\n## What was done\n\n- src/middleware/auth.js rewritten; src/app.js reorders `rateLimit` and `auth`.\n\n## Quiz\n\n1. A request to /health arrives with no Authorization header. What does `auth` do? (Section: Decisions)\n2. A client floods the API with forged tokens. Which middleware stops it first now, and why? (Section: Intuition)\n3. `verifyToken` throws on a forged token. What does the client receive? (Section: What was done)\n\n## Answer key\n\n1. It calls `next()` at once: /health is in PUBLIC_PATHS.\n2. The rate limiter, which now runs before auth.\n3. A 401 with `{ error: 'invalid_token' }`.\n",
+      "why": "three section labels"
+    },
+    {
+      "answer": "# Auth middleware: public paths, earlier rate limiting, 401 instead of a throw\n\n## 1. Context\n\n`auth` used to verify every request's token and throw on a bad one. It now skips PUBLIC_PATHS (/health and /login), returns 401 JSON errors, and checks revocation by `jti`. In app.js the rate limiter now runs before auth.\n\n## Intuition\n\nCheap checks go first: a flood of bad tokens hits the rate limiter before any token is verified.\n\n## Decisions\n\n- A public-path set instead of per-route opt-outs.\n- 401 `invalid_token` with an `auth.reject` audit entry instead of an exception.\n\n## What was done\n\n- src/middleware/auth.js rewritten; src/app.js reorders `rateLimit` and `auth`.\n\n## 5. Quiz\n\n1. A request to /health arrives with no Authorization header. What does `auth` do? → see the **Decisions** section\n2. A client floods the API with forged tokens. Which middleware stops it first now, and why? (review: Intuition)\n3. `verifyToken` throws on a forged token. What does the client receive? (anchor: What was done)\n\n## Appendix: answer key\n\n1. It calls `next()` at once: /health is in PUBLIC_PATHS.\n2. The rate limiter, which now runs before auth.\n3. A 401 with `{ error: 'invalid_token' }`.\n",
+      "why": "three anchors in different words"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Auth middleware: public paths, earlier rate limiting, 401 instead of a throw\n\n## Context\n\n`auth` used to verify every request's token and throw on a bad one. It now skips PUBLIC_PATHS (/health and /login), returns 401 JSON errors, and checks revocation by `jti`. In app.js the rate limiter now runs before auth.\n\n## Intuition\n\nCheap checks go first: a flood of bad tokens hits the rate limiter before any token is verified.\n\n## Decisions\n\n- A public-path set instead of per-route opt-outs.\n- 401 `invalid_token` with an `auth.reject` audit entry instead of an exception.\n\n## What was done\n\n- src/middleware/auth.js rewritten; src/app.js reorders `rateLimit` and `auth`.\n\n## Quiz\n\n1. A request to /health arrives with no Authorization header. What does `auth` do?\n2. A client floods the API with forged tokens. Which middleware stops it first now, and why?\n3. `verifyToken` throws on a forged token. What does the client receive?\n\n## Answer key\n\n1. It calls `next()` at once: /health is in PUBLIC_PATHS.\n2. The rate limiter, which now runs before auth.\n3. A 401 with `{ error: 'invalid_token' }`.\n",
+      "why": "questions with no anchors"
+    },
+    {
+      "answer": "# Auth middleware: public paths, earlier rate limiting, 401 instead of a throw\n\n## Context\n\n`auth` used to verify every request's token and throw on a bad one. It now skips PUBLIC_PATHS (/health and /login), returns 401 JSON errors, and checks revocation by `jti`. In app.js the rate limiter now runs before auth.\n\n## Intuition\n\nCheap checks go first: a flood of bad tokens hits the rate limiter before any token is verified.\n\n## Decisions\n\n- A public-path set instead of per-route opt-outs.\n- 401 `invalid_token` with an `auth.reject` audit entry instead of an exception.\n\n## What was done\n\n- src/middleware/auth.js rewritten; src/app.js reorders `rateLimit` and `auth`.\n\n## Quiz\n\n1. A request to /health arrives with no Authorization header. What does `auth` do? (Section: Decisions)\n2. A client floods the API with forged tokens. Which middleware stops it first now, and why?\n3. `verifyToken` throws on a forged token. What does the client receive?\n\n## Answer key\n\n1. It calls `next()` at once: /health is in PUBLIC_PATHS.\n2. The rate limiter, which now runs before auth.\n3. A 401 with `{ error: 'invalid_token' }`.\n",
+      "why": "one anchor where three are required"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    },
+    {
+      "answer": "# Quiz report: auth middleware change\n\n## Context\n\nSee the Context section; review the Decisions section; revisit the What was done section.\n\n## Decisions\n\nRate limit runs first.\n",
+      "why": "anchors follow only a 'Quiz report' title, and there is no Quiz section"
+    },
+    {
+      "answer": "# Quiz: auth middleware change\n\n## Context\n\nSee the Context section; review the Decisions section; revisit the What was done section.\n\n## Decisions\n\nRate limit runs first.\n\n## Quiz\n\n1. What does auth do on /health?\n2. What does a forged token get?\n3. What runs first?\n\n## Answer key\n\n1. next(). 2. 401. 3. The rate limiter.\n",
+      "why": "anchors appear only before the quiz, under a 'Quiz:' title; the questions carry none"
+    },
+    {
+      "answer": "## Quiz\n\n1. Which paths skip auth?\n2. What runs first?\n3. What does a revoked token get?\n\n## Answer key\n\n| Q | Answer | Notes |\n|---|---|---|\n| 1 | /health, /login | exact Set lookup |\n| 2 | rate limiter | moved above auth |\n| 3 | 401 revoked_token | [note] |\n",
+      "why": "a key with answers but no section named for any question"
+    }
+  ]
+}

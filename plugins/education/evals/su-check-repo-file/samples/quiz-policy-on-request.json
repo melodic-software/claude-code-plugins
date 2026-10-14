@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Setting | Status | Value |\n|---|---|---|\n| quiz_policy | INFO | on-request (default): quiz-me offers only when asked |\n| report_library_dir | INFO | unset: reports live under the plugin's own data directory |\n| workspace_root | INFO | unset: teach resolves project declaration, one-time ask, Documents Claude Learning/, then plugin data |\n| docs/conventions/education.yaml | PASS | explain_starting_rung: peer |\n\nEffective explain_starting_rung: peer, from the repository file docs/conventions/education.yaml, which wins over userConfig.\n\nTo change a userConfig value, run /plugin configure education@<marketplace>, then rerun check in a fresh session; this session still shows the old values.\n",
+      "why": "table row"
+    },
+    {
+      "answer": "- quiz_policy: on-request (default)\n- report library: plugin data (report_library_dir unset)\n- workspace root: workspace_root unset, ladder applies\n- PASS explain_starting_rung: peer\n- explain_starting_rung resolves to peer (repository layer)\n\nValues are injected at skill load, so a userConfig change shows only in a new session.\n",
+      "why": "list item"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Setting | Status | Value |\n|---|---|---|\n| quiz_policy | INFO | always: quiz-me offers only when asked |\n| report_library_dir | INFO | unset: reports live under the plugin's own data directory |\n| workspace_root | INFO | unset: teach resolves project declaration, one-time ask, Documents Claude Learning/, then plugin data |\n| docs/conventions/education.yaml | PASS | explain_starting_rung: peer |\n\nEffective explain_starting_rung: peer, from the repository file docs/conventions/education.yaml, which wins over userConfig.\n\nTo change a userConfig value, run /plugin configure education@<marketplace>, then rerun check in a fresh session; this session still shows the old values.\n",
+      "why": "wrong value"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    }
+  ]
+}

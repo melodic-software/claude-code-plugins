@@ -1,0 +1,124 @@
+{
+  "skill": "education:explain",
+  "plugin": "education",
+  "skill_dir": "plugins/education/skills/explain",
+  "ranking_note": "Authored blind from the before descriptions at commit c67216035c6a99df142a1b24c5ce30c74fc7a7a6, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the two other model-invoked education skills.",
+  "competitors": [
+    "education:illustrate",
+    "education:quiz-me"
+  ],
+  "competitor_dirs": {
+    "education:illustrate": "plugins/education/skills/illustrate",
+    "education:quiz-me": "plugins/education/skills/quiz-me"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I read that error message three times and it still means nothing to me. What is it actually saying?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Huh? Still lost on that one."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you put that last answer in words a non-programmer would follow, with a comparison to something from everyday life?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What does this regex do? I can't read it at all: ^(?=.*\\d)(?=.*[a-z]).{8,}$"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Break down how a load balancer works as if I had never heard any of the terms, no jargon please."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "That went over my head. Say it again more simply."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Okay, that was too basic now. Bump it up to a high-school level."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What is a database index, in plain talk? I keep hearing the word and nodding along."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Rephrase your previous reply without the technical vocabulary."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Why does this stack trace say NullReferenceException? Tell me like I'm new to coding."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw me a diagram of how a load balancer works."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a picture explainer of the request lifecycle in this repo."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Quiz me on the migration we just finished to check I followed it."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Restructure that dense message so the decisions are numbered and the jargon is defined, keeping the exact terms."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Set me up with a weekly coaching plan to learn Rust over the next two months."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Verify that the migration we just ran actually produced the right outcome."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Which HTTP status code means the resource was moved permanently?"
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Give me a rigorous, precise write-up of the Raft consensus protocol for a distributed systems reading group."
+    }
+  ]
+}

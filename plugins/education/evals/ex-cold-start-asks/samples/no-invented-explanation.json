@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "What would you like explained? Nothing has been said in this conversation yet, so there is no earlier message for me to put in plain words. Name the concept, code, error or text.",
+      "why": "ask only"
+    },
+    {
+      "answer": "There's no previous response to work from. Which concept or message should I explain?",
+      "why": "ask only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A database index is like the index at the back of a cookbook: it lets you jump to the right page.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic database-indexes` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (default)",
+      "why": "closes an explanation it should not have given"
+    }
+  ]
+}

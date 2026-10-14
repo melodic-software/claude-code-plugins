@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# When does the helper stop trying again?\n\nSometimes asking the billing computer for something fails. A small helper (shouldRetry in src/retry.js) decides whether to ask again.\n\n## 1. Only four tries\n\n```mermaid\nflowchart LR\n  a[\"Ask\"] --> b[\"Did it work?\"] --> c[\"Ask again, four tries at most\"]\n```\n\nAfter four tries (MAX_ATTEMPTS) the helper stops.\n\n## 2. Some problems are not fixed by asking again\n\n```mermaid\nflowchart TD\n  p[\"Something went wrong\"] --> busy[\"Too busy: wait, ask again\"]\n  p --> wrong[\"Asked wrongly: stop\"]\n  p --> broken[\"Their side broke: ask again\"]\n```\n\n## Words\n\n- **try**: one time asking.\n\n## Sources\n\n- src/retry.js\n",
+      "why": "plain title"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# shouldRetry\n\n`shouldRetry` checks the attempt count against `MAX_ATTEMPTS` and then the status code.\n\n```mermaid\nflowchart LR\n  a[\"shouldRetry(status, attempt)\"] --> b[\"false\"]\n```\n",
+      "why": "identifier as the title"
+    },
+    {
+      "answer": "# How retry.js gives up\n",
+      "why": "file name as the title"
+    }
+  ]
+}

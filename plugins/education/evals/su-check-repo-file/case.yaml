@@ -1,0 +1,55 @@
+schema_version: "1.1"
+name: su-check-repo-file
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: check-script-run
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.mjs(?:(?!(?<!\\)\")[^\n])*?--check'
+  - name: no-apply-run
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.mjs(?:(?!(?<!\\)\")[^\n])*?(?:--yes\b|\s[a-z_]+=)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: repo-file-pass-peer
+    type: regex
+    pattern: '^(?=[^\n]*\bPASS\b)(?=[^\n]*\bexplain_starting_rung\b)(?=[^\n]*\bpeer\b)'
+    flags: 'm'
+    target: last_message
+  - name: effective-rung-repo-layer
+    type: regex
+    pattern: '^(?=[^\n]*\bexplain_starting_rung\b\W{1,6}(?:(?:is|resolves to|effective|value)\W{1,4})?peer\b)(?=[^\n]*(?:docs/conventions/education\.yaml|\brepositor(?:y|ies)\b|\brepo\b))'
+    flags: 'mi'
+    target: last_message
+  - name: quiz-policy-on-request
+    type: regex
+    pattern: '^(?=[^\n]*\bquiz_policy\b)(?=[^\n]*\bon-request\b)'
+    flags: 'm'
+    target: last_message
+  - name: all-four-settings
+    type: regex
+    pattern: '^(?=[\s\S]*\bquiz_policy\b)(?=[\s\S]*\b(?:report_library_dir|report library)\b)(?=[\s\S]*\b(?:workspace_root|workspace root)\b)(?=[\s\S]*\bexplain_starting_rung\b)'
+    flags: 'i'
+    target: last_message
+  - name: fresh-session-note
+    type: regex
+    pattern: '^(?![^\n]*\b(?:no need|no reason|won''t|won’t|don''t|don’t|do not|not have to|needn''t|needn’t|immediately)\b)[^\n]*(?<!n''t )(?<!n’t )(?<!not )(?<!no )(?<!need to )\b(?:only|until|after|in|on|requires?|needs?|start|open|takes? effect in)\s+(?:a\s+)?(?:fresh|new)\s+session\b'
+    flags: 'im'
+    target: last_message

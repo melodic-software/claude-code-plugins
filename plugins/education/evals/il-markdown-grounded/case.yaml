@@ -1,0 +1,30 @@
+schema_version: "1.1"
+name: il-markdown-grounded
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: read-fixture
+    type: tool_used
+    tool: Read
+    input_match: 'retry\.js'
+    arm: both
+  - name: two-plus-mermaid
+    type: regex
+    pattern: '```mermaid[\s\S]*?```[\s\S]*?```mermaid'
+    target: last_message
+  - name: grounded-rules
+    type: regex
+    pattern: '^(?=[\s\S]*\b429\b)(?=[\s\S]*(?:\b4xx\b|\b400\b|\bclient error))(?=[\s\S]*(?:\b5xx\b|\b500\b|\bserver error))(?=[\s\S]*(?:\bMAX_ATTEMPTS\b|\b(?:4|four) (?:attempts|tries|calls)\b))'
+    flags: 'i'
+    target: last_message
+  - name: no-html-page
+    type: regex
+    pattern: '<!doctype|<html\b|<script\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: sources-name-fixture
+    type: regex
+    pattern: '\bsources?\b[\s\S]{0,200}?\bretry\.js\b'
+    flags: 'i'
+    target: last_message

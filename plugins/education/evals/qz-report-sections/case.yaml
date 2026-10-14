@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: qz-report-sections
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: read-diff
+    type: regex
+    pattern: '^(?=[\s\S]*\b(?:isRevoked|revoked_token)\b)(?=[\s\S]*\b(?:missing_token|auth\.reject)\b)'
+    target: last_message
+  - name: sections-in-order
+    type: regex
+    pattern: '^#{1,6}\s*(?:\d+[.)]\s*)?(?:\*\*)?Context\b[\s\S]*?^#{1,6}\s*(?:\d+[.)]\s*)?(?:\*\*)?Intuition\b[\s\S]*?^#{1,6}\s*(?:\d+[.)]\s*)?(?:\*\*)?Decisions?\b[\s\S]*?^#{1,6}\s*(?:\d+[.)]\s*)?(?:\*\*)?(?:What was done|What we did|What changed|Done)\b[\s\S]*?^#{1,6}\s*(?:\d+[.)]\s*)?(?:\*\*)?Quiz\b'
+    flags: 'mi'
+    target: last_message
+  - name: quiz-at-bottom
+    type: regex
+    pattern: '^(?:#{2,6}\s*(?:\d+[.)]\s*)?(?:\*\*)?Quiz\b(?![ \t]*-?[ \t]*me\b)(?![^\n]*\breport\b)|#[ \t]*(?:\*\*)?Quiz(?:\*\*)?[ \t]*$)[\s\S]*^#{1,6}\s*(?:\d+[.)]\s*)?(?:\*\*)?(?:Context|Intuition|Decisions?|What was done)\b'
+    flags: 'mi'
+    match: 'not_contains'
+    target: last_message
+  - name: answer-key-after-quiz
+    type: regex
+    pattern: '^(?:#{2,6}[^\n]*\bQuiz\b(?![ \t]*-?[ \t]*me\b)(?![^\n]*\breport\b)|#[ \t]*(?:\*\*)?Quiz(?:\*\*)?[ \t]*$)[\s\S]*\banswer key\b'
+    flags: 'mi'
+    target: last_message
+  - name: three-anchored-questions
+    type: regex
+    pattern: '^(?:#{2,6}[^\n]*\bQuiz\b(?![ \t]*-?[ \t]*me\b)(?![^\n]*\breport\b)|#[ \t]*(?:\*\*)?Quiz(?:\*\*)?[ \t]*$)(?:[\s\S]*?(?:\b(?:section|see|review|revisit|anchor(?:ed)?|re-?read)\b[^\n]{0,30}?\b(?:Context|Intuition|Decisions?|What was done)\b|§[ \t]*\d*\.?[ \t]*(?:Context|Intuition|Decisions?|What was done)\b|\[[^\]\n]+\]\(#[\w-]+\)|\[(?:Context|Intuition|Decisions?|What was done)\b[^\]\n]{0,40}\]|\|[ \t]*(?:Context|Intuition|Decisions?|What was done)\b[^|\n]*\|[ \t]*$|\((?:Context|Intuition|Decisions?|What was done)\)|\bsection is \*(?:Context|Intuition|Decisions?|done|What was done)\*)){3}'
+    flags: 'mi'
+    target: last_message
+  - name: diff-specifics
+    type: regex
+    pattern: '^(?=[\s\S]*(?:PUBLIC_PATHS|/health|/login))(?=[\s\S]*(?:invalid_token|\b401\b))(?=[\s\S]*\brate[- ]?limit)'
+    flags: 'i'
+    target: last_message

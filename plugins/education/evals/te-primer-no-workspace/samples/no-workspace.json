@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Color grading has a small working vocabulary. Here is the ladder from the words you have to the words a colorist acts on.\n\n## Core terms\n\n| Term | Plain meaning | Vague word it replaces |\n|---|---|---|\n| White balance (color temperature) | How orange or blue neutral whites look | \"warmer\" → \"shift white balance toward amber in the skin tones\" |\n| Contrast | The gap between the darkest and brightest parts | \"punchier\" → \"crush the blacks slightly, keep the highlights\" |\n| Saturation | How intense the colors are | \"cinematic\" → \"lower saturation in the greens, keep skin natural\" |\n\n## What good looks like\n\nColorists judge skin tones, continuity from shot to shot, and whether the look serves the scene.\n\nBad brief: \"make it more cinematic\". Good brief: \"teal shadows, warm skin, contrast like the reference frame\".\n\n## How to ask for what you want\n\nTemplate: \"For scene ___, the mood is ___. Keep skin ___. Shadows ___, highlights ___. Reference: ___.\"\n\nNo MISSION.md or learning-records/ are created for a primer. For depth or practice, /education:teach topic color-grading starts a full workspace.\n",
+      "why": "negated mention only"
+    },
+    {
+      "answer": "Here are the terms.",
+      "why": "no mention"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Let's set up your learning workspace. I created your workspace with MISSION.md and learning-records/.\n\nWhat's your goal for learning color grading? How will we know you've succeeded?\n",
+      "why": "created a workspace and mission"
+    },
+    {
+      "answer": "Your terms are saved to GLOSSARY.md for next time.",
+      "why": "writes a glossary"
+    }
+  ]
+}

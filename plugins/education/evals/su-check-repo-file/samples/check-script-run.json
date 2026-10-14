@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/education/skills/setup/scripts/setup-apply.mjs\" --check",
+            "description": "Check the repository file"
+          }
+        }
+      ],
+      "why": "documented check call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"/plugins/education/skills/setup/scripts/setup-apply.mjs\" explain_starting_rung=plain",
+            "description": "Write"
+          }
+        }
+      ],
+      "why": "apply form, no --check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat docs/conventions/education.yaml"
+          }
+        }
+      ],
+      "why": "reads the file by hand"
+    }
+  ]
+}

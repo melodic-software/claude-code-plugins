@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/retry.js"
+          }
+        }
+      ],
+      "why": "read the module"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ]
+}

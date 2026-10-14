@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: te-primer-no-workspace
+graders:
+  - name: core-terms
+    type: regex
+    pattern: '^(?=[\s\S]*\bcontrast\b)(?=[\s\S]*\bsaturation\b)(?=[\s\S]*\b(?:white balance|colou?r temperature)\b)'
+    flags: 'i'
+    target: last_message
+  - name: vague-to-precise
+    type: regex
+    pattern: '^(?![^\n]*\b(?:don''?t know|do not know|not sure|unclear|no idea)\b)[^\n]*\b(?:warmer|cinematic)\b[^\n]{0,200}(?:→|->|=>|\bmeans\b|\binstead\b|\bbecomes\b|\btry\b|\bsay\b)|^[ \t]*\|[^\n|]*\b(?:warmer|cinematic)\b[^\n|]*\|(?![^\n|]*\b(?:warmer|cinematic)\b)[^\n|]*[a-z][^\n|]*\|'
+    flags: 'im'
+    target: last_message
+  - name: good-vs-bad
+    type: regex
+    pattern: '^(?=[\s\S]*\b(?:good|strong|better)\b)(?=[\s\S]*\b(?:bad|weak|worse|poor)\b)'
+    flags: 'i'
+    target: last_message
+  - name: ask-template
+    type: regex
+    pattern: '\bhow to ask\b|\bask for what you want\b|\b(?:brief(?:ing)?|prompt) template\b|\btemplate\s*:'
+    flags: 'i'
+    target: last_message
+  - name: escalation-offer
+    type: regex
+    pattern: '/education:teach topic\b'
+    target: last_message
+  - name: no-workspace
+    type: regex
+    pattern: '^(?![^\n]*\b(?:no|not|without|never|skip|skips)\b)[^\n]*(?:\bMISSION\.md\b|\blearning-records/|\bGLOSSARY\.md\b)'
+    flags: 'im'
+    match: 'not_contains'
+    target: last_message

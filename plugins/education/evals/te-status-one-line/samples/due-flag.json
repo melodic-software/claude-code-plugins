@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Mode | Topic | Records | Frontier | Last touched | Due for review |\n|---|---|---|---|---|---|\n| topic | sql-joins | 2 | LEFT JOIN | 2026-10-13 | none due |",
+      "why": "due column"
+    },
+    {
+      "answer": "topic/sql-joins: 2 learning records, frontier LEFT JOIN, last touched 2026-10-13, nothing due for review.",
+      "why": "nothing due"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Mode | Topic | Records | Frontier |\n|---|---|---|---|\n| topic | sql-joins | 2 | LEFT JOIN |",
+      "why": "no due-for-review flag"
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond.",
+      "why": "off-topic"
+    }
+  ]
+}

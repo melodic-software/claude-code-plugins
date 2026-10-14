@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "superseded by",
+            "path": "learning/topic/sql-joins/learning-records",
+            "output_mode": "files_with_matches"
+          }
+        }
+      ],
+      "why": "status-line grep"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "learning/topic/sql-joins/learning-records/0002-inner-join-demonstrated.md"
+          }
+        }
+      ],
+      "why": "reads bodies instead"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: qz-recall-library-first
+graders:
+  - name: library-first
+    type: regex
+    pattern: '^(?:(?!\bgit\b|\btracker\b)[\s\S])*?\blibrary\b'
+    flags: 'i'
+    target: last_message
+  - name: coverage-boundary
+    type: regex
+    pattern: '\bonly\b[^\n.]{0,80}\bquizz(?:ed|es)\b|\bquizzed\b[^\n.]{0,40}\bonly\b|\bnever (?:been )?quizzed\b|\bwasn(?:''|’)t quizzed\b'
+    flags: 'i'
+    target: last_message
+  - name: fallback-named
+    type: regex
+    pattern: '\bgit\b[^\n]{0,30}\b(?:history|log|archaeology)\b|\b(?:issue |work-item )?tracker\b'
+    flags: 'i'
+    target: last_message
+  - name: no-invented-library-hit
+    type: regex
+    pattern: '\bfound (?:a|the|one|\d+) (?:matching )?(?:quiz )?(?:report|quiz)(?:zes|es|s)?\b|\bfrom the (?:report )?library\b[^\n]{0,40}\b(?:you|we) (?:scored|answered)\b'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message

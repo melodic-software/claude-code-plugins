@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "A database index is like the index at the back of a cookbook. Without it, finding every recipe that uses basil means turning every page. With it, you look up \"basil\", read the page numbers, and go straight to those pages.\n\nWhat it's actually doing: the database keeps a separate, sorted list of the values in one column (say, customer email), and next to each value it writes where that row is kept. A search for one email checks the short sorted list instead of reading the whole table.\n\nThe cost: every new recipe means updating the cookbook's index too, so adding rows gets a little slower in exchange for much faster lookups.\n\nThat's the plain version, want the high-school one?\n\nWant to actually learn this, not just get past it? `/education:teach topic database-indexes` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (default)",
+      "why": "plain words only"
+    },
+    {
+      "answer": "Imagine a library with no catalog: to find one book you walk every shelf. A card catalog (an alphabetical box of cards, each saying which shelf a book is on) lets you go straight to the right shelf.\n\nWhat it's actually doing: a database index is that card box for one column of a table.\n\nWant the high school version next?\n\nWant to actually learn this, not just get past it? `/education:teach topic database-indexes` runs a multi-session coached deep-dive.\n\n`explain_starting_rung: plain (default)`\n",
+      "why": "plain words only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "A database index is a B-tree structure that maps key values to row identifiers, giving O(log n) lookups at the cost of write amplification. Selectivity and cardinality decide whether the planner uses it.\n\nWant the plain version?\n\nWant to actually learn this, not just get past it? `/education:teach topic database-indexes` runs a multi-session coached deep-dive.\nexplain_starting_rung: plain (default)",
+      "why": "B-tree and O(log n) up front"
+    },
+    {
+      "answer": "An index is like a cookbook index. Under the hood it is a B+tree.",
+      "why": "jargon after the analogy"
+    }
+  ]
+}
