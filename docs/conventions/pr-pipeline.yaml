@@ -51,6 +51,10 @@ lanes:
         needs: [resolve-conflicts]
 
 merge:
+  # The lane auto-merges only PRs labeled `work-class: mechanical` (C2):
+  # dependency bumps, lint and format fixes, syncs. The classes C1-C5 (read-only,
+  # mechanical, scoped, structural, untrusted-provenance) are defined in
+  # plugins/autonomy/reference/guardrails/work-classes.md.
   rung: C2
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
