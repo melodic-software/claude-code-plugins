@@ -48,9 +48,10 @@ re-read the page.
 
 `claude plugin eval --help` plus <https://code.claude.com/docs/en/plugin-evals>, verified
 2026-09-12, with the argument order and trust behavior reproduced against this repository's suite.
-At that date `--judge-model` defaulted to a small fast model (haiku), `-j/--concurrency` took 1 to
-8 and cut wall-clock only, and `--threshold` defaulted to 1.0. Recheck: re-run `--help` and
-re-derive.
+For the current `--judge-model` and `--threshold` defaults and the `-j/--concurrency` range, read
+`claude plugin eval --help` or the command options table at
+<https://code.claude.com/docs/en/plugin-evals#command-options>. Recheck: re-run `--help` when a
+release note touches the flag set.
 
 ## Spoke reach
 
