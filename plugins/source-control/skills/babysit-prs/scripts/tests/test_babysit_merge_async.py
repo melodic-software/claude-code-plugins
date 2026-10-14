@@ -4,7 +4,9 @@ Expected request fields, statuses, and HTTP semantics come from GitHub's
 "Merge a pull request asynchronously" and "Get the result of an asynchronous
 merge" REST docs: `sha` pins the head, `merge_method` is direct-only,
 `merge_action` is `direct_merge` or `merge_queue`, 409 returns the pending
-request's UUID, and `enqueued` means queued, not merged. Stack membership and
+request's UUID, and `enqueued` means queued, not merged. A merge-queue base is
+enqueued through GraphQL `enqueuePullRequest` (`pullRequestId`,
+`expectedHeadOid`), per GitHub's GraphQL "Pulls" reference. Stack membership and
 the trunk rule come from "About stacked pull requests" and the stacks REST
 endpoints. Every gh seam is stubbed; no real gh process is spawned.
 """
@@ -72,6 +74,17 @@ def _queue(
 
 
 NO_QUEUE = _queue(required=False, merged=True)
+NODE_ID = "PR_kwDOnode0001"
+
+
+def _enqueued(state: str = "QUEUED", position: int = 1) -> dict[str, Any]:
+    """An `enqueuePullRequest` answer carrying the new `MergeQueueEntry`."""
+    entry = {"state": state, "position": position}
+    return {"data": {"enqueuePullRequest": {"mergeQueueEntry": entry}}}
+
+
+def _graphql_error(message: str) -> dict[str, Any]:
+    return {"data": {"enqueuePullRequest": None}, "errors": [{"message": message}]}
 
 
 class AsyncMergeHarness(unittest.TestCase):
@@ -114,6 +127,7 @@ class AsyncMergeHarness(unittest.TestCase):
         stack_member: bool = False,
         queue: list[dict[str, Any] | Exception] | None = None,
         report: dict[str, Any] | None = None,
+        node: dict[str, Any] | Exception | None = None,
     ) -> int:
         if blockers is not None:
             ready = not blockers
@@ -150,7 +164,8 @@ class AsyncMergeHarness(unittest.TestCase):
 
         def capture(cmd: list[str]) -> Any:
             self.captures.append(cmd)
-            if "merge-async" in " ".join(cmd):
+            joined = " ".join(cmd)
+            if "merge-async" in joined or "enqueuePullRequest" in joined:
                 return puts.pop(0)
             return _proc()
 
@@ -160,6 +175,12 @@ class AsyncMergeHarness(unittest.TestCase):
             if "merge-async/" in args[1]:
                 self.polls.append(args)
                 answer = poll_answers.pop(0)
+                if isinstance(answer, Exception):
+                    raise answer
+                return answer
+            if args[1] == "repos/owner/repo/pulls/1":
+                self.node_reads += 1
+                answer = {"id": NODE_ID} if node is None else node
                 if isinstance(answer, Exception):
                     raise answer
                 return answer
@@ -179,6 +200,7 @@ class AsyncMergeHarness(unittest.TestCase):
 
         self.stack_reads = 0
         self.queue_reads = 0
+        self.node_reads = 0
         ticks = iter(clock or [0.0] * 50)
         argv = [
             "babysit_merge.py",
@@ -224,6 +246,9 @@ class AsyncMergeHarness(unittest.TestCase):
     def _put(self) -> list[str]:
         [cmd] = [c for c in self.captures if "merge-async" in " ".join(c)]
         return cmd
+
+    def _enqueue_commands(self) -> list[list[str]]:
+        return [c for c in self.captures if "enqueuePullRequest" in " ".join(c)]
 
     def _fields(self, cmd: list[str]) -> dict[str, str]:
         pairs = [cmd[i + 1] for i, arg in enumerate(cmd) if arg in ("-f", "-F")]
@@ -483,36 +508,75 @@ class UnpinnedMergeStillPinsTheEvaluatedHead(AsyncMergeHarness):
 
 
 class MergeQueueIsEnqueued(AsyncMergeHarness):
-    def test_queue_branch_enqueues_without_a_merge_method(self) -> None:
-        code = self._run(
-            _proc(_async("pending")), [_async("enqueued")], merge_action="merge_queue"
-        )
+    """A merge-queue base is enqueued through GraphQL `enqueuePullRequest`, not
+    the REST `merge-async` call GitHub refused an App installation token with
+    "Enqueuer is not authorized to merge"."""
+
+    def test_queue_branch_enqueues_through_graphql_at_the_vetted_head(self) -> None:
+        code = self._run(_proc(_enqueued(position=2)), merge_action="merge_queue")
         self.assertEqual(code, 0)
         self.assertEqual(self.output["action"], "enqueue")
         self.assertFalse(self.output["merged"])
         self.assertTrue(self.output["enqueued"])
+        self.assertFalse(any("merge-async" in " ".join(c) for c in self.captures))
+        [cmd] = self._enqueue_commands()
+        self.assertEqual(cmd[:2], ["api", "graphql"])
+        fields = self._fields(cmd)
+        self.assertEqual((fields["id"], fields["head"]), (NODE_ID, HEAD))
+        self.assertIn("pullRequestId:$id", fields["query"])
+        self.assertIn("expectedHeadOid:$head", fields["query"])
+        self.assertNotIn("jump", fields["query"])
+        self.assertEqual(self.output["merge"]["api"], "graphql")
         self.assertEqual(
-            self._fields(self._put()),
-            {"merge_action": "merge_queue", "bypass_rules": "false", "sha": HEAD},
+            self.output["merge"]["mergeQueue"], {"state": "QUEUED", "position": 2}
         )
-
-    def test_already_queued_answer_is_still_queued(self) -> None:
-        code = self._run(_proc(_async("enqueued")), merge_action="merge_queue")
-        self.assertEqual(code, 0)
-        self.assertTrue(self.output["enqueued"])
         self.assertEqual(self.polls, [])
 
-    def test_queue_without_the_endpoint_is_held(self) -> None:
+    def test_a_refused_enqueue_is_held_and_tries_no_other_api(self) -> None:
+        refusal = "Enqueuer is not authorized to merge"
         code = self._run(
-            _proc(
-                {"message": "Not Found"},
-                returncode=1,
-                stderr="gh: Not Found (HTTP 404)",
-            ),
+            _proc(_graphql_error(refusal), returncode=1, stderr=f"gh: {refusal}"),
             merge_action="merge_queue",
         )
         self.assertEqual(code, 10)
+        self.assertFalse(self.output["enqueued"])
+        self.assertIn(refusal, self.output["merge"]["message"])
+        self.assertEqual(len(self._enqueue_commands()), 1)
+        self.assertFalse(any("merge-async" in " ".join(c) for c in self.captures))
         self.assertFalse(any(c[:2] == ["pr", "merge"] for c in self.captures))
+
+    def test_an_answer_without_a_queue_entry_is_not_enqueued(self) -> None:
+        answer = {"data": {"enqueuePullRequest": {"mergeQueueEntry": None}}}
+        code = self._run(_proc(answer), merge_action="merge_queue")
+        self.assertEqual(code, 10)
+        self.assertFalse(self.output["enqueued"])
+
+    def test_an_unreadable_pull_request_id_sends_no_enqueue(self) -> None:
+        code = self._run(
+            [],
+            merge_action="merge_queue",
+            node=RuntimeError("gh: Server Error (HTTP 502)"),
+        )
+        self.assertEqual(code, 10)
+        self.assertFalse(self.output["enqueued"])
+        self.assertEqual(self._enqueue_commands(), [])
+        self.assertFalse(any(c[:2] == ["pr", "merge"] for c in self.captures))
+
+    def test_a_refused_enqueue_records_nothing_for_later_runs(self) -> None:
+        state = tempfile.TemporaryDirectory()
+        self.addCleanup(state.cleanup)
+        self._run(
+            _proc(_graphql_error("refused"), returncode=1, stderr="gh: refused"),
+            merge_action="merge_queue",
+            extra=("--state-dir", state.name),
+        )
+        path = pathlib.Path(state.name) / merge.PENDING_MERGES_FILE
+        records = (
+            json.loads(path.read_text(encoding="utf-8"))["requests"]
+            if path.exists()
+            else {}
+        )
+        self.assertEqual(records, {})
 
 
 class GhPrMergeOntoAQueueIsReportedQueued(AsyncMergeHarness):
@@ -714,7 +778,7 @@ class QueuedPullRequestIsConfirmedLater(AsyncMergeHarness):
 
     def _enqueue(self) -> None:
         code = self._run(
-            _proc(_async("enqueued")),
+            _proc(_enqueued()),
             merge_action="merge_queue",
             extra=("--state-dir", self.state.name),
         )
@@ -723,7 +787,7 @@ class QueuedPullRequestIsConfirmedLater(AsyncMergeHarness):
 
     def _later_run(self, answer: dict[str, Any] | Exception, **kwargs: Any) -> int:
         return self._run(
-            _proc(_async("enqueued")),
+            _proc(_enqueued()),
             merge_action="merge_queue",
             queue=[answer],
             extra=("--state-dir", self.state.name),
@@ -734,7 +798,7 @@ class QueuedPullRequestIsConfirmedLater(AsyncMergeHarness):
         path = pathlib.Path(self.state.name) / merge.PENDING_MERGES_FILE
         return json.loads(path.read_text(encoding="utf-8"))["requests"]
 
-    def test_an_async_enqueue_is_recorded(self) -> None:
+    def test_an_enqueue_is_recorded(self) -> None:
         self._enqueue()
         record = self._records()["owner/repo#1"]
         self.assertEqual((record["queued"], record["head"]), (True, HEAD))

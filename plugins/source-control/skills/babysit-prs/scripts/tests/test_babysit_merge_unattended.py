@@ -285,6 +285,7 @@ UNBOUND = tuple(
 )
 PROMOTED = policy.Promotion(dict.fromkeys(policy.PROMOTABLE_CELLS, "promoted"), None)
 PROCEED = policy.KillSwitch(True, "proceed")
+REAL_ASYNC_MERGE = merge.async_merge
 ENQUEUED = {
     "attempted": True,
     "api": "merge-async",
@@ -406,6 +407,8 @@ class Unattended(unittest.TestCase):
                 }
             if args[0] == "api" and "/compare/" in args[1]:
                 return fixtures.UP_TO_DATE
+            if args[:2] == ["api", f"repos/owner/repo/pulls/{PR}"]:
+                return {"id": self.node_id}
             if args[0] == "api":
                 return self.rules
             raise AssertionError(f"unexpected gh_json call: {args}")
@@ -508,6 +511,10 @@ class Unattended(unittest.TestCase):
             self.log.append("disarm")
         elif "dequeuePullRequest" in joined:
             self.log.append("dequeue-self:" + args[-1])
+        elif "enqueuePullRequest" in joined:
+            self.log.append(f"graphql-enqueue:{args[-3]}:{args[-1]}")
+            answer = async_fixtures._enqueued()
+            return subprocess.CompletedProcess(args, 0, json.dumps(answer), "")
         else:
             self.log.append("write:" + joined)
         return subprocess.CompletedProcess(args, 0, "{}", "")
@@ -581,6 +588,16 @@ class LaneMode(Unattended):
             out["unattended"]["enqueue"]["killSwitch"],
             {"proceed": True, "reason": "proceed"},
         )
+
+    def test_the_lane_enqueues_through_graphql_not_merge_async(self) -> None:
+        # Sandbox run 38648923271: REST merge-async refused the lanes App
+        # ("Enqueuer is not authorized to merge").
+        self._async_merge = REAL_ASYNC_MERGE  # type: ignore[method-assign]
+        code, out = self.lane()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertTrue(out["enqueued"])
+        self.assertEqual(self.log, ["pin", f"graphql-enqueue:id=PR_self:head={HEAD}"])
+        self.assertEqual(out["merge"]["api"], "graphql")
 
     def test_a_missing_workflow_kill_switch_stops_the_lane(self) -> None:
         # A stop like the switch itself: no enqueue, and the identity's own

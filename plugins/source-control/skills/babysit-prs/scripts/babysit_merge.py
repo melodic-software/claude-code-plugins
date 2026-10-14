@@ -22,7 +22,8 @@ Contract enforced here (encoded as code, not convention):
   resolve or reply to review threads, force-push, or change settings.
 - A ready PR on the default branch merges through the async merge API with the
   vetted head as `sha`, polled to a terminal status; on a base that requires a
-  merge queue it is enqueued instead (`enqueued` is queued, not merged). A host
+  merge queue it is enqueued instead, through GraphQL `enqueuePullRequest` with
+  the vetted head as `expectedHeadOid` (`enqueued` is queued, not merged). A host
   without the endpoint (404) falls back to `gh pr merge` for a direct merge.
   Under `--stacked-prs` every stack member, the bottom layer included, merges
   through the async API too (GitHub's required API for a stacked PR) and never
@@ -2092,6 +2093,78 @@ def report_queue_routing(result: dict[str, Any], queue: dict[str, Any]) -> int:
     return 10
 
 
+# https://docs.github.com/en/graphql/reference/pulls#enqueuepullrequest
+# `jump` is never sent: it puts the PR at the front of the queue.
+ENQUEUE_MUTATION = (
+    "mutation($id:ID!,$head:GitObjectID!){enqueuePullRequest("
+    "input:{pullRequestId:$id,expectedHeadOid:$head}){mergeQueueEntry{state position}}}"
+)
+
+
+def enqueue_pull_request(repo: str, number: int, *, sha: str) -> dict[str, Any]:
+    """Add the PR to its base's merge queue at the vetted head.
+
+    GraphQL `enqueuePullRequest`, not REST `merge-async` with
+    `merge_action=merge_queue`: GitHub refused the latter for an App
+    installation token ("Enqueuer is not authorized to merge") while the
+    mutation enqueues for the same permissions. `expectedHeadOid` is the
+    server-side pin, as `sha` is for `merge-async`. Returns the `merge` record;
+    `success` only when GitHub answers with the new queue entry.
+    """
+    record: dict[str, Any] = {
+        "attempted": True,
+        "auto": False,
+        "api": "graphql",
+        "mergeAction": "merge_queue",
+        "uuid": None,
+        "status": None,
+        "message": "",
+        "success": False,
+        "endpointMissing": False,
+    }
+    try:
+        node = gh_json(
+            ["api", f"repos/{repo}/pulls/{number}", "--jq", "{id: .node_id}"]
+        )
+    except (RuntimeError, json.JSONDecodeError) as exc:
+        node = None
+        record["message"] = f"could not read the pull request id: {exc}"
+    node_id = json_object(node).get("id")
+    if not isinstance(node_id, str) or not node_id:
+        record["attempted"] = False
+        record["message"] = (
+            record["message"] or "the pull request read returned no id"
+        ) + " -- not enqueued"
+        return record
+    proc = gh_capture(
+        ["api", "graphql", "-f", f"query={ENQUEUE_MUTATION}"]
+        + ["-f", f"id={node_id}", "-f", f"head={sha}"]
+    )
+    payload = _async_payload(proc.stdout)
+    data = json_object(json_object(payload.get("data")).get("enqueuePullRequest"))
+    entry = data.get("mergeQueueEntry")
+    errors = [
+        str(json_object(error).get("message") or "")
+        for error in payload.get("errors") or []
+        if is_json_object(error)
+    ]
+    if proc.returncode == 0 and is_json_object(entry) and not errors:
+        record["status"] = "enqueued"
+        record["success"] = True
+        record["mergeQueue"] = {
+            "state": entry.get("state"),
+            "position": entry.get("position"),
+        }
+        return record
+    record["status"] = "failed" if errors else None
+    record["message"] = "; ".join(e for e in errors if e) or (
+        proc.stderr.strip() or "enqueuePullRequest returned no merge queue entry"
+    )
+    if proc.stderr.strip():
+        record["stderr"] = proc.stderr.strip()
+    return record
+
+
 def async_merge(
     repo: str,
     number: int,
@@ -2102,10 +2175,14 @@ def async_merge(
 ) -> dict[str, Any]:
     """Request an async merge or enqueue, poll it, and verify a reported merge.
 
-    Returns the `merge` record. `endpointMissing` marks a 404 on the request
-    itself (a host without the endpoint, such as an older GitHub Enterprise
-    Server): the PR was just read, so the 404 is the endpoint's, not the PR's.
+    Returns the `merge` record. An enqueue goes through
+    `enqueue_pull_request`; only a direct merge uses `merge-async`.
+    `endpointMissing` marks a 404 on the request itself (a host without the
+    endpoint, such as an older GitHub Enterprise Server): the PR was just read,
+    so the 404 is the endpoint's, not the PR's.
     """
+    if merge_action == "merge_queue":
+        return enqueue_pull_request(repo, number, sha=sha)
     request = request_async_merge(
         repo, number, sha=sha, merge_action=merge_action, method=method
     )
@@ -3824,10 +3901,11 @@ def main() -> int:
         return 10
 
     # A ready PR merges through the async merge API: REST (so it works where
-    # GraphQL is refused), the only API that enqueues, and GitHub's required API
-    # for merging any stacked PR, the bottom layer included. It is used on the
-    # default branch, for a queue, and for a stack member; any other base keeps
-    # `gh pr merge`. Auto-merge has no async form and keeps `gh pr merge`.
+    # GraphQL is refused) and GitHub's required API for merging any stacked PR,
+    # the bottom layer included. It is used on the default branch and for a
+    # stack member; a queue base is enqueued through GraphQL instead
+    # (`enqueue_pull_request`). Any other base keeps `gh pr merge`. Auto-merge
+    # has no async form and keeps `gh pr merge`.
     if not arm_auto:
         stack = json_object(result.get("stack"))
         stack_lands = bool(stack.get("landsLowerLayers"))
