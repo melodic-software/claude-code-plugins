@@ -233,6 +233,10 @@ The `context/` files write the plugin's root directory as `<plugin-root>`, which
 records why, with the pointer to recheck. **As of**: 2026-10-11. **Recheck trigger**: that section is
 renamed or removed, or its own recheck trigger fires.
 
+## Next
+
+`/overengineering:realign`. It executes accepted findings from this run's artifact.
+
 ## Gotchas
 
 - **A layer-scoped pass is not a retirement of what it did not look at.** Findings in unwalked layers

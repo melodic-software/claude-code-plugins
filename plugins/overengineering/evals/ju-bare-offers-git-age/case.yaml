@@ -15,7 +15,7 @@ graders:
   - name: no-git-age-run
     type: tool_used
     tool: Bash
-    input_match: '"command":"(?:[^"\\]|\\.)*?(?:diff-filter|\bgit\s+(?:-C\s+\S+\s+)?(?:log|whatchanged|rev-list)\b)'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:--diff-filter|\bgit\s+(?:-C\s+\S+\s+)?log\b(?:[^"\\]|\\.)*?--name-(?:only|status)\b|\brev-list\b(?=(?:[^"\\]|\\.)*--all\b)(?=(?:[^"\\]|\\.)*--objects\b))'
     min: 0
     max: 0
   - name: no-findings-write

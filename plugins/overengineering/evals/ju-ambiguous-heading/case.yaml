@@ -36,7 +36,7 @@ graders:
     flags: i
   - name: offers-whole-file
     type: regex
-    pattern: '(?:^|(?<=[.!?;:]\s))(?!(?:[^\n.!?;]|\.(?=\S))*(?:\bnot\b|n''t\b|\bnever\b)(?:[^\n.!?;]|\.(?=\S))*\b(?:whole|entire|full)[- ]file)(?:[^\n.!?;]|\.(?=\S))*\b(?:whole[- ]file|entire file|full file)\b|\b(?:target|judge|point at|justify)\b[^\n]{0,30}`?docs/runbook\.md`?(?!#)(?:\s+as a whole|\s+itself|\s+instead|`?\s*\(the whole)'
+    pattern: '(?:^|(?<=[.!?;:]\s))(?!(?:[^\n.!?;]|\.(?=\S))*(?:\bnot\b|n''t\b|\bnever\b)(?:[^\n.!?;]|\.(?=\S))*\b(?:whole|entire|full)[- ]file)(?:[^\n.!?;]|\.(?=\S))*\b(?:whole[- ]file|entire file|full file)\b|(?<!n''t )(?<!not )(?<!never )\bre-?run\b[^\n]{0,60}\bjustify\s+docs/runbook\.md(?![#\w])|\b(?:target|judge|point (?:me )?at|justify)\b[^\n]{0,30}`?docs/runbook\.md`?(?!#)(?:\s+as a whole|\s+itself|\s+instead|`?\s*\(the whole)'
     flags: i
   - name: offers-rename
     type: regex

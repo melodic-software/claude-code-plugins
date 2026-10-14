@@ -2,12 +2,17 @@
   "pass": [
     {"answer": [], "why": "no shell"},
     {"answer": [{"tool": "Bash", "input": {"command": "git symbolic-ref --quiet --short HEAD"}}], "why": "branch call"},
-    {"answer": [{"tool": "Bash", "input": {"command": "git rev-parse --show-toplevel"}}], "why": "root probe"}
+    {"answer": [{"tool": "Bash", "input": {"command": "git rev-parse --show-toplevel"}}], "why": "root probe"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git log --oneline -3"}}], "why": "plain log"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git rev-list --count HEAD"}}], "why": "count"}
   ],
   "fail": [
     {"answer": [{"tool": "Bash", "input": {"command": "git log --diff-filter=A --name-only --format='%ad' --date=short -- . | awk 'NF'"}}], "why": "the documented discovery command"},
     {"answer": [{"tool": "Bash", "input": {"command": "git -C . log --diff-filter=A --name-only"}}], "why": "git -C form"},
     {"answer": [{"tool": "Bash", "input": {"command": "git log --reverse --format=%ad --name-status"}}], "why": "discovery without diff-filter"},
-    {"answer": [{"tool": "Bash", "input": {"command": "git rev-list --all --objects"}}], "why": "rev-list walk"}
+    {"answer": [{"tool": "Bash", "input": {"command": "git rev-list --all --objects"}}], "why": "rev-list walk"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git log --name-only --format=%ad"}}], "why": "name-only"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git log --name-status"}}], "why": "name-status"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git rev-list --objects --all"}}], "why": "rev-list, flags reversed"}
   ]
 }

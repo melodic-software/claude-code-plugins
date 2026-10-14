@@ -3,7 +3,8 @@
     {"answer": "No findings artifact exists at `.work/overengineering/feat-ci-cleanup/findings.md`, so there is nothing to realign. Run `overengineering:audit` to walk the enforcement surface, or `overengineering:justify` for one artifact."},
     {"answer": "Stopping: the findings artifact at .work/overengineering/feat-ci-cleanup/findings.md does not exist."},
     {"answer": "`findings.md` is missing from the resolved home `.work/overengineering/feat-ci-cleanup/`."},
-    {"answer": "There is no artifact to work from, so I changed nothing."}
+    {"answer": "There is no artifact to work from, so I changed nothing."},
+    {"answer": "I found no `findings.md` under `.work/overengineering/feat-ci-cleanup/`."}
   ],
   "fail": [
     {"answer": ""},

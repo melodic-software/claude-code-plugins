@@ -1,23 +1,18 @@
 #!/usr/bin/env bash
 # Seeds the eval workspace from fixture files.
-# Usage: oe-seed.sh <branch|--no-git> <token>...
+# Usage: oe-seed.sh <branch> <token>...
 # Tokens: <fixture-file> <dest-path> copies a fixture (stored with a .txt
 # suffix so no scanner reads it as source) and stages it unless git ignores it;
 # --commit <message> commits what is staged; --detach detaches HEAD.
-# Anything still staged at the end is committed. --no-git copies files only.
+# Anything still staged at the end is committed.
 set -euo pipefail
 
 fixtures="$(dirname "${BASH_SOURCE[0]}")"
 branch="$1"
 shift
-use_git=true
-if [[ "$branch" == "--no-git" ]]; then
-  use_git=false
-else
-  git init -q -b "$branch"
-  git config user.name eval
-  git config user.email eval@example.invalid
-fi
+git init -q -b "$branch"
+git config user.name eval
+git config user.email eval@example.invalid
 
 commit_staged() {
   if ! git diff --cached --quiet; then
@@ -44,13 +39,11 @@ while [[ $# -gt 0 ]]; do
         *.sh | .githooks/*) chmod +x "$dest" ;;
         *) ;;
       esac
-      if "$use_git" && ! git check-ignore -q "$dest"; then
+      if ! git check-ignore -q "$dest"; then
         git add "$dest"
       fi
       ;;
   esac
 done
 
-if "$use_git"; then
-  commit_staged "add fixtures"
-fi
+commit_staged "add fixtures"

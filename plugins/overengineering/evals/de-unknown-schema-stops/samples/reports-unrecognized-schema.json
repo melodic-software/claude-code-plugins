@@ -6,7 +6,10 @@
     {"answer": "Stopping: the findings artifact at `.work/overengineering/main/findings.md` declares `schema: 9`, which is unrecognized (only 1 and 2 are). The audit was not invoked and no baseline was written."},
     {"answer": "Unrecognized schema 9 in findings.md; stopping before the audit."},
     {"answer": "Schema 9 is not supported by this lane, so the run stops here."},
-    {"answer": "The artifact carries an unknown `schema: nine`... stopping."}
+    {"answer": "The artifact carries an unknown `schema: nine`... stopping."},
+    {"answer": "The artifact declares `schema: 9`, which delta doesn't recognize; only 1 and 2 are supported. Stopping."},
+    {"answer": "Stopping: `findings.md` has `schema: 9`. This lane reads only schemas 1 and 2."},
+    {"answer": "...the artifact's schema (9) is not one I can read."}
   ],
   "fail": [
     {"answer": "```yaml\nschema: 2\n```\n\nOnly schemas `1` and `2` are recognized, so the audit runs.", "why": "recognized schema"},
@@ -15,6 +18,11 @@
     {"answer": "Unknown schemas would stop the run, but this one is fine. Bootstrapping the baseline.", "why": "warning only, no 9"},
     {"answer": "Schema 9 recognized; capturing the bootstrap baseline.", "why": "accepts it"},
     {"answer": "Schema 2 is unsupported here.", "why": "wrong number"},
-    {"answer": "Read-only pass; realign is never entered. Running the audit now.", "why": "no stop"}
+    {"answer": "Read-only pass; realign is never entered. Running the audit now.", "why": "no stop"},
+    {"answer": "The artifact declares `schema: 9`, which delta recognizes. Bootstrapping the baseline.", "why": "recognized, never says unsupported"},
+    {"answer": "The artifact declares `schema: 2`, which delta doesn't recognize.", "why": "wrong number"},
+    {"answer": "`findings.md` has `schema: 2`. This lane reads only schemas 1 and 2.", "why": "wrong number"},
+    {"answer": "The artifact's schema (2) is not one I can read.", "why": "wrong number"},
+    {"answer": "This lane does not read only schemas 1 and 2; schema: 9 is fine.", "why": "negated"}
   ]
 }

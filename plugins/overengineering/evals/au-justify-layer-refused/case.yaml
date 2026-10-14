@@ -24,10 +24,16 @@ graders:
     input_match: '"file_path":"[^"]*findings\.md"'
     min: 0
     max: 0
+  - name: no-findings-shell-write
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<![0-9&>])>{1,2}|\btee\b|\bmv\b|\bcp\b)(?:[^"\\]|\\.)*?findings\.md'
+    min: 0
+    max: 0
   - name: names-justify
     type: regex
     pattern: '\boverengineering:justify\b'
   - name: refuses-documents-layer
     type: regex
-    pattern: '\bdocuments\b`?[^\n]{0,120}(?:\bjustification(?:-| )(?:lane|layers?)\b|\bnot (?:an? |one of the (?:ten )?)?enforcement layers?\b|\bisn''t (?:an? )?enforcement layer\b|\boutside (?:this|the audit''s|the enforcement)\b|(?<!won''t )(?<!not )(?<!n''t )\b(?:refus|declin)\w*)|(?<!won''t )(?<!not )(?<!n''t )\b(?:refus|declin)\w*\b[^\n]{0,120}\bdocuments\b|\b(?:can''t|cannot|can not|won''t|will not)\s+(?:run|walk|audit)\b[^\n]{0,40}\bdocuments\b'
+    pattern: '\bdocuments\b`?[^\n]{0,120}(?:\bjustification(?:-| )(?:lane|layers?)\b|\bnot (?:an? |one of the (?:ten )?)?enforcement layers?\b|\bisn''t (?:an? )?enforcement layer\b|\boutside (?:this|the audit''s|the (?:ten )?enforcement)\b|(?<!not )(?<!n''t )\bbelongs to\b[^\n]{0,40}\bjustify\b|(?<!won''t )(?<!not )(?<!n''t )\b(?:refus|declin)\w*)|(?<!won''t )(?<!not )(?<!n''t )\b(?:refus|declin)\w*\b[^\n]{0,120}\bdocuments\b|\b(?:can''t|cannot|can not|won''t|will not)\s+(?:run|walk|audit)\b[^\n]{0,40}\bdocuments\b'
     flags: i

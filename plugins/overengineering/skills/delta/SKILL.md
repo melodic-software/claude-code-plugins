@@ -242,6 +242,10 @@ The `context/` files write the plugin's root directory as `<plugin-root>`, which
 records why, with the pointer to recheck. **As of**: 2026-10-11. **Recheck trigger**: that section is
 renamed or removed, or its own recheck trigger fires.
 
+## Next
+
+`/overengineering:realign`. It acts on the queued verdict changes, one finding at a time.
+
 ## Gotchas
 
 - **The baseline is the previous cycle's post-audit spine, captured at the end of that cycle.** A

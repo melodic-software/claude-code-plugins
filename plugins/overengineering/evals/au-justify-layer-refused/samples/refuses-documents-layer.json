@@ -5,13 +5,17 @@
     {"answer": "Refusing the `documents` layer: it belongs to the justification lane, which `/overengineering:justify` walks one target at a time."},
     {"answer": "`documents` is not one of the ten enforcement layers this audit walks; use `/overengineering:justify docs/setup.md`."},
     {"answer": "I'm declining that scope. documents is a justification-lane layer."},
-    {"answer": "The documents layer is outside this audit's scope, so I declined it."}
+    {"answer": "The documents layer is outside this audit's scope, so I declined it."},
+    {"answer": "`documents` belongs to `/overengineering:justify`, not the audit."},
+    {"answer": "The `documents` layer is outside the ten enforcement layers this audit walks."}
   ],
   "fail": [
     {"answer": ""},
     {"answer": "Walking the documents layer: found docs/setup.md and docs/changelog.md.", "why": "walked it"},
     {"answer": "I won't refuse the documents layer; walking it now.", "why": "negated refusal"},
     {"answer": "Read-only pass; the only file written is the findings artifact at .work/overengineering/main/findings.md.", "why": "proceeded with a walk"},
-    {"answer": "Run `/overengineering:justify` for one target.", "why": "pointer without refusing the layer"}
+    {"answer": "Run `/overengineering:justify` for one target.", "why": "pointer without refusing the layer"},
+    {"answer": "`documents` does not belongs to `/overengineering:justify`; walking it now.", "why": "negated"},
+    {"answer": "The `documents` layer is inside the ten enforcement layers this audit walks.", "why": "walks it"}
   ]
 }
