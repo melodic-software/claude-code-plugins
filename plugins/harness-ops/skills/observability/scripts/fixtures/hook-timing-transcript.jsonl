@@ -1,0 +1,13 @@
+{"type":"user","message":{"role":"user","content":"hand-built fixture"},"uuid":"u0","sessionId":"s"}
+{"type":"system","subtype":"stop_hook_summary","hookCount":2,"hookInfos":[{"command":"bash a.sh","durationMs":100},{"command":"touch hook-ran","durationMs":300}],"uuid":"u1","sessionId":"s"}
+{"type":"system","subtype":"stop_hook_summary","hookCount":2,"hookInfos":[{"command":"bash a.sh","durationMs":200},{"command":"touch hook-ran","durationMs":500}],"uuid":"u2","sessionId":"s"}
+{"type":"system","subtype":"stop_hook_summary","hookCount":2,"hookInfos":[{"command":"bash a.sh","durationMs":900},{"command":"touch hook-ran","durationMs":100}],"uuid":"u3","sessionId":"s"}
+{"type":"attachment","attachment":{"type":"hook_success","hookName":"Stop","hookEvent":"Stop","command":"bash a.sh","durationMs":5000,"exitCode":0,"stdout":"FIXTURE-STDOUT","stderr":"","content":"FIXTURE-CONTENT"},"uuid":"u4","sessionId":"s"}
+{"type":"attachment","attachment":{"type":"hook_success","hookName":"PreToolUse:Bash","toolUseID":"t1","hookEvent":"PreToolUse","command":"bash guard.sh","durationMs":40,"exitCode":0,"stdout":"FIXTURE-STDOUT","stderr":"","content":""},"uuid":"u5","sessionId":"s"}
+{"type":"attachment","attachment":{"type":"hook_non_blocking_error","hookName":"PreToolUse:Bash","toolUseID":"t1","hookEvent":"PreToolUse","command":"bash lint.sh","durationMs":120,"exitCode":1,"stdout":"","stderr":"FIXTURE-STDERR"},"uuid":"u6","sessionId":"s"}
+{"type":"attachment","attachment":{"type":"hook_success","hookName":"PreToolUse:Bash","toolUseID":"t2","hookEvent":"PreToolUse","command":"bash guard.sh","durationMs":60,"exitCode":0,"stdout":"","stderr":""},"uuid":"u7","sessionId":"s"}
+{"type":"attachment","attachment":{"type":"hook_success","hookName":"PreToolUse:Bash","toolUseID":"t3","hookEvent":"PreToolUse","command":"bash guard.sh","durationMs":80,"exitCode":0,"stdout":"","stderr":""},"uuid":"u8","sessionId":"s"}
+{"type":"attachment","attachment":{"type":"hook_success","hookName":"PreToolUse:Bash","toolUseID":"t3","hookEvent":"PreToolUse","command":"bash lint.sh","durationMs":20,"exitCode":0,"stdout":"","stderr":""},"uuid":"u9","sessionId":"s"}
+{"type":"attachment","attachment":{"type":"hook_success","hookName":"UserPromptSubmit","hookEvent":"UserPromptSubmit","command":"bash ctx.sh","durationMs":30,"exitCode":0,"stdout":"FIXTURE-STDOUT","stderr":""},"uuid":"u10","sessionId":"s"}
+{"type":"assistant","message":{"content":[{"type":"text","text":"quoted: {\"type\":\"hook_success\",\"durationMs\":99999}"}]},"uuid":"u11","sessionId":"s"}
+{"truncated last line

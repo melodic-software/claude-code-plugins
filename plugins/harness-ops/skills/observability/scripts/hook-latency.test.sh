@@ -135,6 +135,18 @@ else
 fi
 assert_routes "missing store"
 
+# --transcript fallback: the hand-built fixture's Stop p50/p95 are 500/860 (see
+# hook-transcript-timing.test.sh); its PreToolUse rows are sampled, so a budget never flags them.
+if command -v jq >/dev/null 2>&1; then
+  run "$TMP/missing" --transcript "$SCRIPT_DIR/fixtures/hook-timing-transcript.jsonl" --budget Stop=800 --budget PreToolUse=1
+  assert_eq "missing store with --transcript reads the transcript" 1 "$rc"
+  assert_contains "the fallback names lane unknown and the sampled caveat" "$out" "lane unknown; sampled rows get no budget"
+  assert_contains "the fallback flags Stop p95 860 over 800" "$out" "unknown"$'\t'"Stop"$'\t'"3"$'\t'"500"$'\t'"860"$'\t'"800"$'\t'"p95>budget"
+  assert_contains "the fallback leaves sampled rows unflagged" "$out" "n/a"$'\t'"sampled"
+else
+  skip_case "jq not found — skipping the --transcript fallback"
+fi
+
 # duckdb missing: PATH without every directory that holds a duckdb.
 nodb_path=""
 IFS=: read -ra path_dirs <<<"$PATH"

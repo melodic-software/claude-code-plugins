@@ -342,6 +342,10 @@ If /doctor is available in your session (claim: `/doctor` is reserved for the pe
   `stop_hook_summary` nor `durationMs`; verified 2026-09-27; recheck when the hooks page
   documents a per-hook timing record, or when a filtered transcript returns no
   `stop_hook_summary` record in a session whose Stop hooks ran.
+  For other events' hooks, filter to the timing fields:
+  `jq -c 'select(.type == "attachment") | .attachment | select(.type == "hook_success" or .type == "hook_non_blocking_error") | {hookEvent, hookName, command, durationMs}' <session>.jsonl`.
+  `/harness-ops:observability hooks <session>.jsonl` reads both shapes and owns the record of
+  their keys and stability.
 - **A single spawn number, unlabeled by machine state, is worse than no number.** The floor
   itself moves with load, so a reading taken under a storm looks like a permanent property of the
   machine and is not one. Every quoted timing carries its `concurrent_processes_at_sample`, and a
