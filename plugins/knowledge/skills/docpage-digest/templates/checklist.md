@@ -23,7 +23,8 @@ collision check reads them to tell a resume from a slug collision.
       for a markdown or rendered-text channel (plus the raw `source.html` where the profile
       requires it, to recover chart, diagram, alt, and caption text), or `source.pdf` **plus**
       its `source.txt` extraction for a PDF original (both are originals; name the extraction tooling above)
-- [ ] Phase 2: Inventory, with `SOURCES.md` written (headings, themes, digest map, status rows)
+- [ ] Phase 2: Inventory, with `SOURCES.md` written (headings, themes, digest map, status rows,
+      relied-on links read from the snapshot)
 - [ ] Phase 3: Digest fan-out, one agent per digest unit → `digests/NN-slug.md` (fixed
       structure; verbatim quotes in column-0 fences under bold `**CN.**` labels)
 - [ ] Phase 4: Dual verification: pin-manifest written on agent-reported completion; standing
@@ -31,7 +32,8 @@ collision check reads them to tell a resume from a slug collision.
       carry `**FN.**` rows quoted from `source.html`) PASS; Verifier A (same-vendor) +
       Verifier B (cross-vendor) verdicts in `verification/` (append-only; each arm states the
       hashes it audited; degraded fallback / death-ladder recorded, never silent)
-- [ ] Phase 5: Interview handoff, with `interview-handoff.md` authored and its own commands replayed
+- [ ] Phase 5: Interview handoff, with `interview-handoff.md` authored (relied-on-links table: one
+      disposition per link, covered / queued / skipped with a reason) and its own commands replayed
       (every Phase 4 check precedes it); `/planning:interview` run or artifact presented
 
 ## Skip criteria

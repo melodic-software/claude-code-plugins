@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/home/<user>/.claude/plugins/multi-agent/reference/defaults.yaml"
+          }
+        }
+      ],
+      "why": "read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "opus|sonnet|effort",
+            "path": "docs"
+          }
+        }
+      ],
+      "why": "grep sweep"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: subagent\nreason: 42 independent files with the same edit would suit a workflow, but the Workflow tool is not callable in this session, so downgraded to subagent; 42 workers, 4 at a time\nshape: sections\n",
+      "why": "sections"
+    },
+    {
+      "answer": "```text\nverdict: subagent\nreason: 42 independent same-step items; no Workflow tool in this session, downgraded to subagents\nshape: sections\n```\n",
+      "why": "sections in fence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: subagent\nreason: x\nshape: race (first to pass)\n",
+      "why": "race"
+    },
+    {
+      "answer": "verdict: subagent\nreason: x\nshape: mixed\n",
+      "why": "mixed"
+    },
+    {
+      "answer": "verdict: subagent\nreason: x, split into sections\n",
+      "why": "no shape line"
+    }
+  ]
+}

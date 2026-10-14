@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: single\nreason: one 30-line function in one file, one dependent chain that fits this context\n",
+      "why": "single"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: subagent\nreason: x\nshape: sections\n",
+      "why": "subagent"
+    },
+    {
+      "answer": "verdict: single or subagent\nreason: x\n",
+      "why": "hedged"
+    }
+  ]
+}

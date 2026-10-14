@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "Preview (nothing written yet):\n\n```diff\n+schema: 1\n+fanout:\n+  frontier_guard: false\n+roles:\n+  worker:\n+    effort: high\n```\n\n`fanout.frontier_guard=false` opts in to frontier fan-outs: every parallel worker then runs on the session model, so under a Fable session every agent of a fan-out stage runs on the frontier model.\n\nPlease confirm `fanout.frontier_guard=false` on its own, separately from `roles.worker.effort=high`. Shall I write both, only the effort change, or neither?\n",
+      "why": "every parallel worker runs on the session model"
+    },
+    {
+      "answer": "note: fanout.frontier_guard false lets fan-out stages run on a frontier session model\n",
+      "why": "script note relayed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The guard keeps fan-out stages off the frontier model; you are turning it off.\n",
+      "why": "states the guard, not the consequence"
+    },
+    {
+      "answer": "With the guard on, fan-out stages never run on a frontier model.\n",
+      "why": "negated"
+    },
+    {
+      "answer": "Fan-out workers will not run on Fable after this.\n",
+      "why": "negated, wrong direction"
+    },
+    {
+      "answer": "Turning the guard off is fine; no cost change.\n",
+      "why": "no consequence"
+    },
+    {
+      "answer": "The guard keeps fan-out workers from running on the frontier model.\n",
+      "why": "states what the guard prevents"
+    },
+    {
+      "answer": "Today, under a Fable session, any parallel agent that would land on a frontier model is moved to `opus` instead.\n",
+      "why": "rewritten from a measured reply, guard-on sentence alone: what the guard does today"
+    },
+    {
+      "answer": "Do you want fan-out stages to run on the frontier session model?\n",
+      "why": "asked, not stated"
+    }
+  ]
+}

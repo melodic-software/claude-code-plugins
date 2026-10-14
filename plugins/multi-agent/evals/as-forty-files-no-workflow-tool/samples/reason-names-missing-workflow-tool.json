@@ -1,0 +1,110 @@
+{
+  "pass": [
+    {
+      "answer": "verdict: subagent\nreason: 42 independent files with the same edit would suit a workflow, but the Workflow tool is not callable in this session, so downgraded to subagent; 42 workers, 4 at a time\nshape: sections\n",
+      "why": "tool not callable"
+    },
+    {
+      "answer": "```text\nverdict: subagent\nreason: 42 independent same-step items; no Workflow tool in this session, downgraded to subagents\nshape: sections\n```\n",
+      "why": "no Workflow tool"
+    },
+    {
+      "answer": "verdict: subagent\nreason: forty-two independent items; workflows unavailable here (Workflow missing from the toolset)\nshape: sections\n",
+      "why": "workflows unavailable"
+    },
+    {
+      "answer": "verdict: subagent\nreason: The same one-line edit lands on 42 independent files, a workflow-shaped job. The switch script prints `not-off`, yet the `Workflow` tool isn't callable in this session, so the verdict falls back to subagent. Spread the files over a handful of subagents rather than 42 workers.\nshape: sections\n",
+      "why": "rewritten from a smoke reply: backticked tool name, isn't callable"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 independent items; the Workflow tool wasn't available, so subagents\nshape: sections\n",
+      "why": "wasn't available"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 independent items; `Workflow` is not in this session's tools, downgraded to subagent\nshape: sections\n",
+      "why": "not in this session's tools"
+    },
+    {
+      "answer": "verdict: subagent\nreason: The same edit across 42 independent files would usually be a workflow, but that is ruled out here: the switch check reports `not-off`, yet the `Workflow` tool isn't one I can call, so it falls to subagent. The 42 comes from the task; src/handlers/ is absent from the current directory, so I could not count the files myself.\nshape: sections\n",
+      "why": "rewritten from a measured reply: isn't one I can call"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 identical edits, one per independent file, would suit a workflow, but I don't have the Workflow tool in this session (the off-switch script reported `not-off`), so the verdict drops to subagent. There is no src/handlers/ here, so 42 is the task's count, not mine.\nshape: sections\n",
+      "why": "rewritten from a measured reply: I don't have the Workflow tool"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 same-step items; I can't call the `Workflow` tool here, so subagents\nshape: sections\n",
+      "why": "can't call the tool"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 same-step items; `Workflow` is not among my callable tools, so subagents\nshape: sections\n",
+      "why": "not among my callable tools"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "verdict: subagent\nreason: 42 independent files with the same edit; a workflow fits but subagents are simpler\nshape: sections\n",
+      "why": "no availability reason"
+    },
+    {
+      "answer": "verdict: subagent\nreason: Workflow tool is available and not-off; 42 independent items\nshape: sections\n",
+      "why": "says the tool is available"
+    },
+    {
+      "answer": "verdict: subagent\nreason: workflows not-off per the script; 42 items\nshape: sections\n",
+      "why": "not-off read as availability"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 files\nshape: sections\nThe Workflow tool is not callable here.\n",
+      "why": "tool named outside the reason line"
+    },
+    {
+      "answer": "verdict: subagent\nreason: the `Workflow` tool is callable in this session; 42 independent items split across subagents\nshape: sections\n",
+      "why": "backticked tool said callable"
+    },
+    {
+      "answer": "verdict: subagent\nreason: the `Workflow` tool isn't missing here, but 42 items fit a few subagents\nshape: sections\n",
+      "why": "negated: isn't missing"
+    },
+    {
+      "answer": "verdict: subagent\nreason: the Workflow tool is not unavailable; 42 items\nshape: sections\n",
+      "why": "negated: not unavailable"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 files; no Workflow tool needed, a few subagents suffice\nshape: sections\n",
+      "why": "no tool needed, not unavailable"
+    },
+    {
+      "answer": "verdict: subagent\nreason: the `Workflow` tool is callable; worker slots are not available above 4, so subagents\nshape: sections\n",
+      "why": "negation in another clause"
+    },
+    {
+      "answer": "verdict: subagent\nreason: is the Workflow tool unavailable here? 42 items either way\nshape: sections\n",
+      "why": "asked, not stated"
+    },
+    {
+      "answer": "verdict: subagent\nreason: I don't have a reason to avoid the Workflow tool; 42 items\nshape: sections\n",
+      "why": "don't have, about something else"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 independent files; batch across a few subagents without workflow overhead.\nshape: sections\n",
+      "why": "review: without workflow overhead, no tool named"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 same-step files, so no workflow script is worth writing for this.\nshape: sections\n",
+      "why": "review: no workflow script, no tool named"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 files; no switch has workflows off, so size alone decides\nshape: sections\n",
+      "why": "review: workflows not switched off"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 files; workflows are unavailable here, so subagents\nshape: sections\n",
+      "why": "workflows unavailable without naming the tool"
+    },
+    {
+      "answer": "verdict: subagent\nreason: 42 files; no `Workflow` overhead is worth it here\nshape: sections\n",
+      "why": "backticked name used as a modifier"
+    }
+  ]
+}
